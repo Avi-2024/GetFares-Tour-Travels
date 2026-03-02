@@ -1,0 +1,411 @@
+{
+  "info": {
+    "name": "Travel CRM - Sprint 1 APIs",
+    "description": "Postman collection for Health, Auth, Leads, RBAC, and Webhooks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "d4ef9fc6-51b7-4f9b-9cb0-3bd8e1e7e6f7"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "password", "value": "StrongPass123" },
+    { "key": "seed", "value": "" },
+    { "key": "email", "value": "" },
+    { "key": "leadEmail", "value": "" },
+    { "key": "leadPhone", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "leadId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00 - Smoke",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {", 
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Postman Tester\",\n  \"email\": \"{{email}}\",\n  \"phone\": \"+919999999999\",\n  \"password\": \"{{password}}\",\n  \"role\": \"sales_consultant\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const seed = Date.now().toString().slice(-8);",
+                  "pm.collectionVariables.set('seed', seed);",
+                  "pm.collectionVariables.set('email', `postman-${seed}@example.com`);",
+                  "pm.collectionVariables.set('leadEmail', `lead-${seed}@example.com`);",
+                  "pm.collectionVariables.set('leadPhone', `9198${Math.floor(100000 + Math.random() * 900000)}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {", 
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data.accessToken).to.be.a('string');",
+                  "pm.expect(json.data.user.id).to.be.a('string');",
+                  "pm.collectionVariables.set('token', json.data.accessToken);",
+                  "pm.collectionVariables.set('userId', json.data.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {", 
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data.accessToken).to.be.a('string');",
+                  "pm.collectionVariables.set('token', json.data.accessToken);",
+                  "pm.collectionVariables.set('userId', json.data.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {", 
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data.email).to.eql(pm.collectionVariables.get('email'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Leads",
+      "item": [
+        {
+          "name": "Create Lead",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Test Lead {{seed}}\",\n  \"phone\": \"{{leadPhone}}\",\n  \"email\": \"{{leadEmail}}\",\n  \"source\": \"Website\",\n  \"budget\": 125000,\n  \"status\": \"OPEN\",\n  \"utmSource\": \"website\",\n  \"utmMedium\": \"organic\",\n  \"utmCampaign\": \"spring_test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {", 
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data.id).to.be.a('string');",
+                  "pm.collectionVariables.set('leadId', json.data.id);",
+                  "pm.expect(['HOT','WARM','COLD']).to.include(json.data.temperature);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {", 
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data).to.be.an('array');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate Lead Check",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Test Lead {{seed}}\",\n  \"phone\": \"{{leadPhone}}\",\n  \"email\": \"{{leadEmail}}\",\n  \"source\": \"Website\",\n  \"budget\": 125000,\n  \"status\": \"OPEN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409 for duplicate', function () {", 
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.error.code).to.eql('LEAD_DUPLICATE');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Webhooks",
+      "item": [
+        {
+          "name": "Meta Leads",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Webhook Meta {{seed}}\",\n  \"phone\": \"9197{{$randomInt}}\",\n  \"email\": \"meta-{{seed}}@example.com\",\n  \"utmSource\": \"meta\",\n  \"utmCampaign\": \"sprint1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/meta-leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "meta-leads"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 201', function () {", 
+                  "  pm.expect([200,201]).to.include(pm.response.code);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data.provider).to.eql('meta');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Website Enquiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Webhook Website {{seed}}\",\n  \"phone\": \"9196{{$randomInt}}\",\n  \"email\": \"website-{{seed}}@example.com\",\n  \"utmSource\": \"website\",\n  \"utmCampaign\": \"sprint1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/website-enquiry",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "website-enquiry"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 201', function () {", 
+                  "  pm.expect([200,201]).to.include(pm.response.code);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data.provider).to.eql('website');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "WhatsApp Enquiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Webhook WhatsApp {{seed}}\",\n  \"phone\": \"9195{{$randomInt}}\",\n  \"email\": \"whatsapp-{{seed}}@example.com\",\n  \"utmSource\": \"whatsapp\",\n  \"utmCampaign\": \"sprint1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/whatsapp-enquiry",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "whatsapp-enquiry"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 201', function () {", 
+                  "  pm.expect([200,201]).to.include(pm.response.code);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data.provider).to.eql('whatsapp');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - RBAC",
+      "item": [
+        {
+          "name": "My Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rbac/me/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rbac", "me", "permissions"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {", 
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.data.permissions).to.be.an('array');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
