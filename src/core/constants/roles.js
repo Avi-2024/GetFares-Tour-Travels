@@ -13,6 +13,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     'refunds:read',
     'complaints:read',
     'reports:read',
+    'notifications:read',
+    'notifications:update',
   ],
   sales_consultant: [
     'leads:*',
@@ -24,6 +26,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     'visa:read',
     'complaints:create',
     'complaints:read',
+    'notifications:read',
+    'notifications:update',
   ],
   visa_executive: [
     'visa:*',
@@ -32,6 +36,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     'bookings:read',
     'customers:read',
     'complaints:read',
+    'notifications:read',
+    'notifications:update',
   ],
   accounts: [
     'payments:*',
@@ -40,6 +46,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     'quotations:read',
     'customers:read',
     'reports:read',
+    'notifications:read',
+    'notifications:update',
   ],
   marketing: [
     'campaigns:*',
@@ -47,6 +55,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     'customers:read',
     'quotations:read',
     'reports:read',
+    'notifications:read',
+    'notifications:update',
   ],
   management: [
     'reports:read',
@@ -59,6 +69,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     'campaigns:read',
     'customers:read',
     'complaints:read',
+    'notifications:read',
+    'notifications:update',
   ],
 
   // Backward-compatible aliases
@@ -74,9 +86,19 @@ const ROLE_PERMISSIONS = Object.freeze({
     'refunds:read',
     'complaints:read',
     'reports:read',
+    'notifications:read',
+    'notifications:update',
   ],
-  finance: ['payments:*', 'refunds:*', 'bookings:read', 'customers:read', 'reports:read'],
-  support: ['complaints:*', 'customers:read', 'bookings:read'],
+  finance: [
+    'payments:*',
+    'refunds:*',
+    'bookings:read',
+    'customers:read',
+    'reports:read',
+    'notifications:read',
+    'notifications:update',
+  ],
+  support: ['complaints:*', 'customers:read', 'bookings:read', 'notifications:read', 'notifications:update'],
   agent: [
     'leads:*',
     'quotations:*',
@@ -87,6 +109,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     'complaints:create',
     'complaints:read',
     'visa:read',
+    'notifications:read',
+    'notifications:update',
   ],
 });
 

@@ -11,6 +11,7 @@ const { createCampaignsModule } = require('./campaigns');
 const { createCustomersModule } = require('./customers');
 const { createComplaintsModule } = require('./complaints');
 const { createWebhooksModule } = require('./webhooks');
+const { createNotificationsModule } = require('./notifications');
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -66,6 +67,12 @@ function registerModules(app, dependencies) {
   mountedModules.webhooks = webhooksModule;
   app.use('/api/webhooks', webhooksModule.router);
 
+  const notificationsModule = createNotificationsModule({
+    dependencies: featureDependencies,
+  });
+  mountedModules.notifications = notificationsModule;
+  app.use('/api/notifications', notificationsModule.router);
+
   return mountedModules;
 }
 
@@ -84,4 +91,5 @@ module.exports = {
   createCustomersModule,
   createComplaintsModule,
   createWebhooksModule,
+  createNotificationsModule,
 };

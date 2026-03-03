@@ -1,36 +1,37 @@
 {
-    "name":  "travel-crm-modular-monolith",
-    "version":  "1.0.0",
-    "private":  true,
-    "description":  "Enterprise-grade Travel CRM modular monolith with feature-based architecture.",
-    "main":  "src/index.js",
-    "engines":  {
-                    "node":  "\u003e=20.0.0"
-                },
-    "scripts":  {
-                    "start":  "node src/server.js",
-                    "dev":  "node src/server.js",
-                    "lint":  "node ./node_modules/eslint/bin/eslint.js .",
-                    "db:migrate":  "node scripts/migrate.js",
-                    "db:seed:rbac":  "node scripts/seed-rbac.js",
-                    "test:sprint1":  "node scripts/test-sprint1.js",
-                    "test:sprint2":  "node scripts/test-sprint2.js",
-                    "test:sprint3":  "node scripts/test-sprint3.js"
-                },
-    "dependencies":  {
-                         "bcryptjs":  "^2.4.3",
-                         "cors":  "^2.8.5",
-                         "dotenv":  "^16.5.0",
-                         "express":  "^4.21.2",
-                         "helmet":  "^8.1.0",
-                         "jsonwebtoken":  "^9.0.2",
-                         "pg":  "^8.13.3",
-                         "pino":  "^9.8.0",
-                         "pino-http":  "^10.5.0",
-                         "zod":  "^3.24.2"
-                     },
-    "devDependencies":  {
-                            "eslint":  "^9.22.0",
-                            "nodemon":  "^3.1.10"
-                        }
+    "name": "travel-crm-modular-monolith",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Enterprise-grade Travel CRM modular monolith with feature-based architecture.",
+    "main": "src/index.js",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "scripts": {
+        "start": "node src/server.js",
+        "dev": "node src/server.js",
+        "lint": "node ./node_modules/eslint/bin/eslint.js .",
+        "db:migrate": "node scripts/migrate.js",
+        "db:seed:rbac": "node scripts/seed-rbac.js",
+        "test:sprint1": "node scripts/test-sprint1.js",
+        "test:sprint2": "node scripts/test-sprint2.js",
+        "test:sprint3": "node scripts/test-sprint3.js"
+    },
+    "dependencies": {
+        "bcryptjs": "^2.4.3",
+        "cors": "^2.8.5",
+        "dotenv": "^16.5.0",
+        "express": "^4.21.2",
+        "helmet": "^8.1.0",
+        "jsonwebtoken": "^9.0.2",
+        "pg": "^8.13.3",
+        "pino": "^9.8.0",
+        "pino-http": "^10.5.0",
+        "socket.io": "^4.8.3",
+        "zod": "^3.24.2"
+    },
+    "devDependencies": {
+        "eslint": "^9.22.0",
+        "nodemon": "^3.1.10"
+    }
 }

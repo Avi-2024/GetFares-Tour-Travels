@@ -34,6 +34,13 @@ function createLeadsService({ repository, logger, events }) {
     return repository.normalizePhone(phone);
   }
 
+  function normalizeCurrency(currency, fallback = 'INR') {
+    if (!currency) {
+      return fallback;
+    }
+    return String(currency).trim().toUpperCase();
+  }
+
   function mapTemperatureToPriority(temperature) {
     if (temperature === LEAD_TEMPERATURE.HOT) {
       return 3;
@@ -116,6 +123,9 @@ function createLeadsService({ repository, logger, events }) {
       full_name: payload.fullName,
       phone: normalizePhone(payload.phone),
       email: normalizeEmail(payload.email),
+      pan_number: payload.panNumber || null,
+      address_line: payload.addressLine || null,
+      client_currency: normalizeCurrency(payload.clientCurrency, 'INR'),
       destination_id: payload.destinationId || null,
       travel_date: payload.travelDate || null,
       budget: payload.budget ?? null,
@@ -148,6 +158,15 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.email !== undefined) {
       mapped.email = normalizeEmail(payload.email);
+    }
+    if (payload.panNumber !== undefined) {
+      mapped.pan_number = payload.panNumber;
+    }
+    if (payload.addressLine !== undefined) {
+      mapped.address_line = payload.addressLine;
+    }
+    if (payload.clientCurrency !== undefined) {
+      mapped.client_currency = normalizeCurrency(payload.clientCurrency, 'INR');
     }
     if (payload.destinationId !== undefined) {
       mapped.destination_id = payload.destinationId;

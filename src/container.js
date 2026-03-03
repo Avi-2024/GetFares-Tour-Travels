@@ -2,17 +2,20 @@ const EventEmitter = require('node:events');
 const { config } = require('./core/config');
 const { logger } = require('./core/logger');
 const { createDatabaseConnection } = require('./core/database');
+const { createSocketEventPublisher } = require('./core/realtime');
 const coreMiddlewares = require('./core/middlewares');
 
 function createContainer(overrides = {}) {
   const eventBus = overrides.eventBus || new EventEmitter();
   const db = overrides.db || createDatabaseConnection({ config, logger });
+  const eventPublisher = overrides.eventPublisher || createSocketEventPublisher({ logger });
 
   return {
     config,
     logger,
     db,
     eventBus,
+    eventPublisher,
     middlewares: {
       ...coreMiddlewares,
       requireAuth: (req, res, next) => next(),
