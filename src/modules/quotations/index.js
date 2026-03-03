@@ -1,13 +1,13 @@
-const { QuotationsController } = require('./quotations.controller');
-const { QuotationsService } = require('./quotations.service');
-const { QuotationsRepository } = require('./quotations.repository');
+﻿const { createQuotationsController } = require('./quotations.controller');
+const { createQuotationsService } = require('./quotations.service');
+const { createQuotationsRepository } = require('./quotations.repository');
 const { createQuotationsRoutes } = require('./quotations.routes');
 const { QuotationsValidation } = require('./quotations.validation');
 const { QuotationsSchema } = require('./quotations.schema');
 const { createQuotationsEvents } = require('./quotations.events');
 
 function createQuotationsModule({ dependencies }) {
-  const repository = new QuotationsRepository({
+  const repository = createQuotationsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
     schema: QuotationsSchema,
@@ -18,13 +18,13 @@ function createQuotationsModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new QuotationsService({
+  const service = createQuotationsService({
     repository,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = new QuotationsController({ service });
+  const controller = createQuotationsController({ service });
 
   const router = createQuotationsRoutes({
     controller,
