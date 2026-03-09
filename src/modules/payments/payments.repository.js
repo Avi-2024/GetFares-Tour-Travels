@@ -182,19 +182,57 @@ function createPaymentsRepository({ db, logger, schema }) {
         });
     },
 
-    findById(id) {
-      return db.findById(schema.tableName, id);
+    async findById(id) {
+      const row = await db.findById(schema.tableName, id);
+      return toPayment(row);
     },
 
-    create(payload) {
-      logger.debug({ module: 'payments', payload }, 'Creating record');
-      return db.insert(schema.tableName, payload);
+    async create(payload) {
+      logger.debug({ module: 'payments', payload }, 'Creating payment');
+      const row = await db.insert(schema.tableName, payload);
+      return toPayment(row);
     },
 
-    update(id, payload) {
-      logger.debug({ module: 'payments', id, payload }, 'Updating record');
-      return db.update(schema.tableName, id, payload);
+    async update(id, payload) {
+      logger.debug({ module: 'payments', id, payload }, 'Updating payment');
+      const row = await db.update(schema.tableName, id, payload);
+      return toPayment(row);
     },
+
+    async findBookingById(id) {
+      const row = await db.findById(schema.bookingsTable, id);
+      return toBooking(row);
+    },
+
+    async updateBooking(id, payload) {
+      const row = await db.update(schema.bookingsTable, id, payload);
+      return toBooking(row);
+    },
+
+    async getVerifiedPaidAmount(bookingId) {
+      if (canUseRawQuery()) {
+        const result = await db.query(
+          `
+            SELECT COALESCE(SUM(amount), 0) AS paid_amount
+            FROM ${schema.tableName}
+            WHERE booking_id = $1
+              AND COALESCE(is_verified, FALSE) = TRUE
+              AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+          `,
+          [bookingId],
+        );
+
+        return toNumber(result.rows[0]?.paid_amount, 0);
+      }
+
+      const rows = await db.findMany(schema.tableName, { booking_id: bookingId });
+      return rows
+        .filter((row) => toBoolean(row.is_verified ?? row.isVerified, false))
+        .filter((row) => (row.status ?? 'PENDING') !== 'REFUNDED')
+        .reduce((sum, row) => sum + toNumber(row.amount, 0), 0);
+    },
+
+    getProcessedRefundAmount,
   });
 }
 
