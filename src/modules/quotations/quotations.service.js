@@ -115,8 +115,6 @@ function createQuotationsService({ repository, logger, events }) {
       throw new AppError(400, 'Final price cannot be negative', 'QUOTATION_INVALID_FINAL_PRICE');
     }
 
-    const finalPrice = roundCurrency(taxableBase + taxAmount);
-
     return {
       components: normalizedComponents,
       totalCost,
@@ -826,5 +824,4 @@ function createQuotationsService({ repository, logger, events }) {
 module.exports = {
   createQuotationsService,
   QUOTATION_STATUS,
-  QUOTE_REMINDER_TYPES,
 };

@@ -220,4 +220,4 @@ function createRefundsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { RefundsRepository };
+module.exports = { createRefundsRepository };

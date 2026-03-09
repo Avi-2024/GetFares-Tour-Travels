@@ -1,13 +1,13 @@
-const { RefundsController } = require('./refunds.controller');
-const { RefundsService } = require('./refunds.service');
-const { RefundsRepository } = require('./refunds.repository');
+const { createRefundsController } = require('./refunds.controller');
+const { createRefundsService } = require('./refunds.service');
+const { createRefundsRepository } = require('./refunds.repository');
 const { createRefundsRoutes } = require('./refunds.routes');
 const { RefundsValidation } = require('./refunds.validation');
 const { RefundsSchema } = require('./refunds.schema');
 const { createRefundsEvents } = require('./refunds.events');
 
 function createRefundsModule({ dependencies }) {
-  const repository = new RefundsRepository({
+  const repository = createRefundsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
     schema: RefundsSchema,
@@ -18,13 +18,13 @@ function createRefundsModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new RefundsService({
+  const service = createRefundsService({
     repository,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = new RefundsController({ service });
+  const controller = createRefundsController({ service });
 
   const router = createRefundsRoutes({
     controller,

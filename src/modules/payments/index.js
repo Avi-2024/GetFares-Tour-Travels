@@ -1,13 +1,13 @@
-const { PaymentsController } = require('./payments.controller');
-const { PaymentsService } = require('./payments.service');
-const { PaymentsRepository } = require('./payments.repository');
+const { createPaymentsController } = require('./payments.controller');
+const { createPaymentsService } = require('./payments.service');
+const { createPaymentsRepository } = require('./payments.repository');
 const { createPaymentsRoutes } = require('./payments.routes');
 const { PaymentsValidation } = require('./payments.validation');
 const { PaymentsSchema } = require('./payments.schema');
 const { createPaymentsEvents } = require('./payments.events');
 
 function createPaymentsModule({ dependencies }) {
-  const repository = new PaymentsRepository({
+  const repository = createPaymentsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
     schema: PaymentsSchema,
@@ -18,13 +18,13 @@ function createPaymentsModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new PaymentsService({
+  const service = createPaymentsService({
     repository,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = new PaymentsController({ service });
+  const controller = createPaymentsController({ service });
 
   const router = createPaymentsRoutes({
     controller,

@@ -1,5 +1,10 @@
 function createLeadsRepository({ db, logger, schema }) {
   const ASSIGNABLE_ROLES = new Set(['sales_consultant', 'agent']);
+  const tableColumnsCache = new Map();
+
+  function canIntrospect() {
+    return typeof db.query === 'function' && Boolean(db.pool);
+  }
 
   function toPositiveInt(value, fallback, max = 500) {
     const parsed = Number(value);
@@ -128,6 +133,39 @@ function createLeadsRepository({ db, logger, schema }) {
       lastLogin: row.last_login ?? row.lastLogin ?? null,
       incentivePercent: Number(row.incentive_percent ?? row.incentivePercent ?? 0) || 0,
     };
+  }
+
+  async function getTableColumns(tableName) {
+    if (!canIntrospect()) {
+      return null;
+    }
+
+    if (tableColumnsCache.has(tableName)) {
+      return tableColumnsCache.get(tableName);
+    }
+
+    const result = await db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      [tableName],
+    );
+
+    const columns = new Set(result.rows.map((row) => row.column_name));
+    tableColumnsCache.set(tableName, columns);
+    return columns;
+  }
+
+  async function sanitizeForTable(tableName, payload = {}) {
+    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    if (!entries.length) {
+      return {};
+    }
+
+    const columns = await getTableColumns(tableName);
+    if (columns === null) {
+      return Object.fromEntries(entries);
+    }
+
+    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
   }
 
   function mapListFilters(filters = {}) {
@@ -410,13 +448,15 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async create(payload) {
       logger.debug({ module: 'leads', payload }, 'Creating lead');
-      const row = await db.insert(schema.tableName, payload);
+      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      const row = await db.insert(schema.tableName, sanitized);
       return toDomain(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: 'leads', id, payload }, 'Updating lead');
-      const row = await db.update(schema.tableName, id, payload);
+      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      const row = await db.update(schema.tableName, id, sanitized);
       return toDomain(row);
     },
 

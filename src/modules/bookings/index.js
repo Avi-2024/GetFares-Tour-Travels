@@ -1,13 +1,13 @@
-const { BookingsController } = require('./bookings.controller');
-const { BookingsService } = require('./bookings.service');
-const { BookingsRepository } = require('./bookings.repository');
+const { createBookingsController } = require('./bookings.controller');
+const { createBookingsService } = require('./bookings.service');
+const { createBookingsRepository } = require('./bookings.repository');
 const { createBookingsRoutes } = require('./bookings.routes');
 const { BookingsValidation } = require('./bookings.validation');
 const { BookingsSchema } = require('./bookings.schema');
 const { createBookingsEvents } = require('./bookings.events');
 
 function createBookingsModule({ dependencies }) {
-  const repository = new BookingsRepository({
+  const repository = createBookingsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
     schema: BookingsSchema,
@@ -18,13 +18,13 @@ function createBookingsModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new BookingsService({
+  const service = createBookingsService({
     repository,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = new BookingsController({ service });
+  const controller = createBookingsController({ service });
 
   const router = createBookingsRoutes({
     controller,

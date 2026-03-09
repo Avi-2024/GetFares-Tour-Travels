@@ -454,4 +454,4 @@ function createBookingsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { BookingsRepository };
+module.exports = { createBookingsRepository };

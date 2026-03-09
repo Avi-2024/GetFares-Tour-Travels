@@ -236,4 +236,4 @@ function createPaymentsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { PaymentsRepository };
+module.exports = { createPaymentsRepository };
