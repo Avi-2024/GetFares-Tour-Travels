@@ -1,13 +1,13 @@
-# API Contract v1
+# API Contract v1 (Current Implementation)
 
 ## 1. Standards
 - Base URL: `/api`
-- Auth: `Authorization: Bearer <JWT>`
+- Auth: `Authorization: Bearer <JWT>` (for protected endpoints)
 - Content-Type: `application/json`
-- Time format: ISO-8601 UTC
-- IDs: UUID
+- Time format: ISO-8601
+- IDs: UUID where enforced by validation
 
-Response envelope:
+Success envelope:
 ```json
 {
   "data": {}
@@ -26,20 +26,24 @@ Error envelope:
 }
 ```
 
-## 2. Auth & RBAC
+## 2. Health
+### GET `/health`
+- Public endpoint
+- Returns service health metadata
 
+## 3. Auth
 ### POST `/api/auth/register`
-Create user account.
 Request:
 ```json
 {
   "fullName": "John Doe",
   "email": "john@example.com",
+  "phone": "919999999999",
   "password": "StrongPass123",
-  "role": "agent"
+  "role": "sales_consultant"
 }
 ```
-Response: token + user profile.
+Response: `201`
 
 ### POST `/api/auth/login`
 Request:
@@ -49,233 +53,290 @@ Request:
   "password": "StrongPass123"
 }
 ```
-Response: token + user profile.
+Response: `200`
 
 ### GET `/api/auth/me`
-Returns logged-in user profile.
+- Protected
+- Returns current user profile
 
+## 4. RBAC
 ### POST `/api/rbac/assign`
-Assign role to user.
+- Protected: `rbac:manage`
 Request:
 ```json
 {
-  "userId": "<uuid>",
-  "role": "sales_manager"
+  "userId": "<id>",
+  "role": "manager"
+}
+```
+Response: `200`
+
+### GET `/api/rbac/me/permissions`
+- Protected
+- Returns effective roles + permissions for current user
+
+## 5. Leads
+### POST `/api/leads`
+- Protected: `leads:create`
+Request fields:
+- `fullName` (required)
+- `phone`, `email`, `panNumber`, `addressLine`, `clientCurrency`
+- `destinationId`, `travelDate`, `budget`
+- `source`, `campaignId`, `utmSource`, `utmMedium`, `utmCampaign`
+- `respondedPositively`, `priorityLevel`, `isVip`, `status`, `assignedTo`
+- `qualificationCompleted`, `closedReason`, `nextFollowupDate`, `notes`
+- `autoAssign`
+Response: `201`
+
+### GET `/api/leads`
+- Protected: `leads:read`
+Query:
+- `page`, `limit`, `status`, `source`, `assignedTo`, `email`, `phone`
+Response: `200`
+
+### GET `/api/leads/:id`
+- Protected: `leads:read`
+Response: `200`
+
+### PATCH `/api/leads/:id`
+- Protected: `leads:update`
+- If `status=LOST`, `closedReason` is required.
+Response: `200`
+
+### POST `/api/leads/:id/assign`
+- Protected: `leads:update`
+Request (optional):
+- `force`, `excludeUserId`, `reason`, `mode`
+Response: `200`
+
+### POST `/api/leads/distribute`
+- Protected: `leads:update`
+Request (optional):
+- `limit`, `reason`
+Response: `200`
+
+### POST `/api/leads/reassign-inactive`
+- Protected: `leads:update`
+Request (optional):
+- `inactiveMinutes`, `limit`, `reason`
+Response: `200`
+
+### POST `/api/leads/:id/followups`
+- Protected: `leads:update`
+Request:
+```json
+{
+  "userId": "<optional-user-id>",
+  "followupType": "CALL",
+  "followupDate": "2026-03-10T10:30:00.000Z",
+  "notes": "Callback tomorrow"
+}
+```
+Response: `201`
+
+### GET `/api/leads/followups/overdue`
+- Protected: `leads:read`
+Query: `limit`
+Response: `200`
+
+### POST `/api/leads/followups/process-overdue`
+- Protected: `leads:update`
+Request (optional): `limit`
+Response: `200`
+
+### POST `/api/leads/sla/process-breaches`
+- Protected: `leads:update`
+Request (optional): `limit`
+Response: `200`
+
+## 6. Webhooks (Implemented)
+All webhook endpoints are public by design.
+
+### POST `/api/webhooks/meta-leads`
+### POST `/api/webhooks/website-enquiry`
+### POST `/api/webhooks/whatsapp-enquiry`
+Accepted payload (minimum one identifier required):
+- `fullName` or `name` or `email` or `phone`
+Optional:
+- `panNumber`, `addressLine`, `clientCurrency`, `budget`, `travelDate`
+- `campaignId`, `utmSource`, `utmMedium`, `utmCampaign`, `source`
+Response:
+- `201` when new lead captured
+- `200` when duplicate capture detected
+
+## 7. Quotations
+### GET `/api/quotations`
+- Protected: `quotations:read`
+Query:
+- `page`, `limit`, `status`, `leadId`, `createdBy`, `includeItems`
+Response: `200`
+
+### GET `/api/quotations/:id`
+- Protected: `quotations:read`
+Response: `200`
+
+### POST `/api/quotations`
+- Protected: `quotations:create`
+Request:
+```json
+{
+  "leadId": "<uuid>",
+  "parentQuoteId": "<optional-uuid>",
+  "templateId": "<optional-uuid>",
+  "pricingId": "<optional-uuid>",
+  "components": [
+    { "itemType": "HOTEL", "description": "4N hotel", "cost": 50000 }
+  ],
+  "marginPercent": 12,
+  "minMarginPercent": 8,
+  "discount": 1000,
+  "taxPercent": 5,
+  "taxAmount": 2500,
+  "expiresInHours": 48
+}
+```
+Response: `201`
+
+### PATCH `/api/quotations/:id`
+- Protected: `quotations:update`
+Response: `200`
+
+### POST `/api/quotations/:id/generate-pdf`
+- Protected: `quotations:update`
+Request (optional): `pdfUrl`
+Response: `200`
+
+### POST `/api/quotations/:id/send`
+- Protected: `quotations:update`
+Request (optional):
+- `channel` (`EMAIL|WHATSAPP|MANUAL`)
+- `recipientEmail`, `recipientPhone`, `message`, `expiresInHours`
+Response: `200`
+
+### POST `/api/quotations/:id/viewed`
+- Public view tracking endpoint
+Request (optional): `deviceInfo`, `userAgent`
+Response: `200`
+
+### GET `/api/quotations/:id/views`
+- Protected: `quotations:read`
+Query: `page`, `limit`
+Response: `200`
+
+### POST `/api/quotations/:id/approve-margin`
+- Protected: `quotations:update`
+Request (optional): `note`
+Response: `200`
+
+### POST `/api/quotations/:id/status`
+- Protected: `quotations:update`
+Request:
+```json
+{
+  "status": "APPROVED",
+  "reason": "optional when REJECTED",
+  "travelStartDate": "2026-05-10",
+  "travelEndDate": "2026-05-15"
+}
+```
+Supported transitions:
+- Only to `APPROVED` or `REJECTED`
+- From current states `DRAFT` or `SENT`
+Response: `200`
+
+### GET `/api/quotations/reports/lead-to-quote`
+- Protected: `reports:read`
+Query: `from`, `to`, `createdBy`
+Response: `200`
+
+### POST `/api/quotations/reminders/run`
+- Protected: `quotations:update`
+Request (optional): `notOpenedHours`, `viewedNoActionHours`
+Response: `200`
+
+### GET `/api/quotations/:id/versions`
+- Protected: `quotations:read`
+Response: `200`
+
+### GET `/api/quotations/:id/send-logs`
+- Protected: `quotations:read`
+Response: `200`
+
+### Template endpoints
+### GET `/api/quotations/templates`
+- Protected: `quotations:read`
+- Query: `isActive`, `templateType`, `page`, `limit`
+- Current behavior: returns persisted templates.
+
+### POST `/api/quotations/templates`
+### PATCH `/api/quotations/templates/:id`
+- Protected: `quotations:update`
+- Current behavior: create/update template records.
+
+## 8. Notifications
+### GET `/api/notifications`
+- Protected: `notifications:read`
+Query: `page`, `limit`, `status`
+Response: `200`
+
+### GET `/api/notifications/unread-count`
+- Protected: `notifications:read`
+Response: `200`
+
+### PATCH `/api/notifications/:id/read`
+- Protected: `notifications:update`
+Response: `200`
+
+### PATCH `/api/notifications/read-all`
+- Protected: `notifications:update`
+Response: `200`
+
+## 9. Baseline CRUD Modules (Current)
+The following modules currently expose the same CRUD shape:
+- `/api/users`
+- `/api/campaigns`
+- `/api/customers`
+- `/api/bookings`
+- `/api/payments`
+- `/api/refunds`
+- `/api/visa`
+- `/api/complaints`
+
+Endpoints per module:
+- `GET /` (list)
+- `GET /:id` (by id)
+- `POST /` (create)
+- `PATCH /:id` (update)
+
+Current request body contract for create/update in these baseline modules:
+```json
+{
+  "name": "Example Name",
+  "status": "active",
+  "metadata": {}
 }
 ```
 
-### GET `/api/rbac/me/permissions`
-Returns effective role list and permissions.
+Status enum for baseline modules:
+- `active`
+- `inactive`
+- `draft`
 
-## 3. Leads
+Note: these modules are running, but their payloads still need PRD-specific field contracts.
 
-### POST `/api/leads`
-Create lead.
-Required fields (v1):
-- `name`
-Optional:
-- `status`, `metadata`
-
-### GET `/api/leads`
-List leads with optional filters:
-- `page`, `limit`, `status`
-
-### GET `/api/leads/:id`
-Get lead by ID.
-
-### PATCH `/api/leads/:id`
-Update lead.
-
-Planned Sprint 1/2 extensions:
-- `POST /api/leads/:id/activities`
-- `POST /api/leads/:id/followups`
-- `PATCH /api/leads/:id/status`
-- `POST /api/leads/distribute`
-- `POST /api/leads/:id/reassign`
-
-## 4. Quotations
-
-### POST `/api/quotations`
-Create quotation.
-
-### GET `/api/quotations`
-List quotations.
-
-### GET `/api/quotations/:id`
-Get quotation by ID.
-
-### PATCH `/api/quotations/:id`
-Update quotation.
-
-Planned extensions:
-- `POST /api/quotations/:id/items`
-- `POST /api/quotations/:id/send`
-- `POST /api/quotations/:id/generate-pdf`
-- `GET /api/quotations/:id/views`
-
-## 5. Bookings
-
-### POST `/api/bookings`
-Create booking record.
-
-### GET `/api/bookings`
-List bookings.
-
-### GET `/api/bookings/:id`
-Get booking by ID.
-
-### PATCH `/api/bookings/:id`
-Update booking.
-
-Planned extensions:
-- `POST /api/bookings/convert/:quotationId`
-- `PATCH /api/bookings/:id/status`
-
-## 6. Payments
-
-### POST `/api/payments`
-Create payment.
-
-### GET `/api/payments`
-List payments.
-
-### GET `/api/payments/:id`
-Get payment by ID.
-
-### PATCH `/api/payments/:id`
-Update payment.
-
-Planned extensions:
-- `PATCH /api/payments/:id/verify`
-- `POST /api/invoices/generate/:bookingId`
-
-## 7. Refunds
-
-### POST `/api/refunds`
-Create refund case.
-
-### GET `/api/refunds`
-List refunds.
-
-### GET `/api/refunds/:id`
-Get refund by ID.
-
-### PATCH `/api/refunds/:id`
-Update refund.
-
-Planned extension:
-- `PATCH /api/refunds/:id/status`
-
-## 8. Visa
-
-### POST `/api/visa`
-Create visa case.
-
-### GET `/api/visa`
-List visa cases.
-
-### GET `/api/visa/:id`
-Get visa case by ID.
-
-### PATCH `/api/visa/:id`
-Update visa case.
-
-Planned extensions:
-- `PATCH /api/visa/:id/status`
-- `POST /api/visa/:id/documents`
-- `PATCH /api/documentation-checklist/:bookingId`
-
-## 9. Customers
-
-### POST `/api/customers`
-Create customer.
-
-### GET `/api/customers`
-List customers.
-
-### GET `/api/customers/:id`
-Get customer by ID.
-
-### PATCH `/api/customers/:id`
-Update customer.
-
-Planned extension:
-- `POST /api/customers/:id/segment`
-
-## 10. Campaigns
-
-### POST `/api/campaigns`
-Create campaign.
-
-### GET `/api/campaigns`
-List campaigns.
-
-### GET `/api/campaigns/:id`
-Get campaign by ID.
-
-### PATCH `/api/campaigns/:id`
-Update campaign.
-
-Planned extension:
-- `GET /api/campaigns/performance`
-
-## 11. Complaints
-
-### POST `/api/complaints`
-Create complaint.
-
-### GET `/api/complaints`
-List complaints.
-
-### GET `/api/complaints/:id`
-Get complaint by ID.
-
-### PATCH `/api/complaints/:id`
-Update complaint.
-
-Planned extension:
-- `POST /api/complaints/:id/activities`
-
-## 12. Users
-
-### POST `/api/users`
-Create user profile.
-
-### GET `/api/users`
-List users.
-
-### GET `/api/users/:id`
-Get user by ID.
-
-### PATCH `/api/users/:id`
-Update user profile.
-
-## 13. Reporting (Planned)
-- `GET /api/reports/dashboard`
-- `GET /api/reports/funnel`
-- `GET /api/reports/consultants`
-- `GET /api/reports/source-performance`
-- `GET /api/reports/monthly-summary`
-- `GET /api/reports/export`
-
-## 14. Webhooks (Planned)
-- `POST /api/webhooks/meta-leads`
-- `POST /api/webhooks/website-enquiry`
-- `POST /api/webhooks/whatsapp-enquiry`
-
-## 15. Permission Naming Convention
+## 10. Permission Naming Convention
 Pattern: `<module>:<action>`
 Examples:
 - `leads:read`
 - `leads:create`
+- `leads:update`
+- `quotations:read`
+- `quotations:create`
 - `quotations:update`
-- `payments:verify`
 - `reports:read`
+- `notifications:read`
+- `notifications:update`
 
-## 16. Versioning & Compatibility
-- Current version: `v1` (URI currently unprefixed)
-- Backward-compatible changes:
-  - Add optional fields
-  - Add new endpoints
-- Breaking changes require:
-  - new version namespace (`/api/v2/...`) or explicit migration plan
+## 11. Versioning
+- Current: unprefixed `/api/*` (v1)
+- Breaking changes must go to `/api/v2/*` or follow explicit migration notes.

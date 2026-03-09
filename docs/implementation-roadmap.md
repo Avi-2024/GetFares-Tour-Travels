@@ -1,217 +1,124 @@
 # Implementation Roadmap
 
-## 1. Purpose
-This roadmap converts the Getfares Tour & Travel CRM PRD into sprint-level execution for the current modular monolith codebase.
+## 1. Document Status
+- Last updated: 2026-03-09
+- Product: Getfares Tour & Travel CRM
+- Architecture: Modular Monolith (`Node.js + Express + PostgreSQL`)
+- API style: REST JSON with JWT + RBAC
 
-## 2. Scope Baseline
-Included in v1:
-- Auth + RBAC
-- Lead capture + distribution + follow-ups
-- Quotation + booking + payment + refund
-- Visa operations + document tracking
-- Customer management + campaigns
-- Complaints/operations
-- Dashboards + reports + monthly summary
+## 2. Delivery Objective
+This roadmap maps the PRD into executable backend increments while keeping modules independently extractable into microservices later.
 
-Deferred to v2 unless needed earlier:
-- Flight/hotel APIs
-- Customer portal
-- Full microservice split
+## 3. Current Backend State (As Implemented)
+- Sprint 1 (Lead Capture): Completed and smoke-tested.
+- Sprint 2 (Distribution + Follow-up + SLA): Completed and smoke-tested.
+- Sprint 3 (Quotation Engine): Completed baseline and validated.
+- Sprint 4 (Booking + Payments + Refunds): Completed baseline and validated.
+- Sprints 5 to 8: Planned.
 
-## 3. Delivery Approach
-- Architecture: Modular Monolith (Node.js + Express + PostgreSQL)
-- API style: REST JSON
-- Security: JWT + RBAC
-- Migration strategy: incremental SQL migrations (`001`, `002`, ...)
+Current smoke status:
+- `npm run test:sprint1`: PASS (9/9)
+- `npm run test:sprint2`: PASS (12/12)
+- `npm run test:sprint3`: PASS (13/13)
+- `npm run test:sprint4`: PASS (15/15)
 
-## 4. Sprint Plan
+## 4. Implemented Scope by Module
+- Auth: register, login, me, JWT, login auditing hooks.
+- RBAC: role assignment and permission resolution endpoint.
+- Leads: create/list/get/update, auto-assign, distribution, inactive reassign, follow-ups, overdue processing, SLA breach processing.
+- Webhooks: `meta-leads`, `website-enquiry`, `whatsapp-enquiry` capture with dedupe handling.
+- Quotations: create/update/list/get, send, view tracking, approve/reject transition, auto booking on approval, lead-to-quote report.
+- Bookings: create/list/get/update, status transition with payment-proof guard, status history, invoice generation/list.
+- Payments: create/list/get/update, verify endpoint, booking payment summary synchronization.
+- Refunds: create/list/get/update, approve/reject/process workflow, high-value approval guard, booking payment summary synchronization.
+- Notifications: list, unread count, mark read, mark all read.
+- Users/Campaigns/Customers/Visa/Complaints: baseline CRUD endpoints running with current shared payload model.
 
-## Sprint 0 (Week 1) - Foundation & Security
-Goals:
-- Production bootstrap hardening
-- Real PostgreSQL repository adapter
-- Auth and RBAC policy baseline
+## 5. Lead Temperature Logic (Business-Aligned)
+Current implementation uses `HOT/WARM/COLD` determination (not a mandatory lead-score model):
+- HOT: travel date within 30 days, or high budget plus positive response.
+- WARM: travel date in 30 to 90 days, or positive response.
+- COLD: low urgency and exploratory behavior.
 
-Deliverables:
-- JWT login/register/session audit
-- Role and permission seed scripts
-- Request tracing, audit logs, centralized error handling
-- CI checks (lint, tests, migration validation)
+## 6. Sprint Plan and Status
 
-Exit Criteria:
-- `npm run db:migrate` succeeds in fresh DB
-- Auth-protected route enforcement works
-- RBAC denies unauthorized actions with 403
+### Sprint 0 - Foundation and Security
+Status: Completed
+- Modular monolith bootstrapped.
+- Common error handling, middleware, logger.
+- Auth and RBAC baseline wired.
 
-## Sprint 1 (Week 2-3) - Lead Capture
-Goals:
-- Multi-channel lead intake with anti-duplication and source attribution
+### Sprint 1 - Automatic Lead Capture
+Status: Completed
+- Lead CRUD with anti-dup behavior.
+- Webhook intake for Meta, Website, WhatsApp.
+- Source and campaign metadata intake.
 
-Deliverables:
-- Website enquiry ingestion endpoint
-- Meta lead webhook endpoint
-- WhatsApp enquiry ingestion endpoint
-- Duplicate detection logic (email/phone/source window)
-- Lead scoring (Hot/Warm/Cold)
+### Sprint 2 - Smart Distribution and Follow-ups
+Status: Completed
+- Auto assignment and distribution controls.
+- Reassign inactive assignees.
+- Follow-up creation and overdue processors.
+- SLA breach detection and escalation eventing.
 
-Exit Criteria:
-- New leads appear in CRM within 60s from each source
-- Duplicate rate reduced by configured rule set
-- Source/campaign fields consistently populated
+### Sprint 3 - Quotation Engine
+Status: Completed (current baseline)
+- Implemented: template CRUD, quote create/update/send/view/approve-reject, booking conversion, lead-to-quote report.
+- Implemented: margin approval guard before send.
+- Implemented: persistent version history and send logs.
+- Implemented: reminder automation with reminder logging and event triggers.
 
-## Sprint 2 (Week 4-5) - Smart Distribution & Follow-ups
-Goals:
-- Automated assignment and no-miss follow-up workflow
+### Sprint 4 - Booking, Payments, Refunds
+Status: Completed (current baseline)
+- Implemented: booking creation policy, advance rules, confirmation guard with verified proof.
+- Implemented: booking status history and invoice generation/listing APIs.
+- Implemented: payment verify flow and booking payment summary sync (`advance_received`, `payment_status`).
+- Implemented: refund approval workflow (`INITIATED -> APPROVED/REJECTED -> PROCESSED`) with high-value approval guard.
 
-Deliverables:
-- Rule engine: destination/budget/expertise
-- Round-robin fallback
-- Skip user on leave/inactive
-- Reassignment after inactivity threshold
-- Follow-up scheduler and overdue alerts
-- SLA breach flag for >15 min response
+### Sprint 5 - Visa and Operations
+Status: Planned
+- Stage-based visa workflow and document completeness enforcement.
+- Complaint lifecycle policy.
 
-Exit Criteria:
-- Every new lead gets assignment event
-- Overdue follow-ups visible in dashboard
-- Escalation alert fired for unattended SLA breach
+### Sprint 6 - Customers, Marketing, Automation
+Status: Planned
+- Customer 360, segmentation, campaign analytics.
+- Template-driven communication flows.
 
-## Sprint 3 (Week 6-7) - Quotation Engine
-Goals:
-- Fast, branded, trackable quotation lifecycle
+### Sprint 7 - Reporting and Executive Summary
+Status: Planned
+- KPI dashboards, funnel metrics, loss analytics, monthly summary pack.
 
-Deliverables:
-- Template-based quotation create/edit/versioning
-- Cost, margin, tax, discount, final price calculations
-- PDF generation and send logging
-- Quote view tracking
-- Reminder trigger for unopened quote
+### Sprint 8 - UAT and Production Readiness
+Status: Planned
+- Reliability, observability, backups, DR checklist, go-live signoff.
 
-Exit Criteria:
-- Consultant can create/send quote in <10 minutes with template
-- Quote status transitions validated (`DRAFT -> SENT -> APPROVED/REJECTED`)
-- Lead-to-quote elapsed time report available
+## 7. Data and Migration Strategy
+Current schema source used for alignment:
+- `database/migrations/database.sql`
 
-## Sprint 4 (Week 8-9) - Booking, Payments, Refunds
-Goals:
-- Complete commercial flow from approved quote to settlement
+Execution policy:
+- Never rewrite already-applied production migrations.
+- Introduce forward-only numbered migrations (`004_*`, `005_*`, ...).
+- Keep seed scripts idempotent (`db:seed:rbac`).
 
-Deliverables:
-- Booking conversion from quote
-- Advance payment rule checks (50%/100% non-refundable)
-- Invoice generation hooks
-- Payment verification workflow
-- Refund workflow with approvals and charges
+## 8. Finance Mapping Coverage
+From latest schema updates:
+- Client onboarding fields included: PAN, address, contact, currency context.
+- Supplier onboarding fields included: PAN, GST, address, bank details, supplier currency.
+- Cost/accounting entities included: supplier payables, tax ledger, exchange rates, refund charges.
 
-Exit Criteria:
-- Booking cannot confirm without payment rule satisfaction
-- Payment state transitions are auditable
-- Refund status progression enforced by policy
+Still pending in service-layer behavior:
+- Full tax calculation workflow (GST/TCS posting rules).
+- Currency conversion locking and accounting postings in transaction services.
 
-## Sprint 5 (Week 10-11) - Visa + Operations
-Goals:
-- Visa case management and after-sales operations
+## 9. Risks and Gaps
+- Sprint 3 now depends on quotation enhancement tables/columns from migration `003_quotation_engine_sprint3.sql`.
+- Several non-leads modules still run generic payload validation and need PRD-specific payload contracts.
+- Reporting APIs for full management dashboard are not fully exposed yet.
 
-Deliverables:
-- Visa stages and document checklist
-- Appointment and validity reminders
-- Supplier registry linkage
-- Complaint lifecycle and activity logs
-
-Exit Criteria:
-- Visa pipeline shows stage-level counts
-- Missing document alerts generated automatically
-- Complaints can be tracked end-to-end
-
-## Sprint 6 (Week 12-13) - Customer + Marketing + Automation
-Goals:
-- Customer 360 + campaign ROI + communication automation
-
-Deliverables:
-- Customer segmentation and travel history links
-- Campaign analytics (CPL, leads, revenue)
-- WhatsApp template trigger engine
-- Bulk communication control (RBAC restricted)
-
-Exit Criteria:
-- Segmented campaign send lists generated
-- Trigger messages fire on configured business events
-- Campaign performance is reportable by source
-
-## Sprint 7 (Week 14-15) - Reporting & Management Summary
-Goals:
-- Real-time executive dashboard and monthly pack
-
-Deliverables:
-- KPI dashboard (leads, conversion, revenue, profit)
-- Consultant/destination/source performance reports
-- Funnel and lost-reason analytics
-- Monthly summary export
-
-Exit Criteria:
-- Dashboard data reconciles with transactions
-- Monthly summary auto-generates with filters
-- CSV/PDF export available for management
-
-## Sprint 8 (Week 16) - UAT & Production Readiness
-Goals:
-- Stability, observability, and rollout readiness
-
-Deliverables:
-- Load and reliability test pass
-- Alerting and runbooks
-- Backup/restore validation
-- UAT closure report and launch checklist
-
-Exit Criteria:
-- P1 defects closed
-- Rollback playbook verified
-- Go-live sign-off completed
-
-## 5. Module-to-Sprint Mapping
-- Module A: Sprint 0-2 (platform + workflow backbone)
-- Module B: Sprint 1
-- Module C: Sprint 2
-- Module D: Sprint 2 + 7
-- Module E: Sprint 3
-- Module F: Sprint 6
-- Module G: Sprint 2
-- Module H: Sprint 6
-- Module I: Sprint 5
-- Module J: Sprint 7
-- Module K: Sprint 0 + 2
-- Module L: Sprint 4 + 5
-- Module M: Sprint 7
-- Module N: All sprints
-
-## 6. Database Migration Plan
-Current:
-- `001_initial_schema.sql` includes core CRM transactional schema.
-
-Planned:
-- `002_packages.sql` for website package publishing domain:
-  - `packages`
-  - `package_itineraries`
-  - `package_media`
-  - `package_publish_logs`
-  - optional SEO and sync status fields
-
-## 7. Non-Functional Targets
-- Lead response SLA monitor: 15 minutes
-- API availability target: 99.9%
-- P95 API latency: <400ms for core CRUD, <1.2s for heavy reports
-- Full auditability for state-changing endpoints
-- Role-based access for all protected operations
-
-## 8. Definition of Done (per module)
-- DB migration complete and reversible
-- API contract documented and reviewed
-- Validation and RBAC checks implemented
-- Unit and integration tests added
-- Dashboard/report integration updated
-- Audit logs emitted for create/update/status changes
-
-## 9. Immediate Next Actions
-1. Implement PostgreSQL repositories for existing modules.
-2. Add seeders for roles/permissions and admin bootstrap user.
-3. Start Sprint 1 endpoints (`/webhooks/meta-leads`, `/webhooks/website-enquiry`, `/webhooks/whatsapp-enquiry`).
+## 10. Next Build Priorities
+1. Upgrade remaining generic modules to business payload contracts (visa/customers/campaigns/users/complaints).
+2. Implement reporting module endpoints for lead, revenue, payment, visa, and productivity reports.
+3. Add finance policy engine for GST/TCS, currency exchange handling, and supplier payable lifecycle.
+4. Harden migration strategy around `database/migrations/database.sql` snapshot handling for production safety.

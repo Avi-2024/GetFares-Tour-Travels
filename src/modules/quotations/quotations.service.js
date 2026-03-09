@@ -9,26 +9,6 @@ const QUOTATION_STATUS = Object.freeze({
   EXPIRED: 'EXPIRED',
 });
 
-const QUOTE_REMINDER_TYPES = Object.freeze({
-  NOT_OPENED_24H: 'NOT_OPENED_24H',
-  VIEWED_NO_ACTION_48H: 'VIEWED_NO_ACTION_48H',
-});
-
-const TEMPLATE_ADMIN_ROLES = new Set(['admin', 'super_admin']);
-const MARGIN_APPROVER_ROLES = new Set(['manager', 'admin', 'super_admin']);
-
-const DEFAULT_MIN_MARGIN_PERCENT = 10;
-const DEFAULT_EXPIRY_HOURS = 72;
-
-const ALLOWED_TRANSITIONS = Object.freeze({
-  DRAFT: new Set([QUOTATION_STATUS.SENT, QUOTATION_STATUS.EXPIRED]),
-  SENT: new Set([QUOTATION_STATUS.VIEWED, QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.REJECTED, QUOTATION_STATUS.EXPIRED]),
-  VIEWED: new Set([QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.REJECTED, QUOTATION_STATUS.EXPIRED]),
-  APPROVED: new Set(),
-  REJECTED: new Set(),
-  EXPIRED: new Set(),
-});
-
 function roundCurrency(value) {
   const parsed = Number(value || 0);
   if (!Number.isFinite(parsed)) {
@@ -50,16 +30,22 @@ function toDateOnly(value) {
   return date.toISOString().slice(0, 10);
 }
 
-function buildQuoteNumber() {
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const randomPart = Math.floor(1000 + Math.random() * 9000);
-  return `QT-${stamp}-${randomPart}`;
+function addHours(date, hours) {
+  const base = new Date(date);
+  base.setHours(base.getHours() + Number(hours || 0));
+  return base;
 }
 
 function buildBookingNumber() {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randomPart = Math.floor(1000 + Math.random() * 9000);
   return `BK-${stamp}-${randomPart}`;
+}
+
+function buildQuoteNumber() {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const randomPart = Math.floor(100000 + Math.random() * 900000);
+  return `QT-${stamp}-${randomPart}`;
 }
 
 function createQuotationsService({ repository, logger, events }) {
@@ -69,48 +55,12 @@ function createQuotationsService({ repository, logger, events }) {
     }
   }
 
-  function assertTemplateAdmin(user) {
-    assertAuthenticatedUser(user);
-    const role = String(user.role || '').toLowerCase();
-    if (!TEMPLATE_ADMIN_ROLES.has(role)) {
-      throw new AppError(403, 'Only Admin can manage templates', 'QUOTATION_TEMPLATE_FORBIDDEN');
+  function toHours(value, fallback) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return fallback;
     }
-  }
-
-  function assertMarginApprover(user) {
-    assertAuthenticatedUser(user);
-    const role = String(user.role || '').toLowerCase();
-    if (!MARGIN_APPROVER_ROLES.has(role)) {
-      throw new AppError(403, 'Only Manager/Admin can approve margin', 'QUOTATION_MARGIN_APPROVAL_FORBIDDEN');
-    }
-  }
-
-  function ensureTransitionAllowed(fromStatus, toStatus) {
-    if (fromStatus === toStatus) {
-      return;
-    }
-
-    const allowed = ALLOWED_TRANSITIONS[fromStatus];
-    if (!allowed || !allowed.has(toStatus)) {
-      throw new AppError(
-        409,
-        `Invalid status transition: ${fromStatus} -> ${toStatus}`,
-        'QUOTATION_INVALID_STATUS_TRANSITION',
-      );
-    }
-  }
-
-  function ensureDraftEditable(quotation) {
-    if (quotation.status !== QUOTATION_STATUS.DRAFT) {
-      throw new AppError(409, 'Only DRAFT quotation can be edited', 'QUOTATION_LOCKED');
-    }
-  }
-
-  function normalizeTemplateCode(code) {
-    return String(code || '')
-      .trim()
-      .toUpperCase()
-      .replace(/\s+/g, '_');
+    return Math.min(Math.floor(parsed), 720);
   }
 
   function calculatePricing(payload) {
@@ -135,30 +85,34 @@ function createQuotationsService({ repository, logger, events }) {
     }
 
     const marginAmount = roundCurrency((totalCost * marginPercent) / 100);
-
-    const discountAmount = roundCurrency(payload.discount ?? 0);
-    if (discountAmount < 0) {
+    const discount = roundCurrency(payload.discount ?? 0);
+    if (discount < 0) {
       throw new AppError(400, 'discount cannot be negative', 'QUOTATION_INVALID_DISCOUNT');
     }
 
-    const taxableBase = roundCurrency(totalCost + marginAmount - discountAmount);
-    if (taxableBase < 0) {
-      throw new AppError(400, 'Discount cannot exceed subtotal', 'QUOTATION_INVALID_DISCOUNT_RANGE');
+    const subTotal = roundCurrency(totalCost + marginAmount - discount);
+    if (subTotal < 0) {
+      throw new AppError(400, 'Subtotal cannot be negative', 'QUOTATION_INVALID_SUBTOTAL');
     }
 
-    let taxAmount = 0;
-    if (payload.taxAmount !== undefined && payload.taxAmount !== null) {
-      taxAmount = roundCurrency(payload.taxAmount);
-    } else {
-      const taxPercent = Number(payload.taxPercent ?? 0);
-      if (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100) {
-        throw new AppError(400, 'taxPercent must be between 0 and 100', 'QUOTATION_INVALID_TAX_PERCENT');
-      }
-      taxAmount = roundCurrency((taxableBase * taxPercent) / 100);
+    const taxPercent = payload.taxPercent !== undefined ? Number(payload.taxPercent) : null;
+    if (taxPercent !== null && (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100)) {
+      throw new AppError(400, 'taxPercent must be between 0 and 100', 'QUOTATION_INVALID_TAX_PERCENT');
     }
+
+    const taxAmount = payload.taxAmount !== undefined
+      ? roundCurrency(payload.taxAmount)
+      : taxPercent !== null
+        ? roundCurrency((subTotal * taxPercent) / 100)
+        : roundCurrency(payload.tax ?? 0);
 
     if (taxAmount < 0) {
-      throw new AppError(400, 'taxAmount cannot be negative', 'QUOTATION_INVALID_TAX_AMOUNT');
+      throw new AppError(400, 'tax cannot be negative', 'QUOTATION_INVALID_TAX');
+    }
+
+    const finalPrice = roundCurrency(subTotal + taxAmount);
+    if (finalPrice < 0) {
+      throw new AppError(400, 'Final price cannot be negative', 'QUOTATION_INVALID_FINAL_PRICE');
     }
 
     const finalPrice = roundCurrency(taxableBase + taxAmount);
@@ -168,25 +122,12 @@ function createQuotationsService({ repository, logger, events }) {
       totalCost,
       marginPercent: roundCurrency(marginPercent),
       marginAmount,
-      discountAmount,
+      discount,
+      discountAmount: discount,
+      tax: taxAmount,
       taxAmount,
       finalPrice,
     };
-  }
-
-  function computeLeadToQuoteMinutes(leadCreatedAt, quoteCreatedAt) {
-    if (!leadCreatedAt || !quoteCreatedAt) {
-      return null;
-    }
-
-    const leadDate = new Date(leadCreatedAt);
-    const quoteDate = new Date(quoteCreatedAt);
-    if (Number.isNaN(leadDate.getTime()) || Number.isNaN(quoteDate.getTime())) {
-      return null;
-    }
-
-    const minutes = Math.floor((quoteDate.getTime() - leadDate.getTime()) / 60000);
-    return minutes >= 0 ? minutes : null;
   }
 
   function buildTemplateSnapshot(template) {
@@ -199,13 +140,13 @@ function createQuotationsService({ repository, logger, events }) {
       code: template.code,
       name: template.name,
       templateType: template.templateType,
+      minMarginPercent: template.minMarginPercent,
       headerBranding: template.headerBranding,
       inclusions: template.inclusions,
       exclusions: template.exclusions,
       paymentTerms: template.paymentTerms,
       cancellationPolicy: template.cancellationPolicy,
       footerDisclaimer: template.footerDisclaimer,
-      minMarginPercent: template.minMarginPercent,
     };
   }
 
@@ -226,15 +167,19 @@ function createQuotationsService({ repository, logger, events }) {
     return { ...quotation, items };
   }
 
-  async function createVersionLog(quotation, action, changeLog, context) {
-    return repository.createVersionLog({
-      quotationId: quotation.id,
-      versionNumber: quotation.versionNumber,
-      editorId: context.user?.id || null,
-      action,
-      changeLog,
-      snapshot: quotation,
-    });
+  async function logVersion({ quotation, action, changeLog, editorId }) {
+    try {
+      await repository.createVersionLog({
+        quotationId: quotation.id,
+        versionNumber: quotation.versionNumber,
+        editorId: editorId || null,
+        action,
+        changeLog: changeLog || {},
+        snapshot: quotation,
+      });
+    } catch (error) {
+      logger.error({ err: error, quotationId: quotation.id, action }, 'Failed to write quotation version log');
+    }
   }
 
   async function create(payload, context = {}) {
@@ -248,73 +193,66 @@ function createQuotationsService({ repository, logger, events }) {
     let template = null;
     if (payload.templateId) {
       template = await repository.findTemplateById(payload.templateId);
-      if (!template || !template.isActive) {
-        throw new AppError(404, 'Template not found or inactive', 'QUOTATION_TEMPLATE_NOT_FOUND');
+      if (!template) {
+        throw new AppError(404, 'Quotation template not found', 'QUOTATION_TEMPLATE_NOT_FOUND');
       }
     }
 
     const pricing = calculatePricing(payload);
-
-    const minMarginPercent = Number(payload.minMarginPercent ?? template?.minMarginPercent ?? DEFAULT_MIN_MARGIN_PERCENT);
+    const minMarginPercent = roundCurrency(
+      payload.minMarginPercent ?? template?.minMarginPercent ?? 0,
+    );
     const requiresApproval = pricing.marginPercent < minMarginPercent;
 
     const now = new Date();
-    const nowIso = now.toISOString();
-    const expiresInHours = Number(payload.expiresInHours ?? DEFAULT_EXPIRY_HOURS);
-    const expiresAt = new Date(now.getTime() + Math.max(1, expiresInHours) * 3600 * 1000).toISOString();
+    const expiresInHours = payload.expiresInHours ? toHours(payload.expiresInHours, null) : null;
+    const expiresAt = expiresInHours ? addHours(now, expiresInHours).toISOString() : null;
 
-    const leadCreatedAt = lead.created_at ?? lead.createdAt ?? null;
-    const leadToQuoteMinutes = computeLeadToQuoteMinutes(leadCreatedAt, nowIso);
+    const leadCreatedAt = lead.created_at || lead.createdAt;
+    const leadCreatedTs = leadCreatedAt ? new Date(leadCreatedAt).getTime() : null;
+    const leadToQuoteMinutes = leadCreatedTs
+      ? Math.max(0, Math.round((now.getTime() - leadCreatedTs) / (60 * 1000)))
+      : null;
 
-    let created = null;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      try {
-        created = await repository.create({
-          quote_number: buildQuoteNumber(),
-          parent_quote_id: payload.parentQuoteId || null,
-          lead_id: payload.leadId,
-          created_by: context.user.id,
-          pricing_id: payload.pricingId || null,
-          template_id: template?.id || null,
-          template_snapshot: buildTemplateSnapshot(template),
-          total_cost: pricing.totalCost,
-          margin_percent: pricing.marginPercent,
-          margin_amount: pricing.marginAmount,
-          discount: pricing.discountAmount,
-          discount_amount: pricing.discountAmount,
-          tax: pricing.taxAmount,
-          tax_amount: pricing.taxAmount,
-          final_price: pricing.finalPrice,
-          min_margin_percent: minMarginPercent,
-          requires_approval: requiresApproval,
-          version_number: 1,
-          status: QUOTATION_STATUS.DRAFT,
-          expires_at: expiresAt,
-          lead_to_quote_minutes: leadToQuoteMinutes,
-          created_at: nowIso,
-          updated_at: nowIso,
-        });
-        break;
-      } catch (error) {
-        if (error?.code !== '23505') {
-          throw error;
-        }
-      }
-    }
-
-    if (!created) {
-      throw new AppError(500, 'Unable to generate unique quote number', 'QUOTATION_NUMBER_GENERATION_FAILED');
-    }
+    const created = await repository.create({
+      parent_quote_id: payload.parentQuoteId || null,
+      lead_id: payload.leadId,
+      created_by: context.user.id,
+      pricing_id: payload.pricingId || null,
+      template_id: template?.id || payload.templateId || null,
+      template_snapshot: buildTemplateSnapshot(template),
+      quote_number: buildQuoteNumber(),
+      total_cost: pricing.totalCost,
+      margin_percent: pricing.marginPercent,
+      margin_amount: pricing.marginAmount,
+      discount: pricing.discount,
+      discount_amount: pricing.discountAmount,
+      tax: pricing.tax,
+      tax_amount: pricing.taxAmount,
+      final_price: pricing.finalPrice,
+      min_margin_percent: minMarginPercent,
+      requires_approval: requiresApproval,
+      lead_to_quote_minutes: leadToQuoteMinutes,
+      expires_at: expiresAt,
+      view_count: 0,
+      version_number: 1,
+      status: QUOTATION_STATUS.DRAFT,
+      is_deleted: false,
+      updated_at: now.toISOString(),
+    });
 
     const items = await repository.replaceItems(created.id, pricing.components);
     const quotation = { ...created, items };
 
-    await createVersionLog(
+    await logVersion({
       quotation,
-      'CREATE',
-      { message: 'Quotation created', requiresApproval },
-      context,
-    );
+      action: 'CREATED',
+      editorId: context.user.id,
+      changeLog: {
+        createdBy: context.user.id,
+        requiresApproval,
+      },
+    });
 
     events.emitCreated(quotation);
     return quotation;
@@ -324,46 +262,47 @@ function createQuotationsService({ repository, logger, events }) {
     assertAuthenticatedUser(context.user);
 
     const current = await getById(id, context, { includeItems: true });
-    ensureDraftEditable(current);
-
-    let template = null;
-    if (payload.templateId) {
-      template = await repository.findTemplateById(payload.templateId);
-      if (!template || !template.isActive) {
-        throw new AppError(404, 'Template not found or inactive', 'QUOTATION_TEMPLATE_NOT_FOUND');
-      }
-    } else if (current.templateId) {
-      template = await repository.findTemplateById(current.templateId);
+    if (current.status !== QUOTATION_STATUS.DRAFT) {
+      throw new AppError(409, 'Only DRAFT quotation can be edited', 'QUOTATION_LOCKED');
     }
 
-    const nextComponents = payload.components || current.items || [];
-    const nextPricing = calculatePricing({
-      components: nextComponents,
+    let template = null;
+    const nextTemplateId = payload.templateId !== undefined ? payload.templateId : current.templateId;
+    if (nextTemplateId) {
+      template = await repository.findTemplateById(nextTemplateId);
+      if (!template) {
+        throw new AppError(404, 'Quotation template not found', 'QUOTATION_TEMPLATE_NOT_FOUND');
+      }
+    }
+
+    const pricing = calculatePricing({
+      components: payload.components || current.items || [],
       marginPercent: payload.marginPercent ?? current.marginPercent,
-      discount: payload.discount ?? current.discountAmount ?? current.discount ?? 0,
-      taxAmount: payload.taxAmount ?? current.taxAmount ?? current.tax ?? 0,
+      discount: payload.discount ?? current.discount,
+      taxAmount: payload.taxAmount,
       taxPercent: payload.taxPercent,
+      tax: payload.tax,
     });
 
-    const minMarginPercent = Number(
-      payload.minMarginPercent ?? current.minMarginPercent ?? template?.minMarginPercent ?? DEFAULT_MIN_MARGIN_PERCENT,
+    const minMarginPercent = roundCurrency(
+      payload.minMarginPercent ?? current.minMarginPercent ?? template?.minMarginPercent ?? 0,
     );
-    const requiresApproval = nextPricing.marginPercent < minMarginPercent;
+    const requiresApproval = pricing.marginPercent < minMarginPercent;
 
     const updated = await repository.update(id, {
-      template_id: payload.templateId !== undefined ? payload.templateId : current.templateId,
-      template_snapshot: payload.templateId ? buildTemplateSnapshot(template) : current.templateSnapshot,
-      total_cost: nextPricing.totalCost,
-      margin_percent: nextPricing.marginPercent,
-      margin_amount: nextPricing.marginAmount,
-      discount: nextPricing.discountAmount,
-      discount_amount: nextPricing.discountAmount,
-      tax: nextPricing.taxAmount,
-      tax_amount: nextPricing.taxAmount,
-      final_price: nextPricing.finalPrice,
+      pricing_id: payload.pricingId !== undefined ? payload.pricingId : current.pricingId,
+      template_id: nextTemplateId || null,
+      template_snapshot: template ? buildTemplateSnapshot(template) : current.templateSnapshot,
+      total_cost: pricing.totalCost,
+      margin_percent: pricing.marginPercent,
+      margin_amount: pricing.marginAmount,
+      discount: pricing.discount,
+      discount_amount: pricing.discountAmount,
+      tax: pricing.tax,
+      tax_amount: pricing.taxAmount,
+      final_price: pricing.finalPrice,
       min_margin_percent: minMarginPercent,
       requires_approval: requiresApproval,
-      approval_note: payload.notes || current.approvalNote || null,
       version_number: Number(current.versionNumber || 1) + 1,
       updated_at: new Date().toISOString(),
     });
@@ -374,26 +313,29 @@ function createQuotationsService({ repository, logger, events }) {
 
     const quotation = { ...updated, items };
 
-    await createVersionLog(
+    await logVersion({
       quotation,
-      'UPDATE',
-      { message: 'Quotation updated', fields: Object.keys(payload || {}) },
-      context,
-    );
+      action: 'UPDATED',
+      editorId: context.user.id,
+      changeLog: {
+        fields: Object.keys(payload || {}),
+        requiresApproval,
+      },
+    });
 
     events.emitUpdated(quotation);
     return quotation;
   }
 
   async function generatePdf(id, payload = {}, context = {}) {
-    const quotation = await getById(id, context, { includeItems: false });
+    assertAuthenticatedUser(context.user);
+    await getById(id, context, { includeItems: false });
 
-    const pdfUrl = payload.pdfUrl || `https://crm.local/quotations/${quotation.id}/v${quotation.versionNumber}.pdf`;
-
+    const pdfUrl = payload.pdfUrl || `https://crm.local/quotations/${id}.pdf`;
     const updated = await repository.update(id, {
       pdf_url: pdfUrl,
       pdf_generated_at: new Date().toISOString(),
-      pdf_generated_by: context.user?.id || null,
+      pdf_generated_by: context.user.id,
       updated_at: new Date().toISOString(),
     });
 
@@ -406,40 +348,32 @@ function createQuotationsService({ repository, logger, events }) {
 
     let quotation = await getById(id, context, { includeItems: true });
 
-    if (
-      quotation.status === QUOTATION_STATUS.APPROVED ||
-      quotation.status === QUOTATION_STATUS.REJECTED ||
-      quotation.status === QUOTATION_STATUS.EXPIRED
-    ) {
+    if ([QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.REJECTED, QUOTATION_STATUS.EXPIRED].includes(quotation.status)) {
       throw new AppError(409, 'Finalized quotation cannot be sent', 'QUOTATION_FINALIZED');
     }
 
-    if (quotation.requiresApproval && !quotation.approvedAt) {
-      throw new AppError(409, 'Margin approval required before sending', 'QUOTATION_MARGIN_APPROVAL_REQUIRED');
+    if (quotation.requiresApproval) {
+      throw new AppError(409, 'Margin approval is required before sending', 'QUOTATION_MARGIN_APPROVAL_REQUIRED');
     }
 
-    if (!quotation.pdfUrl) {
-      await generatePdf(id, {}, context);
-      quotation = await getById(id, context, { includeItems: true });
-    }
+    const now = new Date();
+    const expiresInHours = payload.expiresInHours ? toHours(payload.expiresInHours, null) : null;
+    const nextExpiresAt = expiresInHours
+      ? addHours(now, expiresInHours).toISOString()
+      : quotation.expiresAt || null;
 
-    const nowIso = new Date().toISOString();
-    const patch = {
+    const updated = await repository.update(id, {
+      status: QUOTATION_STATUS.SENT,
+      sent_at: now.toISOString(),
       sent_by: context.user.id,
-      sent_at: quotation.sentAt || nowIso,
-      updated_at: nowIso,
-    };
+      pdf_url: quotation.pdfUrl || `https://crm.local/quotations/${id}.pdf`,
+      expires_at: nextExpiresAt,
+      updated_at: now.toISOString(),
+    });
 
-    if (quotation.status === QUOTATION_STATUS.DRAFT) {
-      patch.status = QUOTATION_STATUS.SENT;
-      patch.locked_at = nowIso;
+    if (updated.leadId) {
+      await repository.updateLeadStatus(updated.leadId, 'QUOTED');
     }
-
-    if (payload.expiresInHours) {
-      patch.expires_at = new Date(Date.now() + Number(payload.expiresInHours) * 3600 * 1000).toISOString();
-    }
-
-    const updated = await repository.update(id, patch);
 
     await repository.createSendLog({
       quotationId: id,
@@ -452,9 +386,16 @@ function createQuotationsService({ repository, logger, events }) {
       },
     });
 
-    if (updated.leadId) {
-      await repository.updateLeadStatus(updated.leadId, 'QUOTED');
-    }
+    await logVersion({
+      quotation: { ...updated, items: quotation.items },
+      action: 'SENT',
+      editorId: context.user.id,
+      changeLog: {
+        channel: payload.channel || 'MANUAL',
+        recipientEmail: payload.recipientEmail || null,
+        recipientPhone: payload.recipientPhone || null,
+      },
+    });
 
     events.emitSent({ id: updated.id, sentBy: context.user.id });
     return {
@@ -464,67 +405,33 @@ function createQuotationsService({ repository, logger, events }) {
   }
 
   async function trackView(id, payload = {}, context = {}) {
-    const quotation = await getById(id, context, { includeItems: false });
+    await getById(id, context, { includeItems: false });
 
-    if (![QUOTATION_STATUS.SENT, QUOTATION_STATUS.VIEWED].includes(quotation.status)) {
-      throw new AppError(409, 'Quotation cannot be viewed in current status', 'QUOTATION_VIEW_STATUS_INVALID');
-    }
-
-    await repository.createView({
+    const view = await repository.createView({
       quotationId: id,
       ipAddress: payload.ipAddress || null,
       deviceInfo: payload.deviceInfo || null,
       userAgent: payload.userAgent || null,
     });
 
-    const nextViewCount = Number(quotation.viewCount || 0) + 1;
-    const nowIso = new Date().toISOString();
+    const updated = await repository.incrementViewStats(id);
 
-    const patch = {
-      view_count: nextViewCount,
-      last_viewed_at: nowIso,
-      updated_at: nowIso,
-    };
-
-    if (!quotation.firstViewedAt) {
-      patch.first_viewed_at = nowIso;
-    }
-
-    if (quotation.status === QUOTATION_STATUS.SENT) {
-      patch.status = QUOTATION_STATUS.VIEWED;
-    }
-
-    const updated = await repository.update(id, patch);
-
-    events.emitViewed({ id: updated.id, viewCount: updated.viewCount });
-    return updated;
-  }
-
-  async function approveMargin(id, payload = {}, context = {}) {
-    assertMarginApprover(context.user);
-
-    const quotation = await getById(id, context, { includeItems: false });
-    if (!quotation.requiresApproval) {
-      return quotation;
-    }
-
-    const updated = await repository.update(id, {
-      requires_approval: false,
-      approved_by: context.user.id,
-      approved_at: new Date().toISOString(),
-      approval_note: payload.note || null,
-      updated_at: new Date().toISOString(),
+    events.emitViewed({
+      id,
+      viewedAt: view.viewedAt,
+      viewCount: updated?.viewCount || 1,
     });
 
-    await createVersionLog(
-      updated,
-      'MARGIN_APPROVED',
-      { note: payload.note || null },
-      context,
-    );
-
-    events.emitMarginApproved({ id: updated.id, approvedBy: context.user.id });
-    return updated;
+    return {
+      quotationId: id,
+      status: QUOTATION_STATUS.VIEWED,
+      viewCount: updated?.viewCount || 1,
+      lastViewedAt: updated?.lastViewedAt || view.viewedAt,
+      viewedAt: view.viewedAt,
+      ipAddress: view.ipAddress,
+      deviceInfo: view.deviceInfo,
+      userAgent: view.userAgent,
+    };
   }
 
   async function ensureBookingForApprovedQuote(quotation, payload, context) {
@@ -694,8 +601,87 @@ function createQuotationsService({ repository, logger, events }) {
     generatePdf,
     send,
     trackView,
-    approveMargin,
-    transitionStatus,
+
+    async approveMargin(id, payload = {}, context = {}) {
+      assertAuthenticatedUser(context.user);
+      await getById(id, context, { includeItems: false });
+
+      const updated = await repository.update(id, {
+        requires_approval: false,
+        approved_by: context.user.id,
+        approved_at: new Date().toISOString(),
+        approval_note: payload.note || null,
+        updated_at: new Date().toISOString(),
+      });
+
+      await logVersion({
+        quotation: updated,
+        action: 'MARGIN_APPROVED',
+        editorId: context.user.id,
+        changeLog: {
+          note: payload.note || null,
+        },
+      });
+
+      events.emitMarginApproved({ id: updated.id, approvedBy: context.user.id });
+      return updated;
+    },
+
+    async transitionStatus(id, payload, context = {}) {
+      assertAuthenticatedUser(context.user);
+      const quotation = await getById(id, context, { includeItems: true });
+
+      if (![QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.REJECTED].includes(payload.status)) {
+        throw new AppError(400, 'Only APPROVED/REJECTED transitions are supported', 'QUOTATION_STATUS_UNSUPPORTED');
+      }
+
+      if (![QUOTATION_STATUS.DRAFT, QUOTATION_STATUS.SENT, QUOTATION_STATUS.VIEWED].includes(quotation.status)) {
+        throw new AppError(409, 'Invalid status transition', 'QUOTATION_INVALID_STATUS_TRANSITION');
+      }
+
+      if (payload.status === QUOTATION_STATUS.APPROVED && quotation.requiresApproval) {
+        throw new AppError(409, 'Margin approval is required before approval', 'QUOTATION_MARGIN_APPROVAL_REQUIRED');
+      }
+
+      const updated = await repository.update(id, {
+        status: payload.status,
+        approval_note: payload.reason || quotation.approvalNote || null,
+        locked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      let booking = null;
+      if (payload.status === QUOTATION_STATUS.APPROVED) {
+        booking = await ensureBookingForApprovedQuote(updated, payload, context);
+        if (updated.leadId) {
+          await repository.updateLeadStatus(updated.leadId, 'CONVERTED');
+        }
+      }
+
+      if (payload.status === QUOTATION_STATUS.REJECTED && updated.leadId) {
+        await repository.updateLeadStatus(updated.leadId, 'LOST');
+      }
+
+      await logVersion({
+        quotation: { ...updated, items: quotation.items },
+        action: `STATUS_${payload.status}`,
+        editorId: context.user.id,
+        changeLog: {
+          from: quotation.status,
+          to: payload.status,
+          reason: payload.reason || null,
+        },
+      });
+
+      events.emitStatusChanged({ id: updated.id, status: updated.status });
+      return {
+        quotation: {
+          ...updated,
+          items: quotation.items,
+        },
+        booking,
+      };
+    },
 
     async listViews(id, filters = {}, context = {}) {
       await getById(id, context, { includeItems: false });
@@ -712,7 +698,59 @@ function createQuotationsService({ repository, logger, events }) {
       return repository.findSendLogsByQuotationId(id);
     },
 
-    runReminderAutomation,
+    async runReminderAutomation(payload = {}, context = {}) {
+      const notOpenedHours = toHours(payload.notOpenedHours, 24);
+      const viewedNoActionHours = toHours(payload.viewedNoActionHours, 48);
+
+      const now = new Date();
+      const notOpenedBefore = addHours(now, -notOpenedHours).toISOString();
+      const viewedNoActionBefore = addHours(now, -viewedNoActionHours).toISOString();
+
+      const candidates = await repository.findReminderCandidates({
+        notOpenedBefore,
+        viewedNoActionBefore,
+      });
+
+      const reminders = [];
+      let triggered = 0;
+      let skipped = 0;
+
+      for (const candidate of candidates) {
+        if (!candidate.quotation?.id) {
+          skipped += 1;
+          continue;
+        }
+
+        await repository.createReminderLog({
+          quotationId: candidate.quotation.id,
+          reminderType: candidate.reminderType,
+          triggeredBy: context.user?.id || null,
+          metadata: {
+            notOpenedHours,
+            viewedNoActionHours,
+          },
+        });
+
+        reminders.push({
+          quotationId: candidate.quotation.id,
+          reminderType: candidate.reminderType,
+        });
+        triggered += 1;
+
+        events.emitReminderTriggered({
+          quotationId: candidate.quotation.id,
+          reminderType: candidate.reminderType,
+          triggeredBy: context.user?.id || null,
+        });
+      }
+
+      return {
+        processed: candidates.length,
+        triggered,
+        skipped,
+        reminders,
+      };
+    },
 
     async getLeadToQuoteReport(filters = {}, context = {}) {
       logger.debug({ module: 'quotations', requestId: context.requestId, filters }, 'Lead-to-quote report');
@@ -724,20 +762,15 @@ function createQuotationsService({ repository, logger, events }) {
     },
 
     async createTemplate(payload, context = {}) {
-      assertTemplateAdmin(context.user);
+      assertAuthenticatedUser(context.user);
 
-      const code = normalizeTemplateCode(payload.code);
-      if (!code) {
-        throw new AppError(400, 'Template code is required', 'QUOTATION_TEMPLATE_CODE_REQUIRED');
-      }
-
-      const existing = await repository.findTemplateByCode(code);
+      const existing = await repository.findTemplateByCode(payload.code);
       if (existing) {
-        throw new AppError(409, 'Template code already exists', 'QUOTATION_TEMPLATE_CODE_EXISTS');
+        throw new AppError(409, 'Template code already exists', 'QUOTATION_TEMPLATE_DUPLICATE_CODE');
       }
 
       return repository.createTemplate({
-        code,
+        code: payload.code,
         name: payload.name,
         template_type: payload.templateType,
         header_branding: payload.headerBranding || null,
@@ -746,41 +779,43 @@ function createQuotationsService({ repository, logger, events }) {
         payment_terms: payload.paymentTerms || null,
         cancellation_policy: payload.cancellationPolicy || null,
         footer_disclaimer: payload.footerDisclaimer || null,
-        min_margin_percent: payload.minMarginPercent ?? DEFAULT_MIN_MARGIN_PERCENT,
+        min_margin_percent: roundCurrency(payload.minMarginPercent ?? 0),
         is_active: payload.isActive ?? true,
         created_by: context.user.id,
         updated_by: context.user.id,
+        updated_at: new Date().toISOString(),
       });
     },
 
     async updateTemplate(id, payload, context = {}) {
-      assertTemplateAdmin(context.user);
+      assertAuthenticatedUser(context.user);
 
-      const current = await repository.findTemplateById(id);
-      if (!current) {
-        throw new AppError(404, 'Template not found', 'QUOTATION_TEMPLATE_NOT_FOUND');
+      const existing = await repository.findTemplateById(id);
+      if (!existing) {
+        throw new AppError(404, 'Quotation template not found', 'QUOTATION_TEMPLATE_NOT_FOUND');
       }
 
-      if (payload.code) {
-        const normalized = normalizeTemplateCode(payload.code);
-        const duplicate = await repository.findTemplateByCode(normalized);
+      if (payload.code && payload.code !== existing.code) {
+        const duplicate = await repository.findTemplateByCode(payload.code);
         if (duplicate && duplicate.id !== id) {
-          throw new AppError(409, 'Template code already exists', 'QUOTATION_TEMPLATE_CODE_EXISTS');
+          throw new AppError(409, 'Template code already exists', 'QUOTATION_TEMPLATE_DUPLICATE_CODE');
         }
       }
 
       return repository.updateTemplate(id, {
-        code: payload.code ? normalizeTemplateCode(payload.code) : current.code,
-        name: payload.name ?? current.name,
-        template_type: payload.templateType ?? current.templateType,
-        header_branding: payload.headerBranding ?? current.headerBranding,
-        inclusions: payload.inclusions ?? current.inclusions,
-        exclusions: payload.exclusions ?? current.exclusions,
-        payment_terms: payload.paymentTerms ?? current.paymentTerms,
-        cancellation_policy: payload.cancellationPolicy ?? current.cancellationPolicy,
-        footer_disclaimer: payload.footerDisclaimer ?? current.footerDisclaimer,
-        min_margin_percent: payload.minMarginPercent ?? current.minMarginPercent,
-        is_active: payload.isActive ?? current.isActive,
+        code: payload.code,
+        name: payload.name,
+        template_type: payload.templateType,
+        header_branding: payload.headerBranding,
+        inclusions: payload.inclusions,
+        exclusions: payload.exclusions,
+        payment_terms: payload.paymentTerms,
+        cancellation_policy: payload.cancellationPolicy,
+        footer_disclaimer: payload.footerDisclaimer,
+        min_margin_percent: payload.minMarginPercent !== undefined
+          ? roundCurrency(payload.minMarginPercent)
+          : undefined,
+        is_active: payload.isActive,
         updated_by: context.user.id,
         updated_at: new Date().toISOString(),
       });

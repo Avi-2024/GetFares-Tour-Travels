@@ -3,6 +3,7 @@
     if (value === null || value === undefined) {
       return fallback;
     }
+
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   }
@@ -11,6 +12,25 @@
     if (value === null || value === undefined) {
       return fallback;
     }
+
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+        return true;
+      }
+      if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+        return false;
+      }
+    }
+
     return Boolean(value);
   }
 
@@ -18,11 +38,37 @@
     if (!value) {
       return null;
     }
+
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
       return null;
     }
+
     return date.toISOString();
+  }
+
+  function toJson(value, fallback = null) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+
+    if (typeof value === 'object') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch (_error) {
+        return fallback;
+      }
+    }
+
+    return fallback;
+  }
+
+  function canUseRawQuery() {
+    return typeof db.query === 'function' && db.pool;
   }
 
   function toQuotation(row) {
@@ -38,7 +84,8 @@
       createdBy: row.created_by ?? row.createdBy ?? null,
       pricingId: row.pricing_id ?? row.pricingId ?? null,
       templateId: row.template_id ?? row.templateId ?? null,
-      templateSnapshot: row.template_snapshot ?? row.templateSnapshot ?? null,
+      templateSnapshot: toJson(row.template_snapshot ?? row.templateSnapshot, null),
+      quoteNumber: row.quote_number ?? row.quoteNumber ?? null,
       totalCost: toNumber(row.total_cost ?? row.totalCost, 0),
       marginPercent: toNumber(row.margin_percent ?? row.marginPercent, 0),
       marginAmount: toNumber(row.margin_amount ?? row.marginAmount, 0),
@@ -65,7 +112,7 @@
       expiresAt: toDate(row.expires_at ?? row.expiresAt),
       lockedAt: toDate(row.locked_at ?? row.lockedAt),
       leadToQuoteMinutes: toNumber(row.lead_to_quote_minutes ?? row.leadToQuoteMinutes, null),
-      isDeleted: toBoolean(row.is_deleted ?? row.isDeleted, false),
+      isDeleted: Boolean(row.is_deleted ?? row.isDeleted ?? false),
       createdAt: toDate(row.created_at ?? row.createdAt),
       updatedAt: toDate(row.updated_at ?? row.updatedAt),
     };
@@ -159,58 +206,222 @@
     };
   }
 
+  function toTemplate(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      templateType: row.template_type ?? row.templateType,
+      headerBranding: row.header_branding ?? row.headerBranding ?? null,
+      inclusions: row.inclusions ?? null,
+      exclusions: row.exclusions ?? null,
+      paymentTerms: row.payment_terms ?? row.paymentTerms ?? null,
+      cancellationPolicy: row.cancellation_policy ?? row.cancellationPolicy ?? null,
+      footerDisclaimer: row.footer_disclaimer ?? row.footerDisclaimer ?? null,
+      minMarginPercent: toNumber(row.min_margin_percent ?? row.minMarginPercent, 0),
+      isActive: toBoolean(row.is_active ?? row.isActive, true),
+      createdBy: row.created_by ?? row.createdBy ?? null,
+      updatedBy: row.updated_by ?? row.updatedBy ?? null,
+      createdAt: toDate(row.created_at ?? row.createdAt),
+      updatedAt: toDate(row.updated_at ?? row.updatedAt),
+    };
+  }
+
+  function toVersionLog(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      quotationId: row.quotation_id ?? row.quotationId,
+      versionNumber: Number(row.version_number ?? row.versionNumber ?? 1),
+      editorId: row.editor_id ?? row.editorId ?? null,
+      action: row.action,
+      changeLog: toJson(row.change_log ?? row.changeLog, {}),
+      snapshot: toJson(row.snapshot, null),
+      createdAt: toDate(row.created_at ?? row.createdAt),
+    };
+  }
+
+  function toSendLog(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      quotationId: row.quotation_id ?? row.quotationId,
+      sentBy: row.sent_by ?? row.sentBy ?? null,
+      deliveryChannel: row.delivery_channel ?? row.deliveryChannel ?? 'MANUAL',
+      recipientEmail: row.recipient_email ?? row.recipientEmail ?? null,
+      recipientPhone: row.recipient_phone ?? row.recipientPhone ?? null,
+      sentAt: toDate(row.sent_at ?? row.sentAt),
+      metadata: toJson(row.metadata, {}),
+    };
+  }
+
+  function toReminderLog(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      quotationId: row.quotation_id ?? row.quotationId,
+      reminderType: row.reminder_type ?? row.reminderType,
+      triggeredBy: row.triggered_by ?? row.triggeredBy ?? null,
+      triggeredAt: toDate(row.triggered_at ?? row.triggeredAt),
+      metadata: toJson(row.metadata, {}),
+    };
+  }
+
   async function findItemsByQuotationId(quotationId) {
     const rows = await db.findMany(schema.itemsTable, { quotation_id: quotationId });
     return rows.map((row) => toItem(row));
   }
 
   async function findViewsByQuotationId(quotationId, pagination = {}) {
-    const filters = {
-      quotation_id: quotationId,
-    };
-
+    const filters = { quotation_id: quotationId };
     if (pagination.page) {
       filters.page = pagination.page;
     }
-
     if (pagination.limit) {
       filters.limit = pagination.limit;
     }
 
     const rows = await db.findMany(schema.viewsTable, filters);
-    const list = rows.map((row) => toView(row));
-
-    return list.sort((a, b) => {
-      const left = new Date(a.viewedAt || 0).getTime();
-      const right = new Date(b.viewedAt || 0).getTime();
-      return right - left;
-    });
+    return rows
+      .map((row) => toView(row))
+      .sort((a, b) => {
+        const left = new Date(a.viewedAt || 0).getTime();
+        const right = new Date(b.viewedAt || 0).getTime();
+        return right - left;
+      });
   }
 
   async function findVersionLogsByQuotationId(quotationId) {
     const rows = await db.findMany(schema.versionLogsTable, { quotation_id: quotationId });
-    const logs = rows.map((row) => toVersionLog(row));
+    return rows
+      .map((row) => toVersionLog(row))
+      .sort((a, b) => {
+        const leftVersion = Number(a.versionNumber || 0);
+        const rightVersion = Number(b.versionNumber || 0);
+        if (leftVersion !== rightVersion) {
+          return rightVersion - leftVersion;
+        }
 
-    return logs.sort((a, b) => {
-      if (b.versionNumber !== a.versionNumber) {
-        return b.versionNumber - a.versionNumber;
-      }
-
-      const left = new Date(a.createdAt || 0).getTime();
-      const right = new Date(b.createdAt || 0).getTime();
-      return right - left;
-    });
+        const leftTime = new Date(a.createdAt || 0).getTime();
+        const rightTime = new Date(b.createdAt || 0).getTime();
+        return rightTime - leftTime;
+      });
   }
 
   async function findSendLogsByQuotationId(quotationId) {
     const rows = await db.findMany(schema.sendLogsTable, { quotation_id: quotationId });
-    const list = rows.map((row) => toSendLog(row));
+    return rows
+      .map((row) => toSendLog(row))
+      .sort((a, b) => {
+        const left = new Date(a.sentAt || 0).getTime();
+        const right = new Date(b.sentAt || 0).getTime();
+        return right - left;
+      });
+  }
 
-    return list.sort((a, b) => {
-      const left = new Date(a.sentAt || 0).getTime();
-      const right = new Date(b.sentAt || 0).getTime();
-      return right - left;
+  function buildTemplateFilters(filters = {}) {
+    const mapped = {};
+
+    if (filters.isActive !== undefined) {
+      mapped.is_active = filters.isActive;
+    }
+
+    if (filters.templateType) {
+      mapped.template_type = filters.templateType;
+    }
+
+    if (filters.page) {
+      mapped.page = filters.page;
+    }
+
+    if (filters.limit) {
+      mapped.limit = filters.limit;
+    }
+
+    return mapped;
+  }
+
+  async function findReminderCandidates({ notOpenedBefore, viewedNoActionBefore }) {
+    if (canUseRawQuery()) {
+      const notOpenedSql = `
+        SELECT *
+        FROM ${schema.tableName}
+        WHERE COALESCE(is_deleted, FALSE) = FALSE
+          AND status NOT IN ('APPROVED', 'REJECTED')
+          AND sent_at IS NOT NULL
+          AND sent_at <= $1
+          AND COALESCE(view_count, 0) = 0
+      `;
+
+      const viewedNoActionSql = `
+        SELECT *
+        FROM ${schema.tableName}
+        WHERE COALESCE(is_deleted, FALSE) = FALSE
+          AND status NOT IN ('APPROVED', 'REJECTED')
+          AND sent_at IS NOT NULL
+          AND last_viewed_at IS NOT NULL
+          AND last_viewed_at <= $1
+          AND COALESCE(view_count, 0) > 0
+      `;
+
+      const [notOpenedResult, viewedResult] = await Promise.all([
+        db.query(notOpenedSql, [notOpenedBefore]),
+        db.query(viewedNoActionSql, [viewedNoActionBefore]),
+      ]);
+
+      const notOpened = notOpenedResult.rows.map((row) => ({
+        quotation: toQuotation(row),
+        reminderType: 'NOT_OPENED_24H',
+      }));
+
+      const viewedNoAction = viewedResult.rows.map((row) => ({
+        quotation: toQuotation(row),
+        reminderType: 'VIEWED_NO_ACTION_48H',
+      }));
+
+      return [...notOpened, ...viewedNoAction];
+    }
+
+    const rows = await db.findMany(schema.tableName, {});
+    const notOpenedCutoff = new Date(notOpenedBefore).getTime();
+    const viewedCutoff = new Date(viewedNoActionBefore).getTime();
+
+    const isFinalStatus = new Set(['APPROVED', 'REJECTED']);
+    const candidates = [];
+
+    rows.forEach((row) => {
+      const domain = toQuotation(row);
+      if (!domain || isFinalStatus.has(domain.status) || domain.isDeleted) {
+        return;
+      }
+
+      const sentAt = domain.sentAt ? new Date(domain.sentAt).getTime() : null;
+      const lastViewedAt = domain.lastViewedAt ? new Date(domain.lastViewedAt).getTime() : null;
+
+      if (sentAt && domain.viewCount === 0 && sentAt <= notOpenedCutoff) {
+        candidates.push({ quotation: domain, reminderType: 'NOT_OPENED_24H' });
+        return;
+      }
+
+      if (lastViewedAt && domain.viewCount > 0 && lastViewedAt <= viewedCutoff) {
+        candidates.push({ quotation: domain, reminderType: 'VIEWED_NO_ACTION_48H' });
+      }
     });
+
+    return candidates;
   }
 
   return Object.freeze({
@@ -228,7 +439,12 @@
       if (filters.createdBy) {
         mappedFilters.created_by = filters.createdBy;
       }
-
+      if (filters.templateId) {
+        mappedFilters.template_id = filters.templateId;
+      }
+      if (filters.requiresApproval !== undefined) {
+        mappedFilters.requires_approval = filters.requiresApproval;
+      }
       if (filters.page) {
         mappedFilters.page = filters.page;
       }
@@ -253,9 +469,8 @@
     },
 
     findItemsByQuotationId,
+
     findViewsByQuotationId,
-    findVersionLogsByQuotationId,
-    findSendLogsByQuotationId,
 
     async create(payload) {
       logger.debug({ module: 'quotations', payload }, 'Creating quotation');
@@ -321,6 +536,41 @@
       return toView(row);
     },
 
+    async incrementViewStats(quotationId) {
+      if (canUseRawQuery()) {
+        const result = await db.query(
+          `
+            UPDATE ${schema.tableName}
+            SET
+              view_count = COALESCE(view_count, 0) + 1,
+              first_viewed_at = COALESCE(first_viewed_at, CURRENT_TIMESTAMP),
+              last_viewed_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING *
+          `,
+          [quotationId],
+        );
+
+        return toQuotation(result.rows[0]);
+      }
+
+      const current = await db.findById(schema.tableName, quotationId);
+      if (!current) {
+        return null;
+      }
+
+      const nowIso = new Date().toISOString();
+      const next = await db.update(schema.tableName, quotationId, {
+        view_count: Number(current.view_count || 0) + 1,
+        first_viewed_at: current.first_viewed_at || nowIso,
+        last_viewed_at: nowIso,
+        updated_at: nowIso,
+      });
+
+      return toQuotation(next);
+    },
+
     async findLeadById(id) {
       return db.findById(schema.leadsTable, id);
     },
@@ -380,48 +630,79 @@
       return db.insert(schema.bookingsTable, payload);
     },
 
-    async findReminderLogByType(quotationId, reminderType) {
-      return db.findOne(schema.reminderLogsTable, {
-        quotation_id: quotationId,
-        reminder_type: reminderType,
-      });
+    async findTemplateById(id) {
+      const row = await db.findById(schema.templatesTable, id);
+      return toTemplate(row);
     },
 
+    async findTemplateByCode(code) {
+      const row = await db.findOne(schema.templatesTable, { code });
+      return toTemplate(row);
+    },
+
+    async findTemplates(filters = {}) {
+      const rows = await db.findMany(schema.templatesTable, buildTemplateFilters(filters));
+      return rows
+        .map((row) => toTemplate(row))
+        .sort((a, b) => {
+          const left = new Date(a.createdAt || 0).getTime();
+          const right = new Date(b.createdAt || 0).getTime();
+          return right - left;
+        });
+    },
+
+    async createTemplate(payload) {
+      const row = await db.insert(schema.templatesTable, payload);
+      return toTemplate(row);
+    },
+
+    async updateTemplate(id, payload) {
+      const row = await db.update(schema.templatesTable, id, payload);
+      return toTemplate(row);
+    },
+
+    async createVersionLog(payload) {
+      const row = await db.insert(schema.versionLogsTable, {
+        quotation_id: payload.quotationId,
+        version_number: payload.versionNumber,
+        editor_id: payload.editorId || null,
+        action: payload.action,
+        change_log: payload.changeLog || {},
+        snapshot: payload.snapshot || null,
+      });
+
+      return toVersionLog(row);
+    },
+
+    findVersionLogsByQuotationId,
+
+    async createSendLog(payload) {
+      const row = await db.insert(schema.sendLogsTable, {
+        quotation_id: payload.quotationId,
+        sent_by: payload.sentBy || null,
+        delivery_channel: payload.deliveryChannel || 'MANUAL',
+        recipient_email: payload.recipientEmail || null,
+        recipient_phone: payload.recipientPhone || null,
+        metadata: payload.metadata || {},
+      });
+
+      return toSendLog(row);
+    },
+
+    findSendLogsByQuotationId,
+
     async createReminderLog(payload) {
-      return db.insert(schema.reminderLogsTable, {
+      const row = await db.insert(schema.reminderLogsTable, {
         quotation_id: payload.quotationId,
         reminder_type: payload.reminderType,
         triggered_by: payload.triggeredBy || null,
-        metadata: payload.metadata || null,
+        metadata: payload.metadata || {},
       });
+
+      return toReminderLog(row);
     },
 
-    async findReminderCandidates({ notOpenedHours = 24, viewedNoActionHours = 48 } = {}) {
-      const sql = `
-        SELECT q.id AS quotation_id, 'NOT_OPENED_24H'::text AS reminder_type
-        FROM quotations q
-        WHERE q.status = 'SENT'
-          AND q.sent_at IS NOT NULL
-          AND q.sent_at <= NOW() - ($1 * INTERVAL '1 hour')
-          AND COALESCE(q.view_count, 0) = 0
-          AND COALESCE(q.is_deleted, FALSE) = FALSE
-
-        UNION ALL
-
-        SELECT q.id AS quotation_id, 'VIEWED_NO_ACTION_48H'::text AS reminder_type
-        FROM quotations q
-        WHERE q.status = 'VIEWED'
-          AND q.last_viewed_at IS NOT NULL
-          AND q.last_viewed_at <= NOW() - ($2 * INTERVAL '1 hour')
-          AND COALESCE(q.is_deleted, FALSE) = FALSE
-      `;
-
-      const result = await db.query(sql, [notOpenedHours, viewedNoActionHours]);
-      return result.rows.map((row) => ({
-        quotationId: row.quotation_id,
-        reminderType: row.reminder_type,
-      }));
-    },
+    findReminderCandidates,
 
     async getLeadToQuoteReport(filters = {}) {
       const where = ['COALESCE(q.is_deleted, FALSE) = FALSE'];

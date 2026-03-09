@@ -1,7 +1,7 @@
 ﻿const { z } = require('zod');
 
 const quotationStatus = z.enum(['DRAFT', 'SENT', 'VIEWED', 'APPROVED', 'REJECTED', 'EXPIRED']);
-const transitionStatus = z.enum(['APPROVED', 'REJECTED', 'EXPIRED']);
+const transitionStatus = z.enum(['APPROVED', 'REJECTED']);
 const templateType = z.enum(['READY_PACKAGE', 'VISA', 'CUSTOM_ITINERARY']);
 const deliveryChannel = z.enum(['EMAIL', 'WHATSAPP', 'MANUAL']);
 const itemType = z.enum(['HOTEL', 'FLIGHT', 'TRANSFER', 'VISA', 'INSURANCE', 'OTHER']);

@@ -1,6 +1,7 @@
 const PaymentsSchema = Object.freeze({
   tableName: 'payments',
-  invoicesTable: 'invoices',
+  bookingsTable: 'bookings',
+  refundsTable: 'refunds',
   entityName: 'Payments',
 });
 
