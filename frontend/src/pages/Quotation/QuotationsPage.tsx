@@ -15,6 +15,7 @@ import {
   FaChevronRight
 } from 'react-icons/fa';
 import { MdOutlineGridOn } from 'react-icons/md';
+import { useNavigate } from 'react-router-dom';
 
 interface Quotation {
   id: string;
@@ -47,6 +48,7 @@ interface Quotation {
 
 const QuotationsPage: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigate = useNavigate();
 
   const quotations: Quotation[] = [
     {
@@ -270,7 +272,7 @@ const QuotationsPage: React.FC = () => {
                 <h1 className="text-xl md:text-2xl font-bold text-gray-900">Quotations</h1>
                 <p className="text-xs md:text-sm text-gray-500 mt-1">Manage and track all your travel quotations in one place.</p>
               </div>
-              <button className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all">
+              <button onClick={() => navigate('/quotations/builder')} className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all">
                 <FaPlus className="mr-2" /> Create Quotation
               </button>
             </div>
