@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-
 import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
@@ -29,7 +28,6 @@ function App() {
         {/* Dashboard Layout */}
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} /> 
-
           <Route path="/leads" element={<Leads />} /> 
           <Route path="/bookings" element={<BookingsPage />} /> 
           <Route path="/quotations" element={<QuotationsPage />} /> 
