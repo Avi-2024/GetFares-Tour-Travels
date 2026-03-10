@@ -1,4 +1,6 @@
-﻿function createQuotationsRepository({ db, logger, schema }) {
+function createQuotationsRepository({ db, logger, schema }) {
+  const tableColumnsCache = new Map();
+
   function toNumber(value, fallback = null) {
     if (value === null || value === undefined) {
       return fallback;
@@ -71,6 +73,39 @@
     return typeof db.query === 'function' && db.pool;
   }
 
+  async function getTableColumns(tableName) {
+    if (!canUseRawQuery()) {
+      return null;
+    }
+
+    if (tableColumnsCache.has(tableName)) {
+      return tableColumnsCache.get(tableName);
+    }
+
+    const result = await db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      [tableName],
+    );
+
+    const columns = new Set(result.rows.map((row) => row.column_name));
+    tableColumnsCache.set(tableName, columns);
+    return columns;
+  }
+
+  async function sanitizeForTable(tableName, payload = {}) {
+    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    if (!entries.length) {
+      return {};
+    }
+
+    const columns = await getTableColumns(tableName);
+    if (columns === null) {
+      return Object.fromEntries(entries);
+    }
+
+    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+  }
+
   function toQuotation(row) {
     if (!row) {
       return null;
@@ -94,6 +129,16 @@
       tax: toNumber(row.tax, 0),
       taxAmount: toNumber(row.tax_amount ?? row.taxAmount, 0),
       finalPrice: toNumber(row.final_price ?? row.finalPrice, 0),
+      supplierCost: toNumber(row.supplier_cost ?? row.supplierCost, 0),
+      supplierTaxAmount: toNumber(row.supplier_tax_amount ?? row.supplierTaxAmount, 0),
+      markupAmount: toNumber(row.markup_amount ?? row.markupAmount, 0),
+      serviceFeeAmount: toNumber(row.service_fee_amount ?? row.serviceFeeAmount, 0),
+      gstAmount: toNumber(row.gst_amount ?? row.gstAmount, 0),
+      tcsAmount: toNumber(row.tcs_amount ?? row.tcsAmount, 0),
+      totalSaleValue: toNumber(row.total_sale_value ?? row.totalSaleValue, 0),
+      costCurrency: row.cost_currency ?? row.costCurrency ?? 'INR',
+      clientCurrency: row.client_currency ?? row.clientCurrency ?? 'INR',
+      supplierCurrency: row.supplier_currency ?? row.supplierCurrency ?? 'INR',
       minMarginPercent: toNumber(row.min_margin_percent ?? row.minMarginPercent, 0),
       requiresApproval: toBoolean(row.requires_approval ?? row.requiresApproval, false),
       approvedBy: row.approved_by ?? row.approvedBy ?? null,
@@ -474,13 +519,15 @@
 
     async create(payload) {
       logger.debug({ module: 'quotations', payload }, 'Creating quotation');
-      const row = await db.insert(schema.tableName, payload);
+      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      const row = await db.insert(schema.tableName, sanitized);
       return toQuotation(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: 'quotations', id, payload }, 'Updating quotation');
-      const row = await db.update(schema.tableName, id, payload);
+      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      const row = await db.update(schema.tableName, id, sanitized);
       return toQuotation(row);
     },
 

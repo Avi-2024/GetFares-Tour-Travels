@@ -242,6 +242,18 @@ function createBookingsService({ repository, logger, events }) {
       throw new AppError(400, 'advanceRequired cannot exceed totalAmount', 'BOOKING_ADVANCE_EXCEEDS_TOTAL');
     }
 
+    const clientCurrency = payload.clientCurrency ? toUpperText(payload.clientCurrency) : 'INR';
+    const supplierCurrency = payload.supplierCurrency ? toUpperText(payload.supplierCurrency) : 'INR';
+    const exchangeRate = payload.exchangeRate !== undefined ? toNumber(payload.exchangeRate, null) : null;
+
+    if (clientCurrency && supplierCurrency && clientCurrency !== supplierCurrency && !exchangeRate) {
+      throw new AppError(
+        400,
+        'exchangeRate is required when clientCurrency and supplierCurrency differ',
+        'BOOKING_EXCHANGE_RATE_REQUIRED',
+      );
+    }
+
     return {
       quotation_id: payload.quotationId,
       booking_number: payload.bookingNumber || buildBookingNumber(),
@@ -253,9 +265,9 @@ function createBookingsService({ repository, logger, events }) {
       payment_status: PAYMENT_STATUS.PENDING,
       advance_required: requestedAdvance,
       advance_received: 0,
-      client_currency: payload.clientCurrency ? toUpperText(payload.clientCurrency) : 'INR',
-      supplier_currency: payload.supplierCurrency ? toUpperText(payload.supplierCurrency) : 'INR',
-      exchange_rate: payload.exchangeRate !== undefined ? toNumber(payload.exchangeRate, null) : null,
+      client_currency: clientCurrency,
+      supplier_currency: supplierCurrency,
+      exchange_rate: exchangeRate,
       exchange_locked: payload.exchangeLocked ?? false,
       created_by: context.user?.id || null,
       updated_at: new Date().toISOString(),
@@ -332,9 +344,26 @@ function createBookingsService({ repository, logger, events }) {
         updatePayload.supplier_currency = toUpperText(payload.supplierCurrency);
       }
       if (payload.exchangeRate !== undefined) {
+        if (existing.exchangeLocked) {
+          throw new AppError(
+            409,
+            'Exchange rate is locked for this booking and cannot be edited.',
+            'BOOKING_EXCHANGE_LOCKED',
+          );
+        }
         updatePayload.exchange_rate = toNumber(payload.exchangeRate, null);
       }
       if (payload.exchangeLocked !== undefined) {
+        if (payload.exchangeLocked === true) {
+          const currentRate = updatePayload.exchange_rate ?? existing.exchangeRate;
+          if (!currentRate || Number(currentRate) <= 0) {
+            throw new AppError(
+              400,
+              'A valid exchangeRate is required before locking exchange.',
+              'BOOKING_EXCHANGE_RATE_REQUIRED_FOR_LOCK',
+            );
+          }
+        }
         updatePayload.exchange_locked = payload.exchangeLocked;
       }
       if (payload.cancellationReason !== undefined) {
@@ -354,8 +383,19 @@ function createBookingsService({ repository, logger, events }) {
 
       const nextTotalAmount = updatePayload.total_amount ?? existing.totalAmount;
       const nextCostAmount = updatePayload.cost_amount ?? existing.costAmount;
+      const nextClientCurrency = updatePayload.client_currency ?? existing.clientCurrency ?? 'INR';
+      const nextSupplierCurrency = updatePayload.supplier_currency ?? existing.supplierCurrency ?? 'INR';
+      const nextExchangeRate = updatePayload.exchange_rate ?? existing.exchangeRate ?? null;
       if (toNumber(nextCostAmount, 0) > toNumber(nextTotalAmount, 0)) {
         throw new AppError(400, 'costAmount cannot be greater than totalAmount', 'BOOKING_COST_EXCEEDS_TOTAL');
+      }
+
+      if (nextClientCurrency !== nextSupplierCurrency && !nextExchangeRate) {
+        throw new AppError(
+          400,
+          'exchangeRate is required when clientCurrency and supplierCurrency differ',
+          'BOOKING_EXCHANGE_RATE_REQUIRED',
+        );
       }
 
       if (updatePayload.advance_required !== undefined && toNumber(updatePayload.advance_required, 0) > toNumber(nextTotalAmount, 0)) {

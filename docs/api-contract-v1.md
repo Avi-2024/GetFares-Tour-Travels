@@ -291,40 +291,115 @@ Response: `200`
 - Protected: `notifications:update`
 Response: `200`
 
-## 9. Baseline CRUD Modules (Current)
-The following modules currently expose the same CRUD shape:
+## 9. Bookings
+### GET `/api/bookings`
+### GET `/api/bookings/:id`
+### POST `/api/bookings`
+### PATCH `/api/bookings/:id`
+- Protected via `bookings:*` permissions
+- Key create fields:
+  - `quotationId`, `travelStartDate`, `travelEndDate`
+  - `totalAmount`, `costAmount`, `advanceRequired`
+  - `clientCurrency`, `supplierCurrency`, `exchangeRate`, `exchangeLocked`
+
+### POST `/api/bookings/:id/status`
+- Protected: `bookings:update`
+- Supports transition to `PENDING|CONFIRMED|CANCELLED`
+- If `CANCELLED`, `cancellationReason` required
+- Confirmation is guarded by payment rules in service layer
+
+### GET `/api/bookings/:id/status-history`
+### GET `/api/bookings/:id/invoices`
+### POST `/api/bookings/:id/invoices/generate`
+- Protected endpoints for booking lifecycle audit and invoicing
+
+## 10. Payments
+### GET `/api/payments`
+### GET `/api/payments/:id`
+### POST `/api/payments`
+### PATCH `/api/payments/:id`
+- Protected via `payments:*` permissions
+- Supports payment modes:
+  - `CASH`, `BANK_TRANSFER`, `PAYMENT_GATEWAY`, `UPI`, `CARD`, `BANK`, `GATEWAY`
+
+### POST `/api/payments/:id/verify`
+- Protected: `payments:update`
+- Verifies payment and syncs booking payment snapshot (`advanceReceived`, `paymentStatus`)
+
+## 11. Refunds
+### GET `/api/refunds`
+### GET `/api/refunds/:id`
+### POST `/api/refunds`
+### PATCH `/api/refunds/:id`
+
+### POST `/api/refunds/:id/approve`
+### POST `/api/refunds/:id/reject`
+### POST `/api/refunds/:id/process`
+- Protected via `refunds:*` permissions
+- Workflow: `INITIATED -> APPROVED/REJECTED -> PROCESSED`
+- High-value refund approval guard is enforced in service layer
+
+## 12. Visa
+### GET `/api/visa`
+### GET `/api/visa/:id`
+### POST `/api/visa`
+### PATCH `/api/visa/:id`
+
+### POST `/api/visa/:id/status`
+- Protected: `visa:update`
+- Supported statuses:
+  - `DOCUMENT_PENDING`, `SUBMITTED`, `APPROVED`, `REJECTED`
+- Rules:
+  - `REJECTED` requires `rejectionReason`
+  - `APPROVED` requires `visaValidUntil`
+
+### GET `/api/visa/:id/documents`
+### POST `/api/visa/:id/documents`
+### PATCH `/api/visa/documents/:documentId/verify`
+
+### GET `/api/visa/:id/checklist`
+### PATCH `/api/visa/:id/checklist`
+
+### GET `/api/visa/reports/summary`
+
+## 13. Reports
+All endpoints protected by `reports:read`.
+
+### Lead reports
+- `GET /api/reports/leads/by-source`
+- `GET /api/reports/leads/by-consultant`
+- `GET /api/reports/leads/aging`
+- `GET /api/reports/leads/lost`
+
+### Revenue/Sales reports
+- `GET /api/reports/revenue/monthly`
+- `GET /api/reports/revenue/by-service-type`
+- `GET /api/reports/revenue/by-destination`
+- `GET /api/reports/sales/target-vs-achievement`
+
+### Payment/Profit reports
+- `GET /api/reports/payments/outstanding`
+- `GET /api/reports/payments/mode`
+- `GET /api/reports/profit/margin`
+
+### Visa/Follow-up/Management reports
+- `GET /api/reports/visa/summary`
+- `GET /api/reports/followups/today`
+- `GET /api/reports/followups/missed`
+- `GET /api/reports/monthly-summary`
+
+Common query filters:
+- `from`, `to` (date range)
+- report-specific optional keys like `userId`, `date`
+
+## 14. Baseline CRUD Modules (Current)
+The following modules currently expose baseline CRUD shape and still need full PRD-specific contracts:
 - `/api/users`
 - `/api/campaigns`
 - `/api/customers`
-- `/api/bookings`
-- `/api/payments`
-- `/api/refunds`
-- `/api/visa`
 - `/api/complaints`
 
-Endpoints per module:
-- `GET /` (list)
-- `GET /:id` (by id)
-- `POST /` (create)
-- `PATCH /:id` (update)
-
-Current request body contract for create/update in these baseline modules:
-```json
-{
-  "name": "Example Name",
-  "status": "active",
-  "metadata": {}
-}
-```
-
-Status enum for baseline modules:
-- `active`
-- `inactive`
-- `draft`
-
-Note: these modules are running, but their payloads still need PRD-specific field contracts.
-
-## 10. Permission Naming Convention
+## 15. Permission Naming Convention
 Pattern: `<module>:<action>`
 Examples:
 - `leads:read`
@@ -337,6 +412,6 @@ Examples:
 - `notifications:read`
 - `notifications:update`
 
-## 11. Versioning
+## 16. Versioning
 - Current: unprefixed `/api/*` (v1)
 - Breaking changes must go to `/api/v2/*` or follow explicit migration notes.

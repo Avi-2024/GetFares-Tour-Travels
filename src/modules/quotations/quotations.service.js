@@ -63,6 +63,13 @@ function createQuotationsService({ repository, logger, events }) {
     return Math.min(Math.floor(parsed), 720);
   }
 
+  function normalizeCurrency(value, fallback = 'INR') {
+    if (!value) {
+      return fallback;
+    }
+    return String(value).trim().toUpperCase();
+  }
+
   function calculatePricing(payload) {
     const components = Array.isArray(payload.components) ? payload.components : [];
     if (!components.length) {
@@ -125,6 +132,38 @@ function createQuotationsService({ repository, logger, events }) {
       tax: taxAmount,
       taxAmount,
       finalPrice,
+    };
+  }
+
+  function calculateFinanceBreakdown(payload, pricing) {
+    const supplierCost = roundCurrency(payload.supplierCost ?? pricing.totalCost);
+    const supplierTaxAmount = roundCurrency(payload.supplierTaxAmount ?? 0);
+    const markupAmount = roundCurrency(payload.markupAmount ?? pricing.marginAmount);
+    const serviceFeeAmount = roundCurrency(payload.serviceFeeAmount ?? 0);
+    const gstAmount = roundCurrency(payload.gstAmount ?? pricing.taxAmount);
+    const tcsAmount = roundCurrency(payload.tcsAmount ?? 0);
+
+    const totalSaleValue = roundCurrency(
+      supplierCost +
+      supplierTaxAmount +
+      markupAmount +
+      serviceFeeAmount +
+      gstAmount +
+      tcsAmount -
+      roundCurrency(payload.discount ?? pricing.discountAmount),
+    );
+
+    return {
+      supplierCost,
+      supplierTaxAmount,
+      markupAmount,
+      serviceFeeAmount,
+      gstAmount,
+      tcsAmount,
+      totalSaleValue: totalSaleValue < 0 ? 0 : totalSaleValue,
+      costCurrency: normalizeCurrency(payload.costCurrency, 'INR'),
+      clientCurrency: normalizeCurrency(payload.clientCurrency, 'INR'),
+      supplierCurrency: normalizeCurrency(payload.supplierCurrency, 'INR'),
     };
   }
 
@@ -197,6 +236,7 @@ function createQuotationsService({ repository, logger, events }) {
     }
 
     const pricing = calculatePricing(payload);
+    const finance = calculateFinanceBreakdown(payload, pricing);
     const minMarginPercent = roundCurrency(
       payload.minMarginPercent ?? template?.minMarginPercent ?? 0,
     );
@@ -228,6 +268,16 @@ function createQuotationsService({ repository, logger, events }) {
       tax: pricing.tax,
       tax_amount: pricing.taxAmount,
       final_price: pricing.finalPrice,
+      supplier_cost: finance.supplierCost,
+      supplier_tax_amount: finance.supplierTaxAmount,
+      markup_amount: finance.markupAmount,
+      service_fee_amount: finance.serviceFeeAmount,
+      gst_amount: finance.gstAmount,
+      tcs_amount: finance.tcsAmount,
+      total_sale_value: finance.totalSaleValue,
+      cost_currency: finance.costCurrency,
+      client_currency: finance.clientCurrency,
+      supplier_currency: finance.supplierCurrency,
       min_margin_percent: minMarginPercent,
       requires_approval: requiresApproval,
       lead_to_quote_minutes: leadToQuoteMinutes,
@@ -281,6 +331,14 @@ function createQuotationsService({ repository, logger, events }) {
       taxPercent: payload.taxPercent,
       tax: payload.tax,
     });
+    const finance = calculateFinanceBreakdown(
+      {
+        ...current,
+        ...payload,
+        discount: payload.discount ?? current.discount,
+      },
+      pricing,
+    );
 
     const minMarginPercent = roundCurrency(
       payload.minMarginPercent ?? current.minMarginPercent ?? template?.minMarginPercent ?? 0,
@@ -299,6 +357,16 @@ function createQuotationsService({ repository, logger, events }) {
       tax: pricing.tax,
       tax_amount: pricing.taxAmount,
       final_price: pricing.finalPrice,
+      supplier_cost: finance.supplierCost,
+      supplier_tax_amount: finance.supplierTaxAmount,
+      markup_amount: finance.markupAmount,
+      service_fee_amount: finance.serviceFeeAmount,
+      gst_amount: finance.gstAmount,
+      tcs_amount: finance.tcsAmount,
+      total_sale_value: finance.totalSaleValue,
+      cost_currency: finance.costCurrency,
+      client_currency: finance.clientCurrency,
+      supplier_currency: finance.supplierCurrency,
       min_margin_percent: minMarginPercent,
       requires_approval: requiresApproval,
       version_number: Number(current.versionNumber || 1) + 1,
@@ -306,7 +374,7 @@ function createQuotationsService({ repository, logger, events }) {
     });
 
     const items = payload.components
-      ? await repository.replaceItems(id, nextPricing.components)
+      ? await repository.replaceItems(id, pricing.components)
       : current.items;
 
     const quotation = { ...updated, items };

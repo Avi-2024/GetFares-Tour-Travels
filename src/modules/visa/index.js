@@ -1,13 +1,13 @@
-const { VisaController } = require('./visa.controller');
-const { VisaService } = require('./visa.service');
-const { VisaRepository } = require('./visa.repository');
+const { createVisaController } = require('./visa.controller');
+const { createVisaService } = require('./visa.service');
+const { createVisaRepository } = require('./visa.repository');
 const { createVisaRoutes } = require('./visa.routes');
 const { VisaValidation } = require('./visa.validation');
 const { VisaSchema } = require('./visa.schema');
 const { createVisaEvents } = require('./visa.events');
 
 function createVisaModule({ dependencies }) {
-  const repository = new VisaRepository({
+  const repository = createVisaRepository({
     db: dependencies.db,
     logger: dependencies.logger,
     schema: VisaSchema,
@@ -18,13 +18,13 @@ function createVisaModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new VisaService({
+  const service = createVisaService({
     repository,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = new VisaController({ service });
+  const controller = createVisaController({ service });
 
   const router = createVisaRoutes({
     controller,

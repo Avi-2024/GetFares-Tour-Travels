@@ -1,7 +1,7 @@
 # Implementation Roadmap
 
 ## 1. Document Status
-- Last updated: 2026-03-09
+- Last updated: 2026-03-10
 - Product: Getfares Tour & Travel CRM
 - Architecture: Modular Monolith (`Node.js + Express + PostgreSQL`)
 - API style: REST JSON with JWT + RBAC
@@ -14,13 +14,15 @@ This roadmap maps the PRD into executable backend increments while keeping modul
 - Sprint 2 (Distribution + Follow-up + SLA): Completed and smoke-tested.
 - Sprint 3 (Quotation Engine): Completed baseline and validated.
 - Sprint 4 (Booking + Payments + Refunds): Completed baseline and validated.
-- Sprints 5 to 8: Planned.
+- Sprint 5 (Visa + Reporting Baseline + Finance Guards): Completed and smoke-tested.
+- Sprints 6 to 8: Planned / partial.
 
 Current smoke status:
 - `npm run test:sprint1`: PASS (9/9)
 - `npm run test:sprint2`: PASS (12/12)
 - `npm run test:sprint3`: PASS (13/13)
 - `npm run test:sprint4`: PASS (15/15)
+- `npm run test:sprint5`: PASS (12/12)
 
 ## 4. Implemented Scope by Module
 - Auth: register, login, me, JWT, login auditing hooks.
@@ -31,8 +33,10 @@ Current smoke status:
 - Bookings: create/list/get/update, status transition with payment-proof guard, status history, invoice generation/list.
 - Payments: create/list/get/update, verify endpoint, booking payment summary synchronization.
 - Refunds: create/list/get/update, approve/reject/process workflow, high-value approval guard, booking payment summary synchronization.
+- Visa: create/list/get/update, status transition workflow, document upload/verify, checklist retrieval/update, visa summary report.
+- Reports: lead, revenue, payment, visa, follow-up, and monthly-summary analytics endpoints.
 - Notifications: list, unread count, mark read, mark all read.
-- Users/Campaigns/Customers/Visa/Complaints: baseline CRUD endpoints running with current shared payload model.
+- Users/Campaigns/Customers/Complaints: baseline CRUD endpoints running with current shared payload model.
 
 ## 5. Lead Temperature Logic (Business-Aligned)
 Current implementation uses `HOT/WARM/COLD` determination (not a mandatory lead-score model):
@@ -76,9 +80,12 @@ Status: Completed (current baseline)
 - Implemented: refund approval workflow (`INITIATED -> APPROVED/REJECTED -> PROCESSED`) with high-value approval guard.
 
 ### Sprint 5 - Visa and Operations
-Status: Planned
-- Stage-based visa workflow and document completeness enforcement.
-- Complaint lifecycle policy.
+Status: Completed (current baseline)
+- Implemented: stage-based visa workflow with transition validation.
+- Implemented: visa document upload + verification APIs.
+- Implemented: documentation checklist update and `travelReady` computation.
+- Implemented: visa summary report endpoint.
+- Implemented: finance guardrails for booking exchange-rate validation in service layer.
 
 ### Sprint 6 - Customers, Marketing, Automation
 Status: Planned
@@ -86,8 +93,12 @@ Status: Planned
 - Template-driven communication flows.
 
 ### Sprint 7 - Reporting and Executive Summary
-Status: Planned
-- KPI dashboards, funnel metrics, loss analytics, monthly summary pack.
+Status: In Progress (backend baseline complete)
+- Implemented: lead source/consultant/aging/lost reports.
+- Implemented: revenue by month/service-type/destination.
+- Implemented: outstanding/payment-mode/profit-margin reports.
+- Implemented: follow-up today/missed and monthly summary report.
+- Pending: executive KPI packs, forecasting, dashboard-oriented aggregates.
 
 ### Sprint 8 - UAT and Production Readiness
 Status: Planned
@@ -115,10 +126,10 @@ Still pending in service-layer behavior:
 ## 9. Risks and Gaps
 - Sprint 3 now depends on quotation enhancement tables/columns from migration `003_quotation_engine_sprint3.sql`.
 - Several non-leads modules still run generic payload validation and need PRD-specific payload contracts.
-- Reporting APIs for full management dashboard are not fully exposed yet.
+- Reporting baseline is exposed, but advanced management dashboard KPIs and forecasting packs are still pending.
 
 ## 10. Next Build Priorities
-1. Upgrade remaining generic modules to business payload contracts (visa/customers/campaigns/users/complaints).
-2. Implement reporting module endpoints for lead, revenue, payment, visa, and productivity reports.
-3. Add finance policy engine for GST/TCS, currency exchange handling, and supplier payable lifecycle.
+1. Upgrade remaining generic modules to business payload contracts (customers/campaigns/users/complaints).
+2. Expand reporting from baseline endpoints to dashboard-ready KPI packs + forecasting.
+3. Add finance policy engine for GST/TCS posting, currency conversion locking, and supplier payable lifecycle.
 4. Harden migration strategy around `database/migrations/database.sql` snapshot handling for production safety.
