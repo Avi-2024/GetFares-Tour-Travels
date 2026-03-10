@@ -1,6 +1,6 @@
 module.exports = [
   {
-    ignores: ['node_modules/**', 'coverage/**', 'database/**'],
+    ignores: ['node_modules/**', 'coverage/**', 'database/**', 'frontend/**'],
   },
   {
     files: ['**/*.js'],

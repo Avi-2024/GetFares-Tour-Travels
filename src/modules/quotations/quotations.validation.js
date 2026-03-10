@@ -1,6 +1,6 @@
 ﻿const { z } = require('zod');
 
-const quotationStatus = z.enum(['DRAFT', 'SENT', 'APPROVED', 'REJECTED']);
+const quotationStatus = z.enum(['DRAFT', 'SENT', 'VIEWED', 'APPROVED', 'REJECTED', 'EXPIRED']);
 const transitionStatus = z.enum(['APPROVED', 'REJECTED']);
 const templateType = z.enum(['READY_PACKAGE', 'VISA', 'CUSTOM_ITINERARY']);
 const deliveryChannel = z.enum(['EMAIL', 'WHATSAPP', 'MANUAL']);
@@ -11,6 +11,8 @@ const componentSchema = z.object({
   description: z.string().min(1).max(1000),
   cost: z.coerce.number().nonnegative(),
 });
+
+const currencyCode = z.string().trim().min(3).max(10);
 
 const create = z.object({
   body: z.object({
@@ -24,6 +26,15 @@ const create = z.object({
     discount: z.coerce.number().nonnegative().optional(),
     taxPercent: z.coerce.number().min(0).max(100).optional(),
     taxAmount: z.coerce.number().nonnegative().optional(),
+    supplierCost: z.coerce.number().nonnegative().optional(),
+    supplierTaxAmount: z.coerce.number().nonnegative().optional(),
+    markupAmount: z.coerce.number().nonnegative().optional(),
+    serviceFeeAmount: z.coerce.number().nonnegative().optional(),
+    gstAmount: z.coerce.number().nonnegative().optional(),
+    tcsAmount: z.coerce.number().nonnegative().optional(),
+    costCurrency: currencyCode.optional(),
+    clientCurrency: currencyCode.optional(),
+    supplierCurrency: currencyCode.optional(),
     expiresInHours: z.coerce.number().int().positive().max(720).optional(),
   }),
   params: z.object({}).optional(),
@@ -40,6 +51,15 @@ const update = z.object({
       discount: z.coerce.number().nonnegative().optional(),
       taxPercent: z.coerce.number().min(0).max(100).optional(),
       taxAmount: z.coerce.number().nonnegative().optional(),
+      supplierCost: z.coerce.number().nonnegative().optional(),
+      supplierTaxAmount: z.coerce.number().nonnegative().optional(),
+      markupAmount: z.coerce.number().nonnegative().optional(),
+      serviceFeeAmount: z.coerce.number().nonnegative().optional(),
+      gstAmount: z.coerce.number().nonnegative().optional(),
+      tcsAmount: z.coerce.number().nonnegative().optional(),
+      costCurrency: currencyCode.optional(),
+      clientCurrency: currencyCode.optional(),
+      supplierCurrency: currencyCode.optional(),
       notes: z.string().max(2000).optional(),
     })
     .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update'),

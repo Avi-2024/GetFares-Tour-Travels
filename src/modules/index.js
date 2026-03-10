@@ -10,6 +10,7 @@ const { createVisaModule } = require('./visa');
 const { createCampaignsModule } = require('./campaigns');
 const { createCustomersModule } = require('./customers');
 const { createComplaintsModule } = require('./complaints');
+const { createReportsModule } = require('./reports');
 const { createWebhooksModule } = require('./webhooks');
 const { createNotificationsModule } = require('./notifications');
 
@@ -52,6 +53,7 @@ function registerModules(app, dependencies) {
     ['campaigns', createCampaignsModule],
     ['customers', createCustomersModule],
     ['complaints', createComplaintsModule],
+    ['reports', createReportsModule],
   ];
 
   featureFactories.forEach(([name, factory]) => {
@@ -90,6 +92,7 @@ module.exports = {
   createCampaignsModule,
   createCustomersModule,
   createComplaintsModule,
+  createReportsModule,
   createWebhooksModule,
   createNotificationsModule,
 };

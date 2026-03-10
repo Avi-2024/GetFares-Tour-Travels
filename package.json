@@ -15,7 +15,9 @@
         "db:seed:rbac": "node scripts/seed-rbac.js",
         "test:sprint1": "node scripts/test-sprint1.js",
         "test:sprint2": "node scripts/test-sprint2.js",
-        "test:sprint3": "node scripts/test-sprint3.js"
+        "test:sprint3": "node scripts/test-sprint3.js",
+        "test:sprint4": "node scripts/test-sprint4.js",
+        "test:sprint5": "node scripts/test-sprint5.js"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",

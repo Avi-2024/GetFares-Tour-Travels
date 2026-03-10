@@ -19,6 +19,11 @@ function createPaymentsController({ service }) {
       const result = await service.update(req.validated.params.id, req.validated.body, req.context);
       res.status(200).json({ data: result });
     },
+
+    async verify(req, res) {
+      const result = await service.verify(req.validated.params.id, req.validated.body || {}, req.context);
+      res.status(200).json({ data: result });
+    },
   });
 }
 

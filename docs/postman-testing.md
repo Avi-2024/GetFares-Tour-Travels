@@ -1,47 +1,94 @@
-# Postman Testing Guide (Sprint 1)
+# Postman and Smoke Testing Guide
 
-## 1) Start backend
-From project root `travel-crm`:
+## 1. Prerequisites
+From project root (`travel-crm`):
 
 ```powershell
-node scripts/migrate.js
-node scripts/seed-rbac.js
-node src/server.js
+npm install
+npm run db:migrate
+npm run db:seed:rbac
+npm start
 ```
 
-Default base URL is `http://localhost:3000`.
+Default base URL: `http://localhost:3000`
 
-## 2) Import in Postman
-Import these files:
+## 2. Automated Smoke Tests
+Run these scripts for quick backend verification:
 
+```powershell
+npm run test:sprint1
+npm run test:sprint2
+npm run test:sprint3
+```
+
+Current observed status (2026-03-09):
+- Sprint 1: pass
+- Sprint 2: pass
+- Sprint 3: pass
+
+## 3. Postman Assets
+Import available files:
 - `postman/Travel-CRM-Sprint1.postman_collection.json`
 - `postman/Travel-CRM-local.postman_environment.json`
 
-Select environment: **Travel CRM Local**.
+Select environment: **Travel CRM Local**
 
-## 3) Run sequence
-Run collection folders in this order:
+Note: collection currently covers Sprint 1 baseline. Sprint 2/3 endpoints should be tested manually until collection is extended.
 
-1. `00 - Smoke`
-2. `01 - Auth`
-3. `02 - Leads`
-4. `03 - Webhooks`
-5. `04 - RBAC`
+## 4. Manual Test Order (Recommended)
+1. `GET /health`
+2. `POST /api/auth/register`
+3. `POST /api/auth/login`
+4. `GET /api/auth/me`
+5. `POST /api/leads`
+6. `POST /api/leads/distribute`
+7. `POST /api/leads/:id/followups`
+8. `GET /api/leads/followups/overdue`
+9. `POST /api/leads/sla/process-breaches`
+10. `POST /api/webhooks/meta-leads`
+11. `POST /api/webhooks/website-enquiry`
+12. `POST /api/webhooks/whatsapp-enquiry`
+13. `POST /api/quotations`
+14. `POST /api/quotations/:id/send`
+15. `POST /api/quotations/:id/viewed`
+16. `POST /api/quotations/:id/status`
+17. `GET /api/quotations/reports/lead-to-quote`
+18. `GET /api/notifications`
 
-`Register` request auto-generates unique email/lead data each run.
-
-## 4) Expected status codes
+## 5. Expected Status Codes
 - `GET /health` -> `200`
 - `POST /api/auth/register` -> `201`
 - `POST /api/auth/login` -> `200`
 - `GET /api/auth/me` -> `200`
 - `POST /api/leads` -> `201`
-- `POST /api/leads` duplicate -> `409` (`LEAD_DUPLICATE`)
-- Webhooks (`/api/webhooks/*`) -> `201` on first capture, `200` if duplicate
-- `GET /api/rbac/me/permissions` -> `200`
+- Duplicate lead create -> `409` (`LEAD_DUPLICATE`)
+- Webhooks new capture -> `201`
+- Webhooks duplicate capture -> `200`
+- `POST /api/leads/distribute` -> `200`
+- `POST /api/leads/:id/followups` -> `201`
+- `POST /api/quotations` -> `201`
+- `POST /api/quotations/:id/send` -> `200`
+- `POST /api/quotations/:id/status` -> `200`
+- `POST /api/quotations/templates` -> `201`
 
-## 5) Common issues
-- `401 AUTH_TOKEN_REQUIRED`: run `Login` and check `token` variable.
-- `403 RBAC_FORBIDDEN`: logged-in role missing permission.
-- `500`: verify DB migrated and `.env` has valid `DATABASE_URL`.
-- `404`: check `baseUrl` and server is running.
+## 6. Common Failures and Fix
+- `401 AUTH_TOKEN_REQUIRED`: login again, check `Authorization` bearer token.
+- `403 RBAC_FORBIDDEN`: role lacks required permission.
+- `409 LEAD_DUPLICATE`: expected when same contact is re-captured.
+- `500`: verify database migration state and `.env` configuration.
+- `409 QUOTATION_MARGIN_APPROVAL_REQUIRED`: send/approve attempted before required margin approval.
+
+## 7. Quick cURL Example
+```bash
+curl -X POST http://localhost:3000/api/leads \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Test Lead",
+    "phone": "919999999999",
+    "email": "lead@example.com",
+    "source": "Website",
+    "travelDate": "2026-05-25",
+    "budget": 180000
+  }'
+```
