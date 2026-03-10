@@ -37,9 +37,34 @@ function quoteIdentifier(identifier) {
   return `"${identifier}"`;
 }
 
+function runWithTimeout(task, timeoutMs, timeoutMessage) {
+  if (!timeoutMs || timeoutMs <= 0) {
+    return task();
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(timeoutMessage || 'Operation timed out'));
+    }, timeoutMs);
+
+    timer.unref?.();
+
+    task()
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 class InMemoryDatabase {
   constructor() {
     this.tables = new Map();
+    this.adapter = 'in-memory';
   }
 
   getTable(tableName) {
@@ -131,11 +156,25 @@ class InMemoryDatabase {
   async query() {
     throw new Error('In-memory database adapter does not support raw SQL query.');
   }
+
+  async healthCheck() {
+    return {
+      ok: true,
+      adapter: this.adapter,
+      latencyMs: 0,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
+  async close() {
+    return undefined;
+  }
 }
 
 class PostgresDatabase {
   constructor({ pool }) {
     this.pool = pool;
+    this.adapter = 'postgres';
   }
 
   async insert(tableName, payload) {
@@ -229,6 +268,27 @@ class PostgresDatabase {
 
   async query(sql, params = []) {
     return this.pool.query(sql, params);
+  }
+
+  async healthCheck({ timeoutMs } = {}) {
+    const startedAt = Date.now();
+
+    await runWithTimeout(
+      () => this.pool.query('SELECT 1'),
+      timeoutMs,
+      `PostgreSQL health check timed out after ${timeoutMs}ms`,
+    );
+
+    return {
+      ok: true,
+      adapter: this.adapter,
+      latencyMs: Date.now() - startedAt,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
+  async close() {
+    await this.pool.end();
   }
 }
 

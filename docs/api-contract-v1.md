@@ -31,6 +31,24 @@ Error envelope:
 - Public endpoint
 - Returns service health metadata
 
+### GET `/health/live`
+- Public endpoint
+- Liveness probe for process health
+
+### GET `/health/ready`
+- Public endpoint
+- Readiness probe for dependency health
+- Returns `200` when ready
+- Returns `503` when dependency check fails or app is draining for shutdown
+
+### GET `/metrics`
+- Public by default, optionally token-protected via `x-metrics-token` header when `METRICS_TOKEN` is configured
+- Returns Prometheus text metrics
+
+### GET `/metrics/json`
+- Public by default, optionally token-protected via `x-metrics-token` header when `METRICS_TOKEN` is configured
+- Returns JSON metrics snapshot
+
 ## 3. Auth
 ### POST `/api/auth/register`
 Request:

@@ -17,7 +17,7 @@ This roadmap maps the PRD into executable backend increments while keeping modul
 - Sprint 5 (Visa + Reporting Baseline + Finance Guards): Completed and smoke-tested.
 - Sprint 6 (Customers + Marketing Baseline): Completed and smoke-tested.
 - Sprint 7 (Advanced Reporting Packs): Completed and smoke-tested.
-- Sprint 8: Planned.
+- Sprint 8 (UAT + Production Readiness Baseline): Completed and smoke-tested.
 
 Current smoke status:
 - `npm run test:sprint1`: PASS (9/9)
@@ -27,6 +27,7 @@ Current smoke status:
 - `npm run test:sprint5`: PASS (12/12)
 - `npm run test:sprint6`: PASS (6/6)
 - `npm run test:sprint7`: PASS (8/8)
+- `npm run test:sprint8`: PASS (5/5)
 
 ## 4. Implemented Scope by Module
 - Auth: register, login, me, JWT, login auditing hooks.
@@ -110,8 +111,15 @@ Status: Completed (current increment)
 - Implemented: pipeline forecast and seasonal trend output.
 
 ### Sprint 8 - UAT and Production Readiness
-Status: Planned
-- Reliability, observability, backups, DR checklist, go-live signoff.
+Status: Completed (baseline hardening)
+- Implemented: liveness and readiness endpoints (`/health/live`, `/health/ready`) with DB health checks.
+- Implemented: runtime drain mode for shutdown that returns readiness `503`.
+- Implemented: graceful shutdown flow for HTTP, Socket.IO, and DB connection close on `SIGINT`/`SIGTERM`.
+- Implemented: new runtime config/env controls (`APP_VERSION`, DB health timeout, shutdown timeout).
+- Implemented: observability metrics endpoints (`/metrics`, `/metrics/json`) with optional token guard.
+- Implemented: DB backup and restore scripts (`db:backup`, `db:restore`) for operational drills.
+- Implemented: UAT and go-live checklist document for release governance.
+- Implemented: Sprint 8 smoke suite (`test:sprint8`) for health and readiness behavior.
 
 ## 7. Data and Migration Strategy
 Current schema source used for alignment:
@@ -140,5 +148,5 @@ Still pending in service-layer behavior:
 ## 10. Next Build Priorities
 1. Add finance policy engine for GST/TCS posting, currency conversion locking, and supplier payable lifecycle.
 2. Improve forecasting quality (seasonality + weighted pipeline + confidence bands).
-3. Complete Sprint 8 production hardening: observability, DR drills, backup validation, and go-live runbook.
+3. Complete remaining production hardening execution: run DR drills, configure alerting, and finish UAT signoffs.
 4. Harden migration strategy around forward-only production-safe migration flow and snapshot governance.
