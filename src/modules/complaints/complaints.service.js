@@ -1,49 +1,132 @@
 const { AppError } = require('../../core/errors');
 
-class ComplaintsService {
-  constructor({ repository, logger, events }) {
-    this.repository = repository;
-    this.logger = logger;
-    this.events = events;
-  }
-
-  async list(filters = {}, context = {}) {
-    this.logger.debug({ module: 'complaints', requestId: context.requestId, filters }, 'Listing records');
-    return this.repository.findAll(filters);
-  }
-
-  async getById(id, context = {}) {
-    this.logger.debug({ module: 'complaints', requestId: context.requestId, id }, 'Getting record by id');
-    const item = await this.repository.findById(id);
-
-    if (!item) {
-      throw new AppError(404, 'Complaints not found', 'complaints_NOT_FOUND');
-    }
-
-    return item;
-  }
-
-  async create(payload, context = {}) {
-    const created = await this.repository.create({
-      ...payload,
-      createdBy: context.user?.id || null,
-    });
-
-    this.events.emitCreated(created);
-    return created;
-  }
-
-  async update(id, payload, context = {}) {
-    await this.getById(id, context);
-
-    const updated = await this.repository.update(id, {
-      ...payload,
-      updatedBy: context.user?.id || null,
-    });
-
-    this.events.emitUpdated(updated);
-    return updated;
-  }
+function mapListFilters(filters = {}) {
+  return {
+    page: filters.page,
+    limit: filters.limit,
+    status: filters.status,
+    assigned_to: filters.assignedTo,
+    booking_id: filters.bookingId,
+  };
 }
 
-module.exports = { ComplaintsService };
+function mapCreatePayload(payload) {
+  return {
+    booking_id: payload.bookingId,
+    assigned_to: payload.assignedTo,
+    issue_type: payload.issueType,
+    description: payload.description,
+    status: payload.status,
+  };
+}
+
+function mapUpdatePayload(payload) {
+  return {
+    assigned_to: payload.assignedTo,
+    issue_type: payload.issueType,
+    description: payload.description,
+    status: payload.status,
+  };
+}
+
+function toComplaint(entity) {
+  if (!entity) {
+    return null;
+  }
+
+  return {
+    id: entity.id,
+    bookingId: entity.booking_id,
+    assignedTo: entity.assigned_to,
+    issueType: entity.issue_type,
+    description: entity.description,
+    status: entity.status,
+    createdAt: entity.created_at,
+  };
+}
+
+function toComplaintActivity(entity) {
+  if (!entity) {
+    return null;
+  }
+
+  return {
+    id: entity.id,
+    complaintId: entity.complaint_id,
+    userId: entity.user_id,
+    note: entity.note,
+    createdAt: entity.created_at,
+  };
+}
+
+function createComplaintsService({ repository, logger, events }) {
+  async function list(filters = {}, context = {}) {
+    const mappedFilters = mapListFilters(filters);
+    logger.debug({ module: 'complaints', requestId: context.requestId, filters: mappedFilters }, 'Listing records');
+    const rows = await repository.findAll(mappedFilters);
+    return rows.map(toComplaint);
+  }
+
+  async function getById(id, context = {}) {
+    logger.debug({ module: 'complaints', requestId: context.requestId, id }, 'Getting record by id');
+    const item = await repository.findById(id);
+
+    if (!item) {
+      throw new AppError(404, 'Complaints not found', 'COMPLAINTS_NOT_FOUND');
+    }
+
+    return toComplaint(item);
+  }
+
+  async function create(payload) {
+    const created = await repository.create(mapCreatePayload(payload));
+    events.emitCreated(created);
+    return toComplaint(created);
+  }
+
+  async function update(id, payload, context = {}) {
+    await getById(id, context);
+
+    const updated = await repository.update(id, mapUpdatePayload(payload));
+    events.emitUpdated(updated);
+    return toComplaint(updated);
+  }
+
+  async function listActivities(id, filters = {}, context = {}) {
+    await getById(id, context);
+    const rows = await repository.findActivities(id, {
+      page: filters.page,
+      limit: filters.limit,
+    });
+    return rows.map(toComplaintActivity);
+  }
+
+  async function createActivity(id, payload, context = {}) {
+    await getById(id, context);
+
+    const created = await repository.createActivity({
+      complaint_id: id,
+      user_id: payload.userId || context.user?.id || null,
+      note: payload.note,
+    });
+
+    if (events.emitActivityAdded) {
+      events.emitActivityAdded(created);
+    } else {
+      events.emitUpdated({ id });
+    }
+
+    return toComplaintActivity(created);
+  }
+
+  return Object.freeze({
+    list,
+    getById,
+    create,
+    update,
+    listActivities,
+    createActivity,
+  });
+}
+
+module.exports = { createComplaintsService };

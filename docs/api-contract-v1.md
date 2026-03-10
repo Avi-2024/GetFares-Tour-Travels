@@ -386,14 +386,20 @@ All endpoints protected by `reports:read`.
 - `GET /api/reports/visa/summary`
 - `GET /api/reports/followups/today`
 - `GET /api/reports/followups/missed`
+- `GET /api/reports/followups/call-log`
 - `GET /api/reports/monthly-summary`
+- `GET /api/reports/dashboard/executive-kpis`
+- `GET /api/reports/funnel/conversion`
+- `GET /api/reports/marketing/performance`
+- `GET /api/reports/suppliers/performance`
+- `GET /api/reports/forecast/pipeline`
 
 Common query filters:
 - `from`, `to` (date range)
-- report-specific optional keys like `userId`, `date`
+- report-specific optional keys like `userId`, `date`, `supplierId`, `periodMonths`
 
-## 14. Baseline CRUD Modules (Current)
-The following modules currently expose baseline CRUD shape and still need full PRD-specific contracts:
+## 14. Business CRUD Modules (Current)
+The following modules are running with PRD-oriented business payloads:
 - `/api/users`
 - `/api/campaigns`
 - `/api/customers`

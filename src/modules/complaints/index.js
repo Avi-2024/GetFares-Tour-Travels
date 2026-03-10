@@ -1,5 +1,5 @@
 const { ComplaintsController } = require('./complaints.controller');
-const { ComplaintsService } = require('./complaints.service');
+const { createComplaintsService } = require('./complaints.service');
 const { ComplaintsRepository } = require('./complaints.repository');
 const { createComplaintsRoutes } = require('./complaints.routes');
 const { ComplaintsValidation } = require('./complaints.validation');
@@ -18,7 +18,7 @@ function createComplaintsModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new ComplaintsService({
+  const service = createComplaintsService({
     repository,
     logger: dependencies.logger,
     events,

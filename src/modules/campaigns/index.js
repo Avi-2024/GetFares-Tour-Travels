@@ -1,5 +1,5 @@
 const { CampaignsController } = require('./campaigns.controller');
-const { CampaignsService } = require('./campaigns.service');
+const { createCampaignsService } = require('./campaigns.service');
 const { CampaignsRepository } = require('./campaigns.repository');
 const { createCampaignsRoutes } = require('./campaigns.routes');
 const { CampaignsValidation } = require('./campaigns.validation');
@@ -18,7 +18,7 @@ function createCampaignsModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new CampaignsService({
+  const service = createCampaignsService({
     repository,
     logger: dependencies.logger,
     events,

@@ -22,6 +22,16 @@ class ComplaintsController {
     const result = await this.service.update(req.validated.params.id, req.validated.body, req.context);
     res.status(200).json({ data: result });
   };
+
+  listActivities = async (req, res) => {
+    const result = await this.service.listActivities(req.validated.params.id, req.validated?.query || req.query, req.context);
+    res.status(200).json({ data: result });
+  };
+
+  createActivity = async (req, res) => {
+    const result = await this.service.createActivity(req.validated.params.id, req.validated.body, req.context);
+    res.status(201).json({ data: result });
+  };
 }
 
 module.exports = { ComplaintsController };

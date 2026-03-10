@@ -17,7 +17,9 @@
         "test:sprint2": "node scripts/test-sprint2.js",
         "test:sprint3": "node scripts/test-sprint3.js",
         "test:sprint4": "node scripts/test-sprint4.js",
-        "test:sprint5": "node scripts/test-sprint5.js"
+        "test:sprint5": "node scripts/test-sprint5.js",
+        "test:sprint6": "node scripts/test-sprint6.js",
+        "test:sprint7": "node scripts/test-sprint7.js"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",

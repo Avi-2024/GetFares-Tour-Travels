@@ -70,9 +70,39 @@ function createReportsService({ repository, logger }) {
       return repository.getMissedFollowups(filters);
     },
 
+    async callLog(filters = {}, context = {}) {
+      logger.debug({ module: 'reports', requestId: context.requestId, filters }, 'Call log report');
+      return repository.getCallLogReport(filters);
+    },
+
     async monthlySummary(filters = {}, context = {}) {
       logger.debug({ module: 'reports', requestId: context.requestId, filters }, 'Monthly summary report');
       return repository.getMonthlySummary(filters);
+    },
+
+    async executiveKpis(filters = {}, context = {}) {
+      logger.debug({ module: 'reports', requestId: context.requestId, filters }, 'Executive KPI dashboard pack');
+      return repository.getExecutiveKpis(filters);
+    },
+
+    async conversionFunnel(filters = {}, context = {}) {
+      logger.debug({ module: 'reports', requestId: context.requestId, filters }, 'Conversion funnel report');
+      return repository.getConversionFunnel(filters);
+    },
+
+    async marketingPerformance(filters = {}, context = {}) {
+      logger.debug({ module: 'reports', requestId: context.requestId, filters }, 'Marketing performance report');
+      return repository.getMarketingPerformance(filters);
+    },
+
+    async supplierPerformance(filters = {}, context = {}) {
+      logger.debug({ module: 'reports', requestId: context.requestId, filters }, 'Supplier performance report');
+      return repository.getSupplierPerformance(filters);
+    },
+
+    async pipelineForecast(filters = {}, context = {}) {
+      logger.debug({ module: 'reports', requestId: context.requestId, filters }, 'Pipeline forecast report');
+      return repository.getPipelineForecast(filters);
     },
   });
 }

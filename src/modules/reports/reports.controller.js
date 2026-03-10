@@ -70,8 +70,38 @@ function createReportsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async callLog(req, res) {
+      const result = await service.callLog(req.validated?.query || req.query, req.context);
+      res.status(200).json({ data: result });
+    },
+
     async monthlySummary(req, res) {
       const result = await service.monthlySummary(req.validated?.query || req.query, req.context);
+      res.status(200).json({ data: result });
+    },
+
+    async executiveKpis(req, res) {
+      const result = await service.executiveKpis(req.validated?.query || req.query, req.context);
+      res.status(200).json({ data: result });
+    },
+
+    async conversionFunnel(req, res) {
+      const result = await service.conversionFunnel(req.validated?.query || req.query, req.context);
+      res.status(200).json({ data: result });
+    },
+
+    async marketingPerformance(req, res) {
+      const result = await service.marketingPerformance(req.validated?.query || req.query, req.context);
+      res.status(200).json({ data: result });
+    },
+
+    async supplierPerformance(req, res) {
+      const result = await service.supplierPerformance(req.validated?.query || req.query, req.context);
+      res.status(200).json({ data: result });
+    },
+
+    async pipelineForecast(req, res) {
+      const result = await service.pipelineForecast(req.validated?.query || req.query, req.context);
       res.status(200).json({ data: result });
     },
   });

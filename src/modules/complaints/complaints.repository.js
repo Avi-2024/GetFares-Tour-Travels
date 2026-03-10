@@ -22,6 +22,18 @@ class ComplaintsRepository {
     this.logger.debug({ module: 'complaints', id, payload }, 'Updating record');
     return this.db.update(this.schema.tableName, id, payload);
   }
+
+  async findActivities(complaintId, filters = {}) {
+    return this.db.findMany(this.schema.activitiesTable, {
+      complaint_id: complaintId,
+      ...filters,
+    });
+  }
+
+  async createActivity(payload) {
+    this.logger.debug({ module: 'complaints', payload }, 'Creating complaint activity');
+    return this.db.insert(this.schema.activitiesTable, payload);
+  }
 }
 
 module.exports = { ComplaintsRepository };
