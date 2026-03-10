@@ -66,19 +66,89 @@ function createLeadsRepository({ db, logger, schema }) {
     return date;
   }
 
-  function toDomain(row) {
+  function normalizeFollowupType(value) {
+    if (value === undefined || value === null) {
+      return 1;
+    }
+
+    if (Number.isInteger(value) && value >= 1 && value <= 4) {
+      return value;
+    }
+
+    const numeric = Number(value);
+    if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 4) {
+      return numeric;
+    }
+
+    const mapped = FOLLOWUP_TYPE_TO_DB[String(value).trim().toUpperCase()];
+    return mapped || 1;
+  }
+
+  async function getTableColumns(tableName) {
+    if (tableColumnsCache.has(tableName)) {
+      return tableColumnsCache.get(tableName);
+    }
+
+    if (typeof db.query !== 'function') {
+      tableColumnsCache.set(tableName, null);
+      return null;
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+        [tableName],
+      );
+
+      const columnSet = new Set(result.rows.map((row) => row.column_name));
+      tableColumnsCache.set(tableName, columnSet);
+      return columnSet;
+    } catch (_error) {
+      tableColumnsCache.set(tableName, null);
+      return null;
+    }
+  }
+
+  async function hasColumn(tableName, columnName) {
+    const columns = await getTableColumns(tableName);
+    if (!columns) {
+      return true;
+    }
+    return columns.has(columnName);
+  }
+
+  function toCustomerDomain(row) {
     if (!row) {
       return null;
     }
 
     return {
       id: row.id,
-      fullName: row.full_name ?? row.fullName,
+      fullName: row.full_name ?? row.fullName ?? null,
       phone: row.phone ?? null,
       email: row.email ?? null,
-      panNumber: row.pan_number ?? row.panNumber ?? null,
-      addressLine: row.address_line ?? row.addressLine ?? null,
-      clientCurrency: row.client_currency ?? row.clientCurrency ?? null,
+      preferences: row.preferences ?? null,
+      lifetimeValue: row.lifetime_value ?? row.lifetimeValue ?? 0,
+      segment: row.segment ?? 'NEW',
+      isDeleted: row.is_deleted ?? row.isDeleted ?? false,
+      createdAt: row.created_at ?? row.createdAt ?? null,
+    };
+  }
+
+  function toDomain(row, customerMap = new Map()) {
+    if (!row) {
+      return null;
+    }
+
+    const customerId = row.customer_id ?? row.customerId ?? null;
+    const customer = customerMap.get(customerId) || row.customer || null;
+
+    return {
+      id: row.id,
+      customerId,
+      fullName: customer?.fullName ?? row.full_name ?? row.fullName ?? null,
+      phone: customer?.phone ?? row.phone ?? null,
+      email: customer?.email ?? row.email ?? null,
       destinationId: row.destination_id ?? row.destinationId ?? null,
       travelDate: row.travel_date ?? row.travelDate ?? null,
       budget: row.budget ?? null,
@@ -96,9 +166,11 @@ function createLeadsRepository({ db, logger, schema }) {
       responseDeadline: row.response_deadline ?? row.responseDeadline ?? null,
       responseAt: row.response_at ?? row.responseAt ?? null,
       slaBreached: row.sla_breached ?? row.slaBreached ?? false,
+      reassignmentCount: row.reassignment_count ?? row.reassignmentCount ?? 0,
       qualificationCompleted: row.qualification_completed ?? row.qualificationCompleted ?? false,
       closedReason: row.closed_reason ?? row.closedReason ?? null,
       nextFollowupDate: row.next_followup_date ?? row.nextFollowupDate ?? null,
+      isDeleted: row.is_deleted ?? row.isDeleted ?? false,
       createdAt: row.created_at ?? row.createdAt ?? null,
       updatedAt: row.updated_at ?? row.updatedAt ?? null,
     };
@@ -109,11 +181,14 @@ function createLeadsRepository({ db, logger, schema }) {
       return null;
     }
 
+    const followupType = normalizeFollowupType(row.followup_type ?? row.followupType);
+
     return {
       id: row.id,
       leadId: row.lead_id ?? row.leadId,
       userId: row.user_id ?? row.userId ?? null,
-      followupType: row.followup_type ?? row.followupType ?? null,
+      followupType: FOLLOWUP_TYPE_FROM_DB[followupType] || 'CALL',
+      followupTypeCode: followupType,
       followupDate: row.followup_date ?? row.followupDate ?? null,
       notes: row.notes ?? null,
       isCompleted: row.is_completed ?? row.isCompleted ?? false,
@@ -183,12 +258,12 @@ function createLeadsRepository({ db, logger, schema }) {
       mapped.assigned_to = filters.assignedTo;
     }
 
-    if (filters.email) {
-      mapped.email = normalizeEmail(filters.email);
+    if (filters.destinationId) {
+      mapped.destination_id = filters.destinationId;
     }
 
-    if (filters.phone) {
-      mapped.phone = normalizePhone(filters.phone);
+    if (filters.campaignId) {
+      mapped.campaign_id = filters.campaignId;
     }
 
     if (filters.page) {
@@ -213,18 +288,167 @@ function createLeadsRepository({ db, logger, schema }) {
     return lookup;
   }
 
+  async function loadCustomersByIds(customerIds = []) {
+    const ids = [...new Set(customerIds.filter(Boolean))];
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(ids.map((id) => db.findById(schema.customersTable, id)));
+    const customerMap = new Map();
+
+    rows.filter(Boolean).forEach((row) => {
+      customerMap.set(row.id, toCustomerDomain(row));
+    });
+
+    return customerMap;
+  }
+
+  async function mapRowsToDomain(rows = []) {
+    const customerMap = await loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId));
+    return rows.map((row) => toDomain(row, customerMap));
+  }
+
+  async function mapRowToDomain(row) {
+    if (!row) {
+      return null;
+    }
+    const customerMap = await loadCustomersByIds([row.customer_id ?? row.customerId]);
+    return toDomain(row, customerMap);
+  }
+
+  async function findCustomerByContact({ email, phone }) {
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = normalizePhone(phone);
+    const hasSoftDelete = await hasColumn(schema.customersTable, 'is_deleted');
+
+    if (normalizedEmail) {
+      const row = await db.findOne(
+        schema.customersTable,
+        hasSoftDelete ? { email: normalizedEmail, is_deleted: false } : { email: normalizedEmail },
+      );
+      if (row) {
+        return toCustomerDomain(row);
+      }
+    }
+
+    if (normalizedPhone) {
+      const row = await db.findOne(
+        schema.customersTable,
+        hasSoftDelete ? { phone: normalizedPhone, is_deleted: false } : { phone: normalizedPhone },
+      );
+      if (row) {
+        return toCustomerDomain(row);
+      }
+    }
+
+    return null;
+  }
+
+  async function createCustomer(payload = {}) {
+    const hasSoftDelete = await hasColumn(schema.customersTable, 'is_deleted');
+    const fullName =
+      payload.fullName ||
+      (payload.email ? String(payload.email).split('@')[0] : null) ||
+      payload.phone ||
+      `Customer ${Date.now()}`;
+
+    const customerPayload = {
+      full_name: fullName,
+      phone: normalizePhone(payload.phone),
+      email: normalizeEmail(payload.email),
+      preferences: payload.preferences || null,
+      lifetime_value: payload.lifetimeValue ?? 0,
+      segment: payload.segment || 'NEW',
+    };
+
+    if (hasSoftDelete) {
+      customerPayload.is_deleted = false;
+    }
+
+    const row = await db.insert(schema.customersTable, customerPayload);
+
+    return toCustomerDomain(row);
+  }
+
+  async function updateCustomer(id, payload = {}) {
+    if (!id) {
+      return null;
+    }
+
+    const mapped = {};
+
+    if (payload.fullName !== undefined) {
+      mapped.full_name = payload.fullName;
+    }
+
+    if (payload.phone !== undefined) {
+      mapped.phone = normalizePhone(payload.phone);
+    }
+
+    if (payload.email !== undefined) {
+      mapped.email = normalizeEmail(payload.email);
+    }
+
+    if (payload.preferences !== undefined) {
+      mapped.preferences = payload.preferences;
+    }
+
+    if (payload.lifetimeValue !== undefined) {
+      mapped.lifetime_value = payload.lifetimeValue;
+    }
+
+    if (payload.segment !== undefined) {
+      mapped.segment = payload.segment;
+    }
+
+    if (!Object.keys(mapped).length) {
+      const existing = await db.findById(schema.customersTable, id);
+      return toCustomerDomain(existing);
+    }
+
+    const row = await db.update(schema.customersTable, id, mapped);
+    return toCustomerDomain(row);
+  }
+
   return Object.freeze({
     normalizeEmail,
     normalizePhone,
+    normalizeFollowupType,
 
     async findAll(filters = {}) {
       const rows = await db.findMany(schema.tableName, mapListFilters(filters));
-      return rows.map((row) => toDomain(row));
+      let filteredRows = rows;
+
+      if (filters.email || filters.phone) {
+        const customerMap = await loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId));
+        const normalizedEmail = normalizeEmail(filters.email);
+        const normalizedPhone = normalizePhone(filters.phone);
+
+        filteredRows = rows.filter((row) => {
+          const customer = customerMap.get(row.customer_id ?? row.customerId);
+          if (!customer) {
+            return false;
+          }
+
+          if (normalizedEmail && customer.email === normalizedEmail) {
+            return true;
+          }
+
+          if (normalizedPhone && customer.phone === normalizedPhone) {
+            return true;
+          }
+
+          return false;
+        });
+      }
+
+      return mapRowsToDomain(filteredRows);
     },
 
     async findById(id) {
       const row = await db.findById(schema.tableName, id);
-      return toDomain(row);
+      return mapRowToDomain(row);
     },
 
     async findDestinationById(id) {
@@ -235,24 +459,76 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async findDuplicateCandidate({ email, phone }) {
+      const hasLeadCustomerId = await hasColumn(schema.tableName, 'customer_id');
+
+      if (hasLeadCustomerId) {
+        const customer = await findCustomerByContact({ email, phone });
+        if (!customer?.id) {
+          return null;
+        }
+
+        const leadRows = await db.findMany(schema.tableName, {
+          customer_id: customer.id,
+        });
+
+        const activeCandidate = leadRows
+          .filter((row) => !(row.is_deleted ?? row.isDeleted ?? false))
+          .sort((left, right) => {
+            const leftTs = toDate(left.created_at ?? left.createdAt)?.getTime() || 0;
+            const rightTs = toDate(right.created_at ?? right.createdAt)?.getTime() || 0;
+            return rightTs - leftTs;
+          })[0];
+
+        if (!activeCandidate) {
+          return null;
+        }
+
+        return toDomain(activeCandidate, new Map([[customer.id, customer]]));
+      }
+
       const normalizedEmail = normalizeEmail(email);
       const normalizedPhone = normalizePhone(phone);
 
       if (normalizedEmail) {
         const byEmail = await db.findOne(schema.tableName, { email: normalizedEmail });
         if (byEmail) {
-          return toDomain(byEmail);
+          return mapRowToDomain(byEmail);
         }
       }
 
       if (normalizedPhone) {
         const byPhone = await db.findOne(schema.tableName, { phone: normalizedPhone });
         if (byPhone) {
-          return toDomain(byPhone);
+          return mapRowToDomain(byPhone);
         }
       }
 
       return null;
+    },
+
+    async findOrCreateCustomer(payload = {}) {
+      const existing = await findCustomerByContact({
+        email: payload.email,
+        phone: payload.phone,
+      });
+
+      if (existing) {
+        const needsNameBackfill = !existing.fullName && payload.fullName;
+        if (needsNameBackfill) {
+          return updateCustomer(existing.id, { fullName: payload.fullName });
+        }
+        return existing;
+      }
+
+      return createCustomer(payload);
+    },
+
+    async updateCustomer(id, payload = {}) {
+      return updateCustomer(id, payload);
+    },
+
+    async hasLeadCustomerColumn() {
+      return hasColumn(schema.tableName, 'customer_id');
     },
 
     async findActiveAssignableUsers() {
@@ -335,7 +611,7 @@ function createLeadsRepository({ db, logger, schema }) {
         })
         .slice(0, normalizedLimit);
 
-      return list.map((row) => toDomain(row));
+      return mapRowsToDomain(list);
     },
 
     async findOverdueAssignedLeads({ inactiveMinutes = 15, limit = 50 } = {}) {
@@ -400,7 +676,7 @@ function createLeadsRepository({ db, logger, schema }) {
         })
         .slice(0, normalizedLimit);
 
-      return staleLeads.map((row) => toDomain(row));
+      return mapRowsToDomain(staleLeads);
     },
 
     async findSlaBreachCandidates({ limit = 100 } = {}) {
@@ -438,12 +714,12 @@ function createLeadsRepository({ db, logger, schema }) {
         })
         .slice(0, normalizedLimit);
 
-      return breached.map((row) => toDomain(row));
+      return mapRowsToDomain(breached);
     },
 
     async markSlaBreached(id) {
       const row = await db.update(schema.tableName, id, { sla_breached: true });
-      return toDomain(row);
+      return mapRowToDomain(row);
     },
 
     async create(payload) {
@@ -473,7 +749,7 @@ function createLeadsRepository({ db, logger, schema }) {
       const row = await db.insert(schema.followupsTable, {
         lead_id: payload.leadId,
         user_id: payload.userId || null,
-        followup_type: payload.followupType || 'CALL',
+        followup_type: normalizeFollowupType(payload.followupType),
         followup_date: payload.followupDate,
         notes: payload.notes || null,
         is_completed: payload.isCompleted ?? false,

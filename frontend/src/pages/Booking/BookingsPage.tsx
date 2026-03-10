@@ -300,37 +300,14 @@ const BookingsPage: React.FC = () => {
         }
       `}</style>
       
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex ">
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-100 relative">
+        <div className="flex-1 flex flex-col bg-gray-100 relative">
           {/* Top Bar */}
-          <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0 z-10">
-            <div className="flex items-center flex-1 gap-4">
-              <h1 className="text-xl font-bold text-gray-900">Bookings Management</h1>
-            </div>
-
-            {/* Right Actions */}
-            <div className="flex items-center gap-3 ml-auto">
-              <div className="relative hidden md:block">
-                <input 
-                  type="text" 
-                  placeholder="Search bookings..." 
-                  className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-                />
-                <FaSearch className="absolute left-3 top-2.5 text-gray-400 text-sm" />
-              </div>
-              <button className="relative p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50">
-                <FaRegBell className="text-lg" />
-                <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-              </button>
-              <button className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 w-full sm:w-auto justify-center">
-                <FaPlus className="mr-2" /> <span className="whitespace-nowrap">New Booking</span>
-              </button>
-            </div>
-          </header>
+         
 
           {/* Content Area (Scrollable) */}
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
+          <main className="flex-1  ">
             {/* KPI Mini-cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
               {/* Card 1 */}

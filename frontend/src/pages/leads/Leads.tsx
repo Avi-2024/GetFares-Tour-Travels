@@ -1,5 +1,6 @@
 
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaFileImport,
   FaPlus,
@@ -44,6 +45,7 @@ interface Lead {
 const LeadDashboard: React.FC = () => {
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
   const [selectAll, setSelectAll] = useState(false);
+  const navigate = useNavigate();
 
   const leads: Lead[] = [
     {
@@ -163,7 +165,7 @@ const LeadDashboard: React.FC = () => {
             <FaFileImport /> Import
           </button>
 
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <button onClick={()=> navigate('/create-lead')} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
             <FaPlus /> Create Lead
           </button>
         </div>

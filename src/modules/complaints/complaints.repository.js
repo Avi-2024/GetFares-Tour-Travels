@@ -1,27 +1,23 @@
-class ComplaintsRepository {
-  constructor({ db, logger, schema }) {
-    this.db = db;
-    this.logger = logger;
-    this.schema = schema;
-  }
+function createComplaintsRepository({ db, logger, schema }) {
+  return Object.freeze({
+    findAll(filters = {}) {
+      return db.findMany(schema.tableName, filters);
+    },
 
-  async findAll(filters = {}) {
-    return this.db.findMany(this.schema.tableName, filters);
-  }
+    findById(id) {
+      return db.findById(schema.tableName, id);
+    },
 
-  async findById(id) {
-    return this.db.findById(this.schema.tableName, id);
-  }
+    create(payload) {
+      logger.debug({ module: 'complaints', payload }, 'Creating record');
+      return db.insert(schema.tableName, payload);
+    },
 
-  async create(payload) {
-    this.logger.debug({ module: 'complaints', payload }, 'Creating record');
-    return this.db.insert(this.schema.tableName, payload);
-  }
-
-  async update(id, payload) {
-    this.logger.debug({ module: 'complaints', id, payload }, 'Updating record');
-    return this.db.update(this.schema.tableName, id, payload);
-  }
+    update(id, payload) {
+      logger.debug({ module: 'complaints', id, payload }, 'Updating record');
+      return db.update(schema.tableName, id, payload);
+    },
+  });
 }
 
-module.exports = { ComplaintsRepository };
+module.exports = { createComplaintsRepository };

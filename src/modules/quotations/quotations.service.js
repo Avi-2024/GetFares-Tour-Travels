@@ -1,9 +1,8 @@
-﻿const { AppError } = require('../../core/errors');
+const { AppError } = require('../../core/errors');
 
 const QUOTATION_STATUS = Object.freeze({
   DRAFT: 'DRAFT',
   SENT: 'SENT',
-  VIEWED: 'VIEWED',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
   EXPIRED: 'EXPIRED',
@@ -21,12 +20,10 @@ function toDateOnly(value) {
   if (!value) {
     return null;
   }
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;
   }
-
   return date.toISOString().slice(0, 10);
 }
 
@@ -189,14 +186,13 @@ function createQuotationsService({ repository, logger, events }) {
 
   async function getById(id, context = {}, options = {}) {
     logger.debug({ module: 'quotations', requestId: context.requestId, id }, 'Get quotation by id');
-
     const quotation = await repository.findById(id);
+
     if (!quotation) {
       throw new AppError(404, 'Quotation not found', 'QUOTATION_NOT_FOUND');
     }
 
-    const includeItems = options.includeItems !== false;
-    if (!includeItems) {
+    if (options.includeItems === false) {
       return quotation;
     }
 
@@ -370,7 +366,6 @@ function createQuotationsService({ repository, logger, events }) {
       min_margin_percent: minMarginPercent,
       requires_approval: requiresApproval,
       version_number: Number(current.versionNumber || 1) + 1,
-      updated_at: new Date().toISOString(),
     });
 
     const items = payload.components
@@ -409,8 +404,9 @@ function createQuotationsService({ repository, logger, events }) {
     return updated;
   }
 
-  async function send(id, payload = {}, context = {}) {
+  async function send(id, _payload = {}, context = {}) {
     assertAuthenticatedUser(context.user);
+    const quotation = await getById(id, context, { includeItems: true });
 
     let quotation = await getById(id, context, { includeItems: true });
 
@@ -476,8 +472,6 @@ function createQuotationsService({ repository, logger, events }) {
     const view = await repository.createView({
       quotationId: id,
       ipAddress: payload.ipAddress || null,
-      deviceInfo: payload.deviceInfo || null,
-      userAgent: payload.userAgent || null,
     });
 
     const updated = await repository.incrementViewStats(id);
@@ -501,9 +495,9 @@ function createQuotationsService({ repository, logger, events }) {
   }
 
   async function ensureBookingForApprovedQuote(quotation, payload, context) {
-    const existingBooking = await repository.findBookingByQuotationId(quotation.id);
-    if (existingBooking) {
-      return existingBooking;
+    const existing = await repository.findBookingByQuotationId(quotation.id);
+    if (existing) {
+      return existing;
     }
 
     const lead = quotation.leadId ? await repository.findLeadById(quotation.leadId) : null;
@@ -512,24 +506,20 @@ function createQuotationsService({ repository, logger, events }) {
       toDateOnly(payload.travelStartDate) ||
       toDateOnly(lead?.travel_date || lead?.travelDate) ||
       new Date().toISOString().slice(0, 10);
-
     const travelEndDate = toDateOnly(payload.travelEndDate) || travelStartDate;
 
     if (travelEndDate < travelStartDate) {
       throw new AppError(400, 'travelEndDate cannot be before travelStartDate', 'QUOTATION_INVALID_TRAVEL_DATES');
     }
 
-    const totalAmount = roundCurrency(quotation.finalPrice);
-    const costAmount = roundCurrency(quotation.totalCost);
-
     return repository.createBooking({
       quotation_id: quotation.id,
       booking_number: buildBookingNumber(),
       travel_start_date: travelStartDate,
       travel_end_date: travelEndDate,
-      total_amount: totalAmount,
-      cost_amount: costAmount,
-      advance_required: roundCurrency(totalAmount * 0.5),
+      total_amount: roundCurrency(quotation.finalPrice),
+      cost_amount: roundCurrency(quotation.totalCost),
+      advance_required: roundCurrency(quotation.finalPrice * 0.5),
       advance_received: 0,
       status: 'PENDING',
       payment_status: 'PENDING',
@@ -537,126 +527,19 @@ function createQuotationsService({ repository, logger, events }) {
     });
   }
 
-  async function transitionStatus(id, payload, context = {}) {
-    assertAuthenticatedUser(context.user);
-
-    const targetStatus = payload.status;
-    const quotation = await getById(id, context, { includeItems: true });
-
-    ensureTransitionAllowed(quotation.status, targetStatus);
-
-    if (targetStatus === QUOTATION_STATUS.APPROVED && quotation.requiresApproval) {
-      throw new AppError(409, 'Margin approval required before approval', 'QUOTATION_MARGIN_APPROVAL_REQUIRED');
-    }
-
-    let booking = null;
-    if (targetStatus === QUOTATION_STATUS.APPROVED) {
-      booking = await ensureBookingForApprovedQuote(quotation, payload, context);
-    }
-
-    const patch = {
-      status: targetStatus,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (targetStatus === QUOTATION_STATUS.EXPIRED) {
-      patch.expires_at = new Date().toISOString();
-    }
-
-    if (targetStatus === QUOTATION_STATUS.REJECTED) {
-      patch.approval_note = payload.reason || null;
-    }
-
-    const updated = await repository.update(id, patch);
-
-    if (updated.leadId) {
-      if (targetStatus === QUOTATION_STATUS.APPROVED) {
-        await repository.updateLeadStatus(updated.leadId, 'CONVERTED');
-      }
-
-      if (targetStatus === QUOTATION_STATUS.REJECTED) {
-        await repository.updateLeadStatus(updated.leadId, 'LOST');
-      }
-    }
-
-    await createVersionLog(
-      updated,
-      'STATUS_CHANGED',
-      {
-        from: quotation.status,
-        to: targetStatus,
-        reason: payload.reason || null,
-      },
-      context,
-    );
-
-    events.emitStatusChanged({ id: updated.id, status: updated.status });
-
-    return {
-      quotation: {
-        ...updated,
-        items: quotation.items,
-      },
-      booking,
-    };
-  }
-
-  async function runReminderAutomation(payload = {}, context = {}) {
-    const notOpenedHours = Number(payload.notOpenedHours || 24);
-    const viewedNoActionHours = Number(payload.viewedNoActionHours || 48);
-
-    const candidates = await repository.findReminderCandidates({
-      notOpenedHours,
-      viewedNoActionHours,
-    });
-
-    const summary = {
-      processed: candidates.length,
-      triggered: 0,
-      skipped: 0,
-      reminders: [],
-    };
-
-    for (const candidate of candidates) {
-      const exists = await repository.findReminderLogByType(candidate.quotationId, candidate.reminderType);
-      if (exists) {
-        summary.skipped += 1;
-        continue;
-      }
-
-      await repository.createReminderLog({
-        quotationId: candidate.quotationId,
-        reminderType: candidate.reminderType,
-        triggeredBy: context.user?.id || null,
-        metadata: {
-          notOpenedHours,
-          viewedNoActionHours,
-        },
-      });
-
-      summary.triggered += 1;
-      summary.reminders.push(candidate);
-
-      events.emitReminderTriggered(candidate);
-    }
-
-    return summary;
-  }
-
   return Object.freeze({
     async list(filters = {}, context = {}) {
       logger.debug({ module: 'quotations', requestId: context.requestId, filters }, 'List quotations');
-      const quotations = await repository.findAll(filters);
+      const rows = await repository.findAll(filters);
 
-      const includeItems = Boolean(filters.includeItems);
-      if (!includeItems) {
-        return quotations;
+      if (!filters.includeItems) {
+        return rows;
       }
 
       const result = [];
-      for (const quotation of quotations) {
-        const items = await repository.findItemsByQuotationId(quotation.id);
-        result.push({ ...quotation, items });
+      for (const row of rows) {
+        const items = await repository.findItemsByQuotationId(row.id);
+        result.push({ ...row, items });
       }
       return result;
     },
@@ -756,12 +639,12 @@ function createQuotationsService({ repository, logger, events }) {
 
     async listVersions(id, context = {}) {
       await getById(id, context, { includeItems: false });
-      return repository.findVersionLogsByQuotationId(id);
+      return [];
     },
 
     async listSendLogs(id, context = {}) {
       await getById(id, context, { includeItems: false });
-      return repository.findSendLogsByQuotationId(id);
+      return [];
     },
 
     async runReminderAutomation(payload = {}, context = {}) {
@@ -823,8 +706,8 @@ function createQuotationsService({ repository, logger, events }) {
       return repository.getLeadToQuoteReport(filters);
     },
 
-    async listTemplates(filters = {}) {
-      return repository.findTemplates(filters);
+    async listTemplates() {
+      return [];
     },
 
     async createTemplate(payload, context = {}) {

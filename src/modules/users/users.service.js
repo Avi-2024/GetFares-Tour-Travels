@@ -1,20 +1,9 @@
 const { AppError } = require('../../core/errors');
 
-class UsersService {
-  constructor({ repository, logger, events }) {
-    this.repository = repository;
-    this.logger = logger;
-    this.events = events;
-  }
-
-  async list(filters = {}, context = {}) {
-    this.logger.debug({ module: 'users', requestId: context.requestId, filters }, 'Listing records');
-    return this.repository.findAll(filters);
-  }
-
-  async getById(id, context = {}) {
-    this.logger.debug({ module: 'users', requestId: context.requestId, id }, 'Getting record by id');
-    const item = await this.repository.findById(id);
+function createUsersService({ repository, logger, events }) {
+  async function getById(id, context = {}) {
+    logger.debug({ module: 'users', requestId: context.requestId, id }, 'Getting record by id');
+    const item = await repository.findById(id);
 
     if (!item) {
       throw new AppError(404, 'Users not found', 'users_NOT_FOUND');
@@ -23,27 +12,27 @@ class UsersService {
     return item;
   }
 
-  async create(payload, context = {}) {
-    const created = await this.repository.create({
-      ...payload,
-      createdBy: context.user?.id || null,
-    });
+  return Object.freeze({
+    list(filters = {}, context = {}) {
+      logger.debug({ module: 'users', requestId: context.requestId, filters }, 'Listing records');
+      return repository.findAll(filters);
+    },
 
-    this.events.emitCreated(created);
-    return created;
-  }
+    getById,
 
-  async update(id, payload, context = {}) {
-    await this.getById(id, context);
+    async create(payload) {
+      const created = await repository.create(payload);
+      events.emitCreated(created);
+      return created;
+    },
 
-    const updated = await this.repository.update(id, {
-      ...payload,
-      updatedBy: context.user?.id || null,
-    });
-
-    this.events.emitUpdated(updated);
-    return updated;
-  }
+    async update(id, payload, context = {}) {
+      await getById(id, context);
+      const updated = await repository.update(id, payload);
+      events.emitUpdated(updated);
+      return updated;
+    },
+  });
 }
 
-module.exports = { UsersService };
+module.exports = { createUsersService };

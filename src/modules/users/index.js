@@ -1,13 +1,13 @@
-const { UsersController } = require('./users.controller');
-const { UsersService } = require('./users.service');
-const { UsersRepository } = require('./users.repository');
+const { createUsersController } = require('./users.controller');
+const { createUsersService } = require('./users.service');
+const { createUsersRepository } = require('./users.repository');
 const { createUsersRoutes } = require('./users.routes');
 const { UsersValidation } = require('./users.validation');
 const { UsersSchema } = require('./users.schema');
 const { createUsersEvents } = require('./users.events');
 
 function createUsersModule({ dependencies }) {
-  const repository = new UsersRepository({
+  const repository = createUsersRepository({
     db: dependencies.db,
     logger: dependencies.logger,
     schema: UsersSchema,
@@ -18,13 +18,13 @@ function createUsersModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new UsersService({
+  const service = createUsersService({
     repository,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = new UsersController({ service });
+  const controller = createUsersController({ service });
 
   const router = createUsersRoutes({
     controller,

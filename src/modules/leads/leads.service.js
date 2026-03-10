@@ -34,13 +34,6 @@ function createLeadsService({ repository, logger, events }) {
     return repository.normalizePhone(phone);
   }
 
-  function normalizeCurrency(currency, fallback = 'INR') {
-    if (!currency) {
-      return fallback;
-    }
-    return String(currency).trim().toUpperCase();
-  }
-
   function mapTemperatureToPriority(temperature) {
     if (temperature === LEAD_TEMPERATURE.HOT) {
       return 3;
@@ -110,7 +103,9 @@ function createLeadsService({ repository, logger, events }) {
     };
   }
 
-  function buildCreateRecord(payload) {
+  function buildCreateRecord(payload, options = {}) {
+    const customerId = options.customerId || null;
+    const useCustomerLinking = Boolean(options.useCustomerLinking);
     const now = new Date();
     const responseDeadline = payload.responseDeadline
       ? new Date(payload.responseDeadline).toISOString()
@@ -119,13 +114,7 @@ function createLeadsService({ repository, logger, events }) {
     const assignedTo = payload.assignedTo || null;
     const temperature = determineLeadTemperature(payload);
 
-    return {
-      full_name: payload.fullName,
-      phone: normalizePhone(payload.phone),
-      email: normalizeEmail(payload.email),
-      pan_number: payload.panNumber || null,
-      address_line: payload.addressLine || null,
-      client_currency: normalizeCurrency(payload.clientCurrency, 'INR'),
+    const mapped = {
       destination_id: payload.destinationId || null,
       travel_date: payload.travelDate || null,
       budget: payload.budget ?? null,
@@ -144,30 +133,35 @@ function createLeadsService({ repository, logger, events }) {
       closed_reason: payload.closedReason || null,
       next_followup_date: payload.nextFollowupDate || null,
     };
+
+    if (useCustomerLinking) {
+      mapped.customer_id = customerId;
+    } else {
+      mapped.full_name = payload.fullName;
+      mapped.phone = normalizePhone(payload.phone);
+      mapped.email = normalizeEmail(payload.email);
+    }
+
+    return mapped;
   }
 
-  function buildUpdateRecord(existing, payload) {
+  function buildUpdateRecord(existing, payload, options = {}) {
+    const useCustomerLinking = Boolean(options.useCustomerLinking);
     const now = new Date().toISOString();
     const mapped = {};
 
-    if (payload.fullName !== undefined) {
-      mapped.full_name = payload.fullName;
+    if (!useCustomerLinking) {
+      if (payload.fullName !== undefined) {
+        mapped.full_name = payload.fullName;
+      }
+      if (payload.phone !== undefined) {
+        mapped.phone = normalizePhone(payload.phone);
+      }
+      if (payload.email !== undefined) {
+        mapped.email = normalizeEmail(payload.email);
+      }
     }
-    if (payload.phone !== undefined) {
-      mapped.phone = normalizePhone(payload.phone);
-    }
-    if (payload.email !== undefined) {
-      mapped.email = normalizeEmail(payload.email);
-    }
-    if (payload.panNumber !== undefined) {
-      mapped.pan_number = payload.panNumber;
-    }
-    if (payload.addressLine !== undefined) {
-      mapped.address_line = payload.addressLine;
-    }
-    if (payload.clientCurrency !== undefined) {
-      mapped.client_currency = normalizeCurrency(payload.clientCurrency, 'INR');
-    }
+
     if (payload.destinationId !== undefined) {
       mapped.destination_id = payload.destinationId;
     }
@@ -402,6 +396,7 @@ function createLeadsService({ repository, logger, events }) {
   }
 
   async function create(payload, context = {}) {
+    const useCustomerLinking = await repository.hasLeadCustomerColumn();
     const duplicate = await repository.findDuplicateCandidate({
       email: payload.email,
       phone: payload.phone,
@@ -413,7 +408,19 @@ function createLeadsService({ repository, logger, events }) {
       });
     }
 
-    const created = await repository.create(buildCreateRecord(payload));
+    let customer = null;
+    if (useCustomerLinking) {
+      customer = await repository.findOrCreateCustomer({
+        fullName: payload.fullName,
+        phone: payload.phone,
+        email: payload.email,
+      });
+    }
+
+    const created = await repository.create(buildCreateRecord(payload, {
+      customerId: customer?.id,
+      useCustomerLinking,
+    }));
 
     if (payload.notes) {
       await repository.createActivity({
@@ -647,9 +654,30 @@ function createLeadsService({ repository, logger, events }) {
 
     async update(id, payload, context = {}) {
       const existing = await getById(id, context);
-      const mapped = buildUpdateRecord(existing, payload);
+      const useCustomerLinking = await repository.hasLeadCustomerColumn();
+      const customerPatch = {};
 
-      const updated = await repository.update(id, mapped);
+      if (payload.fullName !== undefined) {
+        customerPatch.fullName = payload.fullName;
+      }
+
+      if (payload.phone !== undefined) {
+        customerPatch.phone = normalizePhone(payload.phone);
+      }
+
+      if (payload.email !== undefined) {
+        customerPatch.email = normalizeEmail(payload.email);
+      }
+
+      if (useCustomerLinking && Object.keys(customerPatch).length && existing.customerId) {
+        await repository.updateCustomer(existing.customerId, customerPatch);
+      }
+
+      const mapped = buildUpdateRecord(existing, payload, { useCustomerLinking });
+
+      const updated = Object.keys(mapped).length
+        ? await repository.update(id, mapped)
+        : await repository.findById(id);
 
       if (payload.notes) {
         await repository.createActivity({

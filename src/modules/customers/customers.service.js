@@ -1,20 +1,9 @@
 const { AppError } = require('../../core/errors');
 
-class CustomersService {
-  constructor({ repository, logger, events }) {
-    this.repository = repository;
-    this.logger = logger;
-    this.events = events;
-  }
-
-  async list(filters = {}, context = {}) {
-    this.logger.debug({ module: 'customers', requestId: context.requestId, filters }, 'Listing records');
-    return this.repository.findAll(filters);
-  }
-
-  async getById(id, context = {}) {
-    this.logger.debug({ module: 'customers', requestId: context.requestId, id }, 'Getting record by id');
-    const item = await this.repository.findById(id);
+function createCustomersService({ repository, logger, events }) {
+  async function getById(id, context = {}) {
+    logger.debug({ module: 'customers', requestId: context.requestId, id }, 'Getting record by id');
+    const item = await repository.findById(id);
 
     if (!item) {
       throw new AppError(404, 'Customers not found', 'customers_NOT_FOUND');
@@ -23,27 +12,61 @@ class CustomersService {
     return item;
   }
 
-  async create(payload, context = {}) {
-    const created = await this.repository.create({
-      ...payload,
-      createdBy: context.user?.id || null,
-    });
+  return Object.freeze({
+    list(filters = {}, context = {}) {
+      logger.debug({ module: 'customers', requestId: context.requestId, filters }, 'Listing records');
+      return repository.findAll(filters);
+    },
 
-    this.events.emitCreated(created);
-    return created;
-  }
+    getById,
 
-  async update(id, payload, context = {}) {
-    await this.getById(id, context);
+    async create(payload) {
+      const created = await repository.create({
+        full_name: payload.fullName || null,
+        phone: payload.phone || null,
+        email: payload.email || null,
+        preferences: payload.preferences || null,
+        lifetime_value: payload.lifetimeValue ?? 0,
+        segment: payload.segment || 'NEW',
+        is_deleted: payload.isDeleted ?? false,
+      });
 
-    const updated = await this.repository.update(id, {
-      ...payload,
-      updatedBy: context.user?.id || null,
-    });
+      events.emitCreated(created);
+      return created;
+    },
 
-    this.events.emitUpdated(updated);
-    return updated;
-  }
+    async update(id, payload, context = {}) {
+      await getById(id, context);
+
+      const mapped = {};
+
+      if (payload.fullName !== undefined) {
+        mapped.full_name = payload.fullName;
+      }
+      if (payload.phone !== undefined) {
+        mapped.phone = payload.phone;
+      }
+      if (payload.email !== undefined) {
+        mapped.email = payload.email;
+      }
+      if (payload.preferences !== undefined) {
+        mapped.preferences = payload.preferences;
+      }
+      if (payload.lifetimeValue !== undefined) {
+        mapped.lifetime_value = payload.lifetimeValue;
+      }
+      if (payload.segment !== undefined) {
+        mapped.segment = payload.segment;
+      }
+      if (payload.isDeleted !== undefined) {
+        mapped.is_deleted = payload.isDeleted;
+      }
+
+      const updated = await repository.update(id, mapped);
+      events.emitUpdated(updated);
+      return updated;
+    },
+  });
 }
 
-module.exports = { CustomersService };
+module.exports = { createCustomersService };

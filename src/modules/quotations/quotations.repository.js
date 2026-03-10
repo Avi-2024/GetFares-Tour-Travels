@@ -113,7 +113,6 @@ function createQuotationsRepository({ db, logger, schema }) {
 
     return {
       id: row.id,
-      quoteNumber: row.quote_number ?? row.quoteNumber ?? null,
       parentQuoteId: row.parent_quote_id ?? row.parentQuoteId ?? null,
       leadId: row.lead_id ?? row.leadId ?? null,
       createdBy: row.created_by ?? row.createdBy ?? null,
@@ -123,11 +122,8 @@ function createQuotationsRepository({ db, logger, schema }) {
       quoteNumber: row.quote_number ?? row.quoteNumber ?? null,
       totalCost: toNumber(row.total_cost ?? row.totalCost, 0),
       marginPercent: toNumber(row.margin_percent ?? row.marginPercent, 0),
-      marginAmount: toNumber(row.margin_amount ?? row.marginAmount, 0),
       discount: toNumber(row.discount, 0),
-      discountAmount: toNumber(row.discount_amount ?? row.discountAmount, 0),
       tax: toNumber(row.tax, 0),
-      taxAmount: toNumber(row.tax_amount ?? row.taxAmount, 0),
       finalPrice: toNumber(row.final_price ?? row.finalPrice, 0),
       supplierCost: toNumber(row.supplier_cost ?? row.supplierCost, 0),
       supplierTaxAmount: toNumber(row.supplier_tax_amount ?? row.supplierTaxAmount, 0),
@@ -147,8 +143,6 @@ function createQuotationsRepository({ db, logger, schema }) {
       versionNumber: Number(row.version_number ?? row.versionNumber ?? 1),
       status: row.status,
       pdfUrl: row.pdf_url ?? row.pdfUrl ?? null,
-      pdfGeneratedAt: toDate(row.pdf_generated_at ?? row.pdfGeneratedAt),
-      pdfGeneratedBy: row.pdf_generated_by ?? row.pdfGeneratedBy ?? null,
       sentAt: toDate(row.sent_at ?? row.sentAt),
       sentBy: row.sent_by ?? row.sentBy ?? null,
       viewCount: Number(row.view_count ?? row.viewCount ?? 0),
@@ -159,7 +153,6 @@ function createQuotationsRepository({ db, logger, schema }) {
       leadToQuoteMinutes: toNumber(row.lead_to_quote_minutes ?? row.leadToQuoteMinutes, null),
       isDeleted: Boolean(row.is_deleted ?? row.isDeleted ?? false),
       createdAt: toDate(row.created_at ?? row.createdAt),
-      updatedAt: toDate(row.updated_at ?? row.updatedAt),
     };
   }
 
@@ -177,65 +170,6 @@ function createQuotationsRepository({ db, logger, schema }) {
     };
   }
 
-  function toTemplate(row) {
-    if (!row) {
-      return null;
-    }
-
-    return {
-      id: row.id,
-      code: row.code,
-      name: row.name,
-      templateType: row.template_type ?? row.templateType,
-      headerBranding: row.header_branding ?? row.headerBranding ?? null,
-      inclusions: row.inclusions ?? null,
-      exclusions: row.exclusions ?? null,
-      paymentTerms: row.payment_terms ?? row.paymentTerms ?? null,
-      cancellationPolicy: row.cancellation_policy ?? row.cancellationPolicy ?? null,
-      footerDisclaimer: row.footer_disclaimer ?? row.footerDisclaimer ?? null,
-      minMarginPercent: toNumber(row.min_margin_percent ?? row.minMarginPercent, 0),
-      isActive: toBoolean(row.is_active ?? row.isActive, true),
-      createdBy: row.created_by ?? row.createdBy ?? null,
-      updatedBy: row.updated_by ?? row.updatedBy ?? null,
-      createdAt: toDate(row.created_at ?? row.createdAt),
-      updatedAt: toDate(row.updated_at ?? row.updatedAt),
-    };
-  }
-
-  function toVersionLog(row) {
-    if (!row) {
-      return null;
-    }
-
-    return {
-      id: row.id,
-      quotationId: row.quotation_id ?? row.quotationId,
-      versionNumber: Number(row.version_number ?? row.versionNumber ?? 1),
-      editorId: row.editor_id ?? row.editorId ?? null,
-      action: row.action ?? null,
-      changeLog: row.change_log ?? row.changeLog ?? null,
-      snapshot: row.snapshot ?? null,
-      createdAt: toDate(row.created_at ?? row.createdAt),
-    };
-  }
-
-  function toSendLog(row) {
-    if (!row) {
-      return null;
-    }
-
-    return {
-      id: row.id,
-      quotationId: row.quotation_id ?? row.quotationId,
-      sentBy: row.sent_by ?? row.sentBy ?? null,
-      deliveryChannel: row.delivery_channel ?? row.deliveryChannel ?? null,
-      recipientEmail: row.recipient_email ?? row.recipientEmail ?? null,
-      recipientPhone: row.recipient_phone ?? row.recipientPhone ?? null,
-      sentAt: toDate(row.sent_at ?? row.sentAt),
-      metadata: row.metadata ?? null,
-    };
-  }
-
   function toView(row) {
     if (!row) {
       return null;
@@ -246,8 +180,6 @@ function createQuotationsRepository({ db, logger, schema }) {
       quotationId: row.quotation_id ?? row.quotationId,
       viewedAt: toDate(row.viewed_at ?? row.viewedAt),
       ipAddress: row.ip_address ?? row.ipAddress ?? null,
-      deviceInfo: row.device_info ?? row.deviceInfo ?? null,
-      userAgent: row.user_agent ?? row.userAgent ?? null,
     };
   }
 
@@ -476,11 +408,9 @@ function createQuotationsRepository({ db, logger, schema }) {
       if (filters.status) {
         mappedFilters.status = filters.status;
       }
-
       if (filters.leadId) {
         mappedFilters.lead_id = filters.leadId;
       }
-
       if (filters.createdBy) {
         mappedFilters.created_by = filters.createdBy;
       }
@@ -493,7 +423,6 @@ function createQuotationsRepository({ db, logger, schema }) {
       if (filters.page) {
         mappedFilters.page = filters.page;
       }
-
       if (filters.limit) {
         mappedFilters.limit = filters.limit;
       }
@@ -532,7 +461,7 @@ function createQuotationsRepository({ db, logger, schema }) {
     },
 
     async replaceItems(quotationId, components = []) {
-      await db.query(`DELETE FROM ${schema.itemsTable} WHERE quotation_id = $1`, [quotationId]);
+      await db.query('DELETE FROM quotation_items WHERE quotation_id = $1', [quotationId]);
 
       for (const item of components) {
         await db.insert(schema.itemsTable, {
@@ -546,40 +475,11 @@ function createQuotationsRepository({ db, logger, schema }) {
       return findItemsByQuotationId(quotationId);
     },
 
-    async createVersionLog(payload) {
-      const row = await db.insert(schema.versionLogsTable, {
-        quotation_id: payload.quotationId,
-        version_number: payload.versionNumber,
-        editor_id: payload.editorId || null,
-        action: payload.action,
-        change_log: payload.changeLog || null,
-        snapshot: payload.snapshot || null,
-      });
-
-      return toVersionLog(row);
-    },
-
-    async createSendLog(payload) {
-      const row = await db.insert(schema.sendLogsTable, {
-        quotation_id: payload.quotationId,
-        sent_by: payload.sentBy || null,
-        delivery_channel: payload.deliveryChannel || 'MANUAL',
-        recipient_email: payload.recipientEmail || null,
-        recipient_phone: payload.recipientPhone || null,
-        metadata: payload.metadata || null,
-      });
-
-      return toSendLog(row);
-    },
-
     async createView(payload) {
       const row = await db.insert(schema.viewsTable, {
         quotation_id: payload.quotationId,
         ip_address: payload.ipAddress || null,
-        device_info: payload.deviceInfo || null,
-        user_agent: payload.userAgent || null,
       });
-
       return toView(row);
     },
 
@@ -624,49 +524,6 @@ function createQuotationsRepository({ db, logger, schema }) {
 
     async updateLeadStatus(leadId, status) {
       return db.update(schema.leadsTable, leadId, { status });
-    },
-
-    async findTemplateById(id) {
-      const row = await db.findById(schema.templatesTable, id);
-      return toTemplate(row);
-    },
-
-    async findTemplateByCode(code) {
-      const row = await db.findOne(schema.templatesTable, { code });
-      return toTemplate(row);
-    },
-
-    async findTemplates(filters = {}) {
-      const mappedFilters = {};
-
-      if (filters.isActive !== undefined) {
-        mappedFilters.is_active = filters.isActive;
-      }
-
-      if (filters.templateType) {
-        mappedFilters.template_type = filters.templateType;
-      }
-
-      if (filters.page) {
-        mappedFilters.page = filters.page;
-      }
-
-      if (filters.limit) {
-        mappedFilters.limit = filters.limit;
-      }
-
-      const rows = await db.findMany(schema.templatesTable, mappedFilters);
-      return rows.map((row) => toTemplate(row));
-    },
-
-    async createTemplate(payload) {
-      const row = await db.insert(schema.templatesTable, payload);
-      return toTemplate(row);
-    },
-
-    async updateTemplate(id, payload) {
-      const row = await db.update(schema.templatesTable, id, payload);
-      return toTemplate(row);
     },
 
     async findBookingByQuotationId(quotationId) {
@@ -779,11 +636,12 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*)::int AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected_quotes,
-          AVG(q.lead_to_quote_minutes)::numeric(10,2) AS avg_lead_to_quote_minutes,
+          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_minutes,
           AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
           AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent
         FROM quotations q
         LEFT JOIN users u ON u.id = q.created_by
+        LEFT JOIN leads l ON l.id = q.lead_id
         WHERE ${whereSql}
         GROUP BY q.created_by, u.full_name
         ORDER BY total_quotes DESC
@@ -794,10 +652,11 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*)::int AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected_quotes,
-          AVG(q.lead_to_quote_minutes)::numeric(10,2) AS avg_lead_to_quote_minutes,
+          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_minutes,
           AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
           AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent
         FROM quotations q
+        LEFT JOIN leads l ON l.id = q.lead_id
         WHERE ${whereSql}
       `;
 

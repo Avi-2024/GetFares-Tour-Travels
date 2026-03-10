@@ -1,13 +1,13 @@
-const { CustomersController } = require('./customers.controller');
-const { CustomersService } = require('./customers.service');
-const { CustomersRepository } = require('./customers.repository');
+const { createCustomersController } = require('./customers.controller');
+const { createCustomersService } = require('./customers.service');
+const { createCustomersRepository } = require('./customers.repository');
 const { createCustomersRoutes } = require('./customers.routes');
 const { CustomersValidation } = require('./customers.validation');
 const { CustomersSchema } = require('./customers.schema');
 const { createCustomersEvents } = require('./customers.events');
 
 function createCustomersModule({ dependencies }) {
-  const repository = new CustomersRepository({
+  const repository = createCustomersRepository({
     db: dependencies.db,
     logger: dependencies.logger,
     schema: CustomersSchema,
@@ -18,13 +18,13 @@ function createCustomersModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new CustomersService({
+  const service = createCustomersService({
     repository,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = new CustomersController({ service });
+  const controller = createCustomersController({ service });
 
   const router = createCustomersRoutes({
     controller,

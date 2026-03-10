@@ -1,13 +1,13 @@
-const { CampaignsController } = require('./campaigns.controller');
-const { CampaignsService } = require('./campaigns.service');
-const { CampaignsRepository } = require('./campaigns.repository');
+const { createCampaignsController } = require('./campaigns.controller');
+const { createCampaignsService } = require('./campaigns.service');
+const { createCampaignsRepository } = require('./campaigns.repository');
 const { createCampaignsRoutes } = require('./campaigns.routes');
 const { CampaignsValidation } = require('./campaigns.validation');
 const { CampaignsSchema } = require('./campaigns.schema');
 const { createCampaignsEvents } = require('./campaigns.events');
 
 function createCampaignsModule({ dependencies }) {
-  const repository = new CampaignsRepository({
+  const repository = createCampaignsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
     schema: CampaignsSchema,
@@ -18,13 +18,13 @@ function createCampaignsModule({ dependencies }) {
     logger: dependencies.logger,
   });
 
-  const service = new CampaignsService({
+  const service = createCampaignsService({
     repository,
     logger: dependencies.logger,
     events,
   });
 
-  const controller = new CampaignsController({ service });
+  const controller = createCampaignsController({ service });
 
   const router = createCampaignsRoutes({
     controller,
