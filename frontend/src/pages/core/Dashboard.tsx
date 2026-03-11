@@ -146,7 +146,7 @@ const Dashboard: React.FC = () => {
                 dataKey="value"
               >
 
-                {leadData.map((entry, index) => (
+                {leadData.map((_, index) => (
                   <Cell key={index} fill={COLORS[index]} />
                 ))}
 

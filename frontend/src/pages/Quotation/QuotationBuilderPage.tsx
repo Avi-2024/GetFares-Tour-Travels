@@ -15,8 +15,7 @@ import {
   FaMobileAlt,
   FaSyncAlt,
   FaHome,
-  FaDollarSign,
-  FaEuroSign
+  FaDollarSign
 } from 'react-icons/fa';
 
 interface ItineraryItem {
@@ -82,7 +81,7 @@ const QuotationBuilderPage: React.FC = () => {
     }
   });
 
-  const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>([
+  const [itineraryItems] = useState<ItineraryItem[]>([
     {
       id: '1',
       day: 'Day 1',
@@ -106,7 +105,7 @@ const QuotationBuilderPage: React.FC = () => {
     }
   ]);
 
-  const [pricingItems, setPricingItems] = useState<PricingItem[]>([
+  const [pricingItems] = useState<PricingItem[]>([
     { id: '1', name: 'Accommodation', cost: 3200.00, markup: 15, price: 3680.00 },
     { id: '2', name: 'Transfers', cost: 400.00, markup: 10, price: 440.00 },
     { id: '3', name: 'Activities', cost: 120.00, markup: 8.3, price: 130.00 }
@@ -340,7 +339,7 @@ const QuotationBuilderPage: React.FC = () => {
                               placeholder="Room Type" 
                               className="form-input block w-1/2 text-xs border-gray-300 rounded-md" 
                               value={item.accommodation.roomType}
-                              onChange={(e) => {
+                              onChange={() => {
                                 // Handle room type change
                               }}
                             />

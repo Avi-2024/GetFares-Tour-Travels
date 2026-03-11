@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   FaPlus,
   FaSearch,
   FaChevronDown,
   FaCalendarAlt,
-
   FaTimes,
   FaEye,
   FaWhatsapp,
@@ -14,7 +13,6 @@ import {
   FaChevronLeft,
   FaChevronRight
 } from 'react-icons/fa';
-import { MdOutlineGridOn } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
 
 interface Quotation {
@@ -47,7 +45,6 @@ interface Quotation {
 }
 
 const QuotationsPage: React.FC = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   const quotations: Quotation[] = [
