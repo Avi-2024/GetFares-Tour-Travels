@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   FaSearch,
-  FaBell,
   FaUsers,
   FaSignal,
   FaEnvelopeOpenText,
@@ -13,7 +12,6 @@ import {
   FaPlus,
   FaChevronRight as FaChevronRightIcon,
   FaShieldAlt,
-
   FaFileInvoice,
   FaPlug,
   FaWhatsapp,
@@ -22,7 +20,6 @@ import {
   FaUserPlus,
   FaExclamationTriangle
 } from 'react-icons/fa';
-import { MdOutlineGridOn } from 'react-icons/md';
 
 interface User {
   id: string;
@@ -46,7 +43,7 @@ interface Role {
 interface Permission {
   id: string;
   name: string;
-  icon: JSX.Element;
+  icon: React.ReactElement;
   permissions: {
     id: string;
     label: string;

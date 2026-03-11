@@ -15,11 +15,9 @@ import {
   FaMobileAlt,
   FaSyncAlt,
   FaHome,
-  FaRegCalendarAlt,
   FaDollarSign,
   FaEuroSign
 } from 'react-icons/fa';
-import { MdOutlineGridOn } from 'react-icons/md';
 
 interface ItineraryItem {
   id: string;

@@ -1,10 +1,6 @@
 import React, { useState } from 'react';
 import { 
-//   FaPlaneUp, 
-//   FaClipboardQuestion, 
   FaMoneyBillWave, 
-  FaSearch, 
-  FaPlus, 
   FaArrowUp,
   FaExclamationCircle,
   FaFilter,
@@ -14,7 +10,6 @@ import {
   FaDownload,
   FaList,
   FaSort,
-//   FaLocationDot,
   FaAdjust,
   FaCheckCircle,
   FaTimesCircle,
@@ -23,11 +18,9 @@ import {
   FaFileInvoiceDollar,
   FaEllipsisV,
   FaCreditCard,
-//   FaTicket,
   FaPaperPlane,
   FaChevronLeft,
-  FaChevronRight,
-  FaRegBell
+  FaChevronRight
 } from 'react-icons/fa';
 import { MdOutlineGridOn } from 'react-icons/md';
 
@@ -61,7 +54,6 @@ interface Booking {
 }
 
 const BookingsPage: React.FC = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const bookings: Booking[] = [
     {
@@ -231,9 +223,7 @@ const BookingsPage: React.FC = () => {
     return config[payment.status];
   };
 
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+
 
   return (
     <div className="bg-gray-100 min-h-screen text-gray-800 font-sans antialiased overflow-hidden flex flex-col">
@@ -626,14 +616,7 @@ const BookingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Mobile Sidebar Backdrop */}
-      {sidebarOpen && (
-        <div 
-          id="sidebar-backdrop" 
-          className="fixed inset-0 bg-gray-900 bg-opacity-50 z-30 lg:hidden"
-          onClick={toggleSidebar}
-        />
-      )}
+      {/* Mobile Sidebar Backdrop - Removed unused code */}
     </div>
   );
 };

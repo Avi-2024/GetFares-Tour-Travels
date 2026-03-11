@@ -1,16 +1,11 @@
 import React, { useState } from 'react';
 import {
-  // FaSearch,
-  FaBell,
-  FaPlus,
   FaWallet,
   FaClockRotateLeft,
   FaCircleExclamation,
   FaRotateLeft,
   FaArrowUp,
   FaFilter,
-  // FaSave,
-  // FaCalendarAlt,
   FaUser,
   FaDownload,
   FaListUl,
@@ -18,7 +13,6 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaFileArrowDown,
-  // FaEllipsisV,
   FaBuildingColumns,
   FaMoneyBill,
   FaCreditCard,
@@ -31,7 +25,6 @@ import {
   FaCcVisa,
   FaCcMastercard
 } from 'react-icons/fa6';
-import { FaRegBell, FaRegCalendarAlt, FaUserCircle } from 'react-icons/fa';
 
 interface Transaction {
   id: string;
@@ -49,7 +42,7 @@ interface Transaction {
   mode: {
     type: 'bank' | 'card' | 'cash' | 'refund' | 'cheque';
     details: string;
-    icon?: JSX.Element;
+    icon?: React.ReactElement;
   };
   status: 'completed' | 'pending' | 'failed' | 'refunded';
 }
@@ -67,7 +60,7 @@ interface PaymentFormData {
 const Payments: React.FC = () => {
   const [activeTab, setActiveTab] = useState('transactions');
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery] = useState('');
   const [paymentForm, setPaymentForm] = useState<PaymentFormData>({
     bookingSearch: '',
     amount: '',
