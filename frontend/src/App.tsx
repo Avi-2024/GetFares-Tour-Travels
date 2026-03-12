@@ -20,6 +20,16 @@ import VisaCasesPage from "./pages/visa/VisaCasesPage";
 import VisaDetailPage from "./pages/visa/VisaDetailPage";
 import ComplaintsPage from "./pages/complaints/ComplaintsPage";
 import ReportsHubPage from "./pages/reports/ReportsHubPage";
+import QuotationDetailPage from "./pages/Quotation/QuotationDetailPage";
+import QuotationTemplatesPage from "./pages/Quotation/QuotationTemplatesPage";
+import BookingDetailPage from "./pages/Booking/BookingDetailPage";
+import CampaignsPage from "./pages/campaigns/CampaignsPage";
+import CustomersPage from "./pages/customers/CustomersPage";
+import CustomerDetailPage from "./pages/customers/CustomerDetailPage";
+import ComplaintDetailPage from "./pages/complaints/ComplaintDetailPage";
+import NotificationsPage from "./pages/notifications/NotificationsPage";
+import UsersPage from "./pages/users/UsersPage";
+import PublicLeadCapturePage from "./pages/public/PublicLeadCapturePage";
 
 function App() {
   return (
@@ -37,9 +47,13 @@ function App() {
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/leads" element={<Leads />} />
+            <Route path="/leads/:id" element={<LeadsDetail />} />
             <Route path="/bookings" element={<BookingsPage />} />
+            <Route path="/bookings/:id" element={<BookingDetailPage />} />
             <Route path="/quotations" element={<QuotationsPage />} />
             <Route path="/quotations/builder" element={<QuotationBuilderPage />} />
+            <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+            <Route path="/quotations/templates" element={<QuotationTemplatesPage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/leads-details" element={<LeadsDetail />} />
             <Route path="/create-lead" element={<CreateLead />} />
@@ -48,7 +62,14 @@ function App() {
             <Route path="/visa" element={<VisaCasesPage />} />
             <Route path="/visa/:id" element={<VisaDetailPage />} />
             <Route path="/complaints" element={<ComplaintsPage />} />
+            <Route path="/complaints/:id" element={<ComplaintDetailPage />} />
             <Route path="/reports" element={<ReportsHubPage />} />
+            <Route path="/campaigns" element={<CampaignsPage />} />
+            <Route path="/customers" element={<CustomersPage />} />
+            <Route path="/customers/:id" element={<CustomerDetailPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/public/lead-capture" element={<PublicLeadCapturePage />} />
           </Route>
         </Route>
 
