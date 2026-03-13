@@ -1,315 +1,92 @@
-import React from "react";
-import {
-  LineChart,
-  Line,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from "recharts";
+import React, { useMemo, useState } from "react";
+import { Area, AreaChart, CartesianGrid, Cell, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { FaArrowTrendDown, FaArrowTrendUp, FaCalendarDays, FaPhone, FaPlane, FaSackDollar, FaUserGroup } from "react-icons/fa6";
+import SurfaceCard from "../../components/ui/SurfaceCard";
 
-const revenueData = [
-  { name: "Oct 1", revenue: 12000 },
-  { name: "Oct 5", revenue: 15500 },
-  { name: "Oct 10", revenue: 11000 },
-  { name: "Oct 15", revenue: 18000 },
-  { name: "Oct 20", revenue: 16500 },
-  { name: "Oct 25", revenue: 22000 },
-];
-
-const leadData = [
-  { name: "Social Media", value: 45 },
-  { name: "Website", value: 25 },
-  { name: "Referrals", value: 20 },
-  { name: "Partners", value: 10 },
-];
-
-const COLORS = ["#3b82f6", "#14b8a6", "#8b5cf6", "#f59e0b"];
+type Range = "Today" | "Week" | "Month" | "Year";
+const data: Record<Range, Array<{ name: string; revenue: number; last: number }>> = {
+  Today: [{ name: "08:00", revenue: 1200, last: 900 }, { name: "10:00", revenue: 1800, last: 1250 }, { name: "12:00", revenue: 1400, last: 1150 }, { name: "14:00", revenue: 2100, last: 1580 }, { name: "16:00", revenue: 2400, last: 2000 }],
+  Week: [{ name: "Mon", revenue: 9200, last: 7800 }, { name: "Tue", revenue: 12400, last: 10020 }, { name: "Wed", revenue: 11100, last: 9440 }, { name: "Thu", revenue: 13800, last: 12000 }, { name: "Fri", revenue: 15900, last: 13300 }, { name: "Sat", revenue: 17400, last: 15000 }, { name: "Sun", revenue: 14600, last: 12800 }],
+  Month: [{ name: "W1", revenue: 28000, last: 24200 }, { name: "W2", revenue: 31400, last: 26600 }, { name: "W3", revenue: 29200, last: 27900 }, { name: "W4", revenue: 36800, last: 30200 }],
+  Year: [{ name: "Jan", revenue: 98000, last: 84000 }, { name: "Feb", revenue: 103000, last: 90000 }, { name: "Mar", revenue: 118000, last: 97000 }, { name: "Apr", revenue: 126000, last: 104000 }],
+};
+const sources = [{ name: "Social", value: 42 }, { name: "Website", value: 27 }, { name: "Referrals", value: 19 }, { name: "Partners", value: 12 }];
+const colors = ["#2563eb", "#22c55e", "#a855f7", "#f59e0b"];
 
 const Dashboard: React.FC = () => {
+  const [range, setRange] = useState<Range>("Week");
+  const rev = useMemo(() => data[range], [range]);
+  const kpis = [
+    { title: "Total Leads", value: "1,248", trend: "+12%", up: true, icon: FaUserGroup, bg: "bg-blue-100 text-blue-600" },
+    { title: "Revenue", value: "$84.2k", trend: "+9.4%", up: true, icon: FaSackDollar, bg: "bg-green-100 text-green-600" },
+    { title: "Pending Calls", value: "12", trend: "-4%", up: false, icon: FaPhone, bg: "bg-amber-100 text-amber-500" },
+    { title: "Bookings", value: "186", trend: "+6%", up: true, icon: FaPlane, bg: "bg-gray-100 text-gray-700" },
+  ];
+
   return (
     <div className="space-y-6">
-
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Dashboard Overview
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Welcome back, Alex! Here's what's happening today.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard Overview</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Performance, pipeline health, and recent operations at a glance.</p>
         </div>
-
-        <div className="flex gap-3">
-          <span className="text-sm bg-white px-3 py-1.5 border rounded-lg">
-            Oct 24, 2023
-          </span>
-
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-            Export Report
-          </button>
-        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"><FaCalendarDays className="text-blue-600" /> March 10, 2026</div>
       </div>
 
-      {/* KPI CARDS */}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-
-        <KpiCard title="Total Leads" value="1,248" color="blue" icon="👥"/>
-        <KpiCard title="New Today" value="24" color="indigo" icon="📅"/>
-        <KpiCard title="Monthly Revenue" value="$84.2k" color="green" icon="💰"/>
-        <KpiCard title="Conversion Rate" value="18.5%" color="purple" icon="📈"/>
-        <KpiCard title="Pending Calls" value="12" color="orange" icon="📞"/>
-        <KpiCard title="Unpaid Invoices" value="5" color="red" icon="📄"/>
-        <KpiCard title="Visa Processing" value="8" color="teal" icon="🛂"/>
-
-      </div>
-
-      {/* CHARTS */}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Revenue Chart */}
-
-        <div className="bg-white p-6 rounded-xl shadow border lg:col-span-2">
-
-          <div className="flex justify-between mb-6">
-
-            <div>
-              <h3 className="text-lg font-bold">
-                Revenue Performance
-              </h3>
-              <p className="text-sm text-gray-500">
-                Comparing current vs previous month
-              </p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((k) => (
+          <SurfaceCard key={k.title} hoverable className="p-5">
+            <div className="flex items-start justify-between">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${k.bg}`}><k.icon /></div>
+              <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${k.up ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{k.up ? <FaArrowTrendUp className="mr-1" /> : <FaArrowTrendDown className="mr-1" />}{k.trend}</span>
             </div>
+            <p className="mt-4 text-sm text-gray-500">{k.title}</p>
+            <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{k.value}</p>
+          </SurfaceCard>
+        ))}
+      </div>
 
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <SurfaceCard className="xl:col-span-2">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Revenue Performance</h2>
+              <p className="text-sm text-gray-500">Current period vs previous period.</p>
+            </div>
+            <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
+              {(["Today", "Week", "Month", "Year"] as Range[]).map((r) => <button key={r} onClick={() => setRange(r)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${range === r ? "bg-blue-600 text-white" : "text-gray-600"}`}>{r}</button>)}
+            </div>
           </div>
-
-          <ResponsiveContainer width="100%" height={300}>
-
-            <LineChart data={revenueData}>
-
-              <CartesianGrid stroke="#f3f4f6" />
-
-              <XAxis dataKey="name" />
-
-              <YAxis />
-
-              <Tooltip />
-
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke="#3b82f6"
-                fill="#3b82f6"
-                fillOpacity={0.15}
-              />
-
-              <Line
-                type="monotone"
-                dataKey="revenue"
-                stroke="#3b82f6"
-                strokeWidth={3}
-              />
-
-            </LineChart>
-
-          </ResponsiveContainer>
-
-        </div>
-
-        {/* Lead Source Chart */}
-
-        <div className="bg-white p-6 rounded-xl shadow border">
-
-          <h3 className="text-lg font-bold mb-6">
-            Lead Sources
-          </h3>
-
-          <ResponsiveContainer width="100%" height={300}>
-
-            <PieChart>
-
-              <Pie
-                data={leadData}
-                innerRadius={70}
-                outerRadius={100}
-                paddingAngle={5}
-                dataKey="value"
-              >
-
-                {leadData.map((entry, index) => (
-                  <Cell key={index} fill={COLORS[index]} />
-                ))}
-
-              </Pie>
-
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={rev}>
+              <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} /><stop offset="95%" stopColor="#2563eb" stopOpacity={0} /></linearGradient></defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
+              <YAxis stroke="#9ca3af" fontSize={12} />
+              <Tooltip formatter={(v: number | string | undefined) => [`$${Number(v ?? 0).toLocaleString()}`, "Revenue"]} />
               <Legend />
-
-              <Tooltip />
-
-            </PieChart>
-
+              <Area type="monotone" dataKey="revenue" fill="url(#g)" stroke="#2563eb" strokeWidth={2} name="Current" />
+              <Line type="monotone" dataKey="last" stroke="#94a3b8" strokeWidth={2} dot={false} name="Previous" />
+            </AreaChart>
           </ResponsiveContainer>
+        </SurfaceCard>
 
-        </div>
-
+        <SurfaceCard>
+          <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-gray-100">Lead Sources</h2>
+          <p className="mb-4 text-sm text-gray-500">Channel split for new leads.</p>
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie data={sources} innerRadius={65} outerRadius={95} paddingAngle={4} dataKey="value" nameKey="name">
+                {sources.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+              </Pie>
+              <Tooltip formatter={(v: number | string | undefined) => `${Number(v ?? 0)}%`} />
+              <Legend iconType="circle" />
+            </PieChart>
+          </ResponsiveContainer>
+        </SurfaceCard>
       </div>
-
-      {/* SECOND ROW */}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-        {/* TOP DESTINATIONS */}
-
-        <div className="bg-white p-6 rounded-xl shadow border">
-
-          <div className="flex justify-between mb-4">
-            <h3 className="text-lg font-bold">
-              Top Destinations
-            </h3>
-            <span className="text-blue-600 text-sm">
-              View All
-            </span>
-          </div>
-
-          <Progress name="Dubai" value={85} amount="$42k" color="bg-blue-500"/>
-          <Progress name="Maldives" value={65} amount="$28k" color="bg-teal-400"/>
-          <Progress name="Paris" value={45} amount="$19k" color="bg-indigo-400"/>
-          <Progress name="Bali" value={35} amount="$15k" color="bg-orange-400"/>
-
-        </div>
-
-        {/* TOP CONSULTANTS */}
-
-        <div className="bg-white p-6 rounded-xl shadow border">
-
-          <h3 className="text-lg font-bold mb-4">
-            Top Consultants
-          </h3>
-
-          <Consultant name="Sarah J." deals="24 Deals" amount="$45.2k"/>
-          <Consultant name="Mike R." deals="18 Deals" amount="$32.1k"/>
-          <Consultant name="Emma W." deals="15 Deals" amount="$28.4k"/>
-
-        </div>
-
-        {/* RECENT ACTIVITY */}
-
-        <div className="bg-white p-6 rounded-xl shadow border">
-
-          <h3 className="text-lg font-bold mb-4">
-            Recent Activity
-          </h3>
-
-          <Activity text="New Booking confirmed for #BK-2024-88" time="10 minutes ago"/>
-          <Activity text="Payment received from John Doe" time="45 minutes ago"/>
-          <Activity text="Visa application Pending Review" time="2 hours ago"/>
-          <Activity text="System maintenance scheduled" time="Yesterday"/>
-
-        </div>
-
-      </div>
-
-      {/* SLA SECTION */}
-
-      <div className="bg-white p-6 rounded-xl shadow border">
-
-        <div className="flex justify-between mb-4">
-
-          <h3 className="text-lg font-bold">
-            SLA & Compliance Status
-          </h3>
-
-          <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded">
-            Health: Good
-          </span>
-
-        </div>
-
-        <div className="grid md:grid-cols-4 gap-6">
-
-          <Metric title="Quote Response Time" value="1h 15m" percent={92}/>
-          <Metric title="Visa Doc Accuracy" value="98.5%" percent={98}/>
-          <Metric title="Customer Satisfaction" value="4.8/5" percent={96}/>
-          <Metric title="Follow-up Compliance" value="82%" percent={82}/>
-
-        </div>
-
-      </div>
-
     </div>
   );
 };
 
 export default Dashboard;
-
-
-
-
-
-/* COMPONENTS */
-
-const KpiCard = ({ title, value, icon, color }: any) => (
-  <div className="bg-white p-4 rounded-xl shadow border h-32 flex flex-col justify-between">
-    <div className={`text-${color}-600 text-xl`}>
-      {icon}
-    </div>
-    <div>
-      <h3 className="text-2xl font-bold">{value}</h3>
-      <p className="text-xs text-gray-500">{title}</p>
-    </div>
-  </div>
-);
-
-const Progress = ({ name, value, amount, color }: any) => (
-  <div className="mb-4">
-    <div className="flex justify-between text-sm mb-1">
-      <span>{name}</span>
-      <span>{amount}</span>
-    </div>
-    <div className="w-full bg-gray-100 h-2 rounded">
-      <div className={`${color} h-2 rounded`} style={{ width: `${value}%` }} />
-    </div>
-  </div>
-);
-
-const Consultant = ({ name, deals, amount }: any) => (
-  <div className="flex justify-between items-center mb-4">
-    <div>
-      <p className="font-semibold">{name}</p>
-      <p className="text-xs text-gray-500">{deals}</p>
-    </div>
-    <span className="text-green-600 font-bold">{amount}</span>
-  </div>
-);
-
-const Activity = ({ text, time }: any) => (
-  <div className="mb-4">
-    <p className="text-sm">{text}</p>
-    <p className="text-xs text-gray-400">{time}</p>
-  </div>
-);
-
-const Metric = ({ title, value, percent }: any) => (
-  <div>
-    <div className="flex justify-between text-sm mb-2">
-      <span>{title}</span>
-      <span className="font-semibold">{value}</span>
-    </div>
-    <div className="bg-gray-100 h-1.5 rounded">
-      <div
-        className="bg-blue-500 h-1.5 rounded"
-        style={{ width: `${percent}%` }}
-      />
-    </div>
-  </div>
-);

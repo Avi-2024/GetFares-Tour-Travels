@@ -1,11 +1,64 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { authApi } from "../../api";
+import { useAuth } from "../../context/AuthContext";
+
+const DEMO_EMAIL = "admin@gmail.com";
+const DEMO_PASSWORD = "admin@1234";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
+ const [email, setEmail] = useState(DEMO_EMAIL);
+  const [password, setPassword] = useState(DEMO_PASSWORD);
+  const [errors, setErrors] = useState({ email: "", password: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
+  const { setAuthState, refreshPermissions } = useAuth();
 
   const togglePassword = () => {
     setShowPassword(!showPassword);
+  };
+
+  const validateForm = () => {
+    const newErrors = { email: "", password: "" };
+    
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = "Please enter a valid email";
+    }
+    
+    if (!password.trim()) {
+      newErrors.password = "Password is required";
+    } else if (password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters";
+    }
+    
+    setErrors(newErrors);
+    return !newErrors.email && !newErrors.password;
+  };
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (validateForm()) {
+      setSubmitting(true);
+      try {
+        const response = await authApi.login({ email, password, rememberMe: true });
+        setAuthState(response.token, { id: response.user.id, name: response.user.name, email });
+      } catch {
+        // fallback for local development when backend auth is not available
+        if (email !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
+          setErrors({ email: "", password: "Invalid demo credentials" });
+          setSubmitting(false);
+          return;
+        }
+        setAuthState("local-dev-token", { id: "dev-1", name: "Alex Morgan", email: DEMO_EMAIL });
+      }
+      await refreshPermissions();
+      setSubmitting(false);
+      navigate('/dashboard');
+    }
   };
 
   return (
@@ -116,7 +169,7 @@ const Login = () => {
           </div>
 
           {/* FORM */}
-          <form className="space-y-6">
+          <form className="space-y-6" onSubmit={handleSignIn}>
 
             {/* EMAIL */}
             <div>
@@ -131,10 +184,17 @@ const Login = () => {
 
                 <input
                   type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-blue-500 ${
+                    errors.email ? 'border-red-300 focus:border-red-500' : 'border-gray-200'
+                  }`}
                 />
               </div>
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+              )}
             </div>
 
             {/* PASSWORD */}
@@ -152,8 +212,12 @@ const Login = () => {
 
                 <input
                   type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+                  className={`w-full pl-10 pr-10 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-blue-500 ${
+                    errors.password ? 'border-red-300 focus:border-red-500' : 'border-gray-200'
+                  }`}
                 />
 
                 <button
@@ -169,6 +233,9 @@ const Login = () => {
                 </button>
 
               </div>
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+              )}
 
             </div>
 
@@ -190,11 +257,19 @@ const Login = () => {
             </div>
 
             {/* BUTTON */}
-            <button className="w-full py-3.5 rounded-xl text-white font-semibold bg-blue-600 hover:bg-blue-700">
-              Sign in
+            <button 
+              type="submit"
+              disabled={submitting}
+              className="w-full py-3.5 rounded-xl text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-colors"
+            >
+              {submitting ? "Signing in..." : "Sign in"}
             </button>
 
           </form>
+
+          <p className="mt-8 text-center text-xs text-gray-400">
+            Powered by GetFares Tour & Travels CRM
+          </p>
 
         </div>
 
