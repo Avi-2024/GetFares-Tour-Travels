@@ -27,7 +27,7 @@ const Leads: React.FC = () => {
   const leads = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Leads Management</h1>
@@ -82,7 +82,13 @@ const Leads: React.FC = () => {
                       <td className="px-5 py-4"><StatusBadge status={l.status} /></td>
                       <td className="px-5 py-4"><p className="text-xs text-gray-600 dark:text-gray-300">{l.priority}</p><p className="text-xs text-gray-500">{l.sla}</p></td>
                       <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{l.consultant}</td>
-                      <td className="px-5 py-4"><div className="flex justify-end gap-2 opacity-0 transition-all duration-200 group-hover:opacity-100"><button className="rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700"><FaEye /></button><button className="rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700"><FaFileInvoiceDollar /></button><button className="rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700"><FaEllipsis /></button></div></td>
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end gap-2 transition-all duration-200">
+                          <button className="rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700" onClick={() => nav(`/leads/${l.id}`)}><FaEye /></button>
+                          <button className="rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700"><FaFileInvoiceDollar /></button>
+                          <button className="rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700"><FaEllipsis /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
