@@ -24,7 +24,7 @@ async function getExecutedMigrations(client) {
 
 async function getMigrationFiles() {
   const files = await fs.readdir(MIGRATIONS_DIR);
-  return files.filter((file) => file.endsWith('.sql')).sort();
+  return files.filter((file) => /^\d+_.+\.sql$/i.test(file)).sort();
 }
 
 async function runMigration(client, filename) {

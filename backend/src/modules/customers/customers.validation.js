@@ -2,34 +2,47 @@ const { z } = require('zod');
 
 const customerSegment = z.enum(['PLATINUM', 'GOLD', 'SILVER', 'NEW']);
 
-const basePayload = z.object({
-  fullName: z.string().min(2).max(150).optional(),
-  phone: z.string().min(6).max(20).optional(),
-  email: z.string().email().optional(),
-  preferences: z.string().max(4000).optional(),
+const createPayload = z.object({
+  fullName: z.string().trim().min(2).max(150),
+  phone: z.string().trim().min(6).max(20).optional(),
+  email: z.string().email().max(150).optional(),
+  preferences: z.string().trim().max(5000).optional(),
   lifetimeValue: z.coerce.number().nonnegative().optional(),
   segment: customerSegment.optional(),
-  isDeleted: z.boolean().optional(),
+  panNumber: z.string().trim().min(5).max(20).optional(),
+  addressLine: z.string().trim().max(2000).optional(),
+  clientCurrency: z.string().trim().min(3).max(10).optional(),
 });
 
+const updatePayload = z
+  .object({
+    fullName: z.string().trim().min(2).max(150).optional(),
+    phone: z.string().trim().min(6).max(20).optional(),
+    email: z.string().email().max(150).optional(),
+    preferences: z.string().trim().max(5000).optional(),
+    lifetimeValue: z.coerce.number().nonnegative().optional(),
+    segment: customerSegment.optional(),
+    panNumber: z.string().trim().min(5).max(20).optional(),
+    addressLine: z.string().trim().max(2000).optional(),
+    clientCurrency: z.string().trim().min(3).max(10).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update');
+
 const create = z.object({
-  body: basePayload.refine(
-    (value) => Boolean(value.fullName || value.phone || value.email),
-    'At least one identifier is required: fullName/phone/email',
-  ),
+  body: createPayload,
   params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
 
 const update = z.object({
-  body: basePayload.partial().refine((value) => Object.keys(value).length > 0, 'At least one field is required for update'),
-  params: z.object({ id: z.string().min(1) }),
+  body: updatePayload,
+  params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
 });
 
 const byId = z.object({
   body: z.object({}).optional(),
-  params: z.object({ id: z.string().min(1) }),
+  params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
 });
 
@@ -40,7 +53,10 @@ const list = z.object({
     .object({
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().optional(),
-      status: z.string().optional(),
+      segment: customerSegment.optional(),
+      email: z.string().email().optional(),
+      phone: z.string().trim().min(6).max(20).optional(),
+      clientCurrency: z.string().trim().min(3).max(10).optional(),
     })
     .optional(),
 });

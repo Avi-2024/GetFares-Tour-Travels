@@ -1,26 +1,39 @@
 const { z } = require('zod');
 
-const basePayload = z.object({
-  name: z.string().min(2),
-  status: z.enum(['active', 'inactive', 'draft']).optional(),
-  metadata: z.record(z.any()).optional(),
+const complaintStatus = z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED']);
+
+const createPayload = z.object({
+  bookingId: z.string().uuid().optional(),
+  assignedTo: z.string().uuid().optional(),
+  issueType: z.string().trim().min(2).max(150),
+  description: z.string().trim().min(5).max(4000),
+  status: complaintStatus.optional(),
 });
 
+const updatePayload = z
+  .object({
+    assignedTo: z.string().uuid().nullable().optional(),
+    issueType: z.string().trim().min(2).max(150).optional(),
+    description: z.string().trim().min(5).max(4000).optional(),
+    status: complaintStatus.optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update');
+
 const create = z.object({
-  body: basePayload,
+  body: createPayload,
   params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
 
 const update = z.object({
-  body: basePayload.partial().refine((value) => Object.keys(value).length > 0, 'At least one field is required for update'),
-  params: z.object({ id: z.string().min(1) }),
+  body: updatePayload,
+  params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
 });
 
 const byId = z.object({
   body: z.object({}).optional(),
-  params: z.object({ id: z.string().min(1) }),
+  params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
 });
 
@@ -31,7 +44,29 @@ const list = z.object({
     .object({
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().optional(),
-      status: z.string().optional(),
+      status: complaintStatus.optional(),
+      assignedTo: z.string().uuid().optional(),
+      bookingId: z.string().uuid().optional(),
+    })
+    .optional(),
+});
+
+const createActivity = z.object({
+  body: z.object({
+    note: z.string().trim().min(2).max(2000),
+    userId: z.string().uuid().optional(),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const listActivities = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().optional(),
     })
     .optional(),
 });
@@ -42,5 +77,7 @@ module.exports = {
     update,
     byId,
     list,
+    createActivity,
+    listActivities,
   },
 };

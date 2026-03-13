@@ -8,6 +8,10 @@ function createComplaintsEvents({ eventBus, logger }) {
       logger.info({ id: payload.id }, 'complaints.updated');
       eventBus.emit('complaints.updated', payload);
     },
+    emitActivityAdded(payload) {
+      logger.info({ id: payload.id, complaintId: payload.complaint_id }, 'complaints.activity_added');
+      eventBus.emit('complaints.activity_added', payload);
+    },
   });
 }
 

@@ -15,7 +15,9 @@ This roadmap maps the PRD into executable backend increments while keeping modul
 - Sprint 3 (Quotation Engine): Completed baseline and validated.
 - Sprint 4 (Booking + Payments + Refunds): Completed baseline and validated.
 - Sprint 5 (Visa + Reporting Baseline + Finance Guards): Completed and smoke-tested.
-- Sprints 6 to 8: Planned / partial.
+- Sprint 6 (Customers + Marketing Baseline): Completed and smoke-tested.
+- Sprint 7 (Advanced Reporting Packs): Completed and smoke-tested.
+- Sprint 8 (UAT + Production Readiness Baseline): Completed and smoke-tested.
 
 Current smoke status:
 - `npm run test:sprint1`: PASS (9/9)
@@ -23,6 +25,9 @@ Current smoke status:
 - `npm run test:sprint3`: PASS (13/13)
 - `npm run test:sprint4`: PASS (15/15)
 - `npm run test:sprint5`: PASS (12/12)
+- `npm run test:sprint6`: PASS (6/6)
+- `npm run test:sprint7`: PASS (8/8)
+- `npm run test:sprint8`: PASS (5/5)
 
 ## 4. Implemented Scope by Module
 - Auth: register, login, me, JWT, login auditing hooks.
@@ -34,9 +39,9 @@ Current smoke status:
 - Payments: create/list/get/update, verify endpoint, booking payment summary synchronization.
 - Refunds: create/list/get/update, approve/reject/process workflow, high-value approval guard, booking payment summary synchronization.
 - Visa: create/list/get/update, status transition workflow, document upload/verify, checklist retrieval/update, visa summary report.
-- Reports: lead, revenue, payment, visa, follow-up, and monthly-summary analytics endpoints.
+- Reports: lead, revenue, payment, visa, follow-up, monthly-summary, call-log, executive KPI pack, conversion funnel, marketing performance, supplier performance, and pipeline forecast analytics endpoints.
 - Notifications: list, unread count, mark read, mark all read.
-- Users/Campaigns/Customers/Complaints: baseline CRUD endpoints running with current shared payload model.
+- Users/Campaigns/Customers/Complaints: PRD-aligned business payload contracts with complaints activity workflow.
 
 ## 5. Lead Temperature Logic (Business-Aligned)
 Current implementation uses `HOT/WARM/COLD` determination (not a mandatory lead-score model):
@@ -88,21 +93,33 @@ Status: Completed (current baseline)
 - Implemented: finance guardrails for booking exchange-rate validation in service layer.
 
 ### Sprint 6 - Customers, Marketing, Automation
-Status: Planned
-- Customer 360, segmentation, campaign analytics.
-- Template-driven communication flows.
+Status: Completed (current baseline)
+- Implemented: users/campaigns/customers/complaints payload contracts aligned to business fields.
+- Implemented: complaints activity workflow endpoints.
+- Implemented: campaign analytics baseline coverage in reporting layer (`/reports/marketing/performance`).
 
 ### Sprint 7 - Reporting and Executive Summary
-Status: In Progress (backend baseline complete)
+Status: Completed (current increment)
 - Implemented: lead source/consultant/aging/lost reports.
 - Implemented: revenue by month/service-type/destination.
 - Implemented: outstanding/payment-mode/profit-margin reports.
 - Implemented: follow-up today/missed and monthly summary report.
-- Pending: executive KPI packs, forecasting, dashboard-oriented aggregates.
+- Implemented: follow-up call-log report.
+- Implemented: executive KPI dashboard pack.
+- Implemented: conversion funnel report.
+- Implemented: marketing performance and supplier performance reports.
+- Implemented: pipeline forecast and seasonal trend output.
 
 ### Sprint 8 - UAT and Production Readiness
-Status: Planned
-- Reliability, observability, backups, DR checklist, go-live signoff.
+Status: Completed (baseline hardening)
+- Implemented: liveness and readiness endpoints (`/health/live`, `/health/ready`) with DB health checks.
+- Implemented: runtime drain mode for shutdown that returns readiness `503`.
+- Implemented: graceful shutdown flow for HTTP, Socket.IO, and DB connection close on `SIGINT`/`SIGTERM`.
+- Implemented: new runtime config/env controls (`APP_VERSION`, DB health timeout, shutdown timeout).
+- Implemented: observability metrics endpoints (`/metrics`, `/metrics/json`) with optional token guard.
+- Implemented: DB backup and restore scripts (`db:backup`, `db:restore`) for operational drills.
+- Implemented: UAT and go-live checklist document for release governance.
+- Implemented: Sprint 8 smoke suite (`test:sprint8`) for health and readiness behavior.
 
 ## 7. Data and Migration Strategy
 Current schema source used for alignment:
@@ -125,11 +142,11 @@ Still pending in service-layer behavior:
 
 ## 9. Risks and Gaps
 - Sprint 3 now depends on quotation enhancement tables/columns from migration `003_quotation_engine_sprint3.sql`.
-- Several non-leads modules still run generic payload validation and need PRD-specific payload contracts.
-- Reporting baseline is exposed, but advanced management dashboard KPIs and forecasting packs are still pending.
+- Reporting coverage is now broad, but forecasting logic is baseline heuristic and can be improved with model-based forecasting in future.
+- Finance policy engine (GST/TCS accounting postings and payables lifecycle) still needs deeper transactional enforcement.
 
 ## 10. Next Build Priorities
-1. Upgrade remaining generic modules to business payload contracts (customers/campaigns/users/complaints).
-2. Expand reporting from baseline endpoints to dashboard-ready KPI packs + forecasting.
-3. Add finance policy engine for GST/TCS posting, currency conversion locking, and supplier payable lifecycle.
-4. Harden migration strategy around `database/migrations/database.sql` snapshot handling for production safety.
+1. Add finance policy engine for GST/TCS posting, currency conversion locking, and supplier payable lifecycle.
+2. Improve forecasting quality (seasonality + weighted pipeline + confidence bands).
+3. Complete remaining production hardening execution: run DR drills, configure alerting, and finish UAT signoffs.
+4. Harden migration strategy around forward-only production-safe migration flow and snapshot governance.

@@ -1,5 +1,6 @@
 const ReportsSchema = Object.freeze({
   leadsTable: 'leads',
+  leadActivitiesTable: 'lead_activities',
   usersTable: 'users',
   quotationsTable: 'quotations',
   bookingsTable: 'bookings',
@@ -8,6 +9,7 @@ const ReportsSchema = Object.freeze({
   followupsTable: 'followups',
   campaignsTable: 'campaigns',
   destinationsTable: 'destinations',
+  suppliersTable: 'suppliers',
   visaCasesTable: 'visa_cases',
   visaDocumentsTable: 'visa_documents',
 });

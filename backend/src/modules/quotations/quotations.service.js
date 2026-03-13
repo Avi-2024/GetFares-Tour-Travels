@@ -406,7 +406,6 @@ function createQuotationsService({ repository, logger, events }) {
 
   async function send(id, _payload = {}, context = {}) {
     assertAuthenticatedUser(context.user);
-    const quotation = await getById(id, context, { includeItems: true });
 
     let quotation = await getById(id, context, { includeItems: true });
 

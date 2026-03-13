@@ -13,11 +13,16 @@
         "lint": "node ./node_modules/eslint/bin/eslint.js .",
         "db:migrate": "node scripts/migrate.js",
         "db:seed:rbac": "node scripts/seed-rbac.js",
+        "db:backup": "node scripts/backup-db.js",
+        "db:restore": "node scripts/restore-db.js",
         "test:sprint1": "node scripts/test-sprint1.js",
         "test:sprint2": "node scripts/test-sprint2.js",
         "test:sprint3": "node scripts/test-sprint3.js",
         "test:sprint4": "node scripts/test-sprint4.js",
-        "test:sprint5": "node scripts/test-sprint5.js"
+        "test:sprint5": "node scripts/test-sprint5.js",
+        "test:sprint6": "node scripts/test-sprint6.js",
+        "test:sprint7": "node scripts/test-sprint7.js",
+        "test:sprint8": "node scripts/test-sprint8.js"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",

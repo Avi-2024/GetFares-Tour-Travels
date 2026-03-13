@@ -23,8 +23,14 @@ function createReportsRoutes({ controller, validation, validateRequest, requireA
 
   router.get('/followups/today', requireAuth, authorize('reports:read'), validateRequest(validation.followupsToday), asyncHandler(controller.followupsToday));
   router.get('/followups/missed', requireAuth, authorize('reports:read'), validateRequest(validation.followupsMissed), asyncHandler(controller.followupsMissed));
+  router.get('/followups/call-log', requireAuth, authorize('reports:read'), validateRequest(validation.callLog), asyncHandler(controller.callLog));
 
   router.get('/monthly-summary', requireAuth, authorize('reports:read'), validateRequest(validation.monthlySummary), asyncHandler(controller.monthlySummary));
+  router.get('/dashboard/executive-kpis', requireAuth, authorize('reports:read'), validateRequest(validation.executiveKpis), asyncHandler(controller.executiveKpis));
+  router.get('/funnel/conversion', requireAuth, authorize('reports:read'), validateRequest(validation.conversionFunnel), asyncHandler(controller.conversionFunnel));
+  router.get('/marketing/performance', requireAuth, authorize('reports:read'), validateRequest(validation.marketingPerformance), asyncHandler(controller.marketingPerformance));
+  router.get('/suppliers/performance', requireAuth, authorize('reports:read'), validateRequest(validation.supplierPerformance), asyncHandler(controller.supplierPerformance));
+  router.get('/forecast/pipeline', requireAuth, authorize('reports:read'), validateRequest(validation.pipelineForecast), asyncHandler(controller.pipelineForecast));
 
   return router;
 }

@@ -1,71 +1,102 @@
 const { AppError } = require('../../core/errors');
 
+function mapListFilters(filters = {}) {
+  return {
+    page: filters.page,
+    limit: filters.limit,
+    segment: filters.segment,
+    email: filters.email,
+    phone: filters.phone,
+    client_currency: filters.clientCurrency,
+  };
+}
+
+function mapCreatePayload(payload) {
+  return {
+    full_name: payload.fullName,
+    phone: payload.phone,
+    email: payload.email,
+    preferences: payload.preferences,
+    lifetime_value: payload.lifetimeValue,
+    segment: payload.segment,
+    pan_number: payload.panNumber,
+    address_line: payload.addressLine,
+    client_currency: payload.clientCurrency,
+  };
+}
+
+function mapUpdatePayload(payload) {
+  return {
+    full_name: payload.fullName,
+    phone: payload.phone,
+    email: payload.email,
+    preferences: payload.preferences,
+    lifetime_value: payload.lifetimeValue,
+    segment: payload.segment,
+    pan_number: payload.panNumber,
+    address_line: payload.addressLine,
+    client_currency: payload.clientCurrency,
+  };
+}
+
+function toCustomer(entity) {
+  if (!entity) {
+    return null;
+  }
+
+  return {
+    id: entity.id,
+    fullName: entity.full_name,
+    phone: entity.phone,
+    email: entity.email,
+    preferences: entity.preferences,
+    lifetimeValue: entity.lifetime_value,
+    segment: entity.segment,
+    panNumber: entity.pan_number,
+    addressLine: entity.address_line,
+    clientCurrency: entity.client_currency,
+    createdAt: entity.created_at,
+  };
+}
+
 function createCustomersService({ repository, logger, events }) {
+  async function list(filters = {}, context = {}) {
+    const mappedFilters = mapListFilters(filters);
+    logger.debug({ module: 'customers', requestId: context.requestId, filters: mappedFilters }, 'Listing records');
+    const rows = await repository.findAll(mappedFilters);
+    return rows.map(toCustomer);
+  }
+
   async function getById(id, context = {}) {
     logger.debug({ module: 'customers', requestId: context.requestId, id }, 'Getting record by id');
     const item = await repository.findById(id);
 
     if (!item) {
-      throw new AppError(404, 'Customers not found', 'customers_NOT_FOUND');
+      throw new AppError(404, 'Customers not found', 'CUSTOMERS_NOT_FOUND');
     }
 
-    return item;
+    return toCustomer(item);
+  }
+
+  async function create(payload) {
+    const created = await repository.create(mapCreatePayload(payload));
+    events.emitCreated(created);
+    return toCustomer(created);
+  }
+
+  async function update(id, payload, context = {}) {
+    await getById(id, context);
+
+    const updated = await repository.update(id, mapUpdatePayload(payload));
+    events.emitUpdated(updated);
+    return toCustomer(updated);
   }
 
   return Object.freeze({
-    list(filters = {}, context = {}) {
-      logger.debug({ module: 'customers', requestId: context.requestId, filters }, 'Listing records');
-      return repository.findAll(filters);
-    },
-
+    list,
     getById,
-
-    async create(payload) {
-      const created = await repository.create({
-        full_name: payload.fullName || null,
-        phone: payload.phone || null,
-        email: payload.email || null,
-        preferences: payload.preferences || null,
-        lifetime_value: payload.lifetimeValue ?? 0,
-        segment: payload.segment || 'NEW',
-        is_deleted: payload.isDeleted ?? false,
-      });
-
-      events.emitCreated(created);
-      return created;
-    },
-
-    async update(id, payload, context = {}) {
-      await getById(id, context);
-
-      const mapped = {};
-
-      if (payload.fullName !== undefined) {
-        mapped.full_name = payload.fullName;
-      }
-      if (payload.phone !== undefined) {
-        mapped.phone = payload.phone;
-      }
-      if (payload.email !== undefined) {
-        mapped.email = payload.email;
-      }
-      if (payload.preferences !== undefined) {
-        mapped.preferences = payload.preferences;
-      }
-      if (payload.lifetimeValue !== undefined) {
-        mapped.lifetime_value = payload.lifetimeValue;
-      }
-      if (payload.segment !== undefined) {
-        mapped.segment = payload.segment;
-      }
-      if (payload.isDeleted !== undefined) {
-        mapped.is_deleted = payload.isDeleted;
-      }
-
-      const updated = await repository.update(id, mapped);
-      events.emitUpdated(updated);
-      return updated;
-    },
+    create,
+    update,
   });
 }
 

@@ -52,10 +52,13 @@ const Header: React.FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
           {dark ? <FaSun /> : <FaMoon />}
         </button>
         {hasPermission("notifications.read") ? (
-          <button onClick={() => setDrawerOpen(true)} className="relative rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
-            <FaBell />
-            {unreadCount > 0 ? <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">{unreadCount}</span> : null}
-          </button>
+          <div className="relative">
+            <button onClick={() => setDrawerOpen(true)} className="relative rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
+              <FaBell />
+              {unreadCount > 0 ? <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">{unreadCount}</span> : null}
+            </button>
+            <NotificationDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+          </div>
         ) : null}
         {hasPermission("leads.write") ? (
           <button onClick={() => navigate("/create-lead")} className="hidden items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:flex">
@@ -81,7 +84,6 @@ const Header: React.FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
           ) : null}
         </div>
       </div>
-      <NotificationDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </header>
   );
 };

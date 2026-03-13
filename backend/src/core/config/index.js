@@ -4,8 +4,10 @@ const config = Object.freeze({
   env: env.NODE_ENV,
   app: {
     name: env.APP_NAME,
+    version: env.APP_VERSION,
     port: env.PORT,
     corsOrigin: env.CORS_ORIGIN,
+    shutdownTimeoutMs: env.SHUTDOWN_TIMEOUT_MS,
   },
   auth: {
     jwtAccessSecret: env.JWT_ACCESS_SECRET,
@@ -16,6 +18,13 @@ const config = Object.freeze({
   },
   logger: {
     level: env.LOG_LEVEL,
+  },
+  health: {
+    dbTimeoutMs: env.HEALTH_DB_TIMEOUT_MS,
+  },
+  metrics: {
+    enabled: env.METRICS_ENABLED,
+    token: env.METRICS_TOKEN,
   },
 });
 

@@ -1,64 +1,69 @@
 function createCustomersRepository({ db, logger, schema }) {
-  function toDomain(row) {
-    if (!row) {
+  const tableColumnsCache = new Map();
+
+  function canUseRawQuery() {
+    return typeof db.query === 'function' && db.pool;
+  }
+
+  async function getTableColumns(tableName) {
+    if (!canUseRawQuery()) {
       return null;
     }
 
-    return {
-      id: row.id,
-      fullName: row.full_name ?? row.fullName ?? null,
-      phone: row.phone ?? null,
-      email: row.email ?? null,
-      preferences: row.preferences ?? null,
-      lifetimeValue: Number(row.lifetime_value ?? row.lifetimeValue ?? 0),
-      segment: row.segment ?? 'NEW',
-      isDeleted: Boolean(row.is_deleted ?? row.isDeleted ?? false),
-      createdAt: row.created_at ?? row.createdAt ?? null,
-    };
+    if (tableColumnsCache.has(tableName)) {
+      return tableColumnsCache.get(tableName);
+    }
+
+    const result = await db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      [tableName],
+    );
+
+    const columns = new Set(result.rows.map((row) => row.column_name));
+    tableColumnsCache.set(tableName, columns);
+    return columns;
+  }
+
+  async function sanitizeForTable(tableName, payload = {}) {
+    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    if (!entries.length) {
+      return {};
+    }
+
+    const columns = await getTableColumns(tableName);
+    if (columns === null) {
+      return Object.fromEntries(entries);
+    }
+
+    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+  }
+
+  async function findAll(filters = {}) {
+    const sanitized = await sanitizeForTable(schema.tableName, filters);
+    return db.findMany(schema.tableName, sanitized);
+  }
+
+  async function findById(id) {
+    return db.findById(schema.tableName, id);
+  }
+
+  async function create(payload) {
+    logger.debug({ module: 'customers', payload }, 'Creating record');
+    const sanitized = await sanitizeForTable(schema.tableName, payload);
+    return db.insert(schema.tableName, sanitized);
+  }
+
+  async function update(id, payload) {
+    logger.debug({ module: 'customers', id, payload }, 'Updating record');
+    const sanitized = await sanitizeForTable(schema.tableName, payload);
+    return db.update(schema.tableName, id, sanitized);
   }
 
   return Object.freeze({
-    async findAll(filters = {}) {
-      const mappedFilters = {};
-      if (filters.page) {
-        mappedFilters.page = filters.page;
-      }
-      if (filters.limit) {
-        mappedFilters.limit = filters.limit;
-      }
-      if (filters.segment) {
-        mappedFilters.segment = filters.segment;
-      }
-      if (filters.email) {
-        mappedFilters.email = filters.email;
-      }
-      if (filters.phone) {
-        mappedFilters.phone = filters.phone;
-      }
-      if (filters.isDeleted !== undefined) {
-        mappedFilters.is_deleted = filters.isDeleted;
-      }
-
-      const rows = await db.findMany(schema.tableName, mappedFilters);
-      return rows.map((row) => toDomain(row));
-    },
-
-    async findById(id) {
-      const row = await db.findById(schema.tableName, id);
-      return toDomain(row);
-    },
-
-    async create(payload) {
-      logger.debug({ module: 'customers', payload }, 'Creating record');
-      const row = await db.insert(schema.tableName, payload);
-      return toDomain(row);
-    },
-
-    async update(id, payload) {
-      logger.debug({ module: 'customers', id, payload }, 'Updating record');
-      const row = await db.update(schema.tableName, id, payload);
-      return toDomain(row);
-    },
+    findAll,
+    findById,
+    create,
+    update,
   });
 }
 
