@@ -31,7 +31,7 @@ const NotificationsPage: React.FC = () => {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto bg-transparent dark:bg-gray-900 ">
+    <main className="flex-1 overflow-y-auto  ">
       <div className=" mx-auto space-y-6">
         {/* Header */}
         <header className="flex items-center justify-between">

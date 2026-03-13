@@ -210,7 +210,7 @@ const CustomersPage: React.FC = () => {
             <p className='text-sm text-gray-500 dark:text-gray-400 mb-1'>
               Customers
             </p>
-            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+            <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
               Customer Directory
             </h1>
             <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
@@ -219,7 +219,7 @@ const CustomersPage: React.FC = () => {
           </div>
           <button
             onClick={() => navigate('/customers/new')}
-            className='inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors'
+            className='inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto'
           >
             <FaPlus className='mr-2' /> New Customer
           </button>
@@ -288,9 +288,9 @@ const CustomersPage: React.FC = () => {
         {/* Filters Section */}
         <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 mb-6'>
           <div className='p-4 border-b border-gray-100 dark:border-gray-800'>
-            <div className='flex flex-col lg:flex-row gap-4'>
+            <div className='flex flex-col gap-4'>
               {/* Search */}
-              <div className='flex-1 relative'>
+              <div className='w-full relative'>
                 <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm' />
                 <input
                   type='text'
@@ -304,78 +304,80 @@ const CustomersPage: React.FC = () => {
                 />
               </div>
 
-              {/* Segment Filter */}
-              <select
-                value={segmentFilter}
-                onChange={e => {
-                  setSegmentFilter(e.target.value)
-                  setPage(1)
-                }}
-                className='px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
-              >
-                <option value='all'>All Segments</option>
-                {segments.map(s => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
+              <div className='flex flex-col sm:flex-row gap-2 sm:gap-4'>
+                {/* Segment Filter */}
+                <select
+                  value={segmentFilter}
+                  onChange={e => {
+                    setSegmentFilter(e.target.value)
+                    setPage(1)
+                  }}
+                  className='flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
+                >
+                  <option value='all'>All Segments</option>
+                  {segments.map(s => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
 
-              {/* Sort By */}
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                className='px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
-              >
-                <option value='name'>Sort by Name</option>
-                <option value='ltv'>Sort by LTV</option>
-                <option value='bookings'>Sort by Bookings</option>
-              </select>
+                {/* Sort By */}
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value)}
+                  className='flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
+                >
+                  <option value='name'>Sort by Name</option>
+                  <option value='ltv'>Sort by LTV</option>
+                  <option value='bookings'>Sort by Bookings</option>
+                </select>
 
-              {/* Sort Order */}
-              <button
-                onClick={() =>
-                  setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))
-                }
-                className='px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
-              >
-                {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
-              </button>
+                {/* Sort Order */}
+                <button
+                  onClick={() =>
+                    setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))
+                  }
+                  className='px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap'
+                >
+                  {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+                </button>
 
-              {/* Export Button */}
-              <button
-                onClick={handleExport}
-                className='px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2'
-              >
-                <FaDownload /> Export
-              </button>
+                {/* Export Button */}
+                <button
+                  onClick={handleExport}
+                  className='px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 whitespace-nowrap'
+                >
+                  <FaDownload /> Export
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Customers Table */}
           <div className='overflow-x-auto'>
-            <table className='w-full'>
+            <table className='w-full '>
               <thead className='bg-gray-50 dark:bg-gray-800/50'>
                 <tr>
-                  <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  <th className='px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Customer
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  <th className='hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Contact
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  <th className='px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Segment
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  <th className='hidden md:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Lifetime Value
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  <th className='px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Bookings
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  <th className='hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Last Booking
                   </th>
-                  <th className='px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  <th className='px-3 sm:px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Actions
                   </th>
                 </tr>
@@ -387,15 +389,28 @@ const CustomersPage: React.FC = () => {
                     className='hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-colors cursor-pointer'
                     onClick={() => navigate(`/customers/${customer.id}`)}
                   >
-                    <td className='px-6 py-4'>
+                    <td className='px-3 sm:px-6 py-4'>
                       <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                         {customer.fullName}
                       </p>
                       <p className='text-xs text-gray-500 dark:text-gray-400'>
                         PAN: {customer.panNumber}
                       </p>
+                      <div className='sm:hidden mt-1 space-y-1'>
+                        <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
+                          <FaPhone className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
+                          {customer.phone}
+                        </p>
+                        <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
+                          <FaEnvelope className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
+                          {customer.email}
+                        </p>
+                        <p className='text-xs text-gray-600 dark:text-gray-400 mt-1'>
+                          LTV: {formatCurrency(customer.lifetimeValue)}
+                        </p>
+                      </div>
                     </td>
-                    <td className='px-6 py-4'>
+                    <td className='hidden sm:table-cell px-3 sm:px-6 py-4'>
                       <div className='space-y-1'>
                         <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
                           <FaPhone className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
@@ -407,9 +422,9 @@ const CustomersPage: React.FC = () => {
                         </p>
                       </div>
                     </td>
-                    <td className='px-6 py-4'>
+                    <td className='px-3 sm:px-6 py-4'>
                       <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getSegmentClass(
+                        className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium border ${getSegmentClass(
                           customer.segment
                         )}`}
                       >
@@ -417,48 +432,46 @@ const CustomersPage: React.FC = () => {
                         {customer.segment.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className='px-6 py-4'>
+                    <td className='hidden md:table-cell px-3 sm:px-6 py-4'>
                       <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                         {formatCurrency(customer.lifetimeValue)}
                       </p>
                     </td>
-                    <td className='px-6 py-4'>
+                    <td className='px-3 sm:px-6 py-4'>
                       <p className='text-sm text-gray-900 dark:text-gray-100'>
                         {customer.totalBookings}
                       </p>
                     </td>
-                    <td className='px-6 py-4'>
+                    <td className='hidden lg:table-cell px-3 sm:px-6 py-4'>
                       <p className='text-sm text-gray-700 dark:text-gray-300'>
                         {customer.lastBookingDate || 'N/A'}
                       </p>
                     </td>
-                    <td className='px-6 py-4'>
+                    <td className='px-3 sm:px-6 py-4'>
                       <div
-                        className='flex justify-end gap-2'
+                        className='flex justify-end gap-1 sm:gap-2'
                         onClick={e => e.stopPropagation()}
                       >
                         <button
                           onClick={() => navigate(`/customers/${customer.id}`)}
-                          className='p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors'
+                          className='p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors'
                           title='View'
                         >
-                          <FaEye />
+                          <FaEye className='text-xs sm:text-sm' />
                         </button>
                         <button
-                          onClick={() =>
-                            navigate(`/customers/${customer.id}/edit`)
-                          }
-                          className='p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors'
+                          onClick={() => navigate(`/customers/${customer.id}/edit`)}
+                          className='p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors'
                           title='Edit'
                         >
-                          <FaEdit />
+                          <FaEdit className='text-xs sm:text-sm' />
                         </button>
                         <button
                           onClick={() => handleDeleteCustomer(customer.id)}
-                          className='p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors'
+                          className='p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors'
                           title='Delete'
                         >
-                          <FaTrash />
+                          <FaTrash className='text-xs sm:text-sm' />
                         </button>
                       </div>
                     </td>

@@ -252,12 +252,12 @@ const UsersPage: React.FC = () => {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto  dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <div className="max-w-7xl mx-auto ">
+    <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
               User Management
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -266,7 +266,7 @@ const UsersPage: React.FC = () => {
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+            className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
           >
             <FaPlus className="mr-2" /> New User
           </button>
@@ -289,22 +289,22 @@ const UsersPage: React.FC = () => {
         {/* Users Table */}
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="md:min-w-[800px] w-full">
               <thead className="bg-gray-50 dark:bg-gray-800/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     User
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Contact
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Role
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -312,15 +312,25 @@ const UsersPage: React.FC = () => {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-colors">
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-4">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {user.fullName}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         ID: {user.id}
                       </p>
+                      <div className="sm:hidden mt-1">
+                        <p className="text-xs text-gray-700 dark:text-gray-300">
+                          {user.email}
+                        </p>
+                        {user.phone && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {user.phone}
+                          </p>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="hidden sm:table-cell px-3 sm:px-6 py-4">
                       <p className="text-sm text-gray-700 dark:text-gray-300">
                         {user.email}
                       </p>
@@ -330,13 +340,13 @@ const UsersPage: React.FC = () => {
                         </p>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900">
+                    <td className="px-3 sm:px-6 py-4">
+                      <span className="inline-flex items-center px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900">
                         {user.role || 'No Role'}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                    <td className="px-3 sm:px-6 py-4">
+                      <span className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium border ${
                         user.isActive
                           ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
                           : 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
@@ -344,28 +354,28 @@ const UsersPage: React.FC = () => {
                         {user.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2">
+                    <td className="px-3 sm:px-6 py-4">
+                      <div className="flex justify-end gap-1 sm:gap-2">
                         <button
                           onClick={() => openRoleModal(user)}
-                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
                           title="Assign Role"
                         >
-                          <FaUserShield />
+                          <FaUserShield className="text-xs sm:text-sm" />
                         </button>
                         <button
                           onClick={() => openEditModal(user)}
-                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
                           title="Edit"
                         >
-                          <FaEdit />
+                          <FaEdit className="text-xs sm:text-sm" />
                         </button>
                         <button
                           onClick={() => handleDeleteUser(user)}
-                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                           title="Delete"
                         >
-                          <FaTrash />
+                          <FaTrash className="text-xs sm:text-sm" />
                         </button>
                       </div>
                     </td>
@@ -378,8 +388,8 @@ const UsersPage: React.FC = () => {
 
         {/* Create User Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <h2 className="text-lg font-semibold mb-4">Create New User</h2>
               <form onSubmit={handleCreateUser}>
                 <div className="space-y-4">
@@ -450,8 +460,8 @@ const UsersPage: React.FC = () => {
 
         {/* Edit User Modal */}
         {showEditModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <h2 className="text-lg font-semibold mb-4">Edit User</h2>
               <form onSubmit={handleUpdateUser}>
                 <div className="space-y-4">
@@ -518,8 +528,8 @@ const UsersPage: React.FC = () => {
 
         {/* Assign Role Modal */}
         {showRoleModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <h2 className="text-lg font-semibold mb-4">Assign Role</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Assign role to: <strong>{selectedUser?.fullName}</strong>

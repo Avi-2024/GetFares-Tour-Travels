@@ -41,13 +41,13 @@ const VisaCasesPage = () => {
   const filtered = useMemo(() => rows.filter((row) => tab === "ALL" || row.status === tab), [tab]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Visa Cases</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">Visa Cases</h1>
           <p className="text-sm text-gray-500">Track visa pipeline, appointments and approvals.</p>
         </div>
-        <button onClick={() => navigate("/visa/visa-1")} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={() => navigate("/visa/visa-1")} className="w-full sm:w-auto rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
           <FaPlus className="mr-2 inline" /> Create Visa Case
         </button>
       </div>
@@ -55,38 +55,40 @@ const VisaCasesPage = () => {
       <FilterTabs tabs={tabs} active={tab} onChange={setTab} />
 
       <SurfaceCard className="p-0 overflow-hidden">
-        <table className="w-full divide-y divide-gray-200 dark:divide-gray-800">
-          <thead className="bg-gray-50 dark:bg-gray-800/95">
-            <tr>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Visa Case ID</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Booking</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Country</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Type</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Supplier</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Appointment</th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {filtered.map((row) => (
-              <tr key={row.id}>
-                <td className="px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300">{row.id}</td>
-                <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.bookingId}</td>
-                <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.country}</td>
-                <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.visaType}</td>
-                <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{SUPPLIERS.find((supplier) => supplier.id === row.supplierId)?.name ?? "-"}</td>
-                <td className="px-5 py-4"><StatusBadge status={row.status} /></td>
-                <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.appointmentDate}</td>
-                <td className="px-5 py-4 text-right">
-                  <button onClick={() => navigate(`/visa/${row.id}`)} className="rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
-                    Open
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full divide-y divide-gray-200 dark:divide-gray-800 md:min-w-[800px]">
+            <thead className="bg-gray-50 dark:bg-gray-800/95">
+              <tr>
+                <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Visa Case ID</th>
+                <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Booking</th>
+                <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Country</th>
+                <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Type</th>
+                <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Supplier</th>
+                <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                <th className="hidden md:table-cell px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Appointment</th>
+                <th className="px-3 sm:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {filtered.map((row) => (
+                <tr key={row.id}>
+                  <td className="px-3 sm:px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300">{row.id}</td>
+                  <td className="px-3 sm:px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.bookingId}</td>
+                  <td className="px-3 sm:px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.country}</td>
+                  <td className="px-3 sm:px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.visaType}</td>
+                  <td className="hidden sm:table-cell px-3 sm:px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{SUPPLIERS.find((supplier) => supplier.id === row.supplierId)?.name ?? "-"}</td>
+                  <td className="px-3 sm:px-5 py-4"><StatusBadge status={row.status} /></td>
+                  <td className="hidden md:table-cell px-3 sm:px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.appointmentDate}</td>
+                  <td className="px-3 sm:px-5 py-4 text-right">
+                    <button onClick={() => navigate(`/visa/${row.id}`)} className="w-full sm:w-auto rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </SurfaceCard>
     </div>
   );
