@@ -574,7 +574,7 @@ const BookingDetailPage: React.FC = () => {
                       </h3>
 
                       <div className='relative pl-4 space-y-4'>
-                        {history.slice(0, 3).map((item, idx) => (
+                        {history.slice(0, 3).map((item) => (
                           <div key={item.id} className='relative pl-8'>
                             <div className='absolute left-0 top-1 w-6 h-6 rounded-full bg-gray-100 border-2 border-white shadow-sm flex items-center justify-center'>
                               <i className='fa-solid fa-rotate text-gray-600 text-xs'></i>

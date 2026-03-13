@@ -27,7 +27,7 @@ const ComplaintDetailPage: React.FC = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [newNote, setNewNote] = useState('')
   const [noteError, setNoteError] = useState('')

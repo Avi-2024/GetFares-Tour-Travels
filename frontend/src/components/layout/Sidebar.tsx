@@ -27,14 +27,14 @@ const Sidebar: React.FC<{ collapsed: boolean; onToggleCollapse: () => void; onCl
   const { hasPermission } = useAuth();
 
   return (
-    <aside className={`flex h-full flex-col border-r border-gray-200 bg-white transition-all duration-300 dark:border-gray-700 dark:bg-gray-900 ${collapsed ? "w-20" : "w-72"}`}>
+    <aside className={`flex h-full flex-col border-r border-gray-200 bg-white transition-all duration-300 dark:border-gray-700  dark:bg-gray-900 ${collapsed ? "w-20" : "w-72"}`}>
     <div className="flex h-16 items-center border-b border-gray-100 px-4 dark:border-gray-800">
       <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white"><FaPlaneDeparture /></div>
       {!collapsed ? <span className="text-lg font-bold text-gray-900 dark:text-gray-100">GetFares CRM</span> : null}
       <button onClick={onClose} className="ml-auto rounded-lg p-2 text-gray-400 hover:bg-gray-100 lg:hidden dark:hover:bg-gray-800"><FaXmark /></button>
     </div>
 
-    <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+    <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5 scrollbar-hide">
       {sections.map((section) => (
         <div key={section.title}>
           {!collapsed ? <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-gray-400">{section.title}</p> : null}
