@@ -1,5 +1,10 @@
 # Frontend Build Spec v1 (Backend-Aligned)
 
+> Primary source of truth for client approval and complete frontend scope:
+> `docs/frontend-page-specs.md` (Frontend Master Specification v2.0)
+>
+> This file is kept as backend-aligned implementation reference.
+
 ## 1. Purpose
 This document defines exactly what frontend pages to build, what fields each page needs, and how each screen connects to backend APIs and other modules.
 
