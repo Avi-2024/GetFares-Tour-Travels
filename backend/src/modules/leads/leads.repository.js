@@ -1,5 +1,18 @@
 function createLeadsRepository({ db, logger, schema }) {
   const ASSIGNABLE_ROLES = new Set(['sales_consultant', 'agent']);
+  const FOLLOWUP_TYPE_TO_DB = Object.freeze({
+    CALL: 1,
+    WHATSAPP: 2,
+    EMAIL: 3,
+    FINAL_REMINDER: 4,
+    TASK: 4,
+  });
+  const FOLLOWUP_TYPE_FROM_DB = Object.freeze({
+    1: 'CALL',
+    2: 'WHATSAPP',
+    3: 'EMAIL',
+    4: 'FINAL_REMINDER',
+  });
   const tableColumnsCache = new Map();
 
   function canIntrospect() {

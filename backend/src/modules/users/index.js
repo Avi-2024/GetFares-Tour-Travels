@@ -1,6 +1,6 @@
-const { UsersController } = require('./users.controller');
+const { createUsersController } = require('./users.controller');
 const { createUsersService } = require('./users.service');
-const { UsersRepository } = require('./users.repository');
+const { createUsersRepository } = require('./users.repository');
 const { createUsersRoutes } = require('./users.routes');
 const { UsersValidation } = require('./users.validation');
 const { UsersSchema } = require('./users.schema');

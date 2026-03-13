@@ -1,6 +1,6 @@
-const { ComplaintsController } = require('./complaints.controller');
+const { createComplaintsController } = require('./complaints.controller');
 const { createComplaintsService } = require('./complaints.service');
-const { ComplaintsRepository } = require('./complaints.repository');
+const { createComplaintsRepository } = require('./complaints.repository');
 const { createComplaintsRoutes } = require('./complaints.routes');
 const { ComplaintsValidation } = require('./complaints.validation');
 const { ComplaintsSchema } = require('./complaints.schema');

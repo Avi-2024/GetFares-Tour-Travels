@@ -1,6 +1,6 @@
-const { CampaignsController } = require('./campaigns.controller');
+const { createCampaignsController } = require('./campaigns.controller');
 const { createCampaignsService } = require('./campaigns.service');
-const { CampaignsRepository } = require('./campaigns.repository');
+const { createCampaignsRepository } = require('./campaigns.repository');
 const { createCampaignsRoutes } = require('./campaigns.routes');
 const { CampaignsValidation } = require('./campaigns.validation');
 const { CampaignsSchema } = require('./campaigns.schema');

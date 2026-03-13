@@ -1,27 +1,28 @@
-class CampaignsRepository {
-  constructor({ db, logger, schema }) {
-    this.db = db;
-    this.logger = logger;
-    this.schema = schema;
+function createCampaignsRepository({ db, logger, schema }) {
+  async function findAll(filters = {}) {
+    return db.findMany(schema.tableName, filters);
   }
 
-  async findAll(filters = {}) {
-    return this.db.findMany(this.schema.tableName, filters);
+  async function findById(id) {
+    return db.findById(schema.tableName, id);
   }
 
-  async findById(id) {
-    return this.db.findById(this.schema.tableName, id);
+  async function create(payload) {
+    logger.debug({ module: 'campaigns', payload }, 'Creating record');
+    return db.insert(schema.tableName, payload);
   }
 
-  async create(payload) {
-    this.logger.debug({ module: 'campaigns', payload }, 'Creating record');
-    return this.db.insert(this.schema.tableName, payload);
+  async function update(id, payload) {
+    logger.debug({ module: 'campaigns', id, payload }, 'Updating record');
+    return db.update(schema.tableName, id, payload);
   }
 
-  async update(id, payload) {
-    this.logger.debug({ module: 'campaigns', id, payload }, 'Updating record');
-    return this.db.update(this.schema.tableName, id, payload);
-  }
+  return Object.freeze({
+    findAll,
+    findById,
+    create,
+    update,
+  });
 }
 
-module.exports = { CampaignsRepository };
+module.exports = { createCampaignsRepository };

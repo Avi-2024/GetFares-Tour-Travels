@@ -1,39 +1,42 @@
-class ComplaintsRepository {
-  constructor({ db, logger, schema }) {
-    this.db = db;
-    this.logger = logger;
-    this.schema = schema;
+function createComplaintsRepository({ db, logger, schema }) {
+  async function findAll(filters = {}) {
+    return db.findMany(schema.tableName, filters);
   }
 
-  async findAll(filters = {}) {
-    return this.db.findMany(this.schema.tableName, filters);
+  async function findById(id) {
+    return db.findById(schema.tableName, id);
   }
 
-  async findById(id) {
-    return this.db.findById(this.schema.tableName, id);
+  async function create(payload) {
+    logger.debug({ module: 'complaints', payload }, 'Creating record');
+    return db.insert(schema.tableName, payload);
   }
 
-  async create(payload) {
-    this.logger.debug({ module: 'complaints', payload }, 'Creating record');
-    return this.db.insert(this.schema.tableName, payload);
+  async function update(id, payload) {
+    logger.debug({ module: 'complaints', id, payload }, 'Updating record');
+    return db.update(schema.tableName, id, payload);
   }
 
-  async update(id, payload) {
-    this.logger.debug({ module: 'complaints', id, payload }, 'Updating record');
-    return this.db.update(this.schema.tableName, id, payload);
-  }
-
-  async findActivities(complaintId, filters = {}) {
-    return this.db.findMany(this.schema.activitiesTable, {
+  async function findActivities(complaintId, filters = {}) {
+    return db.findMany(schema.activitiesTable, {
       complaint_id: complaintId,
       ...filters,
     });
   }
 
-  async createActivity(payload) {
-    this.logger.debug({ module: 'complaints', payload }, 'Creating complaint activity');
-    return this.db.insert(this.schema.activitiesTable, payload);
+  async function createActivity(payload) {
+    logger.debug({ module: 'complaints', payload }, 'Creating complaint activity');
+    return db.insert(schema.activitiesTable, payload);
   }
+
+  return Object.freeze({
+    findAll,
+    findById,
+    create,
+    update,
+    findActivities,
+    createActivity,
+  });
 }
 
-module.exports = { ComplaintsRepository };
+module.exports = { createComplaintsRepository };
