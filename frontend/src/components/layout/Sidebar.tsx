@@ -9,6 +9,7 @@ import {
   FaFolderOpen,
   FaGear,
   FaGlobe,
+  FaBell,
   FaPassport,
   FaPlaneDeparture,
   FaTableCellsLarge,
@@ -68,6 +69,8 @@ const sections = [
       { label: 'Documents', to: '#', icon: FaFolderOpen },
       { label: 'Customers', to: '/customers', icon: FaUsers },
       { label: 'Public Lead Form', to: '/public/lead-capture', icon: FaGlobe },
+      { label: 'Notifications', to: '/notifications', icon: FaBell },
+      { label: 'Users', to: '/users', icon: FaUsers },
       {
         label: 'Reports',
         to: '/reports',
