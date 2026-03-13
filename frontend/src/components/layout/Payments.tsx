@@ -129,16 +129,16 @@ const Payments: React.FC = () => {
             Track transactions, statuses, and receipts in real time.
           </p>
         </div>
-        <div className='flex flex-wrap gap-2'>
+        <div className='flex flex-wrap sm:flex-nowrap items-center gap-2'>
           <button
             onClick={() => setShowPanel(true)}
-            className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700'
+            className='inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700'
           >
             <FaPlus className='mr-2' /> Add Payment
           </button>
           <button
             onClick={() => navigate('/refunds')}
-            className='inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+            className='inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
           >
             Create Refund
           </button>
@@ -146,7 +146,7 @@ const Payments: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className='grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4'>
+      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4'>
         <StatCard
           title='Collected'
           value='$48.2k'

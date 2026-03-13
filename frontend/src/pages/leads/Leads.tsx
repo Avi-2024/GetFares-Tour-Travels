@@ -141,15 +141,15 @@ const Leads: React.FC = () => {
             </p>
           </div>
 
-          {/* Action Buttons - Desktop original */}
-          <div className='flex w-full sm:w-auto flex-col sm:flex-row gap-2'>
-            <button className='inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'>
+          {/* Action Buttons */}
+          <div className='flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2'>
+            <button className='inline-flex h-10 min-w-[140px] items-center justify-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'>
               <FaFileImport /> Import
             </button>
 
             <button
               onClick={() => nav('/create-lead')}
-              className='inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors'
+              className='inline-flex h-10 min-w-[140px] items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 text-sm font-semibold text-white transition-colors'
             >
               <FaPlus /> Create Lead
             </button>
