@@ -41,7 +41,7 @@ const CreateLead: React.FC = () => {
   const submit = () => { setShowErrors(true); if (!hasError) navigate("/leads"); };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
       <div><h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Create New Lead</h1><p className="text-sm text-gray-500">Capture customer intent in a guided 4-step wizard.</p></div>
 
       <SurfaceCard>
