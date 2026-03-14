@@ -583,15 +583,6 @@ const BookingsPage: React.FC = () => {
                           >
                             <FaEye />
                           </button>
-                          <button className='rounded-lg border border-gray-200 p-2 text-blue-600 hover:bg-blue-50 dark:border-gray-700 dark:hover:bg-blue-900/20'>
-                            <FaFileInvoiceDollar />
-                          </button>
-                          <button
-                            onClick={cancelBooking}
-                            className='rounded-lg border border-gray-200 p-2 text-green-600 hover:bg-green-50 dark:border-gray-700 dark:hover:bg-green-900/20'
-                          >
-                            <FaPaperPlane />
-                          </button>
                           <button 
                             onClick={() => handleGenerateInvoice(booking.id)}
                             disabled={loading}
