@@ -264,9 +264,14 @@ const QuotationDetailPage: React.FC = () => {
           >
             <FaArrowLeft className='text-xs' /> Back to Quotations
           </button>
-          <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
-            Quotation #{id}
-          </h1>
+          <div className='flex items-center justify-between gap-2'>
+            <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
+              Quotation #{id}
+            </h1>
+            <div className='sm:hidden'>
+              <StatusBadge status={status} />
+            </div>
+          </div>
           <div className='flex items-center gap-2 mt-1'>
             <p className='text-xs sm:text-sm text-gray-500'>
               Created Mar 10, 2026
@@ -279,56 +284,61 @@ const QuotationDetailPage: React.FC = () => {
         </div>
 
         <div className='flex flex-wrap items-center gap-2'>
-          <StatusBadge status={status} />
-
-          {/* PDF Button - Same height as Approve */}
-          <button className='h-9 px-3 sm:px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center'>
-            <FaFilePdf className='mr-2' />
-            <span className='hidden sm:inline'>PDF</span>
-          </button>
-
-          {/* Send Button with Dropdown - Same height as Approve */}
-          <div className='relative'>
-            <button
-              onClick={() => setShowSendDropdown(!showSendDropdown)}
-              className='h-9 px-3 sm:px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center'
-            >
-              <FaPaperPlane className='mr-2' />
-              <span className='hidden sm:inline'>Send</span>
-            </button>
-
-            {showSendDropdown && (
-              <>
-                <div
-                  className='fixed inset-0 z-10'
-                  onClick={() => setShowSendDropdown(false)}
-                />
-                <div className='absolute right-0 mt-1 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1'>
-                  <button
-                    onClick={() => handleSend('email')}
-                    className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2'
-                  >
-                    <FaEnvelope className='text-gray-500' /> Email
-                  </button>
-                  <button
-                    onClick={() => handleSend('whatsapp')}
-                    className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2'
-                  >
-                    <FaPaperPlane className='text-green-500' /> WhatsApp
-                  </button>
-                </div>
-              </>
-            )}
+          <div className='hidden sm:flex'>
+            <StatusBadge status={status} />
           </div>
 
-          {/* Approve Button */}
-          <button
-            onClick={() => changeStatus('APPROVED')}
-            className='h-9 px-3 sm:px-4 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 transition-colors inline-flex items-center'
-          >
-            <FaCheck className='mr-2' />
-            <span>Approve</span>
-          </button>
+          {/* Action Buttons */}
+          <div className='flex flex-wrap items-center gap-2 w-full sm:w-auto'>
+            {/* PDF Button */}
+            <button className='flex-1 sm:flex-none h-9 px-3 sm:px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center justify-center sm:justify-start'>
+              <FaFilePdf className='mr-2' />
+              <span className='hidden sm:inline'>PDF</span>
+            </button>
+
+            {/* Send Button with Dropdown */}
+            <div className='relative flex-1 sm:flex-none'>
+              <button
+                onClick={() => setShowSendDropdown(!showSendDropdown)}
+                className='w-full h-9 px-3 sm:px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center justify-center sm:justify-start'
+              >
+                <FaPaperPlane className='mr-2' />
+                <span className='hidden sm:inline'>Send</span>
+              </button>
+
+              {showSendDropdown && (
+                <>
+                  <div
+                    className='fixed inset-0 z-10'
+                    onClick={() => setShowSendDropdown(false)}
+                  />
+                  <div className='absolute right-0 mt-1 w-full sm:w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1'>
+                    <button
+                      onClick={() => handleSend('email')}
+                      className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2'
+                    >
+                      <FaEnvelope className='text-gray-500' /> Email
+                    </button>
+                    <button
+                      onClick={() => handleSend('whatsapp')}
+                      className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2'
+                    >
+                      <FaPaperPlane className='text-green-500' /> WhatsApp
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Approve Button */}
+            <button
+              onClick={() => changeStatus('APPROVED')}
+              className='flex-1 sm:flex-none h-9 px-3 sm:px-4 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 transition-colors inline-flex items-center justify-center sm:justify-start'
+            >
+              <FaCheck className='mr-2' />
+              <span>Approve</span>
+            </button>
+          </div>
         </div>
       </div>
 
