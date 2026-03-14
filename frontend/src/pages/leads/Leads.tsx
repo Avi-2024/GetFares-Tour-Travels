@@ -4,16 +4,13 @@ import {
   FaCalendarPlus,
   FaChevronLeft,
   FaChevronRight,
-  FaEllipsisV,
   FaEye,
   FaFileImport,
   FaFileInvoiceDollar,
   FaFire,
   FaSearch,
   FaPlus,
-  FaUsers,
-  FaFilter,
-  FaTimes
+  FaUsers
 } from 'react-icons/fa'
 import EmptyState from '../../components/ui/EmptyState'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -95,7 +92,6 @@ const Leads: React.FC = () => {
   const [tab, setTab] = useState<Tab>('All')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [showFilters, setShowFilters] = useState(false)
   const pageSize = 3
   const nav = useNavigate()
 
@@ -248,7 +244,7 @@ const Leads: React.FC = () => {
             <>
               {/* Mobile View - Card Layout (stacked) */}
               <div className='block lg:hidden divide-y divide-gray-100 dark:divide-gray-800'>
-                {leads.map((lead, index) => (
+                {leads.map(lead => (
                   <div
                     key={lead.id}
                     className='p-4 space-y-4 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors'

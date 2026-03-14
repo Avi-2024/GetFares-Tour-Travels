@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { FaPlus, FaEdit, FaTrash, FaUserShield, FaSearch } from 'react-icons/fa'
-import { usersApi } from '../../api/users'
 import { rbacApi } from '../../api/auth'
 
 interface User {

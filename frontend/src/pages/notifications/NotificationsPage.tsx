@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNotifications } from "../../context/NotificationsContext";
-import { FaBell, FaCheck, FaCheckDouble, FaFilter, FaSearch } from "react-icons/fa";
+import { FaBell, FaCheck, FaCheckDouble, FaSearch } from "react-icons/fa";
 
 const NotificationsPage: React.FC = () => {
   const { notifications, unreadCount, markRead, markAllRead, loading } = useNotifications();
