@@ -12,7 +12,11 @@ import {
   FaFileImage,
   FaFileWord,
   FaTrash,
-  FaArrowLeft
+  FaCircleInfo,
+  FaCalendarCheck,
+  FaGlobe,
+  FaUserCheck,
+  FaClock
 } from 'react-icons/fa6'
 import { DateInput, TextInput } from '../../components/form'
 import AuditMeta from '../../components/ui/AuditMeta'
@@ -34,6 +38,7 @@ interface Document {
   verifiedAt?: string
   verifiedBy?: string
   url: string
+  file?: File
 }
 
 interface ChecklistItem {
@@ -53,6 +58,195 @@ interface TimelineItem {
   description?: string
 }
 
+// Toast Notification Component
+const Toast = ({
+  message,
+  type,
+  onClose
+}: {
+  message: string
+  type: 'success' | 'error'
+  onClose: () => void
+}) => (
+  <div className='fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn'>
+    <div
+      className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${
+        type === 'success'
+          ? 'bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800'
+          : 'bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800'
+      }`}
+    >
+      {type === 'success' ? (
+        <FaCheck className='text-green-600 dark:text-green-400' />
+      ) : (
+        <FaXmark className='text-red-600 dark:text-red-400' />
+      )}
+      <p
+        className={`text-sm font-medium ${
+          type === 'success'
+            ? 'text-green-800 dark:text-green-300'
+            : 'text-red-800 dark:text-red-300'
+        }`}
+      >
+        {message}
+      </p>
+    </div>
+  </div>
+)
+
+// Confirmation Modal
+const ConfirmModal = ({
+  isOpen,
+  title,
+  message,
+  onConfirm,
+  onCancel
+}: {
+  isOpen: boolean
+  title: string
+  message: string
+  onConfirm: () => void
+  onCancel: () => void
+}) => {
+  if (!isOpen) return null
+
+  return (
+    <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
+      <div className='bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-6 animate-fadeIn'>
+        <div className='flex items-center gap-3 mb-4'>
+          <div className='w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center'>
+            <FaTrash className='text-red-600 dark:text-red-400' />
+          </div>
+          <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+            {title}
+          </h3>
+        </div>
+        <p className='text-sm text-gray-600 dark:text-gray-400 mb-6'>
+          {message}
+        </p>
+        <div className='flex justify-end gap-3'>
+          <button
+            onClick={onCancel}
+            className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className='px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700'
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Document Preview Modal
+const DocumentPreviewModal = ({
+  isOpen,
+  document,
+  onClose
+}: {
+  isOpen: boolean
+  document: Document | null
+  onClose: () => void
+}) => {
+  if (!isOpen || !document) return null
+
+  const getIcon = () => {
+    switch (document.type) {
+      case 'pdf':
+        return <FaFilePdf className='text-6xl text-red-500' />
+      case 'image':
+        return <FaFileImage className='text-6xl text-blue-500' />
+      case 'doc':
+        return <FaFileWord className='text-6xl text-blue-700' />
+      default:
+        return <FaFileImage className='text-6xl text-gray-500' />
+    }
+  }
+
+  return (
+    <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
+      <div className='bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto'>
+        <div className='sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <div className='w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center'>
+              {getIcon()}
+            </div>
+            <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100 truncate max-w-md'>
+              {document.name}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className='text-gray-400 hover:text-gray-600'
+          >
+            <FaXmark className='text-xl' />
+          </button>
+        </div>
+
+        <div className='p-6'>
+          {document.type === 'image' ? (
+            <div className='bg-gray-100 dark:bg-gray-800 rounded-lg p-8 flex items-center justify-center'>
+              <img
+                src={document.url}
+                alt={document.name}
+                className='max-w-full max-h-96 object-contain'
+              />
+            </div>
+          ) : (
+            <div className='bg-gray-50 dark:bg-gray-800/50 rounded-lg p-8 text-center'>
+              {getIcon()}
+              <p className='mt-4 text-sm text-gray-600 dark:text-gray-400'>
+                Preview not available for this file type
+              </p>
+              <button className='mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700'>
+                <FaDownload /> Download to View
+              </button>
+            </div>
+          )}
+
+          <div className='mt-6 grid grid-cols-2 gap-4 text-sm'>
+            <div>
+              <p className='text-xs text-gray-500'>File Size</p>
+              <p className='font-medium text-gray-900 dark:text-gray-100'>
+                {document.size}
+              </p>
+            </div>
+            <div>
+              <p className='text-xs text-gray-500'>Uploaded By</p>
+              <p className='font-medium text-gray-900 dark:text-gray-100'>
+                {document.uploadedBy}
+              </p>
+            </div>
+            <div>
+              <p className='text-xs text-gray-500'>Uploaded At</p>
+              <p className='font-medium text-gray-900 dark:text-gray-100'>
+                {new Date(document.uploadedAt).toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <p className='text-xs text-gray-500'>Status</p>
+              {document.verified ? (
+                <p className='font-medium text-green-600 flex items-center gap-1'>
+                  <FaCheck /> Verified by {document.verifiedBy}
+                </p>
+              ) : (
+                <p className='font-medium text-amber-600'>
+                  Pending Verification
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const VisaDetailPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -64,7 +258,21 @@ const VisaDetailPage = () => {
   const [rejectionReason, setRejectionReason] = useState('')
   const [visaValidUntil, setVisaValidUntil] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+
+  // UI state
+  const [toast, setToast] = useState<{
+    show: boolean
+    message: string
+    type: 'success' | 'error'
+  }>({
+    show: false,
+    message: '',
+    type: 'success'
+  })
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
+  const [previewDocument, setPreviewDocument] = useState<Document | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   // Documents state
   const [documents, setDocuments] = useState<Document[]>([
@@ -90,7 +298,7 @@ const VisaDetailPage = () => {
       verified: true,
       verifiedAt: '2026-03-11T14:21:00Z',
       verifiedBy: 'Sarah Lee',
-      url: '#'
+      url: 'https://images.unsplash.com/photo-1586952518485-11c180c9278e?w=400'
     },
     {
       id: 'doc3',
@@ -177,10 +385,16 @@ const VisaDetailPage = () => {
     country: 'Maldives',
     visaType: 'Tourist',
     appointmentDate: '2026-03-16',
-    appointmentTime: '10:30 AM',
     fees: '$150',
-    processingTime: '5-7 working days',
-    validFrom: visaValidUntil || '2026-06-16'
+    processingTime: '5-7 days'
+  }
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ show: true, message, type })
+    setTimeout(
+      () => setToast({ show: false, message: '', type: 'success' }),
+      3000
+    )
   }
 
   const saveStatus = () => {
@@ -191,7 +405,6 @@ const VisaDetailPage = () => {
     )
     setError(validationError)
     if (!validationError) {
-      // Add to timeline
       const newTimelineItem: TimelineItem = {
         id: Date.now().toString(),
         title: `Status changed to ${status}`,
@@ -210,6 +423,7 @@ const VisaDetailPage = () => {
       }
       setTimeline(prev => [newTimelineItem, ...prev])
       setError('')
+      showToast(`Status updated to ${status}`, 'success')
     }
   }
 
@@ -227,7 +441,6 @@ const VisaDetailPage = () => {
       )
     )
 
-    // Update checklist if document matches
     const doc = documents.find(d => d.id === docId)
     if (doc?.name.includes('passport')) {
       setChecklist(prev =>
@@ -249,7 +462,6 @@ const VisaDetailPage = () => {
       )
     }
 
-    // Add to timeline
     const newTimelineItem: TimelineItem = {
       id: Date.now().toString(),
       title: `Document verified: ${doc?.name}`,
@@ -258,13 +470,18 @@ const VisaDetailPage = () => {
       icon: <FaCheck />
     }
     setTimeline(prev => [newTimelineItem, ...prev])
+    showToast('Document verified successfully', 'success')
   }
 
-  const handleDeleteDocument = (docId: string) => {
-    if (window.confirm('Are you sure you want to delete this document?')) {
-      setDocuments(prev => prev.filter(doc => doc.id !== docId))
+  const handleDeleteClick = (docId: string) => {
+    setDocumentToDelete(docId)
+    setShowDeleteConfirm(true)
+  }
 
-      // Add to timeline
+  const handleDeleteConfirm = () => {
+    if (documentToDelete) {
+      setDocuments(prev => prev.filter(doc => doc.id !== documentToDelete))
+
       const newTimelineItem: TimelineItem = {
         id: Date.now().toString(),
         title: `Document deleted`,
@@ -273,6 +490,10 @@ const VisaDetailPage = () => {
         icon: <FaTrash />
       }
       setTimeline(prev => [newTimelineItem, ...prev])
+
+      showToast('Document deleted successfully', 'success')
+      setShowDeleteConfirm(false)
+      setDocumentToDelete(null)
     }
   }
 
@@ -291,7 +512,7 @@ const VisaDetailPage = () => {
       uploadedAt: new Date().toISOString(),
       uploadedBy: 'Current User',
       verified: false,
-      url: '#'
+      url: URL.createObjectURL(uploadFile)
     }
 
     setDocuments(prev => [newDoc, ...prev])
@@ -299,7 +520,6 @@ const VisaDetailPage = () => {
     setUploadFile(null)
     setUploadName('')
 
-    // Add to timeline
     const newTimelineItem: TimelineItem = {
       id: Date.now().toString(),
       title: `Document uploaded: ${newDoc.name}`,
@@ -308,6 +528,12 @@ const VisaDetailPage = () => {
       icon: <FaUpload />
     }
     setTimeline(prev => [newTimelineItem, ...prev])
+    showToast('Document uploaded successfully', 'success')
+  }
+
+  const handleViewDocument = (doc: Document) => {
+    setPreviewDocument(doc)
+    setShowPreview(true)
   }
 
   const getDocumentIcon = (type: string) => {
@@ -336,18 +562,49 @@ const VisaDetailPage = () => {
     (checklist.filter(item => item.completed).length / checklist.length) * 100
 
   return (
-    <div className='space-y-4 sm:space-y-6 px-4 sm:px-0'>
+    <div className='space-y-4 sm:space-y-6 px-4 sm:px-0 max-w-7xl mx-auto'>
+      {/* Toast Notification */}
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() =>
+            setToast({ show: false, message: '', type: 'success' })
+          }
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title='Delete Document'
+        message='Are you sure you want to delete this document? This action cannot be undone.'
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => {
+          setShowDeleteConfirm(false)
+          setDocumentToDelete(null)
+        }}
+      />
+
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={showPreview}
+        document={previewDocument}
+        onClose={() => {
+          setShowPreview(false)
+          setPreviewDocument(null)
+        }}
+      />
+
       {/* Header */}
       <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
-        <div className='flex items-center gap-3'>
-          <div>
-            <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
-              Visa Case #{id}
-            </h1>
-            <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1'>
-              Manage visa status, documents, and readiness checklist
-            </p>
-          </div>
+        <div>
+          <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
+            Visa Case #{id}
+          </h1>
+          <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1'>
+            Manage visa status, documents, and readiness checklist
+          </p>
         </div>
         <StatusBadge status={status} />
       </div>
@@ -371,16 +628,16 @@ const VisaDetailPage = () => {
       </SurfaceCard>
 
       {/* Main Grid */}
-      <div className='grid grid-cols-1 xl:grid-cols-3 gap-6'>
-        {/* Left Column - Main Content */}
-        <div className='xl:col-span-2 space-y-6'>
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+        {/* Left Column - Main Content (2/3 width) */}
+        <div className='lg:col-span-2 space-y-6'>
           {/* Status Transition Card */}
           <SurfaceCard className='p-5'>
-            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4'>
-              Status Transition
+            <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100 mb-4'>
+              Status Update
             </h2>
 
-            <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div>
                 <label className='field-label'>Status</label>
                 <select
@@ -397,7 +654,7 @@ const VisaDetailPage = () => {
 
               {status === 'APPROVED' && (
                 <DateInput
-                  label='Visa Valid Until *'
+                  label='Valid Until *'
                   value={visaValidUntil}
                   onChange={setVisaValidUntil}
                   required
@@ -418,21 +675,21 @@ const VisaDetailPage = () => {
 
             <button
               onClick={saveStatus}
-              className='mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors'
+              className='mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors'
             >
-              Save Status
+              Update Status
             </button>
           </SurfaceCard>
 
           {/* Documents Card */}
           <SurfaceCard className='p-5'>
             <div className='flex items-center justify-between mb-4'>
-              <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+              <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
                 Documents
               </h2>
               <button
                 onClick={() => setShowUploadModal(true)}
-                className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700'
+                className='inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700'
               >
                 <FaUpload /> Upload
               </button>
@@ -445,43 +702,41 @@ const VisaDetailPage = () => {
                 icon={<FaUpload className='text-4xl' />}
               />
             ) : (
-              <div className='space-y-3'>
+              <div className='space-y-2'>
                 {documents.map(doc => (
                   <div
                     key={doc.id}
                     className='flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'
                   >
                     <div className='flex items-center gap-3 min-w-0 flex-1'>
-                      <div className='text-xl'>{getDocumentIcon(doc.type)}</div>
+                      <div className='text-lg'>{getDocumentIcon(doc.type)}</div>
                       <div className='min-w-0 flex-1'>
-                        <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
-                          {doc.name}
-                        </p>
-                        <div className='flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400'>
-                          <span>{doc.size}</span>
-                          <span>•</span>
-                          <span>Uploaded {formatDateTime(doc.uploadedAt)}</span>
+                        <div className='flex items-center gap-2'>
+                          <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
+                            {doc.name}
+                          </p>
                           {doc.verified && (
-                            <>
-                              <span>•</span>
-                              <span className='text-green-600'>
-                                Verified by {doc.verifiedBy}
-                              </span>
-                            </>
+                            <span className='text-xs text-green-600 flex items-center gap-1'>
+                              <FaCheck /> Verified
+                            </span>
                           )}
                         </div>
+                        <p className='text-xs text-gray-500'>
+                          {doc.size} • {formatDateTime(doc.uploadedAt)}
+                        </p>
                       </div>
                     </div>
 
-                    <div className='flex items-center gap-2 ml-2'>
+                    <div className='flex items-center gap-1'>
                       <button
-                        className='p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors'
+                        onClick={() => handleViewDocument(doc)}
+                        className='p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors'
                         title='View'
                       >
                         <FaEye />
                       </button>
                       <button
-                        className='p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors'
+                        className='p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors'
                         title='Download'
                       >
                         <FaDownload />
@@ -489,15 +744,15 @@ const VisaDetailPage = () => {
                       {!doc.verified && (
                         <button
                           onClick={() => handleVerifyDocument(doc.id)}
-                          className='p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors'
+                          className='p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors'
                           title='Verify'
                         >
                           <FaCheck />
                         </button>
                       )}
                       <button
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        className='p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors'
+                        onClick={() => handleDeleteClick(doc.id)}
+                        className='p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors'
                         title='Delete'
                       >
                         <FaTrash />
@@ -509,20 +764,100 @@ const VisaDetailPage = () => {
             )}
           </SurfaceCard>
 
+          {/* Timeline Card */}
+          <SurfaceCard className='p-5'>
+            <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100 mb-4'>
+              Activity Timeline
+            </h2>
+            <Timeline
+              items={timeline.map(item => ({
+                ...item,
+                time: formatDateTime(item.time)
+              }))}
+            />
+          </SurfaceCard>
+        </div>
+
+        {/* Right Column - Sidebar (1/3 width) */}
+        <div className='space-y-6'>
+          {/* Case Summary Card */}
+          <SurfaceCard className='p-5'>
+            <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3'>
+              Case Details
+            </h3>
+            <div className='space-y-3'>
+              <div className='flex items-center gap-2'>
+                <FaGlobe className='text-gray-400 text-sm' />
+                <span className='text-sm text-gray-600 dark:text-gray-400 flex-1'>
+                  Country
+                </span>
+                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                  {caseSummary.country}
+                </span>
+              </div>
+              <div className='flex items-center gap-2'>
+                <FaCircleInfo className='text-gray-400 text-sm' />
+                <span className='text-sm text-gray-600 dark:text-gray-400 flex-1'>
+                  Visa Type
+                </span>
+                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                  {caseSummary.visaType}
+                </span>
+              </div>
+              <div className='flex items-center gap-2'>
+                <FaCalendarCheck className='text-gray-400 text-sm' />
+                <span className='text-sm text-gray-600 dark:text-gray-400 flex-1'>
+                  Appointment
+                </span>
+                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                  {caseSummary.appointmentDate}
+                </span>
+              </div>
+              <div className='flex items-center gap-2'>
+                <FaListCheck className='text-gray-400 text-sm' />
+                <span className='text-sm text-gray-600 dark:text-gray-400 flex-1'>
+                  Fees
+                </span>
+                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                  {caseSummary.fees}
+                </span>
+              </div>
+              <div className='flex items-center gap-2'>
+                <FaClock className='text-gray-400 text-sm' />
+                <span className='text-sm text-gray-600 dark:text-gray-400 flex-1'>
+                  Processing
+                </span>
+                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                  {caseSummary.processingTime}
+                </span>
+              </div>
+              {status === 'APPROVED' && visaValidUntil && (
+                <div className='flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-800'>
+                  <FaCheck className='text-green-600 text-sm' />
+                  <span className='text-sm text-gray-600 dark:text-gray-400 flex-1'>
+                    Valid Until
+                  </span>
+                  <span className='text-sm font-medium text-green-600'>
+                    {visaValidUntil}
+                  </span>
+                </div>
+              )}
+            </div>
+          </SurfaceCard>
+
           {/* Checklist Card */}
           <SurfaceCard className='p-5'>
-            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4'>
-              Readiness Checklist
-            </h2>
-
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+            <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3'>
+              Requirements
+            </h3>
+            <div className='space-y-2'>
               {checklist.map(item => (
-                <label
+                <div
                   key={item.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                  className={`flex items-center gap-2 p-2 rounded-lg ${
                     item.completed
-                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                      : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+                      ? 'bg-green-50 dark:bg-green-900/10'
+                      : 'bg-gray-50 dark:bg-gray-800/50'
                   }`}
                 >
                   <input
@@ -540,7 +875,7 @@ const VisaDetailPage = () => {
                     className='rounded border-gray-300 text-blue-600 focus:ring-blue-500'
                   />
                   <span
-                    className={`text-sm flex-1 ${
+                    className={`text-xs flex-1 ${
                       item.completed
                         ? 'text-green-700 dark:text-green-300'
                         : 'text-gray-700 dark:text-gray-300'
@@ -552,102 +887,39 @@ const VisaDetailPage = () => {
                     )}
                   </span>
                   {item.completed && (
-                    <FaCheck className='text-green-600 dark:text-green-400 text-sm' />
+                    <FaCheck className='text-green-600 text-xs' />
                   )}
-                </label>
+                </div>
               ))}
             </div>
           </SurfaceCard>
 
-          {/* Timeline Card */}
+          {/* Quick Stats */}
           <SurfaceCard className='p-5'>
-            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4'>
-              Activity Timeline
-            </h2>
-            <Timeline
-              items={timeline.map(item => ({
-                ...item,
-                time: formatDateTime(item.time)
-              }))}
-            />
-          </SurfaceCard>
-        </div>
-
-        {/* Right Column - Sidebar */}
-        <div className='space-y-6'>
-          {/* Case Summary Card */}
-          <SurfaceCard className='p-5'>
-            <h3 className='text-base font-semibold text-gray-900 dark:text-gray-100 mb-3'>
-              Case Summary
-            </h3>
-            <div className='space-y-3'>
-              <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
-                <span className='text-sm text-gray-500'>Country</span>
-                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                  {caseSummary.country}
-                </span>
-              </div>
-              <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
-                <span className='text-sm text-gray-500'>Visa Type</span>
-                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                  {caseSummary.visaType}
-                </span>
-              </div>
-              <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
-                <span className='text-sm text-gray-500'>Appointment</span>
-                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                  {caseSummary.appointmentDate} at {caseSummary.appointmentTime}
-                </span>
-              </div>
-              <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
-                <span className='text-sm text-gray-500'>Fees</span>
-                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                  {caseSummary.fees}
-                </span>
-              </div>
-              <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
-                <span className='text-sm text-gray-500'>Processing Time</span>
-                <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                  {caseSummary.processingTime}
-                </span>
-              </div>
-              {status === 'APPROVED' && (
-                <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
-                  <span className='text-sm text-gray-500'>Valid Until</span>
-                  <span className='text-sm font-medium text-green-600'>
-                    {visaValidUntil || 'Not set'}
-                  </span>
-                </div>
-              )}
-            </div>
-          </SurfaceCard>
-
-          {/* Quick Stats Card */}
-          <SurfaceCard className='p-5'>
-            <h3 className='text-base font-semibold text-gray-900 dark:text-gray-100 mb-3'>
-              Quick Stats
+            <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3'>
+              Statistics
             </h3>
             <div className='grid grid-cols-2 gap-3'>
-              <div className='text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg'>
-                <p className='text-2xl font-bold text-blue-600'>
+              <div className='text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg'>
+                <p className='text-xl font-bold text-blue-600'>
                   {documents.length}
                 </p>
                 <p className='text-xs text-gray-500'>Documents</p>
               </div>
-              <div className='text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg'>
-                <p className='text-2xl font-bold text-green-600'>
+              <div className='text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg'>
+                <p className='text-xl font-bold text-green-600'>
                   {documents.filter(d => d.verified).length}
                 </p>
                 <p className='text-xs text-gray-500'>Verified</p>
               </div>
-              <div className='text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg'>
-                <p className='text-2xl font-bold text-purple-600'>
+              <div className='text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg'>
+                <p className='text-xl font-bold text-purple-600'>
                   {checklist.filter(i => i.completed).length}/{checklist.length}
                 </p>
                 <p className='text-xs text-gray-500'>Checklist</p>
               </div>
-              <div className='text-center p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg'>
-                <p className='text-2xl font-bold text-amber-600'>
+              <div className='text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg'>
+                <p className='text-xl font-bold text-amber-600'>
                   {timeline.length}
                 </p>
                 <p className='text-xs text-gray-500'>Activities</p>
@@ -665,7 +937,7 @@ const VisaDetailPage = () => {
         </div>
       </div>
 
-      {/* Upload Document Modal */}
+      {/* Upload Modal */}
       {showUploadModal && (
         <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
           <div className='bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-6'>
@@ -718,7 +990,7 @@ const VisaDetailPage = () => {
               </div>
 
               <p className='text-xs text-gray-500'>
-                Accepted formats: PDF, JPG, PNG, DOC (Max 10MB)
+                Accepted: PDF, JPG, PNG, DOC (Max 10MB)
               </p>
             </div>
 
@@ -736,7 +1008,7 @@ const VisaDetailPage = () => {
               <button
                 onClick={handleUploadDocument}
                 disabled={!uploadFile}
-                className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50'
               >
                 Upload
               </button>
@@ -744,6 +1016,16 @@ const VisaDetailPage = () => {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translate(-50%, -20px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+      `}</style>
     </div>
   )
 }
