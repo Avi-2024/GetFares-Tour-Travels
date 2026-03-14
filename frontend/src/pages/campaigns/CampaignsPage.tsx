@@ -1,13 +1,10 @@
 import React, { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   FaPlus,
   FaSearch,
   FaDownload,
   FaEdit,
   FaTrash,
-  FaDollarSign,
-  FaUsers,
   FaChartLine,
   FaChevronLeft,
   FaChevronRight,
@@ -24,9 +21,7 @@ import {
 } from 'react-icons/fa'
 import {
   MdCheckCircle,
-  MdAccessTime,
-  MdCalendarToday,
-  MdWarning
+  MdAccessTime
 } from 'react-icons/md'
 
 interface Campaign {
@@ -48,7 +43,6 @@ interface Campaign {
 }
 
 const CampaignsPage: React.FC = () => {
-  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')

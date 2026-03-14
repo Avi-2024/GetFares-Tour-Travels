@@ -32,7 +32,7 @@ const CustomerDetailPage: React.FC = () => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
-  const [error, setError] = useState('')
+  const [error] = useState('')
 
   // Mock data - replace with API call
   const [customer, setCustomer] = useState<Customer>({

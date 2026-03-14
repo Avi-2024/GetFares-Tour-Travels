@@ -443,7 +443,7 @@ const BookingsPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Actions */}
+                  {/*   */}
                   <div className='flex justify-end gap-2 pt-2'>
                     <button
                       className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'

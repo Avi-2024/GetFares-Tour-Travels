@@ -32,7 +32,7 @@ const ComplaintDetailPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false)
   const [newNote, setNewNote] = useState('')
   const [noteError, setNoteError] = useState('')
-  const [statusHistory, setStatusHistory] = useState<any[]>([])
+  const [, setStatusHistory] = useState<any[]>([])
   const [assignmentLoading, setAssignmentLoading] = useState(false)
 
   const [complaint, setComplaint] = useState<Complaint>({

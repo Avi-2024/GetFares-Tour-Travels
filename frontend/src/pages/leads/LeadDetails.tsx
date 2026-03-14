@@ -1,21 +1,143 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { validateLeadTransition } from '../../utils/workflowValidation'
 
 const LeadDetails: React.FC = () => {
   const navigate = useNavigate()
+  const { id } = useParams()
   const [leadStatus, setLeadStatus] = useState('NEW')
   const [leadError, setLeadError] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  
+  // Mock data
+  const [timeline, setTimeline] = useState<any[]>([
+    {
+      id: 1,
+      icon: 'fa-solid fa-phone',
+      bg: 'bg-blue-100',
+      color: 'text-blue-600',
+      title: 'Outbound Call',
+      user: 'Alex Morgan',
+      time: 'Today, 10:30 AM',
+      description: 'Spoke with Sarah regarding her Maldives trip. She is interested in the overwater villa options at Constance Moofushi. Budget is flexible if the value is right.',
+      tags: [{ label: 'Connected', icon: 'fa-solid fa-check', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-100' }],
+      meta: 'Duration: 12m 45s',
+      action: { label: 'Play Recording', icon: 'fa-solid fa-play' }
+    },
+    {
+      id: 2,
+      icon: 'fa-regular fa-envelope',
+      bg: 'bg-purple-100',
+      color: 'text-purple-600',
+      title: 'Email Sent',
+      user: 'System Automation',
+      time: 'Yesterday, 4:15 PM',
+      description: 'Sent "Welcome to TravelCRM - Maldives Packages" brochure.',
+      attachment: { name: 'Maldives_Brochure_2023.pdf', icon: 'fa-regular fa-file-pdf', color: 'text-red-500' },
+      meta: 'Opened 2 times'
+    }
+  ])
+  
+  const [followups, setFollowups] = useState<any[]>([
+    { id: 1, type: 'Call', scheduledAt: '2023-11-15T10:00:00Z', notes: 'Follow up on Maldives package interest', status: 'pending' },
+    { id: 2, type: 'Email', scheduledAt: '2023-11-16T14:00:00Z', notes: 'Send detailed itinerary options', status: 'pending' }
+  ])
+
+
+  useEffect(() => {
+    // Simulate loading - using id parameter
+    console.log('Loading lead:', id)
+  }, [id])
 
   const markLost = () => {
-    const closedReason = window.prompt(
-      'Closed reason is required for LOST lead status.'
-    )
+    const closedReason = window.prompt('Closed reason is required for LOST lead status.')
     const error = validateLeadTransition('LOST', closedReason ?? '')
     setLeadError(error)
-    if (!error) setLeadStatus('LOST')
+    if (!error && closedReason) {
+      setLeadStatus('LOST')
+      // Add to timeline
+      const newTimelineItem = {
+        id: Date.now(),
+        icon: 'fa-solid fa-ban',
+        bg: 'bg-red-100',
+        color: 'text-red-600',
+        title: 'Lead Marked as Lost',
+        user: 'Current User',
+        time: new Date().toLocaleString(),
+        description: `Lead marked as lost. Reason: ${closedReason}`,
+        tags: [{ label: 'Lost', icon: 'fa-solid fa-ban', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-100' }]
+      }
+      setTimeline(prev => [newTimelineItem, ...prev])
+    }
+  }
+
+  const handleAssignLead = () => {
+    const userId = window.prompt('Enter user name to assign lead to:')
+    if (!userId) return
+    
+    const newTimelineItem = {
+      id: Date.now(),
+      icon: 'fa-solid fa-user-plus',
+      bg: 'bg-green-100',
+      color: 'text-green-600',
+      title: 'Lead Assigned',
+      user: 'Current User',
+      time: new Date().toLocaleString(),
+      description: `Lead assigned to ${userId}`,
+      tags: [{ label: 'Assigned', icon: 'fa-solid fa-user-check', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-100' }]
+    }
+    setTimeline(prev => [newTimelineItem, ...prev])
+    setLeadError('')
+  }
+
+  const handleScheduleFollowup = () => {
+    const followupDate = '2023-11-15'
+    const followupTime = '10:00'
+    const followupType = 'Call'
+    
+    const newFollowup = {
+      id: Date.now(),
+      type: followupType,
+      scheduledAt: `${followupDate}T${followupTime}:00Z`,
+      notes: `Scheduled ${followupType.toLowerCase()} follow-up`,
+      status: 'pending'
+    }
+    
+    setFollowups(prev => [...prev, newFollowup])
+    
+    const newTimelineItem = {
+      id: Date.now() + 1,
+      icon: 'fa-regular fa-calendar-check',
+      bg: 'bg-blue-100',
+      color: 'text-blue-600',
+      title: 'Follow-up Scheduled',
+      user: 'Current User',
+      time: new Date().toLocaleString(),
+      description: `${followupType} follow-up scheduled for ${new Date(followupDate).toLocaleDateString()} at ${followupTime}`,
+      tags: [{ label: 'Scheduled', icon: 'fa-solid fa-calendar', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100' }]
+    }
+    
+    setTimeline(prev => [newTimelineItem, ...prev])
+    setLeadError('')
+  }
+
+  const handleAddNote = () => {
+    const newNote = 'Sample note'
+    
+    const newTimelineItem = {
+      id: Date.now(),
+      icon: 'fa-regular fa-sticky-note',
+      bg: 'bg-yellow-100',
+      color: 'text-yellow-600',
+      title: 'Note Added',
+      user: 'Current User',
+      time: new Date().toLocaleString(),
+      description: newNote
+    }
+    
+    setTimeline(prev => [newTimelineItem, ...prev])
+    setLeadError('')
   }
 
   const tabs = [
@@ -24,7 +146,7 @@ const LeadDetails: React.FC = () => {
       id: 'followups',
       label: 'Follow-ups',
       icon: 'fa-solid fa-list-check',
-      badge: 2
+      badge: followups.length
     },
     {
       id: 'quotations',
@@ -38,44 +160,44 @@ const LeadDetails: React.FC = () => {
     {
       label: 'Assign',
       icon: 'fa-solid fa-user-plus',
-      onClick: () => {},
-      variant: 'secondary'
+      onClick: handleAssignLead,
+      variant: 'secondary' as const
     },
     {
       label: 'Mark Lost',
       icon: 'fa-solid fa-ban',
       onClick: markLost,
-      variant: 'danger'
+      variant: 'danger' as const
     },
     {
       label: 'Create Quotation',
       icon: 'fa-solid fa-file-invoice-dollar',
       onClick: () => navigate('/quotations/builder'),
-      variant: 'secondary'
+      variant: 'secondary' as const
     },
     {
       label: 'Create Booking',
       icon: 'fa-solid fa-check',
       onClick: () => navigate('/bookings'),
-      variant: 'primary'
+      variant: 'primary' as const
     },
     {
       label: 'Add Payment',
       icon: 'fa-solid fa-credit-card',
       onClick: () => navigate('/payments'),
-      variant: 'secondary'
+      variant: 'secondary' as const
     },
     {
       label: 'Create Visa Case',
       icon: 'fa-solid fa-passport',
       onClick: () => navigate('/visa/visa-1'),
-      variant: 'secondary'
+      variant: 'secondary' as const
     },
     {
       label: 'Raise Complaint',
       icon: 'fa-solid fa-triangle-exclamation',
       onClick: () => navigate('/complaints'),
-      variant: 'secondary'
+      variant: 'secondary' as const
     }
   ]
 
@@ -141,7 +263,7 @@ const LeadDetails: React.FC = () => {
           </div>
         </div>
 
-        {/* Mobile Actions Menu */}
+      
         {isMobileMenuOpen && (
           <div className='lg:hidden mb-4 bg-white rounded-xl shadow-lg border border-gray-200 p-2 animate-fadeIn'>
             <div className='grid grid-cols-2 gap-1'>
@@ -482,7 +604,10 @@ const LeadDetails: React.FC = () => {
                       <option>WhatsApp</option>
                     </select>
                   </div>
-                  <button className='w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-colors whitespace-nowrap flex items-center justify-center gap-2'>
+                  <button
+                    onClick={handleScheduleFollowup}
+                    className='w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-colors whitespace-nowrap flex items-center justify-center gap-2'
+                  >
                     <i className='fa-regular fa-bell'></i>
                     Schedule
                   </button>
@@ -514,59 +639,8 @@ const LeadDetails: React.FC = () => {
 
                 <div className='relative pl-4 space-y-6'>
                   {/* Timeline Items */}
-                  {[
-                    {
-                      icon: 'fa-solid fa-phone',
-                      bg: 'bg-blue-100',
-                      color: 'text-blue-600',
-                      title: 'Outbound Call',
-                      user: 'Alex Morgan',
-                      time: 'Today, 10:30 AM',
-                      description:
-                        'Spoke with Sarah regarding her Maldives trip. She is interested in the overwater villa options at Constance Moofushi. Budget is flexible if the value is right.',
-                      tags: [
-                        {
-                          label: 'Connected',
-                          icon: 'fa-solid fa-check',
-                          bg: 'bg-green-50',
-                          text: 'text-green-700',
-                          border: 'border-green-100'
-                        }
-                      ],
-                      meta: 'Duration: 12m 45s',
-                      action: {
-                        label: 'Play Recording',
-                        icon: 'fa-solid fa-play'
-                      }
-                    },
-                    {
-                      icon: 'fa-regular fa-envelope',
-                      bg: 'bg-purple-100',
-                      color: 'text-purple-600',
-                      title: 'Email Sent',
-                      user: 'System Automation',
-                      time: 'Yesterday, 4:15 PM',
-                      description:
-                        'Sent "Welcome to TravelCRM - Maldives Packages" brochure.',
-                      attachment: {
-                        name: 'Maldives_Brochure_2023.pdf',
-                        icon: 'fa-regular fa-file-pdf',
-                        color: 'text-red-500'
-                      },
-                      meta: 'Opened 2 times'
-                    },
-                    {
-                      icon: 'fa-regular fa-sticky-note',
-                      bg: 'bg-yellow-100',
-                      color: 'text-yellow-600',
-                      title: 'Note Added',
-                      user: 'Alex Morgan',
-                      time: 'Yesterday, 2:00 PM',
-                      description:
-                        'Lead assigned from Facebook Campaign "Summer 2024". High intent signal based on quiz responses.'
-                    }
-                  ].map((item, idx) => (
-                    <div key={idx} className='relative pl-8 group'>
+                  {timeline.map(item => (
+                    <div key={item.id} className='relative pl-8 group'>
                       <div
                         className={`absolute left-0 top-1 w-8 h-8 rounded-full ${item.bg} border-2 border-white shadow-sm flex items-center justify-center z-10 group-hover:scale-110 transition-transform`}
                       >
@@ -592,7 +666,7 @@ const LeadDetails: React.FC = () => {
                         </p>
 
                         <div className='flex flex-wrap items-center gap-3'>
-                          {item.tags?.map((tag, tagIdx) => (
+                          {item.tags?.map((tag: any, tagIdx: number) => (
                             <span
                               key={tagIdx}
                               className={`inline-flex items-center gap-1 px-2 py-1 rounded ${tag.bg} ${tag.text} text-xs border ${tag.border}`}
@@ -678,7 +752,10 @@ const LeadDetails: React.FC = () => {
                           </button>
                         ))}
                       </div>
-                      <button className='bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-medium shadow-sm transition-colors flex items-center justify-center gap-2'>
+                      <button
+                        onClick={handleAddNote}
+                        className='bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-medium shadow-sm transition-colors flex items-center justify-center gap-2'
+                      >
                         <i className='fa-regular fa-floppy-disk'></i>
                         Save Note
                       </button>
