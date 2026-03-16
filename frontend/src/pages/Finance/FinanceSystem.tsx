@@ -762,15 +762,15 @@ const FinanceSystem: React.FC = () => {
     <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
       <div className='max-w-9xl mx-auto px-0 py-4 sm:py-6 lg:py-8'>
         {/* Header */}
-        <div className='px-0 sm:px-0 lg:px-0 mb-6'>
-          <div className='flex item-center gap-3 mb-2'>
+        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 -mt-2 sm:-mt-8'>
+          <div>
             <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
               Finance System
             </h1>
+            <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1'>
+              Manage clients, suppliers, cost breakdowns, and payments
+            </p>
           </div>
-          <p className='text-sm text-gray-500 dark:text-gray-400'>
-            Manage clients, suppliers, cost breakdowns, and payments
-          </p>
         </div>
 
         {/* Tabs */}
