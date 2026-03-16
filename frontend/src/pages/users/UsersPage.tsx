@@ -11,7 +11,7 @@ import {
   FaCheckCircle
 } from 'react-icons/fa'
 import { FaXmark } from 'react-icons/fa6'
-import { rbacApi } from '../../api/auth'
+// import { rbacApi } from '../../api/auth'
 
 interface User {
   id: string
@@ -33,7 +33,7 @@ interface Role {
 const Toast = ({
   message,
   type,
-  onClose
+  
 }: {
   message: string
   type: 'success' | 'error' | 'info'
@@ -496,7 +496,7 @@ const UsersPage: React.FC = () => {
     }
   ])
 
-  const [roles, setRoles] = useState<Role[]>([
+  const [roles] = useState<Role[]>([
     { id: '1', name: 'Admin', description: 'Full system access' },
     { id: '2', name: 'Manager', description: 'Management access' },
     { id: '3', name: 'Sales', description: 'Sales operations' },

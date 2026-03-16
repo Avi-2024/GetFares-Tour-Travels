@@ -4,7 +4,6 @@ import {
   FaArrowLeft,
   FaCheck,
   FaCopy,
-  FaDownload,
   FaEnvelope,
   FaEye,
   FaPlus,
@@ -172,15 +171,14 @@ const QuotationDetailPage: React.FC = () => {
     setStatus('SENT')
     setShowSendDropdown(false)
 
-    // Add to send logs
-    const newLog: SendLog = {
+    // In real app, would add to logs state via API
+    console.log('Would add new log:', {
       id: `log-${Date.now()}`,
       sentAt: new Date().toISOString(),
       sentTo: method === 'email' ? 'customer@example.com' : '+1 555 1234',
       method: method,
       viewCount: 0
-    }
-    // In real app, would add to logs state via API
+    })
   }
 
   const handleDeleteRow = (id: string) => {
