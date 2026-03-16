@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FaArrowRotateRight, FaCheck, FaDesktop, FaDownload, FaEnvelope, FaFloppyDisk, FaMobileScreen, FaPlaneDeparture, FaPlus } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 
@@ -9,6 +10,7 @@ const itinerary: Item[] = [{ id: "1", day: "Day 1", title: "Arrival & Transfer",
 const pricing: Price[] = [{ id: "1", name: "Accommodation", cost: 3200, markup: 15, price: 3680 }, { id: "2", name: "Transfers", cost: 400, markup: 10, price: 440 }, { id: "3", name: "Activities", cost: 120, markup: 8.3, price: 130 }];
 
 const QuotationBuilderPage: React.FC = () => {
+  const navigate = useNavigate();
   const [showPreview, setShowPreview] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [currency, setCurrency] = useState<Currency>("USD");
@@ -23,7 +25,7 @@ const QuotationBuilderPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
         <div><h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Quotation Builder</h1><p className="text-sm text-gray-500">Create and preview polished quotations quickly.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{form.version}</span><button className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><FaDownload className="mr-2 inline" /> Download</button><button className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><FaEnvelope className="mr-2 inline" /> Send</button><button className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><FaFloppyDisk className="mr-2 inline" /> Save Quote</button></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{form.version}</span><button className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><FaDownload className="mr-2 inline" /> Download</button><button className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><FaEnvelope className="mr-2 inline" /> Send</button><button onClick={() => navigate('/quotations')} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><FaFloppyDisk className="mr-2 inline" /> Save Quote</button></div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.1fr]">
