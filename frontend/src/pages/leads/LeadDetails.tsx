@@ -13,6 +13,15 @@ const LeadDetails: React.FC = () => {
   const [assignUser, setAssignUser] = useState('')
   const [assignNote, setAssignNote] = useState('')
   const [assignError, setAssignError] = useState('')
+  const [editContactOpen, setEditContactOpen] = useState(false)
+  const [contactInfo, setContactInfo] = useState({
+    email: 'sarah.c@gmail.com',
+    phone: '+1 (555) 123-4567',
+    location: 'San Francisco, CA, USA',
+    company: 'Tech Solutions Inc.'
+  })
+  const [contactDraft, setContactDraft] = useState(contactInfo)
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null)
 
   // Mock data
   const [timeline, setTimeline] = useState<any[]>([
@@ -70,6 +79,25 @@ const LeadDetails: React.FC = () => {
       scheduledAt: '2023-11-16T14:00:00Z',
       notes: 'Send detailed itinerary options',
       status: 'pending'
+    }
+  ])
+
+  const [documents, setDocuments] = useState([
+    {
+      name: 'Passport_Front.pdf',
+      size: '2.4 MB',
+      date: 'Oct 24',
+      icon: 'fa-regular fa-file-pdf',
+      bg: 'bg-red-50 dark:bg-red-900/30',
+      color: 'text-red-500 dark:text-red-300'
+    },
+    {
+      name: 'Visa_Photo.jpg',
+      size: '1.1 MB',
+      date: 'Oct 24',
+      icon: 'fa-regular fa-image',
+      bg: 'bg-blue-50 dark:bg-blue-900/30',
+      color: 'text-blue-500 dark:text-blue-300'
     }
   ])
 
@@ -184,6 +212,48 @@ const LeadDetails: React.FC = () => {
 
     setTimeline(prev => [newTimelineItem, ...prev])
     setLeadError('')
+  }
+
+  const handleDeleteFollowup = (fid: number) => {
+    setFollowups(prev => prev.filter(f => f.id !== fid))
+  }
+
+  const handleDeleteTimeline = (tid: number) => {
+    setTimeline(prev => prev.filter(item => item.id !== tid))
+  }
+
+  const openEditContact = () => {
+    setContactDraft(contactInfo)
+    setEditContactOpen(true)
+  }
+
+  const saveContact = () => {
+    setContactInfo(contactDraft)
+    setEditContactOpen(false)
+  }
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleUploadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1)
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)
+    setDocuments(prev => [
+      {
+        name: file.name,
+        size: `${sizeMb} MB`,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        icon: isImage ? 'fa-regular fa-image' : 'fa-regular fa-file',
+        bg: isImage ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-800',
+        color: isImage ? 'text-blue-500 dark:text-blue-300' : 'text-gray-600 dark:text-gray-200'
+      },
+      ...prev
+    ])
+    e.target.value = ''
   }
 
   const handleAddNote = () => {
@@ -401,7 +471,10 @@ const LeadDetails: React.FC = () => {
                 <h3 className='text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide'>
                   Contact Details
                 </h3>
-                <button className='text-blue-600 hover:text-blue-700 text-xs font-medium px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors'>
+                <button
+                  onClick={openEditContact}
+                  className='text-blue-600 hover:text-blue-700 text-xs font-medium px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors'
+                >
                   <i className='fa-regular fa-pen-to-square sm:hidden'></i>
                   <span className='hidden sm:inline'>Edit</span>
                 </button>
@@ -413,7 +486,7 @@ const LeadDetails: React.FC = () => {
                     bg: 'bg-blue-50 dark:bg-blue-900/30',
                     color: 'text-blue-500 dark:text-blue-300',
                     label: 'Email Address',
-                    value: 'sarah.c@gmail.com',
+                    value: contactInfo.email,
                     type: 'email'
                   },
                   {
@@ -421,7 +494,7 @@ const LeadDetails: React.FC = () => {
                     bg: 'bg-green-50 dark:bg-green-900/30',
                     color: 'text-green-500 dark:text-green-300',
                     label: 'Phone Number',
-                    value: '+1 (555) 123-4567',
+                    value: contactInfo.phone,
                     type: 'tel'
                   },
                   {
@@ -429,7 +502,7 @@ const LeadDetails: React.FC = () => {
                     bg: 'bg-purple-50 dark:bg-purple-900/30',
                     color: 'text-purple-500 dark:text-purple-300',
                     label: 'Location',
-                    value: 'San Francisco, CA, USA',
+                    value: contactInfo.location,
                     type: 'text'
                   },
                   {
@@ -437,7 +510,7 @@ const LeadDetails: React.FC = () => {
                     bg: 'bg-orange-50 dark:bg-orange-900/30',
                     color: 'text-orange-500 dark:text-orange-300',
                     label: 'Company',
-                    value: 'Tech Solutions Inc.',
+                    value: contactInfo.company,
                     type: 'text'
                   }
                 ].map((item, idx) => (
@@ -719,9 +792,18 @@ const LeadDetails: React.FC = () => {
                               • {item.user}
                             </span>
                           </div>
-                          <span className='text-xs text-gray-400 dark:text-gray-500'>
-                            {item.time}
-                          </span>
+                          <div className='flex items-center gap-3'>
+                            <span className='text-xs text-gray-400 dark:text-gray-500'>
+                              {item.time}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteTimeline(item.id)}
+                              className='text-gray-400 hover:text-red-500 transition-colors'
+                              aria-label='Delete timeline item'
+                            >
+                              <i className='fa-solid fa-trash'></i>
+                            </button>
+                          </div>
                         </div>
 
                         <p className='text-sm text-gray-600 dark:text-gray-300 mb-3'>
@@ -772,6 +854,53 @@ const LeadDetails: React.FC = () => {
                     <i className='fa-regular fa-eye'></i>
                     View older activity
                   </button>
+                </div>
+              </div>
+
+              {/* Follow-ups List with delete */}
+              <div className='p-4 sm:p-5'>
+                <div className='flex items-center justify-between mb-3'>
+                  <h4 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
+                    <i className='fa-solid fa-list-check text-blue-500'></i>
+                    Pending Follow-ups
+                  </h4>
+                  <span className='text-xs text-gray-500 dark:text-gray-400'>
+                    {followups.length} item(s)
+                  </span>
+                </div>
+                <div className='space-y-2'>
+                  {followups.map(f => (
+                    <div
+                      key={f.id}
+                      className='flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2 bg-white dark:bg-gray-900'
+                    >
+                      <div className='flex-1 min-w-0'>
+                        <p className='text-sm font-medium text-gray-900 dark:text-gray-100 capitalize'>
+                          {f.type}
+                        </p>
+                        <p className='text-xs text-gray-500 dark:text-gray-400'>
+                          {new Date(f.scheduledAt).toLocaleString()}
+                        </p>
+                        {f.notes ? (
+                          <p className='text-xs text-gray-600 dark:text-gray-300 line-clamp-2'>
+                            {f.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteFollowup(f.id)}
+                        className='text-red-500 hover:text-red-600 text-sm px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20'
+                        aria-label='Delete followup'
+                      >
+                        <i className='fa-solid fa-trash'></i>
+                      </button>
+                    </div>
+                  ))}
+                  {followups.length === 0 && (
+                    <p className='text-sm text-gray-500 dark:text-gray-400'>
+                      No follow-ups scheduled.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -882,31 +1011,23 @@ const LeadDetails: React.FC = () => {
                     <i className='fa-regular fa-folder-open text-blue-500'></i>
                     Documents
                   </h3>
-                  <button className='text-blue-600 hover:text-blue-700 text-xs font-medium px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors flex items-center gap-1'>
+                  <button
+                    onClick={handleUploadClick}
+                    className='text-blue-600 hover:text-blue-700 text-xs font-medium px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors flex items-center gap-1'
+                  >
                     <i className='fa-solid fa-upload text-xs'></i>
                     <span className='hidden sm:inline'>Upload</span>
                   </button>
                 </div>
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  className='hidden'
+                  onChange={handleUploadChange}
+                />
 
                 <div className='space-y-2 flex-1'>
-                  {[
-                    {
-                      name: 'Passport_Front.pdf',
-                      size: '2.4 MB',
-                      date: 'Oct 24',
-                      icon: 'fa-regular fa-file-pdf',
-                      bg: 'bg-red-50 dark:bg-red-900/30',
-                      color: 'text-red-500 dark:text-red-300'
-                    },
-                    {
-                      name: 'Visa_Photo.jpg',
-                      size: '1.1 MB',
-                      date: 'Oct 24',
-                      icon: 'fa-regular fa-image',
-                      bg: 'bg-blue-50 dark:bg-blue-900/30',
-                      color: 'text-blue-500 dark:text-blue-300'
-                    }
-                  ].map((doc, idx) => (
+                  {documents.map((doc, idx) => (
                     <div
                       key={idx}
                       className='flex items-center justify-between p-3 rounded-lg border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors group'
@@ -1019,6 +1140,71 @@ const LeadDetails: React.FC = () => {
               >
                 <i className='fa-solid fa-user-check'></i>
                 Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editContactOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4'>
+          <div className='w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl'>
+            <div className='flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-5 py-4'>
+              <div>
+                <p className='text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 font-semibold'>
+                  Edit Contact
+                </p>
+                <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+                  Contact Details
+                </h3>
+              </div>
+              <button
+                onClick={() => setEditContactOpen(false)}
+                className='rounded-full p-2 text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'
+              >
+                <i className='fa-solid fa-xmark'></i>
+              </button>
+            </div>
+
+            <div className='px-5 py-4 space-y-3'>
+              {[
+                { key: 'email', label: 'Email Address', type: 'email' },
+                { key: 'phone', label: 'Phone Number', type: 'text' },
+                { key: 'location', label: 'Location', type: 'text' },
+                { key: 'company', label: 'Company', type: 'text' }
+              ].map(field => (
+                <div key={field.key}>
+                  <label className='text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1 block'>
+                    {field.label}
+                  </label>
+                  <input
+                    type={field.type}
+                    value={(contactDraft as any)[field.key]}
+                    onChange={e =>
+                      setContactDraft(prev => ({
+                        ...prev,
+                        [field.key]: e.target.value
+                      }))
+                    }
+                    className='w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-100 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className='flex items-center justify-end gap-2 border-t border-gray-200 dark:border-gray-800 px-5 py-4'>
+              <button
+                onClick={() => setEditContactOpen(false)}
+                className='px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-800'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveContact}
+                className='px-4 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm flex items-center gap-2'
+              >
+                <i className='fa-regular fa-floppy-disk'></i>
+                Save
               </button>
             </div>
           </div>

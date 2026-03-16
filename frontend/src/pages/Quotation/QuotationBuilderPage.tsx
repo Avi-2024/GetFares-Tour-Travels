@@ -6,7 +6,7 @@ import SurfaceCard from "../../components/ui/SurfaceCard";
 type Currency = "USD" | "EUR";
 interface Item { id: string; day: string; title: string; description: string; }
 interface Price { id: string; name: string; cost: number; markup: number; price: number; }
-const itinerary: Item[] = [{ id: "1", day: "Day 1", title: "Arrival & Transfer", description: "Private speedboat transfer from airport to resort." }, { id: "2", day: "Day 2", title: "Lagoon Excursion", description: "Guided reef and lagoon experience with lunch." }];
+const initialItinerary: Item[] = [{ id: "1", day: "Day 1", title: "Arrival & Transfer", description: "Private speedboat transfer from airport to resort." }, { id: "2", day: "Day 2", title: "Lagoon Excursion", description: "Guided reef and lagoon experience with lunch." }];
 const pricing: Price[] = [{ id: "1", name: "Accommodation", cost: 3200, markup: 15, price: 3680 }, { id: "2", name: "Transfers", cost: 400, markup: 10, price: 440 }, { id: "3", name: "Activities", cost: 120, markup: 8.3, price: 130 }];
 
 const QuotationBuilderPage: React.FC = () => {
@@ -16,12 +16,33 @@ const QuotationBuilderPage: React.FC = () => {
   const [currency, setCurrency] = useState<Currency>("USD");
   const [form, setForm] = useState({ quote: "QT-2026-089", version: "v1.2 Draft", customer: "Sarah Jenkins", email: "sarah.j@example.com", destination: "Maldives Retreat", startDate: "2026-12-15", nights: 5, adults: 2, validUntil: "2026-11-15", inclusions: "5 nights stay\nDaily breakfast and dinner\nRoundtrip transfers", exclusions: "International flights\nTravel insurance\nPersonal expenses" });
   const [downloading, setDownloading] = useState(false);
+  const [itineraryItems, setItineraryItems] = useState<Item[]>(initialItinerary);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newItem, setNewItem] = useState<{ day: string; title: string; description: string }>({
+    day: "Day 3",
+    title: "",
+    description: ""
+  });
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   const subtotal = useMemo(() => pricing.reduce((s, p) => s + p.price, 0), []);
   const taxes = subtotal * 0.1;
   const total = subtotal;
   const money = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2 }).format(v);
+
+  const addItineraryItem = () => {
+    if (!newItem.title.trim() || !newItem.description.trim() || !newItem.day.trim()) {
+      alert("Please fill all fields for the new item.");
+      return;
+    }
+    setItineraryItems(prev => [
+      ...prev,
+      { id: `${Date.now()}`, day: newItem.day, title: newItem.title, description: newItem.description }
+    ]);
+    const nextDay = `Day ${itineraryItems.length + 2}`;
+    setShowAddModal(false);
+    setNewItem({ day: nextDay, title: "", description: "" });
+  };
 
   const handleDownload = async () => {
     if (!previewRef.current || downloading) return;
@@ -71,14 +92,65 @@ const QuotationBuilderPage: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.1fr]">
         <div className="space-y-6">
-          <SurfaceCard><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Trip Details</h2><button className="text-sm text-blue-600">Edit Lead</button></div><div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Field label="Customer" value={form.customer} onChange={(v) => setForm((p) => ({ ...p, customer: v }))} /><Field label="Destination" value={form.destination} onChange={(v) => setForm((p) => ({ ...p, destination: v }))} /><div><label className="field-label">Start Date</label><input type="date" className="field-input" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} /></div><div><label className="field-label">Nights</label><input type="number" className="field-input" value={form.nights} onChange={(e) => setForm((p) => ({ ...p, nights: Number(e.target.value || 1) }))} /></div></div></SurfaceCard>
-          <SurfaceCard><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Itinerary Items</h2><button className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300"><FaPlus className="mr-1 inline" /> Add Item</button></div><div className="space-y-3">{itinerary.map((i) => <div key={i.id} className="rounded-xl border border-gray-200 p-3 dark:border-gray-700"><div className="mb-1 flex items-center gap-2"><span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{i.day}</span><h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">{i.title}</h3></div><p className="text-xs text-gray-500">{i.description}</p></div>)}</div></SurfaceCard>
+          <SurfaceCard><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Trip Details</h2><button onClick={() => navigate('/leads/1')} className="text-sm text-blue-600">Edit Lead</button></div><div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Field label="Customer" value={form.customer} onChange={(v) => setForm((p) => ({ ...p, customer: v }))} /><Field label="Destination" value={form.destination} onChange={(v) => setForm((p) => ({ ...p, destination: v }))} /><div><label className="field-label">Start Date</label><input type="date" className="field-input" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} /></div><div><label className="field-label">Nights</label><input type="number" className="field-input" value={form.nights} onChange={(e) => setForm((p) => ({ ...p, nights: Number(e.target.value || 1) }))} /></div></div></SurfaceCard>
+          <SurfaceCard><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Itinerary Items</h2><button onClick={() => setShowAddModal(true)} className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300"><FaPlus className="mr-1 inline" /> Add Item</button></div><div className="space-y-3">{itineraryItems.map((i) => <div key={i.id} className="rounded-xl border border-gray-200 p-3 dark:border-gray-700"><div className="mb-1 flex items-center gap-2"><span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{i.day}</span><h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">{i.title}</h3></div><p className="text-xs text-gray-500">{i.description}</p></div>)}</div></SurfaceCard>
           <SurfaceCard><div className="mb-3 flex items-center justify-between"><h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Pricing Breakdown</h2><select className="field-input w-28 py-1.5" value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}><option>USD</option><option>EUR</option></select></div><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-gray-200 text-gray-500 dark:border-gray-700"><th className="py-2 text-left">Item</th><th className="py-2 text-right">Cost</th><th className="py-2 text-right">Markup</th><th className="py-2 text-right">Price</th></tr></thead><tbody>{pricing.map((p) => <tr key={p.id} className="border-b border-gray-100 dark:border-gray-800"><td className="py-2">{p.name}</td><td className="py-2 text-right">{money(p.cost)}</td><td className="py-2 text-right text-green-600">{p.markup}%</td><td className="py-2 text-right font-medium">{money(p.price)}</td></tr>)}</tbody></table></div><div className="mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Subtotal</span><span>{money(subtotal)}</span></div><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Taxes (10%)</span><span>{money(taxes)}</span></div><div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold"><span>Total</span><span className="text-blue-600">{money(total)}</span></div></div></SurfaceCard>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2"><SurfaceCard><h3 className="mb-2 text-sm font-semibold text-green-700">Inclusions</h3><textarea rows={5} value={form.inclusions} onChange={(e) => setForm((p) => ({ ...p, inclusions: e.target.value }))} className="field-input" /></SurfaceCard><SurfaceCard><h3 className="mb-2 text-sm font-semibold text-red-700">Exclusions</h3><textarea rows={5} value={form.exclusions} onChange={(e) => setForm((p) => ({ ...p, exclusions: e.target.value }))} className="field-input" /></SurfaceCard></div>
         </div>
 
-        {showPreview ? <SurfaceCard className="h-fit xl:sticky xl:top-20"><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => setMobile(false)} className={`rounded-lg px-2 py-1 text-xs ${!mobile ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}><FaDesktop className="mr-1 inline" /> Desktop</button><button onClick={() => setMobile(true)} className={`rounded-lg px-2 py-1 text-xs ${mobile ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}><FaMobileScreen className="mr-1 inline" /> Mobile</button></div><div className="flex gap-2"><button className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700"><FaArrowRotateRight className="mr-1 inline" /> Refresh</button><button onClick={() => setShowPreview(false)} className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700">Hide</button></div></div><div ref={previewRef} className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${mobile ? "max-w-[360px]" : "max-w-3xl"}`}><div className="mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800"><div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white"><FaPlaneDeparture /></div><div><p className="font-semibold">GetFares Travel CRM</p><p className="text-xs text-gray-500">support@getfares.com</p></div></div><div className="text-right"><p className="text-lg font-bold text-blue-600">QUOTATION</p><p className="text-xs text-gray-500">#{form.quote}</p></div></div><div className="mb-5 flex items-center justify-between text-sm"><div><p className="font-medium">{form.customer}</p><p className="text-xs text-gray-500">{form.email}</p></div><div className="text-right text-xs text-gray-500"><p>{form.destination}</p><p>{form.nights} nights - {form.adults} adults</p></div></div><div className="mb-5 rounded-xl bg-gray-50 p-3 dark:bg-gray-800"><div className="mb-2 flex justify-between text-xs text-gray-500"><span>Travel Date</span><span>{form.startDate}</span></div><div className="mb-2 flex justify-between text-xs text-gray-500"><span>Valid Until</span><span>{form.validUntil}</span></div><div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold"><span>Total</span><span className="text-blue-600">{money(total)}</span></div></div><div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"><FaCheck className="mr-1 inline" /> Preview validated and ready to share.</div></div></SurfaceCard> : <SurfaceCard className="flex h-fit items-center justify-center"><button onClick={() => setShowPreview(true)} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">Show Preview</button></SurfaceCard>}
+        {showPreview ? <SurfaceCard className="h-fit"><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => setMobile(false)} className={`rounded-lg px-2 py-1 text-xs ${!mobile ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}><FaDesktop className="mr-1 inline" /> Desktop</button><button onClick={() => setMobile(true)} className={`rounded-lg px-2 py-1 text-xs ${mobile ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}><FaMobileScreen className="mr-1 inline" /> Mobile</button></div><div className="flex gap-2"><button className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700"><FaArrowRotateRight className="mr-1 inline" /> Refresh</button><button onClick={() => setShowPreview(false)} className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700">Hide</button></div></div><div ref={previewRef} className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${mobile ? "max-w-[360px]" : "max-w-3xl"}`}><div className="mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800"><div className="flex items-center gap-2"><div className="flex h-8 w-8 itemscenter justify-center rounded-lg bg-blue-600 text-white"><FaPlaneDeparture /></div><div><p className="font-semibold">GetFares Travel CRM</p><p className="text-xs text-gray-500">support@getfares.com</p></div></div><div className="text-right"><p className="text-lg font-bold text-blue-600">QUOTATION</p><p className="text-xs text-gray-500">#{form.quote}</p></div></div><div className="mb-5 flex items-center justify-between text-sm"><div><p className="font-medium">{form.customer}</p><p className="text-xs text-gray-500">{form.email}</p></div><div className="text-right text-xs text-gray-500"><p>{form.destination}</p><p>{form.nights} nights - {form.adults} adults</p></div></div><div className="mb-5 rounded-xl bg-gray-50 p-3 dark:bg-gray-800"><div className="mb-2 flex justify-between text-xs text-gray-500"><span>Travel Date</span><span>{form.startDate}</span></div><div className="mb-2 flex justify-between text-xs text-gray-500"><span>Valid Until</span><span>{form.validUntil}</span></div><div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold"><span>Total</span><span className="text-blue-600">{money(total)}</span></div></div><div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"><FaCheck className="mr-1 inline" /> Preview validated and ready to share.</div></div></SurfaceCard> : <SurfaceCard className="flex h-fit items-center justify-center"><button onClick={() => setShowPreview(true)} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">Show Preview</button></SurfaceCard>}
       </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Add Itinerary Item</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100">
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="field-label">Day</label>
+                <input
+                  className="field-input"
+                  value={newItem.day}
+                  onChange={(e) => setNewItem((p) => ({ ...p, day: e.target.value }))}
+                  placeholder="Day 3"
+                />
+              </div>
+              <div>
+                <label className="field-label">Title</label>
+                <input
+                  className="field-input"
+                  value={newItem.title}
+                  onChange={(e) => setNewItem((p) => ({ ...p, title: e.target.value }))}
+                  placeholder="Excursion / Transfer / Activity"
+                />
+              </div>
+              <div>
+                <label className="field-label">Description</label>
+                <textarea
+                  rows={3}
+                  className="field-input"
+                  value={newItem.description}
+                  onChange={(e) => setNewItem((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Add short details for the guest"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                Cancel
+              </button>
+              <button onClick={addItineraryItem} className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+                Save Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
