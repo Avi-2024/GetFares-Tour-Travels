@@ -59,6 +59,8 @@ const sections = [
         icon: FaCreditCard,
         permission: 'refunds.read'
       },
+
+      { label: 'Finance System', to: '/finance', icon: FaChartPie },
       { label: 'Visa', to: '/visa', icon: FaPassport, permission: 'visa.read' },
       {
         label: 'Complaints',
