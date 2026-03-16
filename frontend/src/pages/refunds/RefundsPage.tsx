@@ -5,8 +5,7 @@ import {
   FaMoneyBillTransfer,
   FaPlus,
   FaEye,
-  FaDownload,
-  FaFilter,
+ 
   FaChevronLeft,
   FaChevronRight,
   FaXmark
@@ -44,8 +43,7 @@ type RefundRow = {
 // Toast Component
 const Toast = ({
   message,
-  type,
-  onClose
+  type
 }: {
   message: string
   type: 'success' | 'error' | 'info'

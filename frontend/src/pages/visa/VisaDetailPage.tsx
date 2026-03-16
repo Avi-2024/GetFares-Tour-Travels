@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import React, { useState, } from 'react'
+import { useParams } from 'react-router-dom'
 import {
   FaListCheck,
   FaPassport,
@@ -15,7 +15,6 @@ import {
   FaCircleInfo,
   FaCalendarCheck,
   FaGlobe,
-  FaUserCheck,
   FaClock
 } from 'react-icons/fa6'
 import { DateInput, TextInput } from '../../components/form'
@@ -54,7 +53,7 @@ interface TimelineItem {
   title: string
   meta: string
   time: string
-  icon: JSX.Element
+  icon: React.ReactElement
   description?: string
 }
 
@@ -62,7 +61,6 @@ interface TimelineItem {
 const Toast = ({
   message,
   type,
-  onClose
 }: {
   message: string
   type: 'success' | 'error'
@@ -250,7 +248,7 @@ const DocumentPreviewModal = ({
 
 const VisaDetailPage = () => {
   const { id } = useParams()
-  const navigate = useNavigate()
+  // const navigate = useNavigate()
 
   // Status state
   const [status, setStatus] = useState<
