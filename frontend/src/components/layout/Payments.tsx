@@ -1124,7 +1124,7 @@ const Payments: React.FC = () => {
   }
 
   return (
-    <div className='space-y-4 sm:space-y-6 px-4 sm:px-0 max-w-7xl mx-auto'>
+    <div className='space-y-4 sm:space-y-6 px-0 sm:px-0 max-w-9xl mx-auto'>
       {/* Toast */}
       {toast.show && (
         <Toast
