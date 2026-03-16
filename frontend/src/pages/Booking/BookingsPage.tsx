@@ -13,17 +13,15 @@ import {
   FaPaperPlane,
   FaPlus,
   FaTriangleExclamation,
-  FaMoneyBillWave,
-  FaEnvelope,
   FaFilter,
   FaXmark,
   FaCircleCheck,
   FaCircleExclamation,
   FaClock,
-  FaUser,
-  FaGlobe,
-  FaDollarSign,
-  FaFilePdf
+  // FaUser,
+  // FaGlobe,
+  // FaDollarSign,
+  // FaFilePdf
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
@@ -151,8 +149,7 @@ const bookings: Booking[] = [
 // Toast Component
 const Toast = ({
   message,
-  type,
-  onClose
+  type
 }: {
   message: string
   type: 'success' | 'error' | 'info'
@@ -854,7 +851,7 @@ const BookingsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [error, setError] = useState('')
+  const [error] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<{
@@ -882,19 +879,6 @@ const BookingsPage: React.FC = () => {
       () => setToast({ show: false, message: '', type: 'success' }),
       3000
     )
-  }
-
-  const handleGenerateInvoice = async (bookingId: string) => {
-    setLoading(true)
-    try {
-      await bookingsApi.generateInvoice(bookingId)
-      showToast('Invoice generated successfully', 'success')
-    } catch (error) {
-      console.error('Failed to generate invoice:', error)
-      showToast('Failed to generate invoice', 'error')
-    } finally {
-      setLoading(false)
-    }
   }
 
   const handleSendConfirmation = async (bookingId: string) => {
@@ -933,8 +917,7 @@ const BookingsPage: React.FC = () => {
   }
 
   const handleInvoiceSubmit = async (
-    bookingId: string,
-    invoiceData: InvoiceData
+    bookingId: string
   ) => {
     setLoading(true)
     try {
@@ -978,7 +961,7 @@ const BookingsPage: React.FC = () => {
         showToast(validationError, 'error')
         return
       }
-      await bookingsApi.cancelBooking(bookingId, reason)
+      await bookingsApi.cancel(bookingId, reason)
       showToast('Booking cancelled successfully', 'success')
       // Update local state would go here
     } catch (error) {

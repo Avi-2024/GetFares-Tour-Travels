@@ -18,15 +18,12 @@ import {
   FaXmark,
   FaFilter,
   FaEye,
-  FaCheck,
   FaTrash,
-  FaFileInvoice,
   FaReceipt
 } from 'react-icons/fa6'
 import { FaEdit } from 'react-icons/fa'
 import SurfaceCard from '../ui/SurfaceCard'
 import EmptyState from '../ui/EmptyState'
-import StatusBadge from '../ui/StatusBadge'
 
 type TxStatus = 'completed' | 'pending' | 'failed' | 'refunded'
 type PaymentMode = 'bank' | 'card' | 'cash' | 'cheque' | 'online'
@@ -158,8 +155,7 @@ const initialTransactions: Transaction[] = [
 // Toast Component
 const Toast = ({
   message,
-  type,
-  onClose
+  type
 }: {
   message: string
   type: 'success' | 'error' | 'info'
@@ -1364,7 +1360,7 @@ const Payments: React.FC = () => {
           <>
             {/* Mobile View - Cards */}
             <div className='block lg:hidden divide-y divide-gray-100 dark:divide-gray-800'>
-              {rows.map((tx, index) => (
+              {rows.map((tx) => (
                 <div
                   key={tx.id}
                   className='p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors'

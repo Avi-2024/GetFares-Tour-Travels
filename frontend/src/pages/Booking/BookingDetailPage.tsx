@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  FaArrowLeft,
   FaFileInvoice,
   FaCreditCard,
   FaBan,
@@ -13,7 +12,6 @@ import {
   FaXmark,
   FaCircleCheck,
   FaCircleExclamation,
-  FaPrint
 } from 'react-icons/fa6'
 
 // Types
@@ -75,8 +73,7 @@ interface Payment {
 // Toast Component
 const Toast = ({
   message,
-  type,
-  onClose
+  type
 }: {
   message: string
   type: 'success' | 'error' | 'info'
@@ -325,9 +322,7 @@ const BookingDetailPage: React.FC = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview')
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
   const [cancelError, setCancelError] = useState('')
