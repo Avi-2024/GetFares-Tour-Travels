@@ -11,8 +11,11 @@ import {
   FaPlus,
   FaXmark,
   FaCircleCheck,
-  FaCircleExclamation,
+  FaCircleExclamation
 } from 'react-icons/fa6'
+
+let bookingIdCounter = 1000
+const nextBookingId = (prefix = '') => `${prefix}${++bookingIdCounter}`
 
 // Types
 interface Booking {
@@ -457,7 +460,7 @@ const BookingDetailPage: React.FC = () => {
       setBooking(prev => ({ ...prev, status: newStatus }))
 
       const newHistory: StatusHistory = {
-        id: Date.now().toString(),
+        id: nextBookingId(),
         status: newStatus,
         changedBy: 'Current User',
         changedAt: new Date().toISOString(),
@@ -492,7 +495,7 @@ const BookingDetailPage: React.FC = () => {
       }))
 
       const newHistory: StatusHistory = {
-        id: Date.now().toString(),
+        id: nextBookingId(),
         status: 'CANCELLED',
         changedBy: 'Current User',
         changedAt: new Date().toISOString(),
@@ -518,16 +521,18 @@ const BookingDetailPage: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 500))
 
       const newInvoice: Invoice = {
-        id: `INV-${Date.now()}`,
+        id: `INV-${nextBookingId()}`,
         invoiceNumber: `INV-2023-${String(invoices.length + 1).padStart(
           3,
           '0'
         )}`,
         amount: booking.totalAmount - booking.advanceReceived,
         status: 'DRAFT',
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
+        dueDate: (() => {
+          const d = new Date()
+          d.setDate(d.getDate() + 7)
+          return d.toISOString().split('T')[0]
+        })(),
         createdAt: new Date().toISOString().split('T')[0]
       }
 
@@ -536,7 +541,7 @@ const BookingDetailPage: React.FC = () => {
       setShowInvoiceModal(true)
 
       const newHistory: StatusHistory = {
-        id: Date.now().toString(),
+        id: nextBookingId(),
         status: 'INVOICE_GENERATED',
         changedBy: 'Current User',
         changedAt: new Date().toISOString(),
@@ -578,7 +583,7 @@ const BookingDetailPage: React.FC = () => {
     }))
 
     const newHistory: StatusHistory = {
-      id: Date.now().toString(),
+      id: nextBookingId(),
       status: 'PAYMENT_RECEIVED',
       changedBy: 'Current User',
       changedAt: new Date().toISOString(),
@@ -593,7 +598,7 @@ const BookingDetailPage: React.FC = () => {
 
   const handleAddPayment = () => {
     const newPayment: Payment = {
-      id: `PAY-${Date.now()}`,
+      id: `PAY-${nextBookingId()}`,
       amount: 500,
       date: new Date().toISOString(),
       mode: 'cash',
@@ -612,7 +617,7 @@ const BookingDetailPage: React.FC = () => {
     }))
 
     const newHistory: StatusHistory = {
-      id: Date.now().toString(),
+      id: nextBookingId(),
       status: 'PAYMENT_RECEIVED',
       changedBy: 'Current User',
       changedAt: new Date().toISOString(),
@@ -710,7 +715,7 @@ const BookingDetailPage: React.FC = () => {
   if (loading && !booking) {
     return (
       <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
-        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8'>
+        <div className='max-w-9xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8'>
           <div className='animate-pulse space-y-6'>
             <div className='h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/4'></div>
             <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
@@ -767,7 +772,7 @@ const BookingDetailPage: React.FC = () => {
         onAddPayment={handleAddPayment}
       />
 
-      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8'>
+      <div className='max-w-7xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8'>
         {/* Header */}
         <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6'>
           <div>
