@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaArrowRotateRight, FaCheck, FaDesktop, FaDownload, FaEnvelope, FaFloppyDisk, FaMobileScreen, FaPlaneDeparture, FaPlus } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
@@ -15,17 +15,58 @@ const QuotationBuilderPage: React.FC = () => {
   const [mobile, setMobile] = useState(false);
   const [currency, setCurrency] = useState<Currency>("USD");
   const [form, setForm] = useState({ quote: "QT-2026-089", version: "v1.2 Draft", customer: "Sarah Jenkins", email: "sarah.j@example.com", destination: "Maldives Retreat", startDate: "2026-12-15", nights: 5, adults: 2, validUntil: "2026-11-15", inclusions: "5 nights stay\nDaily breakfast and dinner\nRoundtrip transfers", exclusions: "International flights\nTravel insurance\nPersonal expenses" });
+  const [downloading, setDownloading] = useState(false);
+  const previewRef = useRef<HTMLDivElement | null>(null);
 
   const subtotal = useMemo(() => pricing.reduce((s, p) => s + p.price, 0), []);
   const taxes = subtotal * 0.1;
   const total = subtotal;
   const money = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2 }).format(v);
 
+  const handleDownload = async () => {
+    if (!previewRef.current || downloading) return;
+    setDownloading(true);
+    try {
+      // Lazy-load only when needed to keep bundle light and avoid install.
+      // @ts-ignore
+      const html2canvas = (await import(/* @vite-ignore */ "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm")).default;
+      // @ts-ignore
+      const { default: JsPDF } = await import(/* @vite-ignore */ "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+
+      const canvas = await html2canvas(previewRef.current, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new JsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, pageWidth, imgHeight, "", "FAST");
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, pageWidth, imgHeight, "", "FAST");
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`${form.quote || "quotation"}.pdf`);
+    } catch (err) {
+      console.error("PDF export failed", err);
+      alert("Download nahi ho paya, please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
         <div><h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Quotation Builder</h1><p className="text-sm text-gray-500">Create and preview polished quotations quickly.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{form.version}</span><button className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><FaDownload className="mr-2 inline" /> Download</button><button className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><FaEnvelope className="mr-2 inline" /> Send</button><button onClick={() => navigate('/quotations')} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><FaFloppyDisk className="mr-2 inline" /> Save Quote</button></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{form.version}</span><button onClick={handleDownload} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" disabled={downloading}><FaDownload className="mr-2 inline" /> {downloading ? "Preparing..." : "Download"}</button><button className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><FaEnvelope className="mr-2 inline" /> Send</button><button onClick={() => navigate('/quotations')} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><FaFloppyDisk className="mr-2 inline" /> Save Quote</button></div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.1fr]">
@@ -36,7 +77,7 @@ const QuotationBuilderPage: React.FC = () => {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2"><SurfaceCard><h3 className="mb-2 text-sm font-semibold text-green-700">Inclusions</h3><textarea rows={5} value={form.inclusions} onChange={(e) => setForm((p) => ({ ...p, inclusions: e.target.value }))} className="field-input" /></SurfaceCard><SurfaceCard><h3 className="mb-2 text-sm font-semibold text-red-700">Exclusions</h3><textarea rows={5} value={form.exclusions} onChange={(e) => setForm((p) => ({ ...p, exclusions: e.target.value }))} className="field-input" /></SurfaceCard></div>
         </div>
 
-        {showPreview ? <SurfaceCard className="h-fit xl:sticky xl:top-20"><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => setMobile(false)} className={`rounded-lg px-2 py-1 text-xs ${!mobile ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}><FaDesktop className="mr-1 inline" /> Desktop</button><button onClick={() => setMobile(true)} className={`rounded-lg px-2 py-1 text-xs ${mobile ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}><FaMobileScreen className="mr-1 inline" /> Mobile</button></div><div className="flex gap-2"><button className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700"><FaArrowRotateRight className="mr-1 inline" /> Refresh</button><button onClick={() => setShowPreview(false)} className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700">Hide</button></div></div><div className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${mobile ? "max-w-[360px]" : "max-w-3xl"}`}><div className="mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800"><div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white"><FaPlaneDeparture /></div><div><p className="font-semibold">GetFares Travel CRM</p><p className="text-xs text-gray-500">support@getfares.com</p></div></div><div className="text-right"><p className="text-lg font-bold text-blue-600">QUOTATION</p><p className="text-xs text-gray-500">#{form.quote}</p></div></div><div className="mb-5 flex items-center justify-between text-sm"><div><p className="font-medium">{form.customer}</p><p className="text-xs text-gray-500">{form.email}</p></div><div className="text-right text-xs text-gray-500"><p>{form.destination}</p><p>{form.nights} nights - {form.adults} adults</p></div></div><div className="mb-5 rounded-xl bg-gray-50 p-3 dark:bg-gray-800"><div className="mb-2 flex justify-between text-xs text-gray-500"><span>Travel Date</span><span>{form.startDate}</span></div><div className="mb-2 flex justify-between text-xs text-gray-500"><span>Valid Until</span><span>{form.validUntil}</span></div><div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold"><span>Total</span><span className="text-blue-600">{money(total)}</span></div></div><div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"><FaCheck className="mr-1 inline" /> Preview validated and ready to share.</div></div></SurfaceCard> : <SurfaceCard className="flex h-fit items-center justify-center"><button onClick={() => setShowPreview(true)} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">Show Preview</button></SurfaceCard>}
+        {showPreview ? <SurfaceCard className="h-fit xl:sticky xl:top-20"><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => setMobile(false)} className={`rounded-lg px-2 py-1 text-xs ${!mobile ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}><FaDesktop className="mr-1 inline" /> Desktop</button><button onClick={() => setMobile(true)} className={`rounded-lg px-2 py-1 text-xs ${mobile ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}><FaMobileScreen className="mr-1 inline" /> Mobile</button></div><div className="flex gap-2"><button className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700"><FaArrowRotateRight className="mr-1 inline" /> Refresh</button><button onClick={() => setShowPreview(false)} className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700">Hide</button></div></div><div ref={previewRef} className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${mobile ? "max-w-[360px]" : "max-w-3xl"}`}><div className="mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800"><div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white"><FaPlaneDeparture /></div><div><p className="font-semibold">GetFares Travel CRM</p><p className="text-xs text-gray-500">support@getfares.com</p></div></div><div className="text-right"><p className="text-lg font-bold text-blue-600">QUOTATION</p><p className="text-xs text-gray-500">#{form.quote}</p></div></div><div className="mb-5 flex items-center justify-between text-sm"><div><p className="font-medium">{form.customer}</p><p className="text-xs text-gray-500">{form.email}</p></div><div className="text-right text-xs text-gray-500"><p>{form.destination}</p><p>{form.nights} nights - {form.adults} adults</p></div></div><div className="mb-5 rounded-xl bg-gray-50 p-3 dark:bg-gray-800"><div className="mb-2 flex justify-between text-xs text-gray-500"><span>Travel Date</span><span>{form.startDate}</span></div><div className="mb-2 flex justify-between text-xs text-gray-500"><span>Valid Until</span><span>{form.validUntil}</span></div><div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold"><span>Total</span><span className="text-blue-600">{money(total)}</span></div></div><div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"><FaCheck className="mr-1 inline" /> Preview validated and ready to share.</div></div></SurfaceCard> : <SurfaceCard className="flex h-fit items-center justify-center"><button onClick={() => setShowPreview(true)} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">Show Preview</button></SurfaceCard>}
       </div>
     </div>
   );
