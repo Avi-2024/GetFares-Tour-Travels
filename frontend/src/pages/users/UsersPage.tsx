@@ -10,7 +10,12 @@ import {
   FaExclamationTriangle,
   FaCheckCircle
 } from 'react-icons/fa'
-import { FaXmark } from 'react-icons/fa6'
+import {
+  FaXmark,
+  FaFilter,
+  FaChevronLeft,
+  FaChevronRight
+} from 'react-icons/fa6'
 // import { rbacApi } from '../../api/auth'
 
 interface User {
@@ -33,7 +38,7 @@ interface Role {
 const Toast = ({
   message,
   type,
-  
+  onClose
 }: {
   message: string
   type: 'success' | 'error' | 'info'
@@ -507,6 +512,7 @@ const UsersPage: React.FC = () => {
 
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [toast, setToast] = useState<{
     show: boolean
     message: string
@@ -672,9 +678,9 @@ const UsersPage: React.FC = () => {
         }}
       />
 
-      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8'>
+      <div className='max-w-8xl mx-auto px-0 sm:px-6 lg:px-0 py-4 sm:py-6 lg:py-8'>
         {/* Header */}
-        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6'>
+        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6'>
           <div>
             <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
               User Management
@@ -691,9 +697,67 @@ const UsersPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Search */}
-        <div className='mb-6'>
-          <div className='relative'>
+        {/* Search and Filter - Mobile */}
+        <div className='flex flex-col gap-3 sm:hidden mb-4'>
+          <div className='flex items-center gap-2'>
+            <div className='flex-1 relative'>
+              <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm' />
+              <input
+                type='text'
+                placeholder='Search users...'
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className='w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500'
+              />
+            </div>
+            <button
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className={`p-2.5 rounded-xl border transition-colors ${
+                showMobileFilters
+                  ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-800'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              <FaFilter />
+            </button>
+          </div>
+
+          {/* Mobile Filter Panel */}
+          {showMobileFilters && (
+            <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4'>
+              <div className='flex items-center justify-between mb-3'>
+                <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  Filter Options
+                </h3>
+                <button
+                  onClick={() => setShowMobileFilters(false)}
+                  className='text-gray-400 hover:text-gray-600'
+                >
+                  <FaXmark />
+                </button>
+              </div>
+              <div className='space-y-3'>
+                <select className='w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500'>
+                  <option value='all'>All Roles</option>
+                  {roles.map(role => (
+                    <option key={role.id} value={role.name}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+                <select className='w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500'>
+                  <option value='all'>All Status</option>
+                  <option value='active'>Active</option>
+                  <option value='inactive'>Inactive</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Search - Desktop */}
+        <div className='hidden sm:block mb-6'>
+          <div className='relative max-w-md'>
             <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm' />
             <input
               type='text'
@@ -705,8 +769,8 @@ const UsersPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Users Table */}
-        <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
+        {/* Users Table - Desktop */}
+        <div className='hidden sm:block bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
           <div className='overflow-x-auto'>
             <table className='min-w-[800px] w-full'>
               <thead className='bg-gray-50 dark:bg-gray-800/50'>
@@ -800,6 +864,90 @@ const UsersPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* Users Cards - Mobile */}
+        <div className='sm:hidden space-y-3'>
+          {filteredUsers.map(user => (
+            <div
+              key={user.id}
+              className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 space-y-3'
+            >
+              {/* Header */}
+              <div className='flex items-start justify-between'>
+                <div>
+                  <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                    {user.fullName}
+                  </p>
+                  <p className='text-xs text-gray-500 dark:text-gray-400'>
+                    ID: {user.id}
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                    user.isActive
+                      ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
+                      : 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
+                  }`}
+                >
+                  {user.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              {/* Contact */}
+              <div>
+                <p className='text-xs text-gray-500 dark:text-gray-400'>
+                  Email
+                </p>
+                <p className='text-sm text-gray-700 dark:text-gray-300 break-all'>
+                  {user.email}
+                </p>
+                {user.phone && (
+                  <>
+                    <p className='text-xs text-gray-500 dark:text-gray-400 mt-2'>
+                      Phone
+                    </p>
+                    <p className='text-sm text-gray-700 dark:text-gray-300'>
+                      {user.phone}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Role */}
+              <div>
+                <p className='text-xs text-gray-500 dark:text-gray-400'>Role</p>
+                <span className='inline-flex items-center px-2.5 py-1 mt-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900'>
+                  {user.role || 'No Role'}
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className='flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-800'>
+                <button
+                  onClick={() => openRoleModal(user)}
+                  className='p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors'
+                  title='Assign Role'
+                >
+                  <FaUserShield className='text-sm' />
+                </button>
+                <button
+                  onClick={() => openEditModal(user)}
+                  className='p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors'
+                  title='Edit'
+                >
+                  <FaEdit className='text-sm' />
+                </button>
+                <button
+                  onClick={() => openDeleteModal(user)}
+                  className='p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors'
+                  title='Delete'
+                >
+                  <FaTrash className='text-sm' />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
