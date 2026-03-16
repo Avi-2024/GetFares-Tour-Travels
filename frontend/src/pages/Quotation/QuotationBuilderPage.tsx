@@ -49,9 +49,9 @@ const QuotationBuilderPage: React.FC = () => {
     setDownloading(true);
     try {
       // Lazy-load only when needed to keep bundle light and avoid install.
-      // @ts-ignore
+      // @ts-expect-error
       const html2canvas = (await import(/* @vite-ignore */ "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm")).default;
-      // @ts-ignore
+      // @ts-expect-error
       const { default: JsPDF } = await import(/* @vite-ignore */ "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
 
       const canvas = await html2canvas(previewRef.current, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });

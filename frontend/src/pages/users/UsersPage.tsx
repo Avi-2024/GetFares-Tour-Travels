@@ -13,10 +13,13 @@ import {
 import {
   FaXmark,
   FaFilter,
-  FaChevronLeft,
-  FaChevronRight
+
+
 } from 'react-icons/fa6'
 // import { rbacApi } from '../../api/auth'
+
+let userIdCounter = 1000
+const nextUserId = () => `${++userIdCounter}`
 
 interface User {
   id: string
@@ -545,7 +548,7 @@ const UsersPage: React.FC = () => {
 
   const handleCreateUser = (formData: any) => {
     const newUser: User = {
-      id: Date.now().toString(),
+      id: nextUserId(),
       fullName: formData.fullName,
       email: formData.email,
       phone: formData.phone,
@@ -965,3 +968,4 @@ const UsersPage: React.FC = () => {
 }
 
 export default UsersPage
+

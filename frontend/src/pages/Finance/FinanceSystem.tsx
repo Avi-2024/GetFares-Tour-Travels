@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   FaBuilding,
   FaUser,
@@ -8,16 +7,9 @@ import {
   FaTrash,
   FaSearch,
   FaChevronLeft,
-  FaChevronRight,
-  FaArrowLeft,
-  FaCheck
+  FaChevronRight
 } from 'react-icons/fa'
-import {
-  FaXmark,
-  FaPenToSquare,
-  FaPercent,
-  FaFloppyDisk
-} from 'react-icons/fa6'
+import { FaXmark, FaPenToSquare, FaPercent, FaFloppyDisk } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 
