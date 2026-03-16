@@ -41,6 +41,7 @@ const CustomersPage: React.FC = () => {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const pageSize = 10
 
   // Mock data - replace with API call
@@ -270,7 +271,11 @@ const CustomersPage: React.FC = () => {
     if (!editFormData.phone.trim()) {
       errors.phone = 'Phone number is required'
       isValid = false
-    } else if (!/^[\+]?[1-9][\d]{0,15}$/.test(editFormData.phone.replace(/[\s\-\(\)]/g, ''))) {
+    } else if (
+      !/^[\+]?[1-9][\d]{0,15}$/.test(
+        editFormData.phone.replace(/[\s\-\(\)]/g, '')
+      )
+    ) {
       errors.phone = 'Please enter a valid phone number'
       isValid = false
     }
@@ -286,7 +291,9 @@ const CustomersPage: React.FC = () => {
     if (!editFormData.panNumber.trim()) {
       errors.panNumber = 'PAN number is required'
       isValid = false
-    } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(editFormData.panNumber.toUpperCase())) {
+    } else if (
+      !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(editFormData.panNumber.toUpperCase())
+    ) {
       errors.panNumber = 'Please enter a valid PAN number'
       isValid = false
     }
@@ -308,13 +315,15 @@ const CustomersPage: React.FC = () => {
 
     try {
       await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      setCustomers(prev => prev.map(customer => 
-        customer.id === editingCustomer.id 
-          ? { ...customer, ...editFormData }
-          : customer
-      ))
-      
+
+      setCustomers(prev =>
+        prev.map(customer =>
+          customer.id === editingCustomer.id
+            ? { ...customer, ...editFormData }
+            : customer
+        )
+      )
+
       setShowEditModal(false)
       setEditingCustomer(null)
     } catch (error: any) {
@@ -331,9 +340,9 @@ const CustomersPage: React.FC = () => {
 
   return (
     <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100'>
-      <div className='max-w-7xl mx-auto '>
+      <div className='max-w-8xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8'>
         {/* Header */}
-        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6'>
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-0 sm:px-0'>
           <div>
             <p className='text-sm text-gray-500 dark:text-gray-400 mb-1'>
               Customers
@@ -354,7 +363,7 @@ const CustomersPage: React.FC = () => {
         </div>
 
         {/* KPI Cards */}
-        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 px-0 sm:px-0'>
           <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5'>
             <p className='text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1'>
               Total Customers
@@ -413,8 +422,7 @@ const CustomersPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Filters Section */}
-        <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 mb-6'>
+        <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 mb-6 mx-0 sm:mx-0'>
           <div className='p-4 border-b border-gray-100 dark:border-gray-800'>
             <div className='flex flex-col gap-4'>
               {/* Search */}
@@ -432,7 +440,8 @@ const CustomersPage: React.FC = () => {
                 />
               </div>
 
-              <div className='flex flex-col sm:flex-row gap-2 sm:gap-4'>
+              {/* Desktop Filters */}
+              <div className='hidden sm:flex flex-col sm:flex-row gap-2 sm:gap-4'>
                 {/* Segment Filter */}
                 <select
                   value={segmentFilter}
@@ -479,12 +488,69 @@ const CustomersPage: React.FC = () => {
                   <FaDownload /> Export
                 </button>
               </div>
+
+              {/* Mobile Filter Button */}
+              <div className='sm:hidden'>
+                <button
+                  onClick={() => setShowMobileFilters(!showMobileFilters)}
+                  className='w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200'
+                >
+                  {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
+                </button>
+              </div>
+
+              {/* Mobile Filters */}
+              {showMobileFilters && (
+                <div className='sm:hidden space-y-3 mt-2'>
+                  <select
+                    value={segmentFilter}
+                    onChange={e => {
+                      setSegmentFilter(e.target.value)
+                      setPage(1)
+                    }}
+                    className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
+                  >
+                    <option value='all'>All Segments</option>
+                    {segments.map(s => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value)}
+                    className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
+                  >
+                    <option value='name'>Sort by Name</option>
+                    <option value='ltv'>Sort by LTV</option>
+                    <option value='bookings'>Sort by Bookings</option>
+                  </select>
+
+                  <button
+                    onClick={() =>
+                      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))
+                    }
+                    className='w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200'
+                  >
+                    {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+                  </button>
+
+                  <button
+                    onClick={handleExport}
+                    className='w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2'
+                  >
+                    <FaDownload /> Export
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Customers Table */}
-          <div className='overflow-x-auto'>
-            <table className='w-full '>
+          {/* Customers Table - Desktop */}
+          <div className='hidden sm:block overflow-x-auto'>
+            <table className='w-full'>
               <thead className='bg-gray-50 dark:bg-gray-800/50'>
                 <tr>
                   <th className='px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
@@ -524,19 +590,6 @@ const CustomersPage: React.FC = () => {
                       <p className='text-xs text-gray-500 dark:text-gray-400'>
                         PAN: {customer.panNumber}
                       </p>
-                      <div className='sm:hidden mt-1 space-y-1'>
-                        <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
-                          <FaPhone className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
-                          {customer.phone}
-                        </p>
-                        <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
-                          <FaEnvelope className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
-                          {customer.email}
-                        </p>
-                        <p className='text-xs text-gray-600 dark:text-gray-400 mt-1'>
-                          LTV: {formatCurrency(customer.lifetimeValue)}
-                        </p>
-                      </div>
                     </td>
                     <td className='hidden sm:table-cell px-3 sm:px-6 py-4'>
                       <div className='space-y-1'>
@@ -609,6 +662,97 @@ const CustomersPage: React.FC = () => {
             </table>
           </div>
 
+          {/* Customers Cards - Mobile */}
+          <div className='sm:hidden divide-y divide-gray-100 dark:divide-gray-800'>
+            {paginatedCustomers.map(customer => (
+              <div
+                key={customer.id}
+                className='p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors'
+              >
+                {/* Header */}
+                <div className='flex items-start justify-between'>
+                  <div>
+                    <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                      {customer.fullName}
+                    </p>
+                    <p className='text-xs text-gray-500 dark:text-gray-400'>
+                      PAN: {customer.panNumber}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getSegmentClass(
+                      customer.segment
+                    )}`}
+                  >
+                    <MdOutlineSegment className='mr-1' />
+                    {customer.segment.replace('_', ' ')}
+                  </span>
+                </div>
+
+                {/* Contact */}
+                <div className='space-y-1'>
+                  <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
+                    <FaPhone className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
+                    {customer.phone}
+                  </p>
+                  <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
+                    <FaEnvelope className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
+                    {customer.email}
+                  </p>
+                </div>
+
+                {/* Stats */}
+                <div className='grid grid-cols-2 gap-2'>
+                  <div>
+                    <p className='text-xs text-gray-500'>Lifetime Value</p>
+                    <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                      {formatCurrency(customer.lifetimeValue)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-xs text-gray-500'>Bookings</p>
+                    <p className='text-sm text-gray-900 dark:text-gray-100'>
+                      {customer.totalBookings}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Last Booking */}
+                <div>
+                  <p className='text-xs text-gray-500'>Last Booking</p>
+                  <p className='text-sm text-gray-700 dark:text-gray-300'>
+                    {customer.lastBookingDate || 'N/A'}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className='flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-800'>
+                  <button
+                    onClick={() => navigate(`/customers/${customer.id}`)}
+                    className='p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors'
+                    title='View'
+                  >
+                    <FaEye className='text-sm' />
+                  </button>
+                  <button
+                    onClick={() => handleEditCustomer(customer)}
+                    className='p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors'
+                    title='Edit'
+                  >
+                    <FaEdit className='text-sm' />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCustomer(customer.id)}
+                    className='p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors'
+                    title='Delete'
+                  >
+                    <FaTrash className='text-sm' />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
           {/* Pagination */}
           <div className='flex items-center justify-between border-t border-gray-100 dark:border-gray-800 px-6 py-4'>
             <p className='text-sm text-gray-500 dark:text-gray-400'>
@@ -670,14 +814,23 @@ const CustomersPage: React.FC = () => {
                       <input
                         type='text'
                         value={editFormData.fullName}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                        onChange={e =>
+                          setEditFormData(prev => ({
+                            ...prev,
+                            fullName: e.target.value
+                          }))
+                        }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.fullName ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+                          editFormErrors.fullName
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
                         placeholder='Enter full name'
                       />
                       {editFormErrors.fullName && (
-                        <p className='mt-1 text-xs text-red-500'>{editFormErrors.fullName}</p>
+                        <p className='mt-1 text-xs text-red-500'>
+                          {editFormErrors.fullName}
+                        </p>
                       )}
                     </div>
 
@@ -689,14 +842,23 @@ const CustomersPage: React.FC = () => {
                       <input
                         type='tel'
                         value={editFormData.phone}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                        onChange={e =>
+                          setEditFormData(prev => ({
+                            ...prev,
+                            phone: e.target.value
+                          }))
+                        }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+                          editFormErrors.phone
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
                         placeholder='+1 555 0123'
                       />
                       {editFormErrors.phone && (
-                        <p className='mt-1 text-xs text-red-500'>{editFormErrors.phone}</p>
+                        <p className='mt-1 text-xs text-red-500'>
+                          {editFormErrors.phone}
+                        </p>
                       )}
                     </div>
 
@@ -708,14 +870,23 @@ const CustomersPage: React.FC = () => {
                       <input
                         type='email'
                         value={editFormData.email}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
+                        onChange={e =>
+                          setEditFormData(prev => ({
+                            ...prev,
+                            email: e.target.value
+                          }))
+                        }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+                          editFormErrors.email
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
                         placeholder='customer@example.com'
                       />
                       {editFormErrors.email && (
-                        <p className='mt-1 text-xs text-red-500'>{editFormErrors.email}</p>
+                        <p className='mt-1 text-xs text-red-500'>
+                          {editFormErrors.email}
+                        </p>
                       )}
                     </div>
 
@@ -727,15 +898,24 @@ const CustomersPage: React.FC = () => {
                       <input
                         type='text'
                         value={editFormData.panNumber}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, panNumber: e.target.value.toUpperCase() }))}
+                        onChange={e =>
+                          setEditFormData(prev => ({
+                            ...prev,
+                            panNumber: e.target.value.toUpperCase()
+                          }))
+                        }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.panNumber ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+                          editFormErrors.panNumber
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
                         placeholder='ABCDE1234F'
                         maxLength={10}
                       />
                       {editFormErrors.panNumber && (
-                        <p className='mt-1 text-xs text-red-500'>{editFormErrors.panNumber}</p>
+                        <p className='mt-1 text-xs text-red-500'>
+                          {editFormErrors.panNumber}
+                        </p>
                       )}
                     </div>
 
@@ -746,7 +926,12 @@ const CustomersPage: React.FC = () => {
                       </label>
                       <select
                         value={editFormData.clientCurrency}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, clientCurrency: e.target.value }))}
+                        onChange={e =>
+                          setEditFormData(prev => ({
+                            ...prev,
+                            clientCurrency: e.target.value
+                          }))
+                        }
                         className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
                       >
                         {currencies.map(currency => (
@@ -764,15 +949,24 @@ const CustomersPage: React.FC = () => {
                       </label>
                       <textarea
                         value={editFormData.addressLine}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, addressLine: e.target.value }))}
+                        onChange={e =>
+                          setEditFormData(prev => ({
+                            ...prev,
+                            addressLine: e.target.value
+                          }))
+                        }
                         rows={3}
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 resize-none ${
-                          editFormErrors.addressLine ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+                          editFormErrors.addressLine
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
                         placeholder='Enter complete address'
                       />
                       {editFormErrors.addressLine && (
-                        <p className='mt-1 text-xs text-red-500'>{editFormErrors.addressLine}</p>
+                        <p className='mt-1 text-xs text-red-500'>
+                          {editFormErrors.addressLine}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -791,7 +985,12 @@ const CustomersPage: React.FC = () => {
                       </label>
                       <select
                         value={editFormData.segment}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, segment: e.target.value as Customer['segment'] }))}
+                        onChange={e =>
+                          setEditFormData(prev => ({
+                            ...prev,
+                            segment: e.target.value as Customer['segment']
+                          }))
+                        }
                         className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
                       >
                         {segments.map(segment => (
@@ -809,7 +1008,12 @@ const CustomersPage: React.FC = () => {
                       </label>
                       <textarea
                         value={editFormData.preferences}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, preferences: e.target.value }))}
+                        onChange={e =>
+                          setEditFormData(prev => ({
+                            ...prev,
+                            preferences: e.target.value
+                          }))
+                        }
                         rows={4}
                         className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 resize-none'
                         placeholder='e.g., Beach resorts, All-inclusive packages, etc.'
@@ -821,7 +1025,9 @@ const CustomersPage: React.FC = () => {
                 {/* Error Message */}
                 {error && (
                   <div className='bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-3'>
-                    <p className='text-sm text-red-700 dark:text-red-400'>{error}</p>
+                    <p className='text-sm text-red-700 dark:text-red-400'>
+                      {error}
+                    </p>
                   </div>
                 )}
               </div>
