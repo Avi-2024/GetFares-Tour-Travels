@@ -4,13 +4,17 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
 import { NotificationsProvider } from './context/NotificationsContext.tsx'
+import { Provider } from 'react-redux'
+import { store } from './store'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <NotificationsProvider>
-        <App />
-      </NotificationsProvider>
-    </AuthProvider>
+    <Provider store={store}>
+      <AuthProvider>
+        <NotificationsProvider>
+          <App />
+        </NotificationsProvider>
+      </AuthProvider>
+    </Provider>
   </StrictMode>,
 )

@@ -32,60 +32,7 @@ interface Lead {
   consultant: string
 }
 
-const allLeads: Lead[] = [
-  {
-    id: 1,
-    leadId: '#LD-2026-001',
-    name: 'Sarah Connor',
-    email: 'sarah.c@gmail.com',
-    phone: '+1 555 123 4567',
-    destination: 'Maldives',
-    packageName: 'Honeymoon',
-    status: 'New',
-    priority: 'High',
-    sla: '1h left',
-    consultant: 'Alex Morgan'
-  },
-  {
-    id: 2,
-    leadId: '#LD-2026-002',
-    name: 'John Miller',
-    email: 'john.m@corp.com',
-    phone: '+44 20 7123',
-    destination: 'Dubai',
-    packageName: 'Business',
-    status: 'Contacted',
-    priority: 'Medium',
-    sla: '4h left',
-    consultant: 'Sarah Jenkins'
-  },
-  {
-    id: 3,
-    leadId: '#LD-2026-003',
-    name: 'Luna Raymond',
-    email: 'luna.r@gmail.com',
-    phone: '+1 555 122',
-    destination: 'Bali',
-    packageName: 'Family',
-    status: 'Qualified',
-    priority: 'Low',
-    sla: 'On time',
-    consultant: 'Mike Ross'
-  },
-  {
-    id: 4,
-    leadId: '#LD-2026-004',
-    name: 'David Roy',
-    email: 'david.roy@gmail.com',
-    phone: '+91 97322',
-    destination: 'Paris',
-    packageName: 'Luxury',
-    status: 'Lost',
-    priority: 'High',
-    sla: 'Overdue',
-    consultant: 'Alex Morgan'
-  }
-]
+const allLeads: Lead[] = []
 
 const tabs = ['All', 'New', 'Contacted', 'Qualified', 'Lost'] as const
 type Tab = typeof tabs[number]
@@ -105,11 +52,11 @@ const Leads: React.FC = () => {
       setLoading(true)
       setError('')
       const token = localStorage.getItem('auth_token')
-    if (!token) {
-      setFetchedLeads([])
-      setLoading(false)
-      return
-    }
+      if (!token) {
+        setFetchedLeads([])
+        setLoading(false)
+        return
+      }
       try {
         const res = await leadsApi.list({ page: 1, limit: 10, status: 'OPEN' })
         const unwrapArray = (r: any): any[] => {
@@ -138,7 +85,8 @@ const Leads: React.FC = () => {
         }
         const mapped: Lead[] = (dataArray as any[]).map((l, idx) => ({
           id: l.id ?? idx,
-          leadId: l.leadId ?? l.code ?? `#LD-${String(idx + 1).padStart(3, '0')}`,
+          leadId:
+            l.leadId ?? l.code ?? `#LD-${String(idx + 1).padStart(3, '0')}`,
           name: l.name ?? l.fullName ?? l.customerName ?? 'Unknown',
           email: l.email ?? 'N/A',
           phone: l.phone ?? l.mobile ?? 'N/A',

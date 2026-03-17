@@ -16,76 +16,11 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
+import { useAppDispatch, useAppSelector } from '../../store'
+import { fetchQuotations, type QuotationItem } from '../../store/quotationsSlice'
 
 type Status = 'pending' | 'accepted' | 'expired' | 'rejected' | 'draft'
-interface Quotation {
-  id: string
-  quoteNumber: string
-  customer: string
-  email: string
-  destination: string
-  details: string
-  total: number
-  margin: number
-  status: Status
-  lastSent: string | null
-  sentDate: string | null
-}
-
-const baseItems: Quotation[] = [
-  {
-    id: '1',
-    quoteNumber: 'QT-2026-089',
-    customer: 'Sarah Jenkins',
-    email: 'sarah.j@example.com',
-    destination: 'Maldives Retreat',
-    details: '5 Nights - All Inclusive',
-    total: 4250,
-    margin: 12,
-    status: 'pending',
-    lastSent: 'Mar 9 - Email',
-    sentDate: '2026-03-09'
-  },
-  {
-    id: '2',
-    quoteNumber: 'QT-2026-088',
-    customer: 'Michael Ross',
-    email: 'm.ross@company.com',
-    destination: 'Tokyo Business Trip',
-    details: '7 Nights - Hotel Only',
-    total: 2800,
-    margin: 15,
-    status: 'accepted',
-    lastSent: 'Mar 8 - WhatsApp',
-    sentDate: '2026-03-08'
-  },
-  {
-    id: '3',
-    quoteNumber: 'QT-2026-085',
-    customer: 'Emma Lewis',
-    email: 'emma.l@gmail.com',
-    destination: 'Paris Family Vacation',
-    details: '10 Nights - Package',
-    total: 8450,
-    margin: 10,
-    status: 'expired',
-    lastSent: 'Mar 2 - Email',
-    sentDate: '2026-03-02'
-  },
-  {
-    id: '4',
-    quoteNumber: 'Draft',
-    customer: 'David Kim',
-    email: 'New Lead',
-    destination: 'Bali Honeymoon',
-    details: '14 Nights',
-    total: 5100,
-    margin: 0,
-    status: 'draft',
-    lastSent: null,
-    sentDate: null
-  }
-]
+type Quotation = QuotationItem
 
 const tabs = [
   'All',
@@ -110,6 +45,9 @@ const styles: Record<Status, string> = {
 
 const QuotationsPage: React.FC = () => {
   const nav = useNavigate()
+  const dispatch = useAppDispatch()
+  const { items: apiItems, loading: apiLoading, error: apiError } =
+    useAppSelector(state => state.quotations)
   const [tab, setTab] = useState<typeof tabs[number]>('All')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -135,9 +73,13 @@ const QuotationsPage: React.FC = () => {
     }
   }, [])
 
+  useEffect(() => {
+    void dispatch(fetchQuotations())
+  }, [dispatch])
+
   const allItems = useMemo(
-    () => [...customQuotes, ...baseItems],
-    [customQuotes]
+    () => [...customQuotes, ...apiItems],
+    [customQuotes, apiItems]
   )
 
   const filtered = useMemo(
@@ -236,9 +178,9 @@ const QuotationsPage: React.FC = () => {
 
       {/* Main Card */}
       <SurfaceCard className='p-0 overflow-hidden border border-gray-200 dark:border-gray-800'>
-        {error && (
+        {(error || apiError) && (
           <div className='border-b border-gray-100 dark:border-gray-800 px-4 py-2'>
-            <p className='text-xs sm:text-sm text-red-500'>{error}</p>
+            <p className='text-xs sm:text-sm text-red-500'>{error || apiError}</p>
           </div>
         )}
 
@@ -372,12 +314,16 @@ const QuotationsPage: React.FC = () => {
         </div>
 
         {/* Quotations List */}
-        {rows.length === 0 ? (
-          <div className='p-8'>
-            <EmptyState
-              title='No quotations found'
-              description='Try different filters or create a new quotation.'
-              icon={<FaFileInvoice className='text-4xl' />}
+          {apiLoading ? (
+            <div className='p-8 text-center text-sm text-gray-500 dark:text-gray-400'>
+              Loading quotations...
+            </div>
+          ) : rows.length === 0 ? (
+            <div className='p-8'>
+              <EmptyState
+                title='No quotations found'
+                description='Try different filters or create a new quotation.'
+                icon={<FaFileInvoice className='text-4xl' />}
             />
           </div>
         ) : (

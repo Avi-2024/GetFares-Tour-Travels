@@ -44,61 +44,11 @@ interface SendLog {
   viewCount: number
 }
 
-const seedRows: ComponentRow[] = [
-  {
-    id: '1',
-    itemType: 'HOTEL',
-    description: '5N Beach Resort - Deluxe Room',
-    cost: 3200
-  },
-  {
-    id: '2',
-    itemType: 'TRANSFER',
-    description: 'Airport Return Private Transfer',
-    cost: 220
-  },
-  {
-    id: '3',
-    itemType: 'VISA',
-    description: 'Tourist Visa Processing (per person)',
-    cost: 180
-  }
-]
+const seedRows: ComponentRow[] = []
 
-const seedVersions: Version[] = [
-  {
-    id: 'v1',
-    version: 1,
-    createdAt: '2026-03-10T10:30Z',
-    createdBy: 'Alex Morgan',
-    changes: 'Initial draft created'
-  },
-  {
-    id: 'v2',
-    version: 2,
-    createdAt: '2026-03-11T14:20Z',
-    createdBy: 'Sarah Lee',
-    changes: 'Updated hotel costs based on availability'
-  }
-]
+const seedVersions: Version[] = []
 
-const seedLogs: SendLog[] = [
-  {
-    id: 'l1',
-    sentAt: '2026-03-11T15:00Z',
-    sentTo: 'sarah.j@example.com',
-    method: 'email',
-    viewedAt: '2026-03-11T16:30Z',
-    viewCount: 3
-  },
-  {
-    id: 'l2',
-    sentAt: '2026-03-12T09:15Z',
-    sentTo: '+1 555 1234',
-    method: 'whatsapp',
-    viewCount: 1
-  }
-]
+const seedLogs: SendLog[] = []
 
 const QuotationDetailPage: React.FC = () => {
   const { id } = useParams()

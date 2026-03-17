@@ -17,7 +17,7 @@ import {
   FaXmark,
   FaCircleCheck,
   FaCircleExclamation,
-  FaClock,
+  FaClock
   // FaUser,
   // FaGlobe,
   // FaDollarSign,
@@ -91,60 +91,7 @@ const paymentClasses: Record<PaymentStatus, string> = {
     'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
 }
 
-const bookings: Booking[] = [
-  {
-    id: '1',
-    bookingId: 'BK-2034',
-    customer: 'Sarah Jenkins',
-    destination: 'Maldives Retreat',
-    dates: 'Dec 15 - Dec 20',
-    status: 'confirmed',
-    payment: 'partial',
-    paid: 1200,
-    total: 4250,
-    documentsReady: 2,
-    documentsTotal: 4
-  },
-  {
-    id: '2',
-    bookingId: 'BK-2033',
-    customer: 'Michael Ross',
-    destination: 'Dubai Luxury',
-    dates: 'Jan 10 - Jan 15',
-    status: 'pending',
-    payment: 'unpaid',
-    paid: 0,
-    total: 2800,
-    documentsReady: 0,
-    documentsTotal: 3
-  },
-  {
-    id: '3',
-    bookingId: 'BK-2030',
-    customer: 'Emma Wilson',
-    destination: 'Paris & London',
-    dates: 'Nov 05 - Nov 12',
-    status: 'confirmed',
-    payment: 'paid',
-    paid: 5400,
-    total: 5400,
-    documentsReady: 5,
-    documentsTotal: 5
-  },
-  {
-    id: '4',
-    bookingId: 'BK-2028',
-    customer: 'James Lee',
-    destination: 'Tokyo Adventure',
-    dates: 'Dec 01 - Dec 10',
-    status: 'cancelled',
-    payment: 'refunded',
-    paid: 0,
-    total: 8200,
-    documentsReady: 1,
-    documentsTotal: 3
-  }
-]
+const bookings: Booking[] = []
 
 // Toast Component
 const Toast = ({
@@ -916,9 +863,7 @@ const BookingsPage: React.FC = () => {
     }
   }
 
-  const handleInvoiceSubmit = async (
-    bookingId: string
-  ) => {
+  const handleInvoiceSubmit = async (bookingId: string) => {
     setLoading(true)
     try {
       await bookingsApi.generateInvoice(bookingId)

@@ -70,87 +70,7 @@ const statusClasses: Record<TxStatus, string> = {
     'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
 }
 
-const initialTransactions: Transaction[] = [
-  {
-    id: '1',
-    referenceId: 'TRX-8902',
-    date: 'Mar 09, 2026',
-    customer: 'Sarah Jenkins',
-    bookingId: 'BK-2034',
-    amount: 1200,
-    mode: 'card',
-    status: 'completed',
-    paidAt: '2026-03-09T14:30:00Z',
-    verifiedAt: '2026-03-09T15:20:00Z',
-    verifiedBy: 'Alex Morgan',
-    paymentReference: 'CARD-8902',
-    gatewayOrderId: 'ORD-123456',
-    gatewayPaymentId: 'PAY-789012',
-    gatewaySignature: 'sig_abc123',
-    proofUrl: '/proofs/payment1.pdf',
-    notes: 'Payment via credit card',
-    createdAt: '2026-03-09T10:00:00Z',
-    updatedAt: '2026-03-09T15:20:00Z'
-  },
-  {
-    id: '2',
-    referenceId: 'TRX-8901',
-    date: 'Mar 08, 2026',
-    customer: 'Emma Wilson',
-    bookingId: 'BK-2030',
-    amount: 5400,
-    mode: 'bank',
-    status: 'completed',
-    paidAt: '2026-03-08T11:20:00Z',
-    verifiedAt: '2026-03-08T14:30:00Z',
-    verifiedBy: 'Sarah Lee',
-    paymentReference: 'NEFT-8901',
-    gatewayOrderId: 'ORD-123457',
-    gatewayPaymentId: 'PAY-789013',
-    gatewaySignature: 'sig_def456',
-    createdAt: '2026-03-08T09:00:00Z',
-    updatedAt: '2026-03-08T14:30:00Z'
-  },
-  {
-    id: '3',
-    referenceId: 'TRX-8895',
-    date: 'Mar 07, 2026',
-    customer: 'James Lee',
-    bookingId: 'BK-2028',
-    amount: -8200,
-    mode: 'bank',
-    status: 'refunded',
-    notes: 'Full refund processed',
-    createdAt: '2026-03-07T15:00:00Z',
-    updatedAt: '2026-03-07T15:00:00Z'
-  },
-  {
-    id: '4',
-    referenceId: 'TRX-8888',
-    date: 'Mar 05, 2026',
-    customer: 'Michael Ross',
-    bookingId: 'BK-2033',
-    amount: 2800,
-    mode: 'card',
-    status: 'failed',
-    notes: 'Card declined',
-    createdAt: '2026-03-05T10:00:00Z',
-    updatedAt: '2026-03-05T10:00:00Z'
-  },
-  {
-    id: '5',
-    referenceId: 'TRX-8889',
-    date: 'Mar 06, 2026',
-    customer: 'David Kim',
-    bookingId: 'BK-2035',
-    amount: 1500,
-    mode: 'cheque',
-    status: 'pending',
-    notes: 'Cheque submitted, awaiting clearance',
-    createdAt: '2026-03-06T11:30:00Z',
-    updatedAt: '2026-03-06T11:30:00Z'
-  }
-]
+const initialTransactions: Transaction[] = []
 
 // Toast Component
 const Toast = ({
@@ -1360,7 +1280,7 @@ const Payments: React.FC = () => {
           <>
             {/* Mobile View - Cards */}
             <div className='block lg:hidden divide-y divide-gray-100 dark:divide-gray-800'>
-              {rows.map((tx) => (
+              {rows.map(tx => (
                 <div
                   key={tx.id}
                   className='p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors'
