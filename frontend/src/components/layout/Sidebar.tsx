@@ -60,7 +60,7 @@ const sections = [
         permission: 'refunds.read'
       },
 
-      { label: 'Finance System', to: '/finance', icon: FaChartPie },
+      { label: 'Finance System', to: '/finance-system', icon: FaChartPie },
       { label: 'Visa', to: '/visa', icon: FaPassport, permission: 'visa.read' },
       {
         label: 'Complaints',

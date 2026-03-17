@@ -608,8 +608,6 @@ const PaymentModal = ({
 }
 
 const FinanceSystem: React.FC = () => {
-  const navigate = useNavigate()
-
   // State
   const [activeTab, setActiveTab] = useState<
     'clients' | 'suppliers' | 'cost' | 'payments'

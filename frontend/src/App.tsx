@@ -95,7 +95,7 @@ function App () {
 
             <Route path='/users' element={<UsersPage />} />
 
-            <Route path='/finance' element={<FinanceSystem />} />
+            <Route path='/finance-system' element={<FinanceSystem />} />
           </Route>
         </Route>
       </Routes>
