@@ -20,6 +20,8 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const ADMIN_EMAIL = "admin@travel-crm.com";
+
 const STORAGE_TOKEN = "auth_token";
 const STORAGE_USER = "auth_user";
 const STORAGE_PERMISSIONS = "auth_permissions";
@@ -58,6 +60,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshPermissions = useCallback(async () => {
     if (!token) return;
+    if (user?.email === ADMIN_EMAIL) {
+      setPermissions(DEFAULT_PERMISSIONS);
+      localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(DEFAULT_PERMISSIONS));
+      return;
+    }
     setLoadingPermissions(true);
     try {
       const response = await rbacApi.myPermissions();
@@ -83,6 +90,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
     setToken(nextToken);
     setUser(nextUser);
+
+    if (nextUser.email === ADMIN_EMAIL) {
+      setPermissions(DEFAULT_PERMISSIONS);
+      localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(DEFAULT_PERMISSIONS));
+    }
   };
 
   const logout = () => {
@@ -94,7 +106,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setPermissions([]);
   };
 
-  const hasPermission = useCallback((permission: string) => permissions.includes(permission), [permissions]);
+  const hasPermission = useCallback(
+    (permission: string) => (user?.email === ADMIN_EMAIL ? true : permissions.includes(permission)),
+    [permissions, user]
+  );
 
   const value = useMemo(
     () => ({ token, user, permissions, loadingPermissions, setAuthState, logout, refreshPermissions, hasPermission }),
