@@ -96,7 +96,7 @@ const Leads: React.FC = () => {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [fetchedLeads, setFetchedLeads] = useState<Lead[]>(allLeads)
+  const [fetchedLeads, setFetchedLeads] = useState<Lead[]>([])
   const pageSize = 3
   const nav = useNavigate()
 
@@ -105,14 +105,19 @@ const Leads: React.FC = () => {
       setLoading(true)
       setError('')
       const token = localStorage.getItem('auth_token')
-      if (!token) {
-        setFetchedLeads(allLeads)
-        setLoading(false)
-        return
-      }
+    if (!token) {
+      setFetchedLeads([])
+      setLoading(false)
+      return
+    }
       try {
         const res = await leadsApi.list({ page: 1, limit: 10, status: 'OPEN' })
-        const dataArray = (res as any)?.data ?? res ?? []
+        const dataArray =
+          (res as any)?.data?.data ??
+          (res as any)?.data?.items ??
+          (res as any)?.data ??
+          res ??
+          []
         const statusMap: Record<string, Lead['status']> = {
           OPEN: 'New',
           CONTACTED: 'Contacted',
@@ -132,14 +137,14 @@ const Leads: React.FC = () => {
           sla: l.sla ?? l.slaStatus ?? '—',
           consultant: l.consultant ?? l.owner ?? 'Unassigned'
         }))
-        setFetchedLeads(mapped.length ? mapped : allLeads)
+        setFetchedLeads(mapped)
       } catch (err) {
         const msg =
           err instanceof ApiError
             ? err.message || 'Failed to load leads'
             : 'Failed to load leads'
         setError(msg)
-        setFetchedLeads(allLeads)
+        setFetchedLeads([])
       } finally {
         setLoading(false)
       }
