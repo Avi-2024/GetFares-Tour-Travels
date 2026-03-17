@@ -23,12 +23,52 @@ const QuotationBuilderPage: React.FC = () => {
     title: "",
     description: ""
   });
+  const [packageType, setPackageType] = useState("Leisure");
+  const [services, setServices] = useState({
+    hotel: true,
+    flights: true,
+    tours: true,
+    visa: false,
+    insurance: false
+  });
+  const [costs, setCosts] = useState({
+    supplierCost: 4200,
+    markupPercent: 12,
+    serviceFee: 120,
+    taxPercent: 5,
+    discount: 0
+  });
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   const subtotal = useMemo(() => pricing.reduce((s, p) => s + p.price, 0), []);
   const taxes = subtotal * 0.1;
   const total = subtotal;
   const money = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2 }).format(v);
+
+  const computed = useMemo(() => {
+    const supplier = Number(costs.supplierCost) || 0;
+    const markupVal = supplier * ((Number(costs.markupPercent) || 0) / 100);
+    const serviceFee = Number(costs.serviceFee) || 0;
+    const preTax = supplier + markupVal + serviceFee;
+    const taxVal = preTax * ((Number(costs.taxPercent) || 0) / 100);
+    const discount = Number(costs.discount) || 0;
+    const totalPrice = Math.max(preTax + taxVal - discount, 0);
+    const profit = totalPrice - supplier - taxVal;
+    const margin = totalPrice ? (profit / totalPrice) * 100 : 0;
+    return { supplier, markupVal, serviceFee, taxVal, discount, totalPrice, profit, margin };
+  }, [costs]);
+
+  const autofillCustomer = () => {
+    setForm(p => ({
+      ...p,
+      customer: "Sarah Connor",
+      email: "sarah.c@gmail.com",
+      destination: "Maldives - Water Villa",
+      startDate: "2026-11-20",
+      nights: 6,
+      adults: 2
+    }));
+  };
 
   const addItineraryItem = () => {
     if (!newItem.title.trim() || !newItem.description.trim() || !newItem.day.trim()) {
@@ -92,7 +132,95 @@ const QuotationBuilderPage: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.1fr]">
         <div className="space-y-6">
-          <SurfaceCard><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Trip Details</h2><button onClick={() => navigate('/leads/1')} className="text-sm text-blue-600">Edit Lead</button></div><div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Field label="Customer" value={form.customer} onChange={(v) => setForm((p) => ({ ...p, customer: v }))} /><Field label="Destination" value={form.destination} onChange={(v) => setForm((p) => ({ ...p, destination: v }))} /><div><label className="field-label">Start Date</label><input type="date" className="field-input" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} /></div><div><label className="field-label">Nights</label><input type="number" className="field-input" value={form.nights} onChange={(e) => setForm((p) => ({ ...p, nights: Number(e.target.value || 1) }))} /></div></div></SurfaceCard>
+          <SurfaceCard>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Customer & Trip</h2>
+              <div className="flex gap-2">
+                <button onClick={autofillCustomer} className="text-sm text-blue-600">Auto-fill</button>
+                <button onClick={() => navigate('/leads/1')} className="text-sm text-blue-600">Edit Lead</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="Customer" value={form.customer} onChange={(v) => setForm((p) => ({ ...p, customer: v }))} />
+              <Field label="Email" value={form.email} onChange={(v) => setForm((p) => ({ ...p, email: v }))} />
+              <Field label="Destination" value={form.destination} onChange={(v) => setForm((p) => ({ ...p, destination: v }))} />
+              <div><label className="field-label">Start Date</label><input type="date" className="field-input" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} /></div>
+              <div><label className="field-label">Nights</label><input type="number" className="field-input" value={form.nights} onChange={(e) => setForm((p) => ({ ...p, nights: Number(e.target.value || 1) }))} /></div>
+              <div><label className="field-label">Adults</label><input type="number" className="field-input" value={form.adults} onChange={(e) => setForm((p) => ({ ...p, adults: Number(e.target.value || 1) }))} /></div>
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Package Builder</h2>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Select scope & services</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="field-label">Package Type</label>
+                <select
+                  className="field-input"
+                  value={packageType}
+                  onChange={e => setPackageType(e.target.value)}
+                >
+                  {['Leisure', 'Corporate', 'Group', 'Visa Only', 'Insurance Only'].map(p => (
+                    <option key={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: 'hotel', label: 'Hotel' },
+                  { key: 'flights', label: 'Flights' },
+                  { key: 'tours', label: 'Tours' },
+                  { key: 'visa', label: 'Visa' },
+                  { key: 'insurance', label: 'Insurance' }
+                ].map(s => (
+                  <button
+                    key={s.key}
+                    onClick={() => setServices(prev => ({ ...prev, [s.key]: !prev[s.key as keyof typeof prev] }))}
+                    className={`px-3 py-2 text-xs rounded-lg border ${
+                      services[s.key as keyof typeof services]
+                        ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200'
+                        : 'bg-white border-gray-200 text-gray-600 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+              {Object.entries(services)
+                .filter(([, v]) => v)
+                .map(([key]) => (
+                  <div key={key} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <p className="text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">{key}</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Included</p>
+                  </div>
+                ))}
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Cost & Profit</h2>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Auto calculations</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <NumberField label="Supplier Cost" value={costs.supplierCost} onChange={v => setCosts(p => ({ ...p, supplierCost: v }))} prefix="$" />
+              <NumberField label="Markup %" value={costs.markupPercent} onChange={v => setCosts(p => ({ ...p, markupPercent: v }))} />
+              <NumberField label="Service Fee" value={costs.serviceFee} onChange={v => setCosts(p => ({ ...p, serviceFee: v }))} prefix="$" />
+              <NumberField label="Tax %" value={costs.taxPercent} onChange={v => setCosts(p => ({ ...p, taxPercent: v }))} />
+              <NumberField label="Discount" value={costs.discount} onChange={v => setCosts(p => ({ ...p, discount: v }))} prefix="$" />
+            </div>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+              <SummaryTile label="Total Price" value={money(computed.totalPrice)} tone="blue" />
+              <SummaryTile label="Profit" value={money(computed.profit)} tone="green" />
+              <SummaryTile label="Margin" value={`${computed.margin.toFixed(1)}%`} tone="amber" />
+              <SummaryTile label="Tax" value={money(computed.taxVal)} tone="purple" />
+            </div>
+          </SurfaceCard>
           <SurfaceCard><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Itinerary Items</h2><button onClick={() => setShowAddModal(true)} className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300"><FaPlus className="mr-1 inline" /> Add Item</button></div><div className="space-y-3">{itineraryItems.map((i) => <div key={i.id} className="rounded-xl border border-gray-200 p-3 dark:border-gray-700"><div className="mb-1 flex items-center gap-2"><span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{i.day}</span><h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">{i.title}</h3></div><p className="text-xs text-gray-500">{i.description}</p></div>)}</div></SurfaceCard>
           <SurfaceCard><div className="mb-3 flex items-center justify-between"><h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Pricing Breakdown</h2><select className="field-input w-28 py-1.5" value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}><option>USD</option><option>EUR</option></select></div><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-gray-200 text-gray-500 dark:border-gray-700"><th className="py-2 text-left">Item</th><th className="py-2 text-right">Cost</th><th className="py-2 text-right">Markup</th><th className="py-2 text-right">Price</th></tr></thead><tbody>{pricing.map((p) => <tr key={p.id} className="border-b border-gray-100 dark:border-gray-800"><td className="py-2">{p.name}</td><td className="py-2 text-right">{money(p.cost)}</td><td className="py-2 text-right text-green-600">{p.markup}%</td><td className="py-2 text-right font-medium">{money(p.price)}</td></tr>)}</tbody></table></div><div className="mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Subtotal</span><span>{money(subtotal)}</span></div><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Taxes (10%)</span><span>{money(taxes)}</span></div><div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold"><span>Total</span><span className="text-blue-600">{money(total)}</span></div></div></SurfaceCard>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2"><SurfaceCard><h3 className="mb-2 text-sm font-semibold text-green-700">Inclusions</h3><textarea rows={5} value={form.inclusions} onChange={(e) => setForm((p) => ({ ...p, inclusions: e.target.value }))} className="field-input" /></SurfaceCard><SurfaceCard><h3 className="mb-2 text-sm font-semibold text-red-700">Exclusions</h3><textarea rows={5} value={form.exclusions} onChange={(e) => setForm((p) => ({ ...p, exclusions: e.target.value }))} className="field-input" /></SurfaceCard></div>
@@ -156,5 +284,45 @@ const QuotationBuilderPage: React.FC = () => {
 };
 
 const Field = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => <div><label className="field-label">{label}</label><input className="field-input" value={value} onChange={(e) => onChange(e.target.value)} /></div>;
+
+const NumberField = ({
+  label,
+  value,
+  onChange,
+  prefix
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+  prefix?: string
+}) => (
+  <div>
+    <label className="field-label">{label}</label>
+    <div className="flex items-center gap-2">
+      {prefix ? <span className="text-gray-500 dark:text-gray-400 text-sm">{prefix}</span> : null}
+      <input
+        type="number"
+        className="field-input"
+        value={value}
+        onChange={e => onChange(Number(e.target.value || 0))}
+      />
+    </div>
+  </div>
+)
+
+const SummaryTile = ({ label, value, tone }: { label: string; value: string; tone: 'blue' | 'green' | 'amber' | 'purple' }) => {
+  const toneMap: Record<typeof tone, string> = {
+    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200',
+    green: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-200',
+    amber: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-200',
+    purple: 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-200'
+  }
+  return (
+    <div className={`rounded-xl border border-gray-200 dark:border-gray-700 p-3 ${toneMap[tone]}`}>
+      <p className="text-xs uppercase tracking-wide font-semibold">{label}</p>
+      <p className="text-lg font-bold mt-1">{value}</p>
+    </div>
+  )
+}
 
 export default QuotationBuilderPage;

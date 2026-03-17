@@ -4,15 +4,14 @@ import {
   FaCalendarDays,
   FaChevronLeft,
   FaChevronRight,
-  FaCopy,
-  FaEllipsis,
   FaEye,
   FaFileInvoice,
   FaMagnifyingGlass,
   FaPlus,
   FaWhatsapp,
   FaFilter,
-  FaXmark
+  FaXmark,
+  FaCircleXmark
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
@@ -30,6 +29,7 @@ interface Quotation {
   margin: number
   status: Status
   lastSent: string | null
+  sentDate: string | null
 }
 
 const items: Quotation[] = [
@@ -43,7 +43,8 @@ const items: Quotation[] = [
     total: 4250,
     margin: 12,
     status: 'pending',
-    lastSent: 'Mar 9 - Email'
+    lastSent: 'Mar 9 - Email',
+    sentDate: '2026-03-09'
   },
   {
     id: '2',
@@ -55,7 +56,8 @@ const items: Quotation[] = [
     total: 2800,
     margin: 15,
     status: 'accepted',
-    lastSent: 'Mar 8 - WhatsApp'
+    lastSent: 'Mar 8 - WhatsApp',
+    sentDate: '2026-03-08'
   },
   {
     id: '3',
@@ -67,7 +69,8 @@ const items: Quotation[] = [
     total: 8450,
     margin: 10,
     status: 'expired',
-    lastSent: 'Mar 2 - Email'
+    lastSent: 'Mar 2 - Email',
+    sentDate: '2026-03-02'
   },
   {
     id: '4',
@@ -79,7 +82,8 @@ const items: Quotation[] = [
     total: 5100,
     margin: 0,
     status: 'draft',
-    lastSent: null
+    lastSent: null,
+    sentDate: null
   }
 ]
 
@@ -111,6 +115,10 @@ const QuotationsPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const [error, setError] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+  const [selectedDate, setSelectedDate] = useState('')
+  const [showDatePicker, setShowDatePicker] = useState(false)
   const pageSize = 4
 
   const filtered = useMemo(
@@ -120,31 +128,56 @@ const QuotationsPage: React.FC = () => {
           (tab === 'All' || q.status === tab) &&
           `${q.quoteNumber} ${q.customer} ${q.destination}`
             .toLowerCase()
-            .includes(search.toLowerCase())
+            .includes(search.toLowerCase()) &&
+          (!selectedDate || q.sentDate === selectedDate)
       ),
-    [tab, search]
+    [tab, search, selectedDate]
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   const rejectQuotation = () => {
-    const reason = window.prompt('Reason is required for REJECTED status.')
-    const validationError = validateQuoteTransition('REJECTED', reason ?? '')
+    setRejectReason('')
+    setRejectModalOpen(true)
+  }
+
+  const handleRejectSubmit = () => {
+    const validationError = validateQuoteTransition(
+      'REJECTED',
+      rejectReason ?? ''
+    )
     setError(validationError)
+    if (!validationError) {
+      setRejectModalOpen(false)
+    }
   }
 
   return (
     <div className='space-y-4 sm:space-y-6'>
       {/* Header */}
       <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
-        <div>
+        <div className='flex flex-col gap-1'>
           <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
             Quotations
           </h1>
           <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400'>
             Manage, track, and convert quotations faster.
           </p>
+          <div className='flex flex-wrap gap-2 mt-1 relative'>
+            <div className='relative'>
+              <FaMagnifyingGlass className='pointer-events-none absolute left-3 top-3 text-xs text-gray-400' />
+              <input
+                className='field-input pl-9 pr-3 w-56'
+                placeholder='Search quotations...'
+                value={search}
+                onChange={e => {
+                  setSearch(e.target.value)
+                  setPage(1)
+                }}
+              />
+            </div>
+          </div>
         </div>
 
         <button
@@ -252,20 +285,59 @@ const QuotationsPage: React.FC = () => {
               <div className='hidden lg:flex items-center gap-2'>
                 <div className='relative w-80'>
                   <FaMagnifyingGlass className='absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
+              <input
+                value={search}
+                onChange={e => {
+                  setSearch(e.target.value)
+                  setPage(1)
+                }}
+                className='w-full pl-9 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-800'
+                placeholder='Search quote, customer, destination'
+              />
+            </div>
+            <div className='relative'>
+              <button
+                onClick={() => setShowDatePicker(p => !p)}
+                className='inline-flex items-center rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
+              >
+                <FaCalendarDays className='mr-2' /> Select Date
+              </button>
+              {showDatePicker && (
+                <div className='absolute right-0 mt-2 z-30 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900'>
+                  <label className='text-xs text-gray-500 dark:text-gray-400'>
+                    Date
+                  </label>
                   <input
-                    value={search}
-                    onChange={e => {
-                      setSearch(e.target.value)
-                      setPage(1)
-                    }}
-                    className='w-full pl-9 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-800'
-                    placeholder='Search quote, customer, destination'
+                    type='date'
+                    value={selectedDate}
+                    onChange={e => setSelectedDate(e.target.value)}
+                    className='field-input w-full mt-1'
                   />
+                  <div className='flex justify-end gap-2 mt-3'>
+                    <button
+                      onClick={() => {
+                        setSelectedDate('')
+                        setPage(1)
+                        setShowDatePicker(false)
+                      }}
+                      className='px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPage(1)
+                        setShowDatePicker(false)
+                      }}
+                      className='px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700'
+                    >
+                      Apply
+                    </button>
+                  </div>
                 </div>
-                <button className='inline-flex items-center rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'>
-                  <FaCalendarDays className='mr-2' /> Date Range
-                </button>
-              </div>
+              )}
+            </div>
+          </div>
 
               {/* Close filter button on mobile */}
               {showMobileFilters && (
@@ -361,17 +433,11 @@ const QuotationsPage: React.FC = () => {
                       <FaWhatsapp className='text-sm' />
                     </button>
                     <button
-                      className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors'
-                      title='Copy'
-                    >
-                      <FaCopy className='text-sm' />
-                    </button>
-                    <button
                       onClick={rejectQuotation}
                       className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors'
                       title='More options'
                     >
-                      <FaEllipsis className='text-sm' />
+                      <FaCircleXmark className='text-sm' />
                     </button>
                   </div>
                 </div>
@@ -458,14 +524,11 @@ const QuotationsPage: React.FC = () => {
                           <button className='rounded-lg border border-gray-200 p-2 text-green-600 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20'>
                             <FaWhatsapp />
                           </button>
-                          <button className='rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'>
-                            <FaCopy />
-                          </button>
                           <button
                             onClick={rejectQuotation}
                             className='rounded-lg border border-gray-200 p-2 text-red-600 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20'
                           >
-                            <FaEllipsis />
+                            <FaCircleXmark />
                           </button>
                         </div>
                       </td>
@@ -505,6 +568,55 @@ const QuotationsPage: React.FC = () => {
           </>
         )}
       </SurfaceCard>
+      {rejectModalOpen && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4'>
+          <div className='w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl'>
+            <div className='flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-5 py-4'>
+              <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+                Reject Quotation
+              </h3>
+              <button
+                onClick={() => setRejectModalOpen(false)}
+                className='p-2 rounded-full text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'
+              >
+                <FaXmark />
+              </button>
+            </div>
+            <div className='px-5 py-4 space-y-3'>
+              <p className='text-sm text-gray-600 dark:text-gray-300'>
+                Please provide a reason for rejection.
+              </p>
+              <textarea
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                rows={3}
+                className='w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-100 px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500'
+                placeholder='Reason for rejection'
+              />
+              {error && (
+                <p className='text-sm text-red-500 flex items-center gap-2'>
+                  <FaCircleXmark className='text-xs' /> {error}
+                </p>
+              )}
+            </div>
+            <div className='flex items-center justify-end gap-2 border-t border-gray-200 dark:border-gray-800 px-5 py-4'>
+              <button
+                onClick={() => setRejectModalOpen(false)}
+                className='px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-800'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectSubmit}
+                className='px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm flex items-center gap-2'
+              >
+                <FaCircleXmark className='text-xs' />
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
