@@ -1,4 +1,4 @@
-const { z } = require('zod');
+const { z } = require("zod");
 
 const baseCaptureSchema = z
   .object({
@@ -22,7 +22,8 @@ const baseCaptureSchema = z
     if (!value.fullName && !value.name && !value.email && !value.phone) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'At least one identifier is required: fullName/name/email/phone',
+        message:
+          "At least one identifier is required: fullName/name/email/phone",
       });
     }
   });

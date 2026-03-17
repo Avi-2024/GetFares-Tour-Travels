@@ -1,6 +1,6 @@
-const { z } = require('zod');
+const { z } = require("zod");
 
-const customerSegment = z.enum(['PLATINUM', 'GOLD', 'SILVER', 'NEW']);
+const customerSegment = z.enum(["PLATINUM", "GOLD", "SILVER", "NEW"]);
 
 const createPayload = z.object({
   fullName: z.string().trim().min(2).max(150),
@@ -26,7 +26,10 @@ const updatePayload = z
     addressLine: z.string().trim().max(2000).optional(),
     clientCurrency: z.string().trim().min(3).max(10).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update');
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required for update",
+  );
 
 const create = z.object({
   body: createPayload,

@@ -1,11 +1,11 @@
-const { AppError } = require('../../core/errors');
+const { AppError } = require("../../core/errors");
 
 const QUOTATION_STATUS = Object.freeze({
-  DRAFT: 'DRAFT',
-  SENT: 'SENT',
-  APPROVED: 'APPROVED',
-  REJECTED: 'REJECTED',
-  EXPIRED: 'EXPIRED',
+  DRAFT: "DRAFT",
+  SENT: "SENT",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+  EXPIRED: "EXPIRED",
 });
 
 function roundCurrency(value) {
@@ -34,13 +34,13 @@ function addHours(date, hours) {
 }
 
 function buildBookingNumber() {
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const randomPart = Math.floor(1000 + Math.random() * 9000);
   return `BK-${stamp}-${randomPart}`;
 }
 
 function buildQuoteNumber() {
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const randomPart = Math.floor(100000 + Math.random() * 900000);
   return `QT-${stamp}-${randomPart}`;
 }
@@ -48,7 +48,7 @@ function buildQuoteNumber() {
 function createQuotationsService({ repository, logger, events }) {
   function assertAuthenticatedUser(user) {
     if (!user?.id) {
-      throw new AppError(401, 'Authentication required', 'AUTH_REQUIRED');
+      throw new AppError(401, "Authentication required", "AUTH_REQUIRED");
     }
   }
 
@@ -60,7 +60,7 @@ function createQuotationsService({ repository, logger, events }) {
     return Math.min(Math.floor(parsed), 720);
   }
 
-  function normalizeCurrency(value, fallback = 'INR') {
+  function normalizeCurrency(value, fallback = "INR") {
     if (!value) {
       return fallback;
     }
@@ -68,9 +68,15 @@ function createQuotationsService({ repository, logger, events }) {
   }
 
   function calculatePricing(payload) {
-    const components = Array.isArray(payload.components) ? payload.components : [];
+    const components = Array.isArray(payload.components)
+      ? payload.components
+      : [];
     if (!components.length) {
-      throw new AppError(400, 'At least one component is required', 'QUOTATION_COMPONENT_REQUIRED');
+      throw new AppError(
+        400,
+        "At least one component is required",
+        "QUOTATION_COMPONENT_REQUIRED",
+      );
     }
 
     const normalizedComponents = components.map((component) => ({
@@ -80,43 +86,79 @@ function createQuotationsService({ repository, logger, events }) {
     }));
 
     const totalCost = roundCurrency(
-      normalizedComponents.reduce((sum, item) => sum + roundCurrency(item.cost), 0),
+      normalizedComponents.reduce(
+        (sum, item) => sum + roundCurrency(item.cost),
+        0,
+      ),
     );
 
     const marginPercent = Number(payload.marginPercent ?? 0);
-    if (!Number.isFinite(marginPercent) || marginPercent < 0 || marginPercent > 100) {
-      throw new AppError(400, 'marginPercent must be between 0 and 100', 'QUOTATION_INVALID_MARGIN_PERCENT');
+    if (
+      !Number.isFinite(marginPercent) ||
+      marginPercent < 0 ||
+      marginPercent > 100
+    ) {
+      throw new AppError(
+        400,
+        "marginPercent must be between 0 and 100",
+        "QUOTATION_INVALID_MARGIN_PERCENT",
+      );
     }
 
     const marginAmount = roundCurrency((totalCost * marginPercent) / 100);
     const discount = roundCurrency(payload.discount ?? 0);
     if (discount < 0) {
-      throw new AppError(400, 'discount cannot be negative', 'QUOTATION_INVALID_DISCOUNT');
+      throw new AppError(
+        400,
+        "discount cannot be negative",
+        "QUOTATION_INVALID_DISCOUNT",
+      );
     }
 
     const subTotal = roundCurrency(totalCost + marginAmount - discount);
     if (subTotal < 0) {
-      throw new AppError(400, 'Subtotal cannot be negative', 'QUOTATION_INVALID_SUBTOTAL');
+      throw new AppError(
+        400,
+        "Subtotal cannot be negative",
+        "QUOTATION_INVALID_SUBTOTAL",
+      );
     }
 
-    const taxPercent = payload.taxPercent !== undefined ? Number(payload.taxPercent) : null;
-    if (taxPercent !== null && (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100)) {
-      throw new AppError(400, 'taxPercent must be between 0 and 100', 'QUOTATION_INVALID_TAX_PERCENT');
+    const taxPercent =
+      payload.taxPercent !== undefined ? Number(payload.taxPercent) : null;
+    if (
+      taxPercent !== null &&
+      (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100)
+    ) {
+      throw new AppError(
+        400,
+        "taxPercent must be between 0 and 100",
+        "QUOTATION_INVALID_TAX_PERCENT",
+      );
     }
 
-    const taxAmount = payload.taxAmount !== undefined
-      ? roundCurrency(payload.taxAmount)
-      : taxPercent !== null
-        ? roundCurrency((subTotal * taxPercent) / 100)
-        : roundCurrency(payload.tax ?? 0);
+    const taxAmount =
+      payload.taxAmount !== undefined
+        ? roundCurrency(payload.taxAmount)
+        : taxPercent !== null
+          ? roundCurrency((subTotal * taxPercent) / 100)
+          : roundCurrency(payload.tax ?? 0);
 
     if (taxAmount < 0) {
-      throw new AppError(400, 'tax cannot be negative', 'QUOTATION_INVALID_TAX');
+      throw new AppError(
+        400,
+        "tax cannot be negative",
+        "QUOTATION_INVALID_TAX",
+      );
     }
 
     const finalPrice = roundCurrency(subTotal + taxAmount);
     if (finalPrice < 0) {
-      throw new AppError(400, 'Final price cannot be negative', 'QUOTATION_INVALID_FINAL_PRICE');
+      throw new AppError(
+        400,
+        "Final price cannot be negative",
+        "QUOTATION_INVALID_FINAL_PRICE",
+      );
     }
 
     return {
@@ -133,21 +175,25 @@ function createQuotationsService({ repository, logger, events }) {
   }
 
   function calculateFinanceBreakdown(payload, pricing) {
-    const supplierCost = roundCurrency(payload.supplierCost ?? pricing.totalCost);
+    const supplierCost = roundCurrency(
+      payload.supplierCost ?? pricing.totalCost,
+    );
     const supplierTaxAmount = roundCurrency(payload.supplierTaxAmount ?? 0);
-    const markupAmount = roundCurrency(payload.markupAmount ?? pricing.marginAmount);
+    const markupAmount = roundCurrency(
+      payload.markupAmount ?? pricing.marginAmount,
+    );
     const serviceFeeAmount = roundCurrency(payload.serviceFeeAmount ?? 0);
     const gstAmount = roundCurrency(payload.gstAmount ?? pricing.taxAmount);
     const tcsAmount = roundCurrency(payload.tcsAmount ?? 0);
 
     const totalSaleValue = roundCurrency(
       supplierCost +
-      supplierTaxAmount +
-      markupAmount +
-      serviceFeeAmount +
-      gstAmount +
-      tcsAmount -
-      roundCurrency(payload.discount ?? pricing.discountAmount),
+        supplierTaxAmount +
+        markupAmount +
+        serviceFeeAmount +
+        gstAmount +
+        tcsAmount -
+        roundCurrency(payload.discount ?? pricing.discountAmount),
     );
 
     return {
@@ -158,9 +204,9 @@ function createQuotationsService({ repository, logger, events }) {
       gstAmount,
       tcsAmount,
       totalSaleValue: totalSaleValue < 0 ? 0 : totalSaleValue,
-      costCurrency: normalizeCurrency(payload.costCurrency, 'INR'),
-      clientCurrency: normalizeCurrency(payload.clientCurrency, 'INR'),
-      supplierCurrency: normalizeCurrency(payload.supplierCurrency, 'INR'),
+      costCurrency: normalizeCurrency(payload.costCurrency, "INR"),
+      clientCurrency: normalizeCurrency(payload.clientCurrency, "INR"),
+      supplierCurrency: normalizeCurrency(payload.supplierCurrency, "INR"),
     };
   }
 
@@ -185,11 +231,14 @@ function createQuotationsService({ repository, logger, events }) {
   }
 
   async function getById(id, context = {}, options = {}) {
-    logger.debug({ module: 'quotations', requestId: context.requestId, id }, 'Get quotation by id');
+    logger.debug(
+      { module: "quotations", requestId: context.requestId, id },
+      "Get quotation by id",
+    );
     const quotation = await repository.findById(id);
 
     if (!quotation) {
-      throw new AppError(404, 'Quotation not found', 'QUOTATION_NOT_FOUND');
+      throw new AppError(404, "Quotation not found", "QUOTATION_NOT_FOUND");
     }
 
     if (options.includeItems === false) {
@@ -211,7 +260,10 @@ function createQuotationsService({ repository, logger, events }) {
         snapshot: quotation,
       });
     } catch (error) {
-      logger.error({ err: error, quotationId: quotation.id, action }, 'Failed to write quotation version log');
+      logger.error(
+        { err: error, quotationId: quotation.id, action },
+        "Failed to write quotation version log",
+      );
     }
   }
 
@@ -220,14 +272,18 @@ function createQuotationsService({ repository, logger, events }) {
 
     const lead = await repository.findLeadById(payload.leadId);
     if (!lead) {
-      throw new AppError(404, 'Lead not found', 'LEAD_NOT_FOUND');
+      throw new AppError(404, "Lead not found", "LEAD_NOT_FOUND");
     }
 
     let template = null;
     if (payload.templateId) {
       template = await repository.findTemplateById(payload.templateId);
       if (!template) {
-        throw new AppError(404, 'Quotation template not found', 'QUOTATION_TEMPLATE_NOT_FOUND');
+        throw new AppError(
+          404,
+          "Quotation template not found",
+          "QUOTATION_TEMPLATE_NOT_FOUND",
+        );
       }
     }
 
@@ -239,11 +295,17 @@ function createQuotationsService({ repository, logger, events }) {
     const requiresApproval = pricing.marginPercent < minMarginPercent;
 
     const now = new Date();
-    const expiresInHours = payload.expiresInHours ? toHours(payload.expiresInHours, null) : null;
-    const expiresAt = expiresInHours ? addHours(now, expiresInHours).toISOString() : null;
+    const expiresInHours = payload.expiresInHours
+      ? toHours(payload.expiresInHours, null)
+      : null;
+    const expiresAt = expiresInHours
+      ? addHours(now, expiresInHours).toISOString()
+      : null;
 
     const leadCreatedAt = lead.created_at || lead.createdAt;
-    const leadCreatedTs = leadCreatedAt ? new Date(leadCreatedAt).getTime() : null;
+    const leadCreatedTs = leadCreatedAt
+      ? new Date(leadCreatedAt).getTime()
+      : null;
     const leadToQuoteMinutes = leadCreatedTs
       ? Math.max(0, Math.round((now.getTime() - leadCreatedTs) / (60 * 1000)))
       : null;
@@ -290,7 +352,7 @@ function createQuotationsService({ repository, logger, events }) {
 
     await logVersion({
       quotation,
-      action: 'CREATED',
+      action: "CREATED",
       editorId: context.user.id,
       changeLog: {
         createdBy: context.user.id,
@@ -307,15 +369,26 @@ function createQuotationsService({ repository, logger, events }) {
 
     const current = await getById(id, context, { includeItems: true });
     if (current.status !== QUOTATION_STATUS.DRAFT) {
-      throw new AppError(409, 'Only DRAFT quotation can be edited', 'QUOTATION_LOCKED');
+      throw new AppError(
+        409,
+        "Only DRAFT quotation can be edited",
+        "QUOTATION_LOCKED",
+      );
     }
 
     let template = null;
-    const nextTemplateId = payload.templateId !== undefined ? payload.templateId : current.templateId;
+    const nextTemplateId =
+      payload.templateId !== undefined
+        ? payload.templateId
+        : current.templateId;
     if (nextTemplateId) {
       template = await repository.findTemplateById(nextTemplateId);
       if (!template) {
-        throw new AppError(404, 'Quotation template not found', 'QUOTATION_TEMPLATE_NOT_FOUND');
+        throw new AppError(
+          404,
+          "Quotation template not found",
+          "QUOTATION_TEMPLATE_NOT_FOUND",
+        );
       }
     }
 
@@ -337,14 +410,20 @@ function createQuotationsService({ repository, logger, events }) {
     );
 
     const minMarginPercent = roundCurrency(
-      payload.minMarginPercent ?? current.minMarginPercent ?? template?.minMarginPercent ?? 0,
+      payload.minMarginPercent ??
+        current.minMarginPercent ??
+        template?.minMarginPercent ??
+        0,
     );
     const requiresApproval = pricing.marginPercent < minMarginPercent;
 
     const updated = await repository.update(id, {
-      pricing_id: payload.pricingId !== undefined ? payload.pricingId : current.pricingId,
+      pricing_id:
+        payload.pricingId !== undefined ? payload.pricingId : current.pricingId,
       template_id: nextTemplateId || null,
-      template_snapshot: template ? buildTemplateSnapshot(template) : current.templateSnapshot,
+      template_snapshot: template
+        ? buildTemplateSnapshot(template)
+        : current.templateSnapshot,
       total_cost: pricing.totalCost,
       margin_percent: pricing.marginPercent,
       margin_amount: pricing.marginAmount,
@@ -376,7 +455,7 @@ function createQuotationsService({ repository, logger, events }) {
 
     await logVersion({
       quotation,
-      action: 'UPDATED',
+      action: "UPDATED",
       editorId: context.user.id,
       changeLog: {
         fields: Object.keys(payload || {}),
@@ -409,16 +488,32 @@ function createQuotationsService({ repository, logger, events }) {
 
     let quotation = await getById(id, context, { includeItems: true });
 
-    if ([QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.REJECTED, QUOTATION_STATUS.EXPIRED].includes(quotation.status)) {
-      throw new AppError(409, 'Finalized quotation cannot be sent', 'QUOTATION_FINALIZED');
+    if (
+      [
+        QUOTATION_STATUS.APPROVED,
+        QUOTATION_STATUS.REJECTED,
+        QUOTATION_STATUS.EXPIRED,
+      ].includes(quotation.status)
+    ) {
+      throw new AppError(
+        409,
+        "Finalized quotation cannot be sent",
+        "QUOTATION_FINALIZED",
+      );
     }
 
     if (quotation.requiresApproval) {
-      throw new AppError(409, 'Margin approval is required before sending', 'QUOTATION_MARGIN_APPROVAL_REQUIRED');
+      throw new AppError(
+        409,
+        "Margin approval is required before sending",
+        "QUOTATION_MARGIN_APPROVAL_REQUIRED",
+      );
     }
 
     const now = new Date();
-    const expiresInHours = payload.expiresInHours ? toHours(payload.expiresInHours, null) : null;
+    const expiresInHours = payload.expiresInHours
+      ? toHours(payload.expiresInHours, null)
+      : null;
     const nextExpiresAt = expiresInHours
       ? addHours(now, expiresInHours).toISOString()
       : quotation.expiresAt || null;
@@ -433,13 +528,13 @@ function createQuotationsService({ repository, logger, events }) {
     });
 
     if (updated.leadId) {
-      await repository.updateLeadStatus(updated.leadId, 'QUOTED');
+      await repository.updateLeadStatus(updated.leadId, "QUOTED");
     }
 
     await repository.createSendLog({
       quotationId: id,
       sentBy: context.user.id,
-      deliveryChannel: payload.channel || 'MANUAL',
+      deliveryChannel: payload.channel || "MANUAL",
       recipientEmail: payload.recipientEmail || null,
       recipientPhone: payload.recipientPhone || null,
       metadata: {
@@ -449,10 +544,10 @@ function createQuotationsService({ repository, logger, events }) {
 
     await logVersion({
       quotation: { ...updated, items: quotation.items },
-      action: 'SENT',
+      action: "SENT",
       editorId: context.user.id,
       changeLog: {
-        channel: payload.channel || 'MANUAL',
+        channel: payload.channel || "MANUAL",
         recipientEmail: payload.recipientEmail || null,
         recipientPhone: payload.recipientPhone || null,
       },
@@ -499,7 +594,9 @@ function createQuotationsService({ repository, logger, events }) {
       return existing;
     }
 
-    const lead = quotation.leadId ? await repository.findLeadById(quotation.leadId) : null;
+    const lead = quotation.leadId
+      ? await repository.findLeadById(quotation.leadId)
+      : null;
 
     const travelStartDate =
       toDateOnly(payload.travelStartDate) ||
@@ -508,7 +605,11 @@ function createQuotationsService({ repository, logger, events }) {
     const travelEndDate = toDateOnly(payload.travelEndDate) || travelStartDate;
 
     if (travelEndDate < travelStartDate) {
-      throw new AppError(400, 'travelEndDate cannot be before travelStartDate', 'QUOTATION_INVALID_TRAVEL_DATES');
+      throw new AppError(
+        400,
+        "travelEndDate cannot be before travelStartDate",
+        "QUOTATION_INVALID_TRAVEL_DATES",
+      );
     }
 
     return repository.createBooking({
@@ -520,15 +621,18 @@ function createQuotationsService({ repository, logger, events }) {
       cost_amount: roundCurrency(quotation.totalCost),
       advance_required: roundCurrency(quotation.finalPrice * 0.5),
       advance_received: 0,
-      status: 'PENDING',
-      payment_status: 'PENDING',
+      status: "PENDING",
+      payment_status: "PENDING",
       created_by: context.user?.id || null,
     });
   }
 
   return Object.freeze({
     async list(filters = {}, context = {}) {
-      logger.debug({ module: 'quotations', requestId: context.requestId, filters }, 'List quotations');
+      logger.debug(
+        { module: "quotations", requestId: context.requestId, filters },
+        "List quotations",
+      );
       const rows = await repository.findAll(filters);
 
       if (!filters.includeItems) {
@@ -564,14 +668,17 @@ function createQuotationsService({ repository, logger, events }) {
 
       await logVersion({
         quotation: updated,
-        action: 'MARGIN_APPROVED',
+        action: "MARGIN_APPROVED",
         editorId: context.user.id,
         changeLog: {
           note: payload.note || null,
         },
       });
 
-      events.emitMarginApproved({ id: updated.id, approvedBy: context.user.id });
+      events.emitMarginApproved({
+        id: updated.id,
+        approvedBy: context.user.id,
+      });
       return updated;
     },
 
@@ -579,16 +686,41 @@ function createQuotationsService({ repository, logger, events }) {
       assertAuthenticatedUser(context.user);
       const quotation = await getById(id, context, { includeItems: true });
 
-      if (![QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.REJECTED].includes(payload.status)) {
-        throw new AppError(400, 'Only APPROVED/REJECTED transitions are supported', 'QUOTATION_STATUS_UNSUPPORTED');
+      if (
+        ![QUOTATION_STATUS.APPROVED, QUOTATION_STATUS.REJECTED].includes(
+          payload.status,
+        )
+      ) {
+        throw new AppError(
+          400,
+          "Only APPROVED/REJECTED transitions are supported",
+          "QUOTATION_STATUS_UNSUPPORTED",
+        );
       }
 
-      if (![QUOTATION_STATUS.DRAFT, QUOTATION_STATUS.SENT, QUOTATION_STATUS.VIEWED].includes(quotation.status)) {
-        throw new AppError(409, 'Invalid status transition', 'QUOTATION_INVALID_STATUS_TRANSITION');
+      if (
+        ![
+          QUOTATION_STATUS.DRAFT,
+          QUOTATION_STATUS.SENT,
+          QUOTATION_STATUS.VIEWED,
+        ].includes(quotation.status)
+      ) {
+        throw new AppError(
+          409,
+          "Invalid status transition",
+          "QUOTATION_INVALID_STATUS_TRANSITION",
+        );
       }
 
-      if (payload.status === QUOTATION_STATUS.APPROVED && quotation.requiresApproval) {
-        throw new AppError(409, 'Margin approval is required before approval', 'QUOTATION_MARGIN_APPROVAL_REQUIRED');
+      if (
+        payload.status === QUOTATION_STATUS.APPROVED &&
+        quotation.requiresApproval
+      ) {
+        throw new AppError(
+          409,
+          "Margin approval is required before approval",
+          "QUOTATION_MARGIN_APPROVAL_REQUIRED",
+        );
       }
 
       const updated = await repository.update(id, {
@@ -600,14 +732,18 @@ function createQuotationsService({ repository, logger, events }) {
 
       let booking = null;
       if (payload.status === QUOTATION_STATUS.APPROVED) {
-        booking = await ensureBookingForApprovedQuote(updated, payload, context);
+        booking = await ensureBookingForApprovedQuote(
+          updated,
+          payload,
+          context,
+        );
         if (updated.leadId) {
-          await repository.updateLeadStatus(updated.leadId, 'CONVERTED');
+          await repository.updateLeadStatus(updated.leadId, "CONVERTED");
         }
       }
 
       if (payload.status === QUOTATION_STATUS.REJECTED && updated.leadId) {
-        await repository.updateLeadStatus(updated.leadId, 'LOST');
+        await repository.updateLeadStatus(updated.leadId, "LOST");
       }
 
       await logVersion({
@@ -652,7 +788,10 @@ function createQuotationsService({ repository, logger, events }) {
 
       const now = new Date();
       const notOpenedBefore = addHours(now, -notOpenedHours).toISOString();
-      const viewedNoActionBefore = addHours(now, -viewedNoActionHours).toISOString();
+      const viewedNoActionBefore = addHours(
+        now,
+        -viewedNoActionHours,
+      ).toISOString();
 
       const candidates = await repository.findReminderCandidates({
         notOpenedBefore,
@@ -701,12 +840,18 @@ function createQuotationsService({ repository, logger, events }) {
     },
 
     async getLeadToQuoteReport(filters = {}, context = {}) {
-      logger.debug({ module: 'quotations', requestId: context.requestId, filters }, 'Lead-to-quote report');
+      logger.debug(
+        { module: "quotations", requestId: context.requestId, filters },
+        "Lead-to-quote report",
+      );
       return repository.getLeadToQuoteReport(filters);
     },
 
     async listTemplates(filters = {}, context = {}) {
-      logger.debug({ module: 'quotations', requestId: context.requestId, filters }, 'List quotation templates');
+      logger.debug(
+        { module: "quotations", requestId: context.requestId, filters },
+        "List quotation templates",
+      );
       return repository.findTemplates(filters);
     },
 
@@ -715,7 +860,11 @@ function createQuotationsService({ repository, logger, events }) {
 
       const existing = await repository.findTemplateByCode(payload.code);
       if (existing) {
-        throw new AppError(409, 'Template code already exists', 'QUOTATION_TEMPLATE_DUPLICATE_CODE');
+        throw new AppError(
+          409,
+          "Template code already exists",
+          "QUOTATION_TEMPLATE_DUPLICATE_CODE",
+        );
       }
 
       return repository.createTemplate({
@@ -741,13 +890,21 @@ function createQuotationsService({ repository, logger, events }) {
 
       const existing = await repository.findTemplateById(id);
       if (!existing) {
-        throw new AppError(404, 'Quotation template not found', 'QUOTATION_TEMPLATE_NOT_FOUND');
+        throw new AppError(
+          404,
+          "Quotation template not found",
+          "QUOTATION_TEMPLATE_NOT_FOUND",
+        );
       }
 
       if (payload.code && payload.code !== existing.code) {
         const duplicate = await repository.findTemplateByCode(payload.code);
         if (duplicate && duplicate.id !== id) {
-          throw new AppError(409, 'Template code already exists', 'QUOTATION_TEMPLATE_DUPLICATE_CODE');
+          throw new AppError(
+            409,
+            "Template code already exists",
+            "QUOTATION_TEMPLATE_DUPLICATE_CODE",
+          );
         }
       }
 
@@ -761,9 +918,10 @@ function createQuotationsService({ repository, logger, events }) {
         payment_terms: payload.paymentTerms,
         cancellation_policy: payload.cancellationPolicy,
         footer_disclaimer: payload.footerDisclaimer,
-        min_margin_percent: payload.minMarginPercent !== undefined
-          ? roundCurrency(payload.minMarginPercent)
-          : undefined,
+        min_margin_percent:
+          payload.minMarginPercent !== undefined
+            ? roundCurrency(payload.minMarginPercent)
+            : undefined,
         is_active: payload.isActive,
         updated_by: context.user.id,
         updated_at: new Date().toISOString(),

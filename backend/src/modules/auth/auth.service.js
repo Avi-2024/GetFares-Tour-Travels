@@ -1,8 +1,8 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
-const { AppError } = require('../../core/errors');
-const { DEFAULT_ROLE } = require('../../core/constants');
+const { AppError } = require("../../core/errors");
+const { DEFAULT_ROLE } = require("../../core/constants");
 
 function createAuthService({ repository, logger, events, authConfig }) {
   function serializeUser(user) {
@@ -23,7 +23,11 @@ function createAuthService({ repository, logger, events, authConfig }) {
     try {
       return jwt.verify(token, authConfig.jwtAccessSecret);
     } catch (error) {
-      throw new AppError(401, 'Invalid or expired access token', 'AUTH_INVALID_TOKEN');
+      throw new AppError(
+        401,
+        "Invalid or expired access token",
+        "AUTH_INVALID_TOKEN",
+      );
     }
   }
 
@@ -54,7 +58,11 @@ function createAuthService({ repository, logger, events, authConfig }) {
     async register(payload) {
       const existing = await repository.findUserByEmail(payload.email);
       if (existing) {
-        throw new AppError(409, 'Email is already registered', 'AUTH_EMAIL_EXISTS');
+        throw new AppError(
+          409,
+          "Email is already registered",
+          "AUTH_EMAIL_EXISTS",
+        );
       }
 
       const passwordHash = await bcrypt.hash(payload.password, 12);
@@ -74,16 +82,28 @@ function createAuthService({ repository, logger, events, authConfig }) {
     async login(payload, sessionContext = {}) {
       const user = await repository.findUserByEmail(payload.email);
       if (!user || !user.passwordHash) {
-        throw new AppError(401, 'Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
+        throw new AppError(
+          401,
+          "Invalid credentials",
+          "AUTH_INVALID_CREDENTIALS",
+        );
       }
 
       const isMatch = await bcrypt.compare(payload.password, user.passwordHash);
       if (!isMatch) {
-        throw new AppError(401, 'Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
+        throw new AppError(
+          401,
+          "Invalid credentials",
+          "AUTH_INVALID_CREDENTIALS",
+        );
       }
 
       if (!user.isActive) {
-        throw new AppError(403, 'User account is inactive', 'AUTH_INACTIVE_USER');
+        throw new AppError(
+          403,
+          "User account is inactive",
+          "AUTH_INACTIVE_USER",
+        );
       }
 
       try {
@@ -93,7 +113,10 @@ function createAuthService({ repository, logger, events, authConfig }) {
           deviceInfo: sessionContext.deviceInfo,
         });
       } catch (error) {
-        logger.warn({ err: error, userId: user.id }, 'Unable to persist login audit record');
+        logger.warn(
+          { err: error, userId: user.id },
+          "Unable to persist login audit record",
+        );
       }
 
       events.emitLoggedIn(user);
@@ -103,7 +126,7 @@ function createAuthService({ repository, logger, events, authConfig }) {
     async getProfile(userId) {
       const user = await repository.findUserById(userId);
       if (!user) {
-        throw new AppError(404, 'User not found', 'AUTH_USER_NOT_FOUND');
+        throw new AppError(404, "User not found", "AUTH_USER_NOT_FOUND");
       }
 
       return serializeUser(user);

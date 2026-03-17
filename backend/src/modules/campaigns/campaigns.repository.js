@@ -8,12 +8,12 @@ function createCampaignsRepository({ db, logger, schema }) {
   }
 
   async function create(payload) {
-    logger.debug({ module: 'campaigns', payload }, 'Creating record');
+    logger.debug({ module: "campaigns", payload }, "Creating record");
     return db.insert(schema.tableName, payload);
   }
 
   async function update(id, payload) {
-    logger.debug({ module: 'campaigns', id, payload }, 'Updating record');
+    logger.debug({ module: "campaigns", id, payload }, "Updating record");
     return db.update(schema.tableName, id, payload);
   }
 

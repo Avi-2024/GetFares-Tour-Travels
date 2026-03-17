@@ -1,4 +1,8 @@
-import type { AuthDatasource, AuthUserDto, LoginPayload } from "../datasource/authDatasource";
+import type {
+  AuthDatasource,
+  AuthUserDto,
+  LoginPayload,
+} from "../datasource/authDatasource";
 
 export type AuthUser = {
   id: string;
@@ -32,7 +36,8 @@ export const createAuthService = (datasource: AuthDatasource) => ({
       user: normalizeUser(response.data.user),
     };
   },
-  forgotPassword: (payload: { email: string }) => datasource.forgotPassword(payload),
+  forgotPassword: (payload: { email: string }) =>
+    datasource.forgotPassword(payload),
   resetPassword: (payload: { token: string; password: string }) =>
     datasource.resetPassword(payload),
   getPermissions: async () => {

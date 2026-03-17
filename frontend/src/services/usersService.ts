@@ -1,4 +1,7 @@
-import type { UsersDatasource, UsersQuery } from "../datasource/usersDatasource";
+import type {
+  UsersDatasource,
+  UsersQuery,
+} from "../datasource/usersDatasource";
 
 export const createUsersService = (datasource: UsersDatasource) => ({
   list: (params?: UsersQuery) => datasource.list(params),

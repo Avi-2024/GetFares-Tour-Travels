@@ -1,11 +1,13 @@
-const { createNotificationsRepository } = require('./notifications.repository');
-const { createNotificationsService } = require('./notifications.service');
-const { createNotificationsController } = require('./notifications.controller');
-const { createNotificationsRoutes } = require('./notifications.routes');
-const { NotificationsValidation } = require('./notifications.validation');
-const { NotificationsSchema } = require('./notifications.schema');
-const { createNotificationsEvents } = require('./notifications.events');
-const { registerNotificationsSubscribers } = require('./notifications.subscribers');
+const { createNotificationsRepository } = require("./notifications.repository");
+const { createNotificationsService } = require("./notifications.service");
+const { createNotificationsController } = require("./notifications.controller");
+const { createNotificationsRoutes } = require("./notifications.routes");
+const { NotificationsValidation } = require("./notifications.validation");
+const { NotificationsSchema } = require("./notifications.schema");
+const { createNotificationsEvents } = require("./notifications.events");
+const {
+  registerNotificationsSubscribers,
+} = require("./notifications.subscribers");
 
 function createNotificationsModule({ dependencies }) {
   const repository = createNotificationsRepository({
@@ -43,7 +45,7 @@ function createNotificationsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'notifications',
+    name: "notifications",
     router,
     controller,
     service,

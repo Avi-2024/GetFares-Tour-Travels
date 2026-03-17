@@ -52,7 +52,8 @@ export const leadsApi = {
       },
     };
   },
-  getCampaigns: () => apiRequest(withQuery("/api/campaigns", { status: "ACTIVE" })),
+  getCampaigns: () =>
+    apiRequest(withQuery("/api/campaigns", { status: "ACTIVE" })),
   getDestinations: async () => ({ data: DESTINATIONS }),
   distribute: () => apiRequest("/api/leads/distribute", { method: "POST" }),
   reassignInactive: () =>

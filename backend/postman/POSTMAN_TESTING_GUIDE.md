@@ -3,15 +3,18 @@
 ## Quick Start
 
 ### 1. Import Collections
+
 - Open Postman
 - Click **Import** and select `Travel-CRM-Complete.postman_collection.json`
 - Import the environment: `Travel-CRM-Dev.postman_environment.json`
 
 ### 2. Set Environment
+
 - Click the environment dropdown (top-right)
 - Select **Travel-CRM-Dev**
 
 ### 3. Start Testing
+
 - Ensure backend is running on `http://localhost:3000`
 - Start with **Health Checks** folder to verify connection
 - Then proceed with **Authentication** to get tokens
@@ -21,7 +24,9 @@
 ## Folder Organization
 
 ### Health Checks
+
 Quick verification endpoints to ensure the server is running:
+
 - `GET /health` - Basic health status
 - `GET /health/ready` - Readiness probe
 - `GET /health/live` - Liveness probe
@@ -31,9 +36,11 @@ Quick verification endpoints to ensure the server is running:
 ---
 
 ### Authentication
+
 Handle user login and token management:
 
 #### Initial Login
+
 1. **Login - Admin**
    - Credentials: `admin@travel-crm.com` / `admin@123`
    - Automatically captures `accessToken` and `userId`
@@ -53,6 +60,7 @@ Handle user login and token management:
    - Modify email/phone for each test
 
 **Token Management:**
+
 - Login response automatically sets `accessToken` variable
 - This token is used in all subsequent API calls via `Authorization: Bearer {{accessToken}}`
 - Token expires after 24 hours (default)
@@ -60,9 +68,11 @@ Handle user login and token management:
 ---
 
 ### Leads Management
+
 Complete lead lifecycle management:
 
 #### List All Leads
+
 - **Method:** GET
 - **Query Parameters:**
   - `page=1` - Pagination page
@@ -71,6 +81,7 @@ Complete lead lifecycle management:
 - **Response:** Captures first lead ID as `{{leadId}}`
 
 #### Create Lead
+
 - **Method:** POST
 - **Body Parameters:**
   - `fullName` - Customer name
@@ -83,19 +94,23 @@ Complete lead lifecycle management:
   - `status` - Initial status (default: OPEN)
 
 #### Get Lead by ID
+
 - **Method:** GET
 - **Uses:** `{{leadId}}` variable from list response
 
 #### Update Lead
+
 - **Method:** PATCH
 - **Update Fields:** status, budget, travelDate, notes
 
 #### Assign Lead to Sales User
+
 - **Method:** POST
 - **Body:** `{"assignedTo": "{{userId}}"}`
 - **Effect:** Lead assigned to specified user, status changes to WIP
 
 #### Create Lead Followup
+
 - **Method:** POST
 - **Types:** `follow_up`, `call_reminder`, `email_sent`
 - **Future Date:** Must be after current date
@@ -104,14 +119,17 @@ Complete lead lifecycle management:
 ---
 
 ### Quotations
+
 Quote generation and tracking:
 
 #### List Quotations
+
 - **Method:** GET
 - **Statuses:** PENDING, ACCEPTED, REJECTED, EXPIRED
 - **Captures:** `{{quotationId}}` for subsequent requests
 
 #### Create Quotation
+
 - **Method:** POST
 - **Prerequisites:** Must have a lead and destination
 - **Key Fields:**
@@ -124,10 +142,12 @@ Quote generation and tracking:
   - `profitPercent` - Profit margin (%)
 
 #### Get Quotation
+
 - **Method:** GET
 - **Includes:** Quotation details, items, pricing breakdown
 
 #### Update Quotation
+
 - **Method:** PATCH
 - **Status Changes:**
   - PENDING → ACCEPTED (when customer agrees)
@@ -135,20 +155,24 @@ Quote generation and tracking:
 - **Price Updates:** Can revise price before acceptance
 
 #### Get Quotation Templates
+
 - **Method:** GET
 - **Returns:** Pre-built itinerary templates for quick quoting
 
 ---
 
 ### Bookings
+
 Confirmed bookings and fulfillment:
 
 #### List Bookings
+
 - **Method:** GET
 - **Statuses:** PENDING, CONFIRMED, COMPLETED, CANCELLED
 - **Captures:** `{{bookingId}}` for operations
 
 #### Create Booking
+
 - **Method:** POST
 - **Prerequisites:** Quotation must be ACCEPTED
 - **Fields:**
@@ -159,10 +183,12 @@ Confirmed bookings and fulfillment:
   - `status` - Initial (PENDING or CONFIRMED)
 
 #### Get Booking
+
 - **Method:** GET
 - **Includes:** All booking details, customer info, itinerary
 
 #### Update Booking Status
+
 - **Method:** POST
 - **Transitions:**
   - PENDING → CONFIRMED (when payment received)
@@ -171,10 +197,12 @@ Confirmed bookings and fulfillment:
 - **Auto-Generate:** Invoice generated on CONFIRMED status
 
 #### Get Status History
+
 - **Method:** GET
 - **Shows:** Timeline of all status changes with timestamps
 
 #### Generate Invoice
+
 - **Method:** POST
 - **Types:** DRAFT, FINAL
 - **Output:** PDF invoice with itemized billing
@@ -182,14 +210,17 @@ Confirmed bookings and fulfillment:
 ---
 
 ### Payments
+
 Payment tracking and reconciliation:
 
 #### List Payments
+
 - **Method:** GET
 - **Statuses:** PENDING, COMPLETED, FAILED, REFUNDED
 - **Filter:** By status, booking, date range
 
 #### Create Payment
+
 - **Method:** POST
 - **Payment Methods:**
   - BANK_TRANSFER
@@ -206,19 +237,23 @@ Payment tracking and reconciliation:
   - `status` - COMPLETED, PENDING, FAILED
 
 #### Get Payment
+
 - **Method:** GET
 - **Includes:** Full payment details and reconciliation status
 
 ---
 
 ### Customers
+
 Customer relationship management:
 
 #### List Customers
+
 - **Method:** GET
 - **Shows:** All customers with booking history summaries
 
 #### Get Customer
+
 - **Method:** GET
 - **Includes:**
   - Personal details
@@ -228,6 +263,7 @@ Customer relationship management:
   - Total amount spent
 
 #### Get Customer Bookings
+
 - **Method:** GET
 - **Shows:** All bookings for single customer
 - **Useful For:** Customer history and repeat booking patterns
@@ -235,14 +271,17 @@ Customer relationship management:
 ---
 
 ### Destinations & Pricing
+
 Package and pricing management:
 
 #### List Destinations
+
 - **Method:** GET
 - **Shows:** All available destinations
 - **Captures:** `{{destinationId}}` for creating quotes/bookings
 
 #### Get Destination
+
 - **Method:** GET
 - **Includes:**
   - Description and highlights
@@ -251,6 +290,7 @@ Package and pricing management:
   - Typical package options
 
 #### Get Destination Pricing
+
 - **Method:** GET
 - **Shows:** Per-person costs by duration and season
 - **Fields:**
@@ -261,13 +301,16 @@ Package and pricing management:
 ---
 
 ### Campaigns
+
 Marketing campaign tracking:
 
 #### List Campaigns
+
 - **Method:** GET
 - **Shows:** All active marketing campaigns
 
 #### Create Campaign
+
 - **Method:** POST
 - **Fields:**
   - Campaign name
@@ -277,6 +320,7 @@ Marketing campaign tracking:
 - **Useful For:** Attribution tracking of lead sources
 
 #### Get Campaign
+
 - **Method:** GET
 - **Metrics:**
   - Leads generated
@@ -287,9 +331,11 @@ Marketing campaign tracking:
 ---
 
 ### Reports
+
 Analytics and business intelligence:
 
 #### Dashboard Summary
+
 - **Method:** GET
 - **Shows:**
   - Total leads this month
@@ -298,6 +344,7 @@ Analytics and business intelligence:
   - Active bookings
 
 #### Revenue Report
+
 - **Method:** GET
 - **Parameters:**
   - `startDate` - Report period start
@@ -309,6 +356,7 @@ Analytics and business intelligence:
   - Top destinations
 
 #### Lead Conversion Report
+
 - **Method:** GET
 - **Metrics:**
   - Leads by status
@@ -317,6 +365,7 @@ Analytics and business intelligence:
   - Pipeline value
 
 #### Sales Performance
+
 - **Method:** GET
 - **Parameters:** `userId={{userId}}` for individual user report
 - **Metrics:**
@@ -328,13 +377,16 @@ Analytics and business intelligence:
 ---
 
 ### RBAC & Permissions
+
 Role-based access control:
 
 #### Get My Permissions
+
 - **Method:** GET
 - **Shows:** All modules and actions current user can access
 
 #### List All Roles
+
 - **Method:** GET
 - **System Roles:**
   - `super_admin` - Full system access
@@ -345,6 +397,7 @@ Role-based access control:
   - `finance` - Payment and refund management
 
 #### Assign Role to User
+
 - **Method:** POST
 - **Effect:** Changes user's role and permissions immediately
 - **Admin Only:** Requires admin privileges
@@ -409,17 +462,17 @@ Role-based access control:
 
 These requests automatically capture and set variables:
 
-| Request | Captures Into | Value |
-|---------|---------------|-------|
-| Login requests | `{{accessToken}}` | JWT token for auth |
-| Login requests | `{{userId}}` | Current user's ID |
-| List Leads | `{{leadId}}` | First lead's ID |
-| List Quotations | `{{quotationId}}` | First quotation's ID |
-| List Bookings | `{{bookingId}}` | First booking's ID |
-| List Customers | `{{customerId}}` | First customer's ID |
+| Request           | Captures Into       | Value                  |
+| ----------------- | ------------------- | ---------------------- |
+| Login requests    | `{{accessToken}}`   | JWT token for auth     |
+| Login requests    | `{{userId}}`        | Current user's ID      |
+| List Leads        | `{{leadId}}`        | First lead's ID        |
+| List Quotations   | `{{quotationId}}`   | First quotation's ID   |
+| List Bookings     | `{{bookingId}}`     | First booking's ID     |
+| List Customers    | `{{customerId}}`    | First customer's ID    |
 | List Destinations | `{{destinationId}}` | First destination's ID |
-| List Payments | `{{paymentId}}` | First payment's ID |
-| List Campaigns | `{{campaignId}}` | First campaign's ID |
+| List Payments     | `{{paymentId}}`     | First payment's ID     |
+| List Campaigns    | `{{campaignId}}`    | First campaign's ID    |
 
 **Usage:** These variables are then used in subsequent GET/PATCH/POST requests (e.g., `GET /api/leads/{{leadId}}`)
 
@@ -428,28 +481,38 @@ These requests automatically capture and set variables:
 ## Common Issues & Solutions
 
 ### 401 Unauthorized
+
 **Issue:** `"message": "Unauthorized"`
+
 - **Solution:** Login first (POST `/api/auth/login`) to get accessToken
 - Verify token is not expired (24-hour validity)
 
 ### 400 Bad Request
+
 **Issue:** `"message": "Validation failed"`
+
 - **Cause:** Missing or invalid required fields
 - **Solution:** Check request body against API documentation
 - Example: `destinationId` must be a valid UUID
 
 ### 404 Not Found
+
 **Issue:** `"message": "Resource not found"`
+
 - **Cause:** ID (leadId, bookingId, etc.) doesn't exist
 - **Solution:** Create resource first or get correct ID from list endpoint
 
 ### 403 Forbidden
+
 **Issue:** `"message": "Access denied"`
+
 - **Cause:** User role lacks permission for operation
 - **Solution:** Use admin account or request role change
 
 ### 500 Internal Server Error
+
 **Issue:** Server error
+
 - **Check:** Backend logs in terminal
 - **Solution:** Restart backend, verify database connection
 
@@ -495,11 +558,13 @@ These requests automatically capture and set variables:
 ## Support
 
 For API issues:
+
 - Check backend logs: `npm run dev` terminal
 - Verify database connection: `npm run db:test`
 - Test endpoint health: POST `/health` endpoints
 
 For Postman issues:
+
 - Import fresh collection
 - Reset environment variables: Clear all custom values
 - Check base URL matches running backend

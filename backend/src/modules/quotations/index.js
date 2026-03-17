@@ -1,10 +1,10 @@
-﻿const { createQuotationsController } = require('./quotations.controller');
-const { createQuotationsService } = require('./quotations.service');
-const { createQuotationsRepository } = require('./quotations.repository');
-const { createQuotationsRoutes } = require('./quotations.routes');
-const { QuotationsValidation } = require('./quotations.validation');
-const { QuotationsSchema } = require('./quotations.schema');
-const { createQuotationsEvents } = require('./quotations.events');
+﻿const { createQuotationsController } = require("./quotations.controller");
+const { createQuotationsService } = require("./quotations.service");
+const { createQuotationsRepository } = require("./quotations.repository");
+const { createQuotationsRoutes } = require("./quotations.routes");
+const { QuotationsValidation } = require("./quotations.validation");
+const { QuotationsSchema } = require("./quotations.schema");
+const { createQuotationsEvents } = require("./quotations.events");
 
 function createQuotationsModule({ dependencies }) {
   const repository = createQuotationsRepository({
@@ -35,7 +35,7 @@ function createQuotationsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'quotations',
+    name: "quotations",
     router,
     controller,
     service,

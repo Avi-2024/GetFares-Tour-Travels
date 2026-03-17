@@ -16,13 +16,34 @@ import { createComplaintsDatasource } from "../datasource/complaintsDatasource";
 import { createUsersDatasource } from "../datasource/usersDatasource";
 import { createNotificationsDatasource } from "../datasource/notificationsDatasource";
 import { createAuthService, type AuthService } from "../services/authService";
-import { createLeadsService, type LeadsService } from "../services/leadsService";
-import { createCampaignsService, type CampaignsService } from "../services/campaignsService";
-import { createCustomersService, type CustomersService } from "../services/customersService";
-import { createBookingsService, type BookingsService } from "../services/bookingsService";
-import { createComplaintsService, type ComplaintsService } from "../services/complaintsService";
-import { createUsersService, type UsersService } from "../services/usersService";
-import { createNotificationsService, type NotificationsService } from "../services/notificationsService";
+import {
+  createLeadsService,
+  type LeadsService,
+} from "../services/leadsService";
+import {
+  createCampaignsService,
+  type CampaignsService,
+} from "../services/campaignsService";
+import {
+  createCustomersService,
+  type CustomersService,
+} from "../services/customersService";
+import {
+  createBookingsService,
+  type BookingsService,
+} from "../services/bookingsService";
+import {
+  createComplaintsService,
+  type ComplaintsService,
+} from "../services/complaintsService";
+import {
+  createUsersService,
+  type UsersService,
+} from "../services/usersService";
+import {
+  createNotificationsService,
+  type NotificationsService,
+} from "../services/notificationsService";
 import { useAuth } from "./AuthContext";
 
 export type ServiceContextValue = {
@@ -54,7 +75,7 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     apiClient.setAuthTokenProvider(() => token);
     apiClient.setOnUnauthorized(() => logout());
-  }, [apiClient, token, logout]); 
+  }, [apiClient, token, logout]);
 
   const services = useMemo<ServiceContextValue>(() => {
     const authDatasource = createAuthDatasource(apiClient);
@@ -78,7 +99,11 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [apiClient]);
 
-  return <ServiceContext.Provider value={services}>{children}</ServiceContext.Provider>;
+  return (
+    <ServiceContext.Provider value={services}>
+      {children}
+    </ServiceContext.Provider>
+  );
 };
 
 export const useServices = () => {

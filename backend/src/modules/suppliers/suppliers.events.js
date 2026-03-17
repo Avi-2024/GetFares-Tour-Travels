@@ -1,23 +1,28 @@
 function createSuppliersEvents({ eventBus, logger }) {
   return Object.freeze({
     emitCreated(payload) {
-      logger.info({ id: payload.id }, 'suppliers.created');
-      eventBus.emit('suppliers.created', payload);
+      logger.info({ id: payload.id }, "suppliers.created");
+      eventBus.emit("suppliers.created", payload);
     },
     emitUpdated(payload) {
-      logger.info({ id: payload.id }, 'suppliers.updated');
-      eventBus.emit('suppliers.updated', payload);
+      logger.info({ id: payload.id }, "suppliers.updated");
+      eventBus.emit("suppliers.updated", payload);
     },
     emitPayableCreated(payload) {
-      logger.info({ id: payload.id, supplierId: payload.supplierId }, 'suppliers.payable_created');
-      eventBus.emit('suppliers.payable_created', payload);
+      logger.info(
+        { id: payload.id, supplierId: payload.supplierId },
+        "suppliers.payable_created",
+      );
+      eventBus.emit("suppliers.payable_created", payload);
     },
     emitPayableUpdated(payload) {
-      logger.info({ id: payload.id, supplierId: payload.supplierId }, 'suppliers.payable_updated');
-      eventBus.emit('suppliers.payable_updated', payload);
+      logger.info(
+        { id: payload.id, supplierId: payload.supplierId },
+        "suppliers.payable_updated",
+      );
+      eventBus.emit("suppliers.payable_updated", payload);
     },
   });
 }
 
 module.exports = { createSuppliersEvents };
-

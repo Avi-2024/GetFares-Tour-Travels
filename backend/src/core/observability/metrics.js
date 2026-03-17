@@ -1,48 +1,48 @@
 function classifyStatus(statusCode) {
   if (statusCode >= 500) {
-    return '5xx';
+    return "5xx";
   }
   if (statusCode >= 400) {
-    return '4xx';
+    return "4xx";
   }
   if (statusCode >= 300) {
-    return '3xx';
+    return "3xx";
   }
   if (statusCode >= 200) {
-    return '2xx';
+    return "2xx";
   }
-  return '1xx';
+  return "1xx";
 }
 
 function sanitizeLabel(value) {
-  return String(value ?? '')
-    .replace(/\\/g, '\\\\')
+  return String(value ?? "")
+    .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"');
 }
 
 function normalizeRoute(req) {
   if (req.route?.path) {
-    return `${req.baseUrl || ''}${req.route.path}`;
+    return `${req.baseUrl || ""}${req.route.path}`;
   }
 
   if (req.path) {
     return req.path;
   }
 
-  const originalUrl = req.originalUrl || '';
-  const [path] = originalUrl.split('?');
-  return path || 'unknown';
+  const originalUrl = req.originalUrl || "";
+  const [path] = originalUrl.split("?");
+  return path || "unknown";
 }
 
 function createMetricsStore({ serviceName, serviceVersion }) {
   const startedAt = Date.now();
   const routeStats = new Map();
   const globalStatusCounters = {
-    '1xx': 0,
-    '2xx': 0,
-    '3xx': 0,
-    '4xx': 0,
-    '5xx': 0,
+    "1xx": 0,
+    "2xx": 0,
+    "3xx": 0,
+    "4xx": 0,
+    "5xx": 0,
   };
 
   function getOrCreateRouteStat(method, route) {
@@ -54,11 +54,11 @@ function createMetricsStore({ serviceName, serviceVersion }) {
         requestCount: 0,
         durationMsSum: 0,
         statusClassCount: {
-          '1xx': 0,
-          '2xx': 0,
-          '3xx': 0,
-          '4xx': 0,
-          '5xx': 0,
+          "1xx": 0,
+          "2xx": 0,
+          "3xx": 0,
+          "4xx": 0,
+          "5xx": 0,
         },
       });
     }
@@ -82,12 +82,21 @@ function createMetricsStore({ serviceName, serviceVersion }) {
       route: item.route,
       requestCount: item.requestCount,
       durationMsSum: Number(item.durationMsSum.toFixed(3)),
-      durationMsAvg: item.requestCount > 0 ? Number((item.durationMsSum / item.requestCount).toFixed(3)) : 0,
+      durationMsAvg:
+        item.requestCount > 0
+          ? Number((item.durationMsSum / item.requestCount).toFixed(3))
+          : 0,
       statusClassCount: { ...item.statusClassCount },
     }));
 
-    const requestCount = routes.reduce((total, item) => total + item.requestCount, 0);
-    const durationMsSum = routes.reduce((total, item) => total + item.durationMsSum, 0);
+    const requestCount = routes.reduce(
+      (total, item) => total + item.requestCount,
+      0,
+    );
+    const durationMsSum = routes.reduce(
+      (total, item) => total + item.durationMsSum,
+      0,
+    );
 
     return {
       service: serviceName,
@@ -97,7 +106,10 @@ function createMetricsStore({ serviceName, serviceVersion }) {
       totals: {
         requestCount,
         durationMsSum: Number(durationMsSum.toFixed(3)),
-        durationMsAvg: requestCount > 0 ? Number((durationMsSum / requestCount).toFixed(3)) : 0,
+        durationMsAvg:
+          requestCount > 0
+            ? Number((durationMsSum / requestCount).toFixed(3))
+            : 0,
         statusClassCount: { ...globalStatusCounters },
       },
       routes,
@@ -108,34 +120,48 @@ function createMetricsStore({ serviceName, serviceVersion }) {
     const stats = snapshot();
     const lines = [];
 
-    lines.push('# HELP process_uptime_seconds Process uptime in seconds.');
-    lines.push('# TYPE process_uptime_seconds gauge');
+    lines.push("# HELP process_uptime_seconds Process uptime in seconds.");
+    lines.push("# TYPE process_uptime_seconds gauge");
     lines.push(`process_uptime_seconds ${stats.uptimeSeconds}`);
 
-    lines.push('# HELP http_requests_total Total HTTP requests by method, route, and status class.');
-    lines.push('# TYPE http_requests_total counter');
+    lines.push(
+      "# HELP http_requests_total Total HTTP requests by method, route, and status class.",
+    );
+    lines.push("# TYPE http_requests_total counter");
 
-    lines.push('# HELP http_request_duration_ms_sum Sum of HTTP request duration in milliseconds.');
-    lines.push('# TYPE http_request_duration_ms_sum counter');
+    lines.push(
+      "# HELP http_request_duration_ms_sum Sum of HTTP request duration in milliseconds.",
+    );
+    lines.push("# TYPE http_request_duration_ms_sum counter");
 
-    lines.push('# HELP http_request_duration_ms_count Count of HTTP requests used for duration average.');
-    lines.push('# TYPE http_request_duration_ms_count counter');
+    lines.push(
+      "# HELP http_request_duration_ms_count Count of HTTP requests used for duration average.",
+    );
+    lines.push("# TYPE http_request_duration_ms_count counter");
 
     for (const routeStat of stats.routes) {
       const labels = `method="${sanitizeLabel(routeStat.method)}",route="${sanitizeLabel(routeStat.route)}"`;
 
-      lines.push(`http_request_duration_ms_sum{${labels}} ${routeStat.durationMsSum}`);
-      lines.push(`http_request_duration_ms_count{${labels}} ${routeStat.requestCount}`);
+      lines.push(
+        `http_request_duration_ms_sum{${labels}} ${routeStat.durationMsSum}`,
+      );
+      lines.push(
+        `http_request_duration_ms_count{${labels}} ${routeStat.requestCount}`,
+      );
 
-      for (const [statusClass, count] of Object.entries(routeStat.statusClassCount)) {
+      for (const [statusClass, count] of Object.entries(
+        routeStat.statusClassCount,
+      )) {
         if (count === 0) {
           continue;
         }
-        lines.push(`http_requests_total{${labels},status_class="${statusClass}"} ${count}`);
+        lines.push(
+          `http_requests_total{${labels},status_class="${statusClass}"} ${count}`,
+        );
       }
     }
 
-    return `${lines.join('\n')}\n`;
+    return `${lines.join("\n")}\n`;
   }
 
   return {
@@ -149,8 +175,9 @@ function createRequestMetricsMiddleware({ metricsStore }) {
   return function requestMetrics(req, res, next) {
     const startedAt = process.hrtime.bigint();
 
-    res.on('finish', () => {
-      const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    res.on("finish", () => {
+      const durationMs =
+        Number(process.hrtime.bigint() - startedAt) / 1_000_000;
       metricsStore.trackRequest({
         method: req.method,
         route: normalizeRoute(req),

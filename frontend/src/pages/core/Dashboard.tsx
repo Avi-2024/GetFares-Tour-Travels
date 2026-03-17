@@ -132,9 +132,11 @@ const Dashboard: React.FC = () => {
               <span
                 className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${k.up ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
               >
-                {k.up ?
+                {k.up ? (
                   <FaArrowTrendUp className="mr-1" />
-                : <FaArrowTrendDown className="mr-1" />}
+                ) : (
+                  <FaArrowTrendDown className="mr-1" />
+                )}
                 {k.trend}
               </span>
             </div>

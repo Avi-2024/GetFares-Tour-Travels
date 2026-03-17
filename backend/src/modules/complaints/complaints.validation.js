@@ -1,6 +1,6 @@
-const { z } = require('zod');
+const { z } = require("zod");
 
-const complaintStatus = z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED']);
+const complaintStatus = z.enum(["OPEN", "IN_PROGRESS", "RESOLVED"]);
 
 const createPayload = z.object({
   bookingId: z.string().uuid().optional(),
@@ -17,7 +17,10 @@ const updatePayload = z
     description: z.string().trim().min(5).max(4000).optional(),
     status: complaintStatus.optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update');
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required for update",
+  );
 
 const create = z.object({
   body: createPayload,

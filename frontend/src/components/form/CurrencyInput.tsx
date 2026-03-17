@@ -10,8 +10,25 @@ type Props = {
   max?: number;
 };
 
-const CurrencyInput = ({ label, value, onChange, required, error, min = 0, max }: Props) => (
-  <NumberInput label={label} value={value} onChange={onChange} required={required} error={error} min={min} max={max} step={0.01} />
+const CurrencyInput = ({
+  label,
+  value,
+  onChange,
+  required,
+  error,
+  min = 0,
+  max,
+}: Props) => (
+  <NumberInput
+    label={label}
+    value={value}
+    onChange={onChange}
+    required={required}
+    error={error}
+    min={min}
+    max={max}
+    step={0.01}
+  />
 );
 
 export default CurrencyInput;

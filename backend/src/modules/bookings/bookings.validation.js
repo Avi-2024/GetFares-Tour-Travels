@@ -1,12 +1,14 @@
-const { z } = require('zod');
+const { z } = require("zod");
 
-const bookingStatus = z.enum(['PENDING', 'CONFIRMED', 'CANCELLED']);
-const paymentStatus = z.enum(['PENDING', 'PARTIAL', 'FULL', 'REFUNDED']);
+const bookingStatus = z.enum(["PENDING", "CONFIRMED", "CANCELLED"]);
+const paymentStatus = z.enum(["PENDING", "PARTIAL", "FULL", "REFUNDED"]);
 const currencyCode = z.string().trim().min(3).max(10);
 
-const dateTimeString = z.string().refine((value) => !Number.isNaN(new Date(value).getTime()), {
-  message: 'Invalid date-time',
-});
+const dateTimeString = z
+  .string()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+    message: "Invalid date-time",
+  });
 
 const createPayload = z
   .object({
@@ -27,16 +29,16 @@ const createPayload = z
     if (value.travelEndDate < value.travelStartDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['travelEndDate'],
-        message: 'travelEndDate must be on or after travelStartDate',
+        path: ["travelEndDate"],
+        message: "travelEndDate must be on or after travelStartDate",
       });
     }
 
     if (value.costAmount > value.totalAmount) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['costAmount'],
-        message: 'costAmount cannot be greater than totalAmount',
+        path: ["costAmount"],
+        message: "costAmount cannot be greater than totalAmount",
       });
     }
   });
@@ -55,7 +57,10 @@ const updatePayload = z
     exchangeLocked: z.boolean().optional(),
     cancellationReason: z.string().trim().min(3).max(1000).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update');
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required for update",
+  );
 
 const list = z.object({
   body: z.object({}).optional(),
@@ -98,11 +103,11 @@ const transitionStatus = z.object({
       changedAt: dateTimeString.optional(),
     })
     .superRefine((value, ctx) => {
-      if (value.status === 'CANCELLED' && !value.cancellationReason) {
+      if (value.status === "CANCELLED" && !value.cancellationReason) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['cancellationReason'],
-          message: 'cancellationReason is required when status is CANCELLED',
+          path: ["cancellationReason"],
+          message: "cancellationReason is required when status is CANCELLED",
         });
       }
     }),

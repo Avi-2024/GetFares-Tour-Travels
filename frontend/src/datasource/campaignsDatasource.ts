@@ -1,10 +1,12 @@
 import type { HttpClient } from "../api/apiClient";
 
-export type CampaignsQuery = Record<string, string | number | boolean | undefined>;
+export type CampaignsQuery = Record<
+  string,
+  string | number | boolean | undefined
+>;
 
 export const createCampaignsDatasource = (client: HttpClient) => ({
-  list: (params?: CampaignsQuery) =>
-    client.get("/api/campaigns", { params }),
+  list: (params?: CampaignsQuery) => client.get("/api/campaigns", { params }),
   create: (payload: unknown) => client.post("/api/campaigns", payload),
   getById: (id: string) => client.get(`/api/campaigns/${id}`),
   update: (id: string, payload: unknown) =>

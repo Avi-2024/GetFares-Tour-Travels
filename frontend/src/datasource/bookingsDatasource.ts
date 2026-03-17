@@ -1,10 +1,12 @@
 import type { HttpClient } from "../api/apiClient";
 
-export type BookingsQuery = Record<string, string | number | boolean | undefined>;
+export type BookingsQuery = Record<
+  string,
+  string | number | boolean | undefined
+>;
 
 export const createBookingsDatasource = (client: HttpClient) => ({
-  list: (params?: BookingsQuery) =>
-    client.get("/api/bookings", { params }),
+  list: (params?: BookingsQuery) => client.get("/api/bookings", { params }),
   create: (payload: unknown) => client.post("/api/bookings", payload),
   getById: (id: string) => client.get(`/api/bookings/${id}`),
   update: (id: string, payload: unknown) =>

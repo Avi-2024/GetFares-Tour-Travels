@@ -32,14 +32,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/webhooks/meta-leads",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "webhooks",
-                "meta-leads"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "meta-leads"]
             },
             "body": {
               "mode": "raw",
@@ -60,14 +54,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/webhooks/website-enquiry",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "webhooks",
-                "website-enquiry"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "website-enquiry"]
             },
             "body": {
               "mode": "raw",
@@ -88,14 +76,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/webhooks/whatsapp-enquiry",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "webhooks",
-                "whatsapp-enquiry"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "whatsapp-enquiry"]
             },
             "body": {
               "mode": "raw",

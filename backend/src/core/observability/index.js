@@ -1,4 +1,7 @@
-const { createMetricsStore, createRequestMetricsMiddleware } = require('./metrics');
+const {
+  createMetricsStore,
+  createRequestMetricsMiddleware,
+} = require("./metrics");
 
 module.exports = {
   createMetricsStore,

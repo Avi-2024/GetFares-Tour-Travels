@@ -1,7 +1,12 @@
 export type UUID = string;
 
 export type LeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "LOST";
-export type QuoteStatus = "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED";
+export type QuoteStatus =
+  | "DRAFT"
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "EXPIRED";
 export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
 export type VisaStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
 

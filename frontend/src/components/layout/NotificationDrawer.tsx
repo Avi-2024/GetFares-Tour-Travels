@@ -24,10 +24,16 @@ const NotificationDrawer = ({ open, onClose }: Props) => {
               <FaBell /> Notifications
             </h2>
             <div className="flex items-center gap-2">
-              <button onClick={() => void markAllRead()} className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+              <button
+                onClick={() => void markAllRead()}
+                className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
                 <FaCheckDouble className="mr-1 inline" /> Mark all read
               </button>
-              <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100">
+              <button
+                onClick={onClose}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
+              >
                 <FaXmark />
               </button>
             </div>
@@ -36,18 +42,32 @@ const NotificationDrawer = ({ open, onClose }: Props) => {
 
         <div className="p-4 space-y-3 overflow-y-auto max-h-80 scrollbar-hide">
           {notifications.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">No notifications</p>
+            <p className="text-sm text-gray-500 text-center py-4">
+              No notifications
+            </p>
           ) : (
             notifications.map((notification) => (
-              <div key={notification.id} className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+              <div
+                key={notification.id}
+                className="rounded-lg border border-gray-200 p-3 dark:border-gray-700"
+              >
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{notification.title}</p>
-                  <StatusBadge status={notification.isRead ? "Read" : "Unread"} />
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {notification.title}
+                  </p>
+                  <StatusBadge
+                    status={notification.isRead ? "Read" : "Unread"}
+                  />
                 </div>
                 <p className="text-xs text-gray-500">{notification.module}</p>
-                <p className="mt-1 text-xs text-gray-400">{notification.time}</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  {notification.time}
+                </p>
                 {!notification.isRead ? (
-                  <button onClick={() => void markRead(notification.id)} className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700">
+                  <button
+                    onClick={() => void markRead(notification.id)}
+                    className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
                     Mark as read
                   </button>
                 ) : null}

@@ -44,9 +44,8 @@ const Leads: React.FC = () => {
         });
         setFetchedLeads(mapped);
       } catch (err) {
-        const msg =
-          isApiError(err) ?
-            err.message || "Failed to load leads"
+        const msg = isApiError(err)
+          ? err.message || "Failed to load leads"
           : "Failed to load leads";
         setError(msg);
         setFetchedLeads([]);
@@ -142,11 +141,11 @@ const Leads: React.FC = () => {
         <SurfaceCard className="overflow-hidden border border-gray-200 dark:border-gray-800">
           {/* Search and Filter Bar */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-            {error ?
+            {error ? (
               <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
                 {error}
               </div>
-            : null}
+            ) : null}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
               {/* Tabs - Horizontal scroll on mobile, inline on desktop */}
               <div className="w-full lg:w-auto overflow-x-auto pb-1 scrollbar-hide">
@@ -159,9 +158,9 @@ const Leads: React.FC = () => {
                         setPage(1);
                       }}
                       className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
-                        tab === t ?
-                          "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                        tab === t
+                          ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                       }`}
                     >
                       {t}
@@ -188,11 +187,11 @@ const Leads: React.FC = () => {
           </div>
 
           {/* Leads List */}
-          {loading ?
+          {loading ? (
             <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Loading leads...
             </div>
-          : leads.length === 0 ?
+          ) : leads.length === 0 ? (
             <div className="p-8">
               <EmptyState
                 title="No leads found"
@@ -211,7 +210,8 @@ const Leads: React.FC = () => {
                 icon={<FaUsers className="text-4xl" />}
               />
             </div>
-          : <>
+          ) : (
+            <>
               {/* Mobile View - Card Layout (stacked) */}
               <div className="block lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
                 {leads.map((lead) => (
@@ -423,7 +423,7 @@ const Leads: React.FC = () => {
                 </div>
               </div>
             </>
-          }
+          )}
         </SurfaceCard>
       </div>
     </div>

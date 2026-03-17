@@ -1,5 +1,5 @@
-const { Router } = require('express');
-const { asyncHandler } = require('../../core/utils');
+const { Router } = require("express");
+const { asyncHandler } = require("../../core/utils");
 
 function createNotificationsRoutes({
   controller,
@@ -11,33 +11,33 @@ function createNotificationsRoutes({
   const router = Router();
 
   router.get(
-    '/',
+    "/",
     requireAuth,
-    authorize('notifications:read'),
+    authorize("notifications:read"),
     validateRequest(validation.list),
     asyncHandler(controller.listMine),
   );
 
   router.get(
-    '/unread-count',
+    "/unread-count",
     requireAuth,
-    authorize('notifications:read'),
+    authorize("notifications:read"),
     validateRequest(validation.unreadCount),
     asyncHandler(controller.unreadCount),
   );
 
   router.patch(
-    '/:id/read',
+    "/:id/read",
     requireAuth,
-    authorize('notifications:update'),
+    authorize("notifications:update"),
     validateRequest(validation.markRead),
     asyncHandler(controller.markRead),
   );
 
   router.patch(
-    '/read-all',
+    "/read-all",
     requireAuth,
-    authorize('notifications:update'),
+    authorize("notifications:update"),
     validateRequest(validation.markAllRead),
     asyncHandler(controller.markAllRead),
   );

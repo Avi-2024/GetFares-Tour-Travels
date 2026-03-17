@@ -1,4 +1,4 @@
-const { AppError } = require('../../core/errors');
+const { AppError } = require("../../core/errors");
 
 function toSupplier(entity) {
   if (!entity) {
@@ -130,26 +130,32 @@ function createSuppliersService({ repository, logger, events }) {
     }
 
     if (paidAmount <= 0) {
-      return 'PENDING';
+      return "PENDING";
     }
     if (paidAmount >= payableAmount) {
-      return 'PAID';
+      return "PAID";
     }
-    return 'PARTIAL';
+    return "PARTIAL";
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'suppliers', requestId: context.requestId, id }, 'Get supplier by id');
+    logger.debug(
+      { module: "suppliers", requestId: context.requestId, id },
+      "Get supplier by id",
+    );
     const item = await repository.findById(id);
     if (!item || item.is_deleted) {
-      throw new AppError(404, 'Supplier not found', 'SUPPLIER_NOT_FOUND');
+      throw new AppError(404, "Supplier not found", "SUPPLIER_NOT_FOUND");
     }
     return toSupplier(item);
   }
 
   return Object.freeze({
     async list(filters = {}, context = {}) {
-      logger.debug({ module: 'suppliers', requestId: context.requestId, filters }, 'List suppliers');
+      logger.debug(
+        { module: "suppliers", requestId: context.requestId, filters },
+        "List suppliers",
+      );
       const rows = await repository.findAll(mapListFilters(filters));
       return rows.filter((row) => !row.is_deleted).map(toSupplier);
     },
@@ -186,19 +192,35 @@ function createSuppliersService({ repository, logger, events }) {
       await getById(supplierId, context);
       const booking = await repository.findBookingById(payload.bookingId);
       if (!booking) {
-        throw new AppError(404, 'Booking not found', 'SUPPLIER_PAYABLE_BOOKING_NOT_FOUND');
+        throw new AppError(
+          404,
+          "Booking not found",
+          "SUPPLIER_PAYABLE_BOOKING_NOT_FOUND",
+        );
       }
 
       const payableAmount = Number(payload.payableAmount);
       const paidAmount = Number(payload.paidAmount || 0);
       if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
-        throw new AppError(400, 'payableAmount must be greater than 0', 'SUPPLIER_PAYABLE_INVALID_AMOUNT');
+        throw new AppError(
+          400,
+          "payableAmount must be greater than 0",
+          "SUPPLIER_PAYABLE_INVALID_AMOUNT",
+        );
       }
       if (!Number.isFinite(paidAmount) || paidAmount < 0) {
-        throw new AppError(400, 'paidAmount cannot be negative', 'SUPPLIER_PAYABLE_INVALID_PAID_AMOUNT');
+        throw new AppError(
+          400,
+          "paidAmount cannot be negative",
+          "SUPPLIER_PAYABLE_INVALID_PAID_AMOUNT",
+        );
       }
       if (paidAmount > payableAmount) {
-        throw new AppError(400, 'paidAmount cannot exceed payableAmount', 'SUPPLIER_PAYABLE_INVALID_PAID_AMOUNT');
+        throw new AppError(
+          400,
+          "paidAmount cannot exceed payableAmount",
+          "SUPPLIER_PAYABLE_INVALID_PAID_AMOUNT",
+        );
       }
 
       const created = await repository.createPayable({
@@ -220,26 +242,44 @@ function createSuppliersService({ repository, logger, events }) {
     async updatePayable(payableId, payload, context = {}) {
       const existing = await repository.findPayableById(payableId);
       if (!existing) {
-        throw new AppError(404, 'Supplier payable not found', 'SUPPLIER_PAYABLE_NOT_FOUND');
+        throw new AppError(
+          404,
+          "Supplier payable not found",
+          "SUPPLIER_PAYABLE_NOT_FOUND",
+        );
       }
 
       await getById(existing.supplier_id, context);
 
-      const payableAmount = payload.payableAmount !== undefined
-        ? Number(payload.payableAmount)
-        : Number(existing.payable_amount);
-      const paidAmount = payload.paidAmount !== undefined
-        ? Number(payload.paidAmount)
-        : Number(existing.paid_amount || 0);
+      const payableAmount =
+        payload.payableAmount !== undefined
+          ? Number(payload.payableAmount)
+          : Number(existing.payable_amount);
+      const paidAmount =
+        payload.paidAmount !== undefined
+          ? Number(payload.paidAmount)
+          : Number(existing.paid_amount || 0);
 
       if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
-        throw new AppError(400, 'payableAmount must be greater than 0', 'SUPPLIER_PAYABLE_INVALID_AMOUNT');
+        throw new AppError(
+          400,
+          "payableAmount must be greater than 0",
+          "SUPPLIER_PAYABLE_INVALID_AMOUNT",
+        );
       }
       if (!Number.isFinite(paidAmount) || paidAmount < 0) {
-        throw new AppError(400, 'paidAmount cannot be negative', 'SUPPLIER_PAYABLE_INVALID_PAID_AMOUNT');
+        throw new AppError(
+          400,
+          "paidAmount cannot be negative",
+          "SUPPLIER_PAYABLE_INVALID_PAID_AMOUNT",
+        );
       }
       if (paidAmount > payableAmount) {
-        throw new AppError(400, 'paidAmount cannot exceed payableAmount', 'SUPPLIER_PAYABLE_INVALID_PAID_AMOUNT');
+        throw new AppError(
+          400,
+          "paidAmount cannot exceed payableAmount",
+          "SUPPLIER_PAYABLE_INVALID_PAID_AMOUNT",
+        );
       }
 
       const updated = await repository.updatePayable(payableId, {
@@ -248,7 +288,10 @@ function createSuppliersService({ repository, logger, events }) {
         due_date: payload.dueDate,
         status: derivePayableStatus(payableAmount, paidAmount, payload.status),
         payment_reference: payload.paymentReference,
-        last_paid_at: payload.paidAmount !== undefined ? new Date().toISOString() : existing.last_paid_at,
+        last_paid_at:
+          payload.paidAmount !== undefined
+            ? new Date().toISOString()
+            : existing.last_paid_at,
       });
 
       const payable = toPayable(updated);
@@ -259,4 +302,3 @@ function createSuppliersService({ repository, logger, events }) {
 }
 
 module.exports = { createSuppliersService };
-

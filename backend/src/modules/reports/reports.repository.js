@@ -1,6 +1,6 @@
 function createReportsRepository({ db, schema }) {
   function canUseRawQuery() {
-    return typeof db.query === 'function' && Boolean(db.pool);
+    return typeof db.query === "function" && Boolean(db.pool);
   }
 
   function toNumber(value, fallback = 0) {
@@ -29,7 +29,7 @@ function createReportsRepository({ db, schema }) {
     }
 
     return {
-      sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
+      sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
       params,
       nextIndex,
     };
@@ -45,7 +45,7 @@ function createReportsRepository({ db, schema }) {
 
   return Object.freeze({
     async getLeadsBySource(filters = {}) {
-      const range = buildDateRangeClause('l.created_at', filters);
+      const range = buildDateRangeClause("l.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -67,22 +67,27 @@ function createReportsRepository({ db, schema }) {
           source: row.source,
           totalLeads: total,
           convertedLeads: converted,
-          conversionRatePercent: total > 0 ? Number(((converted / total) * 100).toFixed(2)) : 0,
+          conversionRatePercent:
+            total > 0 ? Number(((converted / total) * 100).toFixed(2)) : 0,
         };
       });
     },
 
     async getLeadsByConsultant(filters = {}) {
-      const range = buildDateRangeClause('l.created_at', filters);
+      const range = buildDateRangeClause("l.created_at", filters);
       const params = [...range.params];
-      const whereClauses = range.sql ? [range.sql.replace(/^WHERE\s+/i, '')] : [];
+      const whereClauses = range.sql
+        ? [range.sql.replace(/^WHERE\s+/i, "")]
+        : [];
 
       if (filters.userId) {
         whereClauses.push(`l.assigned_to = $${params.length + 1}`);
         params.push(filters.userId);
       }
 
-      const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+      const whereSql = whereClauses.length
+        ? `WHERE ${whereClauses.join(" AND ")}`
+        : "";
 
       const rows = await queryRows(
         `
@@ -116,14 +121,15 @@ function createReportsRepository({ db, schema }) {
           consultantName: row.consultant_name,
           totalLeads: total,
           convertedLeads: converted,
-          conversionRatePercent: total > 0 ? Number(((converted / total) * 100).toFixed(2)) : 0,
+          conversionRatePercent:
+            total > 0 ? Number(((converted / total) * 100).toFixed(2)) : 0,
           averageResponseMinutes: toNumber(row.avg_response_minutes, 0),
         };
       });
     },
 
     async getLeadAgingReport(filters = {}) {
-      const range = buildDateRangeClause('l.created_at', filters);
+      const range = buildDateRangeClause("l.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -154,7 +160,7 @@ function createReportsRepository({ db, schema }) {
     },
 
     async getLostLeadReport(filters = {}) {
-      const range = buildDateRangeClause('l.updated_at', filters);
+      const range = buildDateRangeClause("l.updated_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -165,7 +171,7 @@ function createReportsRepository({ db, schema }) {
             l.updated_at AS lost_at
           FROM ${schema.leadsTable} l
           WHERE l.status = 'LOST'
-          ${range.sql ? `AND ${range.sql.replace(/^WHERE\s+/i, '')}` : ''}
+          ${range.sql ? `AND ${range.sql.replace(/^WHERE\s+/i, "")}` : ""}
           ORDER BY l.updated_at DESC
         `,
         range.params,
@@ -175,13 +181,13 @@ function createReportsRepository({ db, schema }) {
         id: row.id,
         fullName: row.full_name,
         source: row.source,
-        closedReason: row.closed_reason || 'UNSPECIFIED',
+        closedReason: row.closed_reason || "UNSPECIFIED",
         lostAt: row.lost_at,
       }));
     },
 
     async getRevenueByMonth(filters = {}) {
-      const range = buildDateRangeClause('b.created_at', filters);
+      const range = buildDateRangeClause("b.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -206,7 +212,7 @@ function createReportsRepository({ db, schema }) {
     },
 
     async getRevenueByServiceType(filters = {}) {
-      const range = buildDateRangeClause('b.created_at', filters);
+      const range = buildDateRangeClause("b.created_at", filters);
       const rows = await queryRows(
         `
           WITH base AS (
@@ -237,7 +243,7 @@ function createReportsRepository({ db, schema }) {
     },
 
     async getRevenueByDestination(filters = {}) {
-      const range = buildDateRangeClause('b.created_at', filters);
+      const range = buildDateRangeClause("b.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -277,7 +283,7 @@ function createReportsRepository({ db, schema }) {
         params.push(filters.userId);
         where.push(`u.id = $${params.length}`);
       }
-      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
       const rows = await queryRows(
         `
@@ -304,13 +310,14 @@ function createReportsRepository({ db, schema }) {
           fullName: row.full_name,
           targetAmount: target,
           achievedAmount: achieved,
-          achievementPercent: target > 0 ? Number(((achieved / target) * 100).toFixed(2)) : 0,
+          achievementPercent:
+            target > 0 ? Number(((achieved / target) * 100).toFixed(2)) : 0,
         };
       });
     },
 
     async getOutstandingPayments(filters = {}) {
-      const range = buildDateRangeClause('b.created_at', filters);
+      const range = buildDateRangeClause("b.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -340,7 +347,7 @@ function createReportsRepository({ db, schema }) {
     },
 
     async getPaymentModeReport(filters = {}) {
-      const range = buildDateRangeClause('p.created_at', filters);
+      const range = buildDateRangeClause("p.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -363,7 +370,7 @@ function createReportsRepository({ db, schema }) {
     },
 
     async getProfitMarginReport(filters = {}) {
-      const range = buildDateRangeClause('b.created_at', filters);
+      const range = buildDateRangeClause("b.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -386,12 +393,13 @@ function createReportsRepository({ db, schema }) {
         totalRevenue: revenue,
         totalCost: toNumber(row.total_cost, 0),
         totalProfit: profit,
-        marginPercent: revenue > 0 ? Number(((profit / revenue) * 100).toFixed(2)) : 0,
+        marginPercent:
+          revenue > 0 ? Number(((profit / revenue) * 100).toFixed(2)) : 0,
       };
     },
 
     async getVisaSummary(filters = {}) {
-      const range = buildDateRangeClause('vc.created_at', filters);
+      const range = buildDateRangeClause("vc.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -422,8 +430,10 @@ function createReportsRepository({ db, schema }) {
         approvedCases: approved,
         rejectedCases: rejected,
         pendingDocumentCases: toNumber(row.pending_document_cases, 0),
-        successRatePercent: total > 0 ? Number(((approved / total) * 100).toFixed(2)) : 0,
-        rejectionRatePercent: total > 0 ? Number(((rejected / total) * 100).toFixed(2)) : 0,
+        successRatePercent:
+          total > 0 ? Number(((approved / total) * 100).toFixed(2)) : 0,
+        rejectionRatePercent:
+          total > 0 ? Number(((rejected / total) * 100).toFixed(2)) : 0,
         averageProcessingDays: toNumber(row.average_processing_days, 0),
       };
     },
@@ -502,7 +512,7 @@ function createReportsRepository({ db, schema }) {
         where.push(`la.user_id = $${params.length}`);
       }
 
-      const whereSql = `WHERE ${where.join(' AND ')}`;
+      const whereSql = `WHERE ${where.join(" AND ")}`;
       const rows = await queryRows(
         `
           SELECT
@@ -543,7 +553,7 @@ function createReportsRepository({ db, schema }) {
         params.push(filters.to);
         where.push(`b.created_at <= $${params.length}`);
       }
-      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
       const rows = await queryRows(
         `
@@ -585,19 +595,24 @@ function createReportsRepository({ db, schema }) {
         totalLeads,
         totalBookings,
         convertedLeads,
-        conversionRatePercent: totalLeads > 0 ? Number(((convertedLeads / totalLeads) * 100).toFixed(2)) : 0,
+        conversionRatePercent:
+          totalLeads > 0
+            ? Number(((convertedLeads / totalLeads) * 100).toFixed(2))
+            : 0,
         revenue,
         cost: toNumber(row.cost, 0),
         profit,
-        avgBookingValue: totalBookings > 0 ? Number((revenue / totalBookings).toFixed(2)) : 0,
-        avgMarginPercent: revenue > 0 ? Number(((profit / revenue) * 100).toFixed(2)) : 0,
+        avgBookingValue:
+          totalBookings > 0 ? Number((revenue / totalBookings).toFixed(2)) : 0,
+        avgMarginPercent:
+          revenue > 0 ? Number(((profit / revenue) * 100).toFixed(2)) : 0,
       };
     },
 
     async getExecutiveKpis(filters = {}) {
-      const bookingRange = buildDateRangeClause('b.created_at', filters);
-      const leadRange = buildDateRangeClause('l.created_at', filters);
-      const refundRange = buildDateRangeClause('r.created_at', filters);
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      const leadRange = buildDateRangeClause("l.created_at", filters);
+      const refundRange = buildDateRangeClause("r.created_at", filters);
 
       const bookingRows = await queryRows(
         `
@@ -707,7 +722,7 @@ function createReportsRepository({ db, schema }) {
 
       const revenueByService = serviceRevenueRows.reduce(
         (accumulator, row) => {
-          const serviceType = row.service_type === 'VISA' ? 'visa' : 'holiday';
+          const serviceType = row.service_type === "VISA" ? "visa" : "holiday";
           accumulator[serviceType] += toNumber(row.revenue, 0);
           return accumulator;
         },
@@ -717,25 +732,40 @@ function createReportsRepository({ db, schema }) {
       return {
         totalLeads,
         convertedLeads,
-        conversionRatePercent: totalLeads > 0 ? Number(((convertedLeads / totalLeads) * 100).toFixed(2)) : 0,
+        conversionRatePercent:
+          totalLeads > 0
+            ? Number(((convertedLeads / totalLeads) * 100).toFixed(2))
+            : 0,
         totalBookings,
         revenue: totalRevenue,
         cost: totalCost,
         profit: totalProfit,
-        avgBookingValue: totalBookings > 0 ? Number((totalRevenue / totalBookings).toFixed(2)) : 0,
-        avgMarginPercent: totalRevenue > 0 ? Number(((totalProfit / totalRevenue) * 100).toFixed(2)) : 0,
-        cancellationRatioPercent: totalBookings > 0 ? Number(((cancelledBookings / totalBookings) * 100).toFixed(2)) : 0,
+        avgBookingValue:
+          totalBookings > 0
+            ? Number((totalRevenue / totalBookings).toFixed(2))
+            : 0,
+        avgMarginPercent:
+          totalRevenue > 0
+            ? Number(((totalProfit / totalRevenue) * 100).toFixed(2))
+            : 0,
+        cancellationRatioPercent:
+          totalBookings > 0
+            ? Number(((cancelledBookings / totalBookings) * 100).toFixed(2))
+            : 0,
         activeAgents: toNumber(active.active_agents, 0),
         pendingFollowups: toNumber(followups.pending_followups, 0),
         overdueFollowups: toNumber(followups.overdue_followups, 0),
-        refundTurnaroundDaysAvg: toNumber(refunds.avg_refund_turnaround_days, 0),
+        refundTurnaroundDaysAvg: toNumber(
+          refunds.avg_refund_turnaround_days,
+          0,
+        ),
         holidayRevenue: Number(revenueByService.holiday.toFixed(2)),
         visaRevenue: Number(revenueByService.visa.toFixed(2)),
       };
     },
 
     async getConversionFunnel(filters = {}) {
-      const range = buildDateRangeClause('l.created_at', filters);
+      const range = buildDateRangeClause("l.created_at", filters);
       const rows = await queryRows(
         `
           SELECT
@@ -752,31 +782,52 @@ function createReportsRepository({ db, schema }) {
         rows.map((row) => [row.status, toNumber(row.total, 0)]),
       );
 
-      const stages = ['OPEN', 'CONTACTED', 'WIP', 'QUOTED', 'FOLLOW_UP', 'CONVERTED', 'LOST', 'NON_RESPONSIVE'];
-      const totalLeads = stages.reduce((sum, stage) => sum + (statusMap.get(stage) || 0), 0);
+      const stages = [
+        "OPEN",
+        "CONTACTED",
+        "WIP",
+        "QUOTED",
+        "FOLLOW_UP",
+        "CONVERTED",
+        "LOST",
+        "NON_RESPONSIVE",
+      ];
+      const totalLeads = stages.reduce(
+        (sum, stage) => sum + (statusMap.get(stage) || 0),
+        0,
+      );
 
       const funnel = stages.map((stage) => {
         const count = statusMap.get(stage) || 0;
         return {
           stage,
           count,
-          sharePercent: totalLeads > 0 ? Number(((count / totalLeads) * 100).toFixed(2)) : 0,
+          sharePercent:
+            totalLeads > 0
+              ? Number(((count / totalLeads) * 100).toFixed(2))
+              : 0,
         };
       });
 
       return {
         totalLeads,
-        convertedLeads: statusMap.get('CONVERTED') || 0,
-        lostLeads: statusMap.get('LOST') || 0,
-        conversionRatePercent: totalLeads > 0
-          ? Number((((statusMap.get('CONVERTED') || 0) / totalLeads) * 100).toFixed(2))
-          : 0,
+        convertedLeads: statusMap.get("CONVERTED") || 0,
+        lostLeads: statusMap.get("LOST") || 0,
+        conversionRatePercent:
+          totalLeads > 0
+            ? Number(
+                (
+                  ((statusMap.get("CONVERTED") || 0) / totalLeads) *
+                  100
+                ).toFixed(2),
+              )
+            : 0,
         funnel,
       };
     },
 
     async getMarketingPerformance(filters = {}) {
-      const range = buildDateRangeClause('l.created_at', filters);
+      const range = buildDateRangeClause("l.created_at", filters);
       const rows = await queryRows(
         `
           WITH lead_stats AS (
@@ -826,16 +877,20 @@ function createReportsRepository({ db, schema }) {
         return {
           id: row.id,
           name: row.name,
-          source: row.source || 'UNKNOWN',
+          source: row.source || "UNKNOWN",
           budget: toNumber(row.budget, 0),
           actualSpend: spend,
           totalLeads: leads,
           convertedLeads,
           totalBookings: toNumber(row.total_bookings, 0),
-          conversionRatePercent: leads > 0 ? Number(((convertedLeads / leads) * 100).toFixed(2)) : 0,
+          conversionRatePercent:
+            leads > 0 ? Number(((convertedLeads / leads) * 100).toFixed(2)) : 0,
           revenue,
           costPerLead: leads > 0 ? Number((spend / leads).toFixed(2)) : 0,
-          roiPercent: spend > 0 ? Number((((revenue - spend) / spend) * 100).toFixed(2)) : 0,
+          roiPercent:
+            spend > 0
+              ? Number((((revenue - spend) / spend) * 100).toFixed(2))
+              : 0,
         };
       });
     },
@@ -857,7 +912,7 @@ function createReportsRepository({ db, schema }) {
         where.push(`s.id = $${params.length}`);
       }
 
-      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
       const rows = await queryRows(
         `
           SELECT
@@ -896,8 +951,10 @@ function createReportsRepository({ db, schema }) {
           approvedCases: approved,
           rejectedCases: rejected,
           pendingCases: toNumber(row.pending_cases, 0),
-          successRatePercent: total > 0 ? Number(((approved / total) * 100).toFixed(2)) : 0,
-          rejectionRatePercent: total > 0 ? Number(((rejected / total) * 100).toFixed(2)) : 0,
+          successRatePercent:
+            total > 0 ? Number(((approved / total) * 100).toFixed(2)) : 0,
+          rejectionRatePercent:
+            total > 0 ? Number(((rejected / total) * 100).toFixed(2)) : 0,
           averageVisaFee: toNumber(row.avg_visa_fee, 0),
           averageProcessingDays: toNumber(row.avg_processing_days, 0),
         };
@@ -947,32 +1004,50 @@ function createReportsRepository({ db, schema }) {
         `,
       );
 
-      const openPipeline = toNumber(openPipelineRows[0]?.open_pipeline_leads, 0);
+      const openPipeline = toNumber(
+        openPipelineRows[0]?.open_pipeline_leads,
+        0,
+      );
       const totalLeads = toNumber(conversionRows[0]?.total_leads, 0);
       const convertedLeads = toNumber(conversionRows[0]?.converted_leads, 0);
-      const trailingConversionRate = totalLeads > 0 ? convertedLeads / totalLeads : 0;
+      const trailingConversionRate =
+        totalLeads > 0 ? convertedLeads / totalLeads : 0;
       const avgBookingValue = toNumber(bookingRows[0]?.avg_booking_value, 0);
 
-      const expectedConversions = Math.round(openPipeline * trailingConversionRate);
-      const expectedRevenue = Number((expectedConversions * avgBookingValue).toFixed(2));
+      const expectedConversions = Math.round(
+        openPipeline * trailingConversionRate,
+      );
+      const expectedRevenue = Number(
+        (expectedConversions * avgBookingValue).toFixed(2),
+      );
 
       const now = new Date();
-      const forecastByMonth = Array.from({ length: periodMonths }).map((_, index) => {
-        const monthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index + 1, 1));
-        const month = monthDate.toISOString().slice(0, 7);
-        return {
-          month,
-          expectedConversions: Number((expectedConversions / periodMonths).toFixed(2)),
-          expectedRevenue: Number((expectedRevenue / periodMonths).toFixed(2)),
-        };
-      });
+      const forecastByMonth = Array.from({ length: periodMonths }).map(
+        (_, index) => {
+          const monthDate = new Date(
+            Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index + 1, 1),
+          );
+          const month = monthDate.toISOString().slice(0, 7);
+          return {
+            month,
+            expectedConversions: Number(
+              (expectedConversions / periodMonths).toFixed(2),
+            ),
+            expectedRevenue: Number(
+              (expectedRevenue / periodMonths).toFixed(2),
+            ),
+          };
+        },
+      );
 
       return {
         trailingWindowDays: 90,
         openPipelineLeads: openPipeline,
         trailingLeads: totalLeads,
         trailingConvertedLeads: convertedLeads,
-        trailingConversionRatePercent: Number((trailingConversionRate * 100).toFixed(2)),
+        trailingConversionRatePercent: Number(
+          (trailingConversionRate * 100).toFixed(2),
+        ),
         averageBookingValue: avgBookingValue,
         expectedConversions,
         expectedRevenue,

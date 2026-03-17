@@ -156,10 +156,10 @@
                 "value": "application/json"
               }
             ],
-          "body": {
-            "mode": "raw",
-            "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
-          },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
               "host": ["{{baseUrl}}"],
@@ -192,10 +192,10 @@
                 "value": "application/json"
               }
             ],
-          "body": {
-            "mode": "raw",
-            "raw": "{\n  \"email\": \"{{consultantEmail}}\",\n  \"password\": \"{{consultantPassword}}\"\n}"
-          },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{consultantEmail}}\",\n  \"password\": \"{{consultantPassword}}\"\n}"
+            },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
               "host": ["{{baseUrl}}"],
@@ -727,7 +727,13 @@
             "url": {
               "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/invoices/generate",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "bookings", "{{bookingId}}", "invoices", "generate"]
+              "path": [
+                "api",
+                "bookings",
+                "{{bookingId}}",
+                "invoices",
+                "generate"
+              ]
             }
           }
         }

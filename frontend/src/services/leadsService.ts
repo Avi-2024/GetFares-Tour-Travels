@@ -43,9 +43,9 @@ const extractArray = (response: unknown) => {
 const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
   if (lead.priorityLevel !== undefined && lead.priorityLevel !== null) {
     const numeric =
-      typeof lead.priorityLevel === "number" ?
-        lead.priorityLevel
-      : Number(lead.priorityLevel);
+      typeof lead.priorityLevel === "number"
+        ? lead.priorityLevel
+        : Number(lead.priorityLevel);
     if (Number.isFinite(numeric)) {
       if (numeric >= 3) return "High";
       if (numeric >= 2) return "Medium";
@@ -53,12 +53,16 @@ const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
     }
   }
 
-  const temperature = String(lead.temperature ?? "").trim().toUpperCase();
+  const temperature = String(lead.temperature ?? "")
+    .trim()
+    .toUpperCase();
   if (temperature === "HOT") return "High";
   if (temperature === "COLD") return "Low";
   if (temperature === "WARM") return "Medium";
 
-  const normalized = String(lead.priority ?? "").trim().toLowerCase();
+  const normalized = String(lead.priority ?? "")
+    .trim()
+    .toLowerCase();
   if (normalized === "high") return "High";
   if (normalized === "low") return "Low";
   return "Medium";
@@ -82,7 +86,8 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
 
   return {
     id: lead.id ?? index,
-    leadId: lead.leadId ?? lead.code ?? `#LD-${String(index + 1).padStart(3, "0")}`,
+    leadId:
+      lead.leadId ?? lead.code ?? `#LD-${String(index + 1).padStart(3, "0")}`,
     name: lead.name ?? lead.fullName ?? lead.customerName ?? "Unknown",
     email: lead.email ?? "N/A",
     phone: lead.phone ?? lead.mobile ?? "N/A",
@@ -105,7 +110,8 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
   getLeadById: (id: string) => datasource.getById(id),
   updateLead: (id: string, payload: unknown) => datasource.update(id, payload),
   assignLead: (id: string, payload: unknown) => datasource.assign(id, payload),
-  addFollowup: (id: string, payload: unknown) => datasource.addFollowup(id, payload),
+  addFollowup: (id: string, payload: unknown) =>
+    datasource.addFollowup(id, payload),
   getFollowups: (id: string) => datasource.getFollowups(id),
   getTimeline: (id: string) => datasource.getTimeline(id),
   markAsLost: (id: string, reason: string, notes?: string) =>

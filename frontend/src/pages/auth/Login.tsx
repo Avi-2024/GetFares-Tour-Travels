@@ -9,7 +9,7 @@ const DEMO_PASSWORD = "admin@123";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
- const [email, setEmail] = useState(DEMO_EMAIL);
+  const [email, setEmail] = useState(DEMO_EMAIL);
   const [password, setPassword] = useState(DEMO_PASSWORD);
   const [errors, setErrors] = useState({ email: "", password: "" });
   const [apiError, setApiError] = useState("");
@@ -24,33 +24,37 @@ const Login = () => {
 
   const validateForm = () => {
     const newErrors = { email: "", password: "" };
-    
+
     if (!email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = "Please enter a valid email";
     }
-    
+
     if (!password.trim()) {
       newErrors.password = "Password is required";
     } else if (password.length < 6) {
       newErrors.password = "Password must be at least 6 characters";
     }
-    
+
     setErrors(newErrors);
     return !newErrors.email && !newErrors.password;
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setSubmitting(true);
     setApiError("");
 
     try {
-      const session = await authService.login({ email, password, rememberMe: true });
+      const session = await authService.login({
+        email,
+        password,
+        rememberMe: true,
+      });
       const userRole = session.user.role;
       setAuthState(session.token, session.user);
       await refreshPermissions();
@@ -78,14 +82,11 @@ const Login = () => {
 
   return (
     <main className="w-full h-screen flex flex-col md:flex-row bg-white overflow-hidden">
-
       {/* LEFT SECTION */}
       <section className="hidden md:flex md:w-1/2 lg:w-3/5 relative bg-blue-600 items-center justify-center p-8 lg:p-12">
-
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800"></div>
 
         <div className="relative z-10 w-full max-w-lg transform -rotate-6 scale-90 lg:scale-100">
-
           {/* Card 1 */}
           <div className="bg-white/95 p-6 rounded-2xl shadow-2xl mb-6 border transform translate-x-12">
             <div className="flex justify-between items-start mb-4">
@@ -112,7 +113,6 @@ const Login = () => {
 
           {/* Card 2 */}
           <div className="bg-white/95 p-6 rounded-2xl shadow-2xl border relative -left-8">
-
             <div className="flex justify-between items-center mb-6">
               <h4 className="font-bold text-gray-800">Recent Leads</h4>
               <button className="text-blue-600 text-sm font-medium">
@@ -121,7 +121,6 @@ const Login = () => {
             </div>
 
             <div className="space-y-4">
-
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-bold">
                   JD
@@ -138,10 +137,8 @@ const Login = () => {
                   New
                 </span>
               </div>
-
             </div>
           </div>
-
         </div>
 
         <div className="absolute bottom-12 left-12 right-12 text-white z-20">
@@ -153,23 +150,18 @@ const Login = () => {
             Streamline bookings, manage leads, and grow your business.
           </p>
         </div>
-
       </section>
 
       {/* RIGHT LOGIN FORM */}
       <section className="w-full md:w-1/2 lg:w-2/5 h-full bg-white flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 py-8 overflow-y-auto">
-
         <div className="w-full max-w-md mx-auto">
-
           {/* Logo */}
           <div className="mb-10 flex items-center gap-2">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xl">
               <i className="fa-solid fa-plane-departure"></i>
             </div>
 
-            <span className="text-2xl font-bold text-gray-900">
-              TravelCRM
-            </span>
+            <span className="text-2xl font-bold text-gray-900">TravelCRM</span>
           </div>
 
           {/* Header */}
@@ -185,7 +177,6 @@ const Login = () => {
 
           {/* FORM */}
           <form className="space-y-6" onSubmit={handleSignIn}>
-
             {/* EMAIL */}
             <div>
               <label className="text-sm font-medium text-gray-700">
@@ -203,7 +194,9 @@ const Login = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-blue-500 ${
-                    errors.email ? 'border-red-300 focus:border-red-500' : 'border-gray-200'
+                    errors.email
+                      ? "border-red-300 focus:border-red-500"
+                      : "border-gray-200"
                   }`}
                 />
               </div>
@@ -214,13 +207,11 @@ const Login = () => {
 
             {/* PASSWORD */}
             <div>
-
               <label className="text-sm font-medium text-gray-700">
                 Password
               </label>
 
               <div className="relative mt-2">
-
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center">
                   <i className="fa-solid fa-lock text-gray-400"></i>
                 </div>
@@ -231,7 +222,9 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   className={`w-full pl-10 pr-10 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-blue-500 ${
-                    errors.password ? 'border-red-300 focus:border-red-500' : 'border-gray-200'
+                    errors.password
+                      ? "border-red-300 focus:border-red-500"
+                      : "border-gray-200"
                   }`}
                 />
 
@@ -246,17 +239,14 @@ const Login = () => {
                     }`}
                   ></i>
                 </button>
-
               </div>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
               )}
-
             </div>
 
             {/* REMEMBER */}
             <div className="flex items-center justify-between">
-
               <label className="flex items-center text-sm text-gray-600">
                 <input type="checkbox" className="mr-2" />
                 Remember me
@@ -268,11 +258,10 @@ const Login = () => {
               >
                 Forgot password?
               </Link>
-
             </div>
 
             {/* BUTTON */}
-            <button 
+            <button
               type="submit"
               disabled={submitting}
               className="w-full py-3.5 rounded-xl text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-colors"
@@ -282,17 +271,13 @@ const Login = () => {
             {apiError && (
               <p className="text-sm text-red-600 text-center">{apiError}</p>
             )}
-
           </form>
 
           <p className="mt-8 text-center text-xs text-gray-400">
             Powered by GetFares Tour & Travels CRM
           </p>
-
         </div>
-
       </section>
-
     </main>
   );
 };

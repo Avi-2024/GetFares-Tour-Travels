@@ -1,11 +1,22 @@
-const { z } = require('zod');
+const { z } = require("zod");
 
-const leadStatus = z.enum(['OPEN', 'CONTACTED', 'WIP', 'QUOTED', 'FOLLOW_UP', 'CONVERTED', 'LOST', 'NON_RESPONSIVE']);
-const leadType = z.enum(['HOLIDAY', 'VISA', 'BOTH']);
+const leadStatus = z.enum([
+  "OPEN",
+  "CONTACTED",
+  "WIP",
+  "QUOTED",
+  "FOLLOW_UP",
+  "CONVERTED",
+  "LOST",
+  "NON_RESPONSIVE",
+]);
+const leadType = z.enum(["HOLIDAY", "VISA", "BOTH"]);
 
-const dateTimeString = z.string().refine((value) => !Number.isNaN(new Date(value).getTime()), {
-  message: 'Invalid date-time',
-});
+const dateTimeString = z
+  .string()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+    message: "Invalid date-time",
+  });
 
 const basePayload = z.object({
   fullName: z.string().min(2),
@@ -51,13 +62,16 @@ const create = z.object({
 const update = z.object({
   body: basePayload
     .partial()
-    .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update')
+    .refine(
+      (value) => Object.keys(value).length > 0,
+      "At least one field is required for update",
+    )
     .superRefine((value, ctx) => {
-      if (value.status === 'LOST' && !value.closedReason) {
+      if (value.status === "LOST" && !value.closedReason) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['closedReason'],
-          message: 'closedReason is required when status is LOST',
+          path: ["closedReason"],
+          message: "closedReason is required when status is LOST",
         });
       }
     }),
@@ -80,7 +94,7 @@ const list = z.object({
       limit: z.coerce.number().int().positive().optional(),
       status: leadStatus.optional(),
       source: z.string().optional(),
-      temperature: z.enum(['HOT', 'WARM', 'COLD']).optional(),
+      temperature: z.enum(["HOT", "WARM", "COLD"]).optional(),
       subStatus: z.string().max(60).optional(),
       leadType: leadType.optional(),
       assignedTo: z.string().uuid().optional(),
@@ -96,7 +110,15 @@ const assign = z.object({
       force: z.boolean().optional(),
       excludeUserId: z.string().uuid().optional(),
       reason: z.string().max(200).optional(),
-      mode: z.enum(['MANUAL', 'AUTO', 'AUTO_DISTRIBUTION', 'AUTO_REASSIGN', 'AUTO_CREATE']).optional(),
+      mode: z
+        .enum([
+          "MANUAL",
+          "AUTO",
+          "AUTO_DISTRIBUTION",
+          "AUTO_REASSIGN",
+          "AUTO_CREATE",
+        ])
+        .optional(),
     })
     .optional(),
   params: z.object({ id: z.string().uuid() }),
@@ -129,7 +151,9 @@ const reassignInactive = z.object({
 const createFollowup = z.object({
   body: z.object({
     userId: z.string().uuid().optional(),
-    followupType: z.enum(['CALL', 'WHATSAPP', 'EMAIL', 'FINAL_REMINDER', 'TASK']).optional(),
+    followupType: z
+      .enum(["CALL", "WHATSAPP", "EMAIL", "FINAL_REMINDER", "TASK"])
+      .optional(),
     followupNumber: z.coerce.number().int().min(1).max(4).optional(),
     followupDate: dateTimeString,
     notes: z.string().max(2000).optional(),

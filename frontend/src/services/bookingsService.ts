@@ -1,11 +1,15 @@
-import type { BookingsDatasource, BookingsQuery } from "../datasource/bookingsDatasource";
+import type {
+  BookingsDatasource,
+  BookingsQuery,
+} from "../datasource/bookingsDatasource";
 
 export const createBookingsService = (datasource: BookingsDatasource) => ({
   list: (params?: BookingsQuery) => datasource.list(params),
   create: (payload: unknown) => datasource.create(payload),
   getById: (id: string) => datasource.getById(id),
   update: (id: string, payload: unknown) => datasource.update(id, payload),
-  changeStatus: (id: string, payload: unknown) => datasource.changeStatus(id, payload),
+  changeStatus: (id: string, payload: unknown) =>
+    datasource.changeStatus(id, payload),
   statusHistory: (id: string) => datasource.statusHistory(id),
   generateInvoice: (id: string) => datasource.generateInvoice(id),
   listInvoices: (id: string) => datasource.listInvoices(id),

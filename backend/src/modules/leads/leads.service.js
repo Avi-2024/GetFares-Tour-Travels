@@ -1,14 +1,20 @@
-const { AppError } = require('../../core/errors');
+const { AppError } = require("../../core/errors");
 
 const LEAD_TEMPERATURE = Object.freeze({
-  HOT: 'HOT',
-  WARM: 'WARM',
-  COLD: 'COLD',
+  HOT: "HOT",
+  WARM: "WARM",
+  COLD: "COLD",
 });
 
-const POSITIVE_RESPONSE_STATUSES = new Set(['CONTACTED', 'WIP', 'QUOTED', 'FOLLOW_UP', 'CONVERTED']);
-const CLOSED_STATUSES = new Set(['CONVERTED', 'LOST', 'NON_RESPONSIVE']);
-const NON_RESPONSIVE_STATUS = 'NON_RESPONSIVE';
+const POSITIVE_RESPONSE_STATUSES = new Set([
+  "CONTACTED",
+  "WIP",
+  "QUOTED",
+  "FOLLOW_UP",
+  "CONVERTED",
+]);
+const CLOSED_STATUSES = new Set(["CONVERTED", "LOST", "NON_RESPONSIVE"]);
+const NON_RESPONSIVE_STATUS = "NON_RESPONSIVE";
 const MANDATORY_FOLLOWUP_ATTEMPTS = 5; // FU1..FU4 + final reminder
 
 const AUTOMATION_DEFAULTS = Object.freeze({
@@ -38,14 +44,14 @@ function createLeadsService({ repository, logger, events }) {
 
   function normalizeLeadType(value) {
     if (!value) {
-      return 'HOLIDAY';
+      return "HOLIDAY";
     }
 
     const normalized = String(value).trim().toUpperCase();
-    if (['HOLIDAY', 'VISA', 'BOTH'].includes(normalized)) {
+    if (["HOLIDAY", "VISA", "BOTH"].includes(normalized)) {
       return normalized;
     }
-    return 'HOLIDAY';
+    return "HOLIDAY";
   }
 
   function mapTemperatureToPriority(temperature) {
@@ -69,8 +75,16 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfTravel = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const startOfTravel = new Date(
+      target.getFullYear(),
+      target.getMonth(),
+      target.getDate(),
+    );
 
     return Math.floor((startOfTravel - startOfToday) / (24 * 60 * 60 * 1000));
   }
@@ -78,11 +92,18 @@ function createLeadsService({ repository, logger, events }) {
   function determineLeadTemperature(input = {}) {
     const daysUntilTravel = getDaysUntilTravel(input.travelDate);
     const budget = Number(input.budget || 0);
-    const hasHighBudget = Number.isFinite(budget) && budget >= AUTOMATION_DEFAULTS.highBudgetThreshold;
+    const hasHighBudget =
+      Number.isFinite(budget) &&
+      budget >= AUTOMATION_DEFAULTS.highBudgetThreshold;
     const respondedPositively =
-      input.respondedPositively === true || POSITIVE_RESPONSE_STATUSES.has(input.status || 'OPEN');
+      input.respondedPositively === true ||
+      POSITIVE_RESPONSE_STATUSES.has(input.status || "OPEN");
 
-    if (daysUntilTravel !== null && daysUntilTravel >= 0 && daysUntilTravel < 30) {
+    if (
+      daysUntilTravel !== null &&
+      daysUntilTravel >= 0 &&
+      daysUntilTravel < 30
+    ) {
       return LEAD_TEMPERATURE.HOT;
     }
 
@@ -90,7 +111,11 @@ function createLeadsService({ repository, logger, events }) {
       return LEAD_TEMPERATURE.HOT;
     }
 
-    if (daysUntilTravel !== null && daysUntilTravel >= 30 && daysUntilTravel <= 90) {
+    if (
+      daysUntilTravel !== null &&
+      daysUntilTravel >= 30 &&
+      daysUntilTravel <= 90
+    ) {
       return LEAD_TEMPERATURE.WARM;
     }
 
@@ -148,14 +173,15 @@ function createLeadsService({ repository, logger, events }) {
       travel_purpose: payload.travelPurpose || null,
       sub_status: payload.subStatus || null,
       temperature,
-      source: payload.source || 'Manual',
+      source: payload.source || "Manual",
       campaign_id: payload.campaignId || null,
       utm_source: payload.utmSource || null,
       utm_medium: payload.utmMedium || null,
       utm_campaign: payload.utmCampaign || null,
-      priority_level: payload.priorityLevel ?? mapTemperatureToPriority(temperature),
+      priority_level:
+        payload.priorityLevel ?? mapTemperatureToPriority(temperature),
       is_vip: payload.isVip ?? false,
-      status: payload.status || 'OPEN',
+      status: payload.status || "OPEN",
       assigned_to: assignedTo,
       assigned_at: assignedTo ? now.toISOString() : null,
       response_deadline: responseDeadline,
@@ -266,10 +292,11 @@ function createLeadsService({ repository, logger, events }) {
       mapped.next_followup_date = payload.nextFollowupDate;
     }
 
-    if (payload.status === 'CONTACTED' && !existing.responseAt) {
+    if (payload.status === "CONTACTED" && !existing.responseAt) {
       mapped.response_at = now;
       if (existing.responseDeadline) {
-        mapped.sla_breached = new Date(now) > new Date(existing.responseDeadline);
+        mapped.sla_breached =
+          new Date(now) > new Date(existing.responseDeadline);
       }
     }
 
@@ -289,11 +316,14 @@ function createLeadsService({ repository, logger, events }) {
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'leads', requestId: context.requestId, id }, 'Getting lead by id');
+    logger.debug(
+      { module: "leads", requestId: context.requestId, id },
+      "Getting lead by id",
+    );
     const item = await repository.findById(id);
 
     if (!item) {
-      throw new AppError(404, 'Lead not found', 'LEAD_NOT_FOUND');
+      throw new AppError(404, "Lead not found", "LEAD_NOT_FOUND");
     }
 
     return withTemperature(item);
@@ -303,7 +333,9 @@ function createLeadsService({ repository, logger, events }) {
     let candidates = await repository.findActiveAssignableUsers();
 
     if (options.excludeUserId && candidates.length > 1) {
-      const filtered = candidates.filter((candidate) => candidate.id !== options.excludeUserId);
+      const filtered = candidates.filter(
+        (candidate) => candidate.id !== options.excludeUserId,
+      );
       if (filtered.length) {
         candidates = filtered;
       }
@@ -316,8 +348,12 @@ function createLeadsService({ repository, logger, events }) {
     let pool = candidates;
 
     if (lead.destinationId) {
-      const destination = await repository.findDestinationById(lead.destinationId);
-      const destinationTokens = new Set([String(lead.destinationId).toLowerCase()]);
+      const destination = await repository.findDestinationById(
+        lead.destinationId,
+      );
+      const destinationTokens = new Set([
+        String(lead.destinationId).toLowerCase(),
+      ]);
 
       if (destination?.name) {
         destinationTokens.add(String(destination.name).trim().toLowerCase());
@@ -325,7 +361,9 @@ function createLeadsService({ repository, logger, events }) {
 
       const matchedByExpertise = candidates.filter((candidate) => {
         const expertiseSet = new Set(
-          (candidate.expertiseDestinations || []).map((item) => String(item).trim().toLowerCase()),
+          (candidate.expertiseDestinations || []).map((item) =>
+            String(item).trim().toLowerCase(),
+          ),
         );
 
         for (const token of destinationTokens) {
@@ -346,7 +384,8 @@ function createLeadsService({ repository, logger, events }) {
     const openLoadByUser = await repository.getOpenLeadLoadByUserIds(poolIds);
 
     const isHighValueLead =
-      Boolean(lead.isVip) || Number(lead.budget || 0) >= AUTOMATION_DEFAULTS.highBudgetThreshold;
+      Boolean(lead.isVip) ||
+      Number(lead.budget || 0) >= AUTOMATION_DEFAULTS.highBudgetThreshold;
 
     if (isHighValueLead) {
       const sortedByHighValueRule = [...pool].sort((left, right) => {
@@ -367,14 +406,19 @@ function createLeadsService({ repository, logger, events }) {
       return sortedByHighValueRule[0];
     }
 
-    const roundRobinPool = [...pool].sort((left, right) => String(left.id).localeCompare(String(right.id)));
-    const lastAssignedUserId = await repository.findLatestAssignedUserId(poolIds);
+    const roundRobinPool = [...pool].sort((left, right) =>
+      String(left.id).localeCompare(String(right.id)),
+    );
+    const lastAssignedUserId =
+      await repository.findLatestAssignedUserId(poolIds);
 
     if (!lastAssignedUserId) {
       return roundRobinPool[0];
     }
 
-    const lastIndex = roundRobinPool.findIndex((candidate) => candidate.id === lastAssignedUserId);
+    const lastIndex = roundRobinPool.findIndex(
+      (candidate) => candidate.id === lastAssignedUserId,
+    );
     if (lastIndex === -1 || lastIndex === roundRobinPool.length - 1) {
       return roundRobinPool[0];
     }
@@ -400,7 +444,7 @@ function createLeadsService({ repository, logger, events }) {
     if (!assignee) {
       events.emitEscalated({
         leadId: existing.id,
-        reason: 'NO_ASSIGNABLE_CONSULTANT',
+        reason: "NO_ASSIGNABLE_CONSULTANT",
       });
       return existing;
     }
@@ -416,18 +460,22 @@ function createLeadsService({ repository, logger, events }) {
     };
 
     if (!existing.responseDeadline) {
-      updatePayload.response_deadline = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      updatePayload.response_deadline = new Date(
+        Date.now() + 15 * 60 * 1000,
+      ).toISOString();
     }
 
     const updated = await repository.update(existing.id, updatePayload);
 
     const previousAssigneeId = existing.assignedTo || null;
-    const isReassign = Boolean(previousAssigneeId && previousAssigneeId !== assignee.id);
+    const isReassign = Boolean(
+      previousAssigneeId && previousAssigneeId !== assignee.id,
+    );
 
     await repository.createActivity({
       leadId: existing.id,
       userId: context.user?.id || null,
-      activityType: isReassign ? 'LEAD_REASSIGNED' : 'LEAD_ASSIGNED',
+      activityType: isReassign ? "LEAD_REASSIGNED" : "LEAD_ASSIGNED",
       notes: payload.reason || null,
     });
 
@@ -439,14 +487,14 @@ function createLeadsService({ repository, logger, events }) {
         leadId: lead.id,
         previousAssigneeId,
         assigneeId: assignee.id,
-        mode: payload.mode || 'AUTO',
+        mode: payload.mode || "AUTO",
         reason: payload.reason || null,
       });
     } else {
       events.emitAssigned({
         leadId: lead.id,
         assigneeId: assignee.id,
-        mode: payload.mode || 'AUTO',
+        mode: payload.mode || "AUTO",
         reason: payload.reason || null,
       });
     }
@@ -462,7 +510,7 @@ function createLeadsService({ repository, logger, events }) {
     });
 
     if (duplicate) {
-      throw new AppError(409, 'Duplicate lead detected', 'LEAD_DUPLICATE', {
+      throw new AppError(409, "Duplicate lead detected", "LEAD_DUPLICATE", {
         existingLeadId: duplicate.id,
       });
     }
@@ -479,30 +527,38 @@ function createLeadsService({ repository, logger, events }) {
       });
     }
 
-    const created = await repository.create(buildCreateRecord(payload, {
-      customerId: customer?.id,
-      useCustomerLinking,
-    }));
+    const created = await repository.create(
+      buildCreateRecord(payload, {
+        customerId: customer?.id,
+        useCustomerLinking,
+      }),
+    );
 
     if (payload.notes) {
       await repository.createActivity({
         leadId: created.id,
         userId: context.user?.id,
-        activityType: 'LEAD_CREATED',
+        activityType: "LEAD_CREATED",
         notes: payload.notes,
       });
     }
 
-    let lead = withTemperature(created, { respondedPositively: payload.respondedPositively });
+    let lead = withTemperature(created, {
+      respondedPositively: payload.respondedPositively,
+    });
     events.emitCreated(lead);
 
-    if (payload.autoAssign !== false && !lead.assignedTo && !CLOSED_STATUSES.has(lead.status)) {
+    if (
+      payload.autoAssign !== false &&
+      !lead.assignedTo &&
+      !CLOSED_STATUSES.has(lead.status)
+    ) {
       lead = await assignLead(
         lead.id,
         {
           force: true,
-          mode: 'AUTO_CREATE',
-          reason: 'AUTO_ASSIGN_ON_CREATE',
+          mode: "AUTO_CREATE",
+          reason: "AUTO_ASSIGN_ON_CREATE",
         },
         context,
       );
@@ -517,7 +573,10 @@ function createLeadsService({ repository, logger, events }) {
     determineLeadTemperature,
 
     async list(filters = {}, context = {}) {
-      logger.debug({ module: 'leads', requestId: context.requestId, filters }, 'Listing leads');
+      logger.debug(
+        { module: "leads", requestId: context.requestId, filters },
+        "Listing leads",
+      );
       const leads = await repository.findAll(filters);
       return leads.map((lead) => withTemperature(lead));
     },
@@ -531,7 +590,11 @@ function createLeadsService({ repository, logger, events }) {
         const lead = await create(payload, context);
         return { lead, duplicate: false };
       } catch (error) {
-        if (error instanceof AppError && error.code === 'LEAD_DUPLICATE' && error.details?.existingLeadId) {
+        if (
+          error instanceof AppError &&
+          error.code === "LEAD_DUPLICATE" &&
+          error.details?.existingLeadId
+        ) {
           const lead = await getById(error.details.existingLeadId, context);
           return { lead, duplicate: true };
         }
@@ -540,9 +603,12 @@ function createLeadsService({ repository, logger, events }) {
     },
 
     async distributePending(payload = {}, context = {}) {
-      const limit = toPositiveInt(payload.limit, AUTOMATION_DEFAULTS.distributionLimit);
+      const limit = toPositiveInt(
+        payload.limit,
+        AUTOMATION_DEFAULTS.distributionLimit,
+      );
       const pendingLeads = await repository.findUnassignedLeads({
-        status: 'OPEN',
+        status: "OPEN",
         limit,
       });
 
@@ -559,8 +625,8 @@ function createLeadsService({ repository, logger, events }) {
             lead.id,
             {
               force: true,
-              mode: 'AUTO_DISTRIBUTION',
-              reason: payload.reason || 'BULK_DISTRIBUTION',
+              mode: "AUTO_DISTRIBUTION",
+              reason: payload.reason || "BULK_DISTRIBUTION",
             },
             context,
           );
@@ -583,8 +649,15 @@ function createLeadsService({ repository, logger, events }) {
     },
 
     async reassignInactive(payload = {}, context = {}) {
-      const inactiveMinutes = toPositiveInt(payload.inactiveMinutes, AUTOMATION_DEFAULTS.inactiveMinutes, 1440);
-      const limit = toPositiveInt(payload.limit, AUTOMATION_DEFAULTS.distributionLimit);
+      const inactiveMinutes = toPositiveInt(
+        payload.inactiveMinutes,
+        AUTOMATION_DEFAULTS.inactiveMinutes,
+        1440,
+      );
+      const limit = toPositiveInt(
+        payload.limit,
+        AUTOMATION_DEFAULTS.distributionLimit,
+      );
 
       const staleLeads = await repository.findOverdueAssignedLeads({
         inactiveMinutes,
@@ -606,8 +679,8 @@ function createLeadsService({ repository, logger, events }) {
             {
               force: true,
               excludeUserId: previousAssigneeId,
-              mode: 'AUTO_REASSIGN',
-              reason: payload.reason || 'INACTIVE_ASSIGNEE_TIMEOUT',
+              mode: "AUTO_REASSIGN",
+              reason: payload.reason || "INACTIVE_ASSIGNEE_TIMEOUT",
             },
             context,
           );
@@ -634,14 +707,17 @@ function createLeadsService({ repository, logger, events }) {
       if (currentAttempts >= MANDATORY_FOLLOWUP_ATTEMPTS) {
         throw new AppError(
           409,
-          'Maximum follow-up attempts reached for this lead. Use status update flow.',
-          'LEAD_FOLLOWUP_LIMIT_REACHED',
+          "Maximum follow-up attempts reached for this lead. Use status update flow.",
+          "LEAD_FOLLOWUP_LIMIT_REACHED",
         );
       }
 
       const nextAttempt = currentAttempts + 1;
-      const normalizedType = payload.followupType
-        || (nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS ? 'FINAL_REMINDER' : 'CALL');
+      const normalizedType =
+        payload.followupType ||
+        (nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS
+          ? "FINAL_REMINDER"
+          : "CALL");
 
       const followup = await repository.createFollowup({
         leadId: lead.id,
@@ -654,14 +730,22 @@ function createLeadsService({ repository, logger, events }) {
       const followupDate = new Date(followup.followupDate);
       const updatePayload = {
         followup_attempts: nextAttempt,
-        sub_status: nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS ? 'FINAL_REMINDER' : `FOLLOW_UP_${nextAttempt}`,
+        sub_status:
+          nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS
+            ? "FINAL_REMINDER"
+            : `FOLLOW_UP_${nextAttempt}`,
       };
 
       if (!Number.isNaN(followupDate.getTime())) {
-        updatePayload.next_followup_date = followupDate.toISOString().slice(0, 10);
+        updatePayload.next_followup_date = followupDate
+          .toISOString()
+          .slice(0, 10);
       }
 
-      if (normalizedType === 'FINAL_REMINDER' || nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS) {
+      if (
+        normalizedType === "FINAL_REMINDER" ||
+        nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS
+      ) {
         updatePayload.final_reminder_at = new Date().toISOString();
       }
 
@@ -670,7 +754,7 @@ function createLeadsService({ repository, logger, events }) {
       await repository.createActivity({
         leadId: lead.id,
         userId: context.user?.id || null,
-        activityType: 'FOLLOWUP_SCHEDULED',
+        activityType: "FOLLOWUP_SCHEDULED",
         notes: payload.notes || null,
       });
 
@@ -679,12 +763,18 @@ function createLeadsService({ repository, logger, events }) {
     },
 
     async listOverdueFollowups(filters = {}) {
-      const limit = toPositiveInt(filters.limit, AUTOMATION_DEFAULTS.overdueFollowupLimit);
+      const limit = toPositiveInt(
+        filters.limit,
+        AUTOMATION_DEFAULTS.overdueFollowupLimit,
+      );
       return repository.findOverdueFollowups({ limit });
     },
 
     async processOverdueFollowups(payload = {}) {
-      const limit = toPositiveInt(payload.limit, AUTOMATION_DEFAULTS.overdueFollowupLimit);
+      const limit = toPositiveInt(
+        payload.limit,
+        AUTOMATION_DEFAULTS.overdueFollowupLimit,
+      );
       const overdue = await repository.findOverdueFollowups({ limit });
 
       overdue.forEach((item) => {
@@ -699,8 +789,14 @@ function createLeadsService({ repository, logger, events }) {
 
     async processNonResponsive(payload = {}, context = {}) {
       const staleDays = toPositiveInt(payload.staleDays, 4, 30);
-      const limit = toPositiveInt(payload.limit, AUTOMATION_DEFAULTS.overdueFollowupLimit);
-      const candidates = await repository.findNonResponsiveCandidates({ staleDays, limit });
+      const limit = toPositiveInt(
+        payload.limit,
+        AUTOMATION_DEFAULTS.overdueFollowupLimit,
+      );
+      const candidates = await repository.findNonResponsiveCandidates({
+        staleDays,
+        limit,
+      });
 
       const summary = {
         processed: candidates.length,
@@ -718,7 +814,7 @@ function createLeadsService({ repository, logger, events }) {
         const nowIso = new Date().toISOString();
         await repository.update(lead.id, {
           status: NON_RESPONSIVE_STATUS,
-          sub_status: 'AUTO_NON_RESPONSIVE',
+          sub_status: "AUTO_NON_RESPONSIVE",
           non_responsive_marked_at: nowIso,
           updated_at: nowIso,
         });
@@ -726,13 +822,13 @@ function createLeadsService({ repository, logger, events }) {
         await repository.createActivity({
           leadId: lead.id,
           userId: context.user?.id || null,
-          activityType: 'LEAD_NON_RESPONSIVE',
+          activityType: "LEAD_NON_RESPONSIVE",
           notes: `Auto-marked NON_RESPONSIVE after ${staleDays} day(s) and follow-up compliance`,
         });
 
         events.emitEscalated({
           leadId: lead.id,
-          reason: 'AUTO_NON_RESPONSIVE',
+          reason: "AUTO_NON_RESPONSIVE",
         });
 
         summary.marked += 1;
@@ -743,7 +839,10 @@ function createLeadsService({ repository, logger, events }) {
     },
 
     async processSlaBreaches(payload = {}, context = {}) {
-      const limit = toPositiveInt(payload.limit, AUTOMATION_DEFAULTS.slaCheckLimit);
+      const limit = toPositiveInt(
+        payload.limit,
+        AUTOMATION_DEFAULTS.slaCheckLimit,
+      );
       const candidates = await repository.findSlaBreachCandidates({ limit });
 
       const summary = {
@@ -757,8 +856,8 @@ function createLeadsService({ repository, logger, events }) {
         await repository.createActivity({
           leadId: lead.id,
           userId: context.user?.id || null,
-          activityType: 'SLA_BREACHED',
-          notes: 'Lead was not responded within SLA deadline',
+          activityType: "SLA_BREACHED",
+          notes: "Lead was not responded within SLA deadline",
         });
 
         events.emitSlaBreached({
@@ -770,7 +869,7 @@ function createLeadsService({ repository, logger, events }) {
 
         events.emitEscalated({
           leadId: lead.id,
-          reason: 'SLA_BREACH_15_MIN',
+          reason: "SLA_BREACH_15_MIN",
         });
 
         summary.processed += 1;
@@ -782,13 +881,16 @@ function createLeadsService({ repository, logger, events }) {
 
     async update(id, payload, context = {}) {
       const existing = await getById(id, context);
-      if (payload.status === 'LOST' || payload.status === NON_RESPONSIVE_STATUS) {
+      if (
+        payload.status === "LOST" ||
+        payload.status === NON_RESPONSIVE_STATUS
+      ) {
         const attempts = Number(existing.followupAttempts || 0);
         if (attempts < MANDATORY_FOLLOWUP_ATTEMPTS) {
           throw new AppError(
             409,
             `Minimum ${MANDATORY_FOLLOWUP_ATTEMPTS} follow-up attempts are required before closing lead.`,
-            'LEAD_FOLLOWUP_COMPLIANCE_REQUIRED',
+            "LEAD_FOLLOWUP_COMPLIANCE_REQUIRED",
           );
         }
       }
@@ -816,11 +918,17 @@ function createLeadsService({ repository, logger, events }) {
         customerPatch.clientCurrency = payload.clientCurrency;
       }
 
-      if (useCustomerLinking && Object.keys(customerPatch).length && existing.customerId) {
+      if (
+        useCustomerLinking &&
+        Object.keys(customerPatch).length &&
+        existing.customerId
+      ) {
         await repository.updateCustomer(existing.customerId, customerPatch);
       }
 
-      const mapped = buildUpdateRecord(existing, payload, { useCustomerLinking });
+      const mapped = buildUpdateRecord(existing, payload, {
+        useCustomerLinking,
+      });
 
       const updated = Object.keys(mapped).length
         ? await repository.update(id, mapped)
@@ -830,12 +938,14 @@ function createLeadsService({ repository, logger, events }) {
         await repository.createActivity({
           leadId: id,
           userId: context.user?.id,
-          activityType: 'LEAD_UPDATED',
+          activityType: "LEAD_UPDATED",
           notes: payload.notes,
         });
       }
 
-      const lead = withTemperature(updated, { respondedPositively: payload.respondedPositively });
+      const lead = withTemperature(updated, {
+        respondedPositively: payload.respondedPositively,
+      });
       events.emitUpdated(lead);
       return lead;
     },

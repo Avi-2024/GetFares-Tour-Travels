@@ -419,8 +419,9 @@ function createQuotationsRepository({ db, logger, schema }) {
       }
 
       const sentAt = domain.sentAt ? new Date(domain.sentAt).getTime() : null;
-      const lastViewedAt =
-        domain.lastViewedAt ? new Date(domain.lastViewedAt).getTime() : null;
+      const lastViewedAt = domain.lastViewedAt
+        ? new Date(domain.lastViewedAt).getTime()
+        : null;
 
       if (sentAt && domain.viewCount === 0 && sentAt <= notOpenedCutoff) {
         candidates.push({ quotation: domain, reminderType: "NOT_OPENED_24H" });
@@ -741,9 +742,9 @@ function createQuotationsRepository({ db, logger, schema }) {
           approvedQuotes: overallApproved,
           rejectedQuotes: Number(overallRow.rejected_quotes || 0),
           approvalRatePercent:
-            overallTotal > 0 ?
-              Number(((overallApproved / overallTotal) * 100).toFixed(2))
-            : 0,
+            overallTotal > 0
+              ? Number(((overallApproved / overallTotal) * 100).toFixed(2))
+              : 0,
           avgLeadToQuoteMinutes: toNumber(
             overallRow.avg_lead_to_quote_minutes,
             0,

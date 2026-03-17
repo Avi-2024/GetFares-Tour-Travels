@@ -177,8 +177,9 @@ const CustomersPage: React.FC = () => {
         [];
       setCustomers(rows);
     } catch (err) {
-      const message =
-        isApiError(err) ? err.message : "Unable to load customers";
+      const message = isApiError(err)
+        ? err.message
+        : "Unable to load customers";
       setError(message);
     } finally {
       setLoading(false);
@@ -199,8 +200,9 @@ const CustomersPage: React.FC = () => {
       await customersService.remove(id);
       await loadCustomers();
     } catch (err) {
-      const message =
-        isApiError(err) ? err.message : "Failed to delete customer";
+      const message = isApiError(err)
+        ? err.message
+        : "Failed to delete customer";
       setError(message);
     } finally {
       setLoading(false);
@@ -394,12 +396,12 @@ const CustomersPage: React.FC = () => {
             </p>
             <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {formatCurrency(
-                customers.length ?
-                  customers.reduce(
-                    (acc, c) => acc + (c.lifetimeValue ?? 0),
-                    0,
-                  ) / customers.length
-                : 0,
+                customers.length
+                  ? customers.reduce(
+                      (acc, c) => acc + (c.lifetimeValue ?? 0),
+                      0,
+                    ) / customers.length
+                  : 0,
               )}
             </p>
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
@@ -819,9 +821,9 @@ const CustomersPage: React.FC = () => {
                           }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.fullName ? "border-red-500" : (
-                            "border-gray-300 dark:border-gray-700"
-                          )
+                          editFormErrors.fullName
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-700"
                         }`}
                         placeholder="Enter full name"
                       />
@@ -847,9 +849,9 @@ const CustomersPage: React.FC = () => {
                           }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.phone ? "border-red-500" : (
-                            "border-gray-300 dark:border-gray-700"
-                          )
+                          editFormErrors.phone
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-700"
                         }`}
                         placeholder="+1 555 0123"
                       />
@@ -875,9 +877,9 @@ const CustomersPage: React.FC = () => {
                           }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.email ? "border-red-500" : (
-                            "border-gray-300 dark:border-gray-700"
-                          )
+                          editFormErrors.email
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-700"
                         }`}
                         placeholder="customer@example.com"
                       />
@@ -903,9 +905,9 @@ const CustomersPage: React.FC = () => {
                           }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.panNumber ? "border-red-500" : (
-                            "border-gray-300 dark:border-gray-700"
-                          )
+                          editFormErrors.panNumber
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-700"
                         }`}
                         placeholder="ABCDE1234F"
                         maxLength={10}
@@ -955,9 +957,9 @@ const CustomersPage: React.FC = () => {
                         }
                         rows={3}
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 resize-none ${
-                          editFormErrors.addressLine ? "border-red-500" : (
-                            "border-gray-300 dark:border-gray-700"
-                          )
+                          editFormErrors.addressLine
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-700"
                         }`}
                         placeholder="Enter complete address"
                       />
@@ -1042,12 +1044,14 @@ const CustomersPage: React.FC = () => {
                   disabled={loading}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-lg flex items-center gap-2"
                 >
-                  {loading ?
+                  {loading ? (
                     <>
                       <span className="animate-spin">⌛</span>
                       Updating...
                     </>
-                  : "Update Customer"}
+                  ) : (
+                    "Update Customer"
+                  )}
                 </button>
               </div>
             </div>

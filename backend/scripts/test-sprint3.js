@@ -1,7 +1,7 @@
-﻿const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+﻿const assert = require("node:assert/strict");
+const { randomUUID } = require("node:crypto");
 
-const { createApp } = require('../src/app');
+const { createApp } = require("../src/app");
 
 async function parseJson(response) {
   const text = await response.text();
@@ -27,14 +27,14 @@ async function main() {
   }
 
   const baseUrl = await new Promise((resolve, reject) => {
-    server.once('listening', () => {
+    server.once("listening", () => {
       const address = server.address();
       resolve(`http://127.0.0.1:${address.port}`);
     });
-    server.once('error', reject);
+    server.once("error", reject);
   });
 
-  async function request(path, { method = 'GET', headers = {}, body } = {}) {
+  async function request(path, { method = "GET", headers = {}, body } = {}) {
     const init = {
       method,
       headers: {
@@ -43,7 +43,7 @@ async function main() {
     };
 
     if (body !== undefined) {
-      init.headers['content-type'] = 'application/json';
+      init.headers["content-type"] = "application/json";
       init.body = JSON.stringify(body);
     }
 
@@ -57,7 +57,7 @@ async function main() {
   }
 
   const seed = randomUUID().slice(0, 8);
-  const password = 'StrongPass123';
+  const password = "StrongPass123";
 
   let adminToken;
   let managerToken;
@@ -67,11 +67,11 @@ async function main() {
   let quotationId;
 
   try {
-    const health = await request('/health');
+    const health = await request("/health");
     assert.equal(health.response.status, 200);
-    addResult('Health endpoint', true, 'GET /health returned 200');
+    addResult("Health endpoint", true, "GET /health returned 200");
   } catch (error) {
-    addResult('Health endpoint', false, error.message);
+    addResult("Health endpoint", false, error.message);
   }
 
   try {
@@ -79,33 +79,33 @@ async function main() {
     const managerEmail = `s3-manager-${seed}@example.com`;
     const consultantEmail = `s3-consultant-${seed}@example.com`;
 
-    const registerAdmin = await request('/api/auth/register', {
-      method: 'POST',
+    const registerAdmin = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Sprint3 Admin',
+        fullName: "Sprint3 Admin",
         email: adminEmail,
         password,
-        role: 'admin',
+        role: "admin",
       },
     });
 
-    const registerManager = await request('/api/auth/register', {
-      method: 'POST',
+    const registerManager = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Sprint3 Manager',
+        fullName: "Sprint3 Manager",
         email: managerEmail,
         password,
-        role: 'manager',
+        role: "manager",
       },
     });
 
-    const registerConsultant = await request('/api/auth/register', {
-      method: 'POST',
+    const registerConsultant = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Sprint3 Consultant',
+        fullName: "Sprint3 Consultant",
         email: consultantEmail,
         password,
-        role: 'sales_consultant',
+        role: "sales_consultant",
       },
     });
 
@@ -113,18 +113,18 @@ async function main() {
     assert.equal(registerManager.response.status, 201);
     assert.equal(registerConsultant.response.status, 201);
 
-    const loginAdmin = await request('/api/auth/login', {
-      method: 'POST',
+    const loginAdmin = await request("/api/auth/login", {
+      method: "POST",
       body: { email: adminEmail, password },
     });
 
-    const loginManager = await request('/api/auth/login', {
-      method: 'POST',
+    const loginManager = await request("/api/auth/login", {
+      method: "POST",
       body: { email: managerEmail, password },
     });
 
-    const loginConsultant = await request('/api/auth/login', {
-      method: 'POST',
+    const loginConsultant = await request("/api/auth/login", {
+      method: "POST",
       body: { email: consultantEmail, password },
     });
 
@@ -140,23 +140,23 @@ async function main() {
     assert.ok(managerToken);
     assert.ok(consultantToken);
 
-    addResult('Auth setup', true, 'Admin + Manager + Consultant ready');
+    addResult("Auth setup", true, "Admin + Manager + Consultant ready");
   } catch (error) {
-    addResult('Auth setup', false, error.message);
+    addResult("Auth setup", false, error.message);
   }
 
   try {
-    const lead = await request('/api/leads', {
-      method: 'POST',
+    const lead = await request("/api/leads", {
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
-        fullName: 'Sprint3 Lead',
+        fullName: "Sprint3 Lead",
         phone: `9199${Math.floor(100000 + Math.random() * 900000)}`,
         email: `s3-lead-${seed}@example.com`,
-        source: 'Website',
-        travelDate: '2026-06-20',
+        source: "Website",
+        travelDate: "2026-06-20",
         budget: 200000,
-        status: 'OPEN',
+        status: "OPEN",
         autoAssign: false,
       },
     });
@@ -165,25 +165,25 @@ async function main() {
     leadId = lead.json?.data?.id;
     assert.ok(leadId);
 
-    addResult('Lead create', true, `Lead created ${leadId}`);
+    addResult("Lead create", true, `Lead created ${leadId}`);
   } catch (error) {
-    addResult('Lead create', false, error.message);
+    addResult("Lead create", false, error.message);
   }
 
   try {
-    const createTemplate = await request('/api/quotations/templates', {
-      method: 'POST',
+    const createTemplate = await request("/api/quotations/templates", {
+      method: "POST",
       headers: authHeaders(adminToken),
       body: {
         code: `READY_${seed}`,
-        name: 'Ready Package Template',
-        templateType: 'READY_PACKAGE',
-        headerBranding: 'Getfares Branding',
-        inclusions: 'Hotel, Flight, Transfer',
-        exclusions: 'Personal expenses',
-        paymentTerms: '50% advance',
-        cancellationPolicy: 'Standard policy',
-        footerDisclaimer: 'Company terms apply',
+        name: "Ready Package Template",
+        templateType: "READY_PACKAGE",
+        headerBranding: "Getfares Branding",
+        inclusions: "Hotel, Flight, Transfer",
+        exclusions: "Personal expenses",
+        paymentTerms: "50% advance",
+        cancellationPolicy: "Standard policy",
+        footerDisclaimer: "Company terms apply",
         minMarginPercent: 10,
         isActive: true,
       },
@@ -193,27 +193,31 @@ async function main() {
     templateId = createTemplate.json?.data?.id;
     assert.ok(templateId);
 
-    addResult('Template create (admin)', true, `Template created ${templateId}`);
+    addResult(
+      "Template create (admin)",
+      true,
+      `Template created ${templateId}`,
+    );
   } catch (error) {
-    addResult('Template create (admin)', false, error.message);
+    addResult("Template create (admin)", false, error.message);
   }
 
   try {
-    const createQuote = await request('/api/quotations', {
-      method: 'POST',
+    const createQuote = await request("/api/quotations", {
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
         leadId,
         templateId,
         components: [
           {
-            itemType: 'HOTEL',
-            description: '4N Hotel',
+            itemType: "HOTEL",
+            description: "4N Hotel",
             cost: 50000,
           },
           {
-            itemType: 'FLIGHT',
-            description: 'Roundtrip flight',
+            itemType: "FLIGHT",
+            description: "Roundtrip flight",
             cost: 30000,
           },
         ],
@@ -228,78 +232,91 @@ async function main() {
     quotationId = createQuote.json?.data?.id;
     assert.ok(quotationId);
     assert.equal(Boolean(createQuote.json?.data?.requiresApproval), true);
-    assert.equal(createQuote.json?.data?.status, 'DRAFT');
+    assert.equal(createQuote.json?.data?.status, "DRAFT");
 
-    addResult('Quotation create', true, `Quotation created ${quotationId} with approval flag`);
+    addResult(
+      "Quotation create",
+      true,
+      `Quotation created ${quotationId} with approval flag`,
+    );
   } catch (error) {
-    addResult('Quotation create', false, error.message);
+    addResult("Quotation create", false, error.message);
   }
 
   try {
-    const sendBeforeApproval = await request(`/api/quotations/${quotationId}/send`, {
-      method: 'POST',
-      headers: authHeaders(consultantToken),
-      body: {
-        channel: 'EMAIL',
-        recipientEmail: `client-${seed}@example.com`,
+    const sendBeforeApproval = await request(
+      `/api/quotations/${quotationId}/send`,
+      {
+        method: "POST",
+        headers: authHeaders(consultantToken),
+        body: {
+          channel: "EMAIL",
+          recipientEmail: `client-${seed}@example.com`,
+        },
       },
-    });
+    );
 
     assert.equal(sendBeforeApproval.response.status, 409);
-    assert.equal(sendBeforeApproval.json?.error?.code, 'QUOTATION_MARGIN_APPROVAL_REQUIRED');
+    assert.equal(
+      sendBeforeApproval.json?.error?.code,
+      "QUOTATION_MARGIN_APPROVAL_REQUIRED",
+    );
 
-    addResult('Margin guard before send', true, 'Send blocked before approval');
+    addResult("Margin guard before send", true, "Send blocked before approval");
   } catch (error) {
-    addResult('Margin guard before send', false, error.message);
+    addResult("Margin guard before send", false, error.message);
   }
 
   try {
-    const approveMargin = await request(`/api/quotations/${quotationId}/approve-margin`, {
-      method: 'POST',
-      headers: authHeaders(managerToken),
-      body: {
-        note: 'Approved for strategic pricing',
+    const approveMargin = await request(
+      `/api/quotations/${quotationId}/approve-margin`,
+      {
+        method: "POST",
+        headers: authHeaders(managerToken),
+        body: {
+          note: "Approved for strategic pricing",
+        },
       },
-    });
+    );
 
     assert.equal(approveMargin.response.status, 200);
     assert.equal(Boolean(approveMargin.json?.data?.requiresApproval), false);
 
-    addResult('Margin approval', true, 'Manager approval completed');
+    addResult("Margin approval", true, "Manager approval completed");
   } catch (error) {
-    addResult('Margin approval', false, error.message);
+    addResult("Margin approval", false, error.message);
   }
 
   try {
     const sendQuote = await request(`/api/quotations/${quotationId}/send`, {
-      method: 'POST',
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
-        channel: 'EMAIL',
+        channel: "EMAIL",
         recipientEmail: `client-${seed}@example.com`,
-        message: 'Please review quotation',
+        message: "Please review quotation",
       },
     });
 
     assert.equal(sendQuote.response.status, 200);
-    assert.equal(sendQuote.json?.data?.status, 'SENT');
+    assert.equal(sendQuote.json?.data?.status, "SENT");
     assert.ok(sendQuote.json?.data?.pdfUrl);
 
-    addResult('Send quote', true, 'Quote sent and PDF linked');
+    addResult("Send quote", true, "Quote sent and PDF linked");
   } catch (error) {
-    addResult('Send quote', false, error.message);
+    addResult("Send quote", false, error.message);
   }
 
   try {
     const viewQuote = await request(`/api/quotations/${quotationId}/viewed`, {
-      method: 'POST',
+      method: "POST",
       body: {
-        deviceInfo: 'Browser-Desktop',
+        deviceInfo: "Browser-Desktop",
       },
     });
 
     assert.equal(viewQuote.response.status, 200);
-    assert.equal(viewQuote.json?.data?.status, 'VIEWED');
+    assert.equal(viewQuote.json?.data?.status, "VIEWED");
     assert.ok(Number(viewQuote.json?.data?.viewCount) >= 1);
 
     const listViews = await request(`/api/quotations/${quotationId}/views`, {
@@ -310,29 +327,40 @@ async function main() {
     assert.ok(Array.isArray(listViews.json?.data));
     assert.ok(listViews.json.data.length >= 1);
 
-    addResult('Quote engagement tracking', true, `Views tracked: ${listViews.json.data.length}`);
+    addResult(
+      "Quote engagement tracking",
+      true,
+      `Views tracked: ${listViews.json.data.length}`,
+    );
   } catch (error) {
-    addResult('Quote engagement tracking', false, error.message);
+    addResult("Quote engagement tracking", false, error.message);
   }
 
   try {
-    const approveStatus = await request(`/api/quotations/${quotationId}/status`, {
-      method: 'POST',
-      headers: authHeaders(consultantToken),
-      body: {
-        status: 'APPROVED',
-        travelStartDate: '2026-06-20',
-        travelEndDate: '2026-06-25',
+    const approveStatus = await request(
+      `/api/quotations/${quotationId}/status`,
+      {
+        method: "POST",
+        headers: authHeaders(consultantToken),
+        body: {
+          status: "APPROVED",
+          travelStartDate: "2026-06-20",
+          travelEndDate: "2026-06-25",
+        },
       },
-    });
+    );
 
     assert.equal(approveStatus.response.status, 200);
-    assert.equal(approveStatus.json?.data?.quotation?.status, 'APPROVED');
+    assert.equal(approveStatus.json?.data?.quotation?.status, "APPROVED");
     assert.ok(approveStatus.json?.data?.booking?.id);
 
-    addResult('Status approved + booking', true, `Booking created ${approveStatus.json.data.booking.id}`);
+    addResult(
+      "Status approved + booking",
+      true,
+      `Booking created ${approveStatus.json.data.booking.id}`,
+    );
   } catch (error) {
-    addResult('Status approved + booking', false, error.message);
+    addResult("Status approved + booking", false, error.message);
   }
 
   try {
@@ -351,22 +379,26 @@ async function main() {
     assert.ok(versions.json.data.length >= 2);
     assert.ok(sendLogs.json.data.length >= 1);
 
-    addResult('Versioning and send logs', true, `Versions=${versions.json.data.length}, Sends=${sendLogs.json.data.length}`);
+    addResult(
+      "Versioning and send logs",
+      true,
+      `Versions=${versions.json.data.length}, Sends=${sendLogs.json.data.length}`,
+    );
   } catch (error) {
-    addResult('Versioning and send logs', false, error.message);
+    addResult("Versioning and send logs", false, error.message);
   }
 
   try {
-    const notOpenedQuote = await request('/api/quotations', {
-      method: 'POST',
+    const notOpenedQuote = await request("/api/quotations", {
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
         leadId,
         templateId,
         components: [
           {
-            itemType: 'VISA',
-            description: 'Visa processing',
+            itemType: "VISA",
+            description: "Visa processing",
             cost: 8000,
           },
         ],
@@ -382,23 +414,23 @@ async function main() {
     assert.ok(notOpenedId);
 
     await request(`/api/quotations/${notOpenedId}/send`, {
-      method: 'POST',
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
-        channel: 'WHATSAPP',
-        recipientPhone: '919999999999',
+        channel: "WHATSAPP",
+        recipientPhone: "919999999999",
       },
     });
 
-    await container.db.update('quotations', notOpenedId, {
+    await container.db.update("quotations", notOpenedId, {
       sent_at: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
-      status: 'SENT',
+      status: "SENT",
       view_count: 0,
       last_viewed_at: null,
     });
 
-    const runReminders = await request('/api/quotations/reminders/run', {
-      method: 'POST',
+    const runReminders = await request("/api/quotations/reminders/run", {
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
         notOpenedHours: 24,
@@ -409,13 +441,17 @@ async function main() {
     assert.equal(runReminders.response.status, 200);
     assert.ok(Number(runReminders.json?.data?.triggered) >= 1);
 
-    addResult('Reminder automation', true, `Triggered=${runReminders.json.data.triggered}`);
+    addResult(
+      "Reminder automation",
+      true,
+      `Triggered=${runReminders.json.data.triggered}`,
+    );
   } catch (error) {
-    addResult('Reminder automation', false, error.message);
+    addResult("Reminder automation", false, error.message);
   }
 
   try {
-    const report = await request('/api/quotations/reports/lead-to-quote', {
+    const report = await request("/api/quotations/reports/lead-to-quote", {
       headers: authHeaders(managerToken),
     });
 
@@ -423,9 +459,13 @@ async function main() {
     assert.ok(report.json?.data?.overall);
     assert.ok(Array.isArray(report.json?.data?.byConsultant));
 
-    addResult('Lead-to-quote report', true, `Total quotes=${report.json.data.overall.totalQuotes}`);
+    addResult(
+      "Lead-to-quote report",
+      true,
+      `Total quotes=${report.json.data.overall.totalQuotes}`,
+    );
   } catch (error) {
-    addResult('Lead-to-quote report', false, error.message);
+    addResult("Lead-to-quote report", false, error.message);
   }
 
   await new Promise((resolve, reject) => {
@@ -438,17 +478,19 @@ async function main() {
     });
   });
 
-  console.log('\nSprint 3 Smoke Test Results');
-  console.log('---------------------------');
+  console.log("\nSprint 3 Smoke Test Results");
+  console.log("---------------------------");
 
   for (const item of results) {
-    const prefix = item.passed ? 'PASS' : 'FAIL';
+    const prefix = item.passed ? "PASS" : "FAIL";
     console.log(`${prefix} | ${item.name} | ${item.details}`);
   }
 
   const failed = results.filter((item) => !item.passed);
-  console.log('---------------------------');
-  console.log(`Total: ${results.length}, Passed: ${results.length - failed.length}, Failed: ${failed.length}`);
+  console.log("---------------------------");
+  console.log(
+    `Total: ${results.length}, Passed: ${results.length - failed.length}, Failed: ${failed.length}`,
+  );
 
   if (failed.length > 0) {
     process.exitCode = 1;
@@ -456,6 +498,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('Sprint 3 smoke test execution failed:', error.message);
+  console.error("Sprint 3 smoke test execution failed:", error.message);
   process.exitCode = 1;
 });

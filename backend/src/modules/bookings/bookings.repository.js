@@ -3,7 +3,7 @@ function createBookingsRepository({ db, logger, schema }) {
   const columnCache = new Map();
 
   function canIntrospect() {
-    return typeof db.query === 'function' && Boolean(db.pool);
+    return typeof db.query === "function" && Boolean(db.pool);
   }
 
   function toNumber(value, fallback = 0) {
@@ -20,20 +20,20 @@ function createBookingsRepository({ db, logger, schema }) {
       return fallback;
     }
 
-    if (typeof value === 'boolean') {
+    if (typeof value === "boolean") {
       return value;
     }
 
-    if (typeof value === 'number') {
+    if (typeof value === "number") {
       return value === 1;
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const normalized = value.trim().toLowerCase();
-      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+      if (normalized === "true" || normalized === "1" || normalized === "yes") {
         return true;
       }
-      if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+      if (normalized === "false" || normalized === "0" || normalized === "no") {
         return false;
       }
     }
@@ -68,15 +68,22 @@ function createBookingsRepository({ db, logger, schema }) {
       totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
       costAmount: toNumber(row.cost_amount ?? row.costAmount, 0),
       profitAmount: toNumber(row.profit_amount ?? row.profitAmount, 0),
-      status: row.status ?? 'PENDING',
-      paymentStatus: row.payment_status ?? row.paymentStatus ?? 'PENDING',
+      status: row.status ?? "PENDING",
+      paymentStatus: row.payment_status ?? row.paymentStatus ?? "PENDING",
       advanceRequired: toNumber(row.advance_required ?? row.advanceRequired, 0),
       advanceReceived: toNumber(row.advance_received ?? row.advanceReceived, 0),
       clientCurrency: row.client_currency ?? row.clientCurrency ?? null,
       supplierCurrency: row.supplier_currency ?? row.supplierCurrency ?? null,
-      exchangeRate: row.exchange_rate !== undefined ? toNumber(row.exchange_rate ?? row.exchangeRate, null) : null,
-      exchangeLocked: toBoolean(row.exchange_locked ?? row.exchangeLocked, false),
-      cancellationReason: row.cancellation_reason ?? row.cancellationReason ?? null,
+      exchangeRate:
+        row.exchange_rate !== undefined
+          ? toNumber(row.exchange_rate ?? row.exchangeRate, null)
+          : null,
+      exchangeLocked: toBoolean(
+        row.exchange_locked ?? row.exchangeLocked,
+        false,
+      ),
+      cancellationReason:
+        row.cancellation_reason ?? row.cancellationReason ?? null,
       cancelledAt: toDate(row.cancelled_at ?? row.cancelledAt),
       createdBy: row.created_by ?? row.createdBy ?? null,
       isDeleted: toBoolean(row.is_deleted ?? row.isDeleted, false),
@@ -173,7 +180,9 @@ function createBookingsRepository({ db, logger, schema }) {
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    const entries = Object.entries(payload).filter(
+      ([, value]) => value !== undefined,
+    );
     if (!entries.length) {
       return {};
     }
@@ -212,12 +221,14 @@ function createBookingsRepository({ db, logger, schema }) {
   }
 
   async function getVerifiedPayments(bookingId) {
-    const rows = await db.findMany(schema.paymentsTable, { booking_id: bookingId });
+    const rows = await db.findMany(schema.paymentsTable, {
+      booking_id: bookingId,
+    });
 
     return rows.filter((row) => {
       const isVerified = toBoolean(row.is_verified ?? row.isVerified, false);
-      const status = row.status ?? 'PENDING';
-      return isVerified && status !== 'REFUNDED';
+      const status = row.status ?? "PENDING";
+      return isVerified && status !== "REFUNDED";
     });
   }
 
@@ -227,8 +238,10 @@ function createBookingsRepository({ db, logger, schema }) {
       return [];
     }
 
-    const rows = await db.findMany(schema.refundsTable, { booking_id: bookingId });
-    return rows.filter((row) => (row.status ?? 'INITIATED') === 'PROCESSED');
+    const rows = await db.findMany(schema.refundsTable, {
+      booking_id: bookingId,
+    });
+    return rows.filter((row) => (row.status ?? "INITIATED") === "PROCESSED");
   }
 
   return Object.freeze({
@@ -253,12 +266,16 @@ function createBookingsRepository({ db, logger, schema }) {
     },
 
     async findByQuotationId(quotationId) {
-      const row = await db.findOne(schema.tableName, { quotation_id: quotationId });
+      const row = await db.findOne(schema.tableName, {
+        quotation_id: quotationId,
+      });
       return toBooking(row);
     },
 
     async findByBookingNumber(bookingNumber) {
-      const row = await db.findOne(schema.tableName, { booking_number: bookingNumber });
+      const row = await db.findOne(schema.tableName, {
+        booking_number: bookingNumber,
+      });
       return toBooking(row);
     },
 
@@ -280,14 +297,14 @@ function createBookingsRepository({ db, logger, schema }) {
     },
 
     async create(payload) {
-      logger.debug({ module: 'bookings', payload }, 'Creating booking');
+      logger.debug({ module: "bookings", payload }, "Creating booking");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.insert(schema.tableName, sanitized);
       return toBooking(row);
     },
 
     async update(id, payload) {
-      logger.debug({ module: 'bookings', id, payload }, 'Updating booking');
+      logger.debug({ module: "bookings", id, payload }, "Updating booking");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.update(schema.tableName, id, sanitized);
       return toBooking(row);
@@ -316,7 +333,9 @@ function createBookingsRepository({ db, logger, schema }) {
         return [];
       }
 
-      const rows = await db.findMany(schema.statusHistoryTable, { booking_id: bookingId });
+      const rows = await db.findMany(schema.statusHistoryTable, {
+        booking_id: bookingId,
+      });
       return rows
         .map((row) => toStatusHistory(row))
         .sort((a, b) => {
@@ -338,7 +357,9 @@ function createBookingsRepository({ db, logger, schema }) {
     },
 
     async findInvoicesByBookingId(bookingId) {
-      const rows = await db.findMany(schema.invoicesTable, { booking_id: bookingId });
+      const rows = await db.findMany(schema.invoicesTable, {
+        booking_id: bookingId,
+      });
       return rows
         .map((row) => toInvoice(row))
         .sort((a, b) => {
@@ -349,7 +370,9 @@ function createBookingsRepository({ db, logger, schema }) {
     },
 
     async findInvoiceByNumber(invoiceNumber) {
-      const row = await db.findOne(schema.invoicesTable, { invoice_number: invoiceNumber });
+      const row = await db.findOne(schema.invoicesTable, {
+        invoice_number: invoiceNumber,
+      });
       return toInvoice(row);
     },
 
@@ -392,9 +415,17 @@ function createBookingsRepository({ db, logger, schema }) {
       }
 
       const verifiedPayments = await getVerifiedPayments(bookingId);
-      const paidAmount = verifiedPayments.reduce((sum, row) => sum + toNumber(row.amount, 0), 0);
+      const paidAmount = verifiedPayments.reduce(
+        (sum, row) => sum + toNumber(row.amount, 0),
+        0,
+      );
       const hasProof = verifiedPayments.some((row) => {
-        return Boolean(row.proof_url || row.proofUrl || row.gateway_payment_id || row.payment_reference);
+        return Boolean(
+          row.proof_url ||
+          row.proofUrl ||
+          row.gateway_payment_id ||
+          row.payment_reference,
+        );
       });
 
       return {
@@ -421,7 +452,10 @@ function createBookingsRepository({ db, logger, schema }) {
       }
 
       const verifiedPayments = await getVerifiedPayments(bookingId);
-      return verifiedPayments.reduce((sum, payment) => sum + toNumber(payment.amount, 0), 0);
+      return verifiedPayments.reduce(
+        (sum, payment) => sum + toNumber(payment.amount, 0),
+        0,
+      );
     },
 
     async getProcessedRefundAmount(bookingId) {
@@ -445,7 +479,10 @@ function createBookingsRepository({ db, logger, schema }) {
       }
 
       const rows = await getProcessedRefundRows(bookingId);
-      return rows.reduce((sum, row) => sum + toNumber(row.refund_amount ?? row.refundAmount, 0), 0);
+      return rows.reduce(
+        (sum, row) => sum + toNumber(row.refund_amount ?? row.refundAmount, 0),
+        0,
+      );
     },
 
     async hasColumn(tableName, columnName) {

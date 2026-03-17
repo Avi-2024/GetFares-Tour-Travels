@@ -296,11 +296,11 @@ const CreateLead: React.FC = () => {
       </div>
 
       <SurfaceCard>
-        {apiError ?
+        {apiError ? (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
             {apiError}
           </div>
-        : null}
+        ) : null}
         <div className="mb-5 grid grid-cols-2 gap-2 md:grid-cols-4">
           {steps.map((label, i) => {
             const active = step === i;
@@ -309,20 +309,20 @@ const CreateLead: React.FC = () => {
               <div key={label} className="flex items-center gap-2">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${
-                    done ? "bg-green-500 text-white"
-                    : active ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                    done
+                      ? "bg-green-500 text-white"
+                      : active
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                   }`}
                 >
-                  {done ?
-                    <FaCheck />
-                  : i + 1}
+                  {done ? <FaCheck /> : i + 1}
                 </div>
                 <p
                   className={`text-sm ${
-                    active ? "text-blue-600" : (
-                      "text-gray-600 dark:text-gray-300"
-                    )
+                    active
+                      ? "text-blue-600"
+                      : "text-gray-600 dark:text-gray-300"
                   }`}
                 >
                   {label}
@@ -341,7 +341,7 @@ const CreateLead: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         <SurfaceCard>
-          {step === 0 ?
+          {step === 0 ? (
             <section className="space-y-4">
               <Title
                 icon={<FaUser />}
@@ -393,9 +393,9 @@ const CreateLead: React.FC = () => {
                 </div>
               </div>
             </section>
-          : null}
+          ) : null}
 
-          {step === 1 ?
+          {step === 1 ? (
             <section className="space-y-4">
               <Title
                 icon={<FaTag />}
@@ -406,9 +406,9 @@ const CreateLead: React.FC = () => {
                 <label className="field-label">Destination(s)</label>
                 <div
                   className={`rounded-xl border p-3 ${
-                    showErrors && (errors as any).destinations ?
-                      "border-red-500"
-                    : "border-gray-200 dark:border-gray-700"
+                    showErrors && (errors as any).destinations
+                      ? "border-red-500"
+                      : "border-gray-200 dark:border-gray-700"
                   }`}
                 >
                   <div className="mb-2 flex flex-wrap gap-2">
@@ -441,15 +441,15 @@ const CreateLead: React.FC = () => {
                         type="button"
                         onClick={() =>
                           setForm((p) =>
-                            p.destinations.includes(destination.name) ?
-                              p
-                            : {
-                                ...p,
-                                destinations: [
-                                  ...p.destinations,
-                                  destination.name,
-                                ],
-                              },
+                            p.destinations.includes(destination.name)
+                              ? p
+                              : {
+                                  ...p,
+                                  destinations: [
+                                    ...p.destinations,
+                                    destination.name,
+                                  ],
+                                },
                           )
                         }
                         className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -496,9 +496,9 @@ const CreateLead: React.FC = () => {
                   <label className="field-label">Duration</label>
                   <select
                     className={`field-input ${
-                      showErrors && (errors as any).duration ?
-                        "border-red-500"
-                      : ""
+                      showErrors && (errors as any).duration
+                        ? "border-red-500"
+                        : ""
                     }`}
                     value={form.duration}
                     onChange={(e) =>
@@ -545,9 +545,9 @@ const CreateLead: React.FC = () => {
                 ))}
               </div>
             </section>
-          : null}
+          ) : null}
 
-          {step === 2 ?
+          {step === 2 ? (
             <section className="space-y-4">
               <Title
                 icon={<FaTag />}
@@ -559,9 +559,9 @@ const CreateLead: React.FC = () => {
                   <label className="field-label">Budget Range</label>
                   <select
                     className={`field-input ${
-                      showErrors && (errors as any).budgetRange ?
-                        "border-red-500"
-                      : ""
+                      showErrors && (errors as any).budgetRange
+                        ? "border-red-500"
+                        : ""
                     }`}
                     value={form.budgetRange}
                     onChange={(e) =>
@@ -645,9 +645,9 @@ const CreateLead: React.FC = () => {
                 Client is flexible with budget
               </label>
             </section>
-          : null}
+          ) : null}
 
-          {step === 3 ?
+          {step === 3 ? (
             <section className="space-y-4">
               <Title
                 icon={<FaTag />}
@@ -675,9 +675,9 @@ const CreateLead: React.FC = () => {
                       }))
                     }
                     className={`rounded-full border px-3 py-1.5 text-sm ${
-                      form.requirements[k] ?
-                        "border-blue-200 bg-blue-50 text-blue-700"
-                      : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"
+                      form.requirements[k]
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"
                     }`}
                   >
                     {k}
@@ -698,7 +698,7 @@ const CreateLead: React.FC = () => {
                 />
               </div>
             </section>
-          : null}
+          ) : null}
 
           <div className="mt-8 flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
             <button
@@ -715,25 +715,28 @@ const CreateLead: React.FC = () => {
               >
                 <FaArrowLeft /> Back
               </button>
-              {step < steps.length - 1 ?
+              {step < steps.length - 1 ? (
                 <button
                   onClick={next}
                   className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white"
                 >
                   Next <FaArrowRight />
                 </button>
-              : <button
+              ) : (
+                <button
                   onClick={submit}
                   disabled={loading}
                   className="rounded-xl bg-green-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {loading ?
+                  {loading ? (
                     <>
                       <span className="animate-spin">⌛</span> Creating...
                     </>
-                  : "Create Lead"}
+                  ) : (
+                    "Create Lead"
+                  )}
                 </button>
-              }
+              )}
             </div>
           </div>
         </SurfaceCard>
@@ -810,9 +813,7 @@ const Field = ({
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
-    {err ?
-      <p className="mt-1 text-xs text-red-500">Required</p>
-    : null}
+    {err ? <p className="mt-1 text-xs text-red-500">Required</p> : null}
   </div>
 );
 const Row = ({ label, value }: { label: string; value: string }) => (

@@ -1,39 +1,44 @@
-const { AppError } = require('../../core/errors');
-const { toPagination } = require('../../core/utils');
-const { NotificationStatus } = require('./notifications.schema');
+const { AppError } = require("../../core/errors");
+const { toPagination } = require("../../core/utils");
+const { NotificationStatus } = require("./notifications.schema");
 
 const ROLE_BY_DOMAIN = Object.freeze({
-  leads: ['manager'],
-  quotations: ['manager', 'sales_consultant'],
-  bookings: ['manager', 'sales_consultant'],
-  payments: ['accounts', 'manager'],
-  refunds: ['accounts', 'manager'],
-  visa: ['visa_executive', 'manager'],
-  campaigns: ['marketing', 'manager'],
-  customers: ['sales_consultant', 'manager'],
-  complaints: ['support', 'manager'],
-  auth: ['admin', 'manager'],
-  webhooks: ['marketing', 'manager'],
+  leads: ["manager"],
+  quotations: ["manager", "sales_consultant"],
+  bookings: ["manager", "sales_consultant"],
+  payments: ["accounts", "manager"],
+  refunds: ["accounts", "manager"],
+  visa: ["visa_executive", "manager"],
+  campaigns: ["marketing", "manager"],
+  customers: ["sales_consultant", "manager"],
+  complaints: ["support", "manager"],
+  auth: ["admin", "manager"],
+  webhooks: ["marketing", "manager"],
 });
 
 const USER_ID_HINT_KEYS = Object.freeze([
-  'userId',
-  'assigneeId',
-  'assignedTo',
-  'createdBy',
-  'updatedBy',
-  'sentBy',
-  'approvedBy',
-  'triggeredBy',
-  'verifiedBy',
-  'managerId',
-  'consultantId',
+  "userId",
+  "assigneeId",
+  "assignedTo",
+  "createdBy",
+  "updatedBy",
+  "sentBy",
+  "approvedBy",
+  "triggeredBy",
+  "verifiedBy",
+  "managerId",
+  "consultantId",
 ]);
 
-function createNotificationsService({ repository, logger, events, eventPublisher }) {
+function createNotificationsService({
+  repository,
+  logger,
+  events,
+  eventPublisher,
+}) {
   function ensureUser(context) {
     if (!context.user?.id) {
-      throw new AppError(401, 'Authentication required', 'AUTH_REQUIRED');
+      throw new AppError(401, "Authentication required", "AUTH_REQUIRED");
     }
     return context.user;
   }
@@ -54,34 +59,50 @@ function createNotificationsService({ repository, logger, events, eventPublisher
     const targets = [];
 
     recipients.userIds.forEach((userId) => {
-      targets.push({ recipientUserId: userId, recipientRole: null, recipientTeamId: null });
+      targets.push({
+        recipientUserId: userId,
+        recipientRole: null,
+        recipientTeamId: null,
+      });
     });
 
     recipients.roles.forEach((role) => {
-      targets.push({ recipientUserId: null, recipientRole: role, recipientTeamId: null });
+      targets.push({
+        recipientUserId: null,
+        recipientRole: role,
+        recipientTeamId: null,
+      });
     });
 
     recipients.teamIds.forEach((teamId) => {
-      targets.push({ recipientUserId: null, recipientRole: null, recipientTeamId: teamId });
+      targets.push({
+        recipientUserId: null,
+        recipientRole: null,
+        recipientTeamId: teamId,
+      });
     });
 
     if (!targets.length) {
-      targets.push({ recipientUserId: null, recipientRole: null, recipientTeamId: null });
+      targets.push({
+        recipientUserId: null,
+        recipientRole: null,
+        recipientTeamId: null,
+      });
     }
 
     return targets;
   }
 
   function toTitle(eventName) {
-    return String(eventName || 'notification.event')
-      .split('.')
+    return String(eventName || "notification.event")
+      .split(".")
       .map((piece) => piece.charAt(0).toUpperCase() + piece.slice(1))
-      .join(' ');
+      .join(" ");
   }
 
   function toDomain(eventName) {
-    return String(eventName || '')
-      .split('.')[0]
+    return String(eventName || "")
+      .split(".")[0]
       .trim();
   }
 
@@ -127,11 +148,13 @@ function createNotificationsService({ repository, logger, events, eventPublisher
   async function publishOne(target, payload) {
     const record = await repository.create({
       eventName: payload.eventName,
-      channel: payload.channel || 'SOCKET_IO',
+      channel: payload.channel || "SOCKET_IO",
       entityType: payload.entityType || toDomain(payload.eventName),
       entityId: payload.entityId || null,
       title: payload.title || toTitle(payload.eventName),
-      message: payload.message || buildNotificationMessage(payload.eventName, payload.payload),
+      message:
+        payload.message ||
+        buildNotificationMessage(payload.eventName, payload.payload),
       payload: payload.payload || {},
       recipientUserId: target.recipientUserId,
       recipientRole: target.recipientRole,
@@ -187,11 +210,11 @@ function createNotificationsService({ repository, logger, events, eventPublisher
         logger.error(
           {
             err: error,
-            module: 'notifications',
+            module: "notifications",
             eventName: payload.eventName,
             target,
           },
-          'Failed to publish notification target',
+          "Failed to publish notification target",
         );
       }
     }
@@ -205,7 +228,7 @@ function createNotificationsService({ repository, logger, events, eventPublisher
 
   function buildDomainRecipients(eventName, payload = {}) {
     const domain = toDomain(eventName);
-    const roles = ROLE_BY_DOMAIN[domain] || ['manager'];
+    const roles = ROLE_BY_DOMAIN[domain] || ["manager"];
     const userIds = extractUsersFromPayload(payload);
 
     return normalizeRecipients({
@@ -281,7 +304,11 @@ function createNotificationsService({ repository, logger, events, eventPublisher
       const existing = await repository.findById(notificationId);
 
       if (!existing) {
-        throw new AppError(404, 'Notification not found', 'NOTIFICATION_NOT_FOUND');
+        throw new AppError(
+          404,
+          "Notification not found",
+          "NOTIFICATION_NOT_FOUND",
+        );
       }
 
       const canRead = repository.isRecipientMatch(
@@ -298,7 +325,11 @@ function createNotificationsService({ repository, logger, events, eventPublisher
       );
 
       if (!canRead) {
-        throw new AppError(403, 'Not allowed to access this notification', 'NOTIFICATION_FORBIDDEN');
+        throw new AppError(
+          403,
+          "Not allowed to access this notification",
+          "NOTIFICATION_FORBIDDEN",
+        );
       }
 
       if (existing.status === NotificationStatus.READ) {

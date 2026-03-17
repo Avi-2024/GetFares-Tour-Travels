@@ -1,10 +1,10 @@
-const { createBookingsController } = require('./bookings.controller');
-const { createBookingsService } = require('./bookings.service');
-const { createBookingsRepository } = require('./bookings.repository');
-const { createBookingsRoutes } = require('./bookings.routes');
-const { BookingsValidation } = require('./bookings.validation');
-const { BookingsSchema } = require('./bookings.schema');
-const { createBookingsEvents } = require('./bookings.events');
+const { createBookingsController } = require("./bookings.controller");
+const { createBookingsService } = require("./bookings.service");
+const { createBookingsRepository } = require("./bookings.repository");
+const { createBookingsRoutes } = require("./bookings.routes");
+const { BookingsValidation } = require("./bookings.validation");
+const { BookingsSchema } = require("./bookings.schema");
+const { createBookingsEvents } = require("./bookings.events");
 
 function createBookingsModule({ dependencies }) {
   const repository = createBookingsRepository({
@@ -35,7 +35,7 @@ function createBookingsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'bookings',
+    name: "bookings",
     router,
     controller,
     service,

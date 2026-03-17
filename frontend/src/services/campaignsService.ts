@@ -1,4 +1,7 @@
-import type { CampaignsDatasource, CampaignsQuery } from "../datasource/campaignsDatasource";
+import type {
+  CampaignsDatasource,
+  CampaignsQuery,
+} from "../datasource/campaignsDatasource";
 
 export const createCampaignsService = (datasource: CampaignsDatasource) => ({
   list: (params?: CampaignsQuery) => datasource.list(params),

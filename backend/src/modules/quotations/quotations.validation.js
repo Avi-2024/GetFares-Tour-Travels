@@ -1,10 +1,24 @@
-﻿const { z } = require('zod');
+﻿const { z } = require("zod");
 
-const quotationStatus = z.enum(['DRAFT', 'SENT', 'VIEWED', 'APPROVED', 'REJECTED', 'EXPIRED']);
-const transitionStatus = z.enum(['APPROVED', 'REJECTED']);
-const templateType = z.enum(['READY_PACKAGE', 'VISA', 'CUSTOM_ITINERARY']);
-const deliveryChannel = z.enum(['EMAIL', 'WHATSAPP', 'MANUAL']);
-const itemType = z.enum(['HOTEL', 'FLIGHT', 'TRANSFER', 'VISA', 'INSURANCE', 'OTHER']);
+const quotationStatus = z.enum([
+  "DRAFT",
+  "SENT",
+  "VIEWED",
+  "APPROVED",
+  "REJECTED",
+  "EXPIRED",
+]);
+const transitionStatus = z.enum(["APPROVED", "REJECTED"]);
+const templateType = z.enum(["READY_PACKAGE", "VISA", "CUSTOM_ITINERARY"]);
+const deliveryChannel = z.enum(["EMAIL", "WHATSAPP", "MANUAL"]);
+const itemType = z.enum([
+  "HOTEL",
+  "FLIGHT",
+  "TRANSFER",
+  "VISA",
+  "INSURANCE",
+  "OTHER",
+]);
 
 const componentSchema = z.object({
   itemType,
@@ -62,7 +76,10 @@ const update = z.object({
       supplierCurrency: currencyCode.optional(),
       notes: z.string().max(2000).optional(),
     })
-    .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update'),
+    .refine(
+      (value) => Object.keys(value).length > 0,
+      "At least one field is required for update",
+    ),
   params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
 });
@@ -142,11 +159,11 @@ const statusTransition = z.object({
       travelEndDate: z.string().date().optional(),
     })
     .superRefine((value, ctx) => {
-      if (value.status === 'REJECTED' && !value.reason) {
+      if (value.status === "REJECTED" && !value.reason) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['reason'],
-          message: 'reason is required when status is REJECTED',
+          path: ["reason"],
+          message: "reason is required when status is REJECTED",
         });
       }
     }),
@@ -169,7 +186,12 @@ const runReminders = z.object({
   body: z
     .object({
       notOpenedHours: z.coerce.number().int().positive().max(720).optional(),
-      viewedNoActionHours: z.coerce.number().int().positive().max(720).optional(),
+      viewedNoActionHours: z.coerce
+        .number()
+        .int()
+        .positive()
+        .max(720)
+        .optional(),
     })
     .optional(),
   params: z.object({}).optional(),
@@ -221,7 +243,10 @@ const updateTemplate = z.object({
       minMarginPercent: z.coerce.number().min(0).max(100).optional(),
       isActive: z.boolean().optional(),
     })
-    .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update'),
+    .refine(
+      (value) => Object.keys(value).length > 0,
+      "At least one field is required for update",
+    ),
   params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
 });

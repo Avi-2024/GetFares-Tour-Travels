@@ -1,9 +1,9 @@
-const dotenv = require('dotenv');
-const { Client } = require('pg');
+const dotenv = require("dotenv");
+const { Client } = require("pg");
 
 dotenv.config();
 
-const { ROLE_PERMISSIONS } = require('../src/core/constants');
+const { ROLE_PERMISSIONS } = require("../src/core/constants");
 
 async function upsertRole(client, roleName) {
   const result = await client.query(
@@ -38,13 +38,13 @@ async function upsertPermission(client, permissionName) {
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required to seed RBAC data.');
+    throw new Error("DATABASE_URL is required to seed RBAC data.");
   }
 
   const clientConfig = { connectionString: databaseUrl };
-  
+
   // AWS RDS requires SSL connection
-  if (databaseUrl.includes('.rds.') || databaseUrl.includes('.rds-')) {
+  if (databaseUrl.includes(".rds.") || databaseUrl.includes(".rds-")) {
     clientConfig.ssl = { rejectUnauthorized: false };
   }
 
@@ -56,7 +56,7 @@ async function main() {
   let grantsCount = 0;
 
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     const permissionCache = new Map();
 
@@ -87,11 +87,13 @@ async function main() {
       }
     }
 
-    await client.query('COMMIT');
+    await client.query("COMMIT");
 
-    console.log(`RBAC seed complete. Roles processed: ${roleCount}. Permissions processed: ${permissionCount}. Grants attempted: ${grantsCount}.`);
+    console.log(
+      `RBAC seed complete. Roles processed: ${roleCount}. Permissions processed: ${permissionCount}. Grants attempted: ${grantsCount}.`,
+    );
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw error;
   } finally {
     await client.end();
@@ -99,6 +101,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('RBAC seed failed:', error.message);
+  console.error("RBAC seed failed:", error.message);
   process.exitCode = 1;
 });

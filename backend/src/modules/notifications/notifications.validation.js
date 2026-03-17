@@ -1,5 +1,5 @@
-const { z } = require('zod');
-const { NotificationStatus } = require('./notifications.schema');
+const { z } = require("zod");
+const { NotificationStatus } = require("./notifications.schema");
 
 const list = z.object({
   body: z.object({}).optional(),
@@ -8,12 +8,14 @@ const list = z.object({
     .object({
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().max(100).optional(),
-      status: z.enum([
-        NotificationStatus.PENDING,
-        NotificationStatus.DELIVERED,
-        NotificationStatus.READ,
-        NotificationStatus.FAILED,
-      ]).optional(),
+      status: z
+        .enum([
+          NotificationStatus.PENDING,
+          NotificationStatus.DELIVERED,
+          NotificationStatus.READ,
+          NotificationStatus.FAILED,
+        ])
+        .optional(),
     })
     .optional(),
 });
