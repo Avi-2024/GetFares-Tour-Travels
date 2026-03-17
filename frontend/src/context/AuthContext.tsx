@@ -5,6 +5,8 @@ type AuthUser = {
   id: string;
   name: string;
   email: string;
+  role?: string;
+  roleId?: string;
 };
 
 type AuthContextValue = {
@@ -20,13 +22,14 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const ADMIN_EMAIL = "admin@travel-crm.com";
-
 const STORAGE_TOKEN = "auth_token";
 const STORAGE_USER = "auth_user";
 const STORAGE_PERMISSIONS = "auth_permissions";
 
 const DEFAULT_PERMISSIONS = [
+  "users:read",
+  "users:create",
+  "users:update",
   "leads.read",
   "leads.write",
   "quotations.read",
@@ -60,7 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshPermissions = useCallback(async () => {
     if (!token) return;
-    if (user?.email === ADMIN_EMAIL) {
+    if (user?.role === "admin") {
       setPermissions(DEFAULT_PERMISSIONS);
       localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(DEFAULT_PERMISSIONS));
       return;
@@ -68,7 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoadingPermissions(true);
     try {
       const response = await rbacApi.myPermissions();
-      const next = response.permissions ?? [];
+      const next = (response as { data?: { permissions?: string[] } }).data?.permissions ?? (response as { permissions?: string[] }).permissions ?? [];
       setPermissions(next);
       localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(next));
     } catch {
@@ -91,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(nextToken);
     setUser(nextUser);
 
-    if (nextUser.email === ADMIN_EMAIL) {
+    if (nextUser.role === "admin") {
       setPermissions(DEFAULT_PERMISSIONS);
       localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(DEFAULT_PERMISSIONS));
     }
@@ -107,7 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const hasPermission = useCallback(
-    (permission: string) => (user?.email === ADMIN_EMAIL ? true : permissions.includes(permission)),
+    (permission: string) => (user?.role === "admin" ? true : permissions.includes(permission)),
     [permissions, user]
   );
 

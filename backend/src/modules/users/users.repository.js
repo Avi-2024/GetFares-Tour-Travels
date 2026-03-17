@@ -22,6 +22,7 @@ function createUsersRepository({ db, logger, schema }) {
     findById,
     create,
     update,
+    findRoles: () => db.findMany(schema.rolesTable, {}),
   });
 }
 

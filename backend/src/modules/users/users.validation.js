@@ -5,12 +5,21 @@ const createPayload = z.object({
   email: z.string().email().max(150),
   phone: z.string().trim().min(6).max(20).optional(),
   roleId: z.string().uuid().optional(),
-  passwordHash: z.string().trim().min(8).max(400),
+  password: z.string().trim().min(8).optional(),
+  passwordHash: z.string().trim().min(8).max(400).optional(),
   isActive: z.boolean().optional(),
   isOnLeave: z.boolean().optional(),
   expertiseDestinations: z.array(z.string().trim().min(2).max(100)).max(50).optional(),
   targetAmount: z.coerce.number().nonnegative().optional(),
   incentivePercent: z.coerce.number().min(0).max(100).optional(),
+}).superRefine((value, ctx) => {
+  if (!value.password && !value.passwordHash) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Password is required',
+      path: ['password'],
+    });
+  }
 });
 
 const updatePayload = z

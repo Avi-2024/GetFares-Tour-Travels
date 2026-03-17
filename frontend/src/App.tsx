@@ -93,7 +93,9 @@ function App () {
 
             <Route path='/notifications' element={<NotificationsPage />} />
 
-            <Route path='/users' element={<UsersPage />} />
+            <Route element={<PermissionRoute permission='users:read' roles={['admin']} />}>
+              <Route path='/users' element={<UsersPage />} />
+            </Route>
 
             <Route path='/finance-system' element={<FinanceSystem />} />
           </Route>

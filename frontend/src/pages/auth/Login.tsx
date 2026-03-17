@@ -52,9 +52,26 @@ const Login = () => {
       const { data } = await authApi.login({ email, password, rememberMe: true });
       const userName = data.user.fullName || data.user.name || email.split("@")[0];
       const userEmail = data.user.email || email;
-      setAuthState(data.accessToken, { id: data.user.id, name: userName, email: userEmail });
+      const userRole = data.user.role;
+      setAuthState(data.accessToken, {
+        id: data.user.id,
+        name: userName,
+        email: userEmail,
+        role: userRole,
+        roleId: data.user.roleId,
+      });
       await refreshPermissions();
-      navigate("/dashboard");
+      const roleRoutes: Record<string, string> = {
+        admin: "/dashboard",
+        manager: "/dashboard",
+        sales_consultant: "/dashboard",
+        visa_executive: "/visa",
+        accounts: "/payments",
+        marketing: "/campaigns",
+        operations: "/operations",
+        management: "/reports",
+      };
+      navigate(roleRoutes[userRole ?? ""] ?? "/dashboard");
     } catch (err) {
       if (err instanceof ApiError) {
         setApiError(err.message || "Unable to sign in. Please try again.");

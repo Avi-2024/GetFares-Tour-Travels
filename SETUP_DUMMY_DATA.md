@@ -12,7 +12,7 @@
 
 ### Using psql (Command Line):
 ```bash
-psql "postgresql://postgres_user:48QtIzqBfu0NZo41wyRsa7axKhSuRn4U@dpg-d6ru8mhaae7s73d0g3h0-a.singapore-postgres.render.com/production_db_0nxp" < backend/database/seed-dummy-data.sql
+psql "" < backend/database/seed-dummy-data.sql
 ```
 
 ---

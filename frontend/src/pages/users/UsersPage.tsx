@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   FaPlus,
   FaEdit,
@@ -16,10 +16,8 @@ import {
 
 
 } from 'react-icons/fa6'
-// import { rbacApi } from '../../api/auth'
-
-let userIdCounter = 1000
-const nextUserId = () => `${++userIdCounter}`
+import { rbacApi, usersApi } from '../../api'
+import { ApiError } from '../../api/apiClient'
 
 interface User {
   id: string
@@ -34,8 +32,23 @@ interface User {
 interface Role {
   id: string
   name: string
+  value: string
   description?: string
 }
+
+const ROLE_OPTIONS: Role[] = [
+  { id: 'admin', name: 'Admin', value: 'admin', description: 'Full system access' },
+  { id: 'manager', name: 'Manager', value: 'manager', description: 'Management access' },
+  { id: 'sales_consultant', name: 'Sales Consultant', value: 'sales_consultant', description: 'Sales operations' },
+  { id: 'visa_executive', name: 'Visa Executive', value: 'visa_executive', description: 'Visa processing' },
+  { id: 'accounts', name: 'Accounts', value: 'accounts', description: 'Payments and finance' },
+  { id: 'marketing', name: 'Marketing', value: 'marketing', description: 'Campaigns and outreach' },
+  { id: 'operations', name: 'Operations', value: 'operations', description: 'Operations access' },
+  { id: 'management', name: 'Management', value: 'management', description: 'Read-only leadership' }
+]
+
+const ROLE_LABELS = new Map(ROLE_OPTIONS.map(role => [role.value, role.name]))
+const getRoleLabel = (value?: string) => ROLE_LABELS.get(value ?? '') ?? value ?? 'No Role'
 
 // Toast Component
 const Toast = ({
@@ -102,7 +115,7 @@ const ConfirmDeleteModal = ({
           </div>
           <div>
             <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-              Delete User
+              Deactivate User
             </h3>
             <p className='text-sm text-gray-500 dark:text-gray-400'>
               This action cannot be undone
@@ -110,11 +123,11 @@ const ConfirmDeleteModal = ({
           </div>
         </div>
 
-        <p className='text-sm text-gray-600 dark:text-gray-400 mb-4'>
-          Are you sure you want to delete{' '}
-          <span className='font-semibold'>{user.fullName}</span>? All data
-          associated with this user will be permanently removed.
-        </p>
+          <p className='text-sm text-gray-600 dark:text-gray-400 mb-4'>
+            Are you sure you want to deactivate{' '}
+            <span className='font-semibold'>{user.fullName}</span>? The user will
+            no longer be able to sign in.
+          </p>
 
         <div className='bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg mb-4'>
           <p className='text-xs text-gray-500 dark:text-gray-400'>
@@ -125,7 +138,7 @@ const ConfirmDeleteModal = ({
           </p>
           {user.role && (
             <p className='text-sm text-gray-700 dark:text-gray-300'>
-              Role: {user.role}
+              Role: {getRoleLabel(user.role)}
             </p>
           )}
         </div>
@@ -141,7 +154,7 @@ const ConfirmDeleteModal = ({
             onClick={onConfirm}
             className='px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2'
           >
-            <FaTrash /> Delete User
+            <FaTrash /> Deactivate User
           </button>
         </div>
       </div>
@@ -170,6 +183,7 @@ const UserFormModal = ({
     email: '',
     phone: '',
     role: '',
+    password: '',
     isActive: true
   })
 
@@ -180,6 +194,7 @@ const UserFormModal = ({
         email: user.email,
         phone: user.phone || '',
         role: user.role || '',
+        password: '',
         isActive: user.isActive
       })
     } else {
@@ -188,6 +203,7 @@ const UserFormModal = ({
         email: '',
         phone: '',
         role: '',
+        password: '',
         isActive: true
       })
     }
@@ -274,12 +290,28 @@ const UserFormModal = ({
             >
               <option value=''>Select Role</option>
               {roles.map(role => (
-                <option key={role.id} value={role.name}>
+                <option key={role.id} value={role.value}>
                   {role.name}
                 </option>
               ))}
             </select>
           </div>
+
+          {mode === 'create' && (
+            <div>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                Temporary Password <span className='text-red-500'>*</span>
+              </label>
+              <input
+                type='password'
+                required
+                value={formData.password}
+                onChange={e => setFormData({ ...formData, password: e.target.value })}
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
+                placeholder='Minimum 8 characters'
+              />
+            </div>
+          )}
 
           {mode === 'edit' && (
             <div className='flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg'>
@@ -400,7 +432,7 @@ const AssignRoleModal = ({
             >
               <option value=''>Choose a role...</option>
               {roles.map(role => (
-                <option key={role.id} value={role.name}>
+                <option key={role.id} value={role.value}>
                   {role.name} {role.description && `- ${role.description}`}
                 </option>
               ))}
@@ -429,91 +461,10 @@ const AssignRoleModal = ({
 }
 
 const UsersPage: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: '1',
-      fullName: 'John Smith',
-      email: 'john.smith@getfares.com',
-      phone: '+1 555 0101',
-      role: 'Admin',
-      isActive: true,
-      createdAt: '2023-01-15'
-    },
-    {
-      id: '2',
-      fullName: 'Sarah Johnson',
-      email: 'sarah.johnson@getfares.com',
-      phone: '+1 555 0102',
-      role: 'Manager',
-      isActive: true,
-      createdAt: '2023-02-20'
-    },
-    {
-      id: '3',
-      fullName: 'Mike Chen',
-      email: 'mike.chen@getfares.com',
-      phone: '+1 555 0103',
-      role: 'Sales',
-      isActive: true,
-      createdAt: '2023-03-10'
-    },
-    {
-      id: '4',
-      fullName: 'Emily Davis',
-      email: 'emily.davis@getfares.com',
-      phone: '+1 555 0104',
-      role: 'Marketing',
-      isActive: false,
-      createdAt: '2023-04-05'
-    },
-    {
-      id: '5',
-      fullName: 'David Wilson',
-      email: 'david.wilson@getfares.com',
-      phone: '+1 555 0105',
-      role: 'Operations',
-      isActive: true,
-      createdAt: '2023-05-12'
-    },
-    {
-      id: '6',
-      fullName: 'Lisa Rodriguez',
-      email: 'lisa.rodriguez@getfares.com',
-      phone: '+1 555 0106',
-      role: 'Visa Executive',
-      isActive: true,
-      createdAt: '2023-06-18'
-    },
-    {
-      id: '7',
-      fullName: 'Tom Anderson',
-      email: 'tom.anderson@getfares.com',
-      phone: '+1 555 0107',
-      role: 'Sales',
-      isActive: true,
-      createdAt: '2023-07-22'
-    },
-    {
-      id: '8',
-      fullName: 'Anna Martinez',
-      email: 'anna.martinez@getfares.com',
-      phone: '+1 555 0108',
-      role: 'Marketing',
-      isActive: true,
-      createdAt: '2023-08-14'
-    }
-  ])
-
-  const [roles] = useState<Role[]>([
-    { id: '1', name: 'Admin', description: 'Full system access' },
-    { id: '2', name: 'Manager', description: 'Management access' },
-    { id: '3', name: 'Sales', description: 'Sales operations' },
-    { id: '4', name: 'Marketing', description: 'Marketing operations' },
-    { id: '5', name: 'Operations', description: 'Operations access' },
-    { id: '6', name: 'Visa Executive', description: 'Visa processing' }
-  ])
-
+  const [users, setUsers] = useState<User[]>([])
+  const [roles] = useState<Role[]>(ROLE_OPTIONS)
   const [loading, setLoading] = useState(true)
+  const [loadingError, setLoadingError] = useState('')
   const [search, setSearch] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [toast, setToast] = useState<{
@@ -533,10 +484,24 @@ const UsersPage: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
-  useEffect(() => {
-    // Simulate loading
-    setTimeout(() => setLoading(false), 500)
+  const loadUsers = useCallback(async () => {
+    setLoading(true)
+    setLoadingError('')
+    try {
+      const response = await usersApi.list()
+      const rows = (response as { data?: User[] }).data ?? []
+      setUsers(rows)
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Unable to load users'
+      setLoadingError(message)
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    void loadUsers()
+  }, [loadUsers])
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ show: true, message, type })
@@ -546,50 +511,79 @@ const UsersPage: React.FC = () => {
     )
   }
 
-  const handleCreateUser = (formData: any) => {
-    const newUser: User = {
-      id: nextUserId(),
-      fullName: formData.fullName,
-      email: formData.email,
-      phone: formData.phone,
-      role: formData.role,
-      isActive: true,
-      createdAt: new Date().toISOString().split('T')[0]
+  const handleCreateUser = async (formData: any) => {
+    try {
+      const response = await usersApi.create({
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || undefined,
+        password: formData.password,
+        isActive: true
+      })
+      const created = (response as { data?: User }).data
+      if (created && formData.role) {
+        await rbacApi.assignRole({ userId: created.id, role: formData.role })
+      }
+      setShowCreateModal(false)
+      showToast('User created successfully', 'success')
+      await loadUsers()
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Unable to create user'
+      showToast(message, 'error')
     }
-    setUsers(prev => [newUser, ...prev])
-    setShowCreateModal(false)
-    showToast('User created successfully', 'success')
   }
 
-  const handleUpdateUser = (formData: any) => {
+  const handleUpdateUser = async (formData: any) => {
     if (!selectedUser) return
 
-    setUsers(prev =>
-      prev.map(user =>
-        user.id === selectedUser.id ? { ...user, ...formData } : user
-      )
-    )
-    setShowEditModal(false)
-    setSelectedUser(null)
-    showToast('User updated successfully', 'success')
+    try {
+      await usersApi.update(selectedUser.id, {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || undefined,
+        isActive: formData.isActive
+      })
+
+      if (formData.role && formData.role !== selectedUser.role) {
+        await rbacApi.assignRole({ userId: selectedUser.id, role: formData.role })
+      }
+
+      setShowEditModal(false)
+      setSelectedUser(null)
+      showToast('User updated successfully', 'success')
+      await loadUsers()
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Unable to update user'
+      showToast(message, 'error')
+    }
   }
 
-  const handleAssignRole = (userId: string, role: string) => {
-    setUsers(prev =>
-      prev.map(user => (user.id === userId ? { ...user, role } : user))
-    )
-    setShowRoleModal(false)
-    setSelectedUser(null)
-    showToast('Role assigned successfully', 'success')
+  const handleAssignRole = async (userId: string, role: string) => {
+    try {
+      await rbacApi.assignRole({ userId, role })
+      setShowRoleModal(false)
+      setSelectedUser(null)
+      showToast('Role assigned successfully', 'success')
+      await loadUsers()
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Unable to assign role'
+      showToast(message, 'error')
+    }
   }
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!selectedUser) return
 
-    setUsers(prev => prev.filter(user => user.id !== selectedUser.id))
-    setShowDeleteModal(false)
-    setSelectedUser(null)
-    showToast('User deleted successfully', 'success')
+    try {
+      await usersApi.update(selectedUser.id, { isActive: false })
+      setShowDeleteModal(false)
+      setSelectedUser(null)
+      showToast('User deactivated successfully', 'success')
+      await loadUsers()
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Unable to deactivate user'
+      showToast(message, 'error')
+    }
   }
 
   const openEditModal = (user: User) => {
@@ -611,7 +605,7 @@ const UsersPage: React.FC = () => {
     user =>
       user.fullName.toLowerCase().includes(search.toLowerCase()) ||
       user.email.toLowerCase().includes(search.toLowerCase()) ||
-      (user.role && user.role.toLowerCase().includes(search.toLowerCase()))
+      (getRoleLabel(user.role).toLowerCase().includes(search.toLowerCase()))
   )
 
   if (loading) {
@@ -620,6 +614,22 @@ const UsersPage: React.FC = () => {
         <div className='text-center'>
           <div className='w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4'></div>
           <p className='text-gray-600 dark:text-gray-400'>Loading users...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loadingError) {
+    return (
+      <div className='flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950'>
+        <div className='text-center max-w-md'>
+          <p className='text-sm text-red-600 mb-4'>{loadingError}</p>
+          <button
+            onClick={() => void loadUsers()}
+            className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
+          >
+            Retry
+          </button>
         </div>
       </div>
     )
@@ -823,7 +833,7 @@ const UsersPage: React.FC = () => {
                     </td>
                     <td className='px-6 py-4'>
                       <span className='inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900'>
-                        {user.role || 'No Role'}
+                        {getRoleLabel(user.role)}
                       </span>
                     </td>
                     <td className='px-6 py-4'>
@@ -921,7 +931,7 @@ const UsersPage: React.FC = () => {
               <div>
                 <p className='text-xs text-gray-500 dark:text-gray-400'>Role</p>
                 <span className='inline-flex items-center px-2.5 py-1 mt-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900'>
-                  {user.role || 'No Role'}
+                  {getRoleLabel(user.role)}
                 </span>
               </div>
 

@@ -1,3 +1,4 @@
+const bcryptjs = require('bcryptjs');
 const { AppError } = require('../../core/errors');
 
 function mapListFilters(filters = {}) {
@@ -40,14 +41,17 @@ function mapUpdatePayload(payload) {
   };
 }
 
-function toUser(entity) {
+function toUser(entity, roleLookup) {
   if (!entity) {
     return null;
   }
 
+  const roleName = roleLookup?.get(entity.role_id) ?? entity.role ?? null;
+
   return {
     id: entity.id,
     roleId: entity.role_id,
+    role: roleName,
     fullName: entity.full_name,
     email: entity.email,
     phone: entity.phone,
@@ -63,11 +67,17 @@ function toUser(entity) {
 }
 
 function createUsersService({ repository, logger, events }) {
+  async function getRoleLookup() {
+    const roles = await repository.findRoles();
+    return new Map(roles.map((role) => [role.id, role.name]));
+  }
+
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
     logger.debug({ module: 'users', requestId: context.requestId, filters: mappedFilters }, 'Listing records');
     const rows = await repository.findAll(mappedFilters);
-    return rows.map(toUser);
+    const roleLookup = await getRoleLookup();
+    return rows.map((row) => toUser(row, roleLookup));
   }
 
   async function getById(id, context = {}) {
@@ -78,15 +88,27 @@ function createUsersService({ repository, logger, events }) {
       throw new AppError(404, 'Users not found', 'USERS_NOT_FOUND');
     }
 
-    return toUser(item);
+    const roleLookup = await getRoleLookup();
+    return toUser(item, roleLookup);
   }
 
   async function create(payload, context = {}) {
     try {
-      const created = await repository.create(mapCreatePayload(payload));
+      const passwordHash =
+        payload.passwordHash ||
+        (payload.password ? await bcryptjs.hash(payload.password, 12) : null);
+
+      if (!passwordHash) {
+        throw new AppError(400, 'Password is required', 'USER_PASSWORD_REQUIRED');
+      }
+
+      const created = await repository.create(
+        mapCreatePayload({ ...payload, passwordHash }),
+      );
 
       events.emitCreated(created);
-      return toUser(created);
+      const roleLookup = await getRoleLookup();
+      return toUser(created, roleLookup);
     } catch (error) {
       if (error?.code === '23505') {
         throw new AppError(409, 'User with this email already exists', 'USER_EMAIL_EXISTS');
@@ -102,7 +124,8 @@ function createUsersService({ repository, logger, events }) {
       const updated = await repository.update(id, mapUpdatePayload(payload));
 
       events.emitUpdated(updated);
-      return toUser(updated);
+      const roleLookup = await getRoleLookup();
+      return toUser(updated, roleLookup);
     } catch (error) {
       if (error?.code === '23505') {
         throw new AppError(409, 'User with this email already exists', 'USER_EMAIL_EXISTS');

@@ -3,7 +3,7 @@ import { apiRequest } from "./apiClient";
 type LoginResponse = {
   data: {
     accessToken: string;
-    user: { id: string; email: string; fullName?: string; name?: string; role?: string };
+    user: { id: string; email: string; fullName?: string; name?: string; role?: string; roleId?: string };
   };
 };
 
@@ -15,6 +15,6 @@ export const authApi = {
 };
 
 export const rbacApi = {
-  myPermissions: () => apiRequest<{ permissions: string[] }>("/api/rbac/me/permissions"),
+  myPermissions: () => apiRequest<{ data: { permissions: string[] } }>("/api/rbac/me/permissions"),
   assignRole: (payload: { userId: string; role: string }) => apiRequest("/api/rbac/assign", { method: "POST", body: payload }),
 };

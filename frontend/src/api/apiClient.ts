@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "https://get-fares-tour-travels-711h.vercel.app";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "https://get-fares-tour-travels-575u.vercel.app";
 
 export class ApiError extends Error {
   status: number;
