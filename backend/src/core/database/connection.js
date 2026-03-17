@@ -1,4 +1,6 @@
 const { randomUUID } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const { Pool } = require('pg');
 
 const RESERVED_FILTER_KEYS = new Set(['page', 'limit', 'offset', 'sort', 'order', 'q', 'search']);
@@ -294,6 +296,10 @@ class PostgresDatabase {
 
 function createDatabaseConnection({ config, logger }) {
   if (config.database.url) {
+    const sslRejectUnauthorizedOverride = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
+    const sslCaOverride = process.env.DATABASE_SSL_CA;
+    const sslCaPathOverride = process.env.DATABASE_SSL_CA_PATH;
+
     // For serverless environments, use smaller connection pool
     // Vercel serverless functions have short lifespans
     const isServerless = process.env.VERCEL === '1' || process.env.AWS_EXECUTION_ENV;
@@ -315,9 +321,35 @@ function createDatabaseConnection({ config, logger }) {
 
     // AWS RDS requires SSL connection
     if (isAWSRDS) {
-      poolConfig.ssl = isProduction 
-        ? { rejectUnauthorized: true }  // Production: strict SSL validation
-        : { rejectUnauthorized: false }; // Development: allow self-signed certs
+      if (isProduction) {
+        const fallbackCaPath = path.resolve(__dirname, '../../..', 'global-bundle.pem');
+        const caPath = sslCaPathOverride || fallbackCaPath;
+
+        if (sslCaOverride) {
+          poolConfig.ssl = {
+            rejectUnauthorized: true,
+            ca: sslCaOverride.replace(/\\n/g, '\n'),
+          };
+        } else if (fs.existsSync(caPath)) {
+          poolConfig.ssl = {
+            rejectUnauthorized: true,
+            ca: fs.readFileSync(caPath, 'utf8'),
+          };
+        } else {
+          poolConfig.ssl = { rejectUnauthorized: false };
+          logger.warn(
+            { caPath },
+            'RDS CA bundle not found. Falling back to rejectUnauthorized=false.',
+          );
+        }
+      } else {
+        poolConfig.ssl = { rejectUnauthorized: false }; // Development: allow self-signed certs
+      }
+    }
+
+    if (sslRejectUnauthorizedOverride === 'false') {
+      const current = poolConfig.ssl && poolConfig.ssl !== true ? poolConfig.ssl : {};
+      poolConfig.ssl = { ...current, rejectUnauthorized: false };
     }
     
     logger.info(
