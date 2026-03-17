@@ -1,65 +1,247 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "https://get-fares-tour-travels-575u.vercel.app";
+import axios, {
+  type AxiosInstance,
+  type AxiosRequestConfig,
+  type AxiosResponse,
+  type AxiosRequestHeaders,
+  type InternalAxiosRequestConfig,
+} from "axios";
 
-export class ApiError extends Error {
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  "https://get-fares-tour-travels-575u.vercel.app";
+
+export type ApiError = Error & {
   status: number;
-  details: unknown;
+  details?: unknown;
+};
 
-  constructor(message: string, status: number, details?: unknown) {
-    super(message);
-    this.status = status;
-    this.details = details;
-  }
+export const createApiError = (
+  message: string,
+  status: number,
+  details?: unknown,
+): ApiError => {
+  const error = new Error(message) as ApiError;
+  error.status = status;
+  error.details = details;
+  return error;
+};
+
+export const isApiError = (error: unknown): error is ApiError => {
+  if (!error || typeof error !== "object") return false;
+  return "status" in error && typeof (error as ApiError).status === "number";
+};
+
+export type ApiRequestConfig = AxiosRequestConfig & {
+  skipAuth?: boolean;
+  token?: string;
+};
+
+export interface HttpClient {
+  request<T>(config: ApiRequestConfig): Promise<T>;
+  get<T>(url: string, config?: ApiRequestConfig): Promise<T>;
+  post<T>(url: string, data?: unknown, config?: ApiRequestConfig): Promise<T>;
+  put<T>(url: string, data?: unknown, config?: ApiRequestConfig): Promise<T>;
+  patch<T>(url: string, data?: unknown, config?: ApiRequestConfig): Promise<T>;
+  delete<T>(url: string, config?: ApiRequestConfig): Promise<T>;
 }
 
-type RequestOptions = {
+export type ApiClientConfig = {
+  baseURL?: string;
+  timeoutMs?: number;
+  defaultHeaders?: Record<string, string>;
+  getAuthToken?: () => string | null | undefined;
+  onUnauthorized?: () => void;
+};
+
+export type ApiClient = HttpClient & {
+  setAuthTokenProvider: (getAuthToken: () => string | null | undefined) => void;
+  setOnUnauthorized: (onUnauthorized?: () => void) => void;
+  addRequestInterceptor: (
+    onFulfilled: (
+      config: ApiRequestConfig,
+    ) => ApiRequestConfig | Promise<ApiRequestConfig>,
+    onRejected?: (error: unknown) => unknown,
+  ) => number;
+  addResponseInterceptor: (
+    onFulfilled: (
+      response: AxiosResponse,
+    ) => AxiosResponse | Promise<AxiosResponse>,
+    onRejected?: (error: unknown) => unknown,
+  ) => number;
+};
+
+const STORAGE_TOKEN = "auth_token";
+
+const hasContentType = (headers?: ApiRequestConfig["headers"]) => {
+  if (!headers) return false;
+  if (Array.isArray(headers)) {
+    return headers.some(([key]) => key.toLowerCase() === "content-type");
+  }
+  return Object.keys(headers).some(
+    (key) => key.toLowerCase() === "content-type",
+  );
+};
+
+const extractMessage = (data: unknown) => {
+  if (!data) return null;
+  if (typeof data === "string") return data;
+  if (typeof data === "object" && "message" in data) {
+    const message = (data as { message?: unknown }).message;
+    return message ? String(message) : null;
+  }
+  return null;
+};
+
+const toApiError = (error: unknown): ApiError => {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status ?? 0;
+    const data = error.response?.data;
+    const message =
+      extractMessage(data) ??
+      (status ? `API Error ${status}` : "Network error");
+    return createApiError(message, status, data);
+  }
+
+  if (error instanceof Error) {
+    return createApiError(error.message, 0);
+  }
+
+  return createApiError("Unknown error", 0);
+};
+
+const attachInterceptors = (
+  axiosInstance: AxiosInstance,
+  getAuthToken: () => string | null | undefined,
+  onUnauthorized?: () => void,
+) => {
+  axiosInstance.interceptors.request.use(
+    (config: InternalAxiosRequestConfig) => {
+      const typedConfig = config as InternalAxiosRequestConfig &
+        ApiRequestConfig;
+      const shouldAttachToken = !typedConfig.skipAuth;
+      const resolvedToken =
+        typedConfig.token ?? (shouldAttachToken ? getAuthToken() : null);
+
+      if (resolvedToken) {
+        const headers = (typedConfig.headers ??
+          ({} as AxiosRequestHeaders)) as AxiosRequestHeaders;
+        headers.Authorization = `Bearer ${resolvedToken}`;
+        typedConfig.headers = headers;
+      }
+
+      if (typedConfig.data && !hasContentType(typedConfig.headers)) {
+        const headers = (typedConfig.headers ??
+          ({} as AxiosRequestHeaders)) as AxiosRequestHeaders;
+        headers["Content-Type"] = "application/json";
+        typedConfig.headers = headers;
+      }
+
+      return typedConfig;
+    },
+  );
+
+  axiosInstance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      const apiError = toApiError(error);
+      if (apiError.status === 401 && onUnauthorized) {
+        onUnauthorized();
+      }
+      return Promise.reject(apiError);
+    },
+  );
+};
+
+export const createApiClient = (config: ApiClientConfig = {}): ApiClient => {
+  const {
+    baseURL = API_BASE_URL,
+    timeoutMs = 20000,
+    defaultHeaders,
+    getAuthToken,
+    onUnauthorized,
+  } = config;
+
+  const axiosInstance = axios.create({
+    baseURL,
+    timeout: timeoutMs,
+    headers: {
+      ...defaultHeaders,
+    },
+  });
+
+  let tokenProvider =
+    getAuthToken ?? (() => localStorage.getItem(STORAGE_TOKEN));
+  let unauthorizedHandler = onUnauthorized;
+
+  attachInterceptors(
+    axiosInstance,
+    () => tokenProvider(),
+    () => unauthorizedHandler?.(),
+  );
+
+  const request = async <T>(requestConfig: ApiRequestConfig): Promise<T> => {
+    const response = await axiosInstance.request<T>(requestConfig);
+    return response.data;
+  };
+
+  return {
+    request,
+    get: <T>(url: string, cfg: ApiRequestConfig = {}) =>
+      request<T>({ ...cfg, url, method: "GET" }),
+    post: <T>(url: string, data?: unknown, cfg: ApiRequestConfig = {}) =>
+      request<T>({ ...cfg, url, method: "POST", data }),
+    put: <T>(url: string, data?: unknown, cfg: ApiRequestConfig = {}) =>
+      request<T>({ ...cfg, url, method: "PUT", data }),
+    patch: <T>(url: string, data?: unknown, cfg: ApiRequestConfig = {}) =>
+      request<T>({ ...cfg, url, method: "PATCH", data }),
+    delete: <T>(url: string, cfg: ApiRequestConfig = {}) =>
+      request<T>({ ...cfg, url, method: "DELETE" }),
+    setAuthTokenProvider: (nextProvider) => {
+      tokenProvider = nextProvider;
+    },
+    setOnUnauthorized: (nextHandler) => {
+      unauthorizedHandler = nextHandler;
+    },
+    addRequestInterceptor: (onFulfilled, onRejected) =>
+      axiosInstance.interceptors.request.use(
+        onFulfilled as unknown as (config: any) => any,
+        onRejected,
+      ),
+    addResponseInterceptor: (onFulfilled, onRejected) =>
+      axiosInstance.interceptors.response.use(onFulfilled, onRejected),
+  };
+};
+
+type LegacyRequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   token?: string;
   responseType?: "json" | "blob" | "text";
 };
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+const legacyClient = createApiClient({
+  getAuthToken: () => localStorage.getItem(STORAGE_TOKEN),
+});
+
+export async function apiRequest<T>(
+  path: string,
+  options: LegacyRequestOptions = {},
+): Promise<T> {
   const { method = "GET", body, token, responseType = "json" } = options;
-  const authToken = token ?? localStorage.getItem("auth_token") ?? "";
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const config: ApiRequestConfig = {
+    url: path,
     method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+    responseType: responseType,
+  };
 
-  if (!response.ok) {
-    let parsed: unknown = null;
-    try {
-      parsed = await response.json();
-    } catch {
-      try {
-        parsed = await response.text();
-      } catch {
-        parsed = null;
-      }
-    }
-    const message = typeof parsed === "object" && parsed && "message" in parsed ? String((parsed as { message: unknown }).message) : `API Error ${response.status}`;
-    throw new ApiError(message, response.status, parsed);
+  if (token) {
+    config.token = token;
   }
 
-  if (responseType === "blob") {
-    return (await response.blob()) as T;
+  if (body !== undefined && method !== "GET") {
+    config.data = body;
   }
 
-  if (responseType === "text") {
-    return (await response.text()) as T;
-  }
-
-  let parsed: unknown = null;
-  try {
-    parsed = await response.json();
-  } catch {
-    parsed = null;
-  }
-
-  return parsed as T;
+  return legacyClient.request<T>(config);
 }

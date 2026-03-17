@@ -12,7 +12,7 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { leadsApi } from '../../api/leads'
 import { campaignsApi } from '../../api/campaigns'
-import { ApiError } from '../../api/apiClient'
+import { isApiError } from '../../api/apiClient'
 
 const steps = [
   'Customer Info',
@@ -188,7 +188,7 @@ const CreateLead: React.FC = () => {
         navigate('/leads')
       } catch (error) {
         console.error('Failed to create lead:', error)
-        if (error instanceof ApiError) {
+        if (isApiError(error)) {
           setApiError(error.message || 'Could not create lead.')
         } else {
           setApiError('Could not create lead.')

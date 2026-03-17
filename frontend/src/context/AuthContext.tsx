@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { rbacApi } from "../api";
 
 type AuthUser = {
@@ -50,7 +58,9 @@ const DEFAULT_PERMISSIONS = [
 ];
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [token, setToken] = useState<string>(() => localStorage.getItem(STORAGE_TOKEN) ?? "");
+  const [token, setToken] = useState<string>(
+    () => localStorage.getItem(STORAGE_TOKEN) ?? "",
+  );
   const [user, setUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem(STORAGE_USER);
     return raw ? (JSON.parse(raw) as AuthUser) : null;
@@ -65,18 +75,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!token) return;
     if (user?.role === "admin") {
       setPermissions(DEFAULT_PERMISSIONS);
-      localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(DEFAULT_PERMISSIONS));
+      localStorage.setItem(
+        STORAGE_PERMISSIONS,
+        JSON.stringify(DEFAULT_PERMISSIONS),
+      );
       return;
     }
     setLoadingPermissions(true);
     try {
       const response = await rbacApi.myPermissions();
-      const next = (response as { data?: { permissions?: string[] } }).data?.permissions ?? (response as { permissions?: string[] }).permissions ?? [];
+      const next =
+        (response as { data?: { permissions?: string[] } }).data?.permissions ??
+        (response as { permissions?: string[] }).permissions ??
+        [];
       setPermissions(next);
       localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(next));
     } catch {
       setPermissions(DEFAULT_PERMISSIONS);
-      localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(DEFAULT_PERMISSIONS));
+      localStorage.setItem(
+        STORAGE_PERMISSIONS,
+        JSON.stringify(DEFAULT_PERMISSIONS),
+      );
     } finally {
       setLoadingPermissions(false);
     }
@@ -96,7 +115,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (nextUser.role === "admin") {
       setPermissions(DEFAULT_PERMISSIONS);
-      localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(DEFAULT_PERMISSIONS));
+      localStorage.setItem(
+        STORAGE_PERMISSIONS,
+        JSON.stringify(DEFAULT_PERMISSIONS),
+      );
     }
   };
 
@@ -110,13 +132,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const hasPermission = useCallback(
-    (permission: string) => (user?.role === "admin" ? true : permissions.includes(permission)),
-    [permissions, user]
+    (permission: string) =>
+      user?.role === "admin" ? true : permissions.includes(permission),
+    [permissions, user],
   );
 
   const value = useMemo(
-    () => ({ token, user, permissions, loadingPermissions, setAuthState, logout, refreshPermissions, hasPermission }),
-    [token, user, permissions, loadingPermissions, refreshPermissions, hasPermission]
+    () => ({
+      token,
+      user,
+      permissions,
+      loadingPermissions,
+      setAuthState,
+      logout,
+      refreshPermissions,
+      hasPermission,
+    }),
+    [
+      token,
+      user,
+      permissions,
+      loadingPermissions,
+      refreshPermissions,
+      hasPermission,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

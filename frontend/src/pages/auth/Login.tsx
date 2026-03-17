@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authApi } from "../../api";
-import { ApiError } from "../../api/apiClient";
+import { isApiError } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
+import { useAuthService } from "../../hooks/useAuthService";
 
 const DEMO_EMAIL = "admin@travel-crm.com";
 const DEMO_PASSWORD = "admin@123";
@@ -16,6 +16,7 @@ const Login = () => {
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { setAuthState, refreshPermissions } = useAuth();
+  const authService = useAuthService();
 
   const togglePassword = () => {
     setShowPassword(!showPassword);
@@ -49,17 +50,9 @@ const Login = () => {
     setApiError("");
 
     try {
-      const { data } = await authApi.login({ email, password, rememberMe: true });
-      const userName = data.user.fullName || data.user.name || email.split("@")[0];
-      const userEmail = data.user.email || email;
-      const userRole = data.user.role;
-      setAuthState(data.accessToken, {
-        id: data.user.id,
-        name: userName,
-        email: userEmail,
-        role: userRole,
-        roleId: data.user.roleId,
-      });
+      const session = await authService.login({ email, password, rememberMe: true });
+      const userRole = session.user.role;
+      setAuthState(session.token, session.user);
       await refreshPermissions();
       const roleRoutes: Record<string, string> = {
         admin: "/dashboard",
@@ -73,7 +66,7 @@ const Login = () => {
       };
       navigate(roleRoutes[userRole ?? ""] ?? "/dashboard");
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiError(err)) {
         setApiError(err.message || "Unable to sign in. Please try again.");
       } else {
         setApiError("Unable to sign in right now. Please try again.");

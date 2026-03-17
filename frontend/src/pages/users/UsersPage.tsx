@@ -17,7 +17,7 @@ import {
 
 } from 'react-icons/fa6'
 import { rbacApi, usersApi } from '../../api'
-import { ApiError } from '../../api/apiClient'
+import { isApiError } from '../../api/apiClient'
 
 interface User {
   id: string
@@ -492,7 +492,7 @@ const UsersPage: React.FC = () => {
       const rows = (response as { data?: User[] }).data ?? []
       setUsers(rows)
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Unable to load users'
+      const message = isApiError(err) ? err.message : 'Unable to load users'
       setLoadingError(message)
     } finally {
       setLoading(false)
@@ -528,7 +528,7 @@ const UsersPage: React.FC = () => {
       showToast('User created successfully', 'success')
       await loadUsers()
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Unable to create user'
+      const message = isApiError(err) ? err.message : 'Unable to create user'
       showToast(message, 'error')
     }
   }
@@ -553,7 +553,7 @@ const UsersPage: React.FC = () => {
       showToast('User updated successfully', 'success')
       await loadUsers()
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Unable to update user'
+      const message = isApiError(err) ? err.message : 'Unable to update user'
       showToast(message, 'error')
     }
   }
@@ -566,7 +566,7 @@ const UsersPage: React.FC = () => {
       showToast('Role assigned successfully', 'success')
       await loadUsers()
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Unable to assign role'
+      const message = isApiError(err) ? err.message : 'Unable to assign role'
       showToast(message, 'error')
     }
   }
@@ -581,7 +581,7 @@ const UsersPage: React.FC = () => {
       showToast('User deactivated successfully', 'success')
       await loadUsers()
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Unable to deactivate user'
+      const message = isApiError(err) ? err.message : 'Unable to deactivate user'
       showToast(message, 'error')
     }
   }
