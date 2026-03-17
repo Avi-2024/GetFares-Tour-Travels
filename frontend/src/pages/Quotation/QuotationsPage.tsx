@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaCalendarDays,
@@ -32,7 +32,7 @@ interface Quotation {
   sentDate: string | null
 }
 
-const items: Quotation[] = [
+const baseItems: Quotation[] = [
   {
     id: '1',
     quoteNumber: 'QT-2026-089',
@@ -119,11 +119,30 @@ const QuotationsPage: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [customQuotes, setCustomQuotes] = useState<Quotation[]>([])
   const pageSize = 4
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = localStorage.getItem('quotations_custom')
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as Quotation[]
+        setCustomQuotes(parsed)
+      } catch {
+        setCustomQuotes([])
+      }
+    }
+  }, [])
+
+  const allItems = useMemo(
+    () => [...customQuotes, ...baseItems],
+    [customQuotes]
+  )
 
   const filtered = useMemo(
     () =>
-      items.filter(
+      allItems.filter(
         q =>
           (tab === 'All' || q.status === tab) &&
           `${q.quoteNumber} ${q.customer} ${q.destination}`
@@ -131,7 +150,7 @@ const QuotationsPage: React.FC = () => {
             .includes(search.toLowerCase()) &&
           (!selectedDate || q.sentDate === selectedDate)
       ),
-    [tab, search, selectedDate]
+    [tab, search, selectedDate, allItems]
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))

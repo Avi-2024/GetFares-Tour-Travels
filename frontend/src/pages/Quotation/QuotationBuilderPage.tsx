@@ -14,6 +14,19 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 
 type Currency = 'USD' | 'EUR' | 'INR'
+type SavedQuote = {
+  id: string
+  quoteNumber: string
+  customer: string
+  email: string
+  destination: string
+  details: string
+  total: number
+  margin: number
+  status: 'pending' | 'draft'
+  lastSent: string | null
+  sentDate: string | null
+}
 interface Item {
   id: string
   day: string
@@ -67,6 +80,7 @@ const QuotationBuilderPage: React.FC = () => {
     exclusions: 'International flights\nTravel insurance\nPersonal expenses'
   })
   const [downloading, setDownloading] = useState(false)
+  const [showSaved, setShowSaved] = useState(false)
   const [itineraryItems, setItineraryItems] = useState<Item[]>(initialItinerary)
   const [showAddModal, setShowAddModal] = useState(false)
   const [newItem, setNewItem] = useState<{
@@ -95,18 +109,6 @@ const QuotationBuilderPage: React.FC = () => {
   })
   const previewRef = useRef<HTMLDivElement | null>(null)
 
-  const subtotal = useMemo(() => pricing.reduce((s, p) => s + p.price, 0), [])
-  const taxes = subtotal * 0.1
-  const total = subtotal
-  const money = (v: number) => {
-    const locale = currency === 'INR' ? 'en-IN' : 'en-US'
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 2
-    }).format(v)
-  }
-
   const computed = useMemo(() => {
     const supplier = Number(costs.supplierCost) || 0
     const markupVal = supplier * ((Number(costs.markupPercent) || 0) / 100)
@@ -128,6 +130,19 @@ const QuotationBuilderPage: React.FC = () => {
       margin
     }
   }, [costs])
+
+  const subtotal = computed.supplier + computed.markupVal + computed.serviceFee
+  const taxes = computed.taxVal
+  const total = computed.totalPrice
+
+  const money = (v: number) => {
+    const locale = currency === 'INR' ? 'en-IN' : 'en-US'
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2
+    }).format(v)
+  }
 
   const autofillCustomer = () => {
     setForm(p => ({
@@ -231,8 +246,37 @@ const QuotationBuilderPage: React.FC = () => {
     }
   }
 
+  const handleSave = () => {
+    const newQuote: SavedQuote = {
+      id: String(Date.now()),
+      quoteNumber: form.quote || 'Draft',
+      customer: form.customer || 'Unnamed Customer',
+      email: form.email || 'New Lead',
+      destination: form.destination || 'Destination',
+      details: `${form.nights} nights - ${packageType}`,
+      total: computed.totalPrice,
+      margin: Number(computed.margin.toFixed(1)),
+      status: 'pending',
+      lastSent: null,
+      sentDate: new Date().toISOString().slice(0, 10)
+    }
+
+    if (typeof window !== 'undefined') {
+      const existingRaw = localStorage.getItem('quotations_custom')
+      const existing = existingRaw ? (JSON.parse(existingRaw) as SavedQuote[]) : []
+      localStorage.setItem(
+        'quotations_custom',
+        JSON.stringify([newQuote, ...existing])
+      )
+    }
+
+    setShowSaved(true)
+    setTimeout(() => navigate('/quotations'), 1200)
+  }
+
   return (
-    <div className='space-y-6'>
+    <>
+      <div className='space-y-6'>
       <div className='flex flex-col justify-between gap-3 lg:flex-row lg:items-center'>
         <div>
           <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
@@ -258,7 +302,7 @@ const QuotationBuilderPage: React.FC = () => {
             <FaEnvelope className='mr-2 inline' /> Send
           </button>
           <button
-            onClick={() => navigate('/quotations')}
+            onClick={handleSave}
             className='rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700'
           >
             <FaFloppyDisk className='mr-2 inline' /> Save Quote
@@ -558,20 +602,26 @@ const QuotationBuilderPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
-            <div className='mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800'>
-              <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                <span>Subtotal</span>
-                <span>{money(subtotal)}</span>
+              <div className='mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800'>
+                <div className='mb-1 flex justify-between text-xs text-gray-500'>
+                  <span>Subtotal</span>
+                  <span>{money(subtotal)}</span>
+                </div>
+                <div className='mb-1 flex justify-between text-xs text-gray-500'>
+                  <span>Taxes ({costs.taxPercent}%)</span>
+                  <span>{money(taxes)}</span>
+                </div>
+                {costs.discount ? (
+                  <div className='mb-1 flex justify-between text-xs text-gray-500'>
+                    <span>Discount</span>
+                    <span>-{money(costs.discount)}</span>
+                  </div>
+                ) : null}
+                <div className='flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
+                  <span>Total</span>
+                  <span className='text-blue-600'>{money(total)}</span>
+                </div>
               </div>
-              <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                <span>Taxes (10%)</span>
-                <span>{money(taxes)}</span>
-              </div>
-              <div className='flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
-                <span>Total</span>
-                <span className='text-blue-600'>{money(total)}</span>
-              </div>
-            </div>
           </SurfaceCard>
           <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
             <SurfaceCard>
@@ -782,6 +832,23 @@ const QuotationBuilderPage: React.FC = () => {
         </div>
       )}
     </div>
+
+    {showSaved && (
+      <div className='fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4'>
+        <div className='w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6 text-center'>
+          <div className='mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600'>
+            <FaCheck className='text-xl' />
+          </div>
+          <p className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+            Quotation saved
+          </p>
+          <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
+            Redirecting to quotations list...
+          </p>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
