@@ -41,7 +41,14 @@ async function main() {
     throw new Error('DATABASE_URL is required to seed RBAC data.');
   }
 
-  const client = new Client({ connectionString: databaseUrl });
+  const clientConfig = { connectionString: databaseUrl };
+  
+  // AWS RDS requires SSL connection
+  if (databaseUrl.includes('.rds.') || databaseUrl.includes('.rds-')) {
+    clientConfig.ssl = { rejectUnauthorized: false };
+  }
+
+  const client = new Client(clientConfig);
   await client.connect();
 
   let roleCount = 0;

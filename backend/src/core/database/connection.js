@@ -294,19 +294,52 @@ class PostgresDatabase {
 
 function createDatabaseConnection({ config, logger }) {
   if (config.database.url) {
-    const pool = new Pool({
+    // For serverless environments, use smaller connection pool
+    // Vercel serverless functions have short lifespans
+    const isServerless = process.env.VERCEL === '1' || process.env.AWS_EXECUTION_ENV;
+    const isProduction = config.env === 'production';
+    const isAWSRDS = config.database.url.includes('.rds.') || config.database.url.includes('.rds-');
+    
+    const poolConfig = {
       connectionString: config.database.url,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    });
+      // Serverless: 1-5 connections, Traditional: 10-20
+      max: isServerless ? 2 : 10,
+      // Keep idle connections for longer to avoid reconnects
+      idleTimeoutMillis: isServerless ? 20000 : 30000,
+      // Shorter timeout for connection establishment in serverless
+      connectionTimeoutMillis: isServerless ? 3000 : 5000,
+      // Ensure we don't keep stale connections
+      statement_timeout: '30s',
+      query_timeout: '30s',
+    };
 
-    logger.info({ databaseUrlConfigured: true }, 'Using PostgreSQL database adapter.');
-    return new PostgresDatabase({ pool });
+    // AWS RDS requires SSL connection
+    if (isAWSRDS) {
+      poolConfig.ssl = isProduction 
+        ? { rejectUnauthorized: true }  // Production: strict SSL validation
+        : { rejectUnauthorized: false }; // Development: allow self-signed certs
+    }
+    
+    logger.info(
+      { 
+        databaseUrlConfigured: true,
+        isServerless,
+        isAWSRDS,
+        sslEnabled: !!poolConfig.ssl,
+        poolConfig: {
+          max: poolConfig.max,
+          idleTimeoutMillis: poolConfig.idleTimeoutMillis,
+          connectionTimeoutMillis: poolConfig.connectionTimeoutMillis,
+        }
+      },
+      'Using PostgreSQL database adapter.',
+    );
+    return new PostgresDatabase({ pool: new Pool(poolConfig) });
   }
 
   logger.warn('DATABASE_URL is not set. Falling back to in-memory adapter.');
   return new InMemoryDatabase();
 }
+
 
 module.exports = { createDatabaseConnection, InMemoryDatabase, PostgresDatabase };

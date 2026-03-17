@@ -9,7 +9,7 @@ const envSchema = z.object({
   APP_VERSION: z.string().default('1.0.0'),
   PORT: z.coerce.number().int().positive().default(3000),
   CORS_ORIGIN: z.string().default('*'),
-  JWT_ACCESS_SECRET: z.string().min(16),
+  JWT_ACCESS_SECRET: z.string().min(16).default('super-secret-key-minimum-16-chars'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   DATABASE_URL: z.string().optional(),
   LOG_LEVEL: z.string().default('info'),
@@ -22,7 +22,11 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  throw new Error(`Invalid environment configuration: ${JSON.stringify(parsed.error.flatten().fieldErrors)}`);
+  const errors = parsed.error.flatten().fieldErrors;
+  const errorMessage = `Invalid environment configuration:\n${Object.entries(errors)
+    .map(([field, fieldErrors]) => `  ${field}: ${fieldErrors?.join(', ')}`)
+    .join('\n')}`;
+  throw new Error(errorMessage);
 }
 
 module.exports = { env: parsed.data };
