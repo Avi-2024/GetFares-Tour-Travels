@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { FaPlus, FaUser, FaXmark, } from 'react-icons/fa6'
-import { complaintsApi } from '../../api/complaints'
+import { useComplaintsService } from '../../hooks/useComplaintsService'
 
 interface Complaint {
   id: string
@@ -25,6 +25,7 @@ interface Activity {
 }
 
 const ComplaintDetailPage: React.FC = () => {
+  const complaintsService = useComplaintsService()
   const { id } = useParams()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -74,9 +75,9 @@ const ComplaintDetailPage: React.FC = () => {
       try {
         setLoading(true)
         const [complaintRes, activitiesRes, statusHistoryRes] = await Promise.all([
-          complaintsApi.getById(id),
-          complaintsApi.listActivities(id),
-          complaintsApi.getStatusHistory(id)
+          complaintsService.getById(id),
+          complaintsService.listActivities(id),
+          complaintsService.getStatusHistory(id)
         ])
         
         setComplaint((complaintRes as any).data)
@@ -91,7 +92,7 @@ const ComplaintDetailPage: React.FC = () => {
     }
     
     loadComplaintData()
-  }, [id])
+  }, [id, complaintsService])
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -134,7 +135,7 @@ const ComplaintDetailPage: React.FC = () => {
     }
     
     try {
-      await complaintsApi.changeStatus(id!, newStatus, reason)
+      await complaintsService.changeStatus(id!, newStatus, reason)
       
       setComplaint(prev => ({
         ...prev,
@@ -165,7 +166,7 @@ const ComplaintDetailPage: React.FC = () => {
     }
 
     try {
-      await complaintsApi.addActivity(id!, {
+      await complaintsService.addActivity(id!, {
         note: newNote,
         type: 'NOTE'
       })
@@ -195,7 +196,7 @@ const ComplaintDetailPage: React.FC = () => {
     
     setAssignmentLoading(true)
     try {
-      await complaintsApi.assignTo(id!, userId)
+      await complaintsService.assign(id!, userId)
       
       const newActivity: Activity = {
         id: `act-${Date.now()}`,
@@ -223,7 +224,7 @@ const ComplaintDetailPage: React.FC = () => {
     }
     
     try {
-      await complaintsApi.escalate(id!, reason)
+      await complaintsService.escalate(id!, reason)
       
       const newActivity: Activity = {
         id: `act-${Date.now()}`,
@@ -243,7 +244,7 @@ const ComplaintDetailPage: React.FC = () => {
 
   const handleUpdateComplaint = async () => {
     try {
-      await complaintsApi.update(id!, {
+      await complaintsService.update(id!, {
         bookingId: complaint.bookingId,
         assignedTo: complaint.assignedTo,
         issueType: complaint.issueType,

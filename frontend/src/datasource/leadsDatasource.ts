@@ -18,6 +18,8 @@ export type LeadApiRecord = {
   package?: string;
   status?: string;
   priority?: string;
+  priorityLevel?: number | string;
+  temperature?: string;
   sla?: string;
   slaStatus?: string;
   consultant?: string;
@@ -45,7 +47,9 @@ export const createLeadsDatasource = (client: HttpClient) => ({
   markAsLost: (id: string, reason: string, notes?: string) =>
     client.post(`/api/leads/${id}/lost`, { reason, notes }),
   checkDuplicate: (email?: string, phone?: string) =>
-    client.post("/api/leads/check-duplicate", { email, phone }),
+    client.get<LeadsListResponse>("/api/leads", {
+      params: { email, phone, page: 1, limit: 1 },
+    }),
   getCampaigns: () => client.get("/api/campaigns/active"),
   getDestinations: () => client.get("/api/destinations"),
   distribute: () => client.post("/api/leads/distribute"),

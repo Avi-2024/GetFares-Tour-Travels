@@ -6,7 +6,7 @@ import {
   FaFacebook,
   FaWhatsapp
 } from 'react-icons/fa'
-import { leadsApi } from '../../api/leads'
+import { useLeadsService } from '../../hooks/useLeadsService'
 
 interface FormData {
   fullName: string
@@ -22,6 +22,7 @@ interface FormData {
 }
 
 const PublicLeadCapturePage: React.FC = () => {
+  const leadsService = useLeadsService()
   const [status, setStatus] = useState<
     'idle' | 'success' | 'duplicate' | 'error'
   >('idle')
@@ -120,7 +121,7 @@ const PublicLeadCapturePage: React.FC = () => {
 
     try {
       // Check for duplicates first
-      const duplicateCheck = await leadsApi.checkDuplicate(
+      const duplicateCheck = await leadsService.checkDuplicate(
         formData.email || undefined,
         formData.phone || undefined
       )
@@ -146,7 +147,7 @@ const PublicLeadCapturePage: React.FC = () => {
         isPublicCapture: true
       }
 
-      await leadsApi.publicCapture(payload)
+      await leadsService.submitPublicLead(payload)
       setStatus('success')
       
       // Reset form after successful submission

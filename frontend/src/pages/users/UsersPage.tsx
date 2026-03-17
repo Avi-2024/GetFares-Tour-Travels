@@ -16,8 +16,9 @@ import {
 
 
 } from 'react-icons/fa6'
-import { rbacApi, usersApi } from '../../api'
 import { isApiError } from '../../api/apiClient'
+import { useUsersService } from '../../hooks/useUsersService'
+import { useAuthService } from '../../hooks/useAuthService'
 
 interface User {
   id: string
@@ -461,6 +462,8 @@ const AssignRoleModal = ({
 }
 
 const UsersPage: React.FC = () => {
+  const usersService = useUsersService()
+  const authService = useAuthService()
   const [users, setUsers] = useState<User[]>([])
   const [roles] = useState<Role[]>(ROLE_OPTIONS)
   const [loading, setLoading] = useState(true)
@@ -488,7 +491,7 @@ const UsersPage: React.FC = () => {
     setLoading(true)
     setLoadingError('')
     try {
-      const response = await usersApi.list()
+      const response = await usersService.list()
       const rows = (response as { data?: User[] }).data ?? []
       setUsers(rows)
     } catch (err) {
@@ -497,7 +500,7 @@ const UsersPage: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [usersService])
 
   useEffect(() => {
     void loadUsers()
@@ -513,7 +516,7 @@ const UsersPage: React.FC = () => {
 
   const handleCreateUser = async (formData: any) => {
     try {
-      const response = await usersApi.create({
+      const response = await usersService.create({
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phone || undefined,
@@ -522,7 +525,7 @@ const UsersPage: React.FC = () => {
       })
       const created = (response as { data?: User }).data
       if (created && formData.role) {
-        await rbacApi.assignRole({ userId: created.id, role: formData.role })
+        await authService.assignRole({ userId: created.id, role: formData.role })
       }
       setShowCreateModal(false)
       showToast('User created successfully', 'success')
@@ -537,7 +540,7 @@ const UsersPage: React.FC = () => {
     if (!selectedUser) return
 
     try {
-      await usersApi.update(selectedUser.id, {
+      await usersService.update(selectedUser.id, {
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phone || undefined,
@@ -545,7 +548,7 @@ const UsersPage: React.FC = () => {
       })
 
       if (formData.role && formData.role !== selectedUser.role) {
-        await rbacApi.assignRole({ userId: selectedUser.id, role: formData.role })
+        await authService.assignRole({ userId: selectedUser.id, role: formData.role })
       }
 
       setShowEditModal(false)
@@ -560,7 +563,7 @@ const UsersPage: React.FC = () => {
 
   const handleAssignRole = async (userId: string, role: string) => {
     try {
-      await rbacApi.assignRole({ userId, role })
+      await authService.assignRole({ userId, role })
       setShowRoleModal(false)
       setSelectedUser(null)
       showToast('Role assigned successfully', 'success')
@@ -575,7 +578,7 @@ const UsersPage: React.FC = () => {
     if (!selectedUser) return
 
     try {
-      await usersApi.update(selectedUser.id, { isActive: false })
+      await usersService.update(selectedUser.id, { isActive: false })
       setShowDeleteModal(false)
       setSelectedUser(null)
       showToast('User deactivated successfully', 'success')

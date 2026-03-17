@@ -2,6 +2,7 @@ import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
   type AxiosResponse,
+  type AxiosResponseType,
   type AxiosRequestHeaders,
   type InternalAxiosRequestConfig,
 } from "axios";
@@ -82,6 +83,11 @@ const hasContentType = (headers?: ApiRequestConfig["headers"]) => {
   );
 };
 
+const isFormData = (data: unknown) => {
+  if (typeof FormData === "undefined") return false;
+  return data instanceof FormData;
+};
+
 const extractMessage = (data: unknown) => {
   if (!data) return null;
   if (typeof data === "string") return data;
@@ -129,7 +135,11 @@ const attachInterceptors = (
         typedConfig.headers = headers;
       }
 
-      if (typedConfig.data && !hasContentType(typedConfig.headers)) {
+      if (
+        typedConfig.data &&
+        !hasContentType(typedConfig.headers) &&
+        !isFormData(typedConfig.data)
+      ) {
         const headers = (typedConfig.headers ??
           ({} as AxiosRequestHeaders)) as AxiosRequestHeaders;
         headers["Content-Type"] = "application/json";
@@ -208,7 +218,10 @@ export const createApiClient = (config: ApiClientConfig = {}): ApiClient => {
         onRejected,
       ),
     addResponseInterceptor: (onFulfilled, onRejected) =>
-      axiosInstance.interceptors.response.use(onFulfilled, onRejected),
+      axiosInstance.interceptors.response.use(
+        onFulfilled as unknown as (response: any) => any,
+        onRejected,
+      ),
   };
 };
 
@@ -223,6 +236,13 @@ const legacyClient = createApiClient({
   getAuthToken: () => localStorage.getItem(STORAGE_TOKEN),
 });
 
+const resolveResponseType = (
+  responseType: LegacyRequestOptions["responseType"],
+): AxiosResponseType => {
+  if (responseType === "blob" || responseType === "text") return responseType;
+  return "json";
+};
+
 export async function apiRequest<T>(
   path: string,
   options: LegacyRequestOptions = {},
@@ -232,7 +252,7 @@ export async function apiRequest<T>(
   const config: ApiRequestConfig = {
     url: path,
     method,
-    responseType: responseType,
+    responseType: resolveResponseType(responseType),
   };
 
   if (token) {

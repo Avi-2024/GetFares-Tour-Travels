@@ -1,5 +1,18 @@
 import { apiRequest } from "./apiClient";
 import { withQuery } from "./query";
+import { DESTINATIONS } from "../data/staticLists";
+
+const extractList = (response: unknown) => {
+  const data =
+    (response as { data?: { data?: unknown[]; items?: unknown[] } })?.data
+      ?.data ??
+    (response as { data?: { data?: unknown[]; items?: unknown[] } })?.data
+      ?.items ??
+    (response as { data?: unknown[] })?.data ??
+    response;
+
+  return Array.isArray(data) ? data : [];
+};
 
 export const leadsApi = {
   list: (params?: Record<string, string | number | boolean>) =>
@@ -20,13 +33,27 @@ export const leadsApi = {
       method: "POST",
       body: { reason, notes },
     }),
-  checkDuplicate: (email?: string, phone?: string) =>
-    apiRequest("/api/leads/check-duplicate", {
-      method: "POST",
-      body: { email, phone },
-    }),
-  getCampaigns: () => apiRequest("/api/campaigns/active"),
-  getDestinations: () => apiRequest("/api/destinations"),
+  checkDuplicate: async (email?: string, phone?: string) => {
+    if (!email && !phone) {
+      return { data: { isDuplicate: false } };
+    }
+
+    const response = await apiRequest(
+      withQuery("/api/leads", { email, phone, page: 1, limit: 1 }),
+    );
+    const matches = extractList(response);
+    const isDuplicate = matches.length > 0;
+
+    return {
+      data: {
+        isDuplicate,
+        message: isDuplicate ? "Similar lead already exists" : "",
+        matches,
+      },
+    };
+  },
+  getCampaigns: () => apiRequest(withQuery("/api/campaigns", { status: "ACTIVE" })),
+  getDestinations: async () => ({ data: DESTINATIONS }),
   distribute: () => apiRequest("/api/leads/distribute", { method: "POST" }),
   reassignInactive: () =>
     apiRequest("/api/leads/reassign-inactive", { method: "POST" }),

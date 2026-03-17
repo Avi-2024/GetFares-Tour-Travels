@@ -26,7 +26,7 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import { validateBookingTransition } from '../../utils/workflowValidation'
-import { bookingsApi } from '../../api/bookings'
+import { useBookingsService } from '../../hooks/useBookingsService'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -847,6 +847,7 @@ const CancelBookingModal = ({
 }
 
 const BookingsPage: React.FC = () => {
+  const bookingsService = useBookingsService()
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all')
   const [search, setSearch] = useState('')
@@ -884,7 +885,7 @@ const BookingsPage: React.FC = () => {
   const handleSendConfirmation = async (bookingId: string) => {
     setLoading(true)
     try {
-      await bookingsApi.sendConfirmation(bookingId)
+      await bookingsService.sendConfirmation(bookingId)
       showToast('Confirmation sent successfully', 'success')
     } catch (error) {
       console.error('Failed to send confirmation:', error)
@@ -905,7 +906,7 @@ const BookingsPage: React.FC = () => {
   ) => {
     setLoading(true)
     try {
-      await bookingsApi.recordPayment(bookingId, paymentData)
+      await bookingsService.recordPayment(bookingId, paymentData)
       showToast('Payment recorded successfully', 'success')
       // Update local state would go here
     } catch (error) {
@@ -921,7 +922,7 @@ const BookingsPage: React.FC = () => {
   ) => {
     setLoading(true)
     try {
-      await bookingsApi.generateInvoice(bookingId)
+      await bookingsService.generateInvoice(bookingId)
       showToast('Invoice generated successfully', 'success')
     } catch (error) {
       console.error('Failed to generate invoice:', error)
@@ -961,7 +962,7 @@ const BookingsPage: React.FC = () => {
         showToast(validationError, 'error')
         return
       }
-      await bookingsApi.cancel(bookingId, reason)
+      await bookingsService.cancel(bookingId, reason)
       showToast('Booking cancelled successfully', 'success')
       // Update local state would go here
     } catch (error) {

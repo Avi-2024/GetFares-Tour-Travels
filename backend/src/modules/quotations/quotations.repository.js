@@ -15,20 +15,20 @@ function createQuotationsRepository({ db, logger, schema }) {
       return fallback;
     }
 
-    if (typeof value === 'boolean') {
+    if (typeof value === "boolean") {
       return value;
     }
 
-    if (typeof value === 'number') {
+    if (typeof value === "number") {
       return value === 1;
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const normalized = value.trim().toLowerCase();
-      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+      if (normalized === "true" || normalized === "1" || normalized === "yes") {
         return true;
       }
-      if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+      if (normalized === "false" || normalized === "0" || normalized === "no") {
         return false;
       }
     }
@@ -54,11 +54,11 @@ function createQuotationsRepository({ db, logger, schema }) {
       return fallback;
     }
 
-    if (typeof value === 'object') {
+    if (typeof value === "object") {
       return value;
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       try {
         return JSON.parse(value);
       } catch (_error) {
@@ -70,7 +70,7 @@ function createQuotationsRepository({ db, logger, schema }) {
   }
 
   function canUseRawQuery() {
-    return typeof db.query === 'function' && db.pool;
+    return typeof db.query === "function" && db.pool;
   }
 
   async function getTableColumns(tableName) {
@@ -93,7 +93,9 @@ function createQuotationsRepository({ db, logger, schema }) {
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    const entries = Object.entries(payload).filter(
+      ([, value]) => value !== undefined,
+    );
     if (!entries.length) {
       return {};
     }
@@ -118,7 +120,10 @@ function createQuotationsRepository({ db, logger, schema }) {
       createdBy: row.created_by ?? row.createdBy ?? null,
       pricingId: row.pricing_id ?? row.pricingId ?? null,
       templateId: row.template_id ?? row.templateId ?? null,
-      templateSnapshot: toJson(row.template_snapshot ?? row.templateSnapshot, null),
+      templateSnapshot: toJson(
+        row.template_snapshot ?? row.templateSnapshot,
+        null,
+      ),
       quoteNumber: row.quote_number ?? row.quoteNumber ?? null,
       totalCost: toNumber(row.total_cost ?? row.totalCost, 0),
       marginPercent: toNumber(row.margin_percent ?? row.marginPercent, 0),
@@ -126,17 +131,29 @@ function createQuotationsRepository({ db, logger, schema }) {
       tax: toNumber(row.tax, 0),
       finalPrice: toNumber(row.final_price ?? row.finalPrice, 0),
       supplierCost: toNumber(row.supplier_cost ?? row.supplierCost, 0),
-      supplierTaxAmount: toNumber(row.supplier_tax_amount ?? row.supplierTaxAmount, 0),
+      supplierTaxAmount: toNumber(
+        row.supplier_tax_amount ?? row.supplierTaxAmount,
+        0,
+      ),
       markupAmount: toNumber(row.markup_amount ?? row.markupAmount, 0),
-      serviceFeeAmount: toNumber(row.service_fee_amount ?? row.serviceFeeAmount, 0),
+      serviceFeeAmount: toNumber(
+        row.service_fee_amount ?? row.serviceFeeAmount,
+        0,
+      ),
       gstAmount: toNumber(row.gst_amount ?? row.gstAmount, 0),
       tcsAmount: toNumber(row.tcs_amount ?? row.tcsAmount, 0),
       totalSaleValue: toNumber(row.total_sale_value ?? row.totalSaleValue, 0),
-      costCurrency: row.cost_currency ?? row.costCurrency ?? 'INR',
-      clientCurrency: row.client_currency ?? row.clientCurrency ?? 'INR',
-      supplierCurrency: row.supplier_currency ?? row.supplierCurrency ?? 'INR',
-      minMarginPercent: toNumber(row.min_margin_percent ?? row.minMarginPercent, 0),
-      requiresApproval: toBoolean(row.requires_approval ?? row.requiresApproval, false),
+      costCurrency: row.cost_currency ?? row.costCurrency ?? "INR",
+      clientCurrency: row.client_currency ?? row.clientCurrency ?? "INR",
+      supplierCurrency: row.supplier_currency ?? row.supplierCurrency ?? "INR",
+      minMarginPercent: toNumber(
+        row.min_margin_percent ?? row.minMarginPercent,
+        0,
+      ),
+      requiresApproval: toBoolean(
+        row.requires_approval ?? row.requiresApproval,
+        false,
+      ),
       approvedBy: row.approved_by ?? row.approvedBy ?? null,
       approvedAt: toDate(row.approved_at ?? row.approvedAt),
       approvalNote: row.approval_note ?? row.approvalNote ?? null,
@@ -150,7 +167,10 @@ function createQuotationsRepository({ db, logger, schema }) {
       lastViewedAt: toDate(row.last_viewed_at ?? row.lastViewedAt),
       expiresAt: toDate(row.expires_at ?? row.expiresAt),
       lockedAt: toDate(row.locked_at ?? row.lockedAt),
-      leadToQuoteMinutes: toNumber(row.lead_to_quote_minutes ?? row.leadToQuoteMinutes, null),
+      leadToQuoteMinutes: toNumber(
+        row.lead_to_quote_minutes ?? row.leadToQuoteMinutes,
+        null,
+      ),
       isDeleted: Boolean(row.is_deleted ?? row.isDeleted ?? false),
       createdAt: toDate(row.created_at ?? row.createdAt),
     };
@@ -197,9 +217,13 @@ function createQuotationsRepository({ db, logger, schema }) {
       inclusions: row.inclusions ?? null,
       exclusions: row.exclusions ?? null,
       paymentTerms: row.payment_terms ?? row.paymentTerms ?? null,
-      cancellationPolicy: row.cancellation_policy ?? row.cancellationPolicy ?? null,
+      cancellationPolicy:
+        row.cancellation_policy ?? row.cancellationPolicy ?? null,
       footerDisclaimer: row.footer_disclaimer ?? row.footerDisclaimer ?? null,
-      minMarginPercent: toNumber(row.min_margin_percent ?? row.minMarginPercent, 0),
+      minMarginPercent: toNumber(
+        row.min_margin_percent ?? row.minMarginPercent,
+        0,
+      ),
       isActive: toBoolean(row.is_active ?? row.isActive, true),
       createdBy: row.created_by ?? row.createdBy ?? null,
       updatedBy: row.updated_by ?? row.updatedBy ?? null,
@@ -234,7 +258,7 @@ function createQuotationsRepository({ db, logger, schema }) {
       id: row.id,
       quotationId: row.quotation_id ?? row.quotationId,
       sentBy: row.sent_by ?? row.sentBy ?? null,
-      deliveryChannel: row.delivery_channel ?? row.deliveryChannel ?? 'MANUAL',
+      deliveryChannel: row.delivery_channel ?? row.deliveryChannel ?? "MANUAL",
       recipientEmail: row.recipient_email ?? row.recipientEmail ?? null,
       recipientPhone: row.recipient_phone ?? row.recipientPhone ?? null,
       sentAt: toDate(row.sent_at ?? row.sentAt),
@@ -258,7 +282,9 @@ function createQuotationsRepository({ db, logger, schema }) {
   }
 
   async function findItemsByQuotationId(quotationId) {
-    const rows = await db.findMany(schema.itemsTable, { quotation_id: quotationId });
+    const rows = await db.findMany(schema.itemsTable, {
+      quotation_id: quotationId,
+    });
     return rows.map((row) => toItem(row));
   }
 
@@ -282,7 +308,9 @@ function createQuotationsRepository({ db, logger, schema }) {
   }
 
   async function findVersionLogsByQuotationId(quotationId) {
-    const rows = await db.findMany(schema.versionLogsTable, { quotation_id: quotationId });
+    const rows = await db.findMany(schema.versionLogsTable, {
+      quotation_id: quotationId,
+    });
     return rows
       .map((row) => toVersionLog(row))
       .sort((a, b) => {
@@ -299,7 +327,9 @@ function createQuotationsRepository({ db, logger, schema }) {
   }
 
   async function findSendLogsByQuotationId(quotationId) {
-    const rows = await db.findMany(schema.sendLogsTable, { quotation_id: quotationId });
+    const rows = await db.findMany(schema.sendLogsTable, {
+      quotation_id: quotationId,
+    });
     return rows
       .map((row) => toSendLog(row))
       .sort((a, b) => {
@@ -331,7 +361,10 @@ function createQuotationsRepository({ db, logger, schema }) {
     return mapped;
   }
 
-  async function findReminderCandidates({ notOpenedBefore, viewedNoActionBefore }) {
+  async function findReminderCandidates({
+    notOpenedBefore,
+    viewedNoActionBefore,
+  }) {
     if (canUseRawQuery()) {
       const notOpenedSql = `
         SELECT *
@@ -361,12 +394,12 @@ function createQuotationsRepository({ db, logger, schema }) {
 
       const notOpened = notOpenedResult.rows.map((row) => ({
         quotation: toQuotation(row),
-        reminderType: 'NOT_OPENED_24H',
+        reminderType: "NOT_OPENED_24H",
       }));
 
       const viewedNoAction = viewedResult.rows.map((row) => ({
         quotation: toQuotation(row),
-        reminderType: 'VIEWED_NO_ACTION_48H',
+        reminderType: "VIEWED_NO_ACTION_48H",
       }));
 
       return [...notOpened, ...viewedNoAction];
@@ -376,7 +409,7 @@ function createQuotationsRepository({ db, logger, schema }) {
     const notOpenedCutoff = new Date(notOpenedBefore).getTime();
     const viewedCutoff = new Date(viewedNoActionBefore).getTime();
 
-    const isFinalStatus = new Set(['APPROVED', 'REJECTED']);
+    const isFinalStatus = new Set(["APPROVED", "REJECTED"]);
     const candidates = [];
 
     rows.forEach((row) => {
@@ -386,15 +419,23 @@ function createQuotationsRepository({ db, logger, schema }) {
       }
 
       const sentAt = domain.sentAt ? new Date(domain.sentAt).getTime() : null;
-      const lastViewedAt = domain.lastViewedAt ? new Date(domain.lastViewedAt).getTime() : null;
+      const lastViewedAt =
+        domain.lastViewedAt ? new Date(domain.lastViewedAt).getTime() : null;
 
       if (sentAt && domain.viewCount === 0 && sentAt <= notOpenedCutoff) {
-        candidates.push({ quotation: domain, reminderType: 'NOT_OPENED_24H' });
+        candidates.push({ quotation: domain, reminderType: "NOT_OPENED_24H" });
         return;
       }
 
-      if (lastViewedAt && domain.viewCount > 0 && lastViewedAt <= viewedCutoff) {
-        candidates.push({ quotation: domain, reminderType: 'VIEWED_NO_ACTION_48H' });
+      if (
+        lastViewedAt &&
+        domain.viewCount > 0 &&
+        lastViewedAt <= viewedCutoff
+      ) {
+        candidates.push({
+          quotation: domain,
+          reminderType: "VIEWED_NO_ACTION_48H",
+        });
       }
     });
 
@@ -447,21 +488,23 @@ function createQuotationsRepository({ db, logger, schema }) {
     findViewsByQuotationId,
 
     async create(payload) {
-      logger.debug({ module: 'quotations', payload }, 'Creating quotation');
+      logger.debug({ module: "quotations", payload }, "Creating quotation");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.insert(schema.tableName, sanitized);
       return toQuotation(row);
     },
 
     async update(id, payload) {
-      logger.debug({ module: 'quotations', id, payload }, 'Updating quotation');
+      logger.debug({ module: "quotations", id, payload }, "Updating quotation");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.update(schema.tableName, id, sanitized);
       return toQuotation(row);
     },
 
     async replaceItems(quotationId, components = []) {
-      await db.query('DELETE FROM quotation_items WHERE quotation_id = $1', [quotationId]);
+      await db.query("DELETE FROM quotation_items WHERE quotation_id = $1", [
+        quotationId,
+      ]);
 
       for (const item of components) {
         await db.insert(schema.itemsTable, {
@@ -545,7 +588,10 @@ function createQuotationsRepository({ db, logger, schema }) {
     },
 
     async findTemplates(filters = {}) {
-      const rows = await db.findMany(schema.templatesTable, buildTemplateFilters(filters));
+      const rows = await db.findMany(
+        schema.templatesTable,
+        buildTemplateFilters(filters),
+      );
       return rows
         .map((row) => toTemplate(row))
         .sort((a, b) => {
@@ -584,7 +630,7 @@ function createQuotationsRepository({ db, logger, schema }) {
       const row = await db.insert(schema.sendLogsTable, {
         quotation_id: payload.quotationId,
         sent_by: payload.sentBy || null,
-        delivery_channel: payload.deliveryChannel || 'MANUAL',
+        delivery_channel: payload.deliveryChannel || "MANUAL",
         recipient_email: payload.recipientEmail || null,
         recipient_phone: payload.recipientPhone || null,
         metadata: payload.metadata || {},
@@ -609,7 +655,7 @@ function createQuotationsRepository({ db, logger, schema }) {
     findReminderCandidates,
 
     async getLeadToQuoteReport(filters = {}) {
-      const where = ['COALESCE(q.is_deleted, FALSE) = FALSE'];
+      const where = ["COALESCE(q.is_deleted, FALSE) = FALSE"];
       const params = [];
 
       if (filters.from) {
@@ -627,7 +673,7 @@ function createQuotationsRepository({ db, logger, schema }) {
         where.push(`q.created_by = $${params.length}`);
       }
 
-      const whereSql = where.join(' AND ');
+      const whereSql = where.join(" AND ");
 
       const consultantSql = `
         SELECT
@@ -669,7 +715,8 @@ function createQuotationsRepository({ db, logger, schema }) {
         const total = Number(row.total_quotes || 0);
         const approved = Number(row.approved_quotes || 0);
         const rejected = Number(row.rejected_quotes || 0);
-        const approvalRatePercent = total > 0 ? Number(((approved / total) * 100).toFixed(2)) : 0;
+        const approvalRatePercent =
+          total > 0 ? Number(((approved / total) * 100).toFixed(2)) : 0;
 
         return {
           createdBy: row.created_by,
@@ -693,8 +740,14 @@ function createQuotationsRepository({ db, logger, schema }) {
           totalQuotes: overallTotal,
           approvedQuotes: overallApproved,
           rejectedQuotes: Number(overallRow.rejected_quotes || 0),
-          approvalRatePercent: overallTotal > 0 ? Number(((overallApproved / overallTotal) * 100).toFixed(2)) : 0,
-          avgLeadToQuoteMinutes: toNumber(overallRow.avg_lead_to_quote_minutes, 0),
+          approvalRatePercent:
+            overallTotal > 0 ?
+              Number(((overallApproved / overallTotal) * 100).toFixed(2))
+            : 0,
+          avgLeadToQuoteMinutes: toNumber(
+            overallRow.avg_lead_to_quote_minutes,
+            0,
+          ),
           avgQuoteValue: toNumber(overallRow.avg_quote_value, 0),
           avgMarginPercent: toNumber(overallRow.avg_margin_percent, 0),
         },

@@ -4,6 +4,7 @@ import type {
   LeadsListResponse,
   LeadsQuery,
 } from "../datasource/leadsDatasource";
+import { DESTINATIONS } from "../data/staticLists";
 
 export type LeadStatus = "New" | "Contacted" | "Qualified" | "Lost";
 export type LeadPriority = "High" | "Medium" | "Low";
@@ -34,8 +35,30 @@ const extractList = (response: LeadsListResponse) => {
   return Array.isArray(data) ? data : [];
 };
 
-const normalizePriority = (priority?: string): LeadPriority => {
-  const normalized = String(priority ?? "").trim().toLowerCase();
+const extractArray = (response: unknown) => {
+  const data = (response as { data?: unknown })?.data ?? response;
+  return Array.isArray(data) ? data : [];
+};
+
+const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
+  if (lead.priorityLevel !== undefined && lead.priorityLevel !== null) {
+    const numeric =
+      typeof lead.priorityLevel === "number" ?
+        lead.priorityLevel
+      : Number(lead.priorityLevel);
+    if (Number.isFinite(numeric)) {
+      if (numeric >= 3) return "High";
+      if (numeric >= 2) return "Medium";
+      return "Low";
+    }
+  }
+
+  const temperature = String(lead.temperature ?? "").trim().toUpperCase();
+  if (temperature === "HOT") return "High";
+  if (temperature === "COLD") return "Low";
+  if (temperature === "WARM") return "Medium";
+
+  const normalized = String(lead.priority ?? "").trim().toLowerCase();
   if (normalized === "high") return "High";
   if (normalized === "low") return "Low";
   return "Medium";
@@ -45,8 +68,13 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
   const statusMap: Record<string, LeadStatus> = {
     OPEN: "New",
     CONTACTED: "Contacted",
+    WIP: "Contacted",
+    FOLLOW_UP: "Contacted",
     QUALIFIED: "Qualified",
+    QUOTED: "Qualified",
+    CONVERTED: "Qualified",
     LOST: "Lost",
+    NON_RESPONSIVE: "Lost",
   };
 
   const normalizedStatus =
@@ -61,7 +89,7 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     destination: lead.destination ?? lead.country ?? "N/A",
     packageName: lead.packageName ?? lead.package ?? "N/A",
     status: normalizedStatus,
-    priority: normalizePriority(lead.priority),
+    priority: normalizePriority(lead),
     sla: lead.sla ?? lead.slaStatus ?? "—",
     consultant: lead.consultant ?? lead.owner ?? "Unassigned",
   };
@@ -82,10 +110,27 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
   getTimeline: (id: string) => datasource.getTimeline(id),
   markAsLost: (id: string, reason: string, notes?: string) =>
     datasource.markAsLost(id, reason, notes),
-  checkDuplicate: (email?: string, phone?: string) =>
-    datasource.checkDuplicate(email, phone),
+  checkDuplicate: async (email?: string, phone?: string) => {
+    const response = await datasource.checkDuplicate(email, phone);
+    const matches = extractList(response);
+    return {
+      data: {
+        isDuplicate: matches.length > 0,
+        message: matches.length ? "Similar lead already exists" : "",
+        matches,
+      },
+    };
+  },
   getCampaigns: () => datasource.getCampaigns(),
-  getDestinations: () => datasource.getDestinations(),
+  getDestinations: async () => {
+    try {
+      const response = await datasource.getDestinations();
+      const list = extractArray(response);
+      return list.length ? list : DESTINATIONS;
+    } catch {
+      return DESTINATIONS;
+    }
+  },
   distributeLeads: () => datasource.distribute(),
   reassignInactiveLeads: () => datasource.reassignInactive(),
   processSlaBreaches: () => datasource.processSlaBreaches(),

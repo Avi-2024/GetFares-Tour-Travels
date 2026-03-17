@@ -41,7 +41,6 @@ const Leads: React.FC = () => {
         const mapped = await leadsService.listLeads({
           page: 1,
           limit: 10,
-          status: "OPEN",
         });
         setFetchedLeads(mapped);
       } catch (err) {
@@ -67,7 +66,7 @@ const Leads: React.FC = () => {
             .toLowerCase()
             .includes(search.toLowerCase()),
       ),
-    [tab, search],
+    [fetchedLeads, tab, search],
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { notificationsApi } from "../api";
+import { useNotificationsService } from "../hooks/useNotificationsService";
 import type { NotificationItem } from "../types";
 
 type NotificationsContextValue = {
@@ -23,6 +23,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const notificationsService = useNotificationsService();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -34,7 +35,10 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
       return;
     }
     try {
-      const [list, unread] = await Promise.all([notificationsApi.list(), notificationsApi.unreadCount()]);
+      const [list, unread] = await Promise.all([
+        notificationsService.list(),
+        notificationsService.unreadCount(),
+      ]);
       setNotifications(list);
       setUnreadCount(unread.unread);
     } catch {
@@ -43,7 +47,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [notificationsService]);
 
   useEffect(() => {
     void refresh();
@@ -51,7 +55,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
 
   const markRead = async (id: string) => {
     try {
-      await notificationsApi.markRead(id);
+      await notificationsService.markRead(id);
     } catch {
       // fallback local update if API is unavailable
     }
@@ -62,7 +66,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
 
   const markAllRead = async () => {
     try {
-      await notificationsApi.markAllRead();
+      await notificationsService.markAllRead();
     } catch {
       // fallback local update if API is unavailable
     }

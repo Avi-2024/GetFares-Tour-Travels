@@ -13,8 +13,8 @@ import {
   FaEnvelope,
 } from "react-icons/fa";
 import { MdOutlineSegment } from "react-icons/md";
-import { customersApi } from "../../api";
 import { isApiError } from "../../api/apiClient";
+import { useCustomersService } from "../../hooks/useCustomersService";
 
 interface Customer {
   id: string;
@@ -34,6 +34,7 @@ interface Customer {
 
 const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
+  const customersService = useCustomersService();
   const [search, setSearch] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
@@ -169,7 +170,7 @@ const CustomersPage: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await customersApi.list();
+      const response = await customersService.list();
       const rows =
         (response as { data?: Customer[] }).data ??
         (response as Customer[]) ??
@@ -182,7 +183,7 @@ const CustomersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [customersService]);
 
   useEffect(() => {
     void loadCustomers();
@@ -195,7 +196,7 @@ const CustomersPage: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      await customersApi.delete(id);
+      await customersService.remove(id);
       await loadCustomers();
     } catch (err) {
       const message =
@@ -289,7 +290,7 @@ const CustomersPage: React.FC = () => {
     setError("");
 
     try {
-      await customersApi.update(editingCustomer.id, {
+      await customersService.update(editingCustomer.id, {
         fullName: editFormData.fullName,
         phone: editFormData.phone || undefined,
         email: editFormData.email || undefined,
@@ -314,7 +315,7 @@ const CustomersPage: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      const blob = await customersApi.export();
+      const blob = await customersService.export();
       const url = window.URL.createObjectURL(blob as Blob);
       const link = document.createElement("a");
       link.href = url;

@@ -39,6 +39,8 @@ export const createAuthService = (datasource: AuthDatasource) => ({
     const response = await datasource.myPermissions();
     return response.data?.permissions ?? response.permissions ?? [];
   },
+  assignRole: (payload: { userId: string; role: string }) =>
+    datasource.assignRole(payload),
 });
 
 export type AuthService = ReturnType<typeof createAuthService>;
