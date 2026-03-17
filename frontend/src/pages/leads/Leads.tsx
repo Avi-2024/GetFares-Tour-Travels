@@ -112,12 +112,24 @@ const Leads: React.FC = () => {
     }
       try {
         const res = await leadsApi.list({ page: 1, limit: 10, status: 'OPEN' })
-        const dataArray =
-          (res as any)?.data?.data ??
-          (res as any)?.data?.items ??
-          (res as any)?.data ??
-          res ??
-          []
+        const unwrapArray = (r: any): any[] => {
+          if (Array.isArray(r)) return r
+          const candidates = [
+            r?.data?.data,
+            r?.data?.items,
+            r?.data?.rows,
+            r?.data?.leads,
+            r?.items,
+            r?.rows,
+            r?.leads,
+            r?.data
+          ]
+          for (const c of candidates) {
+            if (Array.isArray(c)) return c
+          }
+          return []
+        }
+        const dataArray = unwrapArray(res)
         const statusMap: Record<string, Lead['status']> = {
           OPEN: 'New',
           CONTACTED: 'Contacted',
