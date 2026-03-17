@@ -3,12 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { FaBars, FaBell, FaChevronDown, FaMagnifyingGlass, FaMoon, FaPlus, FaSun } from "react-icons/fa6";
 import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationsContext";
-import NotificationDrawer from "./NotificationDrawer";
 
-const Header: React.FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
+const Header: React.FC<{ onMenuClick: () => void; onNotificationClick: () => void }> = ({ onMenuClick, onNotificationClick }) => {
   const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -53,11 +51,10 @@ const Header: React.FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
         </button>
         {hasPermission("notifications.read") ? (
           <div className="relative">
-            <button onClick={() => setDrawerOpen(true)} className="relative rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
+            <button onClick={onNotificationClick} className="relative rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
               <FaBell />
               {unreadCount > 0 ? <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">{unreadCount}</span> : null}
             </button>
-            <NotificationDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
           </div>
         ) : null}
         {hasPermission("leads.write") ? (

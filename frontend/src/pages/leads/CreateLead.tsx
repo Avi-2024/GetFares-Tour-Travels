@@ -12,6 +12,7 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { leadsApi } from '../../api/leads'
 import { campaignsApi } from '../../api/campaigns'
+import { ApiError } from '../../api/apiClient'
 
 const steps = [
   'Customer Info',
@@ -26,6 +27,7 @@ const CreateLead: React.FC = () => {
   const [showErrors, setShowErrors] = useState(false)
   const [destinationInput, setDestinationInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [apiError, setApiError] = useState('')
   const [duplicateWarning, setDuplicateWarning] = useState('')
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [destinations, setDestinations] = useState<any[]>([])
@@ -158,6 +160,7 @@ const CreateLead: React.FC = () => {
     setShowErrors(true)
     if (!hasError) {
       setLoading(true)
+      setApiError('')
       try {
         const payload = {
           firstName: form.firstName,
@@ -177,13 +180,19 @@ const CreateLead: React.FC = () => {
           consultant: form.consultant,
           campaignId: form.campaignId || undefined,
           requirements: form.requirements,
-          internalNotes: form.internalNotes
+          internalNotes: form.internalNotes,
+          status: 'OPEN'
         }
 
-        await leadsApi.create(payload).catch((e: unknown) => console.error('Failed to create lead:', e))
+        await leadsApi.create(payload)
         navigate('/leads')
       } catch (error) {
         console.error('Failed to create lead:', error)
+        if (error instanceof ApiError) {
+          setApiError(error.message || 'Could not create lead.')
+        } else {
+          setApiError('Could not create lead.')
+        }
         setLoading(false)
       }
     }
@@ -201,6 +210,11 @@ const CreateLead: React.FC = () => {
       </div>
 
       <SurfaceCard>
+        {apiError ? (
+          <div className='mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+            {apiError}
+          </div>
+        ) : null}
         <div className='mb-5 grid grid-cols-2 gap-2 md:grid-cols-4'>
           {steps.map((label, i) => {
             const active = step === i

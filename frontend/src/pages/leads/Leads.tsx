@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaCalendarPlus,
@@ -15,6 +15,8 @@ import {
 import EmptyState from '../../components/ui/EmptyState'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SurfaceCard from '../../components/ui/SurfaceCard'
+import { leadsApi } from '../../api'
+import { ApiError } from '../../api/apiClient'
 
 interface Lead {
   id: number
@@ -92,12 +94,50 @@ const Leads: React.FC = () => {
   const [tab, setTab] = useState<Tab>('All')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [fetchedLeads, setFetchedLeads] = useState<Lead[]>(allLeads)
   const pageSize = 3
   const nav = useNavigate()
 
+  useEffect(() => {
+    const fetchLeads = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const res = await leadsApi.list({ page: 1, limit: 10, status: 'OPEN' })
+        const dataArray = (res as any)?.data ?? res ?? []
+        const mapped: Lead[] = (dataArray as any[]).map((l, idx) => ({
+          id: l.id ?? idx,
+          leadId: l.leadId ?? l.code ?? `#LD-${String(idx + 1).padStart(3, '0')}`,
+          name: l.name ?? l.fullName ?? l.customerName ?? 'Unknown',
+          email: l.email ?? 'N/A',
+          phone: l.phone ?? l.mobile ?? 'N/A',
+          destination: l.destination ?? l.country ?? 'N/A',
+          packageName: l.packageName ?? l.package ?? 'N/A',
+          status: (l.status as Lead['status']) ?? 'New',
+          priority: (l.priority as Lead['priority']) ?? 'Medium',
+          sla: l.sla ?? l.slaStatus ?? '—',
+          consultant: l.consultant ?? l.owner ?? 'Unassigned'
+        }))
+        setFetchedLeads(mapped.length ? mapped : allLeads)
+      } catch (err) {
+        const msg =
+          err instanceof ApiError
+            ? err.message || 'Failed to load leads'
+            : 'Failed to load leads'
+        setError(msg)
+        setFetchedLeads(allLeads)
+      } finally {
+        setLoading(false)
+      }
+    }
+    void fetchLeads()
+  }, [])
+
   const filtered = useMemo(
     () =>
-      allLeads.filter(
+      fetchedLeads.filter(
         l =>
           (tab === 'All' || l.status === tab) &&
           `${l.name} ${l.email} ${l.destination} ${l.phone}`
@@ -180,6 +220,11 @@ const Leads: React.FC = () => {
         <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
           {/* Search and Filter Bar */}
           <div className='p-4 border-b border-gray-200 dark:border-gray-800'>
+            {error ? (
+              <div className='mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+                {error}
+              </div>
+            ) : null}
             <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3'>
               {/* Tabs - Horizontal scroll on mobile, inline on desktop */}
               <div className='w-full lg:w-auto overflow-x-auto pb-1 scrollbar-hide'>
@@ -221,7 +266,11 @@ const Leads: React.FC = () => {
           </div>
 
           {/* Leads List */}
-          {leads.length === 0 ? (
+          {loading ? (
+            <div className='p-8 text-center text-sm text-gray-500 dark:text-gray-400'>
+              Loading leads...
+            </div>
+          ) : leads.length === 0 ? (
             <div className='p-8'>
               <EmptyState
                 title='No leads found'
