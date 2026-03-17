@@ -1,16 +1,18 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "../../api";
+import { ApiError } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
-const DEMO_EMAIL = "admin@gmail.com";
-const DEMO_PASSWORD = "admin@1234";
+const DEMO_EMAIL = "admin@travel-crm.com";
+const DEMO_PASSWORD = "admin@123";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
  const [email, setEmail] = useState(DEMO_EMAIL);
   const [password, setPassword] = useState(DEMO_PASSWORD);
   const [errors, setErrors] = useState({ email: "", password: "" });
+  const [apiError, setApiError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { setAuthState, refreshPermissions } = useAuth();
@@ -41,23 +43,26 @@ const Login = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (validateForm()) {
-      setSubmitting(true);
-      try {
-        const response = await authApi.login({ email, password, rememberMe: true });
-        setAuthState(response.token, { id: response.user.id, name: response.user.name, email });
-      } catch {
-        // fallback for local development when backend auth is not available
-        if (email !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
-          setErrors({ email: "", password: "Invalid demo credentials" });
-          setSubmitting(false);
-          return;
-        }
-        setAuthState("local-dev-token", { id: "dev-1", name: "Alex Morgan", email: DEMO_EMAIL });
-      }
+    if (!validateForm()) return;
+
+    setSubmitting(true);
+    setApiError("");
+
+    try {
+      const { data } = await authApi.login({ email, password, rememberMe: true });
+      const userName = data.user.fullName || data.user.name || email.split("@")[0];
+      const userEmail = data.user.email || email;
+      setAuthState(data.accessToken, { id: data.user.id, name: userName, email: userEmail });
       await refreshPermissions();
+      navigate("/dashboard");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setApiError(err.message || "Unable to sign in. Please try again.");
+      } else {
+        setApiError("Unable to sign in right now. Please try again.");
+      }
+    } finally {
       setSubmitting(false);
-      navigate('/dashboard');
     }
   };
 
@@ -264,6 +269,9 @@ const Login = () => {
             >
               {submitting ? "Signing in..." : "Sign in"}
             </button>
+            {apiError && (
+              <p className="text-sm text-red-600 text-center">{apiError}</p>
+            )}
 
           </form>
 

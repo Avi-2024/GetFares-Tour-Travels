@@ -14,8 +14,10 @@ const NotificationDrawer = ({ open, onClose }: Props) => {
 
   return (
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-2 w-80 max-h-96 border border-gray-200 bg-white rounded-lg shadow-xl dark:border-gray-700 dark:bg-gray-900 z-50">
+      <div
+        className="fixed left-1/2 top-16 -translate-x-1/2 w-[min(1100px,calc(100vw-32px))] max-h-[70vh] border border-gray-200 bg-white rounded-lg shadow-2xl dark:border-gray-700 dark:bg-gray-900 dark:shadow-[0_20px_40px_rgba(255,255,255,0.18),0_0_30px_rgba(255,255,255,0.12)] z-50
+                   lg:left-auto lg:right-6 lg:top-16 lg:translate-x-0 lg:w-80 lg:max-h-96"
+      >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">

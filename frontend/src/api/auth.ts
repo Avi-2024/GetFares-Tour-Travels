@@ -1,7 +1,15 @@
 import { apiRequest } from "./apiClient";
 
+type LoginResponse = {
+  data: {
+    accessToken: string;
+    user: { id: string; email: string; fullName?: string; name?: string; role?: string };
+  };
+};
+
 export const authApi = {
-  login: (payload: { email: string; password: string; rememberMe?: boolean }) => apiRequest<{ token: string; user: { id: string; name: string } }>("/api/auth/login", { method: "POST", body: payload }),
+  login: (payload: { email: string; password: string; rememberMe?: boolean }) =>
+    apiRequest<LoginResponse>("/api/auth/login", { method: "POST", body: payload }),
   forgotPassword: (payload: { email: string }) => apiRequest<{ message: string }>("/api/auth/forgot-password", { method: "POST", body: payload }),
   resetPassword: (payload: { token: string; password: string }) => apiRequest<{ message: string }>("/api/auth/reset-password", { method: "POST", body: payload }),
 };

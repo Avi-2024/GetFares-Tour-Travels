@@ -1,19 +1,25 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
+
 import { useNotifications } from '../../context/NotificationsContext'
 import { FaBell, FaCheck, FaCheckDouble, FaSearch } from 'react-icons/fa'
 
 const NotificationsPage: React.FC = () => {
   const { notifications, unreadCount, markRead, markAllRead, loading } =
     useNotifications()
+  const safeNotifications = Array.isArray(notifications)
+    ? notifications
+    : notifications
+    ? [notifications as any]
+    : []
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all')
   const [moduleFilter, setModuleFilter] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
 
   // Get unique modules for filter dropdown
-  const modules = Array.from(new Set(notifications.map(n => n.module)))
+    const modules = useMemo(() => Array.from(new Set(safeNotifications.map(n => (n.module ?? 'Unknown')))), [safeNotifications])
 
   // Filter notifications based on current filters
-  const filteredNotifications = notifications.filter(notification => {
+  const filteredNotifications = safeNotifications.filter(notification => {
     const matchesStatus =
       filter === 'all' ||
       (filter === 'unread' && !notification.isRead) ||
