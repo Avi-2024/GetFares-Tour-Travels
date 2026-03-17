@@ -297,6 +297,9 @@ function createDatabaseConnection({ config, logger }) {
     // For serverless environments, use smaller connection pool
     // Vercel serverless functions have short lifespans
     const isServerless = process.env.VERCEL === '1' || process.env.AWS_EXECUTION_ENV;
+    const isProduction = config.env === 'production';
+    const isAWSRDS = config.database.url.includes('.rds.') || config.database.url.includes('.rds-');
+    
     const poolConfig = {
       connectionString: config.database.url,
       // Serverless: 1-5 connections, Traditional: 10-20
@@ -310,10 +313,19 @@ function createDatabaseConnection({ config, logger }) {
       query_timeout: '30s',
     };
 
+    // AWS RDS requires SSL connection
+    if (isAWSRDS) {
+      poolConfig.ssl = isProduction 
+        ? { rejectUnauthorized: true }  // Production: strict SSL validation
+        : { rejectUnauthorized: false }; // Development: allow self-signed certs
+    }
+    
     logger.info(
       { 
         databaseUrlConfigured: true,
         isServerless,
+        isAWSRDS,
+        sslEnabled: !!poolConfig.ssl,
         poolConfig: {
           max: poolConfig.max,
           idleTimeoutMillis: poolConfig.idleTimeoutMillis,
@@ -328,5 +340,6 @@ function createDatabaseConnection({ config, logger }) {
   logger.warn('DATABASE_URL is not set. Falling back to in-memory adapter.');
   return new InMemoryDatabase();
 }
+
 
 module.exports = { createDatabaseConnection, InMemoryDatabase, PostgresDatabase };

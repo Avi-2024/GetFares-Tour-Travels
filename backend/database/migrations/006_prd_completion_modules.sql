@@ -27,6 +27,42 @@ ALTER TABLE leads
   ADD COLUMN IF NOT EXISTS final_reminder_at TIMESTAMP,
   ADD COLUMN IF NOT EXISTS non_responsive_marked_at TIMESTAMP;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type WHERE typname = 'payable_status'
+  ) THEN
+    CREATE TYPE payable_status AS ENUM ('PENDING','PARTIAL','PAID');
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS supplier_payables (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id UUID REFERENCES bookings(id),
+  supplier_id UUID REFERENCES suppliers(id),
+  payable_amount NUMERIC(12,2) NOT NULL,
+  paid_amount NUMERIC(12,2) DEFAULT 0,
+  due_date DATE,
+  status payable_status DEFAULT 'PENDING',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tax_ledger (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id UUID REFERENCES bookings(id),
+  tax_type VARCHAR(50),
+  amount NUMERIC(12,2),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS exchange_rates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  base_currency VARCHAR(10),
+  target_currency VARCHAR(10),
+  rate NUMERIC(14,6),
+  effective_date DATE
+);
+
 CREATE TABLE IF NOT EXISTS booking_documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
@@ -103,4 +139,3 @@ CREATE INDEX IF NOT EXISTS idx_supplier_payables_supplier_id ON supplier_payable
 CREATE INDEX IF NOT EXISTS idx_supplier_payables_status ON supplier_payables(status);
 CREATE INDEX IF NOT EXISTS idx_packages_status_publish ON packages(status, publish_to_website);
 CREATE INDEX IF NOT EXISTS idx_package_enquiries_package_id ON package_enquiries(package_id);
-
