@@ -13,7 +13,7 @@ import {
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 
-type Currency = 'USD' | 'EUR'
+type Currency = 'USD' | 'EUR' | 'INR'
 interface Item {
   id: string
   day: string
@@ -51,7 +51,7 @@ const QuotationBuilderPage: React.FC = () => {
   const navigate = useNavigate()
   const [showPreview, setShowPreview] = useState(true)
   const [mobile, setMobile] = useState(false)
-  const [currency, setCurrency] = useState<Currency>('USD')
+  const [currency, setCurrency] = useState<Currency>('INR')
   const [form, setForm] = useState({
     quote: 'QT-2026-089',
     version: 'v1.2 Draft',
@@ -98,12 +98,14 @@ const QuotationBuilderPage: React.FC = () => {
   const subtotal = useMemo(() => pricing.reduce((s, p) => s + p.price, 0), [])
   const taxes = subtotal * 0.1
   const total = subtotal
-  const money = (v: number) =>
-    new Intl.NumberFormat('en-US', {
+  const money = (v: number) => {
+    const locale = currency === 'INR' ? 'en-IN' : 'en-US'
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
       minimumFractionDigits: 2
     }).format(v)
+  }
 
   const computed = useMemo(() => {
     const supplier = Number(costs.supplierCost) || 0
@@ -522,6 +524,7 @@ const QuotationBuilderPage: React.FC = () => {
                 value={currency}
                 onChange={e => setCurrency(e.target.value as Currency)}
               >
+                <option>INR</option>
                 <option>USD</option>
                 <option>EUR</option>
               </select>
