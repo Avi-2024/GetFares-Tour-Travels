@@ -61,11 +61,18 @@ const list = z.object({
     .optional(),
 });
 
+const remove = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
 module.exports = {
   CustomersValidation: {
     create,
     update,
     byId,
     list,
+    remove,
   },
 };

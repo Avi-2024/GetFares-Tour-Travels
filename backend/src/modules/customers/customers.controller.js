@@ -19,11 +19,17 @@ function createCustomersController({ service }) {
     res.status(200).json({ data: result });
   }
 
+  async function remove(req, res) {
+    const result = await service.remove(req.validated.params.id, req.context);
+    res.status(200).json({ data: result });
+  }
+
   return Object.freeze({
     list,
     getById,
     create,
     update,
+    remove,
   });
 }
 

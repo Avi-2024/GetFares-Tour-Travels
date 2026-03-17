@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaPlus,
@@ -13,20 +13,22 @@ import {
   FaEnvelope
 } from 'react-icons/fa'
 import { MdOutlineSegment } from 'react-icons/md'
+import { customersApi } from '../../api'
+import { ApiError } from '../../api/apiClient'
 
 interface Customer {
   id: string
   fullName: string
-  phone: string
-  email: string
-  preferences: string
-  lifetimeValue: number
-  segment: 'VIP' | 'HIGH_VALUE' | 'REGULAR' | 'NEW'
-  panNumber: string
-  addressLine: string
-  clientCurrency: string
-  createdAt: string
-  totalBookings: number
+  phone?: string
+  email?: string
+  preferences?: string
+  lifetimeValue?: number
+  segment?: 'PLATINUM' | 'GOLD' | 'SILVER' | 'NEW' | string
+  panNumber?: string
+  addressLine?: string
+  clientCurrency?: string
+  createdAt?: string
+  totalBookings?: number
   lastBookingDate?: string
 }
 
@@ -44,84 +46,7 @@ const CustomersPage: React.FC = () => {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const pageSize = 10
 
-  // Mock data - replace with API call
-  const [customers, setCustomers] = useState<Customer[]>([
-    {
-      id: '1',
-      fullName: 'Sarah Connor',
-      phone: '+1 555 0100',
-      email: 'sarah.connor@example.com',
-      preferences: 'Beach resorts, All-inclusive packages',
-      lifetimeValue: 12500,
-      segment: 'VIP',
-      panNumber: 'ABCDE1234F',
-      addressLine: '123 Main St, Los Angeles, CA 90210',
-      clientCurrency: 'USD',
-      createdAt: '2023-01-15',
-      totalBookings: 4,
-      lastBookingDate: '2024-02-10'
-    },
-    {
-      id: '2',
-      fullName: 'Michael Chen',
-      phone: '+1 555 0102',
-      email: 'michael.chen@example.com',
-      preferences: 'Business travel, Luxury hotels',
-      lifetimeValue: 8900,
-      segment: 'HIGH_VALUE',
-      panNumber: 'XYZAB7890C',
-      addressLine: '456 Oak Ave, San Francisco, CA 94105',
-      clientCurrency: 'USD',
-      createdAt: '2023-03-20',
-      totalBookings: 3,
-      lastBookingDate: '2024-01-15'
-    },
-    {
-      id: '3',
-      fullName: 'Emma Wilson',
-      phone: '+1 555 0103',
-      email: 'emma.wilson@example.com',
-      preferences: 'Family trips, Adventure activities',
-      lifetimeValue: 3400,
-      segment: 'REGULAR',
-      panNumber: 'PQRST4567D',
-      addressLine: '789 Pine St, New York, NY 10001',
-      clientCurrency: 'USD',
-      createdAt: '2023-06-10',
-      totalBookings: 2,
-      lastBookingDate: '2023-12-05'
-    },
-    {
-      id: '4',
-      fullName: 'James Rodriguez',
-      phone: '+1 555 0104',
-      email: 'james.r@example.com',
-      preferences: 'Cruise packages, European tours',
-      lifetimeValue: 5600,
-      segment: 'HIGH_VALUE',
-      panNumber: 'LMNOP1234E',
-      addressLine: '321 Elm Blvd, Miami, FL 33101',
-      clientCurrency: 'USD',
-      createdAt: '2023-02-28',
-      totalBookings: 3,
-      lastBookingDate: '2024-03-01'
-    },
-    {
-      id: '5',
-      fullName: 'Priya Patel',
-      phone: '+1 555 0105',
-      email: 'priya.p@example.com',
-      preferences: 'Spa retreats, Cultural tours',
-      lifetimeValue: 2100,
-      segment: 'NEW',
-      panNumber: 'FGHIJ6789F',
-      addressLine: '654 Cedar Rd, Chicago, IL 60601',
-      clientCurrency: 'USD',
-      createdAt: '2024-01-05',
-      totalBookings: 1,
-      lastBookingDate: '2024-02-20'
-    }
-  ])
+  const [customers, setCustomers] = useState<Customer[]>([])
 
   // Edit form state
   const [editFormData, setEditFormData] = useState({
@@ -144,10 +69,10 @@ const CustomersPage: React.FC = () => {
   })
 
   const segments = [
-    { value: 'VIP', label: 'VIP', color: 'purple' },
-    { value: 'HIGH_VALUE', label: 'High Value', color: 'blue' },
-    { value: 'REGULAR', label: 'Regular', color: 'green' },
-    { value: 'NEW', label: 'New', color: 'yellow' }
+    { value: 'PLATINUM', label: 'Platinum', color: 'purple' },
+    { value: 'GOLD', label: 'Gold', color: 'yellow' },
+    { value: 'SILVER', label: 'Silver', color: 'gray' },
+    { value: 'NEW', label: 'New', color: 'blue' }
   ]
 
   const currencies = [
@@ -163,10 +88,13 @@ const CustomersPage: React.FC = () => {
   const getSegmentClass = (segment: string) => {
     switch (segment) {
       case 'VIP':
+      case 'PLATINUM':
         return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-900'
       case 'HIGH_VALUE':
+      case 'GOLD':
         return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900'
       case 'REGULAR':
+      case 'SILVER':
         return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
       case 'NEW':
         return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-900'
@@ -175,15 +103,23 @@ const CustomersPage: React.FC = () => {
     }
   }
 
+  const getSegmentLabel = (segment?: string) => {
+    const match = segments.find(s => s.value === segment)
+    if (match) return match.label
+    if (!segment) return 'New'
+    return segment.replace('_', ' ')
+  }
+
   // Filter and search customers
   const filteredCustomers = useMemo(() => {
     return customers
       .filter(customer => {
+        const searchValue = search.toLowerCase()
         const searchMatch =
-          customer.fullName.toLowerCase().includes(search.toLowerCase()) ||
-          customer.email.toLowerCase().includes(search.toLowerCase()) ||
-          customer.phone.includes(search) ||
-          customer.panNumber.toLowerCase().includes(search.toLowerCase())
+          (customer.fullName ?? '').toLowerCase().includes(searchValue) ||
+          (customer.email ?? '').toLowerCase().includes(searchValue) ||
+          (customer.phone ?? '').includes(search) ||
+          (customer.panNumber ?? '').toLowerCase().includes(searchValue)
 
         const segmentMatch =
           segmentFilter === 'all' || customer.segment === segmentFilter
@@ -199,8 +135,8 @@ const CustomersPage: React.FC = () => {
           case 'ltv':
             comparison = a.lifetimeValue - b.lifetimeValue
             break
-          case 'bookings':
-            comparison = a.totalBookings - b.totalBookings
+        case 'bookings':
+          comparison = (a.totalBookings ?? 0) - (b.totalBookings ?? 0)
             break
           default:
             comparison = 0
@@ -210,24 +146,54 @@ const CustomersPage: React.FC = () => {
   }, [customers, search, segmentFilter, sortBy, sortOrder])
 
   // Pagination
-  const totalPages = Math.ceil(filteredCustomers.length / pageSize)
+  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / pageSize))
   const paginatedCustomers = filteredCustomers.slice(
     (page - 1) * pageSize,
     page * pageSize
   )
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount?: number) => {
+    const safeAmount = Number.isFinite(amount) ? (amount as number) : 0
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount)
+    }).format(safeAmount)
   }
 
-  const handleDeleteCustomer = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this customer?')) {
-      setCustomers(prev => prev.filter(c => c.id !== id))
+  const loadCustomers = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await customersApi.list()
+      const rows = (response as { data?: Customer[] }).data ?? (response as Customer[]) ?? []
+      setCustomers(rows)
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Unable to load customers'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadCustomers()
+  }, [loadCustomers])
+
+  const handleDeleteCustomer = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this customer?')) return
+
+    setLoading(true)
+    setError('')
+    try {
+      await customersApi.delete(id)
+      await loadCustomers()
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to delete customer'
+      setError(message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -235,13 +201,13 @@ const CustomersPage: React.FC = () => {
     setEditingCustomer(customer)
     setEditFormData({
       fullName: customer.fullName,
-      phone: customer.phone,
-      email: customer.email,
-      preferences: customer.preferences,
-      panNumber: customer.panNumber,
-      addressLine: customer.addressLine,
-      clientCurrency: customer.clientCurrency,
-      segment: customer.segment
+      phone: customer.phone ?? '',
+      email: customer.email ?? '',
+      preferences: customer.preferences ?? '',
+      panNumber: customer.panNumber ?? '',
+      addressLine: customer.addressLine ?? '',
+      clientCurrency: customer.clientCurrency ?? 'USD',
+      segment: (customer.segment ?? 'NEW') as Customer['segment']
     })
     setEditFormErrors({
       fullName: '',
@@ -314,18 +280,20 @@ const CustomersPage: React.FC = () => {
     setError('')
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      setCustomers(prev =>
-        prev.map(customer =>
-          customer.id === editingCustomer.id
-            ? { ...customer, ...editFormData }
-            : customer
-        )
-      )
+      await customersApi.update(editingCustomer.id, {
+        fullName: editFormData.fullName,
+        phone: editFormData.phone || undefined,
+        email: editFormData.email || undefined,
+        preferences: editFormData.preferences || undefined,
+        panNumber: editFormData.panNumber || undefined,
+        addressLine: editFormData.addressLine || undefined,
+        clientCurrency: editFormData.clientCurrency || undefined,
+        segment: editFormData.segment
+      })
 
       setShowEditModal(false)
       setEditingCustomer(null)
+      await loadCustomers()
     } catch (error: any) {
       setError(error.message || 'Failed to update customer')
     } finally {
@@ -333,9 +301,25 @@ const CustomersPage: React.FC = () => {
     }
   }
 
-  const handleExport = () => {
-    // Implement CSV export
-    console.log('Exporting customers...')
+  const handleExport = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const blob = await customersApi.export()
+      const url = window.URL.createObjectURL(blob as Blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Export failed'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -379,15 +363,15 @@ const CustomersPage: React.FC = () => {
 
           <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5'>
             <p className='text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1'>
-              VIP Customers
+              Platinum Customers
             </p>
             <p className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-              {customers.filter(c => c.segment === 'VIP').length}
+              {customers.filter(c => c.segment === 'PLATINUM').length}
             </p>
             <p className='text-xs text-purple-600 dark:text-purple-400 mt-1'>
               {(
-                (customers.filter(c => c.segment === 'VIP').length /
-                  customers.length) *
+                (customers.filter(c => c.segment === 'PLATINUM').length /
+                  (customers.length || 1)) *
                 100
               ).toFixed(1)}
               % of total
@@ -400,8 +384,10 @@ const CustomersPage: React.FC = () => {
             </p>
             <p className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
               {formatCurrency(
-                customers.reduce((acc, c) => acc + c.lifetimeValue, 0) /
-                  customers.length
+                customers.length
+                  ? customers.reduce((acc, c) => acc + (c.lifetimeValue ?? 0), 0) /
+                      customers.length
+                  : 0
               )}
             </p>
             <p className='text-xs text-blue-600 dark:text-blue-400 mt-1'>
@@ -414,7 +400,7 @@ const CustomersPage: React.FC = () => {
               Total Bookings
             </p>
             <p className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-              {customers.reduce((acc, c) => acc + c.totalBookings, 0)}
+              {customers.reduce((acc, c) => acc + (c.totalBookings ?? 0), 0)}
             </p>
             <p className='text-xs text-green-600 dark:text-green-400 mt-1'>
               Across all customers
@@ -610,7 +596,7 @@ const CustomersPage: React.FC = () => {
                         )}`}
                       >
                         <MdOutlineSegment className='mr-1' />
-                        {customer.segment.replace('_', ' ')}
+                        {getSegmentLabel(customer.segment)}
                       </span>
                     </td>
                     <td className='hidden md:table-cell px-3 sm:px-6 py-4'>
@@ -620,12 +606,12 @@ const CustomersPage: React.FC = () => {
                     </td>
                     <td className='px-3 sm:px-6 py-4'>
                       <p className='text-sm text-gray-900 dark:text-gray-100'>
-                        {customer.totalBookings}
+                        {customer.totalBookings ?? 0}
                       </p>
                     </td>
                     <td className='hidden lg:table-cell px-3 sm:px-6 py-4'>
                       <p className='text-sm text-gray-700 dark:text-gray-300'>
-                        {customer.lastBookingDate || 'N/A'}
+                        {customer.lastBookingDate ?? 'N/A'}
                       </p>
                     </td>
                     <td className='px-3 sm:px-6 py-4'>
@@ -680,13 +666,13 @@ const CustomersPage: React.FC = () => {
                     </p>
                   </div>
                   <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getSegmentClass(
-                      customer.segment
-                    )}`}
-                  >
-                    <MdOutlineSegment className='mr-1' />
-                    {customer.segment.replace('_', ' ')}
-                  </span>
+                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getSegmentClass(
+                    customer.segment
+                  )}`}
+                >
+                  <MdOutlineSegment className='mr-1' />
+                  {getSegmentLabel(customer.segment)}
+                </span>
                 </div>
 
                 {/* Contact */}
@@ -712,7 +698,7 @@ const CustomersPage: React.FC = () => {
                   <div>
                     <p className='text-xs text-gray-500'>Bookings</p>
                     <p className='text-sm text-gray-900 dark:text-gray-100'>
-                      {customer.totalBookings}
+                      {customer.totalBookings ?? 0}
                     </p>
                   </div>
                 </div>
@@ -721,7 +707,7 @@ const CustomersPage: React.FC = () => {
                 <div>
                   <p className='text-xs text-gray-500'>Last Booking</p>
                   <p className='text-sm text-gray-700 dark:text-gray-300'>
-                    {customer.lastBookingDate || 'N/A'}
+                    {customer.lastBookingDate ?? 'N/A'}
                   </p>
                 </div>
 

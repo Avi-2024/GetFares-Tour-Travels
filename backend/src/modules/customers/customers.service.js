@@ -64,7 +64,8 @@ function createCustomersService({ repository, logger, events }) {
     const mappedFilters = mapListFilters(filters);
     logger.debug({ module: 'customers', requestId: context.requestId, filters: mappedFilters }, 'Listing records');
     const rows = await repository.findAll(mappedFilters);
-    return rows.map(toCustomer);
+    const activeRows = rows.filter((row) => !(row.is_deleted ?? row.isDeleted));
+    return activeRows.map(toCustomer);
   }
 
   async function getById(id, context = {}) {
@@ -92,11 +93,19 @@ function createCustomersService({ repository, logger, events }) {
     return toCustomer(updated);
   }
 
+  async function remove(id, context = {}) {
+    await getById(id, context);
+    const updated = await repository.update(id, { is_deleted: true });
+    events.emitUpdated(updated);
+    return toCustomer(updated);
+  }
+
   return Object.freeze({
     list,
     getById,
     create,
     update,
+    remove,
   });
 }
 
