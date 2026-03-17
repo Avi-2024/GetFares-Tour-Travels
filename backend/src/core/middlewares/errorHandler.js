@@ -2,6 +2,7 @@ const { AppError } = require('../errors');
 
 function errorHandler(err, req, res, next) {
   const logger = req.log || console;
+  const isProduction = process.env.NODE_ENV === 'production';
 
   if (err instanceof AppError) {
     logger.warn(
@@ -33,9 +34,10 @@ function errorHandler(err, req, res, next) {
 
   return res.status(500).json({
     error: {
-      message: 'Internal server error',
+      message: isProduction ? 'Internal server error' : err.message || 'Internal server error',
       code: 'INTERNAL_SERVER_ERROR',
       requestId: req.context?.requestId,
+      details: isProduction ? undefined : err.stack,
     },
   });
 }

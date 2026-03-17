@@ -308,9 +308,9 @@ function createDatabaseConnection({ config, logger }) {
       idleTimeoutMillis: isServerless ? 20000 : 30000,
       // Shorter timeout for connection establishment in serverless
       connectionTimeoutMillis: isServerless ? 3000 : 5000,
-      // Ensure we don't keep stale connections
-      statement_timeout: '30s',
-      query_timeout: '30s',
+      // Ensure we don't keep stale connections (milliseconds)
+      statement_timeout: 30000,
+      query_timeout: 30000,
     };
 
     // AWS RDS requires SSL connection
