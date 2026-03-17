@@ -106,11 +106,14 @@ async function seedDatabase() {
   }
 
   async function upsertByUnique(tableName, columnName, payload) {
-    const inserted = await insertRow(tableName, payload, { conflictTarget: columnName });
-    if (inserted) {
-      return inserted;
+    const uniqueValue = payload[columnName];
+    const existing = await getRowByUnique(tableName, columnName, uniqueValue);
+    if (existing) {
+      return existing;
     }
-    return getRowByUnique(tableName, columnName, payload[columnName]);
+
+    await insertRow(tableName, payload, { onConflict: 'DO NOTHING' });
+    return getRowByUnique(tableName, columnName, uniqueValue);
   }
 
   try {
