@@ -26,6 +26,13 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    const token = localStorage.getItem("auth_token");
+    if (!token) {
+      setNotifications(fallbackNotifications);
+      setUnreadCount(fallbackNotifications.filter((item) => !item.isRead).length);
+      setLoading(false);
+      return;
+    }
     try {
       const [list, unread] = await Promise.all([notificationsApi.list(), notificationsApi.unreadCount()]);
       setNotifications(list);
