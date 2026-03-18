@@ -1,6 +1,11 @@
-const { AppError } = require('../../core/errors');
+const { AppError } = require("../../core/errors");
 
-const LEAVE_STATUSES = new Set(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
+const LEAVE_STATUSES = new Set([
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+]);
 
 function toDateOnly(value) {
   const date = new Date(value);
@@ -50,14 +55,17 @@ function createEmployeesService({ repository, logger, events }) {
   async function ensureUser(userId) {
     const user = await repository.findUserById(userId);
     if (!user) {
-      throw new AppError(404, 'User not found', 'EMPLOYEE_USER_NOT_FOUND');
+      throw new AppError(404, "User not found", "EMPLOYEE_USER_NOT_FOUND");
     }
     return user;
   }
 
   return Object.freeze({
     async directory(filters = {}, context = {}) {
-      logger.debug({ module: 'employees', requestId: context.requestId, filters }, 'Employee directory');
+      logger.debug(
+        { module: "employees", requestId: context.requestId, filters },
+        "Employee directory",
+      );
       const rows = await repository.findDirectory({
         is_active: filters.isActive,
         is_on_leave: filters.isOnLeave,
@@ -71,7 +79,11 @@ function createEmployeesService({ repository, logger, events }) {
     async checkIn(payload, context = {}) {
       const userId = payload.userId || context.user?.id;
       if (!userId) {
-        throw new AppError(400, 'userId is required', 'EMPLOYEE_USER_ID_REQUIRED');
+        throw new AppError(
+          400,
+          "userId is required",
+          "EMPLOYEE_USER_ID_REQUIRED",
+        );
       }
       await ensureUser(userId);
 
@@ -82,7 +94,11 @@ function createEmployeesService({ repository, logger, events }) {
       });
       const open = existing.find((item) => !item.check_out);
       if (open) {
-        throw new AppError(409, 'Already checked in for this date', 'EMPLOYEE_ALREADY_CHECKED_IN');
+        throw new AppError(
+          409,
+          "Already checked in for this date",
+          "EMPLOYEE_ALREADY_CHECKED_IN",
+        );
       }
 
       const created = await repository.createAttendance({
@@ -99,7 +115,11 @@ function createEmployeesService({ repository, logger, events }) {
     async checkOut(payload, context = {}) {
       const userId = payload.userId || context.user?.id;
       if (!userId) {
-        throw new AppError(400, 'userId is required', 'EMPLOYEE_USER_ID_REQUIRED');
+        throw new AppError(
+          400,
+          "userId is required",
+          "EMPLOYEE_USER_ID_REQUIRED",
+        );
       }
       await ensureUser(userId);
 
@@ -110,7 +130,11 @@ function createEmployeesService({ repository, logger, events }) {
       });
       const open = existing.find((item) => !item.check_out);
       if (!open) {
-        throw new AppError(404, 'No active check-in found for this date', 'EMPLOYEE_CHECKIN_NOT_FOUND');
+        throw new AppError(
+          404,
+          "No active check-in found for this date",
+          "EMPLOYEE_CHECKIN_NOT_FOUND",
+        );
       }
 
       const updated = await repository.updateAttendance(open.id, {
@@ -123,7 +147,10 @@ function createEmployeesService({ repository, logger, events }) {
     },
 
     async listAttendance(filters = {}, context = {}) {
-      logger.debug({ module: 'employees', requestId: context.requestId, filters }, 'List attendance');
+      logger.debug(
+        { module: "employees", requestId: context.requestId, filters },
+        "List attendance",
+      );
       const rows = await repository.findAttendance({
         user_id: filters.userId,
         date: filters.date,
@@ -134,7 +161,10 @@ function createEmployeesService({ repository, logger, events }) {
     },
 
     async listLeaves(filters = {}, context = {}) {
-      logger.debug({ module: 'employees', requestId: context.requestId, filters }, 'List leaves');
+      logger.debug(
+        { module: "employees", requestId: context.requestId, filters },
+        "List leaves",
+      );
       const rows = await repository.findLeaves({
         user_id: filters.userId,
         status: filters.status,
@@ -147,12 +177,20 @@ function createEmployeesService({ repository, logger, events }) {
     async createLeave(payload, context = {}) {
       const userId = payload.userId || context.user?.id;
       if (!userId) {
-        throw new AppError(400, 'userId is required', 'EMPLOYEE_USER_ID_REQUIRED');
+        throw new AppError(
+          400,
+          "userId is required",
+          "EMPLOYEE_USER_ID_REQUIRED",
+        );
       }
       await ensureUser(userId);
 
       if (payload.endDate < payload.startDate) {
-        throw new AppError(400, 'endDate must be >= startDate', 'EMPLOYEE_INVALID_LEAVE_DATES');
+        throw new AppError(
+          400,
+          "endDate must be >= startDate",
+          "EMPLOYEE_INVALID_LEAVE_DATES",
+        );
       }
 
       const created = await repository.createLeave({
@@ -160,7 +198,7 @@ function createEmployeesService({ repository, logger, events }) {
         start_date: payload.startDate,
         end_date: payload.endDate,
         reason: payload.reason || null,
-        status: 'PENDING',
+        status: "PENDING",
       });
 
       const leave = toLeave(created);
@@ -171,12 +209,22 @@ function createEmployeesService({ repository, logger, events }) {
     async updateLeaveStatus(id, payload, context = {}) {
       const existing = await repository.findLeaveById(id);
       if (!existing) {
-        throw new AppError(404, 'Leave request not found', 'EMPLOYEE_LEAVE_NOT_FOUND');
+        throw new AppError(
+          404,
+          "Leave request not found",
+          "EMPLOYEE_LEAVE_NOT_FOUND",
+        );
       }
 
-      const status = String(payload.status || '').trim().toUpperCase();
+      const status = String(payload.status || "")
+        .trim()
+        .toUpperCase();
       if (!LEAVE_STATUSES.has(status)) {
-        throw new AppError(400, 'Invalid leave status', 'EMPLOYEE_INVALID_LEAVE_STATUS');
+        throw new AppError(
+          400,
+          "Invalid leave status",
+          "EMPLOYEE_INVALID_LEAVE_STATUS",
+        );
       }
 
       const updated = await repository.updateLeave(id, {
@@ -186,7 +234,7 @@ function createEmployeesService({ repository, logger, events }) {
       const user = await repository.findUserById(existing.user_id);
       if (user) {
         await repository.updateUser(existing.user_id, {
-          is_on_leave: status === 'APPROVED',
+          is_on_leave: status === "APPROVED",
         });
       }
 

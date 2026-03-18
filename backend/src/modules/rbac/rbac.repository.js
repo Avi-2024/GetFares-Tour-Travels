@@ -11,14 +11,14 @@ function createRbacRepository({ db, logger, schema }) {
         try {
           roleRecord = await db.insert(schema.rolesTable, { name: role });
         } catch (error) {
-          if (error?.code !== '23505') {
+          if (error?.code !== "23505") {
             throw error;
           }
           roleRecord = await db.findOne(schema.rolesTable, { name: role });
         }
       }
 
-      logger.debug({ userId, role }, 'Assigning role to user');
+      logger.debug({ userId, role }, "Assigning role to user");
       const updated = await db.update(schema.usersTable, userId, {
         role_id: roleRecord.id,
       });
@@ -27,7 +27,8 @@ function createRbacRepository({ db, logger, schema }) {
         userId,
         role,
         roleId: roleRecord.id,
-        assignedAt: updated?.updated_at || updated?.updatedAt || new Date().toISOString(),
+        assignedAt:
+          updated?.updated_at || updated?.updatedAt || new Date().toISOString(),
       };
     },
 

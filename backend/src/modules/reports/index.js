@@ -1,10 +1,10 @@
-const { createReportsController } = require('./reports.controller');
-const { createReportsService } = require('./reports.service');
-const { createReportsRepository } = require('./reports.repository');
-const { createReportsRoutes } = require('./reports.routes');
-const { ReportsValidation } = require('./reports.validation');
-const { ReportsSchema } = require('./reports.schema');
-const { createReportsEvents } = require('./reports.events');
+const { createReportsController } = require("./reports.controller");
+const { createReportsService } = require("./reports.service");
+const { createReportsRepository } = require("./reports.repository");
+const { createReportsRoutes } = require("./reports.routes");
+const { ReportsValidation } = require("./reports.validation");
+const { ReportsSchema } = require("./reports.schema");
+const { createReportsEvents } = require("./reports.events");
 
 function createReportsModule({ dependencies }) {
   const repository = createReportsRepository({
@@ -31,7 +31,7 @@ function createReportsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'reports',
+    name: "reports",
     router,
     controller,
     service,

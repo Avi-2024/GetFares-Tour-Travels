@@ -1,11 +1,11 @@
-const { createRbacController } = require('./rbac.controller');
-const { createRbacService } = require('./rbac.service');
-const { createRbacRepository } = require('./rbac.repository');
-const { createRbacRoutes } = require('./rbac.routes');
-const { RbacValidation } = require('./rbac.validation');
-const { RbacSchema } = require('./rbac.schema');
-const { createRbacEvents } = require('./rbac.events');
-const { createRbacMiddleware } = require('./rbac.middleware');
+const { createRbacController } = require("./rbac.controller");
+const { createRbacService } = require("./rbac.service");
+const { createRbacRepository } = require("./rbac.repository");
+const { createRbacRoutes } = require("./rbac.routes");
+const { RbacValidation } = require("./rbac.validation");
+const { RbacSchema } = require("./rbac.schema");
+const { createRbacEvents } = require("./rbac.events");
+const { createRbacMiddleware } = require("./rbac.middleware");
 
 function createRbacModule({ dependencies }) {
   const repository = createRbacRepository({
@@ -37,7 +37,7 @@ function createRbacModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'rbac',
+    name: "rbac",
     router,
     controller,
     service,

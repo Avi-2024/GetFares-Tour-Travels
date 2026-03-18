@@ -17,7 +17,9 @@ function createNotificationsRepository({ db, logger, schema }) {
       recipientRole: row.recipient_role ?? row.recipientRole ?? null,
       recipientTeamId: row.recipient_team_id ?? row.recipientTeamId ?? null,
       status: row.status,
-      deliveryAttempts: Number(row.delivery_attempts ?? row.deliveryAttempts ?? 0),
+      deliveryAttempts: Number(
+        row.delivery_attempts ?? row.deliveryAttempts ?? 0,
+      ),
       deliveredAt: row.delivered_at ?? row.deliveredAt ?? null,
       readAt: row.read_at ?? row.readAt ?? null,
       lastError: row.last_error ?? row.lastError ?? null,
@@ -35,9 +37,11 @@ function createNotificationsRepository({ db, logger, schema }) {
     const role = identity.role ? String(identity.role) : null;
     const teamId = identity.teamId ? String(identity.teamId) : null;
 
-    const recipientUserId = row.recipient_user_id || row.recipientUserId || null;
+    const recipientUserId =
+      row.recipient_user_id || row.recipientUserId || null;
     const recipientRole = row.recipient_role || row.recipientRole || null;
-    const recipientTeamId = row.recipient_team_id || row.recipientTeamId || null;
+    const recipientTeamId =
+      row.recipient_team_id || row.recipientTeamId || null;
 
     if (!recipientUserId && !recipientRole && !recipientTeamId) {
       return true;
@@ -127,13 +131,18 @@ function createNotificationsRepository({ db, logger, schema }) {
       RETURNING id
     `;
 
-    const params = [identity.userId || null, identity.role || null, identity.teamId || null, schema.statuses.READ];
+    const params = [
+      identity.userId || null,
+      identity.role || null,
+      identity.teamId || null,
+      schema.statuses.READ,
+    ];
     const result = await db.query(sql, params);
     return result.rows.length;
   }
 
   function canUseRawQuery() {
-    return typeof db.query === 'function' && db.pool;
+    return typeof db.query === "function" && db.pool;
   }
 
   return Object.freeze({
@@ -143,12 +152,12 @@ function createNotificationsRepository({ db, logger, schema }) {
     async create(payload) {
       logger.debug(
         {
-          module: 'notifications',
+          module: "notifications",
           eventName: payload.eventName,
           recipientUserId: payload.recipientUserId || null,
           recipientRole: payload.recipientRole || null,
         },
-        'Persisting notification event',
+        "Persisting notification event",
       );
 
       const created = await db.insert(schema.tableName, {
@@ -187,12 +196,18 @@ function createNotificationsRepository({ db, logger, schema }) {
         .filter((row) => isRecipientMatch(row, identity))
         .filter((row) => (query.status ? row.status === query.status : true))
         .sort((left, right) => {
-          const leftDate = new Date(left.created_at || left.createdAt || 0).getTime();
-          const rightDate = new Date(right.created_at || right.createdAt || 0).getTime();
+          const leftDate = new Date(
+            left.created_at || left.createdAt || 0,
+          ).getTime();
+          const rightDate = new Date(
+            right.created_at || right.createdAt || 0,
+          ).getTime();
           return rightDate - leftDate;
         });
 
-      return filtered.slice(query.offset, query.offset + query.limit).map(toNotification);
+      return filtered
+        .slice(query.offset, query.offset + query.limit)
+        .map(toNotification);
     },
 
     async countForUser(identity, query = {}) {
@@ -201,7 +216,9 @@ function createNotificationsRepository({ db, logger, schema }) {
       }
 
       const rows = await db.findMany(schema.tableName, {});
-      return rows.filter((row) => isRecipientMatch(row, identity)).filter((row) => (query.status ? row.status === query.status : true))
+      return rows
+        .filter((row) => isRecipientMatch(row, identity))
+        .filter((row) => (query.status ? row.status === query.status : true))
         .length;
     },
 
@@ -218,12 +235,19 @@ function createNotificationsRepository({ db, logger, schema }) {
             OR (recipient_user_id IS NULL AND recipient_role IS NULL AND recipient_team_id IS NULL)
           )
         `;
-        const result = await db.query(sql, [identity.userId || null, identity.role || null, identity.teamId || null, schema.statuses.READ]);
+        const result = await db.query(sql, [
+          identity.userId || null,
+          identity.role || null,
+          identity.teamId || null,
+          schema.statuses.READ,
+        ]);
         return Number(result.rows[0]?.total || 0);
       }
 
       const rows = await db.findMany(schema.tableName, {});
-      return rows.filter((row) => isRecipientMatch(row, identity)).filter((row) => row.status !== schema.statuses.READ).length;
+      return rows
+        .filter((row) => isRecipientMatch(row, identity))
+        .filter((row) => row.status !== schema.statuses.READ).length;
     },
 
     async markDeliveryAttempt(id, deliveryResult) {
@@ -234,7 +258,9 @@ function createNotificationsRepository({ db, logger, schema }) {
 
       const isDeferredDelivery =
         !deliveryResult.delivered &&
-        ['NO_ACTIVE_SOCKET', 'SOCKET_SERVER_NOT_ATTACHED'].includes(deliveryResult.error);
+        ["NO_ACTIVE_SOCKET", "SOCKET_SERVER_NOT_ATTACHED"].includes(
+          deliveryResult.error,
+        );
 
       const nextAttempts = isDeferredDelivery
         ? Number(existing.delivery_attempts || 0)
@@ -251,8 +277,14 @@ function createNotificationsRepository({ db, logger, schema }) {
       const updated = await db.update(schema.tableName, id, {
         status: existing.read_at ? schema.statuses.READ : nextStatus,
         delivery_attempts: nextAttempts,
-        delivered_at: deliveryResult.delivered ? nowIso : existing.delivered_at || null,
-        last_error: isDeferredDelivery ? null : deliveryResult.delivered ? null : deliveryResult.error || 'DELIVERY_FAILED',
+        delivered_at: deliveryResult.delivered
+          ? nowIso
+          : existing.delivered_at || null,
+        last_error: isDeferredDelivery
+          ? null
+          : deliveryResult.delivered
+            ? null
+            : deliveryResult.error || "DELIVERY_FAILED",
         updated_at: nowIso,
       });
 

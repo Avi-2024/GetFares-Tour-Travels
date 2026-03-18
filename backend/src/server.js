@@ -1,6 +1,6 @@
-const http = require('node:http');
-const { createApp } = require('./app');
-const { createSocketServer } = require('./core/realtime');
+const http = require("node:http");
+const { createApp } = require("./app");
+const { createSocketServer } = require("./core/realtime");
 
 const { app, container, runtime } = createApp();
 const httpServer = http.createServer(app);
@@ -16,7 +16,11 @@ container.eventPublisher.attachSocketServer(socketServer);
 
 httpServer.listen(container.config.app.port, () => {
   container.logger.info(
-    { port: container.config.app.port, env: container.config.env, version: container.config.app.version },
+    {
+      port: container.config.app.port,
+      env: container.config.env,
+      version: container.config.app.version,
+    },
     `${container.config.app.name} is listening`,
   );
 });
@@ -24,11 +28,11 @@ httpServer.listen(container.config.app.port, () => {
 let shuttingDown = false;
 
 async function closeDependencies() {
-  if (typeof socketServer?.close === 'function') {
+  if (typeof socketServer?.close === "function") {
     socketServer.close();
   }
 
-  if (typeof container.db?.close === 'function') {
+  if (typeof container.db?.close === "function") {
     await container.db.close();
   }
 }
@@ -43,11 +47,13 @@ function initiateShutdown(signal) {
 
   container.logger.warn(
     { signal, shutdownTimeoutMs: container.config.app.shutdownTimeoutMs },
-    'Graceful shutdown started',
+    "Graceful shutdown started",
   );
 
   const forceShutdownTimer = setTimeout(() => {
-    container.logger.error('Graceful shutdown timed out. Forcing process exit.');
+    container.logger.error(
+      "Graceful shutdown timed out. Forcing process exit.",
+    );
     process.exit(1);
   }, container.config.app.shutdownTimeoutMs);
 
@@ -55,14 +61,20 @@ function initiateShutdown(signal) {
 
   httpServer.close(async (serverCloseError) => {
     if (serverCloseError) {
-      container.logger.error({ err: serverCloseError }, 'HTTP server close failed');
+      container.logger.error(
+        { err: serverCloseError },
+        "HTTP server close failed",
+      );
     }
 
     try {
       await closeDependencies();
-      container.logger.info('Graceful shutdown completed');
+      container.logger.info("Graceful shutdown completed");
     } catch (dependencyError) {
-      container.logger.error({ err: dependencyError }, 'Error while closing dependencies');
+      container.logger.error(
+        { err: dependencyError },
+        "Error while closing dependencies",
+      );
     } finally {
       clearTimeout(forceShutdownTimer);
       process.exit(serverCloseError ? 1 : 0);
@@ -70,5 +82,5 @@ function initiateShutdown(signal) {
   });
 }
 
-process.on('SIGTERM', () => initiateShutdown('SIGTERM'));
-process.on('SIGINT', () => initiateShutdown('SIGINT'));
+process.on("SIGTERM", () => initiateShutdown("SIGTERM"));
+process.on("SIGINT", () => initiateShutdown("SIGINT"));

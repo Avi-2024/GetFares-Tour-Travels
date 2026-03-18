@@ -1,21 +1,25 @@
 # Disaster Recovery Runbook
 
 ## 1. Scope
+
 Runbook for outage recovery of Travel CRM backend and PostgreSQL data.
 
 ## 2. Targets
-| Metric | Target |
-| --- | --- |
-| RTO | 60 minutes |
-| RPO | 15 minutes |
+
+| Metric | Target     |
+| ------ | ---------- |
+| RTO    | 60 minutes |
+| RPO    | 15 minutes |
 
 ## 3. Required Inputs
+
 1. Latest validated backup artifact (`.dump` or `.sql`).
 2. Database credentials for restore target.
 3. Infrastructure access for app redeploy.
 4. Incident commander and communication channel.
 
 ## 4. Recovery Procedure
+
 1. Announce incident and freeze new deployments.
 2. Verify platform status and confirm outage type.
 3. Provision clean recovery DB instance.
@@ -39,16 +43,18 @@ Runbook for outage recovery of Travel CRM backend and PostgreSQL data.
 10. Declare recovery complete and share incident summary.
 
 ## 5. Recovery Validation Checklist
-| Check | Status |
-| --- | --- |
-| DB restored without errors | ☐ |
-| App readiness returns 200 | ☐ |
-| Metrics endpoint reachable | ☐ |
-| Auth login successful | ☐ |
-| Lead capture and quotation path working | ☐ |
-| Payment and refund path working | ☐ |
+
+| Check                                   | Status |
+| --------------------------------------- | ------ |
+| DB restored without errors              | ☐      |
+| App readiness returns 200               | ☐      |
+| Metrics endpoint reachable              | ☐      |
+| Auth login successful                   | ☐      |
+| Lead capture and quotation path working | ☐      |
+| Payment and refund path working         | ☐      |
 
 ## 6. Post-Incident Actions
+
 1. Record actual RTO and RPO achieved.
 2. Document root cause and prevention actions.
 3. Rotate any compromised credentials.

@@ -1,10 +1,10 @@
-const { createSuppliersController } = require('./suppliers.controller');
-const { createSuppliersService } = require('./suppliers.service');
-const { createSuppliersRepository } = require('./suppliers.repository');
-const { createSuppliersRoutes } = require('./suppliers.routes');
-const { SuppliersValidation } = require('./suppliers.validation');
-const { SuppliersSchema } = require('./suppliers.schema');
-const { createSuppliersEvents } = require('./suppliers.events');
+const { createSuppliersController } = require("./suppliers.controller");
+const { createSuppliersService } = require("./suppliers.service");
+const { createSuppliersRepository } = require("./suppliers.repository");
+const { createSuppliersRoutes } = require("./suppliers.routes");
+const { SuppliersValidation } = require("./suppliers.validation");
+const { SuppliersSchema } = require("./suppliers.schema");
+const { createSuppliersEvents } = require("./suppliers.events");
 
 function createSuppliersModule({ dependencies }) {
   const repository = createSuppliersRepository({
@@ -35,7 +35,7 @@ function createSuppliersModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'suppliers',
+    name: "suppliers",
     router,
     controller,
     service,
@@ -45,4 +45,3 @@ function createSuppliersModule({ dependencies }) {
 }
 
 module.exports = { createSuppliersModule };
-

@@ -1,6 +1,7 @@
 # Postman and Smoke Testing Guide
 
 ## 1. Prerequisites
+
 From project root (`travel-crm`):
 
 ```powershell
@@ -13,6 +14,7 @@ npm start
 Default base URL: `http://localhost:3000`
 
 ## 2. Automated Smoke Tests
+
 Run these scripts for quick backend verification:
 
 ```powershell
@@ -22,12 +24,15 @@ npm run test:sprint3
 ```
 
 Current observed status (2026-03-09):
+
 - Sprint 1: pass
 - Sprint 2: pass
 - Sprint 3: pass
 
 ## 3. Postman Assets
+
 Import available files:
+
 - `postman/Travel-CRM-Sprint1.postman_collection.json`
 - `postman/Travel-CRM-local.postman_environment.json`
 
@@ -36,6 +41,7 @@ Select environment: **Travel CRM Local**
 Note: collection currently covers Sprint 1 baseline. Sprint 2/3 endpoints should be tested manually until collection is extended.
 
 ## 4. Manual Test Order (Recommended)
+
 1. `GET /health`
 2. `POST /api/auth/register`
 3. `POST /api/auth/login`
@@ -56,6 +62,7 @@ Note: collection currently covers Sprint 1 baseline. Sprint 2/3 endpoints should
 18. `GET /api/notifications`
 
 ## 5. Expected Status Codes
+
 - `GET /health` -> `200`
 - `POST /api/auth/register` -> `201`
 - `POST /api/auth/login` -> `200`
@@ -72,6 +79,7 @@ Note: collection currently covers Sprint 1 baseline. Sprint 2/3 endpoints should
 - `POST /api/quotations/templates` -> `201`
 
 ## 6. Common Failures and Fix
+
 - `401 AUTH_TOKEN_REQUIRED`: login again, check `Authorization` bearer token.
 - `403 RBAC_FORBIDDEN`: role lacks required permission.
 - `409 LEAD_DUPLICATE`: expected when same contact is re-captured.
@@ -79,6 +87,7 @@ Note: collection currently covers Sprint 1 baseline. Sprint 2/3 endpoints should
 - `409 QUOTATION_MARGIN_APPROVAL_REQUIRED`: send/approve attempted before required margin approval.
 
 ## 7. Quick cURL Example
+
 ```bash
 curl -X POST http://localhost:3000/api/leads \
   -H "Authorization: Bearer <TOKEN>" \

@@ -1,10 +1,10 @@
-const { createCampaignsController } = require('./campaigns.controller');
-const { createCampaignsService } = require('./campaigns.service');
-const { createCampaignsRepository } = require('./campaigns.repository');
-const { createCampaignsRoutes } = require('./campaigns.routes');
-const { CampaignsValidation } = require('./campaigns.validation');
-const { CampaignsSchema } = require('./campaigns.schema');
-const { createCampaignsEvents } = require('./campaigns.events');
+const { createCampaignsController } = require("./campaigns.controller");
+const { createCampaignsService } = require("./campaigns.service");
+const { createCampaignsRepository } = require("./campaigns.repository");
+const { createCampaignsRoutes } = require("./campaigns.routes");
+const { CampaignsValidation } = require("./campaigns.validation");
+const { CampaignsSchema } = require("./campaigns.schema");
+const { createCampaignsEvents } = require("./campaigns.events");
 
 function createCampaignsModule({ dependencies }) {
   const repository = createCampaignsRepository({
@@ -35,7 +35,7 @@ function createCampaignsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'campaigns',
+    name: "campaigns",
     router,
     controller,
     service,

@@ -1,11 +1,11 @@
-const { createAuthController } = require('./auth.controller');
-const { createAuthService } = require('./auth.service');
-const { createAuthRepository } = require('./auth.repository');
-const { createAuthRoutes } = require('./auth.routes');
-const { AuthValidation } = require('./auth.validation');
-const { AuthSchema } = require('./auth.schema');
-const { createAuthEvents } = require('./auth.events');
-const { createAuthMiddleware } = require('./auth.middleware');
+const { createAuthController } = require("./auth.controller");
+const { createAuthService } = require("./auth.service");
+const { createAuthRepository } = require("./auth.repository");
+const { createAuthRoutes } = require("./auth.routes");
+const { AuthValidation } = require("./auth.validation");
+const { AuthSchema } = require("./auth.schema");
+const { createAuthEvents } = require("./auth.events");
+const { createAuthMiddleware } = require("./auth.middleware");
 
 function createAuthModule({ dependencies }) {
   const repository = createAuthRepository({
@@ -38,7 +38,7 @@ function createAuthModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'auth',
+    name: "auth",
     router,
     controller,
     service,

@@ -1,6 +1,11 @@
-const { z } = require('zod');
+const { z } = require("zod");
 
-const visaStatus = z.enum(['DOCUMENT_PENDING', 'SUBMITTED', 'APPROVED', 'REJECTED']);
+const visaStatus = z.enum([
+  "DOCUMENT_PENDING",
+  "SUBMITTED",
+  "APPROVED",
+  "REJECTED",
+]);
 
 const dateSchema = z.string().date();
 const uuidSchema = z.string().uuid();
@@ -37,7 +42,10 @@ const update = z.object({
       rejectionReason: z.string().trim().max(2000).optional(),
       visaValidUntil: dateSchema.optional(),
     })
-    .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update'),
+    .refine(
+      (value) => Object.keys(value).length > 0,
+      "At least one field is required for update",
+    ),
   params: z.object({ id: uuidSchema }),
   query: z.object({}).optional(),
 });
@@ -74,19 +82,19 @@ const transitionStatus = z.object({
       note: z.string().trim().max(2000).optional(),
     })
     .superRefine((value, ctx) => {
-      if (value.status === 'REJECTED' && !value.rejectionReason) {
+      if (value.status === "REJECTED" && !value.rejectionReason) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['rejectionReason'],
-          message: 'rejectionReason is required for REJECTED status',
+          path: ["rejectionReason"],
+          message: "rejectionReason is required for REJECTED status",
         });
       }
 
-      if (value.status === 'APPROVED' && !value.visaValidUntil) {
+      if (value.status === "APPROVED" && !value.visaValidUntil) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['visaValidUntil'],
-          message: 'visaValidUntil is required for APPROVED status',
+          path: ["visaValidUntil"],
+          message: "visaValidUntil is required for APPROVED status",
         });
       }
     }),
@@ -138,7 +146,10 @@ const updateChecklist = z.object({
       finalItineraryUploaded: z.boolean().optional(),
       travelReady: z.boolean().optional(),
     })
-    .refine((value) => Object.keys(value).length > 0, 'At least one checklist field is required'),
+    .refine(
+      (value) => Object.keys(value).length > 0,
+      "At least one checklist field is required",
+    ),
   params: z.object({ id: uuidSchema }),
   query: z.object({}).optional(),
 });

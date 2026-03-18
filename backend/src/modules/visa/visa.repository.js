@@ -3,7 +3,7 @@ function createVisaRepository({ db, logger, schema }) {
   const columnsCache = new Map();
 
   function canIntrospect() {
-    return typeof db.query === 'function' && Boolean(db.pool);
+    return typeof db.query === "function" && Boolean(db.pool);
   }
 
   function toBoolean(value, fallback = false) {
@@ -11,20 +11,20 @@ function createVisaRepository({ db, logger, schema }) {
       return fallback;
     }
 
-    if (typeof value === 'boolean') {
+    if (typeof value === "boolean") {
       return value;
     }
 
-    if (typeof value === 'number') {
+    if (typeof value === "number") {
       return value === 1;
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const normalized = value.trim().toLowerCase();
-      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+      if (normalized === "true" || normalized === "1" || normalized === "yes") {
         return true;
       }
-      if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+      if (normalized === "false" || normalized === "0" || normalized === "no") {
         return false;
       }
     }
@@ -103,7 +103,9 @@ function createVisaRepository({ db, logger, schema }) {
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    const entries = Object.entries(payload).filter(
+      ([, value]) => value !== undefined,
+    );
     if (!entries.length) {
       return {};
     }
@@ -131,7 +133,7 @@ function createVisaRepository({ db, logger, schema }) {
       fees: toNumber(row.fees, 0),
       appointmentDate: row.appointment_date ?? row.appointmentDate ?? null,
       submissionDate: row.submission_date ?? row.submissionDate ?? null,
-      status: row.status ?? 'DOCUMENT_PENDING',
+      status: row.status ?? "DOCUMENT_PENDING",
       rejectionReason: row.rejection_reason ?? row.rejectionReason ?? null,
       visaValidUntil: row.visa_valid_until ?? row.visaValidUntil ?? null,
       createdAt: toDate(row.created_at ?? row.createdAt),
@@ -162,14 +164,29 @@ function createVisaRepository({ db, logger, schema }) {
     return {
       id: row.id,
       bookingId: row.booking_id ?? row.bookingId ?? null,
-      passportVerified: toBoolean(row.passport_verified ?? row.passportVerified, false),
+      passportVerified: toBoolean(
+        row.passport_verified ?? row.passportVerified,
+        false,
+      ),
       visaVerified: toBoolean(row.visa_verified ?? row.visaVerified, false),
-      insuranceVerified: toBoolean(row.insurance_verified ?? row.insuranceVerified, false),
-      ticketVerified: toBoolean(row.ticket_verified ?? row.ticketVerified, false),
+      insuranceVerified: toBoolean(
+        row.insurance_verified ?? row.insuranceVerified,
+        false,
+      ),
+      ticketVerified: toBoolean(
+        row.ticket_verified ?? row.ticketVerified,
+        false,
+      ),
       hotelVerified: toBoolean(row.hotel_verified ?? row.hotelVerified, false),
-      transferVerified: toBoolean(row.transfer_verified ?? row.transferVerified, false),
+      transferVerified: toBoolean(
+        row.transfer_verified ?? row.transferVerified,
+        false,
+      ),
       tourVerified: toBoolean(row.tour_verified ?? row.tourVerified, false),
-      finalItineraryUploaded: toBoolean(row.final_itinerary_uploaded ?? row.finalItineraryUploaded, false),
+      finalItineraryUploaded: toBoolean(
+        row.final_itinerary_uploaded ?? row.finalItineraryUploaded,
+        false,
+      ),
       travelReady: toBoolean(row.travel_ready ?? row.travelReady, false),
       verifiedBy: row.verified_by ?? row.verifiedBy ?? null,
       verifiedAt: toDate(row.verified_at ?? row.verifiedAt),
@@ -218,14 +235,14 @@ function createVisaRepository({ db, logger, schema }) {
     },
 
     async create(payload) {
-      logger.debug({ module: 'visa', payload }, 'Creating visa case');
+      logger.debug({ module: "visa", payload }, "Creating visa case");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.insert(schema.tableName, sanitized);
       return toVisaCase(row);
     },
 
     async update(id, payload) {
-      logger.debug({ module: 'visa', id, payload }, 'Updating visa case');
+      logger.debug({ module: "visa", id, payload }, "Updating visa case");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.update(schema.tableName, id, sanitized);
       return toVisaCase(row);
@@ -238,7 +255,7 @@ function createVisaRepository({ db, logger, schema }) {
       }
       return {
         id: row.id,
-        status: row.status ?? 'PENDING',
+        status: row.status ?? "PENDING",
       };
     },
 
@@ -286,12 +303,16 @@ function createVisaRepository({ db, logger, schema }) {
     },
 
     async getChecklistByBookingId(bookingId) {
-      const row = await db.findOne(schema.checklistTable, { booking_id: bookingId });
+      const row = await db.findOne(schema.checklistTable, {
+        booking_id: bookingId,
+      });
       return toChecklist(row);
     },
 
     async upsertChecklist(bookingId, payload = {}) {
-      const existing = await db.findOne(schema.checklistTable, { booking_id: bookingId });
+      const existing = await db.findOne(schema.checklistTable, {
+        booking_id: bookingId,
+      });
 
       if (!existing) {
         const sanitized = await sanitizeForTable(schema.checklistTable, {
@@ -303,7 +324,11 @@ function createVisaRepository({ db, logger, schema }) {
       }
 
       const sanitized = await sanitizeForTable(schema.checklistTable, payload);
-      const row = await db.update(schema.checklistTable, existing.id, sanitized);
+      const row = await db.update(
+        schema.checklistTable,
+        existing.id,
+        sanitized,
+      );
       return toChecklist(row);
     },
 
@@ -325,7 +350,7 @@ function createVisaRepository({ db, logger, schema }) {
         };
 
         for (const row of all) {
-          const status = row.status || 'DOCUMENT_PENDING';
+          const status = row.status || "DOCUMENT_PENDING";
           summary.byStatus[status] = (summary.byStatus[status] || 0) + 1;
         }
 
@@ -353,7 +378,7 @@ function createVisaRepository({ db, logger, schema }) {
         where.push(`vc.created_at <= $${params.length}`);
       }
 
-      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
       const summarySql = `
         SELECT
@@ -377,7 +402,7 @@ function createVisaRepository({ db, logger, schema }) {
         SELECT COUNT(*)::int AS pending_document_count
         FROM ${schema.documentsTable} vd
         INNER JOIN ${schema.tableName} vc ON vc.id = vd.visa_case_id
-        ${whereSql ? `${whereSql} AND` : 'WHERE'} COALESCE(vd.is_verified, FALSE) = FALSE
+        ${whereSql ? `${whereSql} AND` : "WHERE"} COALESCE(vd.is_verified, FALSE) = FALSE
       `;
 
       const [summaryResult, pendingDocsResult] = await Promise.all([
@@ -398,10 +423,19 @@ function createVisaRepository({ db, logger, schema }) {
           APPROVED: approved,
           REJECTED: rejected,
         },
-        approvalRatePercent: totalCases > 0 ? Number(((approved / totalCases) * 100).toFixed(2)) : 0,
-        rejectionRatePercent: totalCases > 0 ? Number(((rejected / totalCases) * 100).toFixed(2)) : 0,
+        approvalRatePercent:
+          totalCases > 0
+            ? Number(((approved / totalCases) * 100).toFixed(2))
+            : 0,
+        rejectionRatePercent:
+          totalCases > 0
+            ? Number(((rejected / totalCases) * 100).toFixed(2))
+            : 0,
         averageProcessingDays: toNumber(row.avg_processing_days, 0),
-        pendingDocumentCount: toNumber(pendingDocsResult.rows[0]?.pending_document_count, 0),
+        pendingDocumentCount: toNumber(
+          pendingDocsResult.rows[0]?.pending_document_count,
+          0,
+        ),
       };
     },
   });

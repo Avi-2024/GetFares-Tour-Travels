@@ -1,20 +1,20 @@
-const { AppError } = require('../../core/errors');
+const { AppError } = require("../../core/errors");
 
 const PAYMENT_STATUS = Object.freeze({
-  PENDING: 'PENDING',
-  PARTIAL: 'PARTIAL',
-  FULL: 'FULL',
-  REFUNDED: 'REFUNDED',
+  PENDING: "PENDING",
+  PARTIAL: "PARTIAL",
+  FULL: "FULL",
+  REFUNDED: "REFUNDED",
 });
 
 const PAYMENT_MODE_ALIASES = Object.freeze({
-  CASH: 'CASH',
-  BANK_TRANSFER: 'BANK_TRANSFER',
-  PAYMENT_GATEWAY: 'PAYMENT_GATEWAY',
-  BANK: 'BANK_TRANSFER',
-  UPI: 'PAYMENT_GATEWAY',
-  CARD: 'PAYMENT_GATEWAY',
-  GATEWAY: 'PAYMENT_GATEWAY',
+  CASH: "CASH",
+  BANK_TRANSFER: "BANK_TRANSFER",
+  PAYMENT_GATEWAY: "PAYMENT_GATEWAY",
+  BANK: "BANK_TRANSFER",
+  UPI: "PAYMENT_GATEWAY",
+  CARD: "PAYMENT_GATEWAY",
+  GATEWAY: "PAYMENT_GATEWAY",
 });
 
 function createPaymentsService({ repository, logger, events }) {
@@ -29,17 +29,23 @@ function createPaymentsService({ repository, logger, events }) {
 
   function normalizeCurrency(value) {
     if (!value) {
-      return 'INR';
+      return "INR";
     }
     return String(value).trim().toUpperCase();
   }
 
   function normalizePaymentMode(value) {
-    const normalized = String(value || '').trim().toUpperCase();
+    const normalized = String(value || "")
+      .trim()
+      .toUpperCase();
     const mapped = PAYMENT_MODE_ALIASES[normalized];
 
     if (!mapped) {
-      throw new AppError(400, `Unsupported payment mode: ${value}`, 'PAYMENT_INVALID_MODE');
+      throw new AppError(
+        400,
+        `Unsupported payment mode: ${value}`,
+        "PAYMENT_INVALID_MODE",
+      );
     }
 
     return mapped;
@@ -59,11 +65,14 @@ function createPaymentsService({ repository, logger, events }) {
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'payments', requestId: context.requestId, id }, 'Getting payment by id');
+    logger.debug(
+      { module: "payments", requestId: context.requestId, id },
+      "Getting payment by id",
+    );
     const payment = await repository.findById(id);
 
     if (!payment) {
-      throw new AppError(404, 'Payment not found', 'PAYMENT_NOT_FOUND');
+      throw new AppError(404, "Payment not found", "PAYMENT_NOT_FOUND");
     }
 
     return payment;
@@ -72,11 +81,15 @@ function createPaymentsService({ repository, logger, events }) {
   async function getBookingById(bookingId) {
     const booking = await repository.findBookingById(bookingId);
     if (!booking || booking.isDeleted) {
-      throw new AppError(404, 'Booking not found', 'PAYMENT_BOOKING_NOT_FOUND');
+      throw new AppError(404, "Booking not found", "PAYMENT_BOOKING_NOT_FOUND");
     }
 
-    if (booking.status === 'CANCELLED') {
-      throw new AppError(409, 'Payments are blocked for cancelled bookings.', 'PAYMENT_BOOKING_CANCELLED');
+    if (booking.status === "CANCELLED") {
+      throw new AppError(
+        409,
+        "Payments are blocked for cancelled bookings.",
+        "PAYMENT_BOOKING_CANCELLED",
+      );
     }
 
     return booking;
@@ -93,7 +106,10 @@ function createPaymentsService({ repository, logger, events }) {
       repository.getProcessedRefundAmount(bookingId),
     ]);
 
-    const netReceived = Math.max(Number((paidAmount - refundedAmount).toFixed(2)), 0);
+    const netReceived = Math.max(
+      Number((paidAmount - refundedAmount).toFixed(2)),
+      0,
+    );
     const totalAmount = toNumber(booking.totalAmount, 0);
 
     let paymentStatus = PAYMENT_STATUS.PENDING;
@@ -141,7 +157,10 @@ function createPaymentsService({ repository, logger, events }) {
     syncBookingPaymentSummary,
 
     async list(filters = {}, context = {}) {
-      logger.debug({ module: 'payments', requestId: context.requestId, filters }, 'Listing payments');
+      logger.debug(
+        { module: "payments", requestId: context.requestId, filters },
+        "Listing payments",
+      );
       return repository.findAll(filters);
     },
 
@@ -208,8 +227,12 @@ function createPaymentsService({ repository, logger, events }) {
       }
       if (payload.isVerified !== undefined) {
         patch.is_verified = payload.isVerified;
-        patch.verified_by = payload.isVerified ? context.user?.id || existing.verifiedBy || null : null;
-        patch.verified_at = payload.isVerified ? new Date().toISOString() : null;
+        patch.verified_by = payload.isVerified
+          ? context.user?.id || existing.verifiedBy || null
+          : null;
+        patch.verified_at = payload.isVerified
+          ? new Date().toISOString()
+          : null;
       }
 
       patch.updated_at = new Date().toISOString();
@@ -235,7 +258,11 @@ function createPaymentsService({ repository, logger, events }) {
         verified_by: context.user?.id || existing.verifiedBy || null,
         verified_at: nowIso,
         paid_at: payload.paidAt || existing.paidAt || nowIso,
-        status: payload.status || (existing.status === PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.FULL : existing.status),
+        status:
+          payload.status ||
+          (existing.status === PAYMENT_STATUS.PENDING
+            ? PAYMENT_STATUS.FULL
+            : existing.status),
         updated_at: nowIso,
       };
 

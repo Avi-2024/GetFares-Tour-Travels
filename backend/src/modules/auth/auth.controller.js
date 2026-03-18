@@ -6,16 +6,16 @@ function createAuthController({ service }) {
     },
 
     async login(req, res) {
-      const forwarded = req.headers['x-forwarded-for'];
+      const forwarded = req.headers["x-forwarded-for"];
       const ipAddress = Array.isArray(forwarded)
         ? forwarded[0]
-        : typeof forwarded === 'string'
-          ? forwarded.split(',')[0].trim()
+        : typeof forwarded === "string"
+          ? forwarded.split(",")[0].trim()
           : req.ip;
 
       const result = await service.login(req.validated.body, {
         ipAddress,
-        deviceInfo: req.headers['user-agent'] || null,
+        deviceInfo: req.headers["user-agent"] || null,
       });
       res.status(200).json({ data: result });
     },

@@ -1,10 +1,10 @@
-const { createRefundsController } = require('./refunds.controller');
-const { createRefundsService } = require('./refunds.service');
-const { createRefundsRepository } = require('./refunds.repository');
-const { createRefundsRoutes } = require('./refunds.routes');
-const { RefundsValidation } = require('./refunds.validation');
-const { RefundsSchema } = require('./refunds.schema');
-const { createRefundsEvents } = require('./refunds.events');
+const { createRefundsController } = require("./refunds.controller");
+const { createRefundsService } = require("./refunds.service");
+const { createRefundsRepository } = require("./refunds.repository");
+const { createRefundsRoutes } = require("./refunds.routes");
+const { RefundsValidation } = require("./refunds.validation");
+const { RefundsSchema } = require("./refunds.schema");
+const { createRefundsEvents } = require("./refunds.events");
 
 function createRefundsModule({ dependencies }) {
   const repository = createRefundsRepository({
@@ -35,7 +35,7 @@ function createRefundsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'refunds',
+    name: "refunds",
     router,
     controller,
     service,

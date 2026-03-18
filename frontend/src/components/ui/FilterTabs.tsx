@@ -11,7 +11,9 @@ type Props = {
 };
 
 const FilterTabs = ({ tabs, active, onChange, className }: Props) => (
-  <div className={`inline-flex w-full rounded-xl border border-gray-200 bg-gray-50 p-1 md:w-auto dark:border-gray-700 dark:bg-gray-800 ${className ?? ""}`}>
+  <div
+    className={`inline-flex w-full rounded-xl border border-gray-200 bg-gray-50 p-1 md:w-auto dark:border-gray-700 dark:bg-gray-800 ${className ?? ""}`}
+  >
     {tabs.map((tab) => (
       <button
         key={tab.id}

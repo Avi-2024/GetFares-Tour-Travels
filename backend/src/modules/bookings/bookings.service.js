@@ -1,16 +1,16 @@
-const { AppError } = require('../../core/errors');
+const { AppError } = require("../../core/errors");
 
 const BOOKING_STATUS = Object.freeze({
-  PENDING: 'PENDING',
-  CONFIRMED: 'CONFIRMED',
-  CANCELLED: 'CANCELLED',
+  PENDING: "PENDING",
+  CONFIRMED: "CONFIRMED",
+  CANCELLED: "CANCELLED",
 });
 
 const PAYMENT_STATUS = Object.freeze({
-  PENDING: 'PENDING',
-  PARTIAL: 'PARTIAL',
-  FULL: 'FULL',
-  REFUNDED: 'REFUNDED',
+  PENDING: "PENDING",
+  PARTIAL: "PARTIAL",
+  FULL: "FULL",
+  REFUNDED: "REFUNDED",
 });
 
 const PAYMENT_POLICY = Object.freeze({
@@ -69,15 +69,20 @@ function createBookingsService({ repository, logger, events }) {
       return totalAmount;
     }
 
-    return Number((totalAmount * PAYMENT_POLICY.refundableAdvanceRatio).toFixed(2));
+    return Number(
+      (totalAmount * PAYMENT_POLICY.refundableAdvanceRatio).toFixed(2),
+    );
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'bookings', requestId: context.requestId, id }, 'Getting booking by id');
+    logger.debug(
+      { module: "bookings", requestId: context.requestId, id },
+      "Getting booking by id",
+    );
 
     const booking = await repository.findById(id);
     if (!booking || booking.isDeleted) {
-      throw new AppError(404, 'Booking not found', 'BOOKING_NOT_FOUND');
+      throw new AppError(404, "Booking not found", "BOOKING_NOT_FOUND");
     }
 
     return booking;
@@ -86,7 +91,11 @@ function createBookingsService({ repository, logger, events }) {
   async function ensureQuotationExists(quotationId) {
     const quotation = await repository.findQuotationById(quotationId);
     if (!quotation) {
-      throw new AppError(404, 'Quotation not found', 'BOOKING_QUOTATION_NOT_FOUND');
+      throw new AppError(
+        404,
+        "Quotation not found",
+        "BOOKING_QUOTATION_NOT_FOUND",
+      );
     }
 
     return quotation;
@@ -99,11 +108,21 @@ function createBookingsService({ repository, logger, events }) {
 
     const existing = await repository.findByBookingNumber(bookingNumber);
     if (existing && existing.id !== exceptId) {
-      throw new AppError(409, 'Booking number already exists', 'BOOKING_NUMBER_EXISTS');
+      throw new AppError(
+        409,
+        "Booking number already exists",
+        "BOOKING_NUMBER_EXISTS",
+      );
     }
   }
 
-  async function appendStatusHistory({ bookingId, oldStatus, newStatus, changedBy, changedAt }) {
+  async function appendStatusHistory({
+    bookingId,
+    oldStatus,
+    newStatus,
+    changedBy,
+    changedAt,
+  }) {
     await repository.createStatusHistory({
       bookingId,
       oldStatus: oldStatus || null,
@@ -114,18 +133,25 @@ function createBookingsService({ repository, logger, events }) {
   }
 
   async function assertPaymentPolicyForConfirmation(booking) {
-    const snapshot = await repository.getPaymentPolicySnapshot(booking.id, booking.advanceRequired);
+    const snapshot = await repository.getPaymentPolicySnapshot(
+      booking.id,
+      booking.advanceRequired,
+    );
 
     if (!snapshot.meetsAdvance) {
       throw new AppError(
         409,
         `Advance payment requirement not met. Required ${booking.advanceRequired}, received ${snapshot.paidAmount}.`,
-        'BOOKING_ADVANCE_NOT_MET',
+        "BOOKING_ADVANCE_NOT_MET",
       );
     }
 
     if (!snapshot.hasProof) {
-      throw new AppError(409, 'No verified payment proof found for confirmation.', 'BOOKING_PAYMENT_PROOF_REQUIRED');
+      throw new AppError(
+        409,
+        "No verified payment proof found for confirmation.",
+        "BOOKING_PAYMENT_PROOF_REQUIRED",
+      );
     }
 
     return snapshot;
@@ -142,7 +168,10 @@ function createBookingsService({ repository, logger, events }) {
       repository.getProcessedRefundAmount(bookingId),
     ]);
 
-    const netReceived = Math.max(Number((paidAmount - refundedAmount).toFixed(2)), 0);
+    const netReceived = Math.max(
+      Number((paidAmount - refundedAmount).toFixed(2)),
+      0,
+    );
     const totalAmount = toNumber(booking.totalAmount, 0);
 
     let paymentStatus = PAYMENT_STATUS.PENDING;
@@ -165,15 +194,26 @@ function createBookingsService({ repository, logger, events }) {
     const existing = await getById(id, context);
     const nextStatus = toUpperText(payload.status);
     if (!nextStatus || !BOOKING_STATUS[nextStatus]) {
-      throw new AppError(400, 'Invalid booking status transition request', 'BOOKING_INVALID_STATUS');
+      throw new AppError(
+        400,
+        "Invalid booking status transition request",
+        "BOOKING_INVALID_STATUS",
+      );
     }
 
     if (existing.status === nextStatus) {
       return existing;
     }
 
-    if (existing.status === BOOKING_STATUS.CANCELLED && nextStatus !== BOOKING_STATUS.CANCELLED) {
-      throw new AppError(409, 'Cancelled booking cannot transition to another status.', 'BOOKING_STATUS_LOCKED');
+    if (
+      existing.status === BOOKING_STATUS.CANCELLED &&
+      nextStatus !== BOOKING_STATUS.CANCELLED
+    ) {
+      throw new AppError(
+        409,
+        "Cancelled booking cannot transition to another status.",
+        "BOOKING_STATUS_LOCKED",
+      );
     }
 
     const changedAt = payload.changedAt || new Date().toISOString();
@@ -187,7 +227,11 @@ function createBookingsService({ repository, logger, events }) {
       updatePayload.cancelled_at = null;
     } else if (nextStatus === BOOKING_STATUS.CANCELLED) {
       if (!payload.cancellationReason) {
-        throw new AppError(400, 'cancellationReason is required when status is CANCELLED', 'BOOKING_CANCEL_REASON_REQUIRED');
+        throw new AppError(
+          400,
+          "cancellationReason is required when status is CANCELLED",
+          "BOOKING_CANCEL_REASON_REQUIRED",
+        );
       }
 
       updatePayload.status = BOOKING_STATUS.CANCELLED;
@@ -224,33 +268,56 @@ function createBookingsService({ repository, logger, events }) {
     const costAmount = toNumber(payload.costAmount, 0);
     const nonRefundable = Boolean(payload.isNonRefundable);
     const minimumAdvance = minimumAdvanceRequired(totalAmount, nonRefundable);
-    const requestedAdvance = payload.advanceRequired !== undefined ? toNumber(payload.advanceRequired, 0) : minimumAdvance;
+    const requestedAdvance =
+      payload.advanceRequired !== undefined
+        ? toNumber(payload.advanceRequired, 0)
+        : minimumAdvance;
 
     if (costAmount > totalAmount) {
-      throw new AppError(400, 'costAmount cannot be greater than totalAmount', 'BOOKING_COST_EXCEEDS_TOTAL');
+      throw new AppError(
+        400,
+        "costAmount cannot be greater than totalAmount",
+        "BOOKING_COST_EXCEEDS_TOTAL",
+      );
     }
 
     if (requestedAdvance < minimumAdvance) {
       throw new AppError(
         409,
         `Advance requirement violation. Minimum required is ${minimumAdvance}.`,
-        'BOOKING_ADVANCE_POLICY_VIOLATION',
+        "BOOKING_ADVANCE_POLICY_VIOLATION",
       );
     }
 
     if (requestedAdvance > totalAmount) {
-      throw new AppError(400, 'advanceRequired cannot exceed totalAmount', 'BOOKING_ADVANCE_EXCEEDS_TOTAL');
-    }
-
-    const clientCurrency = payload.clientCurrency ? toUpperText(payload.clientCurrency) : 'INR';
-    const supplierCurrency = payload.supplierCurrency ? toUpperText(payload.supplierCurrency) : 'INR';
-    const exchangeRate = payload.exchangeRate !== undefined ? toNumber(payload.exchangeRate, null) : null;
-
-    if (clientCurrency && supplierCurrency && clientCurrency !== supplierCurrency && !exchangeRate) {
       throw new AppError(
         400,
-        'exchangeRate is required when clientCurrency and supplierCurrency differ',
-        'BOOKING_EXCHANGE_RATE_REQUIRED',
+        "advanceRequired cannot exceed totalAmount",
+        "BOOKING_ADVANCE_EXCEEDS_TOTAL",
+      );
+    }
+
+    const clientCurrency = payload.clientCurrency
+      ? toUpperText(payload.clientCurrency)
+      : "INR";
+    const supplierCurrency = payload.supplierCurrency
+      ? toUpperText(payload.supplierCurrency)
+      : "INR";
+    const exchangeRate =
+      payload.exchangeRate !== undefined
+        ? toNumber(payload.exchangeRate, null)
+        : null;
+
+    if (
+      clientCurrency &&
+      supplierCurrency &&
+      clientCurrency !== supplierCurrency &&
+      !exchangeRate
+    ) {
+      throw new AppError(
+        400,
+        "exchangeRate is required when clientCurrency and supplierCurrency differ",
+        "BOOKING_EXCHANGE_RATE_REQUIRED",
       );
     }
 
@@ -280,7 +347,10 @@ function createBookingsService({ repository, logger, events }) {
     recalculatePaymentStatus,
 
     async list(filters = {}, context = {}) {
-      logger.debug({ module: 'bookings', requestId: context.requestId, filters }, 'Listing bookings');
+      logger.debug(
+        { module: "bookings", requestId: context.requestId, filters },
+        "Listing bookings",
+      );
       return repository.findAll(filters);
     },
 
@@ -289,9 +359,15 @@ function createBookingsService({ repository, logger, events }) {
     async create(payload, context = {}) {
       await ensureQuotationExists(payload.quotationId);
 
-      const existingForQuotation = await repository.findByQuotationId(payload.quotationId);
+      const existingForQuotation = await repository.findByQuotationId(
+        payload.quotationId,
+      );
       if (existingForQuotation && !existingForQuotation.isDeleted) {
-        throw new AppError(409, 'A booking already exists for this quotation.', 'BOOKING_ALREADY_EXISTS_FOR_QUOTATION');
+        throw new AppError(
+          409,
+          "A booking already exists for this quotation.",
+          "BOOKING_ALREADY_EXISTS_FOR_QUOTATION",
+        );
       }
 
       const record = buildCreateRecord(payload, context);
@@ -326,13 +402,22 @@ function createBookingsService({ repository, logger, events }) {
         updatePayload.travel_end_date = toDateString(payload.travelEndDate);
       }
       if (payload.totalAmount !== undefined) {
-        updatePayload.total_amount = toNumber(payload.totalAmount, existing.totalAmount);
+        updatePayload.total_amount = toNumber(
+          payload.totalAmount,
+          existing.totalAmount,
+        );
       }
       if (payload.costAmount !== undefined) {
-        updatePayload.cost_amount = toNumber(payload.costAmount, existing.costAmount);
+        updatePayload.cost_amount = toNumber(
+          payload.costAmount,
+          existing.costAmount,
+        );
       }
       if (payload.advanceRequired !== undefined) {
-        updatePayload.advance_required = toNumber(payload.advanceRequired, existing.advanceRequired);
+        updatePayload.advance_required = toNumber(
+          payload.advanceRequired,
+          existing.advanceRequired,
+        );
       }
       if (payload.paymentStatus !== undefined) {
         updatePayload.payment_status = payload.paymentStatus;
@@ -347,20 +432,21 @@ function createBookingsService({ repository, logger, events }) {
         if (existing.exchangeLocked) {
           throw new AppError(
             409,
-            'Exchange rate is locked for this booking and cannot be edited.',
-            'BOOKING_EXCHANGE_LOCKED',
+            "Exchange rate is locked for this booking and cannot be edited.",
+            "BOOKING_EXCHANGE_LOCKED",
           );
         }
         updatePayload.exchange_rate = toNumber(payload.exchangeRate, null);
       }
       if (payload.exchangeLocked !== undefined) {
         if (payload.exchangeLocked === true) {
-          const currentRate = updatePayload.exchange_rate ?? existing.exchangeRate;
+          const currentRate =
+            updatePayload.exchange_rate ?? existing.exchangeRate;
           if (!currentRate || Number(currentRate) <= 0) {
             throw new AppError(
               400,
-              'A valid exchangeRate is required before locking exchange.',
-              'BOOKING_EXCHANGE_RATE_REQUIRED_FOR_LOCK',
+              "A valid exchangeRate is required before locking exchange.",
+              "BOOKING_EXCHANGE_RATE_REQUIRED_FOR_LOCK",
             );
           }
         }
@@ -374,41 +460,66 @@ function createBookingsService({ repository, logger, events }) {
         (updatePayload.travel_start_date || existing.travelStartDate) &&
         (updatePayload.travel_end_date || existing.travelEndDate)
       ) {
-        const startDate = updatePayload.travel_start_date || existing.travelStartDate;
+        const startDate =
+          updatePayload.travel_start_date || existing.travelStartDate;
         const endDate = updatePayload.travel_end_date || existing.travelEndDate;
         if (endDate < startDate) {
-          throw new AppError(400, 'travelEndDate must be on or after travelStartDate', 'BOOKING_INVALID_TRAVEL_DATES');
+          throw new AppError(
+            400,
+            "travelEndDate must be on or after travelStartDate",
+            "BOOKING_INVALID_TRAVEL_DATES",
+          );
         }
       }
 
-      const nextTotalAmount = updatePayload.total_amount ?? existing.totalAmount;
+      const nextTotalAmount =
+        updatePayload.total_amount ?? existing.totalAmount;
       const nextCostAmount = updatePayload.cost_amount ?? existing.costAmount;
-      const nextClientCurrency = updatePayload.client_currency ?? existing.clientCurrency ?? 'INR';
-      const nextSupplierCurrency = updatePayload.supplier_currency ?? existing.supplierCurrency ?? 'INR';
-      const nextExchangeRate = updatePayload.exchange_rate ?? existing.exchangeRate ?? null;
+      const nextClientCurrency =
+        updatePayload.client_currency ?? existing.clientCurrency ?? "INR";
+      const nextSupplierCurrency =
+        updatePayload.supplier_currency ?? existing.supplierCurrency ?? "INR";
+      const nextExchangeRate =
+        updatePayload.exchange_rate ?? existing.exchangeRate ?? null;
       if (toNumber(nextCostAmount, 0) > toNumber(nextTotalAmount, 0)) {
-        throw new AppError(400, 'costAmount cannot be greater than totalAmount', 'BOOKING_COST_EXCEEDS_TOTAL');
+        throw new AppError(
+          400,
+          "costAmount cannot be greater than totalAmount",
+          "BOOKING_COST_EXCEEDS_TOTAL",
+        );
       }
 
       if (nextClientCurrency !== nextSupplierCurrency && !nextExchangeRate) {
         throw new AppError(
           400,
-          'exchangeRate is required when clientCurrency and supplierCurrency differ',
-          'BOOKING_EXCHANGE_RATE_REQUIRED',
+          "exchangeRate is required when clientCurrency and supplierCurrency differ",
+          "BOOKING_EXCHANGE_RATE_REQUIRED",
         );
       }
 
-      if (updatePayload.advance_required !== undefined && toNumber(updatePayload.advance_required, 0) > toNumber(nextTotalAmount, 0)) {
-        throw new AppError(400, 'advanceRequired cannot exceed totalAmount', 'BOOKING_ADVANCE_EXCEEDS_TOTAL');
+      if (
+        updatePayload.advance_required !== undefined &&
+        toNumber(updatePayload.advance_required, 0) >
+          toNumber(nextTotalAmount, 0)
+      ) {
+        throw new AppError(
+          400,
+          "advanceRequired cannot exceed totalAmount",
+          "BOOKING_ADVANCE_EXCEEDS_TOTAL",
+        );
       }
 
-      const minimumAdvance = minimumAdvanceRequired(toNumber(nextTotalAmount, 0), false);
-      const nextAdvanceRequired = updatePayload.advance_required ?? existing.advanceRequired;
+      const minimumAdvance = minimumAdvanceRequired(
+        toNumber(nextTotalAmount, 0),
+        false,
+      );
+      const nextAdvanceRequired =
+        updatePayload.advance_required ?? existing.advanceRequired;
       if (toNumber(nextAdvanceRequired, 0) < minimumAdvance) {
         throw new AppError(
           409,
           `Advance requirement violation. Minimum required is ${minimumAdvance}.`,
-          'BOOKING_ADVANCE_POLICY_VIOLATION',
+          "BOOKING_ADVANCE_POLICY_VIOLATION",
         );
       }
 
@@ -429,14 +540,19 @@ function createBookingsService({ repository, logger, events }) {
     async generateInvoice(id, payload = {}, context = {}) {
       const booking = await getById(id, context);
 
-      let invoiceNumber = payload.invoiceNumber || buildInvoiceNumber(booking.bookingNumber);
+      let invoiceNumber =
+        payload.invoiceNumber || buildInvoiceNumber(booking.bookingNumber);
       let invoice = await repository.findInvoiceByNumber(invoiceNumber);
 
       if (invoice) {
-        invoiceNumber = buildInvoiceNumber(`${booking.bookingNumber || 'BK'}R`);
+        invoiceNumber = buildInvoiceNumber(`${booking.bookingNumber || "BK"}R`);
         invoice = await repository.findInvoiceByNumber(invoiceNumber);
         if (invoice) {
-          throw new AppError(409, 'Unable to generate unique invoice number', 'BOOKING_INVOICE_NUMBER_EXISTS');
+          throw new AppError(
+            409,
+            "Unable to generate unique invoice number",
+            "BOOKING_INVOICE_NUMBER_EXISTS",
+          );
         }
       }
 

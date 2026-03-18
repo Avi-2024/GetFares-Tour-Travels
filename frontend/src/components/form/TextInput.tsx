@@ -11,7 +11,16 @@ type Props = {
   maxLength?: number;
 };
 
-const TextInput = ({ label, value, onChange, required, error, placeholder, type = "text", maxLength }: Props) => (
+const TextInput = ({
+  label,
+  value,
+  onChange,
+  required,
+  error,
+  placeholder,
+  type = "text",
+  maxLength,
+}: Props) => (
   <FieldWrapper label={label} required={required} error={error}>
     <input
       type={type}

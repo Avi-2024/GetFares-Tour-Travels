@@ -1,4 +1,4 @@
-const { z } = require('zod');
+const { z } = require("zod");
 
 const baseDateRangeQuery = z.object({
   from: z.string().optional(),

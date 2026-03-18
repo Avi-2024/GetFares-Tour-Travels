@@ -1,10 +1,10 @@
-const { createVisaController } = require('./visa.controller');
-const { createVisaService } = require('./visa.service');
-const { createVisaRepository } = require('./visa.repository');
-const { createVisaRoutes } = require('./visa.routes');
-const { VisaValidation } = require('./visa.validation');
-const { VisaSchema } = require('./visa.schema');
-const { createVisaEvents } = require('./visa.events');
+const { createVisaController } = require("./visa.controller");
+const { createVisaService } = require("./visa.service");
+const { createVisaRepository } = require("./visa.repository");
+const { createVisaRoutes } = require("./visa.routes");
+const { VisaValidation } = require("./visa.validation");
+const { VisaSchema } = require("./visa.schema");
+const { createVisaEvents } = require("./visa.events");
 
 function createVisaModule({ dependencies }) {
   const repository = createVisaRepository({
@@ -35,7 +35,7 @@ function createVisaModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'visa',
+    name: "visa",
     router,
     controller,
     service,

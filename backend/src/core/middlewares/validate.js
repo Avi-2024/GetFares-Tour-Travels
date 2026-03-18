@@ -1,4 +1,4 @@
-const { AppError } = require('../errors');
+const { AppError } = require("../errors");
 
 function validateRequest(schema) {
   return (req, res, next) => {
@@ -9,7 +9,14 @@ function validateRequest(schema) {
     });
 
     if (!result.success) {
-      return next(new AppError(400, 'Validation failed', 'VALIDATION_ERROR', result.error.flatten()));
+      return next(
+        new AppError(
+          400,
+          "Validation failed",
+          "VALIDATION_ERROR",
+          result.error.flatten(),
+        ),
+      );
     }
 
     req.validated = result.data;

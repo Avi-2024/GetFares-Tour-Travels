@@ -1,4 +1,4 @@
-const { AppError } = require('../../core/errors');
+const { AppError } = require("../../core/errors");
 
 function mapListFilters(filters = {}) {
   return {
@@ -62,18 +62,28 @@ function toCustomer(entity) {
 function createCustomersService({ repository, logger, events }) {
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
-    logger.debug({ module: 'customers', requestId: context.requestId, filters: mappedFilters }, 'Listing records');
+    logger.debug(
+      {
+        module: "customers",
+        requestId: context.requestId,
+        filters: mappedFilters,
+      },
+      "Listing records",
+    );
     const rows = await repository.findAll(mappedFilters);
     const activeRows = rows.filter((row) => !(row.is_deleted ?? row.isDeleted));
     return activeRows.map(toCustomer);
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'customers', requestId: context.requestId, id }, 'Getting record by id');
+    logger.debug(
+      { module: "customers", requestId: context.requestId, id },
+      "Getting record by id",
+    );
     const item = await repository.findById(id);
 
     if (!item) {
-      throw new AppError(404, 'Customers not found', 'CUSTOMERS_NOT_FOUND');
+      throw new AppError(404, "Customers not found", "CUSTOMERS_NOT_FOUND");
     }
 
     return toCustomer(item);

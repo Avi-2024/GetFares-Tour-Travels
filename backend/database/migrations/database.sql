@@ -267,7 +267,8 @@ CREATE TYPE quote_status AS ENUM (
     'VIEWED',
     'APPROVED',
     'REJECTED',
-    'EXPIRED'
+    'EXPIRED',
+    'PENDING'
 );
 
 CREATE TABLE quotation_templates (

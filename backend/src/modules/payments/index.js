@@ -1,10 +1,10 @@
-const { createPaymentsController } = require('./payments.controller');
-const { createPaymentsService } = require('./payments.service');
-const { createPaymentsRepository } = require('./payments.repository');
-const { createPaymentsRoutes } = require('./payments.routes');
-const { PaymentsValidation } = require('./payments.validation');
-const { PaymentsSchema } = require('./payments.schema');
-const { createPaymentsEvents } = require('./payments.events');
+const { createPaymentsController } = require("./payments.controller");
+const { createPaymentsService } = require("./payments.service");
+const { createPaymentsRepository } = require("./payments.repository");
+const { createPaymentsRoutes } = require("./payments.routes");
+const { PaymentsValidation } = require("./payments.validation");
+const { PaymentsSchema } = require("./payments.schema");
+const { createPaymentsEvents } = require("./payments.events");
 
 function createPaymentsModule({ dependencies }) {
   const repository = createPaymentsRepository({
@@ -35,7 +35,7 @@ function createPaymentsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'payments',
+    name: "payments",
     router,
     controller,
     service,

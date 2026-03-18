@@ -1,131 +1,134 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaBars,
   FaBell,
   FaChevronDown,
   FaMagnifyingGlass,
   FaMoon,
-  FaSun
-} from 'react-icons/fa6'
-import { useAuth } from '../../context/AuthContext'
-import { useNotifications } from '../../context/NotificationsContext'
+  FaSun,
+} from "react-icons/fa6";
+import { useAuth } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationsContext";
 
 const Header: React.FC<{
-  onMenuClick: () => void
+  onMenuClick: () => void;
 }> = ({ onMenuClick }) => {
-  const [dark, setDark] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const ref = useRef<HTMLDivElement | null>(null)
-  const navigate = useNavigate()
-  const { hasPermission, logout } = useAuth()
-  const { unreadCount } = useNotifications()
+  const [dark, setDark] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const navigate = useNavigate();
+  const { hasPermission, logout } = useAuth();
+  const { unreadCount } = useNotifications();
 
   useEffect(() => {
-    const enabled = localStorage.getItem('theme') === 'dark'
-    setDark(enabled)
-    document.documentElement.classList.toggle('dark', enabled)
-  }, [])
+    const enabled = localStorage.getItem("theme") === "dark";
+    setDark(enabled);
+    document.documentElement.classList.toggle("dark", enabled);
+  }, []);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
-        setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', fn)
-    return () => document.removeEventListener('mousedown', fn)
-  }, [])
+        setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
 
   const toggle = () => {
-    const next = !dark
-    setDark(next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
-    document.documentElement.classList.toggle('dark', next)
-  }
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", next);
+  };
 
   return (
-    <header className='sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white/90 px-4 backdrop-blur lg:px-8 dark:border-gray-700 dark:bg-gray-900/90'>
-      <div className='flex items-center gap-4'>
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white/90 px-4 backdrop-blur lg:px-8 dark:border-gray-700 dark:bg-gray-900/90">
+      <div className="flex items-center gap-4">
         <button
           onClick={onMenuClick}
-          className='rounded-xl p-2 text-gray-600 hover:bg-gray-100 lg:hidden dark:text-gray-300 dark:hover:bg-gray-800'
+          className="rounded-xl p-2 text-gray-600 hover:bg-gray-100 lg:hidden dark:text-gray-300 dark:hover:bg-gray-800"
         >
           <FaBars />
         </button>
-        <div className='relative hidden w-72 md:block'>
+        <div className="relative hidden w-72 md:block">
           <input
-            className='field-input pl-9'
-            placeholder='Search leads, bookings, customers...'
+            className="field-input pl-9"
+            placeholder="Search leads, bookings, customers..."
           />
-          <FaMagnifyingGlass className='pointer-events-none absolute left-3 top-3 text-xs text-gray-400' />
+          <FaMagnifyingGlass className="pointer-events-none absolute left-3 top-3 text-xs text-gray-400" />
         </div>
       </div>
 
-      <div className='flex items-center gap-2 sm:gap-3'>
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
           onClick={toggle}
-          className='rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+          className="rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         >
           {dark ? <FaSun /> : <FaMoon />}
         </button>
-        {hasPermission('notifications.read') ? (
-          <div className='relative'>
+        {hasPermission("notifications.read") ? (
+          <div className="relative">
             <button
-              onClick={() => navigate('/notifications')}
-              className='relative rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+              onClick={() => navigate("/notifications")}
+              className="relative rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               <FaBell />
               {unreadCount > 0 ? (
-                <span className='absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white'>
+                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
                   {unreadCount}
                 </span>
               ) : null}
             </button>
           </div>
         ) : null}
-        <div ref={ref} className='relative'>
+        <div ref={ref} className="relative">
           <button
-            onClick={() => setMenuOpen(p => !p)}
-            className='flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800'
+            onClick={() => setMenuOpen((p) => !p)}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
           >
             <img
-              className='h-8 w-8 rounded-full'
-              src='https://storage.googleapis.com/uxpilot-auth.appspot.com/28c2bdaa36-0690aa93f5755609852b.png'
-              alt='Alex'
+              className="h-8 w-8 rounded-full"
+              src="https://storage.googleapis.com/uxpilot-auth.appspot.com/28c2bdaa36-0690aa93f5755609852b.png"
+              alt="Alex"
             />
-            <div className='hidden text-left sm:block'>
-              <p className='text-sm font-medium text-gray-800 dark:text-gray-100'>
+            <div className="hidden text-left sm:block">
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
                 Alex Morgan
               </p>
-              <p className='text-xs text-gray-500'>Admin</p>
+              <p className="text-xs text-gray-500">Admin</p>
             </div>
-            <FaChevronDown className='text-xs text-gray-500' />
+            <FaChevronDown className="text-xs text-gray-500" />
           </button>
           {menuOpen ? (
-            <div className='absolute right-0 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900'>
+            <div className="absolute right-0 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
               {[
-                { label: 'Profile', action: () => navigate('/profile') },
-                { label: 'Notifications', action: () => navigate('/notifications') },
-                { label: 'Settings', action: () => navigate('/settings') },
+                { label: "Profile", action: () => navigate("/profile") },
                 {
-                  label: 'Logout',
+                  label: "Notifications",
+                  action: () => navigate("/notifications"),
+                },
+                { label: "Settings", action: () => navigate("/settings") },
+                {
+                  label: "Logout",
                   action: () => {
-                    logout()
-                    navigate('/login')
+                    logout();
+                    navigate("/login");
                   },
-                  variant: 'danger' as const
-                }
-              ].map(item => (
+                  variant: "danger" as const,
+                },
+              ].map((item) => (
                 <button
                   key={item.label}
                   onClick={() => {
-                    setMenuOpen(false)
-                    item.action()
+                    setMenuOpen(false);
+                    item.action();
                   }}
                   className={`w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800 ${
-                    item.variant === 'danger'
-                      ? 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-800/40'
-                      : 'text-gray-700 dark:text-gray-200'
+                    item.variant === "danger"
+                      ? "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-800/40"
+                      : "text-gray-700 dark:text-gray-200"
                   }`}
                 >
                   {item.label}
@@ -136,7 +139,7 @@ const Header: React.FC<{
         </div>
       </div>
     </header>
-  )
-}
+  );
+};
 
-export default Header
+export default Header;

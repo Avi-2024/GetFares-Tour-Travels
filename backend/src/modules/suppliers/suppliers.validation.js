@@ -1,7 +1,7 @@
-const { z } = require('zod');
+const { z } = require("zod");
 
 const uuid = z.string().uuid();
-const payableStatus = z.enum(['PENDING', 'PARTIAL', 'PAID']);
+const payableStatus = z.enum(["PENDING", "PARTIAL", "PAID"]);
 
 const supplierPayload = z.object({
   name: z.string().trim().min(2).max(150),
@@ -36,7 +36,12 @@ const create = z.object({
 });
 
 const update = z.object({
-  body: supplierPayload.partial().refine((value) => Object.keys(value).length > 0, 'At least one field is required'),
+  body: supplierPayload
+    .partial()
+    .refine(
+      (value) => Object.keys(value).length > 0,
+      "At least one field is required",
+    ),
   params: z.object({ id: uuid }),
   query: z.object({}).optional(),
 });
@@ -84,7 +89,10 @@ const updatePayable = z.object({
       status: payableStatus.optional(),
       paymentReference: z.string().trim().max(100).optional(),
     })
-    .refine((value) => Object.keys(value).length > 0, 'At least one field is required'),
+    .refine(
+      (value) => Object.keys(value).length > 0,
+      "At least one field is required",
+    ),
   params: z.object({ payableId: uuid }),
   query: z.object({}).optional(),
 });
@@ -113,4 +121,3 @@ module.exports = {
     listPayables,
   },
 };
-

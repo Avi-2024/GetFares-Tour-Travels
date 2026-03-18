@@ -1,4 +1,4 @@
-const { env } = require('./env');
+const { env } = require("./env");
 
 const config = Object.freeze({
   env: env.NODE_ENV,

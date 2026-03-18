@@ -8,7 +8,7 @@ function deriveFullName(payload) {
   }
 
   if (payload.email) {
-    return payload.email.split('@')[0];
+    return payload.email.split("@")[0];
   }
 
   return `Lead ${Date.now()}`;
@@ -29,7 +29,7 @@ function buildLeadPayload(payload, defaultSource) {
     utmMedium: payload.utmMedium,
     utmCampaign: payload.utmCampaign,
     source: payload.source || defaultSource,
-    status: 'OPEN',
+    status: "OPEN",
   };
 }
 
@@ -41,7 +41,7 @@ function createWebhooksService({ leadsService, events, schema }) {
     const result = await leadsService.createOrGetDuplicate(leadPayload, {
       user: null,
       requestId: null,
-      origin: 'webhook',
+      origin: "webhook",
     });
 
     const response = {
@@ -57,13 +57,13 @@ function createWebhooksService({ leadsService, events, schema }) {
 
   return Object.freeze({
     captureMetaLead(payload) {
-      return captureLead(payload, 'meta');
+      return captureLead(payload, "meta");
     },
     captureWebsiteEnquiry(payload) {
-      return captureLead(payload, 'website');
+      return captureLead(payload, "website");
     },
     captureWhatsappEnquiry(payload) {
-      return captureLead(payload, 'whatsapp');
+      return captureLead(payload, "whatsapp");
     },
   });
 }

@@ -27,7 +27,7 @@ function createAuthRepository({ db, logger, schema }) {
           description: `Auto-created role: ${roleName}`,
         });
       } catch (error) {
-        if (error?.code !== '23505') {
+        if (error?.code !== "23505") {
           throw error;
         }
         roleRecord = await db.findOne(schema.rolesTable, { name: roleName });
@@ -51,7 +51,9 @@ function createAuthRepository({ db, logger, schema }) {
     }
 
     if (!roleId && roleName) {
-      const roleRecord = await db.findOne(schema.rolesTable, { name: roleName });
+      const roleRecord = await db.findOne(schema.rolesTable, {
+        name: roleName,
+      });
       roleId = roleRecord?.id || null;
     }
 
@@ -60,7 +62,10 @@ function createAuthRepository({ db, logger, schema }) {
 
   return Object.freeze({
     async createUser(payload) {
-      logger.debug({ email: payload.email, role: payload.role }, 'Creating auth user');
+      logger.debug(
+        { email: payload.email, role: payload.role },
+        "Creating auth user",
+      );
 
       const roleRecord = await resolveRole(payload.role);
 

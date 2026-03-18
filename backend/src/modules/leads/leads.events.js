@@ -1,13 +1,13 @@
 function createLeadsEvents({ eventBus, logger }) {
   return Object.freeze({
     emitCreated(payload) {
-      logger.info({ id: payload.id }, 'leads.created');
-      eventBus.emit('leads.created', payload);
+      logger.info({ id: payload.id }, "leads.created");
+      eventBus.emit("leads.created", payload);
     },
 
     emitUpdated(payload) {
-      logger.info({ id: payload.id }, 'leads.updated');
-      eventBus.emit('leads.updated', payload);
+      logger.info({ id: payload.id }, "leads.updated");
+      eventBus.emit("leads.updated", payload);
     },
 
     emitAssigned(payload) {
@@ -17,9 +17,9 @@ function createLeadsEvents({ eventBus, logger }) {
           assigneeId: payload.assigneeId,
           mode: payload.mode,
         },
-        'leads.assigned',
+        "leads.assigned",
       );
-      eventBus.emit('leads.assigned', payload);
+      eventBus.emit("leads.assigned", payload);
     },
 
     emitReassigned(payload) {
@@ -30,9 +30,9 @@ function createLeadsEvents({ eventBus, logger }) {
           assigneeId: payload.assigneeId,
           mode: payload.mode,
         },
-        'leads.reassigned',
+        "leads.reassigned",
       );
-      eventBus.emit('leads.reassigned', payload);
+      eventBus.emit("leads.reassigned", payload);
     },
 
     emitDistributionRun(payload) {
@@ -43,29 +43,41 @@ function createLeadsEvents({ eventBus, logger }) {
           unassigned: payload.unassigned,
           errors: payload.errors?.length || 0,
         },
-        'leads.distribution_run',
+        "leads.distribution_run",
       );
-      eventBus.emit('leads.distribution_run', payload);
+      eventBus.emit("leads.distribution_run", payload);
     },
 
     emitFollowupCreated(payload) {
-      logger.info({ id: payload.id, leadId: payload.leadId }, 'leads.followup_created');
-      eventBus.emit('leads.followup_created', payload);
+      logger.info(
+        { id: payload.id, leadId: payload.leadId },
+        "leads.followup_created",
+      );
+      eventBus.emit("leads.followup_created", payload);
     },
 
     emitFollowupOverdue(payload) {
-      logger.warn({ id: payload.id, leadId: payload.leadId }, 'leads.followup_overdue');
-      eventBus.emit('leads.followup_overdue', payload);
+      logger.warn(
+        { id: payload.id, leadId: payload.leadId },
+        "leads.followup_overdue",
+      );
+      eventBus.emit("leads.followup_overdue", payload);
     },
 
     emitSlaBreached(payload) {
-      logger.warn({ id: payload.id, leadId: payload.leadId }, 'leads.sla_breached');
-      eventBus.emit('leads.sla_breached', payload);
+      logger.warn(
+        { id: payload.id, leadId: payload.leadId },
+        "leads.sla_breached",
+      );
+      eventBus.emit("leads.sla_breached", payload);
     },
 
     emitEscalated(payload) {
-      logger.warn({ leadId: payload.leadId, reason: payload.reason }, 'leads.escalated');
-      eventBus.emit('leads.escalated', payload);
+      logger.warn(
+        { leadId: payload.leadId, reason: payload.reason },
+        "leads.escalated",
+      );
+      eventBus.emit("leads.escalated", payload);
     },
   });
 }

@@ -1,12 +1,12 @@
 const NotificationStatus = Object.freeze({
-  PENDING: 'PENDING',
-  DELIVERED: 'DELIVERED',
-  READ: 'READ',
-  FAILED: 'FAILED',
+  PENDING: "PENDING",
+  DELIVERED: "DELIVERED",
+  READ: "READ",
+  FAILED: "FAILED",
 });
 
 const NotificationsSchema = Object.freeze({
-  tableName: 'notification_events',
+  tableName: "notification_events",
   statuses: NotificationStatus,
 });
 

@@ -1,12 +1,12 @@
 module.exports = [
   {
-    ignores: ['node_modules/**', 'coverage/**', 'database/**', 'frontend/**'],
+    ignores: ["node_modules/**", "coverage/**", "database/**", "frontend/**"],
   },
   {
-    files: ['**/*.js'],
+    files: ["**/*.js"],
     languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'commonjs',
+      ecmaVersion: "latest",
+      sourceType: "commonjs",
     },
     rules: {},
   },

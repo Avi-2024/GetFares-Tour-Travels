@@ -1,4 +1,4 @@
-const { AppError } = require('../../core/errors');
+const { AppError } = require("../../core/errors");
 
 function extractToken(req) {
   const authHeader = req.headers.authorization;
@@ -6,8 +6,8 @@ function extractToken(req) {
     return null;
   }
 
-  const [scheme, token] = authHeader.split(' ');
-  if (scheme !== 'Bearer' || !token) {
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
     return null;
   }
 
@@ -39,7 +39,9 @@ function createAuthMiddleware({ authService }) {
   function requireAuth(req, res, next) {
     const token = extractToken(req);
     if (!token) {
-      return next(new AppError(401, 'Access token is required', 'AUTH_TOKEN_REQUIRED'));
+      return next(
+        new AppError(401, "Access token is required", "AUTH_TOKEN_REQUIRED"),
+      );
     }
 
     try {
