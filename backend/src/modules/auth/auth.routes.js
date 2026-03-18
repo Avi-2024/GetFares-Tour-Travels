@@ -1,5 +1,5 @@
-const { Router } = require("express");
-const { asyncHandler } = require("../../core/utils");
+import { Router } from "express";
+import { asyncHandler } from "../../core/utils/index.js";
 
 function createAuthRoutes({
   controller,
@@ -24,4 +24,4 @@ function createAuthRoutes({
   return router;
 }
 
-module.exports = { createAuthRoutes };
+export { createAuthRoutes };

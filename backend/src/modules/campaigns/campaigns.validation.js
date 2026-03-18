@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const dateString = z.string().date();
 
@@ -68,7 +68,7 @@ const list = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   CampaignsValidation: {
     create,
     update,

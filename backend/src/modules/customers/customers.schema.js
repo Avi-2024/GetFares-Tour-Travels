@@ -4,4 +4,4 @@ const CustomersSchema = Object.freeze({
   entityName: "Customers",
 });
 
-module.exports = { CustomersSchema };
+export { CustomersSchema };

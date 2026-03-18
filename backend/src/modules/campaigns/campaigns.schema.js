@@ -3,4 +3,4 @@ const CampaignsSchema = Object.freeze({
   entityName: "Campaigns",
 });
 
-module.exports = { CampaignsSchema };
+export { CampaignsSchema };

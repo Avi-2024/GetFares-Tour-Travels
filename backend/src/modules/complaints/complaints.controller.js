@@ -54,4 +54,4 @@ function createComplaintsController({ service }) {
   });
 }
 
-module.exports = { createComplaintsController };
+export { createComplaintsController };

@@ -1,5 +1,5 @@
-const { Router } = require("express");
-const { asyncHandler } = require("../../core/utils");
+import { Router } from "express";
+import { asyncHandler } from "../../core/utils/index.js";
 
 function createCustomersRoutes({
   controller,
@@ -49,4 +49,4 @@ function createCustomersRoutes({
   return router;
 }
 
-module.exports = { createCustomersRoutes };
+export { createCustomersRoutes };

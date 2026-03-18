@@ -59,4 +59,4 @@ function createRefundsController({ service }) {
   });
 }
 
-module.exports = { createRefundsController };
+export { createRefundsController };

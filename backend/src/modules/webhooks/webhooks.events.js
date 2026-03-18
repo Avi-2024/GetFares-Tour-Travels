@@ -14,4 +14,4 @@ function createWebhooksEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createWebhooksEvents };
+export { createWebhooksEvents };

@@ -943,4 +943,4 @@ function createLeadsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createLeadsRepository };
+export { createLeadsRepository };

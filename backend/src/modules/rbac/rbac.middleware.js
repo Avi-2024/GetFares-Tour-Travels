@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 function createRbacMiddleware({ rbacService }) {
   function authorize(permission) {
@@ -31,4 +31,4 @@ function createRbacMiddleware({ rbacService }) {
   return Object.freeze({ authorize });
 }
 
-module.exports = { createRbacMiddleware };
+export { createRbacMiddleware };

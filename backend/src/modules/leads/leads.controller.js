@@ -96,4 +96,4 @@ function createLeadsController({ service }) {
   });
 }
 
-module.exports = { createLeadsController };
+export { createLeadsController };

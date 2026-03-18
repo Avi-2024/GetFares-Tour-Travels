@@ -27,4 +27,4 @@ function createAuthController({ service }) {
   });
 }
 
-module.exports = { createAuthController };
+export { createAuthController };

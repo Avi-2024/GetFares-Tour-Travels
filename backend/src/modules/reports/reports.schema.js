@@ -14,4 +14,4 @@ const ReportsSchema = Object.freeze({
   visaDocumentsTable: "visa_documents",
 });
 
-module.exports = { ReportsSchema };
+export { ReportsSchema };

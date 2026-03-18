@@ -38,4 +38,4 @@ function createNotificationsEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createNotificationsEvents };
+export { createNotificationsEvents };

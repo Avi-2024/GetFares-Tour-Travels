@@ -1,5 +1,5 @@
-const { z } = require("zod");
-const { NotificationStatus } = require("./notifications.schema");
+import { z } from "zod";
+import { NotificationStatus } from "./notifications.schema.js";
 
 const list = z.object({
   body: z.object({}).optional(),
@@ -40,7 +40,7 @@ const markAllRead = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   NotificationsValidation: {
     list,
     unreadCount,

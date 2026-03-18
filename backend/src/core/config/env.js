@@ -1,5 +1,5 @@
-const dotenv = require("dotenv");
-const { z } = require("zod");
+import dotenv from "dotenv";
+import { z } from "zod";
 
 dotenv.config();
 
@@ -36,4 +36,4 @@ if (!parsed.success) {
   throw new Error(errorMessage);
 }
 
-module.exports = { env: parsed.data };
+export const env = parsed.data;

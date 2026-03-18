@@ -1,10 +1,10 @@
-const { createSuppliersController } = require("./suppliers.controller");
-const { createSuppliersService } = require("./suppliers.service");
-const { createSuppliersRepository } = require("./suppliers.repository");
-const { createSuppliersRoutes } = require("./suppliers.routes");
-const { SuppliersValidation } = require("./suppliers.validation");
-const { SuppliersSchema } = require("./suppliers.schema");
-const { createSuppliersEvents } = require("./suppliers.events");
+import { createSuppliersController } from "./suppliers.controller.js";
+import { createSuppliersService } from "./suppliers.service.js";
+import { createSuppliersRepository } from "./suppliers.repository.js";
+import { createSuppliersRoutes } from "./suppliers.routes.js";
+import { SuppliersValidation } from "./suppliers.validation.js";
+import { SuppliersSchema } from "./suppliers.schema.js";
+import { createSuppliersEvents } from "./suppliers.events.js";
 
 function createSuppliersModule({ dependencies }) {
   const repository = createSuppliersRepository({
@@ -44,4 +44,4 @@ function createSuppliersModule({ dependencies }) {
   });
 }
 
-module.exports = { createSuppliersModule };
+export { createSuppliersModule };

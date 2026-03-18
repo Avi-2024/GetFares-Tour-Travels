@@ -1,9 +1,9 @@
-const {
+import {
   createMetricsStore,
   createRequestMetricsMiddleware,
-} = require("./metrics");
+} from "./metrics.js";
 
-module.exports = {
+export {
   createMetricsStore,
   createRequestMetricsMiddleware,
 };

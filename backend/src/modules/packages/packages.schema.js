@@ -4,4 +4,4 @@ const PackagesSchema = Object.freeze({
   entityName: "Packages",
 });
 
-module.exports = { PackagesSchema };
+export { PackagesSchema };

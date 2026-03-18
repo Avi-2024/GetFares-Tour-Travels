@@ -17,4 +17,4 @@ function createAuthEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createAuthEvents };
+export { createAuthEvents };

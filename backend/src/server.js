@@ -1,6 +1,6 @@
-const http = require("node:http");
-const { createApp } = require("./app");
-const { createSocketServer } = require("./core/realtime");
+import http from "node:http";
+import { createApp } from "./app.js";
+import { createSocketServer } from "./core/realtime/index.js";
 
 const { app, container, runtime } = createApp();
 const httpServer = http.createServer(app);

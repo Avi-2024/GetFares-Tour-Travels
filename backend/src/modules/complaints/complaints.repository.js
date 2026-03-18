@@ -42,4 +42,4 @@ function createComplaintsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createComplaintsRepository };
+export { createComplaintsRepository };

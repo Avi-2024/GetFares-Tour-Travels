@@ -1,4 +1,4 @@
-const { AppError } = require("../errors");
+import { AppError } from "../errors/index.js";
 
 function validateRequest(schema) {
   return (req, res, next) => {
@@ -24,4 +24,4 @@ function validateRequest(schema) {
   };
 }
 
-module.exports = { validateRequest };
+export { validateRequest };

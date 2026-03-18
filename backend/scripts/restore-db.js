@@ -1,7 +1,7 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const { spawn } = require("node:child_process");
-const dotenv = require("dotenv");
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import dotenv from "dotenv";
 
 dotenv.config();
 

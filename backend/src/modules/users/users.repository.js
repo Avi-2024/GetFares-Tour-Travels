@@ -26,4 +26,4 @@ function createUsersRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createUsersRepository };
+export { createUsersRepository };

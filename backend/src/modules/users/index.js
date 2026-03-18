@@ -1,10 +1,10 @@
-const { createUsersController } = require("./users.controller");
-const { createUsersService } = require("./users.service");
-const { createUsersRepository } = require("./users.repository");
-const { createUsersRoutes } = require("./users.routes");
-const { UsersValidation } = require("./users.validation");
-const { UsersSchema } = require("./users.schema");
-const { createUsersEvents } = require("./users.events");
+import { createUsersController } from "./users.controller.js";
+import { createUsersService } from "./users.service.js";
+import { createUsersRepository } from "./users.repository.js";
+import { createUsersRoutes } from "./users.routes.js";
+import { UsersValidation } from "./users.validation.js";
+import { UsersSchema } from "./users.schema.js";
+import { createUsersEvents } from "./users.events.js";
 
 function createUsersModule({ dependencies }) {
   const repository = createUsersRepository({
@@ -44,4 +44,4 @@ function createUsersModule({ dependencies }) {
   });
 }
 
-module.exports = { createUsersModule };
+export { createUsersModule };

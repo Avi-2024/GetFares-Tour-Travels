@@ -8,4 +8,4 @@ const BookingsSchema = Object.freeze({
   entityName: "Bookings",
 });
 
-module.exports = { BookingsSchema };
+export { BookingsSchema };

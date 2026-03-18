@@ -1,6 +1,6 @@
-const assert = require("node:assert/strict");
+import assert from "node:assert/strict";
+import { createApp } from "../src/app.js";
 
-const { createApp } = require("../src/app");
 
 async function parseJson(response) {
   const text = await response.text();

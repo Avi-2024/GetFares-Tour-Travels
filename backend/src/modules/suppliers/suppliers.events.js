@@ -25,4 +25,4 @@ function createSuppliersEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createSuppliersEvents };
+export { createSuppliersEvents };

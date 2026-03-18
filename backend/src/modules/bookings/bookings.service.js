@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 const BOOKING_STATUS = Object.freeze({
   PENDING: "PENDING",
@@ -579,4 +579,4 @@ function createBookingsService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createBookingsService, BOOKING_STATUS, PAYMENT_STATUS };
+export { createBookingsService, BOOKING_STATUS, PAYMENT_STATUS };

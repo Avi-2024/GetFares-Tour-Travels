@@ -69,4 +69,4 @@ function createCustomersRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createCustomersRepository };
+export { createCustomersRepository };

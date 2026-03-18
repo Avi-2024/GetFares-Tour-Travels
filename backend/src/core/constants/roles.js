@@ -122,4 +122,4 @@ const ROLE_PERMISSIONS = Object.freeze({
 
 const DEFAULT_ROLE = "sales_consultant";
 
-module.exports = { ROLE_PERMISSIONS, DEFAULT_ROLE };
+export { ROLE_PERMISSIONS, DEFAULT_ROLE };

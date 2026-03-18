@@ -1,5 +1,5 @@
-const { Router } = require("express");
-const { asyncHandler } = require("../../core/utils");
+import { Router } from "express";
+import { asyncHandler } from "../../core/utils/index.js";
 
 function createWebhooksRoutes({ controller, validation, validateRequest }) {
   const router = Router();
@@ -23,4 +23,4 @@ function createWebhooksRoutes({ controller, validation, validateRequest }) {
   return router;
 }
 
-module.exports = { createWebhooksRoutes };
+export { createWebhooksRoutes };

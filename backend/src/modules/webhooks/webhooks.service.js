@@ -68,4 +68,4 @@ function createWebhooksService({ leadsService, events, schema }) {
   });
 }
 
-module.exports = { createWebhooksService };
+export { createWebhooksService };

@@ -1,4 +1,4 @@
-const { AppError } = require("../errors");
+import { AppError } from "../errors/index.js";
 
 function notFound(req, res, next) {
   next(
@@ -10,4 +10,4 @@ function notFound(req, res, next) {
   );
 }
 
-module.exports = { notFound };
+export { notFound };

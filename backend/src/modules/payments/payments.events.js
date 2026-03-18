@@ -18,4 +18,4 @@ function createPaymentsEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createPaymentsEvents };
+export { createPaymentsEvents };

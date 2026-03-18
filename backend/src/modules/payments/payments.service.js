@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 const PAYMENT_STATUS = Object.freeze({
   PENDING: "PENDING",
@@ -295,4 +295,4 @@ function createPaymentsService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createPaymentsService, PAYMENT_STATUS };
+export { createPaymentsService, PAYMENT_STATUS };

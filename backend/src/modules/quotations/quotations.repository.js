@@ -758,4 +758,4 @@ function createQuotationsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createQuotationsRepository };
+export { createQuotationsRepository };

@@ -1,4 +1,4 @@
-const QuotationsSchema = Object.freeze({
+export const QuotationsSchema = Object.freeze({
   tableName: "quotations",
   itemsTable: "quotation_items",
   viewsTable: "quotation_views",
@@ -11,5 +11,3 @@ const QuotationsSchema = Object.freeze({
   usersTable: "users",
   entityName: "Quotations",
 });
-
-module.exports = { QuotationsSchema };

@@ -1,6 +1,6 @@
-const dotenv = require("dotenv");
-const bcryptjs = require("bcryptjs");
-const { Client } = require("pg");
+import dotenv from "dotenv";
+import bcryptjs from "bcryptjs";
+import { Client } from "pg";
 
 dotenv.config();
 

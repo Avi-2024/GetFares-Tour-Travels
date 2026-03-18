@@ -66,4 +66,4 @@ function createBookingsController({ service }) {
   });
 }
 
-module.exports = { createBookingsController };
+export { createBookingsController };

@@ -10,7 +10,7 @@ const NotificationsSchema = Object.freeze({
   statuses: NotificationStatus,
 });
 
-module.exports = {
+export {
   NotificationsSchema,
   NotificationStatus,
 };

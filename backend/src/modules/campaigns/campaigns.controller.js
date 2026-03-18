@@ -34,4 +34,4 @@ function createCampaignsController({ service }) {
   });
 }
 
-module.exports = { createCampaignsController };
+export { createCampaignsController };

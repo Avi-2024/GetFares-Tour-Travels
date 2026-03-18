@@ -1,6 +1,6 @@
-const { AppError } = require("../../core/errors");
-const { toPagination } = require("../../core/utils");
-const { NotificationStatus } = require("./notifications.schema");
+import { AppError } from "../../core/errors/index.js";
+import { toPagination } from "../../core/utils/index.js";
+import { NotificationStatus } from "./notifications.schema.js";
 
 const ROLE_BY_DOMAIN = Object.freeze({
   leads: ["manager"],
@@ -361,4 +361,4 @@ function createNotificationsService({
   });
 }
 
-module.exports = { createNotificationsService };
+export { createNotificationsService };

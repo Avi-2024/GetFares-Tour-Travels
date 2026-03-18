@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 const QUOTATION_STATUS = Object.freeze({
   DRAFT: "DRAFT",
@@ -930,7 +930,7 @@ function createQuotationsService({ repository, logger, events }) {
   });
 }
 
-module.exports = {
+export {
   createQuotationsService,
   QUOTATION_STATUS,
 };

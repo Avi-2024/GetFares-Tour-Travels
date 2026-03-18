@@ -55,4 +55,4 @@ function createRbacRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createRbacRepository };
+export { createRbacRepository };

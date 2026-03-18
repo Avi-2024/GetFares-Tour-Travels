@@ -1,11 +1,11 @@
-const { createRbacController } = require("./rbac.controller");
-const { createRbacService } = require("./rbac.service");
-const { createRbacRepository } = require("./rbac.repository");
-const { createRbacRoutes } = require("./rbac.routes");
-const { RbacValidation } = require("./rbac.validation");
-const { RbacSchema } = require("./rbac.schema");
-const { createRbacEvents } = require("./rbac.events");
-const { createRbacMiddleware } = require("./rbac.middleware");
+import { createRbacController } from "./rbac.controller.js";
+import { createRbacService } from "./rbac.service.js";
+import { createRbacRepository } from "./rbac.repository.js";
+import { createRbacRoutes } from "./rbac.routes.js";
+import { RbacValidation } from "./rbac.validation.js";
+import { RbacSchema } from "./rbac.schema.js";
+import { createRbacEvents } from "./rbac.events.js";
+import { createRbacMiddleware } from "./rbac.middleware.js";
 
 function createRbacModule({ dependencies }) {
   const repository = createRbacRepository({
@@ -47,4 +47,4 @@ function createRbacModule({ dependencies }) {
   });
 }
 
-module.exports = { createRbacModule };
+export { createRbacModule };

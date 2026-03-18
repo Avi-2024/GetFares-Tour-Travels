@@ -1,3 +1,3 @@
-const { createDatabaseConnection } = require("./connection");
+import { createDatabaseConnection } from "./connection.js";
 
-module.exports = { createDatabaseConnection };
+export { createDatabaseConnection };

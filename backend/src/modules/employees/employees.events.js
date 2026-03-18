@@ -31,4 +31,4 @@ function createEmployeesEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createEmployeesEvents };
+export { createEmployeesEvents };

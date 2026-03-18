@@ -1,3 +1,3 @@
-const { AppError } = require("./AppError");
+import { AppError } from "./AppError.js";
 
-module.exports = { AppError };
+export { AppError };

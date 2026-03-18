@@ -11,4 +11,4 @@ function createUsersEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createUsersEvents };
+export { createUsersEvents };

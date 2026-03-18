@@ -170,4 +170,4 @@ function createReportsService({ repository, logger }) {
   });
 }
 
-module.exports = { createReportsService };
+export { createReportsService };

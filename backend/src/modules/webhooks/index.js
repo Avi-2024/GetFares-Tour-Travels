@@ -1,9 +1,9 @@
-const { createWebhooksController } = require("./webhooks.controller");
-const { createWebhooksService } = require("./webhooks.service");
-const { createWebhooksRoutes } = require("./webhooks.routes");
-const { WebhooksValidation } = require("./webhooks.validation");
-const { WebhooksSchema } = require("./webhooks.schema");
-const { createWebhooksEvents } = require("./webhooks.events");
+import { createWebhooksController } from "./webhooks.controller.js";
+import { createWebhooksService } from "./webhooks.service.js";
+import { createWebhooksRoutes } from "./webhooks.routes.js";
+import { WebhooksValidation } from "./webhooks.validation.js";
+import { WebhooksSchema } from "./webhooks.schema.js";
+import { createWebhooksEvents } from "./webhooks.events.js";
 
 function createWebhooksModule({ dependencies, leadsService }) {
   if (!leadsService) {
@@ -38,4 +38,4 @@ function createWebhooksModule({ dependencies, leadsService }) {
   });
 }
 
-module.exports = { createWebhooksModule };
+export { createWebhooksModule };

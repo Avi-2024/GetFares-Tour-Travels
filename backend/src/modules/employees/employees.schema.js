@@ -5,4 +5,4 @@ const EmployeesSchema = Object.freeze({
   entityName: "Employees",
 });
 
-module.exports = { EmployeesSchema };
+export { EmployeesSchema };

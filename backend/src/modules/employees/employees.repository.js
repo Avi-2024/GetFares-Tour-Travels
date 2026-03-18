@@ -66,4 +66,4 @@ function createEmployeesRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createEmployeesRepository };
+export { createEmployeesRepository };

@@ -1,11 +1,14 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 /**
  * Database Setup Script
  * Runs migrations, RBAC seeding, and dummy data seeding in sequence
  */
 
-const { spawn } = require("child_process");
-const path = require("path");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 

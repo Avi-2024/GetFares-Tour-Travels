@@ -34,4 +34,4 @@ function createUsersController({ service }) {
   });
 }
 
-module.exports = { createUsersController };
+export { createUsersController };

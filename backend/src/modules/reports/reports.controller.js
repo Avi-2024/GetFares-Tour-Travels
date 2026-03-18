@@ -170,4 +170,4 @@ function createReportsController({ service }) {
   });
 }
 
-module.exports = { createReportsController };
+export { createReportsController };

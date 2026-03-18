@@ -41,4 +41,4 @@ function createPaymentsController({ service }) {
   });
 }
 
-module.exports = { createPaymentsController };
+export { createPaymentsController };

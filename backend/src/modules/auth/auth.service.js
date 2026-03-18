@@ -1,8 +1,8 @@
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { AppError } from "../../core/errors/index.js";
+import { DEFAULT_ROLE } from "../../core/constants/index.js";
 
-const { AppError } = require("../../core/errors");
-const { DEFAULT_ROLE } = require("../../core/constants");
 
 function createAuthService({ repository, logger, events, authConfig }) {
   function serializeUser(user) {
@@ -134,4 +134,4 @@ function createAuthService({ repository, logger, events, authConfig }) {
   });
 }
 
-module.exports = { createAuthService };
+export { createAuthService };

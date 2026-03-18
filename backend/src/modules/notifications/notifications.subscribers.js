@@ -78,4 +78,4 @@ function registerNotificationsSubscribers({ eventBus, service, logger }) {
   });
 }
 
-module.exports = { registerNotificationsSubscribers };
+export { registerNotificationsSubscribers };

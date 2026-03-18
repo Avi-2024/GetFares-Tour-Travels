@@ -1,4 +1,4 @@
-const { AppError } = require("../errors");
+import { AppError } from "../errors/index.js";
 
 function errorHandler(err, req, res, next) {
   const logger = req.log || console;
@@ -44,4 +44,4 @@ function errorHandler(err, req, res, next) {
   });
 }
 
-module.exports = { errorHandler };
+export { errorHandler };
