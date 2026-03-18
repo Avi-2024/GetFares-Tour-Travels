@@ -37,8 +37,8 @@ export const bookingsApi = {
   sendConfirmation: (id: string) =>
     apiRequest(`/api/bookings/${id}/send-confirmation`, { method: "POST" }),
   cancel: (id: string, reason: string) =>
-    apiRequest(`/api/bookings/${id}/cancel`, {
+    apiRequest(`/api/bookings/${id}/status`, {
       method: "POST",
-      body: { reason },
+      body: { status: "CANCELLED", reason },
     }),
 };

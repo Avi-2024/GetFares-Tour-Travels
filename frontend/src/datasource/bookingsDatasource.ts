@@ -29,7 +29,10 @@ export const createBookingsDatasource = (client: HttpClient) => ({
   sendConfirmation: (id: string) =>
     client.post(`/api/bookings/${id}/send-confirmation`),
   cancel: (id: string, reason: string) =>
-    client.post(`/api/bookings/${id}/cancel`, { reason }),
+    client.post(`/api/bookings/${id}/status`, {
+      status: "CANCELLED",
+      reason,
+    }),
 });
 
 export type BookingsDatasource = ReturnType<typeof createBookingsDatasource>;

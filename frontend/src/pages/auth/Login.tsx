@@ -66,6 +66,17 @@ const Login = () => {
       const userName = data.user.fullName || data.user.name || email.split("@")[0];
       const userEmail = data.user.email || email;
       const userRole = data.user.role;
+      localStorage.setItem("auth_token", data.accessToken);
+      localStorage.setItem(
+        "auth_user",
+        JSON.stringify({
+          id: data.user.id,
+          name: userName,
+          email: userEmail,
+          role: userRole,
+          roleId: data.user.roleId,
+        })
+      );
       setAuthState(data.accessToken, {
         id: data.user.id,
         name: userName,
