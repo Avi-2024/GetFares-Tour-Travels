@@ -203,19 +203,19 @@ const processNonResponsive = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  LeadsValidation: {
-    create,
-    update,
-    byId,
-    list,
-    assign,
-    distribute,
-    reassignInactive,
-    createFollowup,
-    listOverdueFollowups,
-    processOverdueFollowups,
-    processSlaBreaches,
-    processNonResponsive,
-  },
+const LeadsValidation = {
+  create,
+  update,
+  byId,
+  list,
+  assign,
+  distribute,
+  reassignInactive,
+  createFollowup,
+  listOverdueFollowups,
+  processOverdueFollowups,
+  processSlaBreaches,
+  processNonResponsive,
 };
+
+export { LeadsValidation };

@@ -141,8 +141,6 @@ const QuotationsPage: React.FC = () => {
       const leadResponse = await leadsApi.getById(leadId);
       const lead = leadResponse?.data || leadResponse;
       
-      console.log('Lead data for leadId:', leadId, lead); // Debug log
-      
       if (lead) {
         // Get destination name if destinationId exists
         let destinationName = 'Unknown Destination';
@@ -154,7 +152,6 @@ const QuotationsPage: React.FC = () => {
             const destination = destinations?.data?.find((d: any) => d.id === lead.destinationId);
             destinationName = destination?.name || destination?.title || `Destination (${lead.destinationId.substring(0, 8)}...)`;
           } catch (error) {
-            console.log('Could not fetch destination name:', error);
             destinationName = `Destination (${lead.destinationId.substring(0, 8)}...)`;
           }
         }
@@ -165,8 +162,6 @@ const QuotationsPage: React.FC = () => {
           phone: lead.phone || 'No phone',
           destination: destinationName
         };
-        
-        console.log('Mapped customer data:', customerData); // Debug log
         
         // Cache the result
         setCustomerCache(prev => ({ ...prev, [leadId]: customerData }));

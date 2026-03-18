@@ -68,11 +68,11 @@ const list = z.object({
     .optional(),
 });
 
-export {
-  CampaignsValidation: {
-    create,
-    update,
-    byId,
-    list,
-  },
+const CampaignsValidation = {
+  create,
+  update,
+  byId,
+  list,
 };
+
+export { CampaignsValidation };

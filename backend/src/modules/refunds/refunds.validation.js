@@ -96,14 +96,14 @@ const processRefund = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  RefundsValidation: {
-    create,
-    update,
-    byId,
-    list,
-    approve,
-    reject,
-    process: processRefund,
-  },
+const RefundsValidation = {
+  create,
+  update,
+  byId,
+  list,
+  approve,
+  reject,
+  process: processRefund,
 };
+
+export { RefundsValidation };

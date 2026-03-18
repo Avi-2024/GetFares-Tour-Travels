@@ -46,10 +46,10 @@ const whatsappEnquiry = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  WebhooksValidation: {
-    metaLead,
-    websiteEnquiry,
-    whatsappEnquiry,
-  },
+const WebhooksValidation = {
+  metaLead,
+  websiteEnquiry,
+  whatsappEnquiry,
 };
+
+export { WebhooksValidation };

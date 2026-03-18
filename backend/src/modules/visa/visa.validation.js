@@ -171,18 +171,18 @@ const summaryReport = z.object({
     .optional(),
 });
 
-export {
-  VisaValidation: {
-    create,
-    update,
-    byId,
-    list,
-    transitionStatus,
-    createDocument,
-    verifyDocument,
-    listDocuments,
-    updateChecklist,
-    byVisaId,
-    summaryReport,
-  },
+const VisaValidation = {
+  create,
+  update,
+  byId,
+  list,
+  transitionStatus,
+  createDocument,
+  verifyDocument,
+  listDocuments,
+  updateChecklist,
+  byVisaId,
+  summaryReport,
 };
+
+export { VisaValidation };
