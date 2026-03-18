@@ -354,6 +354,14 @@ function createBookingsService({ repository, logger, events }) {
       return repository.findAll(filters);
     },
 
+    async stats(context = {}) {
+      logger.debug(
+        { module: "bookings", requestId: context.requestId },
+        "Fetching booking stats",
+      );
+      return repository.getStats();
+    },
+
     getById,
 
     async create(payload, context = {}) {

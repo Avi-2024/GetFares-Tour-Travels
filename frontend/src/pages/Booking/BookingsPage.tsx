@@ -951,6 +951,18 @@ const BookingsPage: React.FC = () => {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [loading, setLoading] = useState(false)
   const [bookingItems, setBookingItems] = useState<Booking[]>([])
+  const [stats, setStats] = useState({
+    totalBookings: 0,
+    activeBookings: 0,
+    pendingBookings: 0,
+    completedBookings: 0,
+    cancelledBookings: 0,
+    totalRevenue: 0,
+    pendingPaymentsAmount: 0,
+    pendingPaymentsCount: 0
+  })
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsError, setStatsError] = useState('')
   const [toast, setToast] = useState<{
     show: boolean
     message: string
@@ -1054,9 +1066,37 @@ const BookingsPage: React.FC = () => {
     }
   }, [bookingsService, statusFilter])
 
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true)
+    setStatsError('')
+    try {
+      const res = await bookingsService.stats()
+      const data = (res as any)?.data ?? res
+      setStats({
+        totalBookings: Number(data?.totalBookings ?? 0),
+        activeBookings: Number(data?.activeBookings ?? 0),
+        pendingBookings: Number(data?.pendingBookings ?? 0),
+        completedBookings: Number(data?.completedBookings ?? 0),
+        cancelledBookings: Number(data?.cancelledBookings ?? 0),
+        totalRevenue: Number(data?.totalRevenue ?? 0),
+        pendingPaymentsAmount: Number(data?.pendingPaymentsAmount ?? 0),
+        pendingPaymentsCount: Number(data?.pendingPaymentsCount ?? 0)
+      })
+    } catch (err) {
+      console.error('Failed to load booking stats:', err)
+      setStatsError('Failed to load booking stats')
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [bookingsService])
+
   useEffect(() => {
     void fetchBookings()
   }, [fetchBookings])
+
+  useEffect(() => {
+    void fetchStats()
+  }, [fetchStats])
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ show: true, message, type })
@@ -1131,6 +1171,7 @@ const BookingsPage: React.FC = () => {
       showToast('Booking created successfully', 'success')
       setShowCreateModal(false)
       await fetchBookings()
+      await fetchStats()
     } catch (error) {
       console.error('Failed to create booking:', error)
       showToast('Failed to create booking', 'error')
@@ -1161,6 +1202,7 @@ const BookingsPage: React.FC = () => {
         )
       )
       showToast('Booking cancelled successfully', 'success')
+      await fetchStats()
     } catch (error) {
       console.error('Failed to cancel booking:', error)
       showToast('Failed to cancel booking', 'error')
@@ -1180,48 +1222,6 @@ const BookingsPage: React.FC = () => {
       return statusMatch && searchMatch
     })
   }, [search, statusFilter, bookingItems])
-
-  const today = useMemo(() => {
-    const value = new Date()
-    value.setHours(0, 0, 0, 0)
-    return value
-  }, [])
-
-  const upcomingTripsCount = useMemo(
-    () =>
-      bookingItems.filter(booking => {
-        if (!booking.startDate) return false
-        return (
-          booking.status !== 'cancelled' &&
-          new Date(booking.startDate) >= today
-        )
-      }).length,
-    [bookingItems, today]
-  )
-
-  const unconfirmedCount = useMemo(
-    () => bookingItems.filter(booking => booking.status === 'pending').length,
-    [bookingItems]
-  )
-
-  const pendingPayments = useMemo(
-    () =>
-      bookingItems.filter(
-        booking =>
-          booking.status !== 'cancelled' && booking.payment !== 'paid'
-      ),
-    [bookingItems]
-  )
-
-  const pendingPaymentsAmount = useMemo(
-    () =>
-      pendingPayments.reduce(
-        (total, booking) =>
-          total + Math.max(booking.total - booking.paid, 0),
-        0
-      ),
-    [pendingPayments]
-  )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -1303,11 +1303,18 @@ const BookingsPage: React.FC = () => {
                 Upcoming Trips
               </p>
               <p className='text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1'>
-                {upcomingTripsCount}
+                {statsLoading ? (
+                  <span className='inline-block h-6 w-16 rounded bg-gray-200 animate-pulse' />
+                ) : (
+                  stats.activeBookings
+                )}
               </p>
               <p className='mt-1 text-xs text-green-600 flex items-center'>
                 <FaArrowTrendUp className='mr-1 text-xs' /> From bookings
               </p>
+              {statsError && (
+                <p className='mt-1 text-xs text-red-500'>{statsError}</p>
+              )}
             </div>
             <FaCalendarDays className='text-blue-600 text-lg sm:text-xl flex-shrink-0' />
           </div>
@@ -1319,11 +1326,18 @@ const BookingsPage: React.FC = () => {
                 Unconfirmed
               </p>
               <p className='text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1'>
-                {unconfirmedCount}
+                {statsLoading ? (
+                  <span className='inline-block h-6 w-16 rounded bg-gray-200 animate-pulse' />
+                ) : (
+                  stats.pendingBookings
+                )}
               </p>
               <p className='mt-1 text-xs text-amber-600 truncate'>
                 Pending confirmation
               </p>
+              {statsError && (
+                <p className='mt-1 text-xs text-red-500'>{statsError}</p>
+              )}
             </div>
             <FaTriangleExclamation className='text-amber-500 text-lg sm:text-xl flex-shrink-0' />
           </div>
@@ -1335,11 +1349,18 @@ const BookingsPage: React.FC = () => {
                 Pending Payments
               </p>
               <p className='text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1'>
-                ${pendingPaymentsAmount.toLocaleString()}
+                {statsLoading ? (
+                  <span className='inline-block h-6 w-20 rounded bg-gray-200 animate-pulse' />
+                ) : (
+                  `$${stats.pendingPaymentsAmount.toLocaleString()}`
+                )}
               </p>
               <p className='mt-1 text-xs text-gray-500'>
-                {pendingPayments.length} bookings
+                {statsLoading ? 'Loading...' : `${stats.pendingPaymentsCount} bookings`}
               </p>
+              {statsError && (
+                <p className='mt-1 text-xs text-red-500'>{statsError}</p>
+              )}
             </div>
             <FaCreditCard className='text-red-500 text-lg sm:text-xl flex-shrink-0' />
           </div>

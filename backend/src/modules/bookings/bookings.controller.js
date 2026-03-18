@@ -8,6 +8,11 @@ function createBookingsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async stats(req, res) {
+      const result = await service.stats(req.context);
+      res.status(200).json({ data: result });
+    },
+
     async getById(req, res) {
       const result = await service.getById(
         req.validated.params.id,

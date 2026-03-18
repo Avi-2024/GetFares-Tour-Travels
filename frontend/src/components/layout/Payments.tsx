@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaBuildingColumns,
@@ -24,6 +24,7 @@ import {
 import { FaEdit } from "react-icons/fa";
 import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
+import { paymentsApi } from "../../api/payments";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
 type PaymentMode = "bank" | "card" | "cash" | "cheque" | "online";
@@ -1019,6 +1020,18 @@ const Payments: React.FC = () => {
     message: "",
     type: "success",
   });
+  const [stats, setStats] = useState({
+    collectedAmount: 0,
+    collectedCount: 0,
+    outstandingAmount: 0,
+    outstandingCount: 0,
+    overdueAmount: 0,
+    overdueCount: 0,
+    refundsAmount: 0,
+    refundsCount: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -1027,6 +1040,9 @@ const Payments: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const pageSize = 4;
+
+  const formatAmount = (value: number) =>
+    `$${Number(value || 0).toLocaleString()}`;
 
   const filtered = useMemo(() => {
     return transactions.filter((tx) => {
@@ -1055,6 +1071,34 @@ const Payments: React.FC = () => {
       3000,
     );
   };
+
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError("");
+    try {
+      const res = await paymentsApi.stats();
+      const data = (res as any)?.data ?? res;
+      setStats({
+        collectedAmount: Number(data?.collectedAmount ?? 0),
+        collectedCount: Number(data?.collectedCount ?? 0),
+        outstandingAmount: Number(data?.outstandingAmount ?? 0),
+        outstandingCount: Number(data?.outstandingCount ?? 0),
+        overdueAmount: Number(data?.overdueAmount ?? 0),
+        overdueCount: Number(data?.overdueCount ?? 0),
+        refundsAmount: Number(data?.refundsAmount ?? 0),
+        refundsCount: Number(data?.refundsCount ?? 0),
+      });
+    } catch (err) {
+      console.error("Failed to load payment stats:", err);
+      setStatsError("Failed to load payment stats");
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchStats();
+  }, [fetchStats]);
 
   const handleViewDetails = (tx: Transaction) => {
     setSelectedTransaction(tx);
@@ -1219,29 +1263,46 @@ const Payments: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Collected"
-          value="$48.2k"
-          subtitle="+8% vs last month"
+          value={statsLoading ? "Loading..." : formatAmount(stats.collectedAmount)}
+          subtitle={
+            statsLoading
+              ? "Loading..."
+              : `${stats.collectedCount} payments`
+          }
           icon={<FaWallet className="text-blue-600" />}
         />
         <StatCard
           title="Outstanding"
-          value="$12.4k"
-          subtitle="14 pending"
+          value={
+            statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)
+          }
+          subtitle={
+            statsLoading
+              ? "Loading..."
+              : `${stats.outstandingCount} pending`
+          }
           icon={<FaClockRotateLeft className="text-amber-500" />}
         />
         <StatCard
           title="Overdue"
-          value="$3.2k"
-          subtitle="3 invoices"
+          value={statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)}
+          subtitle={
+            statsLoading ? "Loading..." : `${stats.overdueCount} invoices`
+          }
           icon={<FaRotateRight className="text-red-500" />}
         />
         <StatCard
           title="Refunds"
-          value="$1.8k"
-          subtitle="This month"
+          value={statsLoading ? "Loading..." : formatAmount(stats.refundsAmount)}
+          subtitle={
+            statsLoading ? "Loading..." : `${stats.refundsCount} processed`
+          }
           icon={<FaRotateLeft className="text-gray-500" />}
         />
       </div>
+      {statsError && (
+        <p className="mt-2 text-xs text-red-500">{statsError}</p>
+      )}
 
       {/* Main Card */}
       <SurfaceCard className="p-0 overflow-hidden border border-gray-200 dark:border-gray-800">

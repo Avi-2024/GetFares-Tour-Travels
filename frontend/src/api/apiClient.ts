@@ -92,9 +92,16 @@ const isFormData = (data: unknown) => {
 const extractMessage = (data: unknown) => {
   if (!data) return null;
   if (typeof data === "string") return data;
-  if (typeof data === "object" && "message" in data) {
-    const message = (data as { message?: unknown }).message;
-    return message ? String(message) : null;
+  if (typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    if ("message" in obj && obj.message) return String(obj.message);
+    if ("error" in obj && obj.error) {
+      if (typeof obj.error === "string") return obj.error;
+      if (typeof obj.error === "object") {
+        const nested = obj.error as Record<string, unknown>;
+        if ("message" in nested && nested.message) return String(nested.message);
+      }
+    }
   }
   return null;
 };
@@ -230,6 +237,7 @@ type LegacyRequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   token?: string;
+  skipAuth?: boolean;
   responseType?: "json" | "blob" | "text";
 };
 
@@ -243,17 +251,24 @@ const resolveResponseType = (
   if (responseType === "blob" || responseType === "text") return responseType;
   return "json";
 };
-  
+
 export async function apiRequest<T>(
   path: string,
   options: LegacyRequestOptions = {},
 ): Promise<T> {
-  const { method = "GET", body, token, responseType = "json" } = options;
+  const {
+    method = "GET",
+    body,
+    token,
+    skipAuth,
+    responseType = "json",
+  } = options;
 
   const config: ApiRequestConfig = {
     url: path,
     method,
     responseType: resolveResponseType(responseType),
+    skipAuth,
   };
 
   if (token) {

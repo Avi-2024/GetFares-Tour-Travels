@@ -18,6 +18,13 @@ function createPaymentsRoutes({
     asyncHandler(controller.list),
   );
   router.get(
+    "/stats",
+    requireAuth,
+    authorize("payments:read"),
+    validateRequest(validation.stats),
+    asyncHandler(controller.stats),
+  );
+  router.get(
     "/:id",
     requireAuth,
     authorize("payments:read"),

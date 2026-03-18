@@ -78,7 +78,7 @@ const Login = () => {
         role: userRole,
         roleId: data.user.roleId
       })
-      await refreshPermissions()
+      await refreshPermissions(data.accessToken)
       const roleRoutes: Record<string, string> = {
         admin: '/dashboard',
         manager: '/dashboard',

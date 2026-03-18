@@ -245,6 +245,111 @@ function createBookingsRepository({ db, logger, schema }) {
   }
 
   return Object.freeze({
+    async getStats() {
+      const tableExists = await hasTable(schema.tableName);
+      if (!tableExists) {
+        return {
+          totalBookings: 0,
+          activeBookings: 0,
+          pendingBookings: 0,
+          completedBookings: 0,
+          cancelledBookings: 0,
+          totalRevenue: 0,
+          pendingPaymentsAmount: 0,
+          pendingPaymentsCount: 0,
+        };
+      }
+
+      if (canIntrospect()) {
+        let hasSoftDelete = false;
+        try {
+          hasSoftDelete = await hasColumn(schema.tableName, "is_deleted");
+        } catch (error) {
+          logger?.warn?.(
+            { err: error, table: schema.tableName },
+            "Unable to inspect bookings table columns for stats",
+          );
+        }
+
+        const buildStatsQuery = (notDeletedPredicate) => `
+            SELECT
+              SUM(CASE WHEN ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS total_bookings,
+              SUM(CASE WHEN status = 'CONFIRMED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS active_bookings,
+              SUM(CASE WHEN status = 'PENDING' AND ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS pending_bookings,
+              SUM(CASE WHEN status = 'COMPLETED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS completed_bookings,
+              SUM(CASE WHEN status = 'CANCELLED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS cancelled_bookings,
+              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(total_amount, 0) ELSE 0 END), 0)::numeric AS total_revenue,
+              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(advance_received, 0), 0) ELSE 0 END), 0)::numeric AS pending_payments_amount,
+              SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} AND COALESCE(advance_received, 0) < COALESCE(total_amount, 0) THEN 1 ELSE 0 END)::int AS pending_payments_count
+            FROM ${schema.tableName}
+          `;
+
+        const predicateWithSoftDelete = hasSoftDelete
+          ? "COALESCE(is_deleted, FALSE) = FALSE"
+          : "TRUE";
+
+        let result;
+        try {
+          result = await db.query(buildStatsQuery(predicateWithSoftDelete));
+        } catch (error) {
+          const message = String(error?.message || "");
+          const code = error?.code;
+          const missingColumn =
+            code === "42703" || message.includes("is_deleted");
+          if (missingColumn && predicateWithSoftDelete !== "TRUE") {
+            result = await db.query(buildStatsQuery("TRUE"));
+          } else {
+            throw error;
+          }
+        }
+
+        const row = result.rows[0] || {};
+        return {
+          totalBookings: toNumber(row.total_bookings, 0),
+          activeBookings: toNumber(row.active_bookings, 0),
+          pendingBookings: toNumber(row.pending_bookings, 0),
+          completedBookings: toNumber(row.completed_bookings, 0),
+          cancelledBookings: toNumber(row.cancelled_bookings, 0),
+          totalRevenue: toNumber(row.total_revenue, 0),
+          pendingPaymentsAmount: toNumber(row.pending_payments_amount, 0),
+          pendingPaymentsCount: toNumber(row.pending_payments_count, 0),
+        };
+      }
+
+      const rows = await db.findMany(schema.tableName, {});
+      const list = rows.map((row) => toBooking(row)).filter(Boolean);
+      const active = list.filter((item) => item.status === "CONFIRMED");
+      const pending = list.filter((item) => item.status === "PENDING");
+      const completed = list.filter((item) => item.status === "COMPLETED");
+      const cancelled = list.filter((item) => item.status === "CANCELLED");
+      const nonCancelled = list.filter((item) => item.status !== "CANCELLED");
+      const pendingPayments = nonCancelled.filter(
+        (item) => item.advanceReceived < item.totalAmount,
+      );
+
+      return {
+        totalBookings: list.length,
+        activeBookings: active.length,
+        pendingBookings: pending.length,
+        completedBookings: completed.length,
+        cancelledBookings: cancelled.length,
+        totalRevenue: nonCancelled.reduce(
+          (sum, item) => sum + toNumber(item.totalAmount, 0),
+          0,
+        ),
+        pendingPaymentsAmount: pendingPayments.reduce(
+          (sum, item) =>
+            sum +
+            Math.max(
+              toNumber(item.totalAmount, 0) -
+                toNumber(item.advanceReceived, 0),
+              0,
+            ),
+          0,
+        ),
+        pendingPaymentsCount: pendingPayments.length,
+      };
+    },
     async findAll(filters = {}) {
       const rows = await db.findMany(schema.tableName, mapListFilters(filters));
       let list = rows.map((row) => toBooking(row));

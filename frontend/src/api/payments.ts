@@ -4,6 +4,7 @@ import { withQuery } from "./query";
 export const paymentsApi = {
   list: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/payments", params)),
+  stats: () => apiRequest("/api/payments/stats"),
   create: (payload: unknown) =>
     apiRequest("/api/payments", { method: "POST", body: payload }),
   getById: (id: string) => apiRequest(`/api/payments/${id}`),
