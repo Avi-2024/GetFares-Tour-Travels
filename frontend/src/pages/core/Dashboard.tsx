@@ -111,27 +111,22 @@ const Dashboard: React.FC = () => {
       
       setLoading(true);
       try {
-        // First test basic connectivity
-        console.log('Testing dashboard endpoint connectivity...');
-        const testResponse = await dashboardApi.test();
-        console.log('Dashboard test response:', testResponse);
-        
         // Load stats
-        const statsResponse = await dashboardApi.getStats();
+        const statsResponse = await dashboardApi.getStats() as any;
         const stats = statsResponse?.data || statsResponse;
         if (stats) {
           setDashboardStats(stats);
         }
         
         // Load revenue data
-        const revenueResponse = await dashboardApi.getRevenue({ range: range.toLowerCase() });
+        const revenueResponse = await dashboardApi.getRevenue({ range: range.toLowerCase() }) as any;
         const revenue = revenueResponse?.data || revenueResponse;
         if (revenue && Array.isArray(revenue)) {
           setRevenueData(prev => ({ ...prev, [range]: revenue }));
         }
         
         // Load lead sources
-        const sourcesResponse = await dashboardApi.getLeadSources();
+        const sourcesResponse = await dashboardApi.getLeadSources() as any;
         const sources = sourcesResponse?.data || sourcesResponse;
         if (sources && Array.isArray(sources)) {
           setLeadSources(sources);

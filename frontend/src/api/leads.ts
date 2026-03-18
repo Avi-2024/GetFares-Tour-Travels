@@ -17,23 +17,23 @@ const extractList = (response: unknown) => {
 export const leadsApi = {
   // Get leads statistics
   getStats: (params?: { period?: string }) =>
-    apiRequest(withQuery("/api/leads/stats", params)),
+    apiRequest<any>(withQuery("/api/leads/stats", params)),
   
   list: (params?: Record<string, string | number | boolean>) =>
-    apiRequest(withQuery("/api/leads", params)),
+    apiRequest<any>(withQuery("/api/leads", params)),
   create: (payload: unknown) =>
-    apiRequest("/api/leads", { method: "POST", body: payload }),
-  getById: (id: string) => apiRequest(`/api/leads/${id}`),
+    apiRequest<any>("/api/leads", { method: "POST", body: payload }),
+  getById: (id: string) => apiRequest<any>(`/api/leads/${id}`),
   update: (id: string, payload: unknown) =>
-    apiRequest(`/api/leads/${id}`, { method: "PATCH", body: payload }),
+    apiRequest<any>(`/api/leads/${id}`, { method: "PATCH", body: payload }),
   assign: (id: string, payload: unknown) =>
-    apiRequest(`/api/leads/${id}/assign`, { method: "POST", body: payload }),
+    apiRequest<any>(`/api/leads/${id}/assign`, { method: "POST", body: payload }),
   addFollowup: (id: string, payload: unknown) =>
-    apiRequest(`/api/leads/${id}/followups`, { method: "POST", body: payload }),
-  getFollowups: (id: string) => apiRequest(`/api/leads/${id}/followups`),
-  getTimeline: (id: string) => apiRequest(`/api/leads/${id}/timeline`),
+    apiRequest<any>(`/api/leads/${id}/followups`, { method: "POST", body: payload }),
+  getFollowups: (id: string) => apiRequest<any>(`/api/leads/${id}/followups`),
+  getTimeline: (id: string) => apiRequest<any>(`/api/leads/${id}/timeline`),
   markAsLost: (id: string, reason: string, notes?: string) =>
-    apiRequest(`/api/leads/${id}/lost`, {
+    apiRequest<any>(`/api/leads/${id}/lost`, {
       method: "POST",
       body: { reason, notes },
     }),
@@ -42,7 +42,7 @@ export const leadsApi = {
       return { data: { isDuplicate: false } };
     }
 
-    const response = await apiRequest(
+    const response = await apiRequest<any>(
       withQuery("/api/leads", { email, phone, page: 1, limit: 1 }),
     );
     const matches = extractList(response);
@@ -57,14 +57,14 @@ export const leadsApi = {
     };
   },
   getCampaigns: () =>
-    apiRequest(withQuery("/api/campaigns", { status: "ACTIVE" })),
+    apiRequest<any>(withQuery("/api/campaigns", { status: "ACTIVE" })),
   getDestinations: async () => ({ data: DESTINATIONS }),
-  distribute: () => apiRequest("/api/leads/distribute", { method: "POST" }),
+  distribute: () => apiRequest<any>("/api/leads/distribute", { method: "POST" }),
   reassignInactive: () =>
-    apiRequest("/api/leads/reassign-inactive", { method: "POST" }),
+    apiRequest<any>("/api/leads/reassign-inactive", { method: "POST" }),
   processSlaBreaches: () =>
-    apiRequest("/api/leads/sla/process-breaches", { method: "POST" }),
-  getSlaStatus: (id: string) => apiRequest(`/api/leads/${id}/sla-status`),
+    apiRequest<any>("/api/leads/sla/process-breaches", { method: "POST" }),
+  getSlaStatus: (id: string) => apiRequest<any>(`/api/leads/${id}/sla-status`),
   publicCapture: (payload: unknown) =>
-    apiRequest("/api/leads/public-capture", { method: "POST", body: payload }),
+    apiRequest<any>("/api/leads/public-capture", { method: "POST", body: payload }),
 };

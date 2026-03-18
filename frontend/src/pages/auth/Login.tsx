@@ -7,73 +7,87 @@ import {
   FaEnvelope,
   FaEye,
   FaEyeSlash,
-  FaGlobeAsia,
   FaLock,
   FaPlaneDeparture,
   FaShieldAlt,
   FaUserCheck,
 } from "react-icons/fa";
-import { authApi } from "../../api";
 import { isApiError } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
+import { useAuthService } from "../../hooks/useAuthService";
 
 const DEMO_EMAIL = "admin@travel-crm.com";
 const DEMO_PASSWORD = "admin@123";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
- const [email, setEmail] = useState(DEMO_EMAIL);
+  const [email, setEmail] = useState(DEMO_EMAIL);
   const [password, setPassword] = useState(DEMO_PASSWORD);
   const [errors, setErrors] = useState({ email: "", password: "" });
   const [apiError, setApiError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [heroTilt, setHeroTilt] = useState({ x: 0, y: 0 });
+  const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 });
   const navigate = useNavigate();
   const { setAuthState, refreshPermissions } = useAuth();
+  const authService = useAuthService();
 
   const togglePassword = () => {
     setShowPassword(!showPassword);
   };
 
+  const handleHeroMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    const tiltX = (y - 0.5) * 10;
+    const tiltY = (x - 0.5) * -12;
+    setHeroTilt({ x: tiltX, y: tiltY });
+    setCursorPos({ x: x * 100, y: y * 100 });
+  };
+
+  const handleHeroLeave = () => {
+    setHeroTilt({ x: 0, y: 0 });
+    setCursorPos({ x: 50, y: 50 });
+  };
+
   const validateForm = () => {
     const newErrors = { email: "", password: "" };
-    
+
     if (!email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = "Please enter a valid email";
     }
-    
+
     if (!password.trim()) {
       newErrors.password = "Password is required";
     } else if (password.length < 6) {
       newErrors.password = "Password must be at least 6 characters";
     }
-    
+
     setErrors(newErrors);
     return !newErrors.email && !newErrors.password;
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setSubmitting(true);
     setApiError("");
 
     try {
-      const { data } = await authApi.login({ email, password, rememberMe: true });
-      const userName = data.user.fullName || data.user.name || email.split("@")[0];
-      const userEmail = data.user.email || email;
-      const userRole = data.user.role;
-      setAuthState(data.accessToken, {
-        id: data.user.id,
-        name: userName,
-        email: userEmail,
-        role: userRole,
-        roleId: data.user.roleId,
+      const session = await authService.login({
+        email,
+        password,
+        rememberMe: true,
       });
+      const userRole = session.user.role;
+      setAuthState(session.token, session.user);
       await refreshPermissions();
+
       const roleRoutes: Record<string, string> = {
         admin: "/dashboard",
         manager: "/dashboard",
@@ -102,169 +116,180 @@ const Login = () => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.18),_transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_rgba(6,182,212,0.14),_transparent_45%)]" />
 
-        <div className="relative z-10 grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="relative z-10 grid min-h-screen lg:grid-cols-[1.15fr_0.85fr]">
           {/* LEFT BRAND PANEL */}
-          <section className="hidden lg:flex relative flex-col justify-between px-16 py-16 xl:px-20 xl:py-20 overflow-hidden bg-[#020617]">
-            {/* INLINE ANIMATIONS */}
+          <section className="hidden lg:flex relative flex-col px-12 py-12 xl:px-16 xl:py-14 overflow-hidden">
             <style>{`
-              @keyframes orbit-rotate {
+              @keyframes floatSoft {
+                0%, 100% { transform: translateY(0px) translateX(0px); }
+                50% { transform: translateY(-18px) translateX(10px); }
+              }
+              @keyframes floatWide {
+                0%, 100% { transform: translateY(0px) translateX(0px); }
+                50% { transform: translateY(22px) translateX(-14px); }
+              }
+              @keyframes scanPulse {
+                0% { transform: translateX(-40%); opacity: 0; }
+                30% { opacity: 1; }
+                70% { opacity: 1; }
+                100% { transform: translateX(40%); opacity: 0; }
+              }
+              @keyframes orbit {
                 0% { transform: translate(-50%, -50%) rotate(0deg); }
                 100% { transform: translate(-50%, -50%) rotate(360deg); }
               }
-              @keyframes core-pulse {
-                0%, 100% { transform: scale(1); opacity: 0.9; filter: blur(0px); }
-                50% { transform: scale(1.08); opacity: 1; filter: blur(2px); }
+              @keyframes pulseCore {
+                0%, 100% { opacity: 0.35; transform: scale(0.9); }
+                50% { opacity: 0.9; transform: scale(1.05); }
               }
-              @keyframes comet-move {
-                0% { transform: translateX(-100%) translateY(0) rotate(-35deg); opacity: 0; }
-                10% { opacity: 0.6; }
-                90% { opacity: 0.6; }
-                100% { transform: translateX(200%) translateY(100px) rotate(-35deg); opacity: 0; }
-              }
-              @keyframes drift {
-                0%, 100% { transform: translate(0, 0); }
-                50% { transform: translate(40px, -40px); }
-              }
-              @keyframes twinkle-star {
+              @keyframes twinkle {
                 0%, 100% { opacity: 0.2; transform: scale(0.7); }
                 50% { opacity: 1; transform: scale(1.2); }
               }
-              .glass-card {
-                background: rgba(255, 255, 255, 0.03);
-                backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+              @keyframes comet {
+                0% { transform: translateX(-60%); opacity: 0; }
+                20% { opacity: 1; }
+                100% { transform: translateX(60%); opacity: 0; }
+              }
+              @keyframes particleFloat {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-14px); }
               }
             `}</style>
 
-            {/* BACKGROUND DEPTH LAYERS */}
-            <div className="absolute inset-0 z-0 pointer-events-none">
-              <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/20 blur-[140px] rounded-full animate-[drift_15s_ease-in-out_infinite]" />
-              <div className="absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/25 blur-[120px] rounded-full animate-[drift_18s_ease-in-out_infinite_reverse]" />
-              <div className="absolute top-[30%] right-[10%] w-[35%] h-[35%] bg-cyan-500/15 blur-[100px] rounded-full animate-[drift_22s_ease-in-out_infinite]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#020617_85%)]" />
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+            <div className="absolute inset-0">
+              <div className="absolute -top-28 -left-28 h-80 w-80 rounded-full bg-blue-500/25 blur-3xl" style={{ animation: "floatSoft 10s ease-in-out infinite" }} />
+              <div className="absolute top-16 right-[-7rem] h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" style={{ animation: "floatWide 9s ease-in-out infinite" }} />
+              <div className="absolute bottom-6 left-1/3 h-64 w-64 rounded-full bg-indigo-400/20 blur-3xl" style={{ animation: "floatSoft 12s ease-in-out infinite" }} />
+              <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(37,99,235,0.12),rgba(6,182,212,0.08),rgba(99,102,241,0.1))]" />
+              <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_transparent_55%)]" />
+              <div className="absolute inset-x-0 top-24 h-px bg-gradient-to-r from-transparent via-blue-500/70 to-transparent" style={{ animation: "scanPulse 6s ease-in-out infinite" }} />
+              <div className="absolute inset-x-0 bottom-28 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" style={{ animation: "scanPulse 7.5s ease-in-out infinite" }} />
             </div>
 
-            {/* MAIN ANIMATION SYSTEM (AS BACKGROUND) */}
-            <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden opacity-70">
-              <div className="relative w-[800px] h-[800px] translate-x-1/4">
-                {/* CORE ENERGY NODE */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
-                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 via-indigo-600 to-cyan-500 p-[1px] shadow-[0_0_100px_rgba(59,130,246,0.4)] animate-[core-pulse_4s_ease-in-out_infinite]">
-                    <div className="w-full h-full rounded-full bg-slate-950 flex items-center justify-center border border-white/10 overflow-hidden relative">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.4),_transparent_75%)]" />
-                      <div className="relative z-10 flex flex-col items-center">
-                        <FaGlobeAsia className="text-5xl text-blue-400 drop-shadow-[0_0_15px_rgba(96,165,250,0.8)] animate-[spin_12s_linear_infinite]" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+                <FaPlaneDeparture />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">GetFares CRM</p>
+                <p className="text-lg font-semibold text-slate-900">Travel Operations Hub</p>
+              </div>
+            </div>
 
-                {/* ORBIT RINGS */}
-                {[...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="absolute top-1/2 left-1/2 rounded-full border border-white/[0.03] shadow-[inset_0_0_60px_rgba(255,255,255,0.01)]"
-                    style={{
-                      width: `${(i + 1) * 180 + 100}px`,
-                      height: `${(i + 1) * 180 + 100}px`,
-                      animation: `orbit-rotate ${25 + i * 20}s linear infinite ${i % 2 === 0 ? "" : "reverse"}`,
-                    }}
-                  >
-                    {/* Floating Glow Nodes */}
-                    <div
-                      className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gradient-to-br from-white/80 to-blue-300 shadow-[0_0_25px_rgba(255,255,255,0.5)] border border-white/40"
-                      style={{ filter: `hue-rotate(${i * 45}deg)` }}
-                    />
-                  </div>
-                ))}
+            <div className="relative z-10 mt-8 max-w-md space-y-4">
+              <h1 className="text-4xl font-semibold leading-tight text-slate-900">Run travel demand in real time.</h1>
+              <p className="text-sm text-slate-600">
+                A high-performance CRM for holidays and visas with SLA control, revenue visibility, and automated follow-ups.
+              </p>
 
-                {/* FLOATING PARTICLES */}
-                {[...Array(40)].map((_, i) => (
+              <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 backdrop-blur border border-white/50">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/10 text-blue-600">
+                    <FaChartLine />
+                  </span>
+                  Revenue + visa view
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 backdrop-blur border border-white/50">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-600">
+                    <FaBolt />
+                  </span>
+                  SLA escalation
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 backdrop-blur border border-white/50">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
+                    <FaUserCheck />
+                  </span>
+                  Team performance
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 backdrop-blur border border-white/50">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
+                    <FaShieldAlt />
+                  </span>
+                  Audit-ready ops
+                </span>
+              </div>
+            </div>
+
+            <div className="relative z-10 mt-8 flex-1">
+              <div className="relative h-[520px] w-full group" onMouseMove={handleHeroMove} onMouseLeave={handleHeroLeave}>
+                <div
+                  className="absolute inset-0 rounded-[40px] border border-white/40 bg-white/20 backdrop-blur-2xl shadow-2xl shadow-blue-500/20 transition-transform duration-300"
+                  style={{
+                    transformStyle: "preserve-3d",
+                    transform: `perspective(1200px) rotateX(${heroTilt.x.toFixed(2)}deg) rotateY(${heroTilt.y.toFixed(2)}deg) scale(1.01)`,
+                  }}
+                >
+                  <div className="absolute inset-0 rounded-[40px] bg-gradient-to-br from-white/10 via-transparent to-blue-500/10" />
+                  <div className="absolute inset-6 rounded-[32px] border border-white/25" />
                   <div
-                    key={i}
-                    className="absolute w-1.5 h-1.5 bg-white rounded-full animate-[twinkle-star_4s_ease-in-out_infinite]"
+                    className="absolute h-48 w-48 rounded-full blur-3xl opacity-70"
                     style={{
-                      top: `${Math.random() * 100}%`,
-                      left: `${Math.random() * 100}%`,
-                      animationDelay: `${Math.random() * 5}s`,
-                      opacity: Math.random() * 0.4 + 0.1,
+                      left: `${cursorPos.x}%`,
+                      top: `${cursorPos.y}%`,
+                      transform: "translate(-50%, -50%)",
+                      background:
+                        "radial-gradient(circle, rgba(56,189,248,0.5) 0%, rgba(99,102,241,0.2) 45%, transparent 70%)",
                     }}
                   />
-                ))}
 
-                {/* COMET SWEEP LINES */}
-                <div className="absolute inset-[-200px] pointer-events-none">
-                  <div className="absolute top-[20%] left-[-10%] w-[150%] h-[1px] bg-gradient-to-r from-transparent via-blue-400/30 to-transparent animate-[comet-move_8s_linear_infinite]" />
-                  <div className="absolute top-[65%] left-[-10%] w-[150%] h-[1px] bg-gradient-to-r from-transparent via-indigo-400/20 to-transparent animate-[comet-move_12s_linear_infinite_4s]" />
-                </div>
-              </div>
-            </div>
-
-            {/* CONTENT LAYER */}
-            <div className="relative z-10 h-full flex flex-col justify-between">
-              {/* TOP: BRANDING */}
-              <div className="flex items-center gap-4 group cursor-default">
-                <div className="p-3 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl transition-all duration-500 group-hover:scale-110 group-hover:bg-white/15">
-                  <FaPlaneDeparture className="text-2xl text-blue-400 group-hover:rotate-12 transition-transform duration-500" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-2xl font-black tracking-tighter text-white uppercase">
-                    GetFares <span className="text-blue-500">CRM</span>
-                  </span>
-                  <span className="text-[10px] font-bold tracking-[0.4em] text-blue-400/70 uppercase">
-                    Travel Intelligence
-                  </span>
-                </div>
-              </div>
-
-              {/* MIDDLE: HEADLINE & DESCRIPTION */}
-              <div className="max-w-xl">
-                <h1 className="text-6xl xl:text-7xl font-black tracking-tight text-white leading-[0.95] mb-6">
-                  Redefine your <br />
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-500">
-                    Travel Ops.
-                  </span>
-                </h1>
-                <p className="text-xl text-slate-400/90 font-medium leading-relaxed max-w-md">
-                  A premium operating system for modern travel agencies. Fast, automated, and hyper-scalable.
-                </p>
-
-                <div className="mt-10 flex flex-wrap gap-4">
-                  <div className="glass-card px-5 py-2.5 rounded-full text-xs font-bold text-blue-100 flex items-center gap-2.5 transition-all hover:bg-white/10 cursor-default">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
-                    SLA Monitoring
-                  </div>
-                  <div className="glass-card px-5 py-2.5 rounded-full text-xs font-bold text-indigo-100 flex items-center gap-2.5 transition-all hover:bg-white/10 cursor-default">
-                    <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]" />
-                    Visa Automation
-                  </div>
-                  <div className="glass-card px-5 py-2.5 rounded-full text-xs font-bold text-cyan-100 flex items-center gap-2.5 transition-all hover:bg-white/10 cursor-default">
-                    <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_rgba(34,211,238,0.8)]" />
-                    Revenue Intelligence
-                  </div>
-                </div>
-              </div>
-
-              {/* FOOTER: TRUST BADGE */}
-              <div className="flex items-center justify-between border-t border-white/10 pt-8">
-                <div className="flex -space-x-3">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="w-10 h-10 rounded-full border-2 border-[#020617] bg-slate-800 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden ring-1 ring-white/10">
-                      <img src={`https://i.pravatar.cc/100?u=${i}`} alt="user" className="w-full h-full object-cover opacity-80" />
+                  {[280, 220, 170, 130].map((size, index) => (
+                    <div
+                      key={size}
+                      className="absolute left-1/2 top-1/2 rounded-full border border-white/15"
+                      style={{
+                        width: `${size}px`,
+                        height: `${size}px`,
+                        marginLeft: `-${size / 2}px`,
+                        marginTop: `-${size / 2}px`,
+                        animation: `orbit ${18 + index * 6}s linear infinite ${index % 2 === 0 ? "" : "reverse"}`,
+                      }}
+                    >
+                      <div
+                        className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full bg-white/90 shadow-[0_0_16px_rgba(255,255,255,0.6)]"
+                        style={{ filter: `hue-rotate(${index * 40}deg)` }}
+                      />
                     </div>
                   ))}
-                  <div className="w-10 h-10 rounded-full border-2 border-[#020617] bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white ring-1 ring-white/10">
-                    +2k
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-white">Join 2,000+ travel pros</p>
-                  <p className="text-[10px] font-medium text-slate-500">Industry-leading CRM since 2024</p>
+
+                  <div className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600 shadow-[0_0_40px_rgba(37,99,235,0.85)]" style={{ animation: "pulseCore 4s ease-in-out infinite" }} />
+                  <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-400/20 blur-2xl" />
+
+                  {[
+                    { top: "18%", left: "20%", delay: "0s", size: 6 },
+                    { top: "12%", left: "52%", delay: "1.2s", size: 5 },
+                    { top: "24%", left: "72%", delay: "2s", size: 4 },
+                    { top: "42%", left: "14%", delay: "0.8s", size: 4 },
+                    { top: "62%", left: "22%", delay: "1.6s", size: 5 },
+                    { top: "70%", left: "48%", delay: "2.4s", size: 6 },
+                    { top: "58%", left: "70%", delay: "1.4s", size: 5 },
+                    { top: "36%", left: "82%", delay: "0.6s", size: 4 },
+                  ].map((particle, i) => (
+                    <span
+                      key={i}
+                      className="absolute rounded-full bg-white/70"
+                      style={{
+                        top: particle.top,
+                        left: particle.left,
+                        width: `${particle.size}px`,
+                        height: `${particle.size}px`,
+                        animation: `particleFloat 8s ease-in-out infinite ${particle.delay}, twinkle 3.5s ease-in-out infinite ${particle.delay}`,
+                      }}
+                    />
+                  ))}
+
+                  <div className="absolute left-0 top-[18%] h-[2px] w-1/2 bg-gradient-to-r from-transparent via-blue-500/80 to-transparent" style={{ animation: "comet 6s ease-in-out infinite" }} />
+                  <div className="absolute right-0 bottom-[22%] h-[2px] w-1/2 bg-gradient-to-l from-transparent via-cyan-500/70 to-transparent" style={{ animation: "comet 7.2s ease-in-out infinite" }} />
+                  <div className="absolute left-1/4 bottom-[10%] h-[1px] w-1/2 bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent" style={{ animation: "comet 8.5s ease-in-out infinite" }} />
+
+                  <div className="absolute left-8 top-8 text-[11px] font-semibold text-blue-600">SLA 14:23</div>
+                  <div className="absolute right-8 bottom-12 text-[11px] font-semibold text-cyan-600">Routing Active</div>
+                  <div className="absolute left-12 bottom-10 text-[11px] font-semibold text-indigo-600">Auto Follow-ups</div>
                 </div>
               </div>
             </div>
+
+            <p className="relative z-10 mt-6 text-xs text-slate-400">Built for Indian travel agencies and multi-branch ops.</p>
           </section>
 
           {/* RIGHT LOGIN FORM */}
@@ -276,9 +301,7 @@ const Login = () => {
                     <FaPlaneDeparture />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">
-                      GetFares CRM
-                    </p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">GetFares CRM</p>
                     <p className="text-lg font-semibold text-slate-900">Sign in to continue</p>
                   </div>
                 </div>
@@ -357,9 +380,7 @@ const Login = () => {
                 </form>
               </div>
 
-              <p className="mt-6 text-center text-xs text-slate-400">
-                Powered by GetFares Tour & Travels CRM
-              </p>
+              <p className="mt-6 text-center text-xs text-slate-400">Powered by GetFares Tour & Travels CRM</p>
             </div>
           </section>
         </div>
