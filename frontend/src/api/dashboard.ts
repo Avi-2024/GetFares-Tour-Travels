@@ -1,29 +1,10 @@
 import { apiRequest } from "./apiClient";
 import { withQuery } from "./query";
 
-export interface DashboardStats {
-  totalLeads: number;
-  totalLeadsChange: number;
-  revenue: number;
-  revenueChange: number;
-  pendingCalls: number;
-  pendingCallsChange: number;
-  bookings: number;
-  bookingsChange: number;
-}
-
-export interface RevenueData {
-  name: string;
-  revenue: number;
-  last: number;
-}
-
-export interface LeadSource {
-  name: string;
-  value: number;
-}
-
 export const dashboardApi = {
+  // Test endpoint
+  test: () => apiRequest("/api/dashboard/test"),
+  
   getStats: (params?: { period?: string }) =>
     apiRequest(withQuery("/api/dashboard/stats", params)),
   

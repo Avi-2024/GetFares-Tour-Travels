@@ -23,8 +23,31 @@ import {
   FaUserGroup,
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
-import { dashboardApi, DashboardStats, RevenueData, LeadSource } from "../../api/dashboard";
+import { dashboardApi } from "../../api/dashboard";
 import { useAuth } from "../../context/AuthContext";
+
+// Type definitions
+interface DashboardStats {
+  totalLeads: number;
+  totalLeadsChange: number;
+  revenue: number;
+  revenueChange: number;
+  pendingCalls: number;
+  pendingCallsChange: number;
+  bookings: number;
+  bookingsChange: number;
+}
+
+interface RevenueData {
+  name: string;
+  revenue: number;
+  last: number;
+}
+
+interface LeadSource {
+  name: string;
+  value: number;
+}
 
 type Range = "Today" | "Week" | "Month" | "Year";
 const data: Record<
@@ -88,6 +111,11 @@ const Dashboard: React.FC = () => {
       
       setLoading(true);
       try {
+        // First test basic connectivity
+        console.log('Testing dashboard endpoint connectivity...');
+        const testResponse = await dashboardApi.test();
+        console.log('Dashboard test response:', testResponse);
+        
         // Load stats
         const statsResponse = await dashboardApi.getStats();
         const stats = statsResponse?.data || statsResponse;
@@ -115,6 +143,8 @@ const Dashboard: React.FC = () => {
         
         if (error.status === 401 || error.message?.includes('token')) {
           setError('Authentication failed. Please login again.');
+        } else if (error.status === 404) {
+          setError('Dashboard API endpoints not found. Please check backend server.');
         } else {
           setError('Failed to load dashboard data. Using offline data.');
         }

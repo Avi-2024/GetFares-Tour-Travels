@@ -15,6 +15,10 @@ const extractList = (response: unknown) => {
 };
 
 export const leadsApi = {
+  // Get leads statistics
+  getStats: (params?: { period?: string }) =>
+    apiRequest(withQuery("/api/leads/stats", params)),
+  
   list: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/leads", params)),
   create: (payload: unknown) =>

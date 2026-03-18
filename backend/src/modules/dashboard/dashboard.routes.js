@@ -4,9 +4,16 @@ function createDashboardRoutes(dependencies, controller) {
   const router = express.Router();
   const { middlewares } = dependencies;
 
-  // Apply authentication middleware to all dashboard routes
+  // Test endpoint to verify module is loaded
+  router.get('/test', (req, res) => {
+    res.json({ message: 'Dashboard module is working!', timestamp: new Date().toISOString() });
+  });
+
+  // Apply authentication middleware to all dashboard routes except test
   if (middlewares?.requireAuth) {
-    router.use(middlewares.requireAuth);
+    router.use('/stats', middlewares.requireAuth);
+    router.use('/revenue', middlewares.requireAuth);
+    router.use('/lead-sources', middlewares.requireAuth);
   }
 
   // Dashboard stats endpoint
