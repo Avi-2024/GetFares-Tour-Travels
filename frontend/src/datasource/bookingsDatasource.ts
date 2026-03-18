@@ -31,7 +31,7 @@ export const createBookingsDatasource = (client: HttpClient) => ({
   cancel: (id: string, reason: string) =>
     client.post(`/api/bookings/${id}/status`, {
       status: "CANCELLED",
-      reason,
+      cancellationReason: reason,
     }),
 });
 
