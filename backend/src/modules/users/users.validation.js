@@ -80,11 +80,9 @@ const list = z.object({
     .optional(),
 });
 
-export {
-  UsersValidation: {
-    create,
-    update,
-    byId,
-    list,
-  },
+export const UsersValidation = {
+  create,
+  update,
+  byId,
+  list,
 };

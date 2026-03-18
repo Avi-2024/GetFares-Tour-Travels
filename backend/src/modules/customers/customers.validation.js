@@ -70,12 +70,10 @@ const remove = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  CustomersValidation: {
-    create,
-    update,
-    byId,
-    list,
-    remove,
-  },
+export const CustomersValidation = {
+  create,
+  update,
+  byId,
+  list,
+  remove,
 };
