@@ -27,6 +27,7 @@ import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import { validateBookingTransition } from '../../utils/workflowValidation'
 import { useBookingsService } from '../../hooks/useBookingsService'
+import { quotationsApi } from '../../api/quotations'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -57,6 +58,11 @@ interface NewBookingData {
   totalAmount: number
   advanceRequired: number
   notes?: string
+}
+
+type QuoteOption = {
+  id: string
+  label: string
 }
 
 interface PaymentData {
@@ -144,6 +150,12 @@ const CreateBookingModal = ({
   onClose: () => void
   onSave: (data: NewBookingData) => void
 }) => {
+  const [quotationOptions, setQuotationOptions] = useState<QuoteOption[]>([])
+  const [quotationLoading, setQuotationLoading] = useState(false)
+  const [quotationAutofillLoading, setQuotationAutofillLoading] =
+    useState(false)
+  const [quotationError, setQuotationError] = useState('')
+  const [selectedQuotationId, setSelectedQuotationId] = useState('')
   const [formData, setFormData] = useState<NewBookingData>({
     customer: '',
     email: '',
@@ -158,6 +170,115 @@ const CreateBookingModal = ({
   const [errors, setErrors] = useState<
     Partial<Record<keyof NewBookingData, string>>
   >({})
+
+  const toInputDate = (value?: string) => {
+    if (!value) return ''
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return ''
+    return parsed.toISOString().split('T')[0]
+  }
+
+  const loadQuotations = async () => {
+    setQuotationLoading(true)
+    setQuotationError('')
+    try {
+      const res = await quotationsApi.list({ page: 1, limit: 50 })
+      const raw =
+        (res as any)?.data?.data ??
+        (res as any)?.data?.items ??
+        (res as any)?.data ??
+        res ??
+        []
+      const options: QuoteOption[] = (Array.isArray(raw) ? raw : [])
+        .map((q: any) => {
+          const id = String(q.id ?? q.quotationId ?? '')
+          if (!id) return null
+          const quoteNumber =
+            q.quoteNumber ?? q.quotationNumber ?? q.code ?? `Quote ${id}`
+          const customer =
+            q.customerName ??
+            q.customer ??
+            q.clientName ??
+            q.lead?.name ??
+            ''
+          const label = customer
+            ? `${quoteNumber} - ${customer}`
+            : quoteNumber
+          return { id, label }
+        })
+        .filter(Boolean) as QuoteOption[]
+      setQuotationOptions(options)
+    } catch (error) {
+      console.error('Failed to load quotations:', error)
+      setQuotationError('Failed to load quotations')
+      setQuotationOptions([])
+    } finally {
+      setQuotationLoading(false)
+    }
+  }
+
+  const applyQuotationToForm = (quote: any) => {
+    if (!quote) return
+    const lead = quote.lead ?? quote.leadSnapshot ?? quote.templateSnapshot?.lead
+    const customer =
+      lead?.name ?? quote.customerName ?? quote.customer ?? formData.customer
+    const email =
+      lead?.email ?? quote.email ?? quote.customerEmail ?? formData.email
+    const phone =
+      lead?.phone ?? quote.phone ?? quote.customerPhone ?? formData.phone
+    const destination =
+      quote.destination ??
+      quote.tripDestination ??
+      quote.templateSnapshot?.destination ??
+      formData.destination
+    const travelStart =
+      quote.travelStartDate ??
+      quote.travelStart ??
+      quote.templateSnapshot?.travelStartDate
+    const travelEnd =
+      quote.travelEndDate ??
+      quote.travelEnd ??
+      quote.templateSnapshot?.travelEndDate
+    const totalAmount =
+      Number(
+        quote.finalPrice ??
+          quote.totalSaleValue ??
+          quote.totalCost ??
+          quote.totalAmount
+      ) || formData.totalAmount
+
+    setFormData(prev => ({
+      ...prev,
+      customer: customer ?? prev.customer,
+      email: email ?? prev.email,
+      phone: phone ?? prev.phone,
+      destination: destination ?? prev.destination,
+      travelStart: toInputDate(travelStart) || prev.travelStart,
+      travelEnd: toInputDate(travelEnd) || prev.travelEnd,
+      totalAmount
+    }))
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+    void loadQuotations()
+  }, [isOpen])
+
+  const handleQuotationChange = async (quotationId: string) => {
+    setSelectedQuotationId(quotationId)
+    if (!quotationId) return
+    setQuotationAutofillLoading(true)
+    try {
+      const res = await quotationsApi.getById(quotationId)
+      const quote =
+        (res as any)?.data?.data ?? (res as any)?.data ?? res ?? null
+      applyQuotationToForm(quote)
+    } catch (error) {
+      console.error('Failed to load quotation:', error)
+    } finally {
+      setQuotationAutofillLoading(false)
+    }
+  }
 
   if (!isOpen) return null
 
@@ -194,6 +315,7 @@ const CreateBookingModal = ({
         advanceRequired: 0,
         notes: ''
       })
+      setSelectedQuotationId('')
     }
   }
 
@@ -213,6 +335,32 @@ const CreateBookingModal = ({
         </div>
 
         <div className='p-6 space-y-4'>
+          {/* Quotation Selector */}
+          <div>
+            <label className='field-label'>Quotation ID</label>
+            <select
+              value={selectedQuotationId}
+              onChange={e => handleQuotationChange(e.target.value)}
+              className='field-input'
+              disabled={quotationLoading}
+            >
+              <option value=''>
+                {quotationLoading ? 'Loading quotations...' : 'Select quotation'}
+              </option>
+              {quotationOptions.map(option => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {quotationError && (
+              <p className='text-xs text-red-500 mt-1'>{quotationError}</p>
+            )}
+            {quotationAutofillLoading && (
+              <p className='text-xs text-gray-500 mt-1'>Autofilling details...</p>
+            )}
+          </div>
+
           {/* Customer Info */}
           <div className='grid grid-cols-2 gap-4'>
             <div>
