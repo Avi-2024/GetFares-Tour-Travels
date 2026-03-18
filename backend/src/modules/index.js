@@ -14,6 +14,7 @@ import { createReportsModule } from "./reports/index.js";
 import { createWebhooksModule } from "./webhooks/index.js";
 import { createNotificationsModule } from "./notifications/index.js";
 import { createDashboardModule } from "./dashboard/index.js";
+import { createMetaWebhookModule } from "./metaWebhook/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -71,6 +72,13 @@ function registerModules(app, dependencies) {
   mountedModules.webhooks = webhooksModule;
   app.use("/api/webhooks", webhooksModule.router);
 
+  const metaWebhookModule = createMetaWebhookModule({
+    dependencies: featureDependencies,
+    leadsService: mountedModules.leads?.service,
+  });
+  mountedModules.metaWebhook = metaWebhookModule;
+  app.use("/webhook", metaWebhookModule.router);
+
   const notificationsModule = createNotificationsModule({
     dependencies: featureDependencies,
   });
@@ -96,6 +104,7 @@ export {
   createComplaintsModule,
   createReportsModule,
   createWebhooksModule,
+  createMetaWebhookModule,
   createNotificationsModule,
   createDashboardModule,
 };

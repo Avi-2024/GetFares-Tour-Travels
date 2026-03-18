@@ -26,6 +26,15 @@ const config = Object.freeze({
     enabled: env.METRICS_ENABLED,
     token: env.METRICS_TOKEN,
   },
+  meta: {
+    verifyToken: env.META_VERIFY_TOKEN,
+    accessToken: env.META_ACCESS_TOKEN,
+    graphBaseUrl: env.META_GRAPH_BASE_URL,
+    graphVersion: env.META_GRAPH_VERSION,
+    graphFields: env.META_GRAPH_FIELDS.split(",")
+      .map((field) => field.trim())
+      .filter(Boolean),
+  },
 });
 
 export { config };

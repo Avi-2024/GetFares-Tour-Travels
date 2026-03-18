@@ -22,6 +22,15 @@ const envSchema = z.object({
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   METRICS_ENABLED: z.coerce.boolean().default(true),
   METRICS_TOKEN: z.string().optional(),
+  META_VERIFY_TOKEN: z.string().optional(),
+  META_ACCESS_TOKEN: z.string().optional(),
+  META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
+  META_GRAPH_VERSION: z.string().default("v20.0"),
+  META_GRAPH_FIELDS: z
+    .string()
+    .default(
+      "id,created_time,field_data,ad_id,adset_id,campaign_id,form_id,page_id",
+    ),
 });
 
 const parsed = envSchema.safeParse(process.env);

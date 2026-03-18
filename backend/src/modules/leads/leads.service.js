@@ -148,8 +148,9 @@ function createLeadsService({ repository, logger, events }) {
     const customerId = options.customerId || null;
     const useCustomerLinking = Boolean(options.useCustomerLinking);
     const now = new Date();
-    const responseDeadline = payload.responseDeadline
-      ? new Date(payload.responseDeadline).toISOString()
+    const responseDeadline =
+      payload.responseDeadline ?
+        new Date(payload.responseDeadline).toISOString()
       : new Date(now.getTime() + 15 * 60 * 1000).toISOString();
 
     const assignedTo = payload.assignedTo || null;
@@ -178,6 +179,7 @@ function createLeadsService({ repository, logger, events }) {
       utm_source: payload.utmSource || null,
       utm_medium: payload.utmMedium || null,
       utm_campaign: payload.utmCampaign || null,
+      meta_lead_id: payload.metaLeadId || null,
       priority_level:
         payload.priorityLevel ?? mapTemperatureToPriority(temperature),
       is_vip: payload.isVip ?? false,
@@ -250,6 +252,9 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.utmCampaign !== undefined) {
       mapped.utm_campaign = payload.utmCampaign;
+    }
+    if (payload.metaLeadId !== undefined) {
+      mapped.meta_lead_id = payload.metaLeadId || null;
     }
     if (payload.adultsCount !== undefined) {
       mapped.adults_count = payload.adultsCount;
@@ -715,9 +720,9 @@ function createLeadsService({ repository, logger, events }) {
       const nextAttempt = currentAttempts + 1;
       const normalizedType =
         payload.followupType ||
-        (nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS
-          ? "FINAL_REMINDER"
-          : "CALL");
+        (nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS ? "FINAL_REMINDER" : (
+          "CALL"
+        ));
 
       const followup = await repository.createFollowup({
         leadId: lead.id,
@@ -731,9 +736,9 @@ function createLeadsService({ repository, logger, events }) {
       const updatePayload = {
         followup_attempts: nextAttempt,
         sub_status:
-          nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS
-            ? "FINAL_REMINDER"
-            : `FOLLOW_UP_${nextAttempt}`,
+          nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS ? "FINAL_REMINDER" : (
+            `FOLLOW_UP_${nextAttempt}`
+          ),
       };
 
       if (!Number.isNaN(followupDate.getTime())) {
@@ -930,8 +935,9 @@ function createLeadsService({ repository, logger, events }) {
         useCustomerLinking,
       });
 
-      const updated = Object.keys(mapped).length
-        ? await repository.update(id, mapped)
+      const updated =
+        Object.keys(mapped).length ?
+          await repository.update(id, mapped)
         : await repository.findById(id);
 
       if (payload.notes) {
