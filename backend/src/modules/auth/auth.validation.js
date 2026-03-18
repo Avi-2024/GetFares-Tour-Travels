@@ -21,9 +21,9 @@ const login = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  AuthValidation: {
-    register,
-    login,
-  },
+const AuthValidation = {
+  register,
+  login,
 };
+
+export { AuthValidation };

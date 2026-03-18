@@ -16,6 +16,10 @@ import {
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import EmptyState from "../../components/ui/EmptyState";
 import { validateQuoteTransition } from "../../utils/workflowValidation";
+import { quotationsApi } from "../../api/quotations";
+import { leadsApi } from "../../api/leads";
+import { customersApi } from "../../api/customers";
+import { useAuth } from "../../context/AuthContext";
 
 type Status = "pending" | "accepted" | "expired" | "rejected" | "draft";
 interface Quotation {
@@ -110,65 +114,292 @@ const styles: Record<Status, string> = {
 
 const QuotationsPage: React.FC = () => {
   const nav = useNavigate();
+  const { token } = useAuth();
   const [tab, setTab] = useState<(typeof tabs)[number]>("All");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [customQuotes, setCustomQuotes] = useState<Quotation[]>([]);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+  const [customerCache, setCustomerCache] = useState<Record<string, any>>({});
   const pageSize = 4;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = localStorage.getItem("quotations_custom");
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as Quotation[];
-        setCustomQuotes(parsed);
-      } catch {
-        setCustomQuotes([]);
-      }
+  // Function to fetch customer data by leadId
+  const fetchCustomerByLeadId = async (leadId: string) => {
+    if (customerCache[leadId]) {
+      return customerCache[leadId];
     }
-  }, []);
+
+    try {
+      // First get the lead to find customer info
+      const leadResponse = await leadsApi.getById(leadId);
+      const lead = leadResponse?.data || leadResponse;
+      
+      if (lead) {
+        // Get destination name if destinationId exists
+        let destinationName = 'Unknown Destination';
+        if (lead.destinationId) {
+          try {
+            // You might need to fetch destination details or use a lookup
+            // For now, we'll use the destinationId or try to get destinations list
+            const destinations = await leadsApi.getDestinations();
+            const destination = destinations?.data?.find((d: any) => d.id === lead.destinationId);
+            destinationName = destination?.name || destination?.title || `Destination (${lead.destinationId.substring(0, 8)}...)`;
+          } catch (error) {
+            destinationName = `Destination (${lead.destinationId.substring(0, 8)}...)`;
+          }
+        }
+        
+        const customerData = {
+          name: lead.fullName || lead.customerName || lead.name || 'Unknown Customer',
+          email: lead.email || 'No email',
+          phone: lead.phone || 'No phone',
+          destination: destinationName
+        };
+        
+        // Cache the result
+        setCustomerCache(prev => ({ ...prev, [leadId]: customerData }));
+        return customerData;
+      }
+    } catch (error) {
+      console.error('Failed to fetch customer for leadId:', leadId, error);
+    }
+    
+    return {
+      name: 'Unknown Customer',
+      email: 'No email',
+      phone: 'No phone',
+      destination: 'Unknown Destination'
+    };
+  };
+
+  useEffect(() => {
+    const loadQuotations = async () => {
+      // Don't make API calls if no token
+      if (!token) {
+        console.log('No auth token available, using fallback data');
+        setQuotations(baseItems);
+        return;
+      }
+      
+      setLoading(true);
+      try {
+        // Debug: Check if token exists
+        console.log('Auth token exists:', !!token);
+        console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'No token');
+        
+        // Test API call with explicit token
+        const response = await quotationsApi.list({
+          status: tab === 'All' ? undefined : tab,
+          search: search || undefined,
+          date: selectedDate || undefined,
+          page,
+          limit: pageSize
+        });
+        
+        console.log('API Response:', response);
+        
+        // Check if response has the expected structure
+        if (response && typeof response === 'object') {
+          const data = (response as any).data || (response as any).quotations || response;
+          
+          if (Array.isArray(data)) {
+            // Process quotations and fetch customer data
+            const quotationsWithCustomers = await Promise.all(
+              data.map(async (q: any) => {
+                let customerData = {
+                  name: 'Unknown Customer',
+                  email: 'No email',
+                  phone: 'No phone',
+                  destination: 'Unknown Destination'
+                };
+                
+                let leadData = null;
+                
+                // Fetch customer data if leadId exists
+                if (q.leadId) {
+                  customerData = await fetchCustomerByLeadId(q.leadId);
+                  // Also get the lead data for additional details
+                  try {
+                    const leadResponse = await leadsApi.getById(q.leadId);
+                    leadData = leadResponse?.data || leadResponse;
+                  } catch (error) {
+                    console.log('Could not fetch lead data for details:', error);
+                  }
+                }
+                
+                return {
+                  id: q.id || Math.random().toString(),
+                  quoteNumber: q.quoteNumber || q.quote_number || 'N/A',
+                  customer: customerData.name,
+                  email: customerData.email,
+                  destination: customerData.destination,
+                  details: q.details || q.description || q.templateSnapshot?.description || 
+                          (leadData ? `${leadData.adultsCount || 0} Adults${leadData.childrenCount ? `, ${leadData.childrenCount} Children` : ''} - ${leadData.travelPurpose || 'Travel'}` : 'No details'),
+                  total: Number(q.totalSaleValue || q.finalPrice || q.total || q.amount || 0),
+                  margin: Number(q.marginPercent || q.margin || 0),
+                  status: (q.status?.toLowerCase() || 'draft') as Status,
+                  lastSent: q.lastSent || q.last_sent || (q.sentAt ? `${new Date(q.sentAt).toLocaleDateString()} - Email` : null),
+                  sentDate: q.sentDate || q.sent_date || (q.sentAt ? new Date(q.sentAt).toISOString().split('T')[0] : null)
+                };
+              })
+            );
+            
+            setQuotations(quotationsWithCustomers);
+            setError('');
+          } else {
+            console.warn('API response data is not an array:', data);
+            setQuotations(baseItems);
+            setError('Invalid data format from API. Using offline data.');
+          }
+        } else {
+          console.warn('Unexpected API response format:', response);
+          setQuotations(baseItems);
+          setError('Unexpected response format. Using offline data.');
+        }
+      } catch (error: any) {
+        console.error('Failed to load quotations:', error);
+        
+        // Check if it's an auth error
+        if (error.status === 401 || error.message?.includes('token')) {
+          setError('Authentication failed. Please login again.');
+        } else {
+          setError('Failed to load quotations. Using offline data.');
+        }
+        
+        // Fallback to base items on error
+        setQuotations(baseItems);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadQuotations();
+  }, [tab, search, selectedDate, page, token, customerCache]);
 
   const allItems = useMemo(
-    () => [...customQuotes, ...baseItems],
-    [customQuotes],
+    () => quotations.length > 0 ? quotations : baseItems,
+    [quotations],
   );
 
   const filtered = useMemo(
     () =>
-      allItems.filter(
-        (q) =>
-          (tab === "All" || q.status === tab) &&
-          `${q.quoteNumber} ${q.customer} ${q.destination}`
-            .toLowerCase()
-            .includes(search.toLowerCase()) &&
-          (!selectedDate || q.sentDate === selectedDate),
-      ),
+      allItems
+        .filter(q => q && typeof q === 'object') // Ensure valid objects
+        .filter(
+          (q) =>
+            (tab === "All" || q.status === tab) &&
+            `${q.quoteNumber || ''} ${q.customer || ''} ${q.destination || ''}`
+              .toLowerCase()
+              .includes(search.toLowerCase()) &&
+            (!selectedDate || q.sentDate === selectedDate),
+        ),
     [tab, search, selectedDate, allItems],
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const rejectQuotation = () => {
+  const rejectQuotation = (quotation: Quotation) => {
+    setSelectedQuotation(quotation);
     setRejectReason("");
     setRejectModalOpen(true);
   };
 
-  const handleRejectSubmit = () => {
+  const handleRejectSubmit = async () => {
+    if (!selectedQuotation) return;
+    
     const validationError = validateQuoteTransition(
       "REJECTED",
       rejectReason ?? "",
     );
-    setError(validationError);
-    if (!validationError) {
+    
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await quotationsApi.changeStatus(selectedQuotation.id, {
+        status: 'rejected',
+        reason: rejectReason
+      });
+      
+      // Update local state
+      setQuotations(prev => prev.map(q => 
+        q.id === selectedQuotation.id 
+          ? { ...q, status: 'rejected' as Status }
+          : q
+      ));
+      
       setRejectModalOpen(false);
+      setSelectedQuotation(null);
+      setError('');
+    } catch (error) {
+      console.error('Failed to reject quotation:', error);
+      setError('Failed to reject quotation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendWhatsApp = async (quotation: Quotation) => {
+    setLoading(true);
+    try {
+      // Try to get phone number from customer cache or fetch it
+      let phone = quotation.email; // fallback
+      
+      // Find the original quotation data to get leadId
+      const originalQuotation = quotations.find(q => q.id === quotation.id);
+      if (originalQuotation) {
+        // Check if we have customer data in cache
+        const leadId = Object.keys(customerCache).find(key => 
+          customerCache[key].name === quotation.customer
+        );
+        
+        if (leadId && customerCache[leadId]?.phone) {
+          phone = customerCache[leadId].phone;
+        }
+      }
+      
+      await quotationsApi.send(quotation.id, {
+        method: 'whatsapp',
+        phone: phone
+      });
+      
+      // Update local state to reflect sent status
+      setQuotations(prev => prev.map(q => 
+        q.id === quotation.id 
+          ? { ...q, lastSent: `${new Date().toLocaleDateString()} - WhatsApp` }
+          : q
+      ));
+      
+      setError('');
+    } catch (error) {
+      console.error('Failed to send via WhatsApp:', error);
+      setError('Failed to send quotation via WhatsApp');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGeneratePdf = async (quotation: Quotation) => {
+    setLoading(true);
+    try {
+      await quotationsApi.generatePdf(quotation.id);
+      setError('');
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      setError('Failed to generate PDF');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -372,7 +603,11 @@ const QuotationsPage: React.FC = () => {
         </div>
 
         {/* Quotations List */}
-        {rows.length === 0 ? (
+        {loading ? (
+          <div className="p-8 flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : rows.length === 0 ? (
           <div className="p-8">
             <EmptyState
               title="No quotations found"
@@ -425,10 +660,10 @@ const QuotationsPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        ${q.total.toLocaleString()}
+                        ${(q.total || 0).toLocaleString()}
                       </p>
                       <p className="text-xs text-green-600 dark:text-green-400">
-                        Margin {q.margin}%
+                        Margin {q.margin || 0}%
                       </p>
                     </div>
                     <p className="text-xs text-gray-500">
@@ -446,15 +681,18 @@ const QuotationsPage: React.FC = () => {
                       <FaEye className="text-sm" />
                     </button>
                     <button
-                      className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                      onClick={() => handleSendWhatsApp(q)}
+                      disabled={loading}
+                      className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50"
                       title="Send via WhatsApp"
                     >
                       <FaWhatsapp className="text-sm" />
                     </button>
                     <button
-                      onClick={rejectQuotation}
-                      className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                      title="More options"
+                      onClick={() => rejectQuotation(q)}
+                      disabled={loading}
+                      className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                      title="Reject quotation"
                     >
                       <FaCircleXmark className="text-sm" />
                     </button>
@@ -514,10 +752,10 @@ const QuotationsPage: React.FC = () => {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          ${q.total.toFixed(2)}
+                          ${(q.total || 0).toFixed(2)}
                         </p>
                         <p className="text-xs text-green-600 dark:text-green-400">
-                          Margin {q.margin}%
+                          Margin {q.margin || 0}%
                         </p>
                       </td>
                       <td className="px-5 py-4 text-center">
@@ -540,12 +778,19 @@ const QuotationsPage: React.FC = () => {
                           >
                             <FaEye />
                           </button>
-                          <button className="rounded-lg border border-gray-200 p-2 text-green-600 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20">
+                          <button
+                            onClick={() => handleSendWhatsApp(q)}
+                            disabled={loading}
+                            className="rounded-lg border border-gray-200 p-2 text-green-600 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50"
+                            title="Send via WhatsApp"
+                          >
                             <FaWhatsapp />
                           </button>
                           <button
-                            onClick={rejectQuotation}
-                            className="rounded-lg border border-gray-200 p-2 text-red-600 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            onClick={() => rejectQuotation(q)}
+                            disabled={loading}
+                            className="rounded-lg border border-gray-200 p-2 text-red-600 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                            title="Reject quotation"
                           >
                             <FaCircleXmark />
                           </button>
@@ -627,10 +872,20 @@ const QuotationsPage: React.FC = () => {
               </button>
               <button
                 onClick={handleRejectSubmit}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm flex items-center gap-2"
+                disabled={loading}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm flex items-center gap-2 disabled:opacity-50"
               >
-                <FaCircleXmark className="text-xs" />
-                Reject
+                {loading ? (
+                  <>
+                    <span className="animate-spin">⌛</span>
+                    Rejecting...
+                  </>
+                ) : (
+                  <>
+                    <FaCircleXmark className="text-xs" />
+                    Reject
+                  </>
+                )}
               </button>
             </div>
           </div>

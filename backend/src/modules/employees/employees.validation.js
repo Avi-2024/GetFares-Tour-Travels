@@ -86,14 +86,14 @@ const updateLeaveStatus = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  EmployeesValidation: {
-    directory,
-    checkIn,
-    checkOut,
-    listAttendance,
-    listLeaves,
-    createLeave,
-    updateLeaveStatus,
-  },
+const EmployeesValidation = {
+  directory,
+  checkIn,
+  checkOut,
+  listAttendance,
+  listLeaves,
+  createLeave,
+  updateLeaveStatus,
 };
+
+export { EmployeesValidation };

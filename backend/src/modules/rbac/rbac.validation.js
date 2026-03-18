@@ -9,8 +9,8 @@ const assignRole = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  RbacValidation: {
-    assignRole,
-  },
+const RbacValidation = {
+  assignRole,
 };
+
+export { RbacValidation };

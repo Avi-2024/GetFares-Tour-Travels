@@ -239,11 +239,11 @@ const legacyClient = createApiClient({
 
 const resolveResponseType = (
   responseType: LegacyRequestOptions["responseType"],
-): AxiosResponseType => {
+): AxiosRequestConfig["responseType"] => {
   if (responseType === "blob" || responseType === "text") return responseType;
   return "json";
 };
-
+  
 export async function apiRequest<T>(
   path: string,
   options: LegacyRequestOptions = {},

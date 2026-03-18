@@ -13,6 +13,7 @@ import { createComplaintsModule } from "./complaints/index.js";
 import { createReportsModule } from "./reports/index.js";
 import { createWebhooksModule } from "./webhooks/index.js";
 import { createNotificationsModule } from "./notifications/index.js";
+import { createDashboardModule } from "./dashboard/index.js";
 import { createMetaWebhookModule } from "./metaWebhook/index.js";
 
 function registerModules(app, dependencies) {
@@ -55,6 +56,7 @@ function registerModules(app, dependencies) {
     ["customers", createCustomersModule],
     ["complaints", createComplaintsModule],
     ["reports", createReportsModule],
+    ["dashboard", createDashboardModule],
   ];
 
   featureFactories.forEach(([name, factory]) => {
@@ -104,4 +106,5 @@ export {
   createWebhooksModule,
   createMetaWebhookModule,
   createNotificationsModule,
+  createDashboardModule,
 };

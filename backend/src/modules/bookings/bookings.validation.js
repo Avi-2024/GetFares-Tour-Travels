@@ -126,13 +126,13 @@ const generateInvoice = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  BookingsValidation: {
-    list,
-    create,
-    update,
-    byId,
-    transitionStatus,
-    generateInvoice,
-  },
+const BookingsValidation = {
+  list,
+  create,
+  update,
+  byId,
+  transitionStatus,
+  generateInvoice,
 };
+
+export { BookingsValidation };

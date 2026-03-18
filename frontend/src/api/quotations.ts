@@ -1,6 +1,15 @@
 import { apiRequest } from "./apiClient";
 import { withQuery } from "./query";
 
+// Debug function to test API with explicit token
+const testApiCall = async (token?: string) => {
+  const options: any = { method: "GET" };
+  if (token) {
+    options.token = token;
+  }
+  return apiRequest("/api/quotations", options);
+};
+
 export const quotationsApi = {
   list: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/quotations", params)),
@@ -43,4 +52,6 @@ export const quotationsApi = {
       method: "POST",
       body: changes,
     }),
+  // Debug function
+  testWithToken: testApiCall,
 };

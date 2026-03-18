@@ -74,13 +74,13 @@ const listActivities = z.object({
     .optional(),
 });
 
-export {
-  ComplaintsValidation: {
-    create,
-    update,
-    byId,
-    list,
-    createActivity,
-    listActivities,
-  },
+const ComplaintsValidation = {
+  create,
+  update,
+  byId,
+  list,
+  createActivity,
+  listActivities,
 };
+
+export { ComplaintsValidation };
