@@ -1,10 +1,10 @@
-﻿const { createQuotationsController } = require('./quotations.controller');
-const { createQuotationsService } = require('./quotations.service');
-const { createQuotationsRepository } = require('./quotations.repository');
-const { createQuotationsRoutes } = require('./quotations.routes');
-const { QuotationsValidation } = require('./quotations.validation');
-const { QuotationsSchema } = require('./quotations.schema');
-const { createQuotationsEvents } = require('./quotations.events');
+import { createQuotationsController } from "./quotations.controller.js";
+import { createQuotationsService } from "./quotations.service.js";
+import { createQuotationsRepository } from "./quotations.repository.js";
+import { createQuotationsRoutes } from "./quotations.routes.js";
+import { QuotationsValidation } from "./quotations.validation.js";
+import { QuotationsSchema } from "./quotations.schema.js";
+import { createQuotationsEvents } from "./quotations.events.js";
 
 function createQuotationsModule({ dependencies }) {
   const repository = createQuotationsRepository({
@@ -35,7 +35,7 @@ function createQuotationsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'quotations',
+    name: "quotations",
     router,
     controller,
     service,
@@ -44,4 +44,4 @@ function createQuotationsModule({ dependencies }) {
   });
 }
 
-module.exports = { createQuotationsModule };
+export { createQuotationsModule };

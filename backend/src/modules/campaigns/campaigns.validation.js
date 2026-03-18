@@ -1,4 +1,4 @@
-const { z } = require('zod');
+import { z } from "zod";
 
 const dateString = z.string().date();
 
@@ -20,8 +20,8 @@ const validateDateRange = (value, ctx) => {
   if (value.startDate && value.endDate && value.startDate > value.endDate) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ['endDate'],
-      message: 'endDate must be on or after startDate',
+      path: ["endDate"],
+      message: "endDate must be on or after startDate",
     });
   }
 };
@@ -30,7 +30,10 @@ const createPayload = basePayload.superRefine(validateDateRange);
 
 const updatePayload = basePayload
   .partial()
-  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update')
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required for update",
+  )
   .superRefine(validateDateRange);
 
 const create = z.object({
@@ -65,7 +68,7 @@ const list = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   CampaignsValidation: {
     create,
     update,

@@ -1,9 +1,21 @@
-const { randomUUID } = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
-const { Pool } = require('pg');
+import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Pool } from "pg";
 
-const RESERVED_FILTER_KEYS = new Set(['page', 'limit', 'offset', 'sort', 'order', 'q', 'search']);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const RESERVED_FILTER_KEYS = new Set([
+  "page",
+  "limit",
+  "offset",
+  "sort",
+  "order",
+  "q",
+  "search",
+]);
 
 function toPositiveInt(value) {
   const parsed = Number(value);
@@ -27,7 +39,7 @@ function normalizeFilters(filters = {}) {
       return false;
     }
 
-    return value !== undefined && value !== null && value !== '';
+    return value !== undefined && value !== null && value !== "";
   });
 }
 
@@ -46,7 +58,7 @@ function runWithTimeout(task, timeoutMs, timeoutMessage) {
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(timeoutMessage || 'Operation timed out'));
+      reject(new Error(timeoutMessage || "Operation timed out"));
     }, timeoutMs);
 
     timer.unref?.();
@@ -66,7 +78,7 @@ function runWithTimeout(task, timeoutMs, timeoutMessage) {
 class InMemoryDatabase {
   constructor() {
     this.tables = new Map();
-    this.adapter = 'in-memory';
+    this.adapter = "in-memory";
   }
 
   getTable(tableName) {
@@ -115,8 +127,13 @@ class InMemoryDatabase {
           return true;
         }
 
-        const camelKey = key.replace(/_([a-z])/g, (_, char) => char.toUpperCase());
-        const snakeKey = key.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`);
+        const camelKey = key.replace(/_([a-z])/g, (_, char) =>
+          char.toUpperCase(),
+        );
+        const snakeKey = key.replace(
+          /[A-Z]/g,
+          (char) => `_${char.toLowerCase()}`,
+        );
         return String(row[camelKey] ?? row[snakeKey]) === String(value);
       });
     });
@@ -124,7 +141,12 @@ class InMemoryDatabase {
     const limit = toPositiveInt(filters.limit);
     const page = toPositiveInt(filters.page);
     const requestedOffset = toNonNegativeInt(filters.offset);
-    const offset = requestedOffset !== null ? requestedOffset : limit && page ? (page - 1) * limit : 0;
+    const offset =
+      requestedOffset !== null
+        ? requestedOffset
+        : limit && page
+          ? (page - 1) * limit
+          : 0;
 
     const start = Math.max(0, offset || 0);
     if (!limit) {
@@ -156,7 +178,9 @@ class InMemoryDatabase {
   }
 
   async query() {
-    throw new Error('In-memory database adapter does not support raw SQL query.');
+    throw new Error(
+      "In-memory database adapter does not support raw SQL query.",
+    );
   }
 
   async healthCheck() {
@@ -176,20 +200,26 @@ class InMemoryDatabase {
 class PostgresDatabase {
   constructor({ pool }) {
     this.pool = pool;
-    this.adapter = 'postgres';
+    this.adapter = "postgres";
   }
 
   async insert(tableName, payload) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    const entries = Object.entries(payload).filter(
+      ([, value]) => value !== undefined,
+    );
     const table = quoteIdentifier(tableName);
 
     if (!entries.length) {
-      const result = await this.pool.query(`INSERT INTO ${table} DEFAULT VALUES RETURNING *`);
+      const result = await this.pool.query(
+        `INSERT INTO ${table} DEFAULT VALUES RETURNING *`,
+      );
       return result.rows[0] || null;
     }
 
-    const columns = entries.map(([column]) => quoteIdentifier(column)).join(', ');
-    const placeholders = entries.map((_, index) => `$${index + 1}`).join(', ');
+    const columns = entries
+      .map(([column]) => quoteIdentifier(column))
+      .join(", ");
+    const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
     const values = entries.map(([, value]) => value);
 
     const result = await this.pool.query(
@@ -202,7 +232,10 @@ class PostgresDatabase {
 
   async findById(tableName, id) {
     const table = quoteIdentifier(tableName);
-    const result = await this.pool.query(`SELECT * FROM ${table} WHERE id = $1 LIMIT 1`, [id]);
+    const result = await this.pool.query(
+      `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
+      [id],
+    );
     return result.rows[0] || null;
   }
 
@@ -221,7 +254,7 @@ class PostgresDatabase {
         values.push(value);
         return `${quoteIdentifier(key)} = $${index + 1}`;
       })
-      .join(' AND ');
+      .join(" AND ");
 
     let query = `SELECT * FROM ${table}`;
     if (whereClause) {
@@ -231,7 +264,12 @@ class PostgresDatabase {
     const limit = toPositiveInt(filters.limit);
     const page = toPositiveInt(filters.page);
     const requestedOffset = toNonNegativeInt(filters.offset);
-    const offset = requestedOffset !== null ? requestedOffset : limit && page ? (page - 1) * limit : null;
+    const offset =
+      requestedOffset !== null
+        ? requestedOffset
+        : limit && page
+          ? (page - 1) * limit
+          : null;
 
     if (limit) {
       values.push(limit);
@@ -248,7 +286,9 @@ class PostgresDatabase {
   }
 
   async update(tableName, id, payload) {
-    const entries = Object.entries(payload).filter(([key, value]) => key !== 'id' && value !== undefined);
+    const entries = Object.entries(payload).filter(
+      ([key, value]) => key !== "id" && value !== undefined,
+    );
     if (!entries.length) {
       return this.findById(tableName, id);
     }
@@ -257,7 +297,7 @@ class PostgresDatabase {
     const values = entries.map(([, value]) => value);
     const setClause = entries
       .map(([key], index) => `${quoteIdentifier(key)} = $${index + 1}`)
-      .join(', ');
+      .join(", ");
 
     values.push(id);
     const result = await this.pool.query(
@@ -276,7 +316,7 @@ class PostgresDatabase {
     const startedAt = Date.now();
 
     await runWithTimeout(
-      () => this.pool.query('SELECT 1'),
+      () => this.pool.query("SELECT 1"),
       timeoutMs,
       `PostgreSQL health check timed out after ${timeoutMs}ms`,
     );
@@ -296,16 +336,20 @@ class PostgresDatabase {
 
 function createDatabaseConnection({ config, logger }) {
   if (config.database.url) {
-    const sslRejectUnauthorizedOverride = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
+    const sslRejectUnauthorizedOverride =
+      process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
     const sslCaOverride = process.env.DATABASE_SSL_CA;
     const sslCaPathOverride = process.env.DATABASE_SSL_CA_PATH;
 
     // For serverless environments, use smaller connection pool
     // Vercel serverless functions have short lifespans
-    const isServerless = process.env.VERCEL === '1' || process.env.AWS_EXECUTION_ENV;
-    const isProduction = config.env === 'production';
-    const isAWSRDS = config.database.url.includes('.rds.') || config.database.url.includes('.rds-');
-    
+    const isServerless =
+      process.env.VERCEL === "1" || process.env.AWS_EXECUTION_ENV;
+    const isProduction = config.env === "production";
+    const isAWSRDS =
+      config.database.url.includes(".rds.") ||
+      config.database.url.includes(".rds-");
+
     const poolConfig = {
       connectionString: config.database.url,
       // Serverless: 1-5 connections, Traditional: 10-20
@@ -322,24 +366,28 @@ function createDatabaseConnection({ config, logger }) {
     // AWS RDS requires SSL connection
     if (isAWSRDS) {
       if (isProduction) {
-        const fallbackCaPath = path.resolve(__dirname, '../../..', 'global-bundle.pem');
+        const fallbackCaPath = path.resolve(
+          __dirname,
+          "../../..",
+          "global-bundle.pem",
+        );
         const caPath = sslCaPathOverride || fallbackCaPath;
 
         if (sslCaOverride) {
           poolConfig.ssl = {
             rejectUnauthorized: true,
-            ca: sslCaOverride.replace(/\\n/g, '\n'),
+            ca: sslCaOverride.replace(/\\n/g, "\n"),
           };
         } else if (fs.existsSync(caPath)) {
           poolConfig.ssl = {
             rejectUnauthorized: true,
-            ca: fs.readFileSync(caPath, 'utf8'),
+            ca: fs.readFileSync(caPath, "utf8"),
           };
         } else {
           poolConfig.ssl = { rejectUnauthorized: false };
           logger.warn(
             { caPath },
-            'RDS CA bundle not found. Falling back to rejectUnauthorized=false.',
+            "RDS CA bundle not found. Falling back to rejectUnauthorized=false.",
           );
         }
       } else {
@@ -347,13 +395,14 @@ function createDatabaseConnection({ config, logger }) {
       }
     }
 
-    if (sslRejectUnauthorizedOverride === 'false') {
-      const current = poolConfig.ssl && poolConfig.ssl !== true ? poolConfig.ssl : {};
+    if (sslRejectUnauthorizedOverride === "false") {
+      const current =
+        poolConfig.ssl && poolConfig.ssl !== true ? poolConfig.ssl : {};
       poolConfig.ssl = { ...current, rejectUnauthorized: false };
     }
-    
+
     logger.info(
-      { 
+      {
         databaseUrlConfigured: true,
         isServerless,
         isAWSRDS,
@@ -362,16 +411,19 @@ function createDatabaseConnection({ config, logger }) {
           max: poolConfig.max,
           idleTimeoutMillis: poolConfig.idleTimeoutMillis,
           connectionTimeoutMillis: poolConfig.connectionTimeoutMillis,
-        }
+        },
       },
-      'Using PostgreSQL database adapter.',
+      "Using PostgreSQL database adapter.",
     );
     return new PostgresDatabase({ pool: new Pool(poolConfig) });
   }
 
-  logger.warn('DATABASE_URL is not set. Falling back to in-memory adapter.');
+  logger.warn("DATABASE_URL is not set. Falling back to in-memory adapter.");
   return new InMemoryDatabase();
 }
 
-
-module.exports = { createDatabaseConnection, InMemoryDatabase, PostgresDatabase };
+export {
+  createDatabaseConnection,
+  InMemoryDatabase,
+  PostgresDatabase,
+};

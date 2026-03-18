@@ -2,7 +2,7 @@ function createPaymentsRepository({ db, logger, schema }) {
   const tableCache = new Map();
 
   function canUseRawQuery() {
-    return typeof db.query === 'function' && Boolean(db.pool);
+    return typeof db.query === "function" && Boolean(db.pool);
   }
 
   function toNumber(value, fallback = 0) {
@@ -19,20 +19,20 @@ function createPaymentsRepository({ db, logger, schema }) {
       return fallback;
     }
 
-    if (typeof value === 'boolean') {
+    if (typeof value === "boolean") {
       return value;
     }
 
-    if (typeof value === 'number') {
+    if (typeof value === "number") {
       return value === 1;
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const normalized = value.trim().toLowerCase();
-      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+      if (normalized === "true" || normalized === "1" || normalized === "yes") {
         return true;
       }
-      if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+      if (normalized === "false" || normalized === "0" || normalized === "no") {
         return false;
       }
     }
@@ -62,7 +62,7 @@ function createPaymentsRepository({ db, logger, schema }) {
       id: row.id,
       bookingId: row.booking_id ?? row.bookingId ?? null,
       amount: toNumber(row.amount, 0),
-      currency: row.currency ?? 'INR',
+      currency: row.currency ?? "INR",
       paymentMode: row.payment_mode ?? row.paymentMode ?? null,
       gatewayProvider: row.gateway_provider ?? row.gatewayProvider ?? null,
       gatewayOrderId: row.gateway_order_id ?? row.gatewayOrderId ?? null,
@@ -70,7 +70,7 @@ function createPaymentsRepository({ db, logger, schema }) {
       gatewaySignature: row.gateway_signature ?? row.gatewaySignature ?? null,
       paymentReference: row.payment_reference ?? row.paymentReference ?? null,
       proofUrl: row.proof_url ?? row.proofUrl ?? null,
-      status: row.status ?? 'PENDING',
+      status: row.status ?? "PENDING",
       isVerified: toBoolean(row.is_verified ?? row.isVerified, false),
       verifiedBy: row.verified_by ?? row.verifiedBy ?? null,
       verifiedAt: toDate(row.verified_at ?? row.verifiedAt),
@@ -90,8 +90,8 @@ function createPaymentsRepository({ db, logger, schema }) {
       totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
       advanceRequired: toNumber(row.advance_required ?? row.advanceRequired, 0),
       advanceReceived: toNumber(row.advance_received ?? row.advanceReceived, 0),
-      status: row.status ?? 'PENDING',
-      paymentStatus: row.payment_status ?? row.paymentStatus ?? 'PENDING',
+      status: row.status ?? "PENDING",
+      paymentStatus: row.payment_status ?? row.paymentStatus ?? "PENDING",
       isDeleted: toBoolean(row.is_deleted ?? row.isDeleted, false),
     };
   }
@@ -164,10 +164,15 @@ function createPaymentsRepository({ db, logger, schema }) {
       return toNumber(result.rows[0]?.refund_amount, 0);
     }
 
-    const rows = await db.findMany(schema.refundsTable, { booking_id: bookingId });
+    const rows = await db.findMany(schema.refundsTable, {
+      booking_id: bookingId,
+    });
     return rows
-      .filter((row) => (row.status ?? 'INITIATED') === 'PROCESSED')
-      .reduce((sum, row) => sum + toNumber(row.refund_amount ?? row.refundAmount, 0), 0);
+      .filter((row) => (row.status ?? "INITIATED") === "PROCESSED")
+      .reduce(
+        (sum, row) => sum + toNumber(row.refund_amount ?? row.refundAmount, 0),
+        0,
+      );
   }
 
   return Object.freeze({
@@ -188,13 +193,13 @@ function createPaymentsRepository({ db, logger, schema }) {
     },
 
     async create(payload) {
-      logger.debug({ module: 'payments', payload }, 'Creating payment');
+      logger.debug({ module: "payments", payload }, "Creating payment");
       const row = await db.insert(schema.tableName, payload);
       return toPayment(row);
     },
 
     async update(id, payload) {
-      logger.debug({ module: 'payments', id, payload }, 'Updating payment');
+      logger.debug({ module: "payments", id, payload }, "Updating payment");
       const row = await db.update(schema.tableName, id, payload);
       return toPayment(row);
     },
@@ -225,10 +230,12 @@ function createPaymentsRepository({ db, logger, schema }) {
         return toNumber(result.rows[0]?.paid_amount, 0);
       }
 
-      const rows = await db.findMany(schema.tableName, { booking_id: bookingId });
+      const rows = await db.findMany(schema.tableName, {
+        booking_id: bookingId,
+      });
       return rows
         .filter((row) => toBoolean(row.is_verified ?? row.isVerified, false))
-        .filter((row) => (row.status ?? 'PENDING') !== 'REFUNDED')
+        .filter((row) => (row.status ?? "PENDING") !== "REFUNDED")
         .reduce((sum, row) => sum + toNumber(row.amount, 0), 0);
     },
 
@@ -236,4 +243,4 @@ function createPaymentsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createPaymentsRepository };
+export { createPaymentsRepository };

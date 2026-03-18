@@ -1,5 +1,5 @@
-const { randomUUID } = require('node:crypto');
-const { toUserRoom, toRoleRoom, toTeamRoom } = require('./rooms');
+import { randomUUID } from "node:crypto";
+import { toUserRoom, toRoleRoom, toTeamRoom } from "./rooms.js";
 
 function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean).map((value) => String(value)))];
@@ -10,7 +10,7 @@ function createSocketEventPublisher({ logger }) {
 
   function attachSocketServer(server) {
     socketServer = server;
-    logger.info('Socket event publisher attached to Socket.IO server');
+    logger.info("Socket event publisher attached to Socket.IO server");
   }
 
   function hasSocketServer() {
@@ -20,9 +20,13 @@ function createSocketEventPublisher({ logger }) {
   function resolveRooms(recipients = {}) {
     const rooms = [];
 
-    uniqueIds(recipients.userIds).forEach((userId) => rooms.push(toUserRoom(userId)));
+    uniqueIds(recipients.userIds).forEach((userId) =>
+      rooms.push(toUserRoom(userId)),
+    );
     uniqueIds(recipients.roles).forEach((role) => rooms.push(toRoleRoom(role)));
-    uniqueIds(recipients.teamIds).forEach((teamId) => rooms.push(toTeamRoom(teamId)));
+    uniqueIds(recipients.teamIds).forEach((teamId) =>
+      rooms.push(toTeamRoom(teamId)),
+    );
 
     return [...new Set(rooms)];
   }
@@ -30,7 +34,7 @@ function createSocketEventPublisher({ logger }) {
   async function publish(event = {}) {
     const envelope = {
       id: event.id || randomUUID(),
-      eventName: event.eventName || 'notification.event',
+      eventName: event.eventName || "notification.event",
       title: event.title || null,
       message: event.message || null,
       entityType: event.entityType || null,
@@ -46,7 +50,7 @@ function createSocketEventPublisher({ logger }) {
         attempts: 0,
         successful: 0,
         results: [],
-        error: 'SOCKET_SERVER_NOT_ATTACHED',
+        error: "SOCKET_SERVER_NOT_ATTACHED",
       };
     }
 
@@ -57,7 +61,11 @@ function createSocketEventPublisher({ logger }) {
     };
 
     if (!rooms.length) {
-      const broadcastResult = await socketServer.emitBroadcast('notification', envelope, deliveryOptions);
+      const broadcastResult = await socketServer.emitBroadcast(
+        "notification",
+        envelope,
+        deliveryOptions,
+      );
       return {
         envelope,
         delivered: broadcastResult.delivered,
@@ -70,12 +78,18 @@ function createSocketEventPublisher({ logger }) {
 
     const results = [];
     for (const room of rooms) {
-      const result = await socketServer.emitToRoom(room, 'notification', envelope, deliveryOptions);
+      const result = await socketServer.emitToRoom(
+        room,
+        "notification",
+        envelope,
+        deliveryOptions,
+      );
       results.push(result);
     }
 
     const successful = results.filter((result) => result.delivered).length;
-    const overallError = successful > 0 ? null : results[0]?.error || 'DELIVERY_FAILED';
+    const overallError =
+      successful > 0 ? null : results[0]?.error || "DELIVERY_FAILED";
 
     return {
       envelope,
@@ -94,4 +108,4 @@ function createSocketEventPublisher({ logger }) {
   });
 }
 
-module.exports = { createSocketEventPublisher };
+export { createSocketEventPublisher };

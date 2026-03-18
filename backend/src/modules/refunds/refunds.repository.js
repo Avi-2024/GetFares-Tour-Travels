@@ -1,6 +1,6 @@
 function createRefundsRepository({ db, logger, schema }) {
   function canUseRawQuery() {
-    return typeof db.query === 'function' && Boolean(db.pool);
+    return typeof db.query === "function" && Boolean(db.pool);
   }
 
   function toNumber(value, fallback = 0) {
@@ -17,20 +17,20 @@ function createRefundsRepository({ db, logger, schema }) {
       return fallback;
     }
 
-    if (typeof value === 'boolean') {
+    if (typeof value === "boolean") {
       return value;
     }
 
-    if (typeof value === 'number') {
+    if (typeof value === "number") {
       return value === 1;
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const normalized = value.trim().toLowerCase();
-      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+      if (normalized === "true" || normalized === "1" || normalized === "yes") {
         return true;
       }
-      if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+      if (normalized === "false" || normalized === "0" || normalized === "no") {
         return false;
       }
     }
@@ -64,7 +64,7 @@ function createRefundsRepository({ db, logger, schema }) {
       gatewayRefundId: row.gateway_refund_id ?? row.gatewayRefundId ?? null,
       supplierPenalty: toNumber(row.supplier_penalty ?? row.supplierPenalty, 0),
       serviceCharge: toNumber(row.service_charge ?? row.serviceCharge, 0),
-      status: row.status ?? 'INITIATED',
+      status: row.status ?? "INITIATED",
       approvedBy: row.approved_by ?? row.approvedBy ?? null,
       processedAt: toDate(row.processed_at ?? row.processedAt),
       createdAt: toDate(row.created_at ?? row.createdAt),
@@ -80,8 +80,8 @@ function createRefundsRepository({ db, logger, schema }) {
       id: row.id,
       totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
       advanceReceived: toNumber(row.advance_received ?? row.advanceReceived, 0),
-      paymentStatus: row.payment_status ?? row.paymentStatus ?? 'PENDING',
-      status: row.status ?? 'PENDING',
+      paymentStatus: row.payment_status ?? row.paymentStatus ?? "PENDING",
+      status: row.status ?? "PENDING",
       isDeleted: toBoolean(row.is_deleted ?? row.isDeleted, false),
     };
   }
@@ -95,7 +95,7 @@ function createRefundsRepository({ db, logger, schema }) {
       id: row.id,
       bookingId: row.booking_id ?? row.bookingId ?? null,
       amount: toNumber(row.amount, 0),
-      status: row.status ?? 'PENDING',
+      status: row.status ?? "PENDING",
       isVerified: toBoolean(row.is_verified ?? row.isVerified, false),
     };
   }
@@ -143,13 +143,13 @@ function createRefundsRepository({ db, logger, schema }) {
     },
 
     async create(payload) {
-      logger.debug({ module: 'refunds', payload }, 'Creating refund');
+      logger.debug({ module: "refunds", payload }, "Creating refund");
       const row = await db.insert(schema.tableName, payload);
       return toRefund(row);
     },
 
     async update(id, payload) {
-      logger.debug({ module: 'refunds', id, payload }, 'Updating refund');
+      logger.debug({ module: "refunds", id, payload }, "Updating refund");
       const row = await db.update(schema.tableName, id, payload);
       return toRefund(row);
     },
@@ -190,10 +190,12 @@ function createRefundsRepository({ db, logger, schema }) {
         return toNumber(result.rows[0]?.paid_amount, 0);
       }
 
-      const rows = await db.findMany(schema.paymentsTable, { booking_id: bookingId });
+      const rows = await db.findMany(schema.paymentsTable, {
+        booking_id: bookingId,
+      });
       return rows
         .filter((row) => toBoolean(row.is_verified ?? row.isVerified, false))
-        .filter((row) => (row.status ?? 'PENDING') !== 'REFUNDED')
+        .filter((row) => (row.status ?? "PENDING") !== "REFUNDED")
         .reduce((sum, row) => sum + toNumber(row.amount, 0), 0);
     },
 
@@ -212,12 +214,18 @@ function createRefundsRepository({ db, logger, schema }) {
         return toNumber(result.rows[0]?.refund_amount, 0);
       }
 
-      const rows = await db.findMany(schema.tableName, { booking_id: bookingId });
+      const rows = await db.findMany(schema.tableName, {
+        booking_id: bookingId,
+      });
       return rows
-        .filter((row) => (row.status ?? 'INITIATED') === 'PROCESSED')
-        .reduce((sum, row) => sum + toNumber(row.refund_amount ?? row.refundAmount, 0), 0);
+        .filter((row) => (row.status ?? "INITIATED") === "PROCESSED")
+        .reduce(
+          (sum, row) =>
+            sum + toNumber(row.refund_amount ?? row.refundAmount, 0),
+          0,
+        );
     },
   });
 }
 
-module.exports = { createRefundsRepository };
+export { createRefundsRepository };

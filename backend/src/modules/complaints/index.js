@@ -1,10 +1,10 @@
-const { createComplaintsController } = require('./complaints.controller');
-const { createComplaintsService } = require('./complaints.service');
-const { createComplaintsRepository } = require('./complaints.repository');
-const { createComplaintsRoutes } = require('./complaints.routes');
-const { ComplaintsValidation } = require('./complaints.validation');
-const { ComplaintsSchema } = require('./complaints.schema');
-const { createComplaintsEvents } = require('./complaints.events');
+import { createComplaintsController } from "./complaints.controller.js";
+import { createComplaintsService } from "./complaints.service.js";
+import { createComplaintsRepository } from "./complaints.repository.js";
+import { createComplaintsRoutes } from "./complaints.routes.js";
+import { ComplaintsValidation } from "./complaints.validation.js";
+import { ComplaintsSchema } from "./complaints.schema.js";
+import { createComplaintsEvents } from "./complaints.events.js";
 
 function createComplaintsModule({ dependencies }) {
   const repository = createComplaintsRepository({
@@ -35,7 +35,7 @@ function createComplaintsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'complaints',
+    name: "complaints",
     router,
     controller,
     service,
@@ -44,4 +44,4 @@ function createComplaintsModule({ dependencies }) {
   });
 }
 
-module.exports = { createComplaintsModule };
+export { createComplaintsModule };

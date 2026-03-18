@@ -1,28 +1,28 @@
-const { AppError } = require('../../core/errors');
+import { AppError } from "../../core/errors/index.js";
 
 const VISA_STATUS = Object.freeze({
-  DOCUMENT_PENDING: 'DOCUMENT_PENDING',
-  SUBMITTED: 'SUBMITTED',
-  APPROVED: 'APPROVED',
-  REJECTED: 'REJECTED',
+  DOCUMENT_PENDING: "DOCUMENT_PENDING",
+  SUBMITTED: "SUBMITTED",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
 });
 
 const STATUS_TRANSITIONS = Object.freeze({
-  DOCUMENT_PENDING: new Set(['SUBMITTED', 'REJECTED']),
-  SUBMITTED: new Set(['APPROVED', 'REJECTED']),
+  DOCUMENT_PENDING: new Set(["SUBMITTED", "REJECTED"]),
+  SUBMITTED: new Set(["APPROVED", "REJECTED"]),
   APPROVED: new Set([]),
   REJECTED: new Set([]),
 });
 
 const CHECKLIST_DOC_MAP = Object.freeze({
-  PASSPORT: 'passport_verified',
-  VISA: 'visa_verified',
-  INSURANCE: 'insurance_verified',
-  TICKET: 'ticket_verified',
-  HOTEL: 'hotel_verified',
-  TRANSFER: 'transfer_verified',
-  TOUR: 'tour_verified',
-  ITINERARY: 'final_itinerary_uploaded',
+  PASSPORT: "passport_verified",
+  VISA: "visa_verified",
+  INSURANCE: "insurance_verified",
+  TICKET: "ticket_verified",
+  HOTEL: "hotel_verified",
+  TRANSFER: "transfer_verified",
+  TOUR: "tour_verified",
+  ITINERARY: "final_itinerary_uploaded",
 });
 
 function createVisaService({ repository, logger, events }) {
@@ -41,7 +41,7 @@ function createVisaService({ repository, logger, events }) {
 
   function normalizeDocumentType(value) {
     if (!value) {
-      return '';
+      return "";
     }
 
     return String(value).trim().toUpperCase();
@@ -99,10 +99,13 @@ function createVisaService({ repository, logger, events }) {
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'visa', requestId: context.requestId, id }, 'Getting visa case by id');
+    logger.debug(
+      { module: "visa", requestId: context.requestId, id },
+      "Getting visa case by id",
+    );
     const visaCase = await repository.findById(id);
     if (!visaCase) {
-      throw new AppError(404, 'Visa case not found', 'VISA_NOT_FOUND');
+      throw new AppError(404, "Visa case not found", "VISA_NOT_FOUND");
     }
     return visaCase;
   }
@@ -114,13 +117,16 @@ function createVisaService({ repository, logger, events }) {
 
     const booking = await repository.findBookingById(bookingId);
     if (!booking) {
-      throw new AppError(404, 'Booking not found', 'VISA_BOOKING_NOT_FOUND');
+      throw new AppError(404, "Booking not found", "VISA_BOOKING_NOT_FOUND");
     }
     return booking;
   }
 
   async function list(filters = {}, context = {}) {
-    logger.debug({ module: 'visa', requestId: context.requestId, filters }, 'Listing visa cases');
+    logger.debug(
+      { module: "visa", requestId: context.requestId, filters },
+      "Listing visa cases",
+    );
     return repository.findAll(filters);
   }
 
@@ -159,10 +165,16 @@ function createVisaService({ repository, logger, events }) {
       visa_type: payload.visaType,
       visa_number: payload.visaNumber,
       fees: payload.fees,
-      appointment_date: payload.appointmentDate ? toDateString(payload.appointmentDate) : undefined,
-      submission_date: payload.submissionDate ? toDateString(payload.submissionDate) : undefined,
+      appointment_date: payload.appointmentDate
+        ? toDateString(payload.appointmentDate)
+        : undefined,
+      submission_date: payload.submissionDate
+        ? toDateString(payload.submissionDate)
+        : undefined,
       rejection_reason: payload.rejectionReason,
-      visa_valid_until: payload.visaValidUntil ? toDateString(payload.visaValidUntil) : undefined,
+      visa_valid_until: payload.visaValidUntil
+        ? toDateString(payload.visaValidUntil)
+        : undefined,
       updated_at: new Date().toISOString(),
     });
 
@@ -178,7 +190,7 @@ function createVisaService({ repository, logger, events }) {
       throw new AppError(
         409,
         `Invalid visa status transition: ${current.status} -> ${targetStatus}`,
-        'VISA_INVALID_STATUS_TRANSITION',
+        "VISA_INVALID_STATUS_TRANSITION",
       );
     }
 
@@ -188,23 +200,37 @@ function createVisaService({ repository, logger, events }) {
     };
 
     if (targetStatus === VISA_STATUS.SUBMITTED) {
-      patch.submission_date = toDateString(payload.submissionDate, current.submissionDate || new Date().toISOString().slice(0, 10));
+      patch.submission_date = toDateString(
+        payload.submissionDate,
+        current.submissionDate || new Date().toISOString().slice(0, 10),
+      );
       patch.rejection_reason = null;
     }
 
     if (targetStatus === VISA_STATUS.APPROVED) {
       if (!payload.visaValidUntil && !current.visaValidUntil) {
-        throw new AppError(400, 'visaValidUntil is required for APPROVED status', 'VISA_VALID_UNTIL_REQUIRED');
+        throw new AppError(
+          400,
+          "visaValidUntil is required for APPROVED status",
+          "VISA_VALID_UNTIL_REQUIRED",
+        );
       }
 
-      patch.visa_valid_until = toDateString(payload.visaValidUntil, current.visaValidUntil);
+      patch.visa_valid_until = toDateString(
+        payload.visaValidUntil,
+        current.visaValidUntil,
+      );
       patch.visa_number = payload.visaNumber || current.visaNumber || null;
       patch.rejection_reason = null;
     }
 
     if (targetStatus === VISA_STATUS.REJECTED) {
       if (!payload.rejectionReason) {
-        throw new AppError(400, 'rejectionReason is required for REJECTED status', 'VISA_REJECTION_REASON_REQUIRED');
+        throw new AppError(
+          400,
+          "rejectionReason is required for REJECTED status",
+          "VISA_REJECTION_REASON_REQUIRED",
+        );
       }
       patch.rejection_reason = payload.rejectionReason;
       patch.visa_valid_until = null;
@@ -233,7 +259,8 @@ function createVisaService({ repository, logger, events }) {
     });
 
     if (created.isVerified && visaCase.bookingId) {
-      const docKey = CHECKLIST_DOC_MAP[normalizeDocumentType(created.documentType)];
+      const docKey =
+        CHECKLIST_DOC_MAP[normalizeDocumentType(created.documentType)];
       if (docKey) {
         await repository.upsertChecklist(visaCase.bookingId, {
           [docKey]: true,
@@ -255,7 +282,11 @@ function createVisaService({ repository, logger, events }) {
   async function verifyDocument(documentId, payload, context = {}) {
     const document = await repository.findDocumentById(documentId);
     if (!document) {
-      throw new AppError(404, 'Visa document not found', 'VISA_DOCUMENT_NOT_FOUND');
+      throw new AppError(
+        404,
+        "Visa document not found",
+        "VISA_DOCUMENT_NOT_FOUND",
+      );
     }
 
     const updated = await repository.updateDocument(documentId, {
@@ -265,7 +296,8 @@ function createVisaService({ repository, logger, events }) {
 
     const visaCase = await getById(updated.visaCaseId, context);
     if (visaCase.bookingId) {
-      const docKey = CHECKLIST_DOC_MAP[normalizeDocumentType(updated.documentType)];
+      const docKey =
+        CHECKLIST_DOC_MAP[normalizeDocumentType(updated.documentType)];
       if (docKey) {
         await repository.upsertChecklist(visaCase.bookingId, {
           [docKey]: payload.isVerified,
@@ -282,10 +314,16 @@ function createVisaService({ repository, logger, events }) {
   async function getChecklist(visaCaseId, context = {}) {
     const visaCase = await getById(visaCaseId, context);
     if (!visaCase.bookingId) {
-      throw new AppError(409, 'Checklist requires visa case linked to booking', 'VISA_CHECKLIST_BOOKING_REQUIRED');
+      throw new AppError(
+        409,
+        "Checklist requires visa case linked to booking",
+        "VISA_CHECKLIST_BOOKING_REQUIRED",
+      );
     }
 
-    const checklist = await repository.getChecklistByBookingId(visaCase.bookingId);
+    const checklist = await repository.getChecklistByBookingId(
+      visaCase.bookingId,
+    );
     if (!checklist) {
       return {
         bookingId: visaCase.bookingId,
@@ -310,21 +348,34 @@ function createVisaService({ repository, logger, events }) {
   async function updateChecklist(visaCaseId, payload, context = {}) {
     const visaCase = await getById(visaCaseId, context);
     if (!visaCase.bookingId) {
-      throw new AppError(409, 'Checklist requires visa case linked to booking', 'VISA_CHECKLIST_BOOKING_REQUIRED');
+      throw new AppError(
+        409,
+        "Checklist requires visa case linked to booking",
+        "VISA_CHECKLIST_BOOKING_REQUIRED",
+      );
     }
 
-    const current = await repository.getChecklistByBookingId(visaCase.bookingId);
+    const current = await repository.getChecklistByBookingId(
+      visaCase.bookingId,
+    );
     const patch = toChecklistPatch(payload);
 
     const merged = {
-      passportVerified: payload.passportVerified ?? current?.passportVerified ?? false,
+      passportVerified:
+        payload.passportVerified ?? current?.passportVerified ?? false,
       visaVerified: payload.visaVerified ?? current?.visaVerified ?? false,
-      insuranceVerified: payload.insuranceVerified ?? current?.insuranceVerified ?? false,
-      ticketVerified: payload.ticketVerified ?? current?.ticketVerified ?? false,
+      insuranceVerified:
+        payload.insuranceVerified ?? current?.insuranceVerified ?? false,
+      ticketVerified:
+        payload.ticketVerified ?? current?.ticketVerified ?? false,
       hotelVerified: payload.hotelVerified ?? current?.hotelVerified ?? false,
-      transferVerified: payload.transferVerified ?? current?.transferVerified ?? false,
+      transferVerified:
+        payload.transferVerified ?? current?.transferVerified ?? false,
       tourVerified: payload.tourVerified ?? current?.tourVerified ?? false,
-      finalItineraryUploaded: payload.finalItineraryUploaded ?? current?.finalItineraryUploaded ?? false,
+      finalItineraryUploaded:
+        payload.finalItineraryUploaded ??
+        current?.finalItineraryUploaded ??
+        false,
     };
 
     const derivedTravelReady = computeTravelReady(merged);
@@ -339,7 +390,10 @@ function createVisaService({ repository, logger, events }) {
   }
 
   async function getSummaryReport(filters = {}, context = {}) {
-    logger.debug({ module: 'visa', requestId: context.requestId, filters }, 'Visa summary report');
+    logger.debug(
+      { module: "visa", requestId: context.requestId, filters },
+      "Visa summary report",
+    );
     return repository.getSummaryReport(filters);
   }
 
@@ -359,4 +413,4 @@ function createVisaService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createVisaService, VISA_STATUS };
+export { createVisaService, VISA_STATUS };

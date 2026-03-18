@@ -1,11 +1,11 @@
-const { createAuthController } = require('./auth.controller');
-const { createAuthService } = require('./auth.service');
-const { createAuthRepository } = require('./auth.repository');
-const { createAuthRoutes } = require('./auth.routes');
-const { AuthValidation } = require('./auth.validation');
-const { AuthSchema } = require('./auth.schema');
-const { createAuthEvents } = require('./auth.events');
-const { createAuthMiddleware } = require('./auth.middleware');
+import { createAuthController } from "./auth.controller.js";
+import { createAuthService } from "./auth.service.js";
+import { createAuthRepository } from "./auth.repository.js";
+import { createAuthRoutes } from "./auth.routes.js";
+import { AuthValidation } from "./auth.validation.js";
+import { AuthSchema } from "./auth.schema.js";
+import { createAuthEvents } from "./auth.events.js";
+import { createAuthMiddleware } from "./auth.middleware.js";
 
 function createAuthModule({ dependencies }) {
   const repository = createAuthRepository({
@@ -38,7 +38,7 @@ function createAuthModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'auth',
+    name: "auth",
     router,
     controller,
     service,
@@ -48,4 +48,4 @@ function createAuthModule({ dependencies }) {
   });
 }
 
-module.exports = { createAuthModule };
+export { createAuthModule };

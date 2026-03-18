@@ -7,11 +7,11 @@ function createWebhooksEvents({ eventBus, logger }) {
           duplicate: payload.duplicate,
           provider: payload.provider,
         },
-        'webhooks.lead_captured',
+        "webhooks.lead_captured",
       );
-      eventBus.emit('webhooks.lead_captured', payload);
+      eventBus.emit("webhooks.lead_captured", payload);
     },
   });
 }
 
-module.exports = { createWebhooksEvents };
+export { createWebhooksEvents };

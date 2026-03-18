@@ -11,7 +11,16 @@ type Props = {
   step?: number;
 };
 
-const NumberInput = ({ label, value, onChange, required, error, min, max, step = 1 }: Props) => (
+const NumberInput = ({
+  label,
+  value,
+  onChange,
+  required,
+  error,
+  min,
+  max,
+  step = 1,
+}: Props) => (
   <FieldWrapper label={label} required={required} error={error}>
     <input
       type="number"

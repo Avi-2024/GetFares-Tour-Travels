@@ -1,7 +1,7 @@
-const { z } = require('zod');
+import { z } from "zod";
 
 const uuid = z.string().uuid();
-const leaveStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
+const leaveStatus = z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]);
 
 const directory = z.object({
   body: z.object({}).optional(),
@@ -86,7 +86,7 @@ const updateLeaveStatus = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   EmployeesValidation: {
     directory,
     checkIn,
@@ -97,4 +97,3 @@ module.exports = {
     updateLeaveStatus,
   },
 };
-

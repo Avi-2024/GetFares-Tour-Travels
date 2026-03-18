@@ -1,18 +1,23 @@
-const dotenv = require('dotenv');
-const { z } = require('zod');
+import dotenv from "dotenv";
+import { z } from "zod";
 
 dotenv.config();
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  APP_NAME: z.string().default('travel-crm'),
-  APP_VERSION: z.string().default('1.0.0'),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
+  APP_NAME: z.string().default("travel-crm"),
+  APP_VERSION: z.string().default("1.0.0"),
   PORT: z.coerce.number().int().positive().default(3000),
-  CORS_ORIGIN: z.string().default('*'),
-  JWT_ACCESS_SECRET: z.string().min(16).default('super-secret-key-minimum-16-chars'),
-  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+  CORS_ORIGIN: z.string().default("*"),
+  JWT_ACCESS_SECRET: z
+    .string()
+    .min(16)
+    .default("super-secret-key-minimum-16-chars"),
+  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
   DATABASE_URL: z.string().optional(),
-  LOG_LEVEL: z.string().default('info'),
+  LOG_LEVEL: z.string().default("info"),
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   METRICS_ENABLED: z.coerce.boolean().default(true),
@@ -23,10 +28,12 @@ const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   const errors = parsed.error.flatten().fieldErrors;
-  const errorMessage = `Invalid environment configuration:\n${Object.entries(errors)
-    .map(([field, fieldErrors]) => `  ${field}: ${fieldErrors?.join(', ')}`)
-    .join('\n')}`;
+  const errorMessage = `Invalid environment configuration:\n${Object.entries(
+    errors,
+  )
+    .map(([field, fieldErrors]) => `  ${field}: ${fieldErrors?.join(", ")}`)
+    .join("\n")}`;
   throw new Error(errorMessage);
 }
 
-module.exports = { env: parsed.data };
+export const env = parsed.data;

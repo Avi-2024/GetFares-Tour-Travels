@@ -8,12 +8,12 @@ function createUsersRepository({ db, logger, schema }) {
   }
 
   async function create(payload) {
-    logger.debug({ module: 'users', payload }, 'Creating record');
+    logger.debug({ module: "users", payload }, "Creating record");
     return db.insert(schema.tableName, payload);
   }
 
   async function update(id, payload) {
-    logger.debug({ module: 'users', id, payload }, 'Updating record');
+    logger.debug({ module: "users", id, payload }, "Updating record");
     return db.update(schema.tableName, id, payload);
   }
 
@@ -26,4 +26,4 @@ function createUsersRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createUsersRepository };
+export { createUsersRepository };

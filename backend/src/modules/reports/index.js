@@ -1,10 +1,10 @@
-const { createReportsController } = require('./reports.controller');
-const { createReportsService } = require('./reports.service');
-const { createReportsRepository } = require('./reports.repository');
-const { createReportsRoutes } = require('./reports.routes');
-const { ReportsValidation } = require('./reports.validation');
-const { ReportsSchema } = require('./reports.schema');
-const { createReportsEvents } = require('./reports.events');
+import { createReportsController } from "./reports.controller.js";
+import { createReportsService } from "./reports.service.js";
+import { createReportsRepository } from "./reports.repository.js";
+import { createReportsRoutes } from "./reports.routes.js";
+import { ReportsValidation } from "./reports.validation.js";
+import { ReportsSchema } from "./reports.schema.js";
+import { createReportsEvents } from "./reports.events.js";
 
 function createReportsModule({ dependencies }) {
   const repository = createReportsRepository({
@@ -31,7 +31,7 @@ function createReportsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'reports',
+    name: "reports",
     router,
     controller,
     service,
@@ -40,4 +40,4 @@ function createReportsModule({ dependencies }) {
   });
 }
 
-module.exports = { createReportsModule };
+export { createReportsModule };

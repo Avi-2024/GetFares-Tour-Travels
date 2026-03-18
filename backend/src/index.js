@@ -1,7 +1,2 @@
-const { createApp } = require('./app');
-const modules = require('./modules');
-
-module.exports = {
-  createApp,
-  ...modules,
-};
+export { createApp } from "./app.js";
+export * from "./modules/index.js";

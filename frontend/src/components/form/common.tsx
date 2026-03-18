@@ -1,6 +1,16 @@
 import type { ReactNode } from "react";
 
-export const FieldWrapper = ({ label, required, children, error }: { label: string; required?: boolean; children: ReactNode; error?: string }) => (
+export const FieldWrapper = ({
+  label,
+  required,
+  children,
+  error,
+}: {
+  label: string;
+  required?: boolean;
+  children: ReactNode;
+  error?: string;
+}) => (
   <div>
     <label className="field-label">
       {label}

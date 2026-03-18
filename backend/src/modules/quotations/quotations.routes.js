@@ -1,139 +1,145 @@
-﻿const { Router } = require('express');
-const { asyncHandler } = require('../../core/utils');
+import { Router } from "express";
+import { asyncHandler } from "../../core/utils/index.js";
 
-function createQuotationsRoutes({ controller, validation, validateRequest, requireAuth, authorize }) {
+function createQuotationsRoutes({
+  controller,
+  validation,
+  validateRequest,
+  requireAuth,
+  authorize,
+}) {
   const router = Router();
 
   router.get(
-    '/templates',
+    "/templates",
     requireAuth,
-    authorize('quotations:read'),
+    authorize("quotations:read"),
     validateRequest(validation.listTemplates),
     asyncHandler(controller.listTemplates),
   );
 
   router.post(
-    '/templates',
+    "/templates",
     requireAuth,
-    authorize('quotations:update'),
+    authorize("quotations:update"),
     validateRequest(validation.createTemplate),
     asyncHandler(controller.createTemplate),
   );
 
   router.patch(
-    '/templates/:id',
+    "/templates/:id",
     requireAuth,
-    authorize('quotations:update'),
+    authorize("quotations:update"),
     validateRequest(validation.updateTemplate),
     asyncHandler(controller.updateTemplate),
   );
 
   router.get(
-    '/reports/lead-to-quote',
+    "/reports/lead-to-quote",
     requireAuth,
-    authorize('reports:read'),
+    authorize("reports:read"),
     validateRequest(validation.leadToQuoteReport),
     asyncHandler(controller.leadToQuoteReport),
   );
 
   router.post(
-    '/reminders/run',
+    "/reminders/run",
     requireAuth,
-    authorize('quotations:update'),
+    authorize("quotations:update"),
     validateRequest(validation.runReminders),
     asyncHandler(controller.runReminders),
   );
 
   router.get(
-    '/',
+    "/",
     requireAuth,
-    authorize('quotations:read'),
+    authorize("quotations:read"),
     validateRequest(validation.list),
     asyncHandler(controller.list),
   );
 
   router.post(
-    '/',
+    "/",
     requireAuth,
-    authorize('quotations:create'),
+    authorize("quotations:create"),
     validateRequest(validation.create),
     asyncHandler(controller.create),
   );
 
   router.post(
-    '/:id/viewed',
+    "/:id/viewed",
     validateRequest(validation.trackView),
     asyncHandler(controller.trackView),
   );
 
   router.get(
-    '/:id/views',
+    "/:id/views",
     requireAuth,
-    authorize('quotations:read'),
+    authorize("quotations:read"),
     validateRequest(validation.views),
     asyncHandler(controller.listViews),
   );
 
   router.get(
-    '/:id/versions',
+    "/:id/versions",
     requireAuth,
-    authorize('quotations:read'),
+    authorize("quotations:read"),
     validateRequest(validation.byId),
     asyncHandler(controller.listVersions),
   );
 
   router.get(
-    '/:id/send-logs',
+    "/:id/send-logs",
     requireAuth,
-    authorize('quotations:read'),
+    authorize("quotations:read"),
     validateRequest(validation.byId),
     asyncHandler(controller.listSendLogs),
   );
 
   router.post(
-    '/:id/generate-pdf',
+    "/:id/generate-pdf",
     requireAuth,
-    authorize('quotations:update'),
+    authorize("quotations:update"),
     validateRequest(validation.generatePdf),
     asyncHandler(controller.generatePdf),
   );
 
   router.post(
-    '/:id/send',
+    "/:id/send",
     requireAuth,
-    authorize('quotations:update'),
+    authorize("quotations:update"),
     validateRequest(validation.send),
     asyncHandler(controller.send),
   );
 
   router.post(
-    '/:id/approve-margin',
+    "/:id/approve-margin",
     requireAuth,
-    authorize('quotations:update'),
+    authorize("quotations:update"),
     validateRequest(validation.approveMargin),
     asyncHandler(controller.approveMargin),
   );
 
   router.post(
-    '/:id/status',
+    "/:id/status",
     requireAuth,
-    authorize('quotations:update'),
+    authorize("quotations:update"),
     validateRequest(validation.statusTransition),
     asyncHandler(controller.transitionStatus),
   );
 
   router.get(
-    '/:id',
+    "/:id",
     requireAuth,
-    authorize('quotations:read'),
+    authorize("quotations:read"),
     validateRequest(validation.byId),
     asyncHandler(controller.getById),
   );
 
   router.patch(
-    '/:id',
+    "/:id",
     requireAuth,
-    authorize('quotations:update'),
+    authorize("quotations:update"),
     validateRequest(validation.update),
     asyncHandler(controller.update),
   );
@@ -141,4 +147,4 @@ function createQuotationsRoutes({ controller, validation, validateRequest, requi
   return router;
 }
 
-module.exports = { createQuotationsRoutes };
+export { createQuotationsRoutes };

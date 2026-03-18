@@ -1,4 +1,4 @@
-const { AppError } = require('../../core/errors');
+import { AppError } from "../../core/errors/index.js";
 
 function mapListFilters(filters = {}) {
   return {
@@ -67,17 +67,27 @@ function toCampaign(entity) {
 function createCampaignsService({ repository, logger, events }) {
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
-    logger.debug({ module: 'campaigns', requestId: context.requestId, filters: mappedFilters }, 'Listing records');
+    logger.debug(
+      {
+        module: "campaigns",
+        requestId: context.requestId,
+        filters: mappedFilters,
+      },
+      "Listing records",
+    );
     const rows = await repository.findAll(mappedFilters);
     return rows.map(toCampaign);
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'campaigns', requestId: context.requestId, id }, 'Getting record by id');
+    logger.debug(
+      { module: "campaigns", requestId: context.requestId, id },
+      "Getting record by id",
+    );
     const item = await repository.findById(id);
 
     if (!item) {
-      throw new AppError(404, 'Campaigns not found', 'CAMPAIGNS_NOT_FOUND');
+      throw new AppError(404, "Campaigns not found", "CAMPAIGNS_NOT_FOUND");
     }
 
     return toCampaign(item);
@@ -105,4 +115,4 @@ function createCampaignsService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createCampaignsService };
+export { createCampaignsService };

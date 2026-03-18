@@ -1,10 +1,12 @@
-const { z } = require('zod');
+import { z } from "zod";
 
-const refundStatus = z.enum(['INITIATED', 'APPROVED', 'REJECTED', 'PROCESSED']);
+const refundStatus = z.enum(["INITIATED", "APPROVED", "REJECTED", "PROCESSED"]);
 
-const dateTimeString = z.string().refine((value) => !Number.isNaN(new Date(value).getTime()), {
-  message: 'Invalid date-time',
-});
+const dateTimeString = z
+  .string()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+    message: "Invalid date-time",
+  });
 
 const createPayload = z.object({
   bookingId: z.string().uuid(),
@@ -22,7 +24,10 @@ const updatePayload = z
     serviceCharge: z.coerce.number().nonnegative().optional(),
     gatewayRefundId: z.string().trim().min(2).max(150).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update');
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required for update",
+  );
 
 const list = z.object({
   body: z.object({}).optional(),
@@ -91,7 +96,7 @@ const processRefund = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   RefundsValidation: {
     create,
     update,

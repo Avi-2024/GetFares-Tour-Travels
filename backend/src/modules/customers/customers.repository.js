@@ -2,7 +2,7 @@ function createCustomersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
 
   function canUseRawQuery() {
-    return typeof db.query === 'function' && db.pool;
+    return typeof db.query === "function" && db.pool;
   }
 
   async function getTableColumns(tableName) {
@@ -25,7 +25,9 @@ function createCustomersRepository({ db, logger, schema }) {
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    const entries = Object.entries(payload).filter(
+      ([, value]) => value !== undefined,
+    );
     if (!entries.length) {
       return {};
     }
@@ -48,13 +50,13 @@ function createCustomersRepository({ db, logger, schema }) {
   }
 
   async function create(payload) {
-    logger.debug({ module: 'customers', payload }, 'Creating record');
+    logger.debug({ module: "customers", payload }, "Creating record");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
     return db.insert(schema.tableName, sanitized);
   }
 
   async function update(id, payload) {
-    logger.debug({ module: 'customers', id, payload }, 'Updating record');
+    logger.debug({ module: "customers", id, payload }, "Updating record");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
     return db.update(schema.tableName, id, sanitized);
   }
@@ -67,4 +69,4 @@ function createCustomersRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createCustomersRepository };
+export { createCustomersRepository };

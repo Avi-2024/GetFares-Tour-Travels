@@ -1,5 +1,5 @@
 function createLeadsRepository({ db, logger, schema }) {
-  const ASSIGNABLE_ROLES = new Set(['sales_consultant', 'agent']);
+  const ASSIGNABLE_ROLES = new Set(["sales_consultant", "agent"]);
   const FOLLOWUP_TYPE_TO_DB = Object.freeze({
     CALL: 1,
     WHATSAPP: 2,
@@ -8,15 +8,15 @@ function createLeadsRepository({ db, logger, schema }) {
     TASK: 4,
   });
   const FOLLOWUP_TYPE_FROM_DB = Object.freeze({
-    1: 'CALL',
-    2: 'WHATSAPP',
-    3: 'EMAIL',
-    4: 'FINAL_REMINDER',
+    1: "CALL",
+    2: "WHATSAPP",
+    3: "EMAIL",
+    4: "FINAL_REMINDER",
   });
   const tableColumnsCache = new Map();
 
   function canIntrospect() {
-    return typeof db.query === 'function' && Boolean(db.pool);
+    return typeof db.query === "function" && Boolean(db.pool);
   }
 
   function toPositiveInt(value, fallback, max = 500) {
@@ -38,7 +38,7 @@ function createLeadsRepository({ db, logger, schema }) {
     if (!phone) {
       return null;
     }
-    const normalized = String(phone).replace(/\D/g, '');
+    const normalized = String(phone).replace(/\D/g, "");
     return normalized || null;
   }
 
@@ -47,18 +47,18 @@ function createLeadsRepository({ db, logger, schema }) {
       return value.map((item) => String(item).trim()).filter(Boolean);
     }
 
-    if (typeof value === 'string' && value.trim()) {
+    if (typeof value === "string" && value.trim()) {
       const trimmed = value.trim();
-      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
         return trimmed
           .slice(1, -1)
-          .split(',')
-          .map((item) => item.trim().replace(/^"|"$/g, ''))
+          .split(",")
+          .map((item) => item.trim().replace(/^"|"$/g, ""))
           .filter(Boolean);
       }
 
       return trimmed
-        .split(',')
+        .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
     }
@@ -102,7 +102,7 @@ function createLeadsRepository({ db, logger, schema }) {
       return tableColumnsCache.get(tableName);
     }
 
-    if (typeof db.query !== 'function') {
+    if (typeof db.query !== "function") {
       tableColumnsCache.set(tableName, null);
       return null;
     }
@@ -145,7 +145,7 @@ function createLeadsRepository({ db, logger, schema }) {
       clientCurrency: row.client_currency ?? row.clientCurrency ?? null,
       preferences: row.preferences ?? null,
       lifetimeValue: row.lifetime_value ?? row.lifetimeValue ?? 0,
-      segment: row.segment ?? 'NEW',
+      segment: row.segment ?? "NEW",
       isDeleted: row.is_deleted ?? row.isDeleted ?? false,
       createdAt: row.created_at ?? row.createdAt ?? null,
     };
@@ -166,8 +166,13 @@ function createLeadsRepository({ db, logger, schema }) {
       phone: customer?.phone ?? row.phone ?? null,
       email: customer?.email ?? row.email ?? null,
       panNumber: customer?.panNumber ?? row.pan_number ?? row.panNumber ?? null,
-      addressLine: customer?.addressLine ?? row.address_line ?? row.addressLine ?? null,
-      clientCurrency: customer?.clientCurrency ?? row.client_currency ?? row.clientCurrency ?? null,
+      addressLine:
+        customer?.addressLine ?? row.address_line ?? row.addressLine ?? null,
+      clientCurrency:
+        customer?.clientCurrency ??
+        row.client_currency ??
+        row.clientCurrency ??
+        null,
       nationality: row.nationality ?? null,
       destinationId: row.destination_id ?? row.destinationId ?? null,
       travelDate: row.travel_date ?? row.travelDate ?? null,
@@ -175,7 +180,7 @@ function createLeadsRepository({ db, logger, schema }) {
       adultsCount: row.adults_count ?? row.adultsCount ?? 1,
       childrenCount: row.children_count ?? row.childrenCount ?? 0,
       visaRequired: row.visa_required ?? row.visaRequired ?? false,
-      leadType: row.lead_type ?? row.leadType ?? 'HOLIDAY',
+      leadType: row.lead_type ?? row.leadType ?? "HOLIDAY",
       travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
       source: row.source ?? null,
       campaignId: row.campaign_id ?? row.campaignId ?? null,
@@ -192,14 +197,16 @@ function createLeadsRepository({ db, logger, schema }) {
       responseAt: row.response_at ?? row.responseAt ?? null,
       slaBreached: row.sla_breached ?? row.slaBreached ?? false,
       reassignmentCount: row.reassignment_count ?? row.reassignmentCount ?? 0,
-      qualificationCompleted: row.qualification_completed ?? row.qualificationCompleted ?? false,
+      qualificationCompleted:
+        row.qualification_completed ?? row.qualificationCompleted ?? false,
       closedReason: row.closed_reason ?? row.closedReason ?? null,
       nextFollowupDate: row.next_followup_date ?? row.nextFollowupDate ?? null,
       subStatus: row.sub_status ?? row.subStatus ?? null,
       temperature: row.temperature ?? null,
       followupAttempts: row.followup_attempts ?? row.followupAttempts ?? 0,
       finalReminderAt: row.final_reminder_at ?? row.finalReminderAt ?? null,
-      nonResponsiveMarkedAt: row.non_responsive_marked_at ?? row.nonResponsiveMarkedAt ?? null,
+      nonResponsiveMarkedAt:
+        row.non_responsive_marked_at ?? row.nonResponsiveMarkedAt ?? null,
       isDeleted: row.is_deleted ?? row.isDeleted ?? false,
       createdAt: row.created_at ?? row.createdAt ?? null,
       updatedAt: row.updated_at ?? row.updatedAt ?? null,
@@ -211,13 +218,15 @@ function createLeadsRepository({ db, logger, schema }) {
       return null;
     }
 
-    const followupType = normalizeFollowupType(row.followup_type ?? row.followupType);
+    const followupType = normalizeFollowupType(
+      row.followup_type ?? row.followupType,
+    );
 
     return {
       id: row.id,
       leadId: row.lead_id ?? row.leadId,
       userId: row.user_id ?? row.userId ?? null,
-      followupType: FOLLOWUP_TYPE_FROM_DB[followupType] || 'CALL',
+      followupType: FOLLOWUP_TYPE_FROM_DB[followupType] || "CALL",
       followupTypeCode: followupType,
       followupDate: row.followup_date ?? row.followupDate ?? null,
       notes: row.notes ?? null,
@@ -232,11 +241,14 @@ function createLeadsRepository({ db, logger, schema }) {
       fullName: row.full_name ?? row.fullName ?? null,
       email: row.email ?? null,
       role: roleName ? String(roleName).toLowerCase() : null,
-      expertiseDestinations: normalizeTextArray(row.expertise_destinations ?? row.expertiseDestinations),
+      expertiseDestinations: normalizeTextArray(
+        row.expertise_destinations ?? row.expertiseDestinations,
+      ),
       isActive: row.is_active ?? row.isActive ?? true,
       isOnLeave: row.is_on_leave ?? row.isOnLeave ?? false,
       lastLogin: row.last_login ?? row.lastLogin ?? null,
-      incentivePercent: Number(row.incentive_percent ?? row.incentivePercent ?? 0) || 0,
+      incentivePercent:
+        Number(row.incentive_percent ?? row.incentivePercent ?? 0) || 0,
     };
   }
 
@@ -260,7 +272,9 @@ function createLeadsRepository({ db, logger, schema }) {
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    const entries = Object.entries(payload).filter(
+      ([, value]) => value !== undefined,
+    );
     if (!entries.length) {
       return {};
     }
@@ -336,7 +350,9 @@ function createLeadsRepository({ db, logger, schema }) {
       return new Map();
     }
 
-    const rows = await Promise.all(ids.map((id) => db.findById(schema.customersTable, id)));
+    const rows = await Promise.all(
+      ids.map((id) => db.findById(schema.customersTable, id)),
+    );
     const customerMap = new Map();
 
     rows.filter(Boolean).forEach((row) => {
@@ -347,7 +363,9 @@ function createLeadsRepository({ db, logger, schema }) {
   }
 
   async function mapRowsToDomain(rows = []) {
-    const customerMap = await loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId));
+    const customerMap = await loadCustomersByIds(
+      rows.map((row) => row.customer_id ?? row.customerId),
+    );
     return rows.map((row) => toDomain(row, customerMap));
   }
 
@@ -355,19 +373,23 @@ function createLeadsRepository({ db, logger, schema }) {
     if (!row) {
       return null;
     }
-    const customerMap = await loadCustomersByIds([row.customer_id ?? row.customerId]);
+    const customerMap = await loadCustomersByIds([
+      row.customer_id ?? row.customerId,
+    ]);
     return toDomain(row, customerMap);
   }
 
   async function findCustomerByContact({ email, phone }) {
     const normalizedEmail = normalizeEmail(email);
     const normalizedPhone = normalizePhone(phone);
-    const hasSoftDelete = await hasColumn(schema.customersTable, 'is_deleted');
+    const hasSoftDelete = await hasColumn(schema.customersTable, "is_deleted");
 
     if (normalizedEmail) {
       const row = await db.findOne(
         schema.customersTable,
-        hasSoftDelete ? { email: normalizedEmail, is_deleted: false } : { email: normalizedEmail },
+        hasSoftDelete
+          ? { email: normalizedEmail, is_deleted: false }
+          : { email: normalizedEmail },
       );
       if (row) {
         return toCustomerDomain(row);
@@ -377,7 +399,9 @@ function createLeadsRepository({ db, logger, schema }) {
     if (normalizedPhone) {
       const row = await db.findOne(
         schema.customersTable,
-        hasSoftDelete ? { phone: normalizedPhone, is_deleted: false } : { phone: normalizedPhone },
+        hasSoftDelete
+          ? { phone: normalizedPhone, is_deleted: false }
+          : { phone: normalizedPhone },
       );
       if (row) {
         return toCustomerDomain(row);
@@ -388,10 +412,10 @@ function createLeadsRepository({ db, logger, schema }) {
   }
 
   async function createCustomer(payload = {}) {
-    const hasSoftDelete = await hasColumn(schema.customersTable, 'is_deleted');
+    const hasSoftDelete = await hasColumn(schema.customersTable, "is_deleted");
     const fullName =
       payload.fullName ||
-      (payload.email ? String(payload.email).split('@')[0] : null) ||
+      (payload.email ? String(payload.email).split("@")[0] : null) ||
       payload.phone ||
       `Customer ${Date.now()}`;
 
@@ -404,7 +428,7 @@ function createLeadsRepository({ db, logger, schema }) {
       client_currency: payload.clientCurrency || null,
       preferences: payload.preferences || null,
       lifetime_value: payload.lifetimeValue ?? 0,
-      segment: payload.segment || 'NEW',
+      segment: payload.segment || "NEW",
     };
 
     if (hasSoftDelete) {
@@ -475,7 +499,9 @@ function createLeadsRepository({ db, logger, schema }) {
       let filteredRows = rows;
 
       if (filters.email || filters.phone) {
-        const customerMap = await loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId));
+        const customerMap = await loadCustomersByIds(
+          rows.map((row) => row.customer_id ?? row.customerId),
+        );
         const normalizedEmail = normalizeEmail(filters.email);
         const normalizedPhone = normalizePhone(filters.phone);
 
@@ -513,7 +539,10 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async findDuplicateCandidate({ email, phone }) {
-      const hasLeadCustomerId = await hasColumn(schema.tableName, 'customer_id');
+      const hasLeadCustomerId = await hasColumn(
+        schema.tableName,
+        "customer_id",
+      );
 
       if (hasLeadCustomerId) {
         const customer = await findCustomerByContact({ email, phone });
@@ -528,8 +557,10 @@ function createLeadsRepository({ db, logger, schema }) {
         const activeCandidate = leadRows
           .filter((row) => !(row.is_deleted ?? row.isDeleted ?? false))
           .sort((left, right) => {
-            const leftTs = toDate(left.created_at ?? left.createdAt)?.getTime() || 0;
-            const rightTs = toDate(right.created_at ?? right.createdAt)?.getTime() || 0;
+            const leftTs =
+              toDate(left.created_at ?? left.createdAt)?.getTime() || 0;
+            const rightTs =
+              toDate(right.created_at ?? right.createdAt)?.getTime() || 0;
             return rightTs - leftTs;
           })[0];
 
@@ -544,14 +575,18 @@ function createLeadsRepository({ db, logger, schema }) {
       const normalizedPhone = normalizePhone(phone);
 
       if (normalizedEmail) {
-        const byEmail = await db.findOne(schema.tableName, { email: normalizedEmail });
+        const byEmail = await db.findOne(schema.tableName, {
+          email: normalizedEmail,
+        });
         if (byEmail) {
           return mapRowToDomain(byEmail);
         }
       }
 
       if (normalizedPhone) {
-        const byPhone = await db.findOne(schema.tableName, { phone: normalizedPhone });
+        const byPhone = await db.findOne(schema.tableName, {
+          phone: normalizedPhone,
+        });
         if (byPhone) {
           return mapRowToDomain(byPhone);
         }
@@ -566,26 +601,26 @@ function createLeadsRepository({ db, logger, schema }) {
         phone: payload.phone,
       });
 
-    if (existing) {
-      const patch = {};
-      if (!existing.fullName && payload.fullName) {
-        patch.fullName = payload.fullName;
-      }
-      if (!existing.panNumber && payload.panNumber) {
-        patch.panNumber = payload.panNumber;
-      }
-      if (!existing.addressLine && payload.addressLine) {
-        patch.addressLine = payload.addressLine;
-      }
-      if (!existing.clientCurrency && payload.clientCurrency) {
-        patch.clientCurrency = payload.clientCurrency;
-      }
+      if (existing) {
+        const patch = {};
+        if (!existing.fullName && payload.fullName) {
+          patch.fullName = payload.fullName;
+        }
+        if (!existing.panNumber && payload.panNumber) {
+          patch.panNumber = payload.panNumber;
+        }
+        if (!existing.addressLine && payload.addressLine) {
+          patch.addressLine = payload.addressLine;
+        }
+        if (!existing.clientCurrency && payload.clientCurrency) {
+          patch.clientCurrency = payload.clientCurrency;
+        }
 
-      if (Object.keys(patch).length) {
-        return updateCustomer(existing.id, patch);
+        if (Object.keys(patch).length) {
+          return updateCustomer(existing.id, patch);
+        }
+        return existing;
       }
-      return existing;
-    }
 
       return createCustomer(payload);
     },
@@ -595,11 +630,14 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async hasLeadCustomerColumn() {
-      return hasColumn(schema.tableName, 'customer_id');
+      return hasColumn(schema.tableName, "customer_id");
     },
 
     async findActiveAssignableUsers() {
-      const [users, roleLookup] = await Promise.all([db.findMany(schema.usersTable, {}), loadRoleLookup()]);
+      const [users, roleLookup] = await Promise.all([
+        db.findMany(schema.usersTable, {}),
+        loadRoleLookup(),
+      ]);
 
       const activeUsers = users
         .filter((row) => {
@@ -611,11 +649,15 @@ function createLeadsRepository({ db, logger, schema }) {
           const roleId = row.role_id ?? row.roleId ?? null;
           const roleFromUser = row.role ? String(row.role).toLowerCase() : null;
           const roleFromLookup = roleLookup.get(roleId);
-          const roleName = roleFromUser || (roleFromLookup ? String(roleFromLookup).toLowerCase() : null);
+          const roleName =
+            roleFromUser ||
+            (roleFromLookup ? String(roleFromLookup).toLowerCase() : null);
           return toAssignableUser(row, roleName);
         });
 
-      const preferred = activeUsers.filter((user) => ASSIGNABLE_ROLES.has(user.role));
+      const preferred = activeUsers.filter((user) =>
+        ASSIGNABLE_ROLES.has(user.role),
+      );
       return preferred.length ? preferred : activeUsers;
     },
 
@@ -631,7 +673,7 @@ function createLeadsRepository({ db, logger, schema }) {
         return load;
       }
 
-      const openLeads = await db.findMany(schema.tableName, { status: 'OPEN' });
+      const openLeads = await db.findMany(schema.tableName, { status: "OPEN" });
 
       openLeads.forEach((row) => {
         const assignedTo = row.assigned_to ?? row.assignedTo ?? null;
@@ -655,7 +697,10 @@ function createLeadsRepository({ db, logger, schema }) {
           assignedTo: row.assigned_to ?? row.assignedTo ?? null,
           assignedAt: row.assigned_at ?? row.assignedAt ?? null,
         }))
-        .filter((row) => row.assignedTo && row.assignedAt && idSet.has(row.assignedTo))
+        .filter(
+          (row) =>
+            row.assignedTo && row.assignedAt && idSet.has(row.assignedTo),
+        )
         .sort((a, b) => {
           const left = toDate(a.assignedAt)?.getTime() || 0;
           const right = toDate(b.assignedAt)?.getTime() || 0;
@@ -665,7 +710,7 @@ function createLeadsRepository({ db, logger, schema }) {
       return relevant[0]?.assignedTo || null;
     },
 
-    async findUnassignedLeads({ limit = 50, status = 'OPEN' } = {}) {
+    async findUnassignedLeads({ limit = 50, status = "OPEN" } = {}) {
       const normalizedLimit = toPositiveInt(limit, 50);
       const rows = await db.findMany(schema.tableName, { status });
 
@@ -687,7 +732,7 @@ function createLeadsRepository({ db, logger, schema }) {
       const cutoff = Date.now() - minutes * 60 * 1000;
 
       const [leadRows, activityRows] = await Promise.all([
-        db.findMany(schema.tableName, { status: 'OPEN' }),
+        db.findMany(schema.tableName, { status: "OPEN" }),
         db.findMany(schema.activitiesTable, {}),
       ]);
 
@@ -756,10 +801,11 @@ function createLeadsRepository({ db, logger, schema }) {
         .filter((row) => {
           const status = row.status;
           const responseAt = row.response_at ?? row.responseAt ?? null;
-          const responseDeadline = row.response_deadline ?? row.responseDeadline ?? null;
+          const responseDeadline =
+            row.response_deadline ?? row.responseDeadline ?? null;
           const slaBreached = row.sla_breached ?? row.slaBreached ?? false;
 
-          if (status === 'CONVERTED' || status === 'LOST') {
+          if (status === "CONVERTED" || status === "LOST") {
             return false;
           }
 
@@ -775,8 +821,10 @@ function createLeadsRepository({ db, logger, schema }) {
           return deadline.getTime() < now;
         })
         .sort((a, b) => {
-          const left = toDate(a.response_deadline ?? a.responseDeadline)?.getTime() || 0;
-          const right = toDate(b.response_deadline ?? b.responseDeadline)?.getTime() || 0;
+          const left =
+            toDate(a.response_deadline ?? a.responseDeadline)?.getTime() || 0;
+          const right =
+            toDate(b.response_deadline ?? b.responseDeadline)?.getTime() || 0;
           return left - right;
         })
         .slice(0, normalizedLimit);
@@ -792,8 +840,8 @@ function createLeadsRepository({ db, logger, schema }) {
       const rows = await db.findMany(schema.tableName, {});
       const candidates = rows
         .filter((row) => {
-          const status = String(row.status || '').toUpperCase();
-          if (['CONVERTED', 'LOST', 'NON_RESPONSIVE'].includes(status)) {
+          const status = String(row.status || "").toUpperCase();
+          if (["CONVERTED", "LOST", "NON_RESPONSIVE"].includes(status)) {
             return false;
           }
 
@@ -802,7 +850,8 @@ function createLeadsRepository({ db, logger, schema }) {
             return false;
           }
 
-          const markedAt = row.non_responsive_marked_at ?? row.nonResponsiveMarkedAt ?? null;
+          const markedAt =
+            row.non_responsive_marked_at ?? row.nonResponsiveMarkedAt ?? null;
           if (markedAt) {
             return false;
           }
@@ -830,14 +879,14 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async create(payload) {
-      logger.debug({ module: 'leads', payload }, 'Creating lead');
+      logger.debug({ module: "leads", payload }, "Creating lead");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.insert(schema.tableName, sanitized);
       return toDomain(row);
     },
 
     async update(id, payload) {
-      logger.debug({ module: 'leads', id, payload }, 'Updating lead');
+      logger.debug({ module: "leads", id, payload }, "Updating lead");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.update(schema.tableName, id, sanitized);
       return toDomain(row);
@@ -881,8 +930,10 @@ function createLeadsRepository({ db, logger, schema }) {
           return due && due.getTime() <= now;
         })
         .sort((a, b) => {
-          const left = toDate(a.followup_date ?? a.followupDate)?.getTime() || 0;
-          const right = toDate(b.followup_date ?? b.followupDate)?.getTime() || 0;
+          const left =
+            toDate(a.followup_date ?? a.followupDate)?.getTime() || 0;
+          const right =
+            toDate(b.followup_date ?? b.followupDate)?.getTime() || 0;
           return left - right;
         })
         .slice(0, normalizedLimit);
@@ -892,4 +943,4 @@ function createLeadsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createLeadsRepository };
+export { createLeadsRepository };

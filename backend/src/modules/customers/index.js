@@ -1,10 +1,10 @@
-const { createCustomersController } = require('./customers.controller');
-const { createCustomersService } = require('./customers.service');
-const { createCustomersRepository } = require('./customers.repository');
-const { createCustomersRoutes } = require('./customers.routes');
-const { CustomersValidation } = require('./customers.validation');
-const { CustomersSchema } = require('./customers.schema');
-const { createCustomersEvents } = require('./customers.events');
+import { createCustomersController } from "./customers.controller.js";
+import { createCustomersService } from "./customers.service.js";
+import { createCustomersRepository } from "./customers.repository.js";
+import { createCustomersRoutes } from "./customers.routes.js";
+import { CustomersValidation } from "./customers.validation.js";
+import { CustomersSchema } from "./customers.schema.js";
+import { createCustomersEvents } from "./customers.events.js";
 
 function createCustomersModule({ dependencies }) {
   const repository = createCustomersRepository({
@@ -35,7 +35,7 @@ function createCustomersModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'customers',
+    name: "customers",
     router,
     controller,
     service,
@@ -44,4 +44,4 @@ function createCustomersModule({ dependencies }) {
   });
 }
 
-module.exports = { createCustomersModule };
+export { createCustomersModule };

@@ -1,6 +1,6 @@
-const { ROLE_PERMISSIONS, DEFAULT_ROLE } = require('./roles');
+import { ROLE_PERMISSIONS, DEFAULT_ROLE } from "./roles.js";
 
-module.exports = {
+export {
   ROLE_PERMISSIONS,
   DEFAULT_ROLE,
 };

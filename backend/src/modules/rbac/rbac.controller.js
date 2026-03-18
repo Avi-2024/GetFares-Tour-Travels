@@ -12,4 +12,4 @@ function createRbacController({ service }) {
   });
 }
 
-module.exports = { createRbacController };
+export { createRbacController };

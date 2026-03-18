@@ -1,11 +1,15 @@
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const dotenv = require('dotenv');
-const { Client } = require('pg');
+import * as fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+import { Client } from "pg";
 
 dotenv.config();
 
-const MIGRATIONS_DIR = path.resolve(__dirname, '../database/migrations');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const MIGRATIONS_DIR = path.resolve(__dirname, "../database/migrations");
 
 async function ensureMigrationsTable(client) {
   await client.query(`
@@ -18,7 +22,7 @@ async function ensureMigrationsTable(client) {
 }
 
 async function getExecutedMigrations(client) {
-  const result = await client.query('SELECT filename FROM schema_migrations');
+  const result = await client.query("SELECT filename FROM schema_migrations");
   return new Set(result.rows.map((row) => row.filename));
 }
 
@@ -29,16 +33,18 @@ async function getMigrationFiles() {
 
 async function runMigration(client, filename) {
   const fullPath = path.join(MIGRATIONS_DIR, filename);
-  const sql = await fs.readFile(fullPath, 'utf8');
+  const sql = await fs.readFile(fullPath, "utf8");
 
-  await client.query('BEGIN');
+  await client.query("BEGIN");
   try {
     await client.query(sql);
-    await client.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [filename]);
-    await client.query('COMMIT');
+    await client.query("INSERT INTO schema_migrations (filename) VALUES ($1)", [
+      filename,
+    ]);
+    await client.query("COMMIT");
     console.log(`Applied migration: ${filename}`);
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw error;
   }
 }
@@ -46,13 +52,13 @@ async function runMigration(client, filename) {
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required to run migrations.');
+    throw new Error("DATABASE_URL is required to run migrations.");
   }
 
   const clientConfig = { connectionString: databaseUrl };
-  
+
   // AWS RDS requires SSL connection
-  if (databaseUrl.includes('.rds.') || databaseUrl.includes('.rds-')) {
+  if (databaseUrl.includes(".rds.") || databaseUrl.includes(".rds-")) {
     clientConfig.ssl = { rejectUnauthorized: false };
   }
 
@@ -66,7 +72,7 @@ async function main() {
     const pending = files.filter((file) => !executed.has(file));
 
     if (!pending.length) {
-      console.log('No pending migrations.');
+      console.log("No pending migrations.");
       return;
     }
 
@@ -81,6 +87,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('Migration failed:', error.message);
+  console.error("Migration failed:", error.message);
   process.exitCode = 1;
 });

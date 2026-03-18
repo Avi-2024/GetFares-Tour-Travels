@@ -1,8 +1,8 @@
-const { AppError } = require('../errors');
+import { AppError } from "../errors/index.js";
 
 function errorHandler(err, req, res, next) {
   const logger = req.log || console;
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = process.env.NODE_ENV === "production";
 
   if (err instanceof AppError) {
     logger.warn(
@@ -29,17 +29,19 @@ function errorHandler(err, req, res, next) {
       err,
       requestId: req.context?.requestId,
     },
-    'Unhandled error',
+    "Unhandled error",
   );
 
   return res.status(500).json({
     error: {
-      message: isProduction ? 'Internal server error' : err.message || 'Internal server error',
-      code: 'INTERNAL_SERVER_ERROR',
+      message: isProduction
+        ? "Internal server error"
+        : err.message || "Internal server error",
+      code: "INTERNAL_SERVER_ERROR",
       requestId: req.context?.requestId,
       details: isProduction ? undefined : err.stack,
     },
   });
 }
 
-module.exports = { errorHandler };
+export { errorHandler };

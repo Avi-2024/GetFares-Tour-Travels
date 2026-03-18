@@ -1,11 +1,21 @@
-const { z } = require('zod');
+import { z } from "zod";
 
-const paymentStatus = z.enum(['PENDING', 'PARTIAL', 'FULL', 'REFUNDED']);
-const paymentMode = z.enum(['CASH', 'BANK_TRANSFER', 'PAYMENT_GATEWAY', 'UPI', 'CARD', 'BANK', 'GATEWAY']);
+const paymentStatus = z.enum(["PENDING", "PARTIAL", "FULL", "REFUNDED"]);
+const paymentMode = z.enum([
+  "CASH",
+  "BANK_TRANSFER",
+  "PAYMENT_GATEWAY",
+  "UPI",
+  "CARD",
+  "BANK",
+  "GATEWAY",
+]);
 
-const dateTimeString = z.string().refine((value) => !Number.isNaN(new Date(value).getTime()), {
-  message: 'Invalid date-time',
-});
+const dateTimeString = z
+  .string()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+    message: "Invalid date-time",
+  });
 
 const createPayload = z.object({
   bookingId: z.string().uuid(),
@@ -38,7 +48,10 @@ const updatePayload = z
     paidAt: dateTimeString.optional(),
     isVerified: z.boolean().optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update');
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required for update",
+  );
 
 const verifyPayload = z.object({
   body: z
@@ -87,7 +100,7 @@ const list = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   PaymentsValidation: {
     create,
     update,

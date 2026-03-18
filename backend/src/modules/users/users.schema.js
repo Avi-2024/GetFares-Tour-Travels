@@ -1,9 +1,9 @@
 const UsersSchema = Object.freeze({
-  tableName: 'users',
-  rolesTable: 'roles',
-  attendanceTable: 'attendance',
-  leavesTable: 'leaves',
-  entityName: 'Users',
+  tableName: "users",
+  rolesTable: "roles",
+  attendanceTable: "attendance",
+  leavesTable: "leaves",
+  entityName: "Users",
 });
 
-module.exports = { UsersSchema };
+export { UsersSchema };

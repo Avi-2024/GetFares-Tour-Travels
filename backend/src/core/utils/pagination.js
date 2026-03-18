@@ -8,4 +8,4 @@ function toPagination(query = {}) {
   };
 }
 
-module.exports = { toPagination };
+export { toPagination };

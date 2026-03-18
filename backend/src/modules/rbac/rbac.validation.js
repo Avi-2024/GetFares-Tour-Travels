@@ -1,4 +1,4 @@
-const { z } = require('zod');
+import { z } from "zod";
 
 const assignRole = z.object({
   body: z.object({
@@ -9,7 +9,7 @@ const assignRole = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   RbacValidation: {
     assignRole,
   },

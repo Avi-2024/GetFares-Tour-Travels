@@ -1,10 +1,10 @@
-const { createLeadsController } = require('./leads.controller');
-const { createLeadsService } = require('./leads.service');
-const { createLeadsRepository } = require('./leads.repository');
-const { createLeadsRoutes } = require('./leads.routes');
-const { LeadsValidation } = require('./leads.validation');
-const { LeadsSchema } = require('./leads.schema');
-const { createLeadsEvents } = require('./leads.events');
+import { createLeadsController } from "./leads.controller.js";
+import { createLeadsService } from "./leads.service.js";
+import { createLeadsRepository } from "./leads.repository.js";
+import { createLeadsRoutes } from "./leads.routes.js";
+import { LeadsValidation } from "./leads.validation.js";
+import { LeadsSchema } from "./leads.schema.js";
+import { createLeadsEvents } from "./leads.events.js";
 
 function createLeadsModule({ dependencies }) {
   const repository = createLeadsRepository({
@@ -35,7 +35,7 @@ function createLeadsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'leads',
+    name: "leads",
     router,
     controller,
     service,
@@ -44,4 +44,4 @@ function createLeadsModule({ dependencies }) {
   });
 }
 
-module.exports = { createLeadsModule };
+export { createLeadsModule };

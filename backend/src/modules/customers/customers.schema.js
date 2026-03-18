@@ -1,7 +1,7 @@
 const CustomersSchema = Object.freeze({
-  tableName: 'customers',
-  leadsTable: 'customer_leads',
-  entityName: 'Customers',
+  tableName: "customers",
+  leadsTable: "customer_leads",
+  entityName: "Customers",
 });
 
-module.exports = { CustomersSchema };
+export { CustomersSchema };

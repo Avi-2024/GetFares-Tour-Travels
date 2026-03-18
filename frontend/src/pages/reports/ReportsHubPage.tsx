@@ -1,5 +1,14 @@
 import { useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { DateInput } from "../../components/form";
 import FilterTabs from "../../components/ui/FilterTabs";
 import SurfaceCard from "../../components/ui/SurfaceCard";
@@ -40,8 +49,12 @@ const ReportsHubPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Reports Hub</h1>
-        <p className="text-sm text-gray-500">Unified analytics for leads, revenue, payments and operations.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          Reports Hub
+        </h1>
+        <p className="text-sm text-gray-500">
+          Unified analytics for leads, revenue, payments and operations.
+        </p>
       </div>
 
       <SurfaceCard>
@@ -69,21 +82,33 @@ const ReportsHubPage = () => {
 
       <SurfaceCard className="p-0 overflow-hidden">
         <div className="flex items-center justify-between border-b border-gray-100 p-4 dark:border-gray-800">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Report Table</h2>
-          <button className="rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Export CSV</button>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            Report Table
+          </h2>
+          <button className="rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+            Export CSV
+          </button>
         </div>
         <table className="w-full divide-y divide-gray-200 dark:divide-gray-800">
           <thead className="bg-gray-50 dark:bg-gray-800/95">
             <tr>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Label</th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Value</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Label
+              </th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Value
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {rows.map((row) => (
               <tr key={row.label}>
-                <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.label}</td>
-                <td className="px-5 py-4 text-right text-sm font-medium text-gray-900 dark:text-gray-100">{row.value.toLocaleString()}</td>
+                <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">
+                  {row.label}
+                </td>
+                <td className="px-5 py-4 text-right text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {row.value.toLocaleString()}
+                </td>
               </tr>
             ))}
           </tbody>

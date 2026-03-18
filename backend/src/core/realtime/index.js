@@ -1,8 +1,8 @@
-const { createSocketServer } = require('./socket.server');
-const { createSocketEventPublisher } = require('./event.publisher');
-const { toUserRoom, toRoleRoom, toTeamRoom } = require('./rooms');
+import { createSocketServer } from "./socket.server.js";
+import { createSocketEventPublisher } from "./event.publisher.js";
+import { toUserRoom, toRoleRoom, toTeamRoom } from "./rooms.js";
 
-module.exports = {
+export {
   createSocketServer,
   createSocketEventPublisher,
   toUserRoom,

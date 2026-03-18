@@ -1,10 +1,10 @@
-const { createEmployeesController } = require('./employees.controller');
-const { createEmployeesService } = require('./employees.service');
-const { createEmployeesRepository } = require('./employees.repository');
-const { createEmployeesRoutes } = require('./employees.routes');
-const { EmployeesValidation } = require('./employees.validation');
-const { EmployeesSchema } = require('./employees.schema');
-const { createEmployeesEvents } = require('./employees.events');
+import { createEmployeesController } from "./employees.controller.js";
+import { createEmployeesService } from "./employees.service.js";
+import { createEmployeesRepository } from "./employees.repository.js";
+import { createEmployeesRoutes } from "./employees.routes.js";
+import { EmployeesValidation } from "./employees.validation.js";
+import { EmployeesSchema } from "./employees.schema.js";
+import { createEmployeesEvents } from "./employees.events.js";
 
 function createEmployeesModule({ dependencies }) {
   const repository = createEmployeesRepository({
@@ -35,7 +35,7 @@ function createEmployeesModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'employees',
+    name: "employees",
     router,
     controller,
     service,
@@ -44,5 +44,4 @@ function createEmployeesModule({ dependencies }) {
   });
 }
 
-module.exports = { createEmployeesModule };
-
+export { createEmployeesModule };

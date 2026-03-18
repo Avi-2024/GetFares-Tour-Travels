@@ -8,12 +8,12 @@ function createComplaintsRepository({ db, logger, schema }) {
   }
 
   async function create(payload) {
-    logger.debug({ module: 'complaints', payload }, 'Creating record');
+    logger.debug({ module: "complaints", payload }, "Creating record");
     return db.insert(schema.tableName, payload);
   }
 
   async function update(id, payload) {
-    logger.debug({ module: 'complaints', id, payload }, 'Updating record');
+    logger.debug({ module: "complaints", id, payload }, "Updating record");
     return db.update(schema.tableName, id, payload);
   }
 
@@ -25,7 +25,10 @@ function createComplaintsRepository({ db, logger, schema }) {
   }
 
   async function createActivity(payload) {
-    logger.debug({ module: 'complaints', payload }, 'Creating complaint activity');
+    logger.debug(
+      { module: "complaints", payload },
+      "Creating complaint activity",
+    );
     return db.insert(schema.activitiesTable, payload);
   }
 
@@ -39,4 +42,4 @@ function createComplaintsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createComplaintsRepository };
+export { createComplaintsRepository };

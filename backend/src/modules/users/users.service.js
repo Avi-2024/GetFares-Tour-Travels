@@ -1,5 +1,5 @@
-const bcryptjs = require('bcryptjs');
-const { AppError } = require('../../core/errors');
+import bcryptjs from "bcryptjs";
+import { AppError } from "../../core/errors/index.js";
 
 function mapListFilters(filters = {}) {
   return {
@@ -74,18 +74,24 @@ function createUsersService({ repository, logger, events }) {
 
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
-    logger.debug({ module: 'users', requestId: context.requestId, filters: mappedFilters }, 'Listing records');
+    logger.debug(
+      { module: "users", requestId: context.requestId, filters: mappedFilters },
+      "Listing records",
+    );
     const rows = await repository.findAll(mappedFilters);
     const roleLookup = await getRoleLookup();
     return rows.map((row) => toUser(row, roleLookup));
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'users', requestId: context.requestId, id }, 'Getting record by id');
+    logger.debug(
+      { module: "users", requestId: context.requestId, id },
+      "Getting record by id",
+    );
     const item = await repository.findById(id);
 
     if (!item) {
-      throw new AppError(404, 'Users not found', 'USERS_NOT_FOUND');
+      throw new AppError(404, "Users not found", "USERS_NOT_FOUND");
     }
 
     const roleLookup = await getRoleLookup();
@@ -99,7 +105,11 @@ function createUsersService({ repository, logger, events }) {
         (payload.password ? await bcryptjs.hash(payload.password, 12) : null);
 
       if (!passwordHash) {
-        throw new AppError(400, 'Password is required', 'USER_PASSWORD_REQUIRED');
+        throw new AppError(
+          400,
+          "Password is required",
+          "USER_PASSWORD_REQUIRED",
+        );
       }
 
       const created = await repository.create(
@@ -110,8 +120,12 @@ function createUsersService({ repository, logger, events }) {
       const roleLookup = await getRoleLookup();
       return toUser(created, roleLookup);
     } catch (error) {
-      if (error?.code === '23505') {
-        throw new AppError(409, 'User with this email already exists', 'USER_EMAIL_EXISTS');
+      if (error?.code === "23505") {
+        throw new AppError(
+          409,
+          "User with this email already exists",
+          "USER_EMAIL_EXISTS",
+        );
       }
       throw error;
     }
@@ -127,8 +141,12 @@ function createUsersService({ repository, logger, events }) {
       const roleLookup = await getRoleLookup();
       return toUser(updated, roleLookup);
     } catch (error) {
-      if (error?.code === '23505') {
-        throw new AppError(409, 'User with this email already exists', 'USER_EMAIL_EXISTS');
+      if (error?.code === "23505") {
+        throw new AppError(
+          409,
+          "User with this email already exists",
+          "USER_EMAIL_EXISTS",
+        );
       }
       throw error;
     }
@@ -142,4 +160,4 @@ function createUsersService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createUsersService };
+export { createUsersService };

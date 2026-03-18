@@ -1,7 +1,10 @@
 function createNotificationsController({ service }) {
   return Object.freeze({
     async listMine(req, res) {
-      const result = await service.listMine(req.validated.query || {}, req.context);
+      const result = await service.listMine(
+        req.validated.query || {},
+        req.context,
+      );
       res.status(200).json({ data: result });
     },
 
@@ -11,7 +14,10 @@ function createNotificationsController({ service }) {
     },
 
     async markRead(req, res) {
-      const result = await service.markRead(req.validated.params.id, req.context);
+      const result = await service.markRead(
+        req.validated.params.id,
+        req.context,
+      );
       res.status(200).json({ data: result });
     },
 
@@ -22,4 +28,4 @@ function createNotificationsController({ service }) {
   });
 }
 
-module.exports = { createNotificationsController };
+export { createNotificationsController };

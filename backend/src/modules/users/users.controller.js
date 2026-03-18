@@ -1,6 +1,9 @@
 function createUsersController({ service }) {
   async function list(req, res) {
-    const result = await service.list(req.validated?.query || req.query, req.context);
+    const result = await service.list(
+      req.validated?.query || req.query,
+      req.context,
+    );
     res.status(200).json({ data: result });
   }
 
@@ -15,7 +18,11 @@ function createUsersController({ service }) {
   }
 
   async function update(req, res) {
-    const result = await service.update(req.validated.params.id, req.validated.body, req.context);
+    const result = await service.update(
+      req.validated.params.id,
+      req.validated.body,
+      req.context,
+    );
     res.status(200).json({ data: result });
   }
 
@@ -27,4 +34,4 @@ function createUsersController({ service }) {
   });
 }
 
-module.exports = { createUsersController };
+export { createUsersController };

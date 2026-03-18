@@ -10,7 +10,15 @@ type Props = {
   max?: string;
 };
 
-const DateInput = ({ label, value, onChange, required, error, min, max }: Props) => (
+const DateInput = ({
+  label,
+  value,
+  onChange,
+  required,
+  error,
+  min,
+  max,
+}: Props) => (
   <FieldWrapper label={label} required={required} error={error}>
     <input
       type="date"

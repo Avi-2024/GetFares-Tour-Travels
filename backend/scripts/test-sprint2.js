@@ -1,7 +1,7 @@
-﻿const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { createApp } from "../src/app.js";
 
-const { createApp } = require('../src/app');
 
 async function parseJson(response) {
   const text = await response.text();
@@ -27,14 +27,14 @@ async function main() {
   }
 
   const baseUrl = await new Promise((resolve, reject) => {
-    server.once('listening', () => {
+    server.once("listening", () => {
       const address = server.address();
       resolve(`http://127.0.0.1:${address.port}`);
     });
-    server.once('error', reject);
+    server.once("error", reject);
   });
 
-  async function request(path, { method = 'GET', headers = {}, body } = {}) {
+  async function request(path, { method = "GET", headers = {}, body } = {}) {
     const init = {
       method,
       headers: {
@@ -43,7 +43,7 @@ async function main() {
     };
 
     if (body !== undefined) {
-      init.headers['content-type'] = 'application/json';
+      init.headers["content-type"] = "application/json";
       init.body = JSON.stringify(body);
     }
 
@@ -62,36 +62,36 @@ async function main() {
   let leadForSlaId;
 
   try {
-    const health = await request('/health');
+    const health = await request("/health");
     assert.equal(health.response.status, 200);
-    addResult('Health endpoint', true, 'GET /health returned 200');
+    addResult("Health endpoint", true, "GET /health returned 200");
   } catch (error) {
-    addResult('Health endpoint', false, error.message);
+    addResult("Health endpoint", false, error.message);
   }
 
   const seed = randomUUID().slice(0, 8);
-  const password = 'StrongPass123';
+  const password = "StrongPass123";
 
   const adminEmail = `s2-admin-${seed}@example.com`;
   const c1Email = `s2-consultant1-${seed}@example.com`;
   const c2Email = `s2-consultant2-${seed}@example.com`;
 
   try {
-    const registerAdmin = await request('/api/auth/register', {
-      method: 'POST',
+    const registerAdmin = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Sprint2 Admin',
+        fullName: "Sprint2 Admin",
         email: adminEmail,
-        phone: '+919999990001',
+        phone: "+919999990001",
         password,
-        role: 'admin',
+        role: "admin",
       },
     });
 
     assert.equal(registerAdmin.response.status, 201);
 
-    const loginAdmin = await request('/api/auth/login', {
-      method: 'POST',
+    const loginAdmin = await request("/api/auth/login", {
+      method: "POST",
       body: {
         email: adminEmail,
         password,
@@ -102,67 +102,67 @@ async function main() {
     assert.ok(loginAdmin.json?.data?.accessToken);
 
     adminToken = loginAdmin.json.data.accessToken;
-    addResult('Auth admin setup', true, 'Admin register/login success');
+    addResult("Auth admin setup", true, "Admin register/login success");
   } catch (error) {
-    addResult('Auth admin setup', false, error.message);
+    addResult("Auth admin setup", false, error.message);
   }
 
   try {
-    const registerConsultant1 = await request('/api/auth/register', {
-      method: 'POST',
+    const registerConsultant1 = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Consultant One',
+        fullName: "Consultant One",
         email: c1Email,
-        phone: '+919999990002',
+        phone: "+919999990002",
         password,
-        role: 'sales_consultant',
+        role: "sales_consultant",
       },
     });
 
-    const registerConsultant2 = await request('/api/auth/register', {
-      method: 'POST',
+    const registerConsultant2 = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Consultant Two',
+        fullName: "Consultant Two",
         email: c2Email,
-        phone: '+919999990003',
+        phone: "+919999990003",
         password,
-        role: 'sales_consultant',
+        role: "sales_consultant",
       },
     });
 
     assert.equal(registerConsultant1.response.status, 201);
     assert.equal(registerConsultant2.response.status, 201);
 
-    addResult('Consultant pool setup', true, '2 consultants created');
+    addResult("Consultant pool setup", true, "2 consultants created");
   } catch (error) {
-    addResult('Consultant pool setup', false, error.message);
+    addResult("Consultant pool setup", false, error.message);
   }
 
   try {
-    const leadA = await request('/api/leads', {
-      method: 'POST',
+    const leadA = await request("/api/leads", {
+      method: "POST",
       headers: authHeaders(adminToken),
       body: {
-        fullName: 'Sprint2 Lead A',
+        fullName: "Sprint2 Lead A",
         phone: `9198${Math.floor(100000 + Math.random() * 900000)}`,
         email: `s2-lead-a-${seed}@example.com`,
-        source: 'Website',
+        source: "Website",
         budget: 110000,
-        status: 'OPEN',
+        status: "OPEN",
         autoAssign: false,
       },
     });
 
-    const leadB = await request('/api/leads', {
-      method: 'POST',
+    const leadB = await request("/api/leads", {
+      method: "POST",
       headers: authHeaders(adminToken),
       body: {
-        fullName: 'Sprint2 Lead B',
+        fullName: "Sprint2 Lead B",
         phone: `9197${Math.floor(100000 + Math.random() * 900000)}`,
         email: `s2-lead-b-${seed}@example.com`,
-        source: 'Meta',
+        source: "Meta",
         budget: 180000,
-        status: 'OPEN',
+        status: "OPEN",
         autoAssign: false,
       },
     });
@@ -176,18 +176,22 @@ async function main() {
     assert.ok(leadAId);
     assert.ok(leadBId);
 
-    addResult('Lead create (unassigned)', true, '2 leads created with autoAssign=false');
+    addResult(
+      "Lead create (unassigned)",
+      true,
+      "2 leads created with autoAssign=false",
+    );
   } catch (error) {
-    addResult('Lead create (unassigned)', false, error.message);
+    addResult("Lead create (unassigned)", false, error.message);
   }
 
   try {
-    const distribute = await request('/api/leads/distribute', {
-      method: 'POST',
+    const distribute = await request("/api/leads/distribute", {
+      method: "POST",
       headers: authHeaders(adminToken),
       body: {
         limit: 500,
-        reason: 'Sprint2 distribution test',
+        reason: "Sprint2 distribution test",
       },
     });
 
@@ -196,12 +200,12 @@ async function main() {
     assert.ok(Number(distribute.json.data.processed) >= 1);
 
     addResult(
-      'Lead distribute',
+      "Lead distribute",
       true,
       `Processed=${distribute.json.data.processed}, Assigned=${distribute.json.data.assigned}`,
     );
   } catch (error) {
-    addResult('Lead distribute', false, error.message);
+    addResult("Lead distribute", false, error.message);
   }
 
   let assignedLead;
@@ -214,12 +218,12 @@ async function main() {
 
     if (!leadAAfter.json?.data?.assignedTo) {
       const manualAssign = await request(`/api/leads/${leadAId}/assign`, {
-        method: 'POST',
+        method: "POST",
         headers: authHeaders(adminToken),
         body: {
           force: true,
-          reason: 'Sprint2 deterministic assignment check',
-          mode: 'MANUAL',
+          reason: "Sprint2 deterministic assignment check",
+          mode: "MANUAL",
         },
       });
 
@@ -230,34 +234,38 @@ async function main() {
       assignedLead = leadAAfter.json.data;
     }
 
-    addResult('Lead assignment check', true, `Lead assigned to ${assignedLead.assignedTo}`);
+    addResult(
+      "Lead assignment check",
+      true,
+      `Lead assigned to ${assignedLead.assignedTo}`,
+    );
   } catch (error) {
-    addResult('Lead assignment check', false, error.message);
+    addResult("Lead assignment check", false, error.message);
   }
 
   try {
     const overdueDate = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
     const createFollowup = await request(`/api/leads/${leadAId}/followups`, {
-      method: 'POST',
+      method: "POST",
       headers: authHeaders(adminToken),
       body: {
-        followupType: 'CALL',
+        followupType: "CALL",
         followupDate: overdueDate,
-        notes: 'Sprint2 overdue followup',
+        notes: "Sprint2 overdue followup",
       },
     });
 
     assert.equal(createFollowup.response.status, 201);
     assert.ok(createFollowup.json?.data?.id);
 
-    addResult('Create followup', true, 'Overdue followup created');
+    addResult("Create followup", true, "Overdue followup created");
   } catch (error) {
-    addResult('Create followup', false, error.message);
+    addResult("Create followup", false, error.message);
   }
 
   try {
-    const listOverdue = await request('/api/leads/followups/overdue?limit=50', {
+    const listOverdue = await request("/api/leads/followups/overdue?limit=50", {
       headers: authHeaders(adminToken),
     });
 
@@ -265,42 +273,53 @@ async function main() {
     assert.ok(Array.isArray(listOverdue.json?.data));
     assert.ok(listOverdue.json.data.length >= 1);
 
-    addResult('List overdue followups', true, `Overdue count=${listOverdue.json.data.length}`);
+    addResult(
+      "List overdue followups",
+      true,
+      `Overdue count=${listOverdue.json.data.length}`,
+    );
   } catch (error) {
-    addResult('List overdue followups', false, error.message);
+    addResult("List overdue followups", false, error.message);
   }
 
   try {
-    const processOverdue = await request('/api/leads/followups/process-overdue', {
-      method: 'POST',
-      headers: authHeaders(adminToken),
-      body: { limit: 50 },
-    });
+    const processOverdue = await request(
+      "/api/leads/followups/process-overdue",
+      {
+        method: "POST",
+        headers: authHeaders(adminToken),
+        body: { limit: 50 },
+      },
+    );
 
     assert.equal(processOverdue.response.status, 200);
     assert.ok(Number(processOverdue.json?.data?.processed) >= 1);
 
-    addResult('Process overdue followups', true, `Processed=${processOverdue.json.data.processed}`);
+    addResult(
+      "Process overdue followups",
+      true,
+      `Processed=${processOverdue.json.data.processed}`,
+    );
   } catch (error) {
-    addResult('Process overdue followups', false, error.message);
+    addResult("Process overdue followups", false, error.message);
   }
 
   try {
     const oldAssignedAt = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
-    await container.db.update('leads', leadAId, {
+    await container.db.update("leads", leadAId, {
       assigned_at: oldAssignedAt,
       response_at: null,
-      status: 'OPEN',
+      status: "OPEN",
     });
 
-    const reassignInactive = await request('/api/leads/reassign-inactive', {
-      method: 'POST',
+    const reassignInactive = await request("/api/leads/reassign-inactive", {
+      method: "POST",
       headers: authHeaders(adminToken),
       body: {
         inactiveMinutes: 15,
         limit: 20,
-        reason: 'Sprint2 inactivity test',
+        reason: "Sprint2 inactivity test",
       },
     });
 
@@ -308,25 +327,25 @@ async function main() {
     assert.ok(Number(reassignInactive.json?.data?.processed) >= 1);
 
     addResult(
-      'Reassign inactive',
+      "Reassign inactive",
       true,
       `Processed=${reassignInactive.json.data.processed}, Reassigned=${reassignInactive.json.data.reassigned}`,
     );
   } catch (error) {
-    addResult('Reassign inactive', false, error.message);
+    addResult("Reassign inactive", false, error.message);
   }
 
   try {
-    const leadForSla = await request('/api/leads', {
-      method: 'POST',
+    const leadForSla = await request("/api/leads", {
+      method: "POST",
       headers: authHeaders(adminToken),
       body: {
-        fullName: 'Sprint2 Lead SLA',
+        fullName: "Sprint2 Lead SLA",
         phone: `9196${Math.floor(100000 + Math.random() * 900000)}`,
         email: `s2-lead-sla-${seed}@example.com`,
-        source: 'Website',
+        source: "Website",
         budget: 90000,
-        status: 'OPEN',
+        status: "OPEN",
         autoAssign: false,
       },
     });
@@ -337,15 +356,15 @@ async function main() {
 
     const pastDeadline = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-    await container.db.update('leads', leadForSlaId, {
+    await container.db.update("leads", leadForSlaId, {
       response_deadline: pastDeadline,
       response_at: null,
       sla_breached: false,
-      status: 'OPEN',
+      status: "OPEN",
     });
 
-    const processSla = await request('/api/leads/sla/process-breaches', {
-      method: 'POST',
+    const processSla = await request("/api/leads/sla/process-breaches", {
+      method: "POST",
       headers: authHeaders(adminToken),
       body: { limit: 50 },
     });
@@ -353,9 +372,13 @@ async function main() {
     assert.equal(processSla.response.status, 200);
     assert.ok(Number(processSla.json?.data?.processed) >= 1);
 
-    addResult('Process SLA breaches', true, `Processed=${processSla.json.data.processed}`);
+    addResult(
+      "Process SLA breaches",
+      true,
+      `Processed=${processSla.json.data.processed}`,
+    );
   } catch (error) {
-    addResult('Process SLA breaches', false, error.message);
+    addResult("Process SLA breaches", false, error.message);
   }
 
   try {
@@ -366,9 +389,9 @@ async function main() {
     assert.equal(leadSlaAfter.response.status, 200);
     assert.equal(Boolean(leadSlaAfter.json?.data?.slaBreached), true);
 
-    addResult('SLA breach persisted', true, 'Lead has slaBreached=true');
+    addResult("SLA breach persisted", true, "Lead has slaBreached=true");
   } catch (error) {
-    addResult('SLA breach persisted', false, error.message);
+    addResult("SLA breach persisted", false, error.message);
   }
 
   await new Promise((resolve, reject) => {
@@ -381,17 +404,19 @@ async function main() {
     });
   });
 
-  console.log('\nSprint 2 Smoke Test Results');
-  console.log('---------------------------');
+  console.log("\nSprint 2 Smoke Test Results");
+  console.log("---------------------------");
 
   for (const item of results) {
-    const prefix = item.passed ? 'PASS' : 'FAIL';
+    const prefix = item.passed ? "PASS" : "FAIL";
     console.log(`${prefix} | ${item.name} | ${item.details}`);
   }
 
   const failed = results.filter((item) => !item.passed);
-  console.log('---------------------------');
-  console.log(`Total: ${results.length}, Passed: ${results.length - failed.length}, Failed: ${failed.length}`);
+  console.log("---------------------------");
+  console.log(
+    `Total: ${results.length}, Passed: ${results.length - failed.length}, Failed: ${failed.length}`,
+  );
 
   if (failed.length > 0) {
     process.exitCode = 1;
@@ -399,7 +424,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('Sprint 2 smoke test execution failed:', error.message);
+  console.error("Sprint 2 smoke test execution failed:", error.message);
   process.exitCode = 1;
 });
-

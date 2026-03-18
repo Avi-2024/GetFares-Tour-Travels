@@ -1,9 +1,9 @@
-const jwt = require('jsonwebtoken');
-const { Server } = require('socket.io');
-const { toUserRoom, toRoleRoom, toTeamRoom } = require('./rooms');
+import jwt from "jsonwebtoken";
+import { Server } from "socket.io";
+import { toUserRoom, toRoleRoom, toTeamRoom } from "./rooms.js";
 
 function toOrigins(corsOrigin) {
-  if (!corsOrigin || corsOrigin === '*') {
+  if (!corsOrigin || corsOrigin === "*") {
     return true;
   }
 
@@ -12,7 +12,7 @@ function toOrigins(corsOrigin) {
   }
 
   return String(corsOrigin)
-    .split(',')
+    .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
 }
@@ -28,8 +28,8 @@ function extractAccessToken(socket) {
     return null;
   }
 
-  const [scheme, token] = authorizationHeader.split(' ');
-  if (scheme !== 'Bearer' || !token) {
+  const [scheme, token] = authorizationHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
     return null;
   }
 
@@ -47,8 +47,8 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
   io.use((socket, next) => {
     const token = extractAccessToken(socket);
     if (!token) {
-      const error = new Error('Authentication required');
-      error.data = { code: 'SOCKET_AUTH_REQUIRED' };
+      const error = new Error("Authentication required");
+      error.data = { code: "SOCKET_AUTH_REQUIRED" };
       return next(error);
     }
 
@@ -63,13 +63,13 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
       };
       return next();
     } catch (error) {
-      const authError = new Error('Invalid access token');
-      authError.data = { code: 'SOCKET_AUTH_INVALID' };
+      const authError = new Error("Invalid access token");
+      authError.data = { code: "SOCKET_AUTH_INVALID" };
       return next(authError);
     }
   });
 
-  io.on('connection', (socket) => {
+  io.on("connection", (socket) => {
     const user = socket.data.user || {};
     const rooms = [];
 
@@ -98,10 +98,10 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
         role: user.role,
         rooms,
       },
-      'socket.connected',
+      "socket.connected",
     );
 
-    socket.emit('socket.connected', {
+    socket.emit("socket.connected", {
       socketId: socket.id,
       userId: user.id,
       role: user.role,
@@ -109,14 +109,14 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
       connectedAt: new Date().toISOString(),
     });
 
-    socket.on('disconnect', (reason) => {
+    socket.on("disconnect", (reason) => {
       logger.info(
         {
           socketId: socket.id,
           userId: user.id,
           reason,
         },
-        'socket.disconnected',
+        "socket.disconnected",
       );
     });
   });
@@ -134,7 +134,7 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
         delivered: false,
         connectedCount,
         ackedCount: 0,
-        error: 'NO_ACTIVE_SOCKET',
+        error: "NO_ACTIVE_SOCKET",
       };
     }
 
@@ -149,28 +149,31 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
       };
     }
 
-    const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 5000;
+    const timeoutMs =
+      Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 5000;
 
     return new Promise((resolve) => {
-      io.to(room).timeout(timeoutMs).emit(eventName, payload, (error, responses = []) => {
-        if (error) {
+      io.to(room)
+        .timeout(timeoutMs)
+        .emit(eventName, payload, (error, responses = []) => {
+          if (error) {
+            return resolve({
+              room,
+              delivered: false,
+              connectedCount,
+              ackedCount: 0,
+              error: error.message || "ACK_TIMEOUT",
+            });
+          }
+
           return resolve({
             room,
-            delivered: false,
+            delivered: responses.length > 0,
             connectedCount,
-            ackedCount: 0,
-            error: error.message || 'ACK_TIMEOUT',
+            ackedCount: responses.length,
+            error: null,
           });
-        }
-
-        return resolve({
-          room,
-          delivered: responses.length > 0,
-          connectedCount,
-          ackedCount: responses.length,
-          error: null,
         });
-      });
     });
   }
 
@@ -178,18 +181,18 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
     const connectedCount = (await io.fetchSockets()).length;
     if (connectedCount === 0) {
       return {
-        room: '*',
+        room: "*",
         delivered: false,
         connectedCount,
         ackedCount: 0,
-        error: 'NO_ACTIVE_SOCKET',
+        error: "NO_ACTIVE_SOCKET",
       };
     }
 
     if (!options.ackRequired) {
       io.emit(eventName, payload);
       return {
-        room: '*',
+        room: "*",
         delivered: true,
         connectedCount,
         ackedCount: 0,
@@ -197,28 +200,33 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
       };
     }
 
-    const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 5000;
+    const timeoutMs =
+      Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 5000;
 
     return new Promise((resolve) => {
-      io.timeout(timeoutMs).emit(eventName, payload, (error, responses = []) => {
-        if (error) {
-          return resolve({
-            room: '*',
-            delivered: false,
-            connectedCount,
-            ackedCount: 0,
-            error: error.message || 'ACK_TIMEOUT',
-          });
-        }
+      io.timeout(timeoutMs).emit(
+        eventName,
+        payload,
+        (error, responses = []) => {
+          if (error) {
+            return resolve({
+              room: "*",
+              delivered: false,
+              connectedCount,
+              ackedCount: 0,
+              error: error.message || "ACK_TIMEOUT",
+            });
+          }
 
-        return resolve({
-          room: '*',
-          delivered: responses.length > 0,
-          connectedCount,
-          ackedCount: responses.length,
-          error: null,
-        });
-      });
+          return resolve({
+            room: "*",
+            delivered: responses.length > 0,
+            connectedCount,
+            ackedCount: responses.length,
+            error: null,
+          });
+        },
+      );
     });
   }
 
@@ -234,4 +242,4 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
   });
 }
 
-module.exports = { createSocketServer };
+export { createSocketServer };

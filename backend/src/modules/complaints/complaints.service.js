@@ -1,4 +1,4 @@
-const { AppError } = require('../../core/errors');
+import { AppError } from "../../core/errors/index.js";
 
 function mapListFilters(filters = {}) {
   return {
@@ -62,17 +62,27 @@ function toComplaintActivity(entity) {
 function createComplaintsService({ repository, logger, events }) {
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
-    logger.debug({ module: 'complaints', requestId: context.requestId, filters: mappedFilters }, 'Listing records');
+    logger.debug(
+      {
+        module: "complaints",
+        requestId: context.requestId,
+        filters: mappedFilters,
+      },
+      "Listing records",
+    );
     const rows = await repository.findAll(mappedFilters);
     return rows.map(toComplaint);
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'complaints', requestId: context.requestId, id }, 'Getting record by id');
+    logger.debug(
+      { module: "complaints", requestId: context.requestId, id },
+      "Getting record by id",
+    );
     const item = await repository.findById(id);
 
     if (!item) {
-      throw new AppError(404, 'Complaints not found', 'COMPLAINTS_NOT_FOUND');
+      throw new AppError(404, "Complaints not found", "COMPLAINTS_NOT_FOUND");
     }
 
     return toComplaint(item);
@@ -129,4 +139,4 @@ function createComplaintsService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createComplaintsService };
+export { createComplaintsService };

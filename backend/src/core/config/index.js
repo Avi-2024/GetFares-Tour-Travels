@@ -1,4 +1,4 @@
-const { env } = require('./env');
+import { env } from "./env.js";
 
 const config = Object.freeze({
   env: env.NODE_ENV,
@@ -28,4 +28,4 @@ const config = Object.freeze({
   },
 });
 
-module.exports = { config };
+export { config };

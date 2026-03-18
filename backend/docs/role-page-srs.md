@@ -1,9 +1,11 @@
 # Role and Page SRS (Backend-Aligned)
 
 ## 1. Purpose
+
 This document translates the PRD into page-wise role behavior with backend implications. It is intended for UI, API, and QA alignment.
 
 ## 2. Role Matrix
+
 - Admin: full access, user and rule configuration, integrations, global reports.
 - Manager: team oversight, assignment control, SLA escalation handling, performance views.
 - Sales Consultant: lead handling, follow-ups, quotation lifecycle, booking conversion.
@@ -14,6 +16,7 @@ This document translates the PRD into page-wise role behavior with backend impli
 - Management: read-only dashboards and monthly summary.
 
 ## 3. Shared UX Rules
+
 - All data-changing actions must write audit logs.
 - All secured pages require JWT and permission checks.
 - Every list supports pagination and date/filter controls.
@@ -22,7 +25,9 @@ This document translates the PRD into page-wise role behavior with backend impli
 ## 4. Admin Panel
 
 ### 4.1 Admin Dashboard
+
 Fields/Widgets:
+
 - Total leads (today/week/month)
 - Converted leads
 - Revenue split (holiday/visa)
@@ -32,37 +37,41 @@ Fields/Widgets:
 - Pending follow-ups
 - Destination trend
 - Source performance
-Buttons:
+  Buttons:
 - Date filter
 - Export PDF/Excel
 - Drill-down navigation
-Backend actions:
+  Backend actions:
 - Read KPI aggregates and trend reports
-Automations:
+  Automations:
 - SLA breach alert indicators
 
 ### 4.2 User and Role Management
+
 Fields:
+
 - Full name, email, phone
 - Role
 - Target amount
 - Incentive percent
 - Expertise destinations
 - Leave toggle
-Buttons:
+  Buttons:
 - Create user
 - Edit user
 - Activate/deactivate
 - Reset password
 - Assign role
-Backend actions:
+  Backend actions:
 - `/api/users/*`
 - `/api/rbac/assign`
-Automations:
+  Automations:
 - Notify user on role changes
 
 ### 4.3 Lead Distribution Rules
+
 Fields:
+
 - Round-robin flag
 - Destination rule
 - Budget rule
@@ -70,47 +79,53 @@ Fields:
 - Max active leads
 - Response SLA minutes
 - Auto-reassign flag
-Buttons:
+  Buttons:
 - Save rule set
 - Manual override
-Backend actions:
+  Backend actions:
 - Lead assignment/distribution endpoints
-Automations:
+  Automations:
 - Skip on-leave/inactive users
 
 ### 4.4 Integration Settings
+
 Fields:
+
 - Meta credentials
 - WhatsApp credentials
 - SMTP credentials
 - Webhook endpoints
-Buttons:
+  Buttons:
 - Test connection
 - Save credentials
 - View webhook logs
-Backend actions:
+  Backend actions:
 - Config service reads/writes
-Automations:
+  Automations:
 - Integration health notifications
 
 ## 5. Manager Panel
 
 ### 5.1 Manager Dashboard
+
 Widgets:
+
 - Team revenue
 - Team conversion
 - Agent ranking
 - Overdue leads
 - Today follow-ups
 - Pending visa cases
-Buttons:
+  Buttons:
 - Filter by agent
 - Filter by date range
-Backend actions:
+  Backend actions:
 - KPI report endpoints
 
 ### 5.2 Lead Monitoring
+
 Columns:
+
 - Lead name
 - Contact
 - Destination
@@ -119,44 +134,50 @@ Columns:
 - Assignee
 - Source
 - Last activity
-Buttons:
+  Buttons:
 - Filter
 - Bulk reassign
 - View timeline
 - Force close
-Backend actions:
+  Backend actions:
 - Leads list/update/reassign APIs
 
 ### 5.3 Performance View
+
 Metrics:
+
 - Leads assigned
 - Leads converted
 - Revenue generated
 - Conversion percent
 - Avg response time
-Buttons:
+  Buttons:
 - Export report
-Backend actions:
+  Backend actions:
 - Consultant report APIs
 
 ## 6. Sales Consultant Panel
 
 ### 6.1 Sales Dashboard
+
 Widgets:
+
 - Assigned leads
 - Today follow-ups
 - Target vs achievement
 - Pending payments
 - New lead alerts
-Buttons:
+  Buttons:
 - Quick call
 - Quick status update
 - Add follow-up
-Backend actions:
+  Backend actions:
 - Leads/notifications endpoints
 
 ### 6.2 Lead Detail
+
 Fields:
+
 - Full name
 - Phone
 - Email
@@ -168,22 +189,24 @@ Fields:
 - Source
 - Status
 - Notes
-Buttons:
+  Buttons:
 - Call
 - WhatsApp
 - Create quotation
 - Convert to booking
 - Mark lost
-Backend actions:
+  Backend actions:
 - Lead update
 - Follow-up create
 - Assignment updates
-Automations:
+  Automations:
 - SLA timers
 - Follow-up reminders
 
 ### 6.3 Quotation Builder
+
 Fields:
+
 - Lead selector
 - Template selector
 - Components (hotel/flight/transfer/visa/insurance/other)
@@ -191,58 +214,66 @@ Fields:
 - Discount
 - Tax
 - Final price
-Buttons:
+  Buttons:
 - Save draft
 - Generate PDF
 - Send
 - Approve/reject transition
-Backend actions:
+  Backend actions:
 - Quotations create/update/send/status/view report
-Automations:
+  Automations:
 - Margin guard
 - Quote reminder runner
 
 ### 6.4 Follow-up Board
+
 Views:
+
 - Today
 - Overdue
 - Upcoming
-Buttons:
+  Buttons:
 - Add note
 - Reschedule
 - Mark done
-Backend actions:
+  Backend actions:
 - Follow-up create/list/process APIs
 
 ### 6.5 Booking View
+
 Fields:
+
 - Booking number
 - Travel dates
 - Total/cost/profit
 - Payment status
 - Currency details
-Buttons:
+  Buttons:
 - Record payment
 - Generate invoice
 - Raise refund
-Backend actions:
+  Backend actions:
 - Booking/payment/refund APIs
 
 ## 7. Visa Executive Panel
 
 ### 7.1 Visa Dashboard
+
 Widgets:
+
 - Pending docs
 - Upcoming appointments
 - Submitted cases
 - Approved/rejected cases
-Buttons:
+  Buttons:
 - Filter by country/status
-Backend actions:
+  Backend actions:
 - Visa list and status queries
 
 ### 7.2 Visa Case Detail
+
 Fields:
+
 - Country
 - Visa type
 - Fees
@@ -251,129 +282,147 @@ Fields:
 - Submission
 - Status
 - Rejection reason
-Buttons:
+  Buttons:
 - Upload document
 - Verify document
 - Update status
 - Send reminder
-Backend actions:
+  Backend actions:
 - Visa and document checklist endpoints
 
 ## 8. Accounts Panel
 
 ### 8.1 Payments Console
+
 Fields:
+
 - Booking ID
 - Amount
 - Currency
 - Payment mode
 - Gateway reference
 - Verification status
-Buttons:
+  Buttons:
 - Verify payment
 - Mark partial/full
 - Upload proof
-Backend actions:
+  Backend actions:
 - Payments CRUD + verification workflow
 
 ### 8.2 Refund Console
+
 Fields:
+
 - Booking
 - Payment reference
 - Refund amount
 - Supplier penalty
 - Service charge
 - Approval state
-Buttons:
+  Buttons:
 - Approve/reject/process
-Backend actions:
+  Backend actions:
 - Refund APIs
 
 ### 8.3 Finance Reconciliation
+
 Widgets:
+
 - Outstanding dues
 - Supplier payables
 - Tax ledger summary
 - Margin summary
-Buttons:
+  Buttons:
 - Export reconciliation
-Backend actions:
+  Backend actions:
 - Reporting + payables + tax ledger endpoints
 
 ## 9. Marketing Panel
 
 ### 9.1 Campaign Dashboard
+
 Widgets:
+
 - Leads by campaign
 - Cost per lead
 - Conversion
 - ROI
-Buttons:
+  Buttons:
 - Date filter
 - Export
-Backend actions:
+  Backend actions:
 - Campaign CRUD and analytics reports
 
 ### 9.2 Segmentation and Outreach
+
 Fields:
+
 - Segment filters (destination, LTV, last travel, segment)
 - Message template
 - Schedule date
-Buttons:
+  Buttons:
 - Preview
 - Schedule send
-Backend actions:
+  Backend actions:
 - Customer segmentation + notifications pipeline
 
 ## 10. Operations Panel
 
 ### 10.1 Operations Dashboard
+
 Widgets:
+
 - Active complaints
 - Refund requests
 - Cancellations
 - Emergency cases
-Buttons:
+  Buttons:
 - Filter and assign
-Backend actions:
+  Backend actions:
 - Complaints and post-sales modules
 
 ### 10.2 Complaint Detail
+
 Fields:
+
 - Booking
 - Issue type
 - Description
 - Assignee
 - Status
-Buttons:
+  Buttons:
 - Add note
 - Escalate
 - Resolve
-Backend actions:
+  Backend actions:
 - Complaint update and activity APIs
 
 ## 11. Management Panel
 
 ### 11.1 Executive Dashboard (Read-only)
+
 Widgets:
+
 - Leads, bookings, conversion
 - Revenue, cost, profit
 - Avg booking value
 - Avg margin
 - Destination and consultant performance
-Buttons:
+  Buttons:
 - Date filter
 - Export monthly summary
-Backend actions:
+  Backend actions:
 - Reporting read endpoints only
 
 ## 12. Security and Audit Requirements
+
 - Rate-limit login attempts and lock policy.
 - Enforce RBAC per endpoint.
 - Store login and critical action audits.
 - Restrict sensitive pages by role and permission.
 
 ## 13. Pending Backend Dependencies
+
 1. Replace baseline generic payload modules with PRD-specific field contracts.
 2. Add dedicated supplier APIs.
 3. Complete reports API coverage for every dashboard card in this SRS.

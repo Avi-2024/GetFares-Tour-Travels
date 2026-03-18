@@ -2,7 +2,7 @@ function createSuppliersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
 
   function canUseRawQuery() {
-    return typeof db.query === 'function' && db.pool;
+    return typeof db.query === "function" && db.pool;
   }
 
   async function getTableColumns(tableName) {
@@ -25,7 +25,9 @@ function createSuppliersRepository({ db, logger, schema }) {
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+    const entries = Object.entries(payload).filter(
+      ([, value]) => value !== undefined,
+    );
     if (!entries.length) {
       return {};
     }
@@ -48,13 +50,13 @@ function createSuppliersRepository({ db, logger, schema }) {
   }
 
   async function create(payload) {
-    logger.debug({ module: 'suppliers', payload }, 'Creating supplier');
+    logger.debug({ module: "suppliers", payload }, "Creating supplier");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
     return db.insert(schema.tableName, sanitized);
   }
 
   async function update(id, payload) {
-    logger.debug({ module: 'suppliers', id, payload }, 'Updating supplier');
+    logger.debug({ module: "suppliers", id, payload }, "Updating supplier");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
     return db.update(schema.tableName, id, sanitized);
   }
@@ -83,13 +85,16 @@ function createSuppliersRepository({ db, logger, schema }) {
   }
 
   async function createPayable(payload) {
-    logger.debug({ module: 'suppliers', payload }, 'Creating supplier payable');
+    logger.debug({ module: "suppliers", payload }, "Creating supplier payable");
     const sanitized = await sanitizeForTable(schema.payablesTable, payload);
     return db.insert(schema.payablesTable, sanitized);
   }
 
   async function updatePayable(id, payload) {
-    logger.debug({ module: 'suppliers', id, payload }, 'Updating supplier payable');
+    logger.debug(
+      { module: "suppliers", id, payload },
+      "Updating supplier payable",
+    );
     const sanitized = await sanitizeForTable(schema.payablesTable, payload);
     return db.update(schema.payablesTable, id, sanitized);
   }
@@ -107,5 +112,4 @@ function createSuppliersRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createSuppliersRepository };
-
+export { createSuppliersRepository };

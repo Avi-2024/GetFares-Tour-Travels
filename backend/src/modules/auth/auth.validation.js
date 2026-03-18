@@ -1,4 +1,4 @@
-const { z } = require('zod');
+import { z } from "zod";
 
 const register = z.object({
   body: z.object({
@@ -21,7 +21,7 @@ const login = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   AuthValidation: {
     register,
     login,

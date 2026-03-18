@@ -1,10 +1,10 @@
-const { createCampaignsController } = require('./campaigns.controller');
-const { createCampaignsService } = require('./campaigns.service');
-const { createCampaignsRepository } = require('./campaigns.repository');
-const { createCampaignsRoutes } = require('./campaigns.routes');
-const { CampaignsValidation } = require('./campaigns.validation');
-const { CampaignsSchema } = require('./campaigns.schema');
-const { createCampaignsEvents } = require('./campaigns.events');
+import { createCampaignsController } from "./campaigns.controller.js";
+import { createCampaignsService } from "./campaigns.service.js";
+import { createCampaignsRepository } from "./campaigns.repository.js";
+import { createCampaignsRoutes } from "./campaigns.routes.js";
+import { CampaignsValidation } from "./campaigns.validation.js";
+import { CampaignsSchema } from "./campaigns.schema.js";
+import { createCampaignsEvents } from "./campaigns.events.js";
 
 function createCampaignsModule({ dependencies }) {
   const repository = createCampaignsRepository({
@@ -35,7 +35,7 @@ function createCampaignsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'campaigns',
+    name: "campaigns",
     router,
     controller,
     service,
@@ -44,4 +44,4 @@ function createCampaignsModule({ dependencies }) {
   });
 }
 
-module.exports = { createCampaignsModule };
+export { createCampaignsModule };

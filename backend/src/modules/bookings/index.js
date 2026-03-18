@@ -1,10 +1,10 @@
-const { createBookingsController } = require('./bookings.controller');
-const { createBookingsService } = require('./bookings.service');
-const { createBookingsRepository } = require('./bookings.repository');
-const { createBookingsRoutes } = require('./bookings.routes');
-const { BookingsValidation } = require('./bookings.validation');
-const { BookingsSchema } = require('./bookings.schema');
-const { createBookingsEvents } = require('./bookings.events');
+import { createBookingsController } from "./bookings.controller.js";
+import { createBookingsService } from "./bookings.service.js";
+import { createBookingsRepository } from "./bookings.repository.js";
+import { createBookingsRoutes } from "./bookings.routes.js";
+import { BookingsValidation } from "./bookings.validation.js";
+import { BookingsSchema } from "./bookings.schema.js";
+import { createBookingsEvents } from "./bookings.events.js";
 
 function createBookingsModule({ dependencies }) {
   const repository = createBookingsRepository({
@@ -35,7 +35,7 @@ function createBookingsModule({ dependencies }) {
   });
 
   return Object.freeze({
-    name: 'bookings',
+    name: "bookings",
     router,
     controller,
     service,
@@ -44,4 +44,4 @@ function createBookingsModule({ dependencies }) {
   });
 }
 
-module.exports = { createBookingsModule };
+export { createBookingsModule };

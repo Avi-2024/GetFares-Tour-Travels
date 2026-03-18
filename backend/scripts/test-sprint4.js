@@ -1,7 +1,7 @@
-const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { createApp } from "../src/app.js";
 
-const { createApp } = require('../src/app');
 
 async function parseJson(response) {
   const text = await response.text();
@@ -27,14 +27,14 @@ async function main() {
   }
 
   const baseUrl = await new Promise((resolve, reject) => {
-    server.once('listening', () => {
+    server.once("listening", () => {
       const address = server.address();
       resolve(`http://127.0.0.1:${address.port}`);
     });
-    server.once('error', reject);
+    server.once("error", reject);
   });
 
-  async function request(path, { method = 'GET', headers = {}, body } = {}) {
+  async function request(path, { method = "GET", headers = {}, body } = {}) {
     const init = {
       method,
       headers: {
@@ -43,7 +43,7 @@ async function main() {
     };
 
     if (body !== undefined) {
-      init.headers['content-type'] = 'application/json';
+      init.headers["content-type"] = "application/json";
       init.body = JSON.stringify(body);
     }
 
@@ -57,7 +57,7 @@ async function main() {
   }
 
   const seed = randomUUID().slice(0, 8);
-  const password = 'StrongPass123';
+  const password = "StrongPass123";
 
   let adminToken;
   let accountsToken;
@@ -69,11 +69,11 @@ async function main() {
   let refundId;
 
   try {
-    const health = await request('/health');
+    const health = await request("/health");
     assert.equal(health.response.status, 200);
-    addResult('Health endpoint', true, 'GET /health returned 200');
+    addResult("Health endpoint", true, "GET /health returned 200");
   } catch (error) {
-    addResult('Health endpoint', false, error.message);
+    addResult("Health endpoint", false, error.message);
   }
 
   try {
@@ -81,33 +81,33 @@ async function main() {
     const accountsEmail = `s4-accounts-${seed}@example.com`;
     const consultantEmail = `s4-consultant-${seed}@example.com`;
 
-    const registerAdmin = await request('/api/auth/register', {
-      method: 'POST',
+    const registerAdmin = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Sprint4 Admin',
+        fullName: "Sprint4 Admin",
         email: adminEmail,
         password,
-        role: 'admin',
+        role: "admin",
       },
     });
 
-    const registerAccounts = await request('/api/auth/register', {
-      method: 'POST',
+    const registerAccounts = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Sprint4 Accounts',
+        fullName: "Sprint4 Accounts",
         email: accountsEmail,
         password,
-        role: 'accounts',
+        role: "accounts",
       },
     });
 
-    const registerConsultant = await request('/api/auth/register', {
-      method: 'POST',
+    const registerConsultant = await request("/api/auth/register", {
+      method: "POST",
       body: {
-        fullName: 'Sprint4 Consultant',
+        fullName: "Sprint4 Consultant",
         email: consultantEmail,
         password,
-        role: 'sales_consultant',
+        role: "sales_consultant",
       },
     });
 
@@ -115,16 +115,16 @@ async function main() {
     assert.equal(registerAccounts.response.status, 201);
     assert.equal(registerConsultant.response.status, 201);
 
-    const loginAdmin = await request('/api/auth/login', {
-      method: 'POST',
+    const loginAdmin = await request("/api/auth/login", {
+      method: "POST",
       body: { email: adminEmail, password },
     });
-    const loginAccounts = await request('/api/auth/login', {
-      method: 'POST',
+    const loginAccounts = await request("/api/auth/login", {
+      method: "POST",
       body: { email: accountsEmail, password },
     });
-    const loginConsultant = await request('/api/auth/login', {
-      method: 'POST',
+    const loginConsultant = await request("/api/auth/login", {
+      method: "POST",
       body: { email: consultantEmail, password },
     });
 
@@ -140,23 +140,23 @@ async function main() {
     assert.ok(accountsToken);
     assert.ok(consultantToken);
 
-    addResult('Auth setup', true, 'Admin + Accounts + Consultant ready');
+    addResult("Auth setup", true, "Admin + Accounts + Consultant ready");
   } catch (error) {
-    addResult('Auth setup', false, error.message);
+    addResult("Auth setup", false, error.message);
   }
 
   try {
-    const createLead = await request('/api/leads', {
-      method: 'POST',
+    const createLead = await request("/api/leads", {
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
-        fullName: 'Sprint4 Lead',
+        fullName: "Sprint4 Lead",
         phone: `9195${Math.floor(100000 + Math.random() * 900000)}`,
         email: `s4-lead-${seed}@example.com`,
-        source: 'Website',
-        travelDate: '2026-08-10',
+        source: "Website",
+        travelDate: "2026-08-10",
         budget: 250000,
-        status: 'OPEN',
+        status: "OPEN",
         autoAssign: false,
       },
     });
@@ -165,20 +165,20 @@ async function main() {
     leadId = createLead.json?.data?.id;
     assert.ok(leadId);
 
-    addResult('Lead create', true, `Lead created ${leadId}`);
+    addResult("Lead create", true, `Lead created ${leadId}`);
   } catch (error) {
-    addResult('Lead create', false, error.message);
+    addResult("Lead create", false, error.message);
   }
 
   try {
-    const createQuotation = await request('/api/quotations', {
-      method: 'POST',
+    const createQuotation = await request("/api/quotations", {
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
         leadId,
         components: [
-          { itemType: 'HOTEL', description: '3N Hotel', cost: 45000 },
-          { itemType: 'FLIGHT', description: 'Round trip', cost: 30000 },
+          { itemType: "HOTEL", description: "3N Hotel", cost: 45000 },
+          { itemType: "FLIGHT", description: "Round trip", cost: 30000 },
         ],
         marginPercent: 15,
         discount: 0,
@@ -190,19 +190,19 @@ async function main() {
     quotationId = createQuotation.json?.data?.id;
     assert.ok(quotationId);
 
-    addResult('Quotation create', true, `Quotation created ${quotationId}`);
+    addResult("Quotation create", true, `Quotation created ${quotationId}`);
   } catch (error) {
-    addResult('Quotation create', false, error.message);
+    addResult("Quotation create", false, error.message);
   }
 
   try {
-    const createBooking = await request('/api/bookings', {
-      method: 'POST',
+    const createBooking = await request("/api/bookings", {
+      method: "POST",
       headers: authHeaders(consultantToken),
       body: {
         quotationId,
-        travelStartDate: '2026-08-10',
-        travelEndDate: '2026-08-15',
+        travelStartDate: "2026-08-10",
+        travelEndDate: "2026-08-15",
         totalAmount: 100000,
         costAmount: 78000,
         isNonRefundable: false,
@@ -212,42 +212,49 @@ async function main() {
     assert.equal(createBooking.response.status, 201);
     bookingId = createBooking.json?.data?.id;
     assert.ok(bookingId);
-    assert.equal(createBooking.json?.data?.status, 'PENDING');
-    assert.equal(createBooking.json?.data?.paymentStatus, 'PENDING');
+    assert.equal(createBooking.json?.data?.status, "PENDING");
+    assert.equal(createBooking.json?.data?.paymentStatus, "PENDING");
     assert.equal(Number(createBooking.json?.data?.advanceRequired), 50000);
 
-    addResult('Booking create', true, `Booking created ${bookingId}`);
+    addResult("Booking create", true, `Booking created ${bookingId}`);
   } catch (error) {
-    addResult('Booking create', false, error.message);
+    addResult("Booking create", false, error.message);
   }
 
   try {
-    const prematureConfirm = await request(`/api/bookings/${bookingId}/status`, {
-      method: 'POST',
-      headers: authHeaders(consultantToken),
-      body: {
-        status: 'CONFIRMED',
+    const prematureConfirm = await request(
+      `/api/bookings/${bookingId}/status`,
+      {
+        method: "POST",
+        headers: authHeaders(consultantToken),
+        body: {
+          status: "CONFIRMED",
+        },
       },
-    });
+    );
 
     assert.equal(prematureConfirm.response.status, 409);
-    assert.equal(prematureConfirm.json?.error?.code, 'BOOKING_ADVANCE_NOT_MET');
-    addResult('Booking confirm blocked', true, 'Confirmation blocked before payment policy is met');
+    assert.equal(prematureConfirm.json?.error?.code, "BOOKING_ADVANCE_NOT_MET");
+    addResult(
+      "Booking confirm blocked",
+      true,
+      "Confirmation blocked before payment policy is met",
+    );
   } catch (error) {
-    addResult('Booking confirm blocked', false, error.message);
+    addResult("Booking confirm blocked", false, error.message);
   }
 
   try {
-    const createPayment = await request('/api/payments', {
-      method: 'POST',
+    const createPayment = await request("/api/payments", {
+      method: "POST",
       headers: authHeaders(accountsToken),
       body: {
         bookingId,
         amount: 50000,
-        currency: 'INR',
-        paymentMode: 'BANK_TRANSFER',
+        currency: "INR",
+        paymentMode: "BANK_TRANSFER",
         paymentReference: `S4-REF-${seed}`,
-        proofUrl: 'https://example.com/payment-proof.pdf',
+        proofUrl: "https://example.com/payment-proof.pdf",
       },
     });
 
@@ -255,64 +262,82 @@ async function main() {
     paymentId = createPayment.json?.data?.id;
     assert.ok(paymentId);
 
-    addResult('Payment create', true, `Payment created ${paymentId}`);
+    addResult("Payment create", true, `Payment created ${paymentId}`);
   } catch (error) {
-    addResult('Payment create', false, error.message);
+    addResult("Payment create", false, error.message);
   }
 
   try {
     const verifyPayment = await request(`/api/payments/${paymentId}/verify`, {
-      method: 'POST',
+      method: "POST",
       headers: authHeaders(accountsToken),
       body: {
-        status: 'FULL',
+        status: "FULL",
       },
     });
 
     assert.equal(verifyPayment.response.status, 200);
     assert.equal(Boolean(verifyPayment.json?.data?.isVerified), true);
-    assert.equal(verifyPayment.json?.data?.bookingPaymentStatus, 'PARTIAL');
+    assert.equal(verifyPayment.json?.data?.bookingPaymentStatus, "PARTIAL");
 
-    addResult('Payment verify', true, 'Payment verified and booking summary updated');
+    addResult(
+      "Payment verify",
+      true,
+      "Payment verified and booking summary updated",
+    );
   } catch (error) {
-    addResult('Payment verify', false, error.message);
+    addResult("Payment verify", false, error.message);
   }
 
   try {
-    const confirmAfterPayment = await request(`/api/bookings/${bookingId}/status`, {
-      method: 'POST',
-      headers: authHeaders(consultantToken),
-      body: {
-        status: 'CONFIRMED',
+    const confirmAfterPayment = await request(
+      `/api/bookings/${bookingId}/status`,
+      {
+        method: "POST",
+        headers: authHeaders(consultantToken),
+        body: {
+          status: "CONFIRMED",
+        },
       },
-    });
+    );
 
     assert.equal(confirmAfterPayment.response.status, 200);
-    assert.equal(confirmAfterPayment.json?.data?.status, 'CONFIRMED');
+    assert.equal(confirmAfterPayment.json?.data?.status, "CONFIRMED");
 
-    addResult('Booking confirm success', true, 'Booking confirmed after verified advance');
+    addResult(
+      "Booking confirm success",
+      true,
+      "Booking confirmed after verified advance",
+    );
   } catch (error) {
-    addResult('Booking confirm success', false, error.message);
+    addResult("Booking confirm success", false, error.message);
   }
 
   try {
-    const generateInvoice = await request(`/api/bookings/${bookingId}/invoices/generate`, {
-      method: 'POST',
-      headers: authHeaders(consultantToken),
-      body: {},
-    });
+    const generateInvoice = await request(
+      `/api/bookings/${bookingId}/invoices/generate`,
+      {
+        method: "POST",
+        headers: authHeaders(consultantToken),
+        body: {},
+      },
+    );
 
     assert.equal(generateInvoice.response.status, 201);
     assert.ok(generateInvoice.json?.data?.invoiceNumber);
 
-    addResult('Invoice generation', true, `Invoice ${generateInvoice.json.data.invoiceNumber}`);
+    addResult(
+      "Invoice generation",
+      true,
+      `Invoice ${generateInvoice.json.data.invoiceNumber}`,
+    );
   } catch (error) {
-    addResult('Invoice generation', false, error.message);
+    addResult("Invoice generation", false, error.message);
   }
 
   try {
-    const createRefund = await request('/api/refunds', {
-      method: 'POST',
+    const createRefund = await request("/api/refunds", {
+      method: "POST",
       headers: authHeaders(accountsToken),
       body: {
         bookingId,
@@ -325,50 +350,60 @@ async function main() {
     assert.equal(createRefund.response.status, 201);
     refundId = createRefund.json?.data?.id;
     assert.ok(refundId);
-    assert.equal(createRefund.json?.data?.status, 'INITIATED');
+    assert.equal(createRefund.json?.data?.status, "INITIATED");
 
-    addResult('Refund create', true, `Refund created ${refundId}`);
+    addResult("Refund create", true, `Refund created ${refundId}`);
   } catch (error) {
-    addResult('Refund create', false, error.message);
+    addResult("Refund create", false, error.message);
   }
 
   try {
-    const approveByAccounts = await request(`/api/refunds/${refundId}/approve`, {
-      method: 'POST',
-      headers: authHeaders(accountsToken),
-      body: {
-        note: 'Attempted approval by accounts',
+    const approveByAccounts = await request(
+      `/api/refunds/${refundId}/approve`,
+      {
+        method: "POST",
+        headers: authHeaders(accountsToken),
+        body: {
+          note: "Attempted approval by accounts",
+        },
       },
-    });
+    );
 
     assert.equal(approveByAccounts.response.status, 403);
-    assert.equal(approveByAccounts.json?.error?.code, 'REFUND_MANAGER_APPROVAL_REQUIRED');
+    assert.equal(
+      approveByAccounts.json?.error?.code,
+      "REFUND_MANAGER_APPROVAL_REQUIRED",
+    );
 
-    addResult('High-value approval guard', true, 'Accounts blocked for high-value refund approval');
+    addResult(
+      "High-value approval guard",
+      true,
+      "Accounts blocked for high-value refund approval",
+    );
   } catch (error) {
-    addResult('High-value approval guard', false, error.message);
+    addResult("High-value approval guard", false, error.message);
   }
 
   try {
     const approveByAdmin = await request(`/api/refunds/${refundId}/approve`, {
-      method: 'POST',
+      method: "POST",
       headers: authHeaders(adminToken),
       body: {
-        note: 'Approved by admin',
+        note: "Approved by admin",
       },
     });
 
     assert.equal(approveByAdmin.response.status, 200);
-    assert.equal(approveByAdmin.json?.data?.status, 'APPROVED');
+    assert.equal(approveByAdmin.json?.data?.status, "APPROVED");
 
-    addResult('Refund approve', true, 'High-value refund approved by admin');
+    addResult("Refund approve", true, "High-value refund approved by admin");
   } catch (error) {
-    addResult('Refund approve', false, error.message);
+    addResult("Refund approve", false, error.message);
   }
 
   try {
     const processRefund = await request(`/api/refunds/${refundId}/process`, {
-      method: 'POST',
+      method: "POST",
       headers: authHeaders(accountsToken),
       body: {
         gatewayRefundId: `RFND-${seed}`,
@@ -376,12 +411,16 @@ async function main() {
     });
 
     assert.equal(processRefund.response.status, 200);
-    assert.equal(processRefund.json?.data?.status, 'PROCESSED');
-    assert.equal(processRefund.json?.data?.bookingPaymentStatus, 'PARTIAL');
+    assert.equal(processRefund.json?.data?.status, "PROCESSED");
+    assert.equal(processRefund.json?.data?.bookingPaymentStatus, "PARTIAL");
 
-    addResult('Refund process', true, 'Refund processed and booking payment summary synced');
+    addResult(
+      "Refund process",
+      true,
+      "Refund processed and booking payment summary synced",
+    );
   } catch (error) {
-    addResult('Refund process', false, error.message);
+    addResult("Refund process", false, error.message);
   }
 
   try {
@@ -390,12 +429,16 @@ async function main() {
     });
 
     assert.equal(bookingAfterRefund.response.status, 200);
-    assert.equal(bookingAfterRefund.json?.data?.paymentStatus, 'PARTIAL');
+    assert.equal(bookingAfterRefund.json?.data?.paymentStatus, "PARTIAL");
     assert.equal(Number(bookingAfterRefund.json?.data?.advanceReceived), 35000);
 
-    addResult('Booking payment snapshot', true, 'advanceReceived=35000, paymentStatus=PARTIAL');
+    addResult(
+      "Booking payment snapshot",
+      true,
+      "advanceReceived=35000, paymentStatus=PARTIAL",
+    );
   } catch (error) {
-    addResult('Booking payment snapshot', false, error.message);
+    addResult("Booking payment snapshot", false, error.message);
   }
 
   await new Promise((resolve, reject) => {
@@ -408,17 +451,19 @@ async function main() {
     });
   });
 
-  console.log('\nSprint 4 Smoke Test Results');
-  console.log('---------------------------');
+  console.log("\nSprint 4 Smoke Test Results");
+  console.log("---------------------------");
 
   for (const item of results) {
-    const prefix = item.passed ? 'PASS' : 'FAIL';
+    const prefix = item.passed ? "PASS" : "FAIL";
     console.log(`${prefix} | ${item.name} | ${item.details}`);
   }
 
   const failed = results.filter((item) => !item.passed);
-  console.log('---------------------------');
-  console.log(`Total: ${results.length}, Passed: ${results.length - failed.length}, Failed: ${failed.length}`);
+  console.log("---------------------------");
+  console.log(
+    `Total: ${results.length}, Passed: ${results.length - failed.length}, Failed: ${failed.length}`,
+  );
 
   if (failed.length > 0) {
     process.exitCode = 1;
@@ -426,6 +471,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('Sprint 4 smoke test execution failed:', error.message);
+  console.error("Sprint 4 smoke test execution failed:", error.message);
   process.exitCode = 1;
 });

@@ -1,8 +1,7 @@
 const PackagesSchema = Object.freeze({
-  tableName: 'packages',
-  enquiriesTable: 'package_enquiries',
-  entityName: 'Packages',
+  tableName: "packages",
+  enquiriesTable: "package_enquiries",
+  entityName: "Packages",
 });
 
-module.exports = { PackagesSchema };
-
+export { PackagesSchema };

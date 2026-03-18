@@ -1,17 +1,17 @@
-const { AppError } = require('../../core/errors');
+import { AppError } from "../../core/errors/index.js";
 
 const REFUND_STATUS = Object.freeze({
-  INITIATED: 'INITIATED',
-  APPROVED: 'APPROVED',
-  REJECTED: 'REJECTED',
-  PROCESSED: 'PROCESSED',
+  INITIATED: "INITIATED",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+  PROCESSED: "PROCESSED",
 });
 
 const PAYMENT_STATUS = Object.freeze({
-  PENDING: 'PENDING',
-  PARTIAL: 'PARTIAL',
-  FULL: 'FULL',
-  REFUNDED: 'REFUNDED',
+  PENDING: "PENDING",
+  PARTIAL: "PARTIAL",
+  FULL: "FULL",
+  REFUNDED: "REFUNDED",
 });
 
 const POLICY = Object.freeze({
@@ -29,16 +29,26 @@ function createRefundsService({ repository, logger, events }) {
   }
 
   function roleCanApproveHighRefund(role) {
-    const normalized = String(role || '').trim().toLowerCase();
-    return normalized === 'admin' || normalized === 'super_admin' || normalized === 'manager' || normalized === 'sales_manager';
+    const normalized = String(role || "")
+      .trim()
+      .toLowerCase();
+    return (
+      normalized === "admin" ||
+      normalized === "super_admin" ||
+      normalized === "manager" ||
+      normalized === "sales_manager"
+    );
   }
 
   async function getById(id, context = {}) {
-    logger.debug({ module: 'refunds', requestId: context.requestId, id }, 'Getting refund by id');
+    logger.debug(
+      { module: "refunds", requestId: context.requestId, id },
+      "Getting refund by id",
+    );
     const refund = await repository.findById(id);
 
     if (!refund) {
-      throw new AppError(404, 'Refund not found', 'REFUND_NOT_FOUND');
+      throw new AppError(404, "Refund not found", "REFUND_NOT_FOUND");
     }
 
     return refund;
@@ -47,7 +57,7 @@ function createRefundsService({ repository, logger, events }) {
   async function getBookingById(bookingId) {
     const booking = await repository.findBookingById(bookingId);
     if (!booking || booking.isDeleted) {
-      throw new AppError(404, 'Booking not found', 'REFUND_BOOKING_NOT_FOUND');
+      throw new AppError(404, "Booking not found", "REFUND_BOOKING_NOT_FOUND");
     }
 
     return booking;
@@ -56,11 +66,15 @@ function createRefundsService({ repository, logger, events }) {
   async function getPaymentById(paymentId, bookingId) {
     const payment = await repository.findPaymentById(paymentId);
     if (!payment) {
-      throw new AppError(404, 'Payment not found', 'REFUND_PAYMENT_NOT_FOUND');
+      throw new AppError(404, "Payment not found", "REFUND_PAYMENT_NOT_FOUND");
     }
 
     if (payment.bookingId !== bookingId) {
-      throw new AppError(409, 'Payment does not belong to booking', 'REFUND_PAYMENT_BOOKING_MISMATCH');
+      throw new AppError(
+        409,
+        "Payment does not belong to booking",
+        "REFUND_PAYMENT_BOOKING_MISMATCH",
+      );
     }
 
     return payment;
@@ -75,7 +89,10 @@ function createRefundsService({ repository, logger, events }) {
     return {
       paidAmount,
       processedRefundAmount,
-      refundableBalance: Math.max(Number((paidAmount - processedRefundAmount).toFixed(2)), 0),
+      refundableBalance: Math.max(
+        Number((paidAmount - processedRefundAmount).toFixed(2)),
+        0,
+      ),
     };
   }
 
@@ -90,7 +107,10 @@ function createRefundsService({ repository, logger, events }) {
       repository.getProcessedRefundAmount(bookingId),
     ]);
 
-    const netReceived = Math.max(Number((paidAmount - refundedAmount).toFixed(2)), 0);
+    const netReceived = Math.max(
+      Number((paidAmount - refundedAmount).toFixed(2)),
+      0,
+    );
     const totalAmount = toNumber(booking.totalAmount, 0);
 
     let paymentStatus = PAYMENT_STATUS.PENDING;
@@ -126,7 +146,10 @@ function createRefundsService({ repository, logger, events }) {
     syncBookingPaymentSummary,
 
     async list(filters = {}, context = {}) {
-      logger.debug({ module: 'refunds', requestId: context.requestId, filters }, 'Listing refunds');
+      logger.debug(
+        { module: "refunds", requestId: context.requestId, filters },
+        "Listing refunds",
+      );
       return repository.findAll(filters);
     },
 
@@ -146,7 +169,7 @@ function createRefundsService({ repository, logger, events }) {
         throw new AppError(
           409,
           `Refund amount exceeds refundable balance ${policy.refundableBalance}.`,
-          'REFUND_EXCEEDS_REFUNDABLE_BALANCE',
+          "REFUND_EXCEEDS_REFUNDABLE_BALANCE",
         );
       }
 
@@ -158,18 +181,31 @@ function createRefundsService({ repository, logger, events }) {
     async update(id, payload, context = {}) {
       const existing = await getById(id, context);
       if (existing.status !== REFUND_STATUS.INITIATED) {
-        throw new AppError(409, 'Only initiated refunds can be updated.', 'REFUND_UPDATE_LOCKED');
+        throw new AppError(
+          409,
+          "Only initiated refunds can be updated.",
+          "REFUND_UPDATE_LOCKED",
+        );
       }
 
       const patch = {};
       if (payload.refundAmount !== undefined) {
-        patch.refund_amount = toNumber(payload.refundAmount, existing.refundAmount);
+        patch.refund_amount = toNumber(
+          payload.refundAmount,
+          existing.refundAmount,
+        );
       }
       if (payload.supplierPenalty !== undefined) {
-        patch.supplier_penalty = toNumber(payload.supplierPenalty, existing.supplierPenalty);
+        patch.supplier_penalty = toNumber(
+          payload.supplierPenalty,
+          existing.supplierPenalty,
+        );
       }
       if (payload.serviceCharge !== undefined) {
-        patch.service_charge = toNumber(payload.serviceCharge, existing.serviceCharge);
+        patch.service_charge = toNumber(
+          payload.serviceCharge,
+          existing.serviceCharge,
+        );
       }
       if (payload.gatewayRefundId !== undefined) {
         patch.gateway_refund_id = payload.gatewayRefundId || null;
@@ -177,13 +213,14 @@ function createRefundsService({ repository, logger, events }) {
 
       const policy = await getRefundableBalance(existing.bookingId);
       const nextRefundAmount = patch.refund_amount ?? existing.refundAmount;
-      const availableForUpdate = policy.refundableBalance + existing.refundAmount;
+      const availableForUpdate =
+        policy.refundableBalance + existing.refundAmount;
 
       if (toNumber(nextRefundAmount, 0) > availableForUpdate) {
         throw new AppError(
           409,
           `Refund amount exceeds refundable balance ${availableForUpdate}.`,
-          'REFUND_EXCEEDS_REFUNDABLE_BALANCE',
+          "REFUND_EXCEEDS_REFUNDABLE_BALANCE",
         );
       }
 
@@ -196,7 +233,11 @@ function createRefundsService({ repository, logger, events }) {
       const existing = await getById(id, context);
 
       if (existing.status !== REFUND_STATUS.INITIATED) {
-        throw new AppError(409, 'Only initiated refunds can be approved.', 'REFUND_APPROVAL_INVALID_STATE');
+        throw new AppError(
+          409,
+          "Only initiated refunds can be approved.",
+          "REFUND_APPROVAL_INVALID_STATE",
+        );
       }
 
       if (
@@ -206,7 +247,7 @@ function createRefundsService({ repository, logger, events }) {
         throw new AppError(
           403,
           `Refund above ${POLICY.managerApprovalThreshold} requires manager/admin approval.`,
-          'REFUND_MANAGER_APPROVAL_REQUIRED',
+          "REFUND_MANAGER_APPROVAL_REQUIRED",
         );
       }
 
@@ -228,7 +269,11 @@ function createRefundsService({ repository, logger, events }) {
     async reject(id, payload = {}, context = {}) {
       const existing = await getById(id, context);
       if (existing.status === REFUND_STATUS.PROCESSED) {
-        throw new AppError(409, 'Processed refunds cannot be rejected.', 'REFUND_REJECT_INVALID_STATE');
+        throw new AppError(
+          409,
+          "Processed refunds cannot be rejected.",
+          "REFUND_REJECT_INVALID_STATE",
+        );
       }
 
       if (existing.status === REFUND_STATUS.REJECTED) {
@@ -252,12 +297,17 @@ function createRefundsService({ repository, logger, events }) {
     async process(id, payload = {}, context = {}) {
       const existing = await getById(id, context);
       if (existing.status !== REFUND_STATUS.APPROVED) {
-        throw new AppError(409, 'Only approved refunds can be processed.', 'REFUND_PROCESS_INVALID_STATE');
+        throw new AppError(
+          409,
+          "Only approved refunds can be processed.",
+          "REFUND_PROCESS_INVALID_STATE",
+        );
       }
 
       const updated = await repository.update(id, {
         status: REFUND_STATUS.PROCESSED,
-        gateway_refund_id: payload.gatewayRefundId || existing.gatewayRefundId || null,
+        gateway_refund_id:
+          payload.gatewayRefundId || existing.gatewayRefundId || null,
         processed_at: payload.processedAt || new Date().toISOString(),
       });
 
@@ -289,4 +339,4 @@ function createRefundsService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createRefundsService, REFUND_STATUS };
+export { createRefundsService, REFUND_STATUS };

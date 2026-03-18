@@ -1,26 +1,31 @@
-const { z } = require('zod');
+import { z } from "zod";
 
-const createPayload = z.object({
-  fullName: z.string().trim().min(2).max(150),
-  email: z.string().email().max(150),
-  phone: z.string().trim().min(6).max(20).optional(),
-  roleId: z.string().uuid().optional(),
-  password: z.string().trim().min(8).optional(),
-  passwordHash: z.string().trim().min(8).max(400).optional(),
-  isActive: z.boolean().optional(),
-  isOnLeave: z.boolean().optional(),
-  expertiseDestinations: z.array(z.string().trim().min(2).max(100)).max(50).optional(),
-  targetAmount: z.coerce.number().nonnegative().optional(),
-  incentivePercent: z.coerce.number().min(0).max(100).optional(),
-}).superRefine((value, ctx) => {
-  if (!value.password && !value.passwordHash) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Password is required',
-      path: ['password'],
-    });
-  }
-});
+const createPayload = z
+  .object({
+    fullName: z.string().trim().min(2).max(150),
+    email: z.string().email().max(150),
+    phone: z.string().trim().min(6).max(20).optional(),
+    roleId: z.string().uuid().optional(),
+    password: z.string().trim().min(8).optional(),
+    passwordHash: z.string().trim().min(8).max(400).optional(),
+    isActive: z.boolean().optional(),
+    isOnLeave: z.boolean().optional(),
+    expertiseDestinations: z
+      .array(z.string().trim().min(2).max(100))
+      .max(50)
+      .optional(),
+    targetAmount: z.coerce.number().nonnegative().optional(),
+    incentivePercent: z.coerce.number().min(0).max(100).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.password && !value.passwordHash) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Password is required",
+        path: ["password"],
+      });
+    }
+  });
 
 const updatePayload = z
   .object({
@@ -30,11 +35,17 @@ const updatePayload = z
     roleId: z.string().uuid().nullable().optional(),
     isActive: z.boolean().optional(),
     isOnLeave: z.boolean().optional(),
-    expertiseDestinations: z.array(z.string().trim().min(2).max(100)).max(50).optional(),
+    expertiseDestinations: z
+      .array(z.string().trim().min(2).max(100))
+      .max(50)
+      .optional(),
     targetAmount: z.coerce.number().nonnegative().optional(),
     incentivePercent: z.coerce.number().min(0).max(100).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'At least one field is required for update');
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required for update",
+  );
 
 const create = z.object({
   body: createPayload,
@@ -69,7 +80,7 @@ const list = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   UsersValidation: {
     create,
     update,

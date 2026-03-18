@@ -1,12 +1,12 @@
-const pino = require('pino');
-const { config } = require('../config');
+import pino from "pino";
+import { config } from "../config/index.js";
 
 const logger = pino({
   level: config.logger.level,
   redact: {
-    paths: ['req.headers.authorization', 'password', '*.password'],
-    censor: '[REDACTED]',
+    paths: ["req.headers.authorization", "password", "*.password"],
+    censor: "[REDACTED]",
   },
 });
 
-module.exports = { logger };
+export { logger };

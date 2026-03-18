@@ -1,5 +1,5 @@
-const { z } = require('zod');
-const { NotificationStatus } = require('./notifications.schema');
+import { z } from "zod";
+import { NotificationStatus } from "./notifications.schema.js";
 
 const list = z.object({
   body: z.object({}).optional(),
@@ -8,12 +8,14 @@ const list = z.object({
     .object({
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().max(100).optional(),
-      status: z.enum([
-        NotificationStatus.PENDING,
-        NotificationStatus.DELIVERED,
-        NotificationStatus.READ,
-        NotificationStatus.FAILED,
-      ]).optional(),
+      status: z
+        .enum([
+          NotificationStatus.PENDING,
+          NotificationStatus.DELIVERED,
+          NotificationStatus.READ,
+          NotificationStatus.FAILED,
+        ])
+        .optional(),
     })
     .optional(),
 });
@@ -38,7 +40,7 @@ const markAllRead = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   NotificationsValidation: {
     list,
     unreadCount,

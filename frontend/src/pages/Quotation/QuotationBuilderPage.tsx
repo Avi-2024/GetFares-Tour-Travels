@@ -65,7 +65,20 @@ const QuotationBuilderPage: React.FC = () => {
   const [showPreview, setShowPreview] = useState(true)
   const [mobile, setMobile] = useState(false)
   const [currency, setCurrency] = useState<Currency>('INR')
-  const [form, setForm] = useState({})
+  const [form, setForm] = useState({
+    quote: 'QT-2026-089',
+    version: 'v1.2 Draft',
+    customer: 'Sarah Jenkins',
+    email: 'sarah.j@example.com',
+    destination: 'Maldives Retreat',
+    startDate: '2026-12-15',
+    nights: 5,
+    adults: 2,
+    validUntil: '2026-11-15',
+    inclusions:
+      '5 nights stay\nDaily breakfast and dinner\nRoundtrip transfers',
+    exclusions: 'International flights\nTravel insurance\nPersonal expenses'
+  })
   const [downloading, setDownloading] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [itineraryItems, setItineraryItems] = useState<Item[]>(initialItinerary)
