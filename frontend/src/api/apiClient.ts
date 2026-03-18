@@ -73,6 +73,8 @@ export type ApiClient = HttpClient & {
 };
 
 const STORAGE_TOKEN = "auth_token";
+const STORAGE_USER = "auth_user";
+const STORAGE_PERMISSIONS = "auth_permissions";
 
 const hasContentType = (headers?: ApiRequestConfig["headers"]) => {
   if (!headers) return false;
@@ -233,8 +235,30 @@ type LegacyRequestOptions = {
   responseType?: "json" | "blob" | "text";
 };
 
+const clearAuthStorage = () => {
+  if (typeof localStorage === "undefined") return;
+  localStorage.removeItem(STORAGE_TOKEN);
+  localStorage.removeItem(STORAGE_USER);
+  localStorage.removeItem(STORAGE_PERMISSIONS);
+};
+
+const handleLegacyUnauthorized = () => {
+  if (typeof localStorage === "undefined") return;
+  const hadToken = Boolean(localStorage.getItem(STORAGE_TOKEN));
+  clearAuthStorage();
+
+  if (
+    hadToken &&
+    typeof window !== "undefined" &&
+    window.location.pathname !== "/login"
+  ) {
+    window.location.replace("/login");
+  }
+};
+
 const legacyClient = createApiClient({
   getAuthToken: () => localStorage.getItem(STORAGE_TOKEN),
+  onUnauthorized: handleLegacyUnauthorized,
 });
 
 const resolveResponseType = (
