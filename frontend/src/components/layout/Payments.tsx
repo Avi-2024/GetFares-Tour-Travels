@@ -518,21 +518,21 @@ const PaymentFormModal = ({
   onSave: (data: any) => void;
   onCancel: () => void;
 }) => {
-  const [formData, setFormData] = useState({
-    customer: transaction?.customer || "",
-    bookingId: transaction?.bookingId || "",
-    amount: transaction?.amount ? Math.abs(transaction.amount).toString() : "",
-    mode: transaction?.mode || "bank",
-    referenceId: transaction?.referenceId || "",
-    paymentReference: transaction?.paymentReference || "",
-    gatewayOrderId: transaction?.gatewayOrderId || "",
-    gatewayPaymentId: transaction?.gatewayPaymentId || "",
-    gatewaySignature: transaction?.gatewaySignature || "",
-    proofUrl: transaction?.proofUrl || "",
-    status: transaction?.status || "pending",
-    notes: transaction?.notes || "",
+  const buildFormData = (tx: Transaction | null) => ({
+    customer: tx?.customer || "",
+    bookingId: tx?.bookingId || "",
+    amount: tx?.amount ? Math.abs(tx.amount).toString() : "",
+    mode: tx?.mode || "bank",
+    referenceId: tx?.referenceId || "",
+    paymentReference: tx?.paymentReference || "",
+    gatewayOrderId: tx?.gatewayOrderId || "",
+    gatewayPaymentId: tx?.gatewayPaymentId || "",
+    gatewaySignature: tx?.gatewaySignature || "",
+    proofUrl: tx?.proofUrl || "",
+    status: tx?.status || "pending",
+    notes: tx?.notes || "",
     date:
-      transaction?.date ||
+      tx?.date ||
       new Date().toLocaleDateString("en-US", {
         month: "short",
         day: "2-digit",
@@ -540,7 +540,15 @@ const PaymentFormModal = ({
       }),
   });
 
+  const [formData, setFormData] = useState(() => buildFormData(transaction));
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(buildFormData(transaction));
+      setErrors({});
+    }
+  }, [isOpen, transaction?.id]);
 
   if (!isOpen) return null;
 
@@ -1237,10 +1245,31 @@ const Payments: React.FC = () => {
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
       });
+      setTransactions((prev) =>
+        prev.map((tx) =>
+          tx.id === data.id
+            ? {
+                ...tx,
+                customer: data.customer,
+                bookingId: data.bookingId,
+                amount: toNumber(data.amount, 0) * (selectedTransaction?.amount && selectedTransaction.amount < 0 ? -1 : 1),
+                mode: data.mode as PaymentMode,
+                referenceId: data.referenceId || tx.referenceId,
+                paymentReference: data.paymentReference || tx.paymentReference,
+                gatewayOrderId: data.gatewayOrderId || tx.gatewayOrderId,
+                gatewayPaymentId: data.gatewayPaymentId || tx.gatewayPaymentId,
+                gatewaySignature: data.gatewaySignature || tx.gatewaySignature,
+                proofUrl: data.proofUrl || tx.proofUrl,
+                status: data.status as TxStatus,
+                notes: data.notes || tx.notes,
+                updatedAt: data.updatedAt,
+              }
+            : tx,
+        ),
+      );
       setShowEditModal(false);
       setSelectedTransaction(null);
       showToast("Payment updated successfully", "success");
-      await fetchTransactions();
       await fetchStats();
     } catch (err) {
       console.error("Failed to update payment:", err);
