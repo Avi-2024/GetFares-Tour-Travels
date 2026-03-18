@@ -100,12 +100,12 @@ const list = z.object({
     .optional(),
 });
 
-export {
-  PaymentsValidation: {
-    create,
-    update,
-    byId,
-    list,
-    verify: verifyPayload,
-  },
+const PaymentsValidation = {
+  create,
+  update,
+  byId,
+  list,
+  verify: verifyPayload,
 };
+
+export { PaymentsValidation };

@@ -19,6 +19,14 @@ import { isApiError } from "../../api/apiClient";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import type { LeadListItem } from "../../services/leadsService";
 
+// Type definitions for stats
+interface LeadStats {
+  totalLeads: number;
+  newToday: number;
+  hotLeads: number;
+  qualified: number;
+}
+
 const tabs = ["All", "New", "Contacted", "Qualified", "Lost"] as const;
 type Tab = (typeof tabs)[number];
 
@@ -40,7 +48,7 @@ const Leads: React.FC = () => {
       try {
         const mapped = await leadsService.listLeads({
           page: 1,
-          limit: 10,
+          limit: 500,
         });
         setFetchedLeads(mapped);
       } catch (err) {
@@ -70,6 +78,16 @@ const Leads: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const leads = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const leadStats = useMemo<LeadStats>(
+    () => ({
+      totalLeads: fetchedLeads.length,
+      newToday: fetchedLeads.filter((lead) => lead.status === "New").length,
+      hotLeads: fetchedLeads.filter((lead) => lead.priority === "High").length,
+      qualified: fetchedLeads.filter((lead) => lead.status === "Qualified")
+        .length,
+    }),
+    [fetchedLeads],
+  );
 
   const getPriorityClass = (priority: string) => {
     switch (priority) {
@@ -117,22 +135,22 @@ const Leads: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <KpiCard
             title="All Leads"
-            value="1248"
+            value={leadStats.totalLeads.toLocaleString()}
             icon={<FaUsers className="text-blue-600 text-xl" />}
           />
           <KpiCard
             title="New Today"
-            value="24"
+            value={leadStats.newToday.toLocaleString()}
             icon={<FaCalendarPlus className="text-green-500 text-xl" />}
           />
           <KpiCard
             title="Hot Leads"
-            value="86"
+            value={leadStats.hotLeads.toLocaleString()}
             icon={<FaFire className="text-red-500 text-xl" />}
           />
           <KpiCard
             title="Qualified"
-            value="220"
+            value={leadStats.qualified.toLocaleString()}
             icon={<FaFileInvoiceDollar className="text-amber-500 text-xl" />}
           />
         </div>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Area,
   AreaChart,
@@ -23,6 +23,31 @@ import {
   FaUserGroup,
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
+import { dashboardApi } from "../../api/dashboard";
+import { useAuth } from "../../context/AuthContext";
+
+// Type definitions
+interface DashboardStats {
+  totalLeads: number;
+  totalLeadsChange: number;
+  revenue: number;
+  revenueChange: number;
+  pendingCalls: number;
+  pendingCallsChange: number;
+  bookings: number;
+  bookingsChange: number;
+}
+
+interface RevenueData {
+  name: string;
+  revenue: number;
+  last: number;
+}
+
+interface LeadSource {
+  name: string;
+  value: number;
+}
 
 type Range = "Today" | "Week" | "Month" | "Year";
 const data: Record<
@@ -67,42 +92,152 @@ const sources = [
 const colors = ["#2563eb", "#22c55e", "#a855f7", "#f59e0b"];
 
 const Dashboard: React.FC = () => {
+  const { token } = useAuth();
   const [range, setRange] = useState<Range>("Week");
-  const rev = useMemo(() => data[range], [range]);
-  const kpis = [
-    {
-      title: "Total Leads",
-      value: "1,248",
-      trend: "+12%",
-      up: true,
-      icon: FaUserGroup,
-      bg: "bg-blue-100 text-blue-600",
-    },
-    {
-      title: "Revenue",
-      value: "$84.2k",
-      trend: "+9.4%",
-      up: true,
-      icon: FaSackDollar,
-      bg: "bg-green-100 text-green-600",
-    },
-    {
-      title: "Pending Calls",
-      value: "12",
-      trend: "-4%",
-      up: false,
-      icon: FaPhone,
-      bg: "bg-amber-100 text-amber-500",
-    },
-    {
-      title: "Bookings",
-      value: "186",
-      trend: "+6%",
-      up: true,
-      icon: FaPlane,
-      bg: "bg-gray-100 text-gray-700",
-    },
-  ];
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [revenueData, setRevenueData] = useState<Record<Range, RevenueData[]>>(data);
+  const [leadSources, setLeadSources] = useState<LeadSource[]>(sources);
+  
+  const rev = useMemo(() => revenueData[range], [revenueData, range]);
+  // Load dashboard data
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      if (!token) {
+        console.log('No auth token available, using static data');
+        return;
+      }
+      
+      setLoading(true);
+      try {
+        // Load stats
+        const statsResponse = await dashboardApi.getStats() as any;
+        const stats = statsResponse?.data || statsResponse;
+        if (stats) {
+          setDashboardStats(stats);
+        }
+        
+        // Load revenue data
+        const revenueResponse = await dashboardApi.getRevenue({ range: range.toLowerCase() }) as any;
+        const revenue = revenueResponse?.data || revenueResponse;
+        if (revenue && Array.isArray(revenue)) {
+          setRevenueData(prev => ({ ...prev, [range]: revenue }));
+        }
+        
+        // Load lead sources
+        const sourcesResponse = await dashboardApi.getLeadSources() as any;
+        const sources = sourcesResponse?.data || sourcesResponse;
+        if (sources && Array.isArray(sources)) {
+          setLeadSources(sources);
+        }
+        
+        setError('');
+      } catch (error: any) {
+        console.error('Failed to load dashboard data:', error);
+        
+        if (error.status === 401 || error.message?.includes('token')) {
+          setError('Authentication failed. Please login again.');
+        } else if (error.status === 404) {
+          setError('Dashboard API endpoints not found. Please check backend server.');
+        } else {
+          setError('Failed to load dashboard data. Using offline data.');
+        }
+        
+        // Use fallback data
+        if (!dashboardStats) {
+          setDashboardStats({
+            totalLeads: 1248,
+            totalLeadsChange: 12,
+            revenue: 84200,
+            revenueChange: 9.4,
+            pendingCalls: 12,
+            pendingCallsChange: -4,
+            bookings: 186,
+            bookingsChange: 6
+          });
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, [token, range]);
+
+  const kpis = useMemo(() => {
+    if (!dashboardStats) {
+      return [
+        {
+          title: "Total Leads",
+          value: "1,248",
+          trend: "+12%",
+          up: true,
+          icon: FaUserGroup,
+          bg: "bg-blue-100 text-blue-600",
+        },
+        {
+          title: "Revenue",
+          value: "$84.2k",
+          trend: "+9.4%",
+          up: true,
+          icon: FaSackDollar,
+          bg: "bg-green-100 text-green-600",
+        },
+        {
+          title: "Pending Calls",
+          value: "12",
+          trend: "-4%",
+          up: false,
+          icon: FaPhone,
+          bg: "bg-amber-100 text-amber-500",
+        },
+        {
+          title: "Bookings",
+          value: "186",
+          trend: "+6%",
+          up: true,
+          icon: FaPlane,
+          bg: "bg-gray-100 text-gray-700",
+        },
+      ];
+    }
+    
+    return [
+      {
+        title: "Total Leads",
+        value: dashboardStats.totalLeads.toLocaleString(),
+        trend: `${dashboardStats.totalLeadsChange >= 0 ? '+' : ''}${dashboardStats.totalLeadsChange}%`,
+        up: dashboardStats.totalLeadsChange >= 0,
+        icon: FaUserGroup,
+        bg: "bg-blue-100 text-blue-600",
+      },
+      {
+        title: "Revenue",
+        value: `$${(dashboardStats.revenue / 1000).toFixed(1)}k`,
+        trend: `${dashboardStats.revenueChange >= 0 ? '+' : ''}${dashboardStats.revenueChange}%`,
+        up: dashboardStats.revenueChange >= 0,
+        icon: FaSackDollar,
+        bg: "bg-green-100 text-green-600",
+      },
+      {
+        title: "Pending Calls",
+        value: dashboardStats.pendingCalls.toString(),
+        trend: `${dashboardStats.pendingCallsChange >= 0 ? '+' : ''}${dashboardStats.pendingCallsChange}%`,
+        up: dashboardStats.pendingCallsChange >= 0,
+        icon: FaPhone,
+        bg: "bg-amber-100 text-amber-500",
+      },
+      {
+        title: "Bookings",
+        value: dashboardStats.bookings.toString(),
+        trend: `${dashboardStats.bookingsChange >= 0 ? '+' : ''}${dashboardStats.bookingsChange}%`,
+        up: dashboardStats.bookingsChange >= 0,
+        icon: FaPlane,
+        bg: "bg-gray-100 text-gray-700",
+      },
+    ];
+  }, [dashboardStats]);
 
   return (
     <div className="space-y-6">
@@ -114,38 +249,57 @@ const Dashboard: React.FC = () => {
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Performance, pipeline health, and recent operations at a glance.
           </p>
+          {error && (
+            <p className="mt-1 text-sm text-red-500">{error}</p>
+          )}
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-          <FaCalendarDays className="text-blue-600" /> March 10, 2026
+          <FaCalendarDays className="text-blue-600" /> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((k) => (
-          <SurfaceCard key={k.title} hoverable className="p-5">
-            <div className="flex items-start justify-between">
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-xl ${k.bg}`}
-              >
-                <k.icon />
+        {loading ? (
+          // Loading skeleton for KPI cards
+          Array.from({ length: 4 }).map((_, index) => (
+            <SurfaceCard key={index} className="p-5">
+              <div className="animate-pulse">
+                <div className="flex items-start justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-gray-200 dark:bg-gray-700"></div>
+                  <div className="h-6 w-12 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+                </div>
+                <div className="mt-4 h-4 w-20 rounded bg-gray-200 dark:bg-gray-700"></div>
+                <div className="mt-2 h-8 w-16 rounded bg-gray-200 dark:bg-gray-700"></div>
               </div>
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${k.up ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
-              >
-                {k.up ? (
-                  <FaArrowTrendUp className="mr-1" />
-                ) : (
-                  <FaArrowTrendDown className="mr-1" />
-                )}
-                {k.trend}
-              </span>
-            </div>
-            <p className="mt-4 text-sm text-gray-500">{k.title}</p>
-            <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">
-              {k.value}
-            </p>
-          </SurfaceCard>
-        ))}
+            </SurfaceCard>
+          ))
+        ) : (
+          kpis.map((k) => (
+            <SurfaceCard key={k.title} hoverable className="p-5">
+              <div className="flex items-start justify-between">
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl ${k.bg}`}
+                >
+                  <k.icon />
+                </div>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${k.up ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                >
+                  {k.up ? (
+                    <FaArrowTrendUp className="mr-1" />
+                  ) : (
+                    <FaArrowTrendDown className="mr-1" />
+                  )}
+                  {k.trend}
+                </span>
+              </div>
+              <p className="mt-4 text-sm text-gray-500">{k.title}</p>
+              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">
+                {k.value}
+              </p>
+            </SurfaceCard>
+          ))
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -219,14 +373,14 @@ const Dashboard: React.FC = () => {
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie
-                data={sources}
+                data={leadSources}
                 innerRadius={65}
                 outerRadius={95}
                 paddingAngle={4}
                 dataKey="value"
                 nameKey="name"
               >
-                {sources.map((_, i) => (
+                {leadSources.map((_, i) => (
                   <Cell key={i} fill={colors[i % colors.length]} />
                 ))}
               </Pie>

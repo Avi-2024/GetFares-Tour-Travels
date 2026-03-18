@@ -40,11 +40,11 @@ const markAllRead = z.object({
   query: z.object({}).optional(),
 });
 
-export {
-  NotificationsValidation: {
-    list,
-    unreadCount,
-    markRead,
-    markAllRead,
-  },
+const NotificationsValidation = {
+  list,
+  unreadCount,
+  markRead,
+  markAllRead,
 };
+
+export { NotificationsValidation };

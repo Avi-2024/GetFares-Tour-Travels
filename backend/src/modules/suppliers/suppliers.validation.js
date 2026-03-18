@@ -110,14 +110,14 @@ const listPayables = z.object({
     .optional(),
 });
 
-export {
-  SuppliersValidation: {
-    create,
-    update,
-    byId,
-    list,
-    createPayable,
-    updatePayable,
-    listPayables,
-  },
+const SuppliersValidation = {
+  create,
+  update,
+  byId,
+  list,
+  createPayable,
+  updatePayable,
+  listPayables,
 };
+
+export { SuppliersValidation };

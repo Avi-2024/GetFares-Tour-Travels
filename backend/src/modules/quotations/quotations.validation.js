@@ -264,22 +264,22 @@ const listTemplates = z.object({
     .optional(),
 });
 
-export {
-  QuotationsValidation: {
-    create,
-    update,
-    byId,
-    list,
-    generatePdf,
-    send,
-    trackView,
-    approveMargin,
-    statusTransition,
-    views,
-    runReminders,
-    leadToQuoteReport,
-    createTemplate,
-    updateTemplate,
-    listTemplates,
-  },
+const QuotationsValidation = {
+  create,
+  update,
+  byId,
+  list,
+  generatePdf,
+  send,
+  trackView,
+  approveMargin,
+  statusTransition,
+  views,
+  runReminders,
+  leadToQuoteReport,
+  createTemplate,
+  updateTemplate,
+  listTemplates,
 };
+
+export { QuotationsValidation };
