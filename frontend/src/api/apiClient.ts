@@ -2,7 +2,6 @@ import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
   type AxiosResponse,
-  type AxiosResponseType,
   type AxiosRequestHeaders,
   type InternalAxiosRequestConfig,
 } from "axios";
@@ -238,11 +237,11 @@ const legacyClient = createApiClient({
 
 const resolveResponseType = (
   responseType: LegacyRequestOptions["responseType"],
-): AxiosResponseType => {
+): AxiosRequestConfig["responseType"] => {
   if (responseType === "blob" || responseType === "text") return responseType;
   return "json";
 };
-
+  
 export async function apiRequest<T>(
   path: string,
   options: LegacyRequestOptions = {},
