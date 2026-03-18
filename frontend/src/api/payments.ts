@@ -10,6 +10,8 @@ export const paymentsApi = {
   getById: (id: string) => apiRequest(`/api/payments/${id}`),
   update: (id: string, payload: unknown) =>
     apiRequest(`/api/payments/${id}`, { method: "PATCH", body: payload }),
+  delete: (id: string) =>
+    apiRequest(`/api/payments/${id}`, { method: "DELETE" }),
   verify: (id: string, payload: unknown) =>
     apiRequest(`/api/payments/${id}/verify`, { method: "POST", body: payload }),
 };
