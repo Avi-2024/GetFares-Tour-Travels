@@ -2,9 +2,7 @@ import { AppError } from "../../core/errors/index.js";
 
 function normalizeFields(value) {
   if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean);
+    return value.map((item) => String(item).trim()).filter(Boolean);
   }
 
   if (typeof value === "string") {

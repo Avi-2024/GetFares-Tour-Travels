@@ -18,9 +18,7 @@ function createMetaLeadRepository({ db, logger }) {
   }
 
   async function attachMetaLeadId(leadId, metaLeadId) {
-    if (!leadId || !metaLeadId) {
-      return null;
-    }
+    if (!leadId || !metaLeadId) return null;
 
     try {
       return await db.update(tableName, leadId, { meta_lead_id: metaLeadId });

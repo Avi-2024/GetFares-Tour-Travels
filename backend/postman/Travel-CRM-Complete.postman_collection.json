@@ -112,8 +112,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["health"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
             }
           }
         },
@@ -124,8 +128,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/health/ready",
-              "host": ["{{baseUrl}}"],
-              "path": ["health", "ready"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
             }
           }
         },
@@ -136,8 +145,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/health/live",
-              "host": ["{{baseUrl}}"],
-              "path": ["health", "live"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
             }
           }
         }
@@ -162,8 +176,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
             }
           },
           "event": [
@@ -198,8 +218,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
             }
           },
           "event": [
@@ -230,8 +256,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/auth/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "me"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
             }
           }
         },
@@ -251,8 +283,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
             }
           },
           "event": [
@@ -288,8 +326,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/leads?page=1&limit=10&status=OPEN",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leads"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -341,8 +384,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/leads",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leads"
+              ]
             }
           }
         },
@@ -358,8 +406,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/leads/{{leadId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads", "{{leadId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leads",
+                "{{leadId}}"
+              ]
             }
           }
         },
@@ -383,8 +437,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/leads/{{leadId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads", "{{leadId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leads",
+                "{{leadId}}"
+              ]
             }
           }
         },
@@ -408,8 +468,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/leads/{{leadId}}/assign",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads", "{{leadId}}", "assign"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leads",
+                "{{leadId}}",
+                "assign"
+              ]
             }
           }
         },
@@ -433,8 +500,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/leads/{{leadId}}/followups",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads", "{{leadId}}", "followups"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leads",
+                "{{leadId}}",
+                "followups"
+              ]
             }
           }
         }
@@ -455,8 +529,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/quotations?page=1&limit=10&status=PENDING",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "quotations"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "quotations"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -504,12 +583,17 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"destinationId\": \"{{destinationId}}\",\n  \"days\": 5,\n  \"nights\": 4,\n  \"pax\": 2,\n  \"baseCost\": 25000,\n  \"quotedPrice\": 75000,\n  \"profitPercent\": 20,\n  \"status\": \"PENDING\"\n}"
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"components\": [\n    {\n      \"itemType\": \"HOTEL\",\n      \"description\": \"3 nights hotel\",\n      \"cost\": 20000\n    },\n    {\n      \"itemType\": \"FLIGHT\",\n      \"description\": \"Round trip\",\n      \"cost\": 15000\n    }\n  ],\n  \"marginPercent\": 15,\n  \"discount\": 0,\n  \"taxPercent\": 5,\n  \"taxAmount\": 1750,\n  \"supplierCost\": 30000,\n  \"supplierTaxAmount\": 1500,\n  \"markupAmount\": 5000,\n  \"serviceFeeAmount\": 1000,\n  \"gstAmount\": 1750,\n  \"tcsAmount\": 0,\n  \"costCurrency\": \"INR\",\n  \"clientCurrency\": \"INR\",\n  \"supplierCurrency\": \"INR\",\n  \"expiresInHours\": 48\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/quotations",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "quotations"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "quotations"
+              ]
             }
           }
         },
@@ -525,8 +609,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/quotations/{{quotationId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "quotations", "{{quotationId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "quotations",
+                "{{quotationId}}"
+              ]
             }
           }
         },
@@ -550,8 +640,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/quotations/{{quotationId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "quotations", "{{quotationId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "quotations",
+                "{{quotationId}}"
+              ]
             }
           }
         },
@@ -567,8 +663,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/quotations/templates",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "quotations", "templates"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "quotations",
+                "templates"
+              ]
             }
           }
         }
@@ -589,8 +691,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/bookings?page=1&limit=10&status=CONFIRMED",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "bookings"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -642,8 +749,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/bookings",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "bookings"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings"
+              ]
             }
           }
         },
@@ -659,8 +771,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/bookings/{{bookingId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "bookings", "{{bookingId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "{{bookingId}}"
+              ]
             }
           }
         },
@@ -684,8 +802,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/status",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "bookings", "{{bookingId}}", "status"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "{{bookingId}}",
+                "status"
+              ]
             }
           }
         },
@@ -701,8 +826,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/status-history",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "bookings", "{{bookingId}}", "status-history"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "{{bookingId}}",
+                "status-history"
+              ]
             }
           }
         },
@@ -726,7 +858,9 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/invoices/generate",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "bookings",
@@ -753,9 +887,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/payments?page=1&limit=10&status=COMPLETED",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "payments"],
+              "raw": "{{baseUrl}}/api/payments?page=1&limit=10&status=FULL",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -767,7 +906,7 @@
                 },
                 {
                   "key": "status",
-                  "value": "COMPLETED"
+                  "value": "FULL"
                 }
               ]
             }
@@ -803,14 +942,33 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"amount\": 87500,\n  \"paymentMethod\": \"BANK_TRANSFER\",\n  \"transactionRef\": \"TXN-20260317-001\",\n  \"status\": \"COMPLETED\"\n}"
+              "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"amount\": 87500,\n  \"currency\": \"INR\",\n  \"paymentMode\": \"BANK_TRANSFER\",\n  \"paymentReference\": \"TXN-20260317-001\",\n  \"status\": \"PENDING\",\n  \"proofUrl\": \"https://example.com/proofs/txn-20260317-001.pdf\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/payments",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "payments"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ]
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.id) {",
+                  "  pm.collectionVariables.set('paymentId', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Get Payment",
@@ -824,8 +982,77 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/payments/{{paymentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "payments", "{{paymentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "{{paymentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Payment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"FULL\",\n  \"isVerified\": true,\n  \"paidAt\": \"2026-03-18T10:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/{{paymentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "{{paymentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"FULL\",\n  \"paidAt\": \"2026-03-18T10:00:00.000Z\",\n  \"proofUrl\": \"https://example.com/proofs/txn-20260317-001.pdf\",\n  \"paymentReference\": \"TXN-20260317-001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/{{paymentId}}/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "{{paymentId}}",
+                "verify"
+              ]
             }
           }
         }
@@ -846,8 +1073,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/customers?page=1&limit=10",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "customers"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -887,8 +1119,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/customers/{{customerId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "customers", "{{customerId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}"
+              ]
             }
           }
         },
@@ -904,8 +1142,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/customers/{{customerId}}/bookings",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "customers", "{{customerId}}", "bookings"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}",
+                "bookings"
+              ]
             }
           }
         }
@@ -926,8 +1171,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/destinations?page=1&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "destinations"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "destinations"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -967,8 +1217,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/destinations/{{destinationId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "destinations", "{{destinationId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "destinations",
+                "{{destinationId}}"
+              ]
             }
           }
         },
@@ -984,8 +1240,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/destinations/{{destinationId}}/pricing",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "destinations", "{{destinationId}}", "pricing"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "destinations",
+                "{{destinationId}}",
+                "pricing"
+              ]
             }
           }
         }
@@ -1006,8 +1269,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/campaigns?page=1&limit=10",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "campaigns"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "campaigns"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -1055,8 +1323,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/campaigns",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "campaigns"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "campaigns"
+              ]
             }
           }
         },
@@ -1072,8 +1345,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/campaigns/{{campaignId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "campaigns", "{{campaignId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "campaigns",
+                "{{campaignId}}"
+              ]
             }
           }
         }
@@ -1094,8 +1373,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/reports/dashboard",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "reports", "dashboard"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "dashboard"
+              ]
             }
           }
         },
@@ -1111,8 +1396,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/reports/revenue?startDate=2026-01-01&endDate=2026-03-31",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "reports", "revenue"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "revenue"
+              ],
               "query": [
                 {
                   "key": "startDate",
@@ -1138,8 +1429,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/reports/lead-conversion",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "reports", "lead-conversion"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "lead-conversion"
+              ]
             }
           }
         },
@@ -1155,8 +1452,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/reports/sales-performance?userId={{userId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "reports", "sales-performance"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "sales-performance"
+              ],
               "query": [
                 {
                   "key": "userId",
@@ -1183,8 +1486,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/rbac/me/permissions",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "rbac", "me", "permissions"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rbac",
+                "me",
+                "permissions"
+              ]
             }
           }
         },
@@ -1200,8 +1510,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/rbac/roles",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "rbac", "roles"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rbac",
+                "roles"
+              ]
             }
           }
         },
@@ -1225,8 +1541,461 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/rbac/assign",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "rbac", "assign"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rbac",
+                "assign"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Refunds",
+      "item": [
+        {
+          "name": "List Refunds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "refunds"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"paymentId\": \"{{paymentId}}\",\n  \"refundAmount\": 5000,\n  \"serviceCharge\": 500\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "refunds"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.id) {",
+                  "  pm.collectionVariables.set('refundId', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Refund",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds/{{refundId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "refunds",
+                "{{refundId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Approved\",\n  \"approvedAt\": \"2026-03-18T10:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds/{{refundId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "refunds",
+                "{{refundId}}",
+                "approve"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reject Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Policy violation\",\n  \"rejectedAt\": \"2026-03-18T10:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds/{{refundId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "refunds",
+                "{{refundId}}",
+                "reject"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Process Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gatewayRefundId\": \"RFND-001\",\n  \"processedAt\": \"2026-03-18T10:00:00.000Z\",\n  \"markPaymentRefunded\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds/{{refundId}}/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "refunds",
+                "{{refundId}}",
+                "process"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Suppliers",
+      "item": [
+        {
+          "name": "List Suppliers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/suppliers?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "suppliers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Supplier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Supplier\",\n  \"email\": \"supplier@example.com\",\n  \"phone\": \"+91-9000000000\",\n  \"panNumber\": \"ABCDE1234F\",\n  \"gstNumber\": \"22AAAAA0000A1Z5\",\n  \"supplierCurrency\": \"INR\",\n  \"paymentDeadlineDate\": \"2026-03-25\",\n  \"contractUrl\": \"https://example.com/contracts/supplier.pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/suppliers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "suppliers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.id) {",
+                  "  pm.collectionVariables.set('supplierId', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Supplier",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/suppliers/{{supplierId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "suppliers",
+                "{{supplierId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Supplier",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/suppliers/{{supplierId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "suppliers",
+                "{{supplierId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Supplier Payables",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/suppliers/{{supplierId}}/payables?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "suppliers",
+                "{{supplierId}}",
+                "payables"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Supplier Payable",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"payableAmount\": 25000,\n  \"paidAmount\": 0,\n  \"dueDate\": \"2026-03-25\",\n  \"status\": \"PENDING\",\n  \"paymentReference\": \"SUP-PAY-001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/suppliers/{{supplierId}}/payables",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "suppliers",
+                "{{supplierId}}",
+                "payables"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.id) {",
+                  "  pm.collectionVariables.set('payableId', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Supplier Payable",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paidAmount\": 10000,\n  \"status\": \"PARTIAL\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/suppliers/payables/{{payableId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "suppliers",
+                "payables",
+                "{{payableId}}"
+              ]
             }
           }
         }

@@ -13,7 +13,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("*"),
   JWT_ACCESS_SECRET: z
     .string()
-    .min(16)
+    .min(128)
     .default("super-secret-key-minimum-16-chars"),
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
   DATABASE_URL: z.string().optional(),
