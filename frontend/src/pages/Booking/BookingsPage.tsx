@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FaArrowTrendUp,
   FaCalendarDays,
@@ -49,6 +49,7 @@ interface Booking {
 }
 
 interface NewBookingData {
+  quotationId: string
   customer: string
   email: string
   phone: string
@@ -56,6 +57,7 @@ interface NewBookingData {
   travelStart: string
   travelEnd: string
   totalAmount: number
+  costAmount: number
   advanceRequired: number
   notes?: string
 }
@@ -157,6 +159,7 @@ const CreateBookingModal = ({
   const [quotationError, setQuotationError] = useState('')
   const [selectedQuotationId, setSelectedQuotationId] = useState('')
   const [formData, setFormData] = useState<NewBookingData>({
+    quotationId: '',
     customer: '',
     email: '',
     phone: '',
@@ -164,6 +167,7 @@ const CreateBookingModal = ({
     travelStart: '',
     travelEnd: '',
     totalAmount: 0,
+    costAmount: 0,
     advanceRequired: 0,
     notes: ''
   })
@@ -239,13 +243,31 @@ const CreateBookingModal = ({
       quote.travelEndDate ??
       quote.travelEnd ??
       quote.templateSnapshot?.travelEndDate
+    const totalAmountRaw =
+      quote.finalPrice ??
+      quote.totalSaleValue ??
+      quote.totalCost ??
+      quote.totalAmount
     const totalAmount =
-      Number(
-        quote.finalPrice ??
-          quote.totalSaleValue ??
-          quote.totalCost ??
-          quote.totalAmount
-      ) || formData.totalAmount
+      totalAmountRaw !== undefined
+        ? Number(totalAmountRaw) || 0
+        : formData.totalAmount
+    const costAmountRaw =
+      quote.totalCost ??
+      quote.costAmount ??
+      quote.supplierCost ??
+      quote.cost ??
+      quote.totalAmount
+    const costAmount =
+      costAmountRaw !== undefined
+        ? Number(costAmountRaw) || 0
+        : formData.costAmount
+    const advanceRequiredRaw =
+      quote.advanceRequired ?? quote.advance_required ?? quote.advanceAmount
+    const advanceRequired =
+      advanceRequiredRaw !== undefined
+        ? Number(advanceRequiredRaw) || 0
+        : formData.advanceRequired
 
     setFormData(prev => ({
       ...prev,
@@ -255,7 +277,9 @@ const CreateBookingModal = ({
       destination: destination ?? prev.destination,
       travelStart: toInputDate(travelStart) || prev.travelStart,
       travelEnd: toInputDate(travelEnd) || prev.travelEnd,
-      totalAmount
+      totalAmount,
+      costAmount,
+      advanceRequired
     }))
   }
 
@@ -266,6 +290,7 @@ const CreateBookingModal = ({
 
   const handleQuotationChange = async (quotationId: string) => {
     setSelectedQuotationId(quotationId)
+    setFormData(prev => ({ ...prev, quotationId }))
     if (!quotationId) return
     setQuotationAutofillLoading(true)
     try {
@@ -284,6 +309,8 @@ const CreateBookingModal = ({
 
   const validate = () => {
     const newErrors: Partial<Record<keyof NewBookingData, string>> = {}
+    if (!formData.quotationId)
+      newErrors.quotationId = 'Quotation is required'
     if (!formData.customer) newErrors.customer = 'Customer name is required'
     if (!formData.destination) newErrors.destination = 'Destination is required'
     if (!formData.travelStart)
@@ -291,6 +318,17 @@ const CreateBookingModal = ({
     if (!formData.travelEnd) newErrors.travelEnd = 'Travel end date is required'
     if (formData.totalAmount <= 0)
       newErrors.totalAmount = 'Total amount must be greater than 0'
+    if (formData.costAmount < 0)
+      newErrors.costAmount = 'Cost amount must be 0 or greater'
+    if (formData.costAmount > formData.totalAmount) {
+      newErrors.costAmount = 'Cost amount cannot exceed total amount'
+    }
+
+    if (formData.travelStart && formData.travelEnd) {
+      if (formData.travelEnd < formData.travelStart) {
+        newErrors.travelEnd = 'Travel end must be after travel start'
+      }
+    }
 
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format'
@@ -305,6 +343,7 @@ const CreateBookingModal = ({
       onSave(formData)
       onClose()
       setFormData({
+        quotationId: '',
         customer: '',
         email: '',
         phone: '',
@@ -312,6 +351,7 @@ const CreateBookingModal = ({
         travelStart: '',
         travelEnd: '',
         totalAmount: 0,
+        costAmount: 0,
         advanceRequired: 0,
         notes: ''
       })
@@ -341,7 +381,9 @@ const CreateBookingModal = ({
             <select
               value={selectedQuotationId}
               onChange={e => handleQuotationChange(e.target.value)}
-              className='field-input'
+              className={`field-input ${
+                errors.quotationId ? 'border-red-500' : ''
+              }`}
               disabled={quotationLoading}
             >
               <option value=''>
@@ -355,6 +397,9 @@ const CreateBookingModal = ({
             </select>
             {quotationError && (
               <p className='text-xs text-red-500 mt-1'>{quotationError}</p>
+            )}
+            {errors.quotationId && (
+              <p className='text-xs text-red-500 mt-1'>{errors.quotationId}</p>
             )}
             {quotationAutofillLoading && (
               <p className='text-xs text-gray-500 mt-1'>Autofilling details...</p>
@@ -497,6 +542,33 @@ const CreateBookingModal = ({
                 </p>
               )}
             </div>
+            <div>
+              <label className='field-label'>Cost Amount ($) *</label>
+              <input
+                type='number'
+                value={formData.costAmount || ''}
+                onChange={e =>
+                  setFormData({
+                    ...formData,
+                    costAmount: parseFloat(e.target.value) || 0
+                  })
+                }
+                className={`field-input ${
+                  errors.costAmount ? 'border-red-500' : ''
+                }`}
+                placeholder='0.00'
+                min='0'
+                step='0.01'
+              />
+              {errors.costAmount && (
+                <p className='text-xs text-red-500 mt-1'>
+                  {errors.costAmount}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className='grid grid-cols-2 gap-4'>
             <div>
               <label className='field-label'>Advance Required ($)</label>
               <input
@@ -944,6 +1016,7 @@ const CancelBookingModal = ({
 const BookingsPage: React.FC = () => {
   const bookingsService = useBookingsService()
   const navigate = useNavigate()
+  const location = useLocation()
   const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -1016,6 +1089,45 @@ const BookingsPage: React.FC = () => {
     return `${startLabel} - ${endLabel}`
   }
 
+
+  const mapBooking = (b: any, idx: number): Booking => ({
+    id: String(b.id ?? idx),
+    bookingId: b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
+    customer: b.customer ?? b.customerName ?? b.clientName ?? 'Unknown',
+    destination: b.destination ?? b.tripDestination ?? 'N/A',
+    dates: formatDateRange(
+      b.travelStartDate ?? b.travelStart,
+      b.travelEndDate ?? b.travelEnd,
+      b.dates
+    ),
+    startDate: b.travelStartDate ?? b.travelStart,
+    endDate: b.travelEndDate ?? b.travelEnd,
+    status: normalizeStatus(b.status),
+    payment: normalizePayment(b.paymentStatus ?? b.payment_status),
+    paid: Number(b.paid ?? b.paidAmount ?? b.advanceReceived ?? 0),
+    total: Number(b.total ?? b.totalAmount ?? 0),
+    documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
+    documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0)
+  })
+
+  useEffect(() => {
+    const updatedBooking = (location.state as any)?.updatedBooking
+    if (!updatedBooking) return
+    const mapped = mapBooking(updatedBooking, 0)
+    setBookingItems(prev => {
+      const index = prev.findIndex(
+        item => item.id === mapped.id || item.bookingId === mapped.bookingId
+      )
+      if (index == -1) {
+        return [mapped, ...prev]
+      }
+      const next = [...prev]
+      next[index] = { ...next[index], ...mapped }
+      return next
+    })
+    navigate('/bookings', { replace: true })
+  }, [location.state, navigate])
+
   const fetchBookings = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -1035,26 +1147,7 @@ const BookingsPage: React.FC = () => {
         res ??
         []
       const mapped: Booking[] = (Array.isArray(raw) ? raw : []).map(
-        (b: any, idx: number) => ({
-          id: String(b.id ?? idx),
-          bookingId:
-            b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
-          customer: b.customer ?? b.customerName ?? b.clientName ?? 'Unknown',
-          destination: b.destination ?? b.tripDestination ?? 'N/A',
-          dates: formatDateRange(
-            b.travelStartDate ?? b.travelStart,
-            b.travelEndDate ?? b.travelEnd,
-            b.dates
-          ),
-          startDate: b.travelStartDate ?? b.travelStart,
-          endDate: b.travelEndDate ?? b.travelEnd,
-          status: normalizeStatus(b.status),
-          payment: normalizePayment(b.paymentStatus),
-          paid: Number(b.paid ?? b.paidAmount ?? b.advanceReceived ?? 0),
-          total: Number(b.total ?? b.totalAmount ?? 0),
-          documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
-          documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0)
-        })
+        (b: any, idx: number) => mapBooking(b, idx)
       )
       setBookingItems(mapped)
     } catch (err) {
@@ -1157,20 +1250,36 @@ const BookingsPage: React.FC = () => {
   const handleCreateBooking = async (data: NewBookingData) => {
     setLoading(true)
     try {
-      await bookingsService.create({
-        customer: data.customer,
-        email: data.email,
-        phone: data.phone,
-        destination: data.destination,
-        travelStart: data.travelStart,
-        travelEnd: data.travelEnd,
+      const res = await bookingsService.create({
+        quotationId: data.quotationId,
+        travelStartDate: data.travelStart,
+        travelEndDate: data.travelEnd,
         totalAmount: data.totalAmount,
-        advanceRequired: data.advanceRequired,
-        notes: data.notes
+        costAmount: data.costAmount,
+        advanceRequired: data.advanceRequired
       })
       showToast('Booking created successfully', 'success')
       setShowCreateModal(false)
-      await fetchBookings()
+      const payload =
+        (res as any)?.data?.data ?? (res as any)?.data ?? res ?? null
+      if (payload) {
+        const merged = {
+          ...payload,
+          customer: payload.customer ?? data.customer,
+          email: payload.email ?? data.email,
+          phone: payload.phone ?? data.phone,
+          destination: payload.destination ?? data.destination,
+          travelStartDate: payload.travelStartDate ?? data.travelStart,
+          travelEndDate: payload.travelEndDate ?? data.travelEnd,
+          totalAmount: payload.totalAmount ?? data.totalAmount,
+          costAmount: payload.costAmount ?? data.costAmount,
+          advanceRequired: payload.advanceRequired ?? data.advanceRequired
+        }
+        const mapped = mapBooking(merged, 0)
+        setBookingItems(prev => [mapped, ...prev])
+      } else {
+        await fetchBookings()
+      }
       await fetchStats()
     } catch (error) {
       console.error('Failed to create booking:', error)

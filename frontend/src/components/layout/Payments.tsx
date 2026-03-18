@@ -194,6 +194,7 @@ const Toast = ({
   </div>
 );
 
+
 // Confirm Modal
 const ConfirmModal = ({
   isOpen,
@@ -1100,6 +1101,7 @@ const Payments: React.FC = () => {
     void fetchStats();
   }, [fetchStats]);
 
+
   const handleViewDetails = (tx: Transaction) => {
     setSelectedTransaction(tx);
     setShowDetails(true);
@@ -1179,7 +1181,6 @@ const Payments: React.FC = () => {
           }
         />
       )}
-
       {/* Modals */}
       <ConfirmModal
         isOpen={showDeleteConfirm}
