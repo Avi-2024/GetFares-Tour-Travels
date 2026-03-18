@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 function mapListFilters(filters = {}) {
   return {
@@ -139,4 +139,4 @@ function createComplaintsService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createComplaintsService };
+export { createComplaintsService };

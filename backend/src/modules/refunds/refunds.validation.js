@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const refundStatus = z.enum(["INITIATED", "APPROVED", "REJECTED", "PROCESSED"]);
 
@@ -96,7 +96,7 @@ const processRefund = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   RefundsValidation: {
     create,
     update,

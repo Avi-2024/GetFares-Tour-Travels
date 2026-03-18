@@ -1,7 +1,11 @@
-const { randomUUID } = require("node:crypto");
-const fs = require("node:fs");
-const path = require("node:path");
-const { Pool } = require("pg");
+import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Pool } from "pg";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const RESERVED_FILTER_KEYS = new Set([
   "page",
@@ -418,7 +422,7 @@ function createDatabaseConnection({ config, logger }) {
   return new InMemoryDatabase();
 }
 
-module.exports = {
+export {
   createDatabaseConnection,
   InMemoryDatabase,
   PostgresDatabase,

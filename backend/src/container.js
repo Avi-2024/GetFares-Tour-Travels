@@ -1,10 +1,10 @@
-const EventEmitter = require("node:events");
-const { config } = require("./core/config");
-const { logger } = require("./core/logger");
-const { createDatabaseConnection } = require("./core/database");
-const { createSocketEventPublisher } = require("./core/realtime");
-const { createMetricsStore } = require("./core/observability");
-const coreMiddlewares = require("./core/middlewares");
+import EventEmitter from "node:events";
+import { config } from "./core/config/index.js";
+import { logger } from "./core/logger/index.js";
+import { createDatabaseConnection } from "./core/database/index.js";
+import { createSocketEventPublisher } from "./core/realtime/index.js";
+import { createMetricsStore } from "./core/observability/index.js";
+import * as coreMiddlewares from "./core/middlewares/index.js";
 
 function createContainer(overrides = {}) {
   const eventBus = overrides.eventBus || new EventEmitter();
@@ -17,7 +17,7 @@ function createContainer(overrides = {}) {
       serviceName: config.app.name,
       serviceVersion: config.app.version,
     });
-  // comment
+
   return {
     config,
     logger,
@@ -34,4 +34,4 @@ function createContainer(overrides = {}) {
   };
 }
 
-module.exports = { createContainer };
+export { createContainer };

@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 const REFUND_STATUS = Object.freeze({
   INITIATED: "INITIATED",
@@ -339,4 +339,4 @@ function createRefundsService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createRefundsService, REFUND_STATUS };
+export { createRefundsService, REFUND_STATUS };

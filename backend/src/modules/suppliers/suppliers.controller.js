@@ -59,4 +59,4 @@ function createSuppliersController({ service }) {
   });
 }
 
-module.exports = { createSuppliersController };
+export { createSuppliersController };

@@ -10,4 +10,4 @@ function createRbacEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createRbacEvents };
+export { createRbacEvents };

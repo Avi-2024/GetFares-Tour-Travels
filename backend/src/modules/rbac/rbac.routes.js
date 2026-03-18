@@ -1,5 +1,5 @@
-const { Router } = require("express");
-const { asyncHandler } = require("../../core/utils");
+import { Router } from "express";
+import { asyncHandler } from "../../core/utils/index.js";
 
 function createRbacRoutes({
   controller,
@@ -26,4 +26,4 @@ function createRbacRoutes({
   return router;
 }
 
-module.exports = { createRbacRoutes };
+export { createRbacRoutes };

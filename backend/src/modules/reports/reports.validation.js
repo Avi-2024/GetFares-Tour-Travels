@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const baseDateRangeQuery = z.object({
   from: z.string().optional(),
@@ -151,7 +151,7 @@ const pipelineForecast = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   ReportsValidation: {
     bySource,
     byConsultant,

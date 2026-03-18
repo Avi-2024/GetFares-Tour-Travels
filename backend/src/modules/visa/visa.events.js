@@ -43,4 +43,4 @@ function createVisaEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createVisaEvents };
+export { createVisaEvents };

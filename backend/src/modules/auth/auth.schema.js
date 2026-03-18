@@ -4,4 +4,4 @@ const AuthSchema = Object.freeze({
   sessionsTable: "login_audit",
 });
 
-module.exports = { AuthSchema };
+export { AuthSchema };

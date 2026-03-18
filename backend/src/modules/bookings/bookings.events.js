@@ -29,4 +29,4 @@ function createBookingsEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createBookingsEvents };
+export { createBookingsEvents };

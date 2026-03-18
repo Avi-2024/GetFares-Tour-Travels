@@ -40,4 +40,4 @@ function createCustomersController({ service }) {
   });
 }
 
-module.exports = { createCustomersController };
+export { createCustomersController };

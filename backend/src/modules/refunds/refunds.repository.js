@@ -228,4 +228,4 @@ function createRefundsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createRefundsRepository };
+export { createRefundsRepository };

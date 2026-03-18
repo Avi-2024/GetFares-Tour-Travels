@@ -1,9 +1,9 @@
-const dotenv = require("dotenv");
-const { Client } = require("pg");
+import dotenv from "dotenv";
+import { Client } from "pg";
+import { ROLE_PERMISSIONS } from "../src/core/constants/index.js";
 
 dotenv.config();
 
-const { ROLE_PERMISSIONS } = require("../src/core/constants");
 
 async function upsertRole(client, roleName) {
   const result = await client.query(

@@ -1,4 +1,4 @@
-﻿const { z } = require("zod");
+import { z } from "zod";
 
 const quotationStatus = z.enum([
   "DRAFT",
@@ -264,7 +264,7 @@ const listTemplates = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   QuotationsValidation: {
     create,
     update,

@@ -112,4 +112,4 @@ function createSuppliersRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createSuppliersRepository };
+export { createSuppliersRepository };

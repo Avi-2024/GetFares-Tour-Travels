@@ -1,9 +1,13 @@
-const fs = require("node:fs/promises");
-const path = require("node:path");
-const dotenv = require("dotenv");
-const { Client } = require("pg");
+import * as fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+import { Client } from "pg";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const MIGRATIONS_DIR = path.resolve(__dirname, "../database/migrations");
 

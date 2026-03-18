@@ -1,7 +1,7 @@
 #!/usr/bin/env node
+import dotenv from "dotenv";
+import pg from "pg";
 
-const dotenv = require("dotenv");
-const pg = require("pg");
 
 // Load environment
 dotenv.config();

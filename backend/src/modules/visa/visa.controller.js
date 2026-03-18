@@ -93,4 +93,4 @@ function createVisaController({ service }) {
   });
 }
 
-module.exports = { createVisaController };
+export { createVisaController };

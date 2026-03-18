@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 function extractToken(req) {
   const authHeader = req.headers.authorization;
@@ -64,4 +64,4 @@ function createAuthMiddleware({ authService }) {
   });
 }
 
-module.exports = { createAuthMiddleware };
+export { createAuthMiddleware };

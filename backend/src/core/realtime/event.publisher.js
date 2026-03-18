@@ -1,5 +1,5 @@
-const { randomUUID } = require("node:crypto");
-const { toUserRoom, toRoleRoom, toTeamRoom } = require("./rooms");
+import { randomUUID } from "node:crypto";
+import { toUserRoom, toRoleRoom, toTeamRoom } from "./rooms.js";
 
 function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean).map((value) => String(value)))];
@@ -108,4 +108,4 @@ function createSocketEventPublisher({ logger }) {
   });
 }
 
-module.exports = { createSocketEventPublisher };
+export { createSocketEventPublisher };

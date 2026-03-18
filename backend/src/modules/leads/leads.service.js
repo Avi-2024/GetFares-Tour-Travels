@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 const LEAD_TEMPERATURE = Object.freeze({
   HOT: "HOT",
@@ -952,4 +952,4 @@ function createLeadsService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createLeadsService, LEAD_TEMPERATURE };
+export { createLeadsService, LEAD_TEMPERATURE };

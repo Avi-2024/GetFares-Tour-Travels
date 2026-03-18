@@ -28,4 +28,4 @@ function createNotificationsController({ service }) {
   });
 }
 
-module.exports = { createNotificationsController };
+export { createNotificationsController };

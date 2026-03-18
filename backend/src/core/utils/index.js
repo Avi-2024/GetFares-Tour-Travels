@@ -1,7 +1,7 @@
-const { asyncHandler } = require("./asyncHandler");
-const { toPagination } = require("./pagination");
+import { asyncHandler } from "./asyncHandler.js";
+import { toPagination } from "./pagination.js";
 
-module.exports = {
+export {
   asyncHandler,
   toPagination,
 };

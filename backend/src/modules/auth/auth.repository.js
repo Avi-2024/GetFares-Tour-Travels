@@ -105,4 +105,4 @@ function createAuthRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createAuthRepository };
+export { createAuthRepository };

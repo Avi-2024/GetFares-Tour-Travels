@@ -11,4 +11,4 @@ function createCampaignsEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createCampaignsEvents };
+export { createCampaignsEvents };

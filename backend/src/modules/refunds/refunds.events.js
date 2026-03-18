@@ -32,4 +32,4 @@ function createRefundsEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createRefundsEvents };
+export { createRefundsEvents };

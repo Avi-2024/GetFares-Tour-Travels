@@ -5,4 +5,4 @@ const RbacSchema = Object.freeze({
   rolePermissionsTable: "role_permissions",
 });
 
-module.exports = { RbacSchema };
+export { RbacSchema };

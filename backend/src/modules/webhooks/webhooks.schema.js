@@ -6,4 +6,4 @@ const WebhooksSchema = Object.freeze({
   }),
 });
 
-module.exports = { WebhooksSchema };
+export { WebhooksSchema };

@@ -441,4 +441,4 @@ function createVisaRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createVisaRepository };
+export { createVisaRepository };

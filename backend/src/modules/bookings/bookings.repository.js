@@ -491,4 +491,4 @@ function createBookingsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createBookingsRepository };
+export { createBookingsRepository };

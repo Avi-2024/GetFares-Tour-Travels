@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const paymentStatus = z.enum(["PENDING", "PARTIAL", "FULL", "REFUNDED"]);
 const paymentMode = z.enum([
@@ -100,7 +100,7 @@ const list = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   PaymentsValidation: {
     create,
     update,

@@ -5,4 +5,4 @@ const PaymentsSchema = Object.freeze({
   entityName: "Payments",
 });
 
-module.exports = { PaymentsSchema };
+export { PaymentsSchema };

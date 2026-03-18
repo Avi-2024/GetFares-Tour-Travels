@@ -17,4 +17,4 @@ function createWebhooksController({ service }) {
   });
 }
 
-module.exports = { createWebhooksController };
+export { createWebhooksController };

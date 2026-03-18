@@ -56,4 +56,4 @@ function createEmployeesController({ service }) {
   });
 }
 
-module.exports = { createEmployeesController };
+export { createEmployeesController };

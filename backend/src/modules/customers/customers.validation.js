@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const customerSegment = z.enum(["PLATINUM", "GOLD", "SILVER", "NEW"]);
 
@@ -70,7 +70,7 @@ const remove = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   CustomersValidation: {
     create,
     update,

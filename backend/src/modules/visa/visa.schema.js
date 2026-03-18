@@ -7,4 +7,4 @@ const VisaSchema = Object.freeze({
   entityName: "Visa",
 });
 
-module.exports = { VisaSchema };
+export { VisaSchema };

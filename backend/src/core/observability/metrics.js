@@ -190,7 +190,7 @@ function createRequestMetricsMiddleware({ metricsStore }) {
   };
 }
 
-module.exports = {
+export {
   createMetricsStore,
   createRequestMetricsMiddleware,
 };

@@ -1,5 +1,5 @@
-const bcryptjs = require("bcryptjs");
-const { AppError } = require("../../core/errors");
+import bcryptjs from "bcryptjs";
+import { AppError } from "../../core/errors/index.js";
 
 function mapListFilters(filters = {}) {
   return {
@@ -160,4 +160,4 @@ function createUsersService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createUsersService };
+export { createUsersService };

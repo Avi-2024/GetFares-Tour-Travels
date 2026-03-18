@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 function toSupplier(entity) {
   if (!entity) {
@@ -301,4 +301,4 @@ function createSuppliersService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createSuppliersService };
+export { createSuppliersService };

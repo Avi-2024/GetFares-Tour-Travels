@@ -1,13 +1,13 @@
-const { createNotificationsRepository } = require("./notifications.repository");
-const { createNotificationsService } = require("./notifications.service");
-const { createNotificationsController } = require("./notifications.controller");
-const { createNotificationsRoutes } = require("./notifications.routes");
-const { NotificationsValidation } = require("./notifications.validation");
-const { NotificationsSchema } = require("./notifications.schema");
-const { createNotificationsEvents } = require("./notifications.events");
-const {
+import { createNotificationsRepository } from "./notifications.repository.js";
+import { createNotificationsService } from "./notifications.service.js";
+import { createNotificationsController } from "./notifications.controller.js";
+import { createNotificationsRoutes } from "./notifications.routes.js";
+import { NotificationsValidation } from "./notifications.validation.js";
+import { NotificationsSchema } from "./notifications.schema.js";
+import { createNotificationsEvents } from "./notifications.events.js";
+import {
   registerNotificationsSubscribers,
-} = require("./notifications.subscribers");
+} from "./notifications.subscribers.js";
 
 function createNotificationsModule({ dependencies }) {
   const repository = createNotificationsRepository({
@@ -55,4 +55,4 @@ function createNotificationsModule({ dependencies }) {
   });
 }
 
-module.exports = { createNotificationsModule };
+export { createNotificationsModule };

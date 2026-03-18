@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const uuid = z.string().uuid();
 const payableStatus = z.enum(["PENDING", "PARTIAL", "PAID"]);
@@ -110,7 +110,7 @@ const listPayables = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   SuppliersValidation: {
     create,
     update,

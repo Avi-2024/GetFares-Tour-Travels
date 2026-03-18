@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const leadStatus = z.enum([
   "OPEN",
@@ -203,7 +203,7 @@ const processNonResponsive = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   LeadsValidation: {
     create,
     update,

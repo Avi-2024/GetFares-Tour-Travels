@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const visaStatus = z.enum([
   "DOCUMENT_PENDING",
@@ -171,7 +171,7 @@ const summaryReport = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   VisaValidation: {
     create,
     update,

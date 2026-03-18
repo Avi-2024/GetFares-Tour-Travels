@@ -10,7 +10,7 @@ function toTeamRoom(teamId) {
   return `team:${teamId}`;
 }
 
-module.exports = {
+export {
   toUserRoom,
   toRoleRoom,
   toTeamRoom,

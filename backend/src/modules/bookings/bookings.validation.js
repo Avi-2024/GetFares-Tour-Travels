@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const bookingStatus = z.enum(["PENDING", "CONFIRMED", "CANCELLED"]);
 const paymentStatus = z.enum(["PENDING", "PARTIAL", "FULL", "REFUNDED"]);
@@ -126,7 +126,7 @@ const generateInvoice = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   BookingsValidation: {
     list,
     create,

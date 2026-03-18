@@ -1,5 +1,5 @@
-const { AppError } = require("../../core/errors");
-const { ROLE_PERMISSIONS, DEFAULT_ROLE } = require("../../core/constants");
+import { AppError } from "../../core/errors/index.js";
+import { ROLE_PERMISSIONS, DEFAULT_ROLE } from "../../core/constants/index.js";
 
 function createRbacService({ repository, events }) {
   async function getRolesForUser(user) {
@@ -64,4 +64,4 @@ function createRbacService({ repository, events }) {
   });
 }
 
-module.exports = { createRbacService };
+export { createRbacService };

@@ -1,9 +1,13 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const { spawn } = require("node:child_process");
-const dotenv = require("dotenv");
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function getArgValue(flag) {
   const direct = process.argv.find((item) => item.startsWith(`${flag}=`));

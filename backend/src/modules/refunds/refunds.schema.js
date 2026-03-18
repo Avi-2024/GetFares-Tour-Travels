@@ -5,4 +5,4 @@ const RefundsSchema = Object.freeze({
   entityName: "Refunds",
 });
 
-module.exports = { RefundsSchema };
+export { RefundsSchema };

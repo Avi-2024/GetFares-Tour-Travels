@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 const LEAVE_STATUSES = new Set([
   "PENDING",
@@ -248,4 +248,4 @@ function createEmployeesService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createEmployeesService };
+export { createEmployeesService };

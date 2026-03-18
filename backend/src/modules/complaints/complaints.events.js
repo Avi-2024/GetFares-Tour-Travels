@@ -18,4 +18,4 @@ function createComplaintsEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createComplaintsEvents };
+export { createComplaintsEvents };

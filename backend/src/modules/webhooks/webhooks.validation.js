@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const baseCaptureSchema = z
   .object({
@@ -46,7 +46,7 @@ const whatsappEnquiry = z.object({
   query: z.object({}).optional(),
 });
 
-module.exports = {
+export {
   WebhooksValidation: {
     metaLead,
     websiteEnquiry,

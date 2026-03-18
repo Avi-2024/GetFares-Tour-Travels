@@ -1061,4 +1061,4 @@ function createReportsRepository({ db, schema }) {
   });
 }
 
-module.exports = { createReportsRepository };
+export { createReportsRepository };

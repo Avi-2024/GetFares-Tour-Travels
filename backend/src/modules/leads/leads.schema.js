@@ -9,4 +9,4 @@ const LeadsSchema = Object.freeze({
   entityName: "Leads",
 });
 
-module.exports = { LeadsSchema };
+export { LeadsSchema };

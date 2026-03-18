@@ -25,4 +25,4 @@ function createCampaignsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createCampaignsRepository };
+export { createCampaignsRepository };

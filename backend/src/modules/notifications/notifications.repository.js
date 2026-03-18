@@ -336,4 +336,4 @@ function createNotificationsRepository({ db, logger, schema }) {
   });
 }
 
-module.exports = { createNotificationsRepository };
+export { createNotificationsRepository };

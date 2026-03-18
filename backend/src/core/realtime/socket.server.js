@@ -1,6 +1,6 @@
-const jwt = require("jsonwebtoken");
-const { Server } = require("socket.io");
-const { toUserRoom, toRoleRoom, toTeamRoom } = require("./rooms");
+import jwt from "jsonwebtoken";
+import { Server } from "socket.io";
+import { toUserRoom, toRoleRoom, toTeamRoom } from "./rooms.js";
 
 function toOrigins(corsOrigin) {
   if (!corsOrigin || corsOrigin === "*") {
@@ -242,4 +242,4 @@ function createSocketServer({ httpServer, logger, authConfig, corsOrigin }) {
   });
 }
 
-module.exports = { createSocketServer };
+export { createSocketServer };

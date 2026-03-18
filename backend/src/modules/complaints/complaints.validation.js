@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const complaintStatus = z.enum(["OPEN", "IN_PROGRESS", "RESOLVED"]);
 
@@ -74,7 +74,7 @@ const listActivities = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   ComplaintsValidation: {
     create,
     update,

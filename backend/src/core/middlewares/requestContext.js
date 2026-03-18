@@ -1,4 +1,4 @@
-const { randomUUID } = require("node:crypto");
+import { randomUUID } from "node:crypto";
 
 function requestContext(req, res, next) {
   req.context = {
@@ -10,4 +10,4 @@ function requestContext(req, res, next) {
   next();
 }
 
-module.exports = { requestContext };
+export { requestContext };

@@ -1,4 +1,4 @@
-const { z } = require("zod");
+import { z } from "zod";
 
 const createPayload = z
   .object({
@@ -80,7 +80,7 @@ const list = z.object({
     .optional(),
 });
 
-module.exports = {
+export {
   UsersValidation: {
     create,
     update,

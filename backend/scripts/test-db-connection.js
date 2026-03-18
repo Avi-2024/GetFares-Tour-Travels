@@ -1,9 +1,9 @@
 #!/usr/bin/env node
+import dotenv from "dotenv";
+import { createDatabaseConnection } from "../src/core/database/index.js";
+import { config } from "../src/core/config/index.js";
+import { logger } from "../src/core/logger/index.js";
 
-const dotenv = require("dotenv");
-const { createDatabaseConnection } = require("../src/core/database");
-const { config } = require("../src/core/config");
-const { logger } = require("../src/core/logger");
 
 dotenv.config();
 

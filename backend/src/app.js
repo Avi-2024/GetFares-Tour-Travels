@@ -1,16 +1,15 @@
-const express = require("express");
-const cors = require("cors");
-const helmet = require("helmet");
-const pinoHttp = require("pino-http");
-
-const { createContainer } = require("./container");
-const { registerModules } = require("./modules");
-const {
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import pinoHttp from "pino-http";
+import { createContainer } from "./container.js";
+import { registerModules } from "./modules/index.js";
+import {
   requestContext,
   notFound,
   errorHandler,
-} = require("./core/middlewares");
-const { createRequestMetricsMiddleware } = require("./core/observability");
+} from "./core/middlewares/index.js";
+import { createRequestMetricsMiddleware } from "./core/observability/index.js";
 
 function createApp(overrides = {}) {
   const app = express();
@@ -157,4 +156,4 @@ function createApp(overrides = {}) {
   return { app, container, modules, runtime };
 }
 
-module.exports = { createApp };
+export { createApp };

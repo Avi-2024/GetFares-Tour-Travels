@@ -82,4 +82,4 @@ function createLeadsEvents({ eventBus, logger }) {
   });
 }
 
-module.exports = { createLeadsEvents };
+export { createLeadsEvents };

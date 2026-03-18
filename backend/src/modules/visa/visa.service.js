@@ -1,4 +1,4 @@
-const { AppError } = require("../../core/errors");
+import { AppError } from "../../core/errors/index.js";
 
 const VISA_STATUS = Object.freeze({
   DOCUMENT_PENDING: "DOCUMENT_PENDING",
@@ -413,4 +413,4 @@ function createVisaService({ repository, logger, events }) {
   });
 }
 
-module.exports = { createVisaService, VISA_STATUS };
+export { createVisaService, VISA_STATUS };
