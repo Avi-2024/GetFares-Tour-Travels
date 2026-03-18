@@ -18,6 +18,13 @@ function createUsersRoutes({
     asyncHandler(controller.list),
   );
   router.get(
+    "/roles",
+    requireAuth,
+    authorize("users:read"),
+    validateRequest(validation.listRoles),
+    asyncHandler(controller.listRoles),
+  );
+  router.get(
     "/:id",
     requireAuth,
     authorize("users:read"),

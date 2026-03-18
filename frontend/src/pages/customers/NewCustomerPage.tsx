@@ -10,6 +10,7 @@ import {
   FaCreditCard,
   FaDollarSign,
 } from "react-icons/fa";
+import { customersApi } from "../../api/customers";
 
 interface CustomerFormData {
   fullName: string;
@@ -19,7 +20,7 @@ interface CustomerFormData {
   panNumber: string;
   addressLine: string;
   clientCurrency: string;
-  segment: "VIP" | "HIGH_VALUE" | "REGULAR" | "NEW";
+  segment: "PLATINUM" | "GOLD" | "SILVER" | "NEW";
 }
 
 interface FormErrors {
@@ -66,9 +67,9 @@ const NewCustomerPage: React.FC = () => {
 
   const segments = [
     { value: "NEW", label: "New Customer" },
-    { value: "REGULAR", label: "Regular Customer" },
-    { value: "HIGH_VALUE", label: "High Value Customer" },
-    { value: "VIP", label: "VIP Customer" },
+    { value: "SILVER", label: "Silver Customer" },
+    { value: "GOLD", label: "Gold Customer" },
+    { value: "PLATINUM", label: "Platinum Customer" },
   ];
 
   const validateForm = (): boolean => {
@@ -145,11 +146,16 @@ const NewCustomerPage: React.FC = () => {
     setError("");
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // In a real app, you would make an API call here
-      console.log("Creating customer:", formData);
+      await customersApi.create({
+        fullName: formData.fullName,
+        phone: formData.phone,
+        email: formData.email,
+        preferences: formData.preferences || undefined,
+        panNumber: formData.panNumber,
+        addressLine: formData.addressLine,
+        clientCurrency: formData.clientCurrency,
+        segment: formData.segment,
+      });
 
       // Navigate back to customers list
       navigate("/customers");

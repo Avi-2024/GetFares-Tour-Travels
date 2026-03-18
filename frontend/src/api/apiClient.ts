@@ -96,6 +96,11 @@ const extractMessage = (data: unknown) => {
     const message = (data as { message?: unknown }).message;
     return message ? String(message) : null;
   }
+  if (typeof data === "object" && "error" in data) {
+    const error = (data as { error?: { message?: unknown } }).error;
+    const message = error?.message;
+    return message ? String(message) : null;
+  }
   return null;
 };
 

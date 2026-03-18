@@ -17,6 +17,11 @@ function createUsersController({ service }) {
     res.status(201).json({ data: result });
   }
 
+  async function listRoles(req, res) {
+    const result = await service.listRoles(req.context);
+    res.status(200).json({ data: result });
+  }
+
   async function update(req, res) {
     const result = await service.update(
       req.validated.params.id,
@@ -30,6 +35,7 @@ function createUsersController({ service }) {
     list,
     getById,
     create,
+    listRoles,
     update,
   });
 }

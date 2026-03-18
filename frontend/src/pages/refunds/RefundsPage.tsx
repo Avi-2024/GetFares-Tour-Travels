@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FaCheck,
   FaCircleXmark,
@@ -15,6 +15,8 @@ import PermissionGate from "../../components/ui/PermissionGate";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import EmptyState from "../../components/ui/EmptyState";
+import { refundsApi } from "../../api/refunds";
+import { useAuth } from "../../context/AuthContext";
 
 type RefundStatus = "PENDING" | "APPROVED" | "REJECTED" | "PROCESSED";
 
@@ -470,69 +472,60 @@ const DetailsModal = ({
   );
 };
 
-const initialRows: RefundRow[] = [
-  {
-    id: "REF-001",
-    bookingId: "BK-2034",
-    paymentId: "PMT-2001",
-    refundAmount: 500,
-    supplierPenalty: 100,
-    serviceCharge: 50,
-    netAmount: 350,
-    status: "PENDING",
-    createdAt: "2026-03-10T10:30:00Z",
-    createdBy: "Alex Morgan",
-  },
-  {
-    id: "REF-002",
-    bookingId: "BK-2030",
-    paymentId: "PMT-2002",
-    refundAmount: 900,
-    supplierPenalty: 0,
-    serviceCharge: 0,
-    netAmount: 900,
-    status: "APPROVED",
-    createdAt: "2026-03-09T14:20:00Z",
-    createdBy: "Sarah Lee",
-    approvedAt: "2026-03-10T09:15:00Z",
-    approvedBy: "Mike Ross",
-  },
-  {
-    id: "REF-003",
-    bookingId: "BK-2028",
-    paymentId: "PMT-2003",
-    refundAmount: 1200,
-    supplierPenalty: 300,
-    serviceCharge: 75,
-    netAmount: 825,
-    status: "PROCESSED",
-    createdAt: "2026-03-08T11:45:00Z",
-    createdBy: "Emma Wilson",
-    approvedAt: "2026-03-09T10:30:00Z",
-    approvedBy: "Mike Ross",
-    processedAt: "2026-03-10T14:20:00Z",
-    processedBy: "John Smith",
-    gatewayRefundId: "GWR-123456",
-  },
-  {
-    id: "REF-004",
-    bookingId: "BK-2035",
-    paymentId: "PMT-2004",
-    refundAmount: 750,
-    supplierPenalty: 200,
-    serviceCharge: 25,
-    netAmount: 525,
-    status: "REJECTED",
-    createdAt: "2026-03-07T09:30:00Z",
-    createdBy: "Alex Morgan",
-    rejectedAt: "2026-03-08T11:20:00Z",
-    rejectedBy: "Sarah Lee",
-    rejectedReason: "Insufficient documentation",
-  },
-];
+const mapApiStatusToUi = (status?: string): RefundStatus => {
+  switch (String(status || "").toUpperCase()) {
+    case "APPROVED":
+      return "APPROVED";
+    case "REJECTED":
+      return "REJECTED";
+    case "PROCESSED":
+      return "PROCESSED";
+    case "INITIATED":
+    default:
+      return "PENDING";
+  }
+};
+
+const mapApiRefund = (refund: any): RefundRow => {
+  const refundAmount = Number(refund?.refundAmount ?? refund?.refund_amount ?? 0);
+  const supplierPenalty = Number(
+    refund?.supplierPenalty ?? refund?.supplier_penalty ?? 0,
+  );
+  const serviceCharge = Number(
+    refund?.serviceCharge ?? refund?.service_charge ?? 0,
+  );
+  const netAmount = refundAmount - supplierPenalty - serviceCharge;
+
+  return {
+    id: refund?.id || "",
+    bookingId: refund?.bookingId ?? refund?.booking_id ?? "",
+    paymentId: refund?.paymentId ?? refund?.payment_id ?? undefined,
+    refundAmount,
+    supplierPenalty,
+    serviceCharge,
+    netAmount,
+    status: mapApiStatusToUi(refund?.status),
+    createdAt:
+      refund?.createdAt ??
+      refund?.created_at ??
+      new Date().toISOString(),
+    createdBy: refund?.createdBy ?? refund?.created_by ?? "System",
+    approvedAt: refund?.approvedAt ?? refund?.approved_at,
+    approvedBy: refund?.approvedBy ?? refund?.approved_by,
+    rejectedAt: refund?.rejectedAt ?? refund?.rejected_at,
+    rejectedBy: refund?.rejectedBy ?? refund?.rejected_by,
+    rejectedReason: refund?.rejectedReason ?? refund?.rejected_reason,
+    processedAt: refund?.processedAt ?? refund?.processed_at,
+    processedBy: refund?.processedBy ?? refund?.processed_by,
+    gatewayRefundId: refund?.gatewayRefundId ?? refund?.gateway_refund_id,
+  };
+};
 
 const RefundsPage = () => {
-  const [rows, setRows] = useState(initialRows);
+  const { token } = useAuth();
+  const [rows, setRows] = useState<RefundRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | RefundStatus>("all");
@@ -609,37 +602,72 @@ const RefundsPage = () => {
     );
   };
 
-  const createRefund = () => {
-    if (!form.bookingId || form.refundAmount === "") return;
+  useEffect(() => {
+    const loadRefunds = async () => {
+      if (!token) {
+        setRows([]);
+        setError("Please login to view refunds.");
+        return;
+      }
 
-    const refundAmount = Number(form.refundAmount);
-    const supplierPenalty = Number(form.supplierPenalty || 0);
-    const serviceCharge = Number(form.serviceCharge || 0);
-    const netAmount = refundAmount - supplierPenalty - serviceCharge;
-
-    const newRefund: RefundRow = {
-      id: `REF-${String(rows.length + 1).padStart(3, "0")}`,
-      bookingId: form.bookingId,
-      paymentId: form.paymentId || undefined,
-      refundAmount,
-      supplierPenalty,
-      serviceCharge,
-      netAmount,
-      status: "PENDING",
-      createdAt: new Date().toISOString(),
-      createdBy: "Current User",
+      setLoading(true);
+      setError("");
+      try {
+        const response = await refundsApi.list();
+        const payload = (response as any)?.data ?? response;
+        const data =
+          (payload as any)?.data || (payload as any)?.items || payload;
+        if (Array.isArray(data)) {
+          setRows(data.map(mapApiRefund));
+        } else {
+          setRows([]);
+          setError("Invalid refund data from API.");
+        }
+      } catch (err) {
+        console.error("Failed to load refunds:", err);
+        setRows([]);
+        setError("Failed to load refunds.");
+      } finally {
+        setLoading(false);
+      }
     };
 
-    setRows((current) => [newRefund, ...current]);
-    setForm({
-      bookingId: "",
-      paymentId: "",
-      refundAmount: "",
-      supplierPenalty: "",
-      serviceCharge: "",
-    });
-    setShowForm(false);
-    showToast("Refund created successfully", "success");
+    void loadRefunds();
+  }, [token]);
+
+  const createRefund = async () => {
+    if (!form.bookingId || form.refundAmount === "") return;
+
+    setLoading(true);
+    try {
+      const payload = {
+        bookingId: form.bookingId,
+        ...(form.paymentId ? { paymentId: form.paymentId } : {}),
+        refundAmount: Number(form.refundAmount),
+        supplierPenalty: Number(form.supplierPenalty || 0),
+        serviceCharge: Number(form.serviceCharge || 0),
+      };
+      const response = await refundsApi.create(payload);
+      const data =
+        (response as any)?.data?.data ?? (response as any)?.data ?? response;
+      const newRefund = mapApiRefund(data);
+
+      setRows((current) => [newRefund, ...current]);
+      setForm({
+        bookingId: "",
+        paymentId: "",
+        refundAmount: "",
+        supplierPenalty: "",
+        serviceCharge: "",
+      });
+      setShowForm(false);
+      showToast("Refund created successfully", "success");
+    } catch (err) {
+      console.error("Failed to create refund:", err);
+      showToast("Failed to create refund", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleApprove = (id: string) => {
@@ -648,23 +676,34 @@ const RefundsPage = () => {
   };
 
   const confirmApprove = () => {
-    if (actionRefundId) {
-      setRows((current) =>
-        current.map((item) =>
-          item.id === actionRefundId
-            ? {
-                ...item,
-                status: "APPROVED",
-                approvedAt: new Date().toISOString(),
-                approvedBy: "Current User",
-              }
-            : item,
-        ),
-      );
-      showToast("Refund approved successfully", "success");
-      setShowApproveConfirm(false);
-      setActionRefundId(null);
-    }
+    if (!actionRefundId) return;
+
+    setLoading(true);
+    refundsApi
+      .approve(actionRefundId)
+      .then((response) => {
+        const data =
+          (response as any)?.data?.data ?? (response as any)?.data ?? response;
+        const updated = mapApiRefund(data);
+        const approvedAt = updated.approvedAt || new Date().toISOString();
+        setRows((current) =>
+          current.map((item) =>
+            item.id === actionRefundId
+              ? { ...updated, approvedAt }
+              : item,
+          ),
+        );
+        showToast("Refund approved successfully", "success");
+      })
+      .catch((err) => {
+        console.error("Failed to approve refund:", err);
+        showToast("Failed to approve refund", "error");
+      })
+      .finally(() => {
+        setShowApproveConfirm(false);
+        setActionRefundId(null);
+        setLoading(false);
+      });
   };
 
   const handleReject = (id: string) => {
@@ -673,24 +712,34 @@ const RefundsPage = () => {
   };
 
   const confirmReject = (reason: string) => {
-    if (actionRefundId) {
-      setRows((current) =>
-        current.map((item) =>
-          item.id === actionRefundId
-            ? {
-                ...item,
-                status: "REJECTED",
-                rejectedAt: new Date().toISOString(),
-                rejectedBy: "Current User",
-                rejectedReason: reason,
-              }
-            : item,
-        ),
-      );
-      showToast("Refund rejected", "info");
-      setShowRejectModal(false);
-      setActionRefundId(null);
-    }
+    if (!actionRefundId) return;
+
+    setLoading(true);
+    refundsApi
+      .reject(actionRefundId, { reason })
+      .then((response) => {
+        const data =
+          (response as any)?.data?.data ?? (response as any)?.data ?? response;
+        const updated = mapApiRefund(data);
+        const rejectedAt = updated.rejectedAt || new Date().toISOString();
+        setRows((current) =>
+          current.map((item) =>
+            item.id === actionRefundId
+              ? { ...updated, rejectedAt, rejectedReason: reason }
+              : item,
+          ),
+        );
+        showToast("Refund rejected", "info");
+      })
+      .catch((err) => {
+        console.error("Failed to reject refund:", err);
+        showToast("Failed to reject refund", "error");
+      })
+      .finally(() => {
+        setShowRejectModal(false);
+        setActionRefundId(null);
+        setLoading(false);
+      });
   };
 
   const handleProcess = (id: string) => {
@@ -699,24 +748,34 @@ const RefundsPage = () => {
   };
 
   const confirmProcess = (gatewayRefundId: string) => {
-    if (actionRefundId) {
-      setRows((current) =>
-        current.map((item) =>
-          item.id === actionRefundId
-            ? {
-                ...item,
-                status: "PROCESSED",
-                processedAt: new Date().toISOString(),
-                processedBy: "Current User",
-                gatewayRefundId,
-              }
-            : item,
-        ),
-      );
-      showToast("Refund processed successfully", "success");
-      setShowProcessModal(false);
-      setActionRefundId(null);
-    }
+    if (!actionRefundId) return;
+
+    setLoading(true);
+    refundsApi
+      .process(actionRefundId, { gatewayRefundId })
+      .then((response) => {
+        const data =
+          (response as any)?.data?.data ?? (response as any)?.data ?? response;
+        const updated = mapApiRefund(data);
+        const processedAt = updated.processedAt || new Date().toISOString();
+        setRows((current) =>
+          current.map((item) =>
+            item.id === actionRefundId
+              ? { ...updated, processedAt, gatewayRefundId }
+              : item,
+          ),
+        );
+        showToast("Refund processed successfully", "success");
+      })
+      .catch((err) => {
+        console.error("Failed to process refund:", err);
+        showToast("Failed to process refund", "error");
+      })
+      .finally(() => {
+        setShowProcessModal(false);
+        setActionRefundId(null);
+        setLoading(false);
+      });
   };
 
   const handleViewDetails = (refund: RefundRow) => {
@@ -787,6 +846,9 @@ const RefundsPage = () => {
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
             Manage refund lifecycle and processing actions
           </p>
+          {error ? (
+            <p className="mt-2 text-xs sm:text-sm text-red-500">{error}</p>
+          ) : null}
         </div>
         <PermissionGate permission="refunds.write">
           <button
@@ -895,7 +957,11 @@ const RefundsPage = () => {
 
       {/* Table */}
       <SurfaceCard className="overflow-hidden border border-gray-200 dark:border-gray-800">
-        {paginatedRows.length === 0 ? (
+        {loading ? (
+          <div className="p-8 flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : paginatedRows.length === 0 ? (
           <div className="p-8">
             <EmptyState
               title="No refunds found"
