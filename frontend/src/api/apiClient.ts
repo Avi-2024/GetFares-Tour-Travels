@@ -2,7 +2,6 @@ import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
   type AxiosResponse,
-  type AxiosResponseType,
   type AxiosRequestHeaders,
   type InternalAxiosRequestConfig,
 } from "axios";
@@ -53,6 +52,8 @@ export type ApiClientConfig = {
   getAuthToken?: () => string | null | undefined;
   onUnauthorized?: () => void;
 };
+
+type AxiosResponseType = NonNullable<AxiosRequestConfig["responseType"]>;
 
 export type ApiClient = HttpClient & {
   setAuthTokenProvider: (getAuthToken: () => string | null | undefined) => void;

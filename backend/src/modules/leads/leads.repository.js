@@ -187,6 +187,7 @@ function createLeadsRepository({ db, logger, schema }) {
       utmSource: row.utm_source ?? row.utmSource ?? null,
       utmMedium: row.utm_medium ?? row.utmMedium ?? null,
       utmCampaign: row.utm_campaign ?? row.utmCampaign ?? null,
+      metaLeadId: row.meta_lead_id ?? row.metaLeadId ?? null,
       leadScore: row.lead_score ?? row.leadScore ?? 0,
       priorityLevel: row.priority_level ?? row.priorityLevel ?? 0,
       isVip: row.is_vip ?? row.isVip ?? false,
