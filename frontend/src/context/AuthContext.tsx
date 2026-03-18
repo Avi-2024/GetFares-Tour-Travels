@@ -34,6 +34,26 @@ const STORAGE_TOKEN = "auth_token";
 const STORAGE_USER = "auth_user";
 const STORAGE_PERMISSIONS = "auth_permissions";
 
+const parseTokenExpiryMs = (token: string): number | null => {
+  if (typeof window === "undefined" || !token) return null;
+
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+
+  try {
+    const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "=",
+    );
+    const payload = JSON.parse(window.atob(padded)) as { exp?: unknown };
+    if (typeof payload.exp !== "number") return null;
+    return payload.exp * 1000;
+  } catch {
+    return null;
+  }
+};
+
 const DEFAULT_PERMISSIONS = [
   "users:read",
   "users:create",
@@ -122,14 +142,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_TOKEN);
     localStorage.removeItem(STORAGE_USER);
     localStorage.removeItem(STORAGE_PERMISSIONS);
     setToken("");
     setUser(null);
     setPermissions([]);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const expiryMs = parseTokenExpiryMs(token);
+    if (!expiryMs) return;
+
+    const redirectToLogin = () => {
+      logout();
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname !== "/login"
+      ) {
+        window.location.replace("/login");
+      }
+    };
+
+    const remainingMs = expiryMs - Date.now();
+    if (remainingMs <= 0) {
+      redirectToLogin();
+      return;
+    }
+
+    const timerId = window.setTimeout(redirectToLogin, remainingMs);
+    return () => window.clearTimeout(timerId);
+  }, [token, logout]);
 
   const hasPermission = useCallback(
     (permission: string) =>

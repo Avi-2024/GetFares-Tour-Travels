@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaPlus, FaUser, FaXmark } from "react-icons/fa6";
-import { useComplaintsService } from "../../hooks/useComplaintsService";
+import { complaintsApi } from "../../api/complaints";
 
 interface Complaint {
   id: string;
@@ -25,7 +25,6 @@ interface Activity {
 }
 
 const ComplaintDetailPage: React.FC = () => {
-  const complaintsService = useComplaintsService();
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -74,26 +73,43 @@ const ComplaintDetailPage: React.FC = () => {
 
       try {
         setLoading(true);
+        setError("");
+        
         const [complaintRes, activitiesRes, statusHistoryRes] =
           await Promise.all([
-            complaintsService.getById(id),
-            complaintsService.listActivities(id),
-            complaintsService.getStatusHistory(id),
+            complaintsApi.getById(id),
+            complaintsApi.listActivities(id).catch(() => ({ data: [] })),
+            complaintsApi.getStatusHistory(id).catch(() => ({ data: [] })),
           ]);
 
-        setComplaint((complaintRes as any).data);
-        setActivities((activitiesRes as any).data || []);
-        setStatusHistory((statusHistoryRes as any).data || []);
-      } catch (error) {
+        if ((complaintRes as any)?.data) {
+          setComplaint((complaintRes as any).data);
+        } else if (complaintRes) {
+          setComplaint(complaintRes as any);
+        }
+        
+        if ((activitiesRes as any)?.data) {
+          setActivities((activitiesRes as any).data);
+        } else if (Array.isArray(activitiesRes)) {
+          setActivities(activitiesRes as any);
+        }
+        
+        if ((statusHistoryRes as any)?.data) {
+          setStatusHistory((statusHistoryRes as any).data);
+        } else if (Array.isArray(statusHistoryRes)) {
+          setStatusHistory(statusHistoryRes as any);
+        }
+      } catch (error: any) {
         console.error("Failed to load complaint data:", error);
-        setError("Failed to load complaint data");
+        setError(error?.message || "Failed to load complaint data. Using default data.");
+        // Keep the seed data that's already set in state
       } finally {
         setLoading(false);
       }
     };
 
     loadComplaintData();
-  }, [id, complaintsService]);
+  }, [id]);
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -138,7 +154,7 @@ const ComplaintDetailPage: React.FC = () => {
     }
 
     try {
-      await complaintsService.changeStatus(id!, newStatus, reason);
+      await complaintsApi.changeStatus(id!, newStatus, reason);
 
       setComplaint((prev) => ({
         ...prev,
@@ -169,7 +185,7 @@ const ComplaintDetailPage: React.FC = () => {
     }
 
     try {
-      await complaintsService.addActivity(id!, {
+      await complaintsApi.addActivity(id!, {
         note: newNote,
         type: "NOTE",
       });
@@ -202,7 +218,7 @@ const ComplaintDetailPage: React.FC = () => {
 
     setAssignmentLoading(true);
     try {
-      await complaintsService.assign(id!, userId);
+      await complaintsApi.assignTo(id!, userId);
 
       const newActivity: Activity = {
         id: `act-${Date.now()}`,
@@ -230,7 +246,7 @@ const ComplaintDetailPage: React.FC = () => {
     }
 
     try {
-      await complaintsService.escalate(id!, reason);
+      await complaintsApi.escalate(id!, reason);
 
       const newActivity: Activity = {
         id: `act-${Date.now()}`,
@@ -250,7 +266,7 @@ const ComplaintDetailPage: React.FC = () => {
 
   const handleUpdateComplaint = async () => {
     try {
-      await complaintsService.update(id!, {
+      await complaintsApi.update(id!, {
         bookingId: complaint.bookingId,
         assignedTo: complaint.assignedTo,
         issueType: complaint.issueType,
@@ -353,8 +369,14 @@ const ComplaintDetailPage: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg flex items-center justify-between">
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <button
+              onClick={() => setError("")}
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+            >
+              <FaXmark />
+            </button>
           </div>
         )}
 
