@@ -12,9 +12,9 @@ import {
   FaShieldAlt,
   FaUserCheck
 } from 'react-icons/fa'
+import { authApi } from '../../api/auth'
 import { isApiError } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
-import { useAuthService } from '../../hooks/useAuthService'
 
 const DEMO_EMAIL = 'admin@travel-crm.com'
 const DEMO_PASSWORD = 'admin@123'
@@ -30,7 +30,6 @@ const Login = () => {
   const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 })
   const navigate = useNavigate()
   const { setAuthState, refreshPermissions } = useAuth()
-  const authService = useAuthService()
 
   const togglePassword = () => {
     setShowPassword(!showPassword)
@@ -88,17 +87,6 @@ const Login = () => {
         data.user.fullName || data.user.name || email.split('@')[0]
       const userEmail = data.user.email || email
       const userRole = data.user.role
-      localStorage.setItem('auth_token', data.accessToken)
-      localStorage.setItem(
-        'auth_user',
-        JSON.stringify({
-          id: data.user.id,
-          name: userName,
-          email: userEmail,
-          role: userRole,
-          roleId: data.user.roleId
-        })
-      )
       setAuthState(data.accessToken, {
         id: data.user.id,
         name: userName,

@@ -73,7 +73,9 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
   if (!apiClient) return null;
 
   useEffect(() => {
-    apiClient.setAuthTokenProvider(() => token);
+    apiClient.setAuthTokenProvider(
+      () => token || localStorage.getItem("auth_token"),
+    );
     apiClient.setOnUnauthorized(() => logout());
   }, [apiClient, token, logout]);
 
