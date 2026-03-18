@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 
 import { useNotifications } from "../../context/NotificationsContext";
-import { FaBell, FaCheck, FaCheckDouble, FaSearch } from "react-icons/fa";
+import { FaBell, FaCheck, FaCheckDouble, FaSearch, FaSync } from "react-icons/fa";
 
 const NotificationsPage: React.FC = () => {
-  const { notifications, unreadCount, markRead, markAllRead, loading } =
+  const { notifications, unreadCount, markRead, markAllRead, loading, refresh } =
     useNotifications();
   const safeNotifications = Array.isArray(notifications)
     ? notifications
@@ -14,6 +14,15 @@ const NotificationsPage: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
   const [moduleFilter, setModuleFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refresh();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [refresh]);
 
   // Get unique modules for filter dropdown
   const modules = useMemo(
@@ -43,6 +52,12 @@ const NotificationsPage: React.FC = () => {
     await markAllRead();
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  };
+
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
       <div className="max-w-9xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8">
@@ -67,6 +82,14 @@ const NotificationsPage: React.FC = () => {
                   {unreadCount} unread
                 </span>
               )}
+              <button
+                onClick={handleRefresh}
+                disabled={loading || refreshing}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              >
+                <FaSync className={refreshing ? "animate-spin" : ""} />
+                Refresh
+              </button>
               <button
                 onClick={handleMarkAllRead}
                 disabled={loading || unreadCount === 0}

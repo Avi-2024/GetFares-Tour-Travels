@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useNotificationsService } from "../hooks/useNotificationsService";
+import { notificationsApi } from "../api/notifications";
 import type { NotificationItem } from "../types";
 
 type NotificationsContextValue = {
@@ -55,7 +55,6 @@ export const NotificationsProvider = ({
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const notificationsService = useNotificationsService();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -70,12 +69,13 @@ export const NotificationsProvider = ({
     }
     try {
       const [list, unread] = await Promise.all([
-        notificationsService.list(),
-        notificationsService.unreadCount(),
+        notificationsApi.list(),
+        notificationsApi.unreadCount(),
       ]);
-      setNotifications(list);
-      setUnreadCount(unread.unread);
-    } catch {
+      setNotifications(Array.isArray(list) ? list : list.data || []);
+      setUnreadCount(unread.unread || unread.data?.unread || 0);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
       setNotifications(fallbackNotifications);
       setUnreadCount(
         fallbackNotifications.filter((item) => !item.isRead).length,
@@ -83,7 +83,7 @@ export const NotificationsProvider = ({
     } finally {
       setLoading(false);
     }
-  }, [notificationsService]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -91,9 +91,9 @@ export const NotificationsProvider = ({
 
   const markRead = async (id: string) => {
     try {
-      await notificationsService.markRead(id);
-    } catch {
-      // fallback local update if API is unavailable
+      await notificationsApi.markRead(id);
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
     }
 
     setNotifications((current) =>
@@ -106,9 +106,9 @@ export const NotificationsProvider = ({
 
   const markAllRead = async () => {
     try {
-      await notificationsService.markAllRead();
-    } catch {
-      // fallback local update if API is unavailable
+      await notificationsApi.markAllRead();
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
     }
 
     setNotifications((current) =>
