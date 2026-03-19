@@ -44,6 +44,14 @@ export const quotationsApi = {
       method: "POST",
       body: { type },
     }),
+  listTemplates: () => apiRequest("/api/quotations/templates"),
+  createTemplate: (payload: unknown) =>
+    apiRequest("/api/quotations/templates", { method: "POST", body: payload }),
+  updateTemplate: (id: string, payload: unknown) =>
+    apiRequest(`/api/quotations/templates/${id}`, {
+      method: "PATCH",
+      body: payload,
+    }),
   leadToQuoteReport: () => apiRequest("/api/quotations/reports/lead-to-quote"),
   duplicate: (id: string) =>
     apiRequest(`/api/quotations/${id}/duplicate`, { method: "POST" }),

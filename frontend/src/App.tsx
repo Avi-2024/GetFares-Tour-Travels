@@ -32,6 +32,7 @@ import NotificationsPage from "./pages/notifications/NotificationsPage";
 import UsersPage from "./pages/users/UsersPage";
 import PublicLeadCapturePage from "./pages/public/PublicLeadCapturePage";
 import FinanceSystem from "./pages/Finance/FinanceSystem";
+import ProfilePage from "./pages/profile/ProfilePage";
 
 function App() {
   return (
@@ -92,6 +93,7 @@ function App() {
             <Route path="/customers/:id" element={<CustomerDetailPage />} />
 
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
 
             <Route
               element={
