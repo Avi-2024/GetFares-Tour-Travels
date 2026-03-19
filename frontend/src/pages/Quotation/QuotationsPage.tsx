@@ -706,9 +706,6 @@ const QuotationsPage: React.FC = () => {
                 <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95">
                   <tr>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Quote #
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Customer
                     </th>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -734,9 +731,6 @@ const QuotationsPage: React.FC = () => {
                       key={q.id}
                       className="group hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors"
                     >
-                      <td className="px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300">
-                        {q.quoteNumber}
-                      </td>
                       <td className="px-5 py-4">
                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {q.customer}
