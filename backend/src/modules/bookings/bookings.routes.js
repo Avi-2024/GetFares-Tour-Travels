@@ -17,6 +17,13 @@ function createBookingsRoutes({
     validateRequest(validation.list),
     asyncHandler(controller.list),
   );
+  router.get(
+    "/stats",
+    requireAuth,
+    authorize("bookings:read"),
+    validateRequest(validation.stats),
+    asyncHandler(controller.stats),
+  );
   router.post(
     "/",
     requireAuth,

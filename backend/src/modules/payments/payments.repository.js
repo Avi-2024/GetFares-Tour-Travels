@@ -1,5 +1,6 @@
 function createPaymentsRepository({ db, logger, schema }) {
   const tableCache = new Map();
+  const columnCache = new Map();
 
   function canUseRawQuery() {
     return typeof db.query === "function" && Boolean(db.pool);
@@ -119,6 +120,41 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
   }
 
+  async function getTableColumns(tableName) {
+    if (!canUseRawQuery()) {
+      return null;
+    }
+
+    if (columnCache.has(tableName)) {
+      return columnCache.get(tableName);
+    }
+
+    const exists = await hasTable(tableName);
+    if (!exists) {
+      const empty = new Set();
+      columnCache.set(tableName, empty);
+      return empty;
+    }
+
+    const result = await db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      [tableName],
+    );
+
+    const columns = new Set(result.rows.map((row) => row.column_name));
+    columnCache.set(tableName, columns);
+    return columns;
+  }
+
+  async function hasColumn(tableName, columnName) {
+    const columns = await getTableColumns(tableName);
+    if (columns === null) {
+      return true;
+    }
+
+    return columns.has(columnName);
+  }
+
   function mapListFilters(filters = {}) {
     const mapped = {};
 
@@ -176,6 +212,227 @@ function createPaymentsRepository({ db, logger, schema }) {
   }
 
   return Object.freeze({
+    async getStats() {
+      const [paymentsTableExists, bookingsTableExists, refundsTableExists] =
+        await Promise.all([
+          hasTable(schema.tableName),
+          hasTable(schema.bookingsTable),
+          hasTable(schema.refundsTable),
+        ]);
+
+      const empty = {
+        collectedAmount: 0,
+        collectedCount: 0,
+        outstandingAmount: 0,
+        outstandingCount: 0,
+        overdueAmount: 0,
+        overdueCount: 0,
+        refundsAmount: 0,
+        refundsCount: 0,
+      };
+
+      if (!paymentsTableExists && !bookingsTableExists && !refundsTableExists) {
+        return empty;
+      }
+
+      if (canUseRawQuery()) {
+        const paymentsQuery = `
+          SELECT
+            COALESCE(SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
+              AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+              THEN amount ELSE 0 END), 0)::numeric AS collected_amount,
+            SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
+              AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+              THEN 1 ELSE 0 END)::int AS collected_count
+          FROM ${schema.tableName}
+        `;
+
+        let bookingStats = {
+          outstanding_amount: 0,
+          outstanding_count: 0,
+          overdue_amount: 0,
+          overdue_count: 0,
+        };
+
+        if (bookingsTableExists) {
+          let hasSoftDelete = false;
+          let hasTravelStartDate = true;
+
+          try {
+            hasSoftDelete = await hasColumn(schema.bookingsTable, "is_deleted");
+            hasTravelStartDate = await hasColumn(
+              schema.bookingsTable,
+              "travel_start_date",
+            );
+          } catch (error) {
+            logger?.warn?.(
+              { err: error, table: schema.bookingsTable },
+              "Unable to inspect bookings table columns for payment stats",
+            );
+          }
+
+          let notDeletedPredicate = hasSoftDelete
+            ? "COALESCE(b.is_deleted, FALSE) = FALSE"
+            : "TRUE";
+          let overdueDatePredicate = hasTravelStartDate
+            ? "b.travel_start_date < CURRENT_DATE"
+            : "FALSE";
+
+          const buildBookingsQuery = (notDeleted, overdueDate) => `
+            SELECT
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
+                ELSE 0 END), 0)::numeric AS outstanding_amount,
+              SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
+                THEN 1 ELSE 0 END)::int AS outstanding_count,
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                AND ${overdueDate}
+                AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
+                THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
+                ELSE 0 END), 0)::numeric AS overdue_amount,
+              SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                AND ${overdueDate}
+                AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
+                THEN 1 ELSE 0 END)::int AS overdue_count
+            FROM ${schema.bookingsTable} b
+          `;
+
+          try {
+            const result = await db.query(
+              buildBookingsQuery(notDeletedPredicate, overdueDatePredicate),
+            );
+            bookingStats = result.rows[0] || bookingStats;
+          } catch (error) {
+            const message = String(error?.message || "");
+            const code = error?.code;
+            const missingColumn =
+              code === "42703" ||
+              message.includes("is_deleted") ||
+              message.includes("travel_start_date");
+
+            if (missingColumn) {
+              if (message.includes("is_deleted")) {
+                notDeletedPredicate = "TRUE";
+              }
+              if (message.includes("travel_start_date")) {
+                overdueDatePredicate = "FALSE";
+              }
+
+              const result = await db.query(
+                buildBookingsQuery(notDeletedPredicate, overdueDatePredicate),
+              );
+              bookingStats = result.rows[0] || bookingStats;
+            } else {
+              throw error;
+            }
+          }
+        }
+
+        let refundStats = { refunds_amount: 0, refunds_count: 0 };
+        if (refundsTableExists) {
+          const refundResult = await db.query(
+            `
+              SELECT
+                COALESCE(SUM(refund_amount), 0)::numeric AS refunds_amount,
+                COUNT(*)::int AS refunds_count
+              FROM ${schema.refundsTable}
+              WHERE status = 'PROCESSED'
+            `,
+          );
+          refundStats = refundResult.rows[0] || refundStats;
+        }
+
+        const paymentsResult = paymentsTableExists
+          ? await db.query(paymentsQuery)
+          : { rows: [{}] };
+        const paymentStats = paymentsResult.rows[0] || {};
+
+        return {
+          collectedAmount: toNumber(paymentStats.collected_amount, 0),
+          collectedCount: toNumber(paymentStats.collected_count, 0),
+          outstandingAmount: toNumber(bookingStats.outstanding_amount, 0),
+          outstandingCount: toNumber(bookingStats.outstanding_count, 0),
+          overdueAmount: toNumber(bookingStats.overdue_amount, 0),
+          overdueCount: toNumber(bookingStats.overdue_count, 0),
+          refundsAmount: toNumber(refundStats.refunds_amount, 0),
+          refundsCount: toNumber(refundStats.refunds_count, 0),
+        };
+      }
+
+      const payments = paymentsTableExists
+        ? await db.findMany(schema.tableName, {})
+        : [];
+      const collectedPayments = payments
+        .filter((row) => toBoolean(row.is_verified ?? row.isVerified, false))
+        .filter((row) => (row.status ?? "PENDING") !== "REFUNDED");
+      const collectedAmount = collectedPayments.reduce(
+        (sum, row) => sum + toNumber(row.amount, 0),
+        0,
+      );
+
+      const bookings = bookingsTableExists
+        ? await db.findMany(schema.bookingsTable, {})
+        : [];
+      const today = new Date();
+      const bookingStats = bookings.reduce(
+        (acc, row) => {
+          const isDeleted = toBoolean(row.is_deleted ?? row.isDeleted, false);
+          const status = row.status ?? "PENDING";
+          if (isDeleted || status === "CANCELLED") {
+            return acc;
+          }
+          const total = toNumber(row.total_amount ?? row.totalAmount, 0);
+          const received = toNumber(
+            row.advance_received ?? row.advanceReceived,
+            0,
+          );
+          const outstanding = Math.max(total - received, 0);
+          if (outstanding > 0) {
+            acc.outstandingAmount += outstanding;
+            acc.outstandingCount += 1;
+
+            const travelStart = row.travel_start_date ?? row.travelStartDate;
+            if (travelStart) {
+              const travelDate = new Date(travelStart);
+              if (!Number.isNaN(travelDate.getTime()) && travelDate < today) {
+                acc.overdueAmount += outstanding;
+                acc.overdueCount += 1;
+              }
+            }
+          }
+          return acc;
+        },
+        {
+          outstandingAmount: 0,
+          outstandingCount: 0,
+          overdueAmount: 0,
+          overdueCount: 0,
+        },
+      );
+
+      const refunds = refundsTableExists
+        ? await db.findMany(schema.refundsTable, {})
+        : [];
+      const processedRefunds = refunds.filter(
+        (row) => (row.status ?? "INITIATED") === "PROCESSED",
+      );
+      const refundsAmount = processedRefunds.reduce(
+        (sum, row) => sum + toNumber(row.refund_amount ?? row.refundAmount, 0),
+        0,
+      );
+
+      return {
+        collectedAmount,
+        collectedCount: collectedPayments.length,
+        outstandingAmount: bookingStats.outstandingAmount,
+        outstandingCount: bookingStats.outstandingCount,
+        overdueAmount: bookingStats.overdueAmount,
+        overdueCount: bookingStats.overdueCount,
+        refundsAmount,
+        refundsCount: processedRefunds.length,
+      };
+    },
     async findAll(filters = {}) {
       const rows = await db.findMany(schema.tableName, mapListFilters(filters));
       return rows

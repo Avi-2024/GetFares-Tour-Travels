@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaBuildingColumns,
@@ -24,6 +24,7 @@ import {
 import { FaEdit } from "react-icons/fa";
 import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
+import { paymentsApi } from "../../api/payments";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
 type PaymentMode = "bank" | "card" | "cash" | "cheque" | "online";
@@ -70,87 +71,138 @@ const statusClasses: Record<TxStatus, string> = {
     "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
 };
 
-const initialTransactions: Transaction[] = [
-  {
-    id: "1",
-    referenceId: "TRX-8902",
-    date: "Mar 09, 2026",
-    customer: "Sarah Jenkins",
-    bookingId: "BK-2034",
-    amount: 1200,
-    mode: "card",
-    status: "completed",
-    paidAt: "2026-03-09T14:30:00Z",
-    verifiedAt: "2026-03-09T15:20:00Z",
-    verifiedBy: "Alex Morgan",
-    paymentReference: "CARD-8902",
-    gatewayOrderId: "ORD-123456",
-    gatewayPaymentId: "PAY-789012",
-    gatewaySignature: "sig_abc123",
-    proofUrl: "/proofs/payment1.pdf",
-    notes: "Payment via credit card",
-    createdAt: "2026-03-09T10:00:00Z",
-    updatedAt: "2026-03-09T15:20:00Z",
-  },
-  {
-    id: "2",
-    referenceId: "TRX-8901",
-    date: "Mar 08, 2026",
-    customer: "Emma Wilson",
-    bookingId: "BK-2030",
-    amount: 5400,
-    mode: "bank",
-    status: "completed",
-    paidAt: "2026-03-08T11:20:00Z",
-    verifiedAt: "2026-03-08T14:30:00Z",
-    verifiedBy: "Sarah Lee",
-    paymentReference: "NEFT-8901",
-    gatewayOrderId: "ORD-123457",
-    gatewayPaymentId: "PAY-789013",
-    gatewaySignature: "sig_def456",
-    createdAt: "2026-03-08T09:00:00Z",
-    updatedAt: "2026-03-08T14:30:00Z",
-  },
-  {
-    id: "3",
-    referenceId: "TRX-8895",
-    date: "Mar 07, 2026",
-    customer: "James Lee",
-    bookingId: "BK-2028",
-    amount: -8200,
-    mode: "bank",
-    status: "refunded",
-    notes: "Full refund processed",
-    createdAt: "2026-03-07T15:00:00Z",
-    updatedAt: "2026-03-07T15:00:00Z",
-  },
-  {
-    id: "4",
-    referenceId: "TRX-8888",
-    date: "Mar 05, 2026",
-    customer: "Michael Ross",
-    bookingId: "BK-2033",
-    amount: 2800,
-    mode: "card",
-    status: "failed",
-    notes: "Card declined",
-    createdAt: "2026-03-05T10:00:00Z",
-    updatedAt: "2026-03-05T10:00:00Z",
-  },
-  {
-    id: "5",
-    referenceId: "TRX-8889",
-    date: "Mar 06, 2026",
-    customer: "David Kim",
-    bookingId: "BK-2035",
-    amount: 1500,
-    mode: "cheque",
-    status: "pending",
-    notes: "Cheque submitted, awaiting clearance",
-    createdAt: "2026-03-06T11:30:00Z",
-    updatedAt: "2026-03-06T11:30:00Z",
-  },
-];
+const initialTransactions: Transaction[] = [];
+
+const unwrapData = <T,>(response: unknown): T | null => {
+  if (!response) return null;
+  if (typeof response === "object" && response && "data" in response) {
+    return (response as { data: T }).data ?? null;
+  }
+  return response as T;
+};
+
+const toNumber = (value: unknown, fallback = 0) => {
+  if (value === null || value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toIsoDate = (value: unknown) => {
+  if (!value) return null;
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+};
+
+const toDisplayDate = (value?: string) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+};
+
+const mapApiStatusToTx = (value?: string): TxStatus => {
+  switch ((value ?? "").toUpperCase()) {
+    case "FULL":
+      return "completed";
+    case "REFUNDED":
+      return "refunded";
+    case "PARTIAL":
+    case "PENDING":
+    default:
+      return "pending";
+  }
+};
+
+const mapTxStatusToApi = (value?: TxStatus) => {
+  switch (value) {
+    case "completed":
+      return "FULL";
+    case "refunded":
+      return "REFUNDED";
+    case "failed":
+      return "PENDING";
+    case "pending":
+    default:
+      return "PENDING";
+  }
+};
+
+const mapApiModeToTx = (value?: string): PaymentMode => {
+  switch ((value ?? "").toUpperCase()) {
+    case "CASH":
+      return "cash";
+    case "CARD":
+      return "card";
+    case "PAYMENT_GATEWAY":
+    case "UPI":
+    case "GATEWAY":
+      return "online";
+    case "BANK_TRANSFER":
+    case "BANK":
+    default:
+      return "bank";
+  }
+};
+
+const mapTxModeToApi = (value?: PaymentMode) => {
+  switch (value) {
+    case "cash":
+      return "CASH";
+    case "card":
+      return "CARD";
+    case "online":
+      return "PAYMENT_GATEWAY";
+    case "cheque":
+      return "BANK_TRANSFER";
+    case "bank":
+    default:
+      return "BANK_TRANSFER";
+  }
+};
+
+const mapPaymentToTransaction = (row: any): Transaction => {
+  const bookingId = String(row?.bookingId ?? row?.booking_id ?? "N/A");
+  const paidAt =
+    row?.paidAt ?? row?.paid_at ?? row?.createdAt ?? row?.created_at ?? null;
+  return {
+    id: String(row?.id ?? ""),
+    referenceId:
+      row?.paymentReference ??
+      row?.payment_reference ??
+      row?.gatewayPaymentId ??
+      row?.gateway_payment_id ??
+      row?.gatewayOrderId ??
+      row?.gateway_order_id ??
+      row?.id ??
+      "",
+    date: toDisplayDate(paidAt ?? row?.createdAt ?? row?.created_at),
+    customer:
+      row?.customerName ??
+      row?.customer ??
+      row?.clientName ??
+      "Unknown",
+    bookingId,
+    amount: toNumber(row?.amount, 0),
+    mode: mapApiModeToTx(row?.paymentMode ?? row?.payment_mode),
+    status: mapApiStatusToTx(row?.status),
+    paidAt: paidAt ?? undefined,
+    verifiedAt: row?.verifiedAt ?? row?.verified_at ?? undefined,
+    verifiedBy: row?.verifiedBy ?? row?.verified_by ?? undefined,
+    paymentReference: row?.paymentReference ?? row?.payment_reference,
+    gatewayOrderId: row?.gatewayOrderId ?? row?.gateway_order_id,
+    gatewayPaymentId: row?.gatewayPaymentId ?? row?.gateway_payment_id,
+    gatewaySignature: row?.gatewaySignature ?? row?.gateway_signature,
+    proofUrl: row?.proofUrl ?? row?.proof_url,
+    notes: row?.notes,
+    createdAt: row?.createdAt ?? row?.created_at,
+    updatedAt: row?.updatedAt ?? row?.updated_at,
+  };
+};
 
 // Toast Component
 const Toast = ({
@@ -192,6 +244,7 @@ const Toast = ({
     </div>
   </div>
 );
+
 
 // Confirm Modal
 const ConfirmModal = ({
@@ -465,21 +518,21 @@ const PaymentFormModal = ({
   onSave: (data: any) => void;
   onCancel: () => void;
 }) => {
-  const [formData, setFormData] = useState({
-    customer: transaction?.customer || "",
-    bookingId: transaction?.bookingId || "",
-    amount: transaction?.amount ? Math.abs(transaction.amount).toString() : "",
-    mode: transaction?.mode || "bank",
-    referenceId: transaction?.referenceId || "",
-    paymentReference: transaction?.paymentReference || "",
-    gatewayOrderId: transaction?.gatewayOrderId || "",
-    gatewayPaymentId: transaction?.gatewayPaymentId || "",
-    gatewaySignature: transaction?.gatewaySignature || "",
-    proofUrl: transaction?.proofUrl || "",
-    status: transaction?.status || "pending",
-    notes: transaction?.notes || "",
+  const buildFormData = (tx: Transaction | null) => ({
+    customer: tx?.customer || "",
+    bookingId: tx?.bookingId || "",
+    amount: tx?.amount ? Math.abs(tx.amount).toString() : "",
+    mode: tx?.mode || "bank",
+    referenceId: tx?.referenceId || "",
+    paymentReference: tx?.paymentReference || "",
+    gatewayOrderId: tx?.gatewayOrderId || "",
+    gatewayPaymentId: tx?.gatewayPaymentId || "",
+    gatewaySignature: tx?.gatewaySignature || "",
+    proofUrl: tx?.proofUrl || "",
+    status: tx?.status || "pending",
+    notes: tx?.notes || "",
     date:
-      transaction?.date ||
+      tx?.date ||
       new Date().toLocaleDateString("en-US", {
         month: "short",
         day: "2-digit",
@@ -487,7 +540,15 @@ const PaymentFormModal = ({
       }),
   });
 
+  const [formData, setFormData] = useState(() => buildFormData(transaction));
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(buildFormData(transaction));
+      setErrors({});
+    }
+  }, [isOpen, transaction?.id]);
 
   if (!isOpen) return null;
 
@@ -1005,6 +1066,8 @@ const DetailsModal = ({
 const Payments: React.FC = () => {
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState(initialTransactions);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [transactionsError, setTransactionsError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | TxStatus>("all");
   const [showAddPanel, setShowAddPanel] = useState(false);
@@ -1019,6 +1082,18 @@ const Payments: React.FC = () => {
     message: "",
     type: "success",
   });
+  const [stats, setStats] = useState({
+    collectedAmount: 0,
+    collectedCount: 0,
+    outstandingAmount: 0,
+    outstandingCount: 0,
+    overdueAmount: 0,
+    overdueCount: 0,
+    refundsAmount: 0,
+    refundsCount: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -1027,6 +1102,9 @@ const Payments: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const pageSize = 4;
+
+  const formatAmount = (value: number) =>
+    `$${Number(value || 0).toLocaleString()}`;
 
   const filtered = useMemo(() => {
     return transactions.filter((tx) => {
@@ -1056,6 +1134,55 @@ const Payments: React.FC = () => {
     );
   };
 
+  const fetchTransactions = useCallback(async () => {
+    setTransactionsLoading(true);
+    setTransactionsError("");
+    try {
+      const res = await paymentsApi.list();
+      const data = unwrapData<any[]>(res) ?? [];
+      const rows = (Array.isArray(data) ? data : []).map((row) =>
+        mapPaymentToTransaction(row),
+      );
+      setTransactions(rows);
+    } catch (err) {
+      console.error("Failed to load payments:", err);
+      setTransactionsError("Failed to load payments");
+      setTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  }, []);
+
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError("");
+    try {
+      const res = await paymentsApi.stats();
+      const data = unwrapData<any>(res) ?? {};
+      setStats({
+        collectedAmount: Number(data?.collectedAmount ?? 0),
+        collectedCount: Number(data?.collectedCount ?? 0),
+        outstandingAmount: Number(data?.outstandingAmount ?? 0),
+        outstandingCount: Number(data?.outstandingCount ?? 0),
+        overdueAmount: Number(data?.overdueAmount ?? 0),
+        overdueCount: Number(data?.overdueCount ?? 0),
+        refundsAmount: Number(data?.refundsAmount ?? 0),
+        refundsCount: Number(data?.refundsCount ?? 0),
+      });
+    } catch (err) {
+      console.error("Failed to load payment stats:", err);
+      setStatsError("Failed to load payment stats");
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchTransactions();
+    void fetchStats();
+  }, [fetchStats, fetchTransactions]);
+
+
   const handleViewDetails = (tx: Transaction) => {
     setSelectedTransaction(tx);
     setShowDetails(true);
@@ -1066,24 +1193,36 @@ const Payments: React.FC = () => {
     setShowVerifyModal(true);
   };
 
-  const handleVerifyConfirm = (data: PaymentVerificationData) => {
-    if (selectedTransaction) {
-      setTransactions((prev) =>
-        prev.map((tx) =>
-          tx.id === selectedTransaction.id
-            ? {
-                ...tx,
-                ...data,
-                status: data.status,
-                verifiedAt: new Date().toISOString(),
-                verifiedBy: "Current User",
-              }
-            : tx,
-        ),
-      );
+  const handleVerifyConfirm = async (data: PaymentVerificationData) => {
+    if (!selectedTransaction) return;
+    try {
+      if (data.status === "failed") {
+        await paymentsApi.update(selectedTransaction.id, {
+          status: "PENDING",
+          isVerified: false,
+          paidAt: data.paidAt || undefined,
+          proofUrl: data.proofUrl || undefined,
+          paymentReference: data.paymentReference || undefined,
+          gatewayPaymentId: data.gatewayPaymentId || undefined,
+        });
+        showToast("Payment marked as failed", "info");
+      } else {
+        await paymentsApi.verify(selectedTransaction.id, {
+          status: "FULL",
+          paidAt: data.paidAt || undefined,
+          proofUrl: data.proofUrl || undefined,
+          paymentReference: data.paymentReference || undefined,
+          gatewayPaymentId: data.gatewayPaymentId || undefined,
+        });
+        showToast("Payment verified successfully", "success");
+      }
       setShowVerifyModal(false);
       setSelectedTransaction(null);
-      showToast("Payment verified successfully", "success");
+      await fetchTransactions();
+      await fetchStats();
+    } catch (err) {
+      console.error("Failed to verify payment:", err);
+      showToast("Failed to verify payment", "error");
     }
   };
 
@@ -1092,19 +1231,75 @@ const Payments: React.FC = () => {
     setShowEditModal(true);
   };
 
-  const handleSaveEdit = (data: any) => {
-    setTransactions((prev) =>
-      prev.map((tx) => (tx.id === data.id ? { ...tx, ...data } : tx)),
-    );
-    setShowEditModal(false);
-    setSelectedTransaction(null);
-    showToast("Payment updated successfully", "success");
+  const handleSaveEdit = async (data: any) => {
+    if (!data?.id) return;
+    try {
+      await paymentsApi.update(data.id, {
+        amount: toNumber(data.amount, 0),
+        paymentMode: mapTxModeToApi(data.mode),
+        paymentReference: data.paymentReference || undefined,
+        gatewayOrderId: data.gatewayOrderId || undefined,
+        gatewayPaymentId: data.gatewayPaymentId || undefined,
+        gatewaySignature: data.gatewaySignature || undefined,
+        proofUrl: data.proofUrl || undefined,
+        status: mapTxStatusToApi(data.status),
+        paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
+      });
+      setTransactions((prev) =>
+        prev.map((tx) =>
+          tx.id === data.id
+            ? {
+                ...tx,
+                customer: data.customer,
+                bookingId: data.bookingId,
+                amount: toNumber(data.amount, 0) * (selectedTransaction?.amount && selectedTransaction.amount < 0 ? -1 : 1),
+                mode: data.mode as PaymentMode,
+                referenceId: data.referenceId || tx.referenceId,
+                paymentReference: data.paymentReference || tx.paymentReference,
+                gatewayOrderId: data.gatewayOrderId || tx.gatewayOrderId,
+                gatewayPaymentId: data.gatewayPaymentId || tx.gatewayPaymentId,
+                gatewaySignature: data.gatewaySignature || tx.gatewaySignature,
+                proofUrl: data.proofUrl || tx.proofUrl,
+                status: data.status as TxStatus,
+                notes: data.notes || tx.notes,
+                updatedAt: data.updatedAt,
+              }
+            : tx,
+        ),
+      );
+      setShowEditModal(false);
+      setSelectedTransaction(null);
+      showToast("Payment updated successfully", "success");
+      await fetchStats();
+    } catch (err) {
+      console.error("Failed to update payment:", err);
+      showToast("Failed to update payment", "error");
+    }
   };
 
-  const handleAddPayment = (data: any) => {
-    setTransactions((prev) => [data, ...prev]);
-    setShowAddPanel(false);
-    showToast("Payment added successfully", "success");
+  const handleAddPayment = async (data: any) => {
+    try {
+      await paymentsApi.create({
+        bookingId: data.bookingId,
+        amount: toNumber(data.amount, 0),
+        paymentMode: mapTxModeToApi(data.mode),
+        paymentReference: data.paymentReference || undefined,
+        gatewayOrderId: data.gatewayOrderId || undefined,
+        gatewayPaymentId: data.gatewayPaymentId || undefined,
+        gatewaySignature: data.gatewaySignature || undefined,
+        proofUrl: data.proofUrl || undefined,
+        status: mapTxStatusToApi(data.status),
+        paidAt: toIsoDate(data.date) || undefined,
+        isVerified: data.status === "completed",
+      });
+      setShowAddPanel(false);
+      showToast("Payment added successfully", "success");
+      await fetchTransactions();
+      await fetchStats();
+    } catch (err) {
+      console.error("Failed to add payment:", err);
+      showToast("Failed to add payment", "error");
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -1113,14 +1308,9 @@ const Payments: React.FC = () => {
   };
 
   const confirmDelete = () => {
-    if (selectedTransaction) {
-      setTransactions((prev) =>
-        prev.filter((tx) => tx.id !== selectedTransaction.id),
-      );
-      setShowDeleteConfirm(false);
-      setSelectedTransaction(null);
-      showToast("Payment deleted successfully", "success");
-    }
+    setShowDeleteConfirm(false);
+    setSelectedTransaction(null);
+    showToast("Delete is not available for payments yet", "info");
   };
 
   return (
@@ -1135,7 +1325,6 @@ const Payments: React.FC = () => {
           }
         />
       )}
-
       {/* Modals */}
       <ConfirmModal
         isOpen={showDeleteConfirm}
@@ -1219,29 +1408,46 @@ const Payments: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Collected"
-          value="$48.2k"
-          subtitle="+8% vs last month"
+          value={statsLoading ? "Loading..." : formatAmount(stats.collectedAmount)}
+          subtitle={
+            statsLoading
+              ? "Loading..."
+              : `${stats.collectedCount} payments`
+          }
           icon={<FaWallet className="text-blue-600" />}
         />
         <StatCard
           title="Outstanding"
-          value="$12.4k"
-          subtitle="14 pending"
+          value={
+            statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)
+          }
+          subtitle={
+            statsLoading
+              ? "Loading..."
+              : `${stats.outstandingCount} pending`
+          }
           icon={<FaClockRotateLeft className="text-amber-500" />}
         />
         <StatCard
           title="Overdue"
-          value="$3.2k"
-          subtitle="3 invoices"
+          value={statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)}
+          subtitle={
+            statsLoading ? "Loading..." : `${stats.overdueCount} invoices`
+          }
           icon={<FaRotateRight className="text-red-500" />}
         />
         <StatCard
           title="Refunds"
-          value="$1.8k"
-          subtitle="This month"
+          value={statsLoading ? "Loading..." : formatAmount(stats.refundsAmount)}
+          subtitle={
+            statsLoading ? "Loading..." : `${stats.refundsCount} processed`
+          }
           icon={<FaRotateLeft className="text-gray-500" />}
         />
       </div>
+      {statsError && (
+        <p className="mt-2 text-xs text-red-500">{statsError}</p>
+      )}
 
       {/* Main Card */}
       <SurfaceCard className="p-0 overflow-hidden border border-gray-200 dark:border-gray-800">
@@ -1347,8 +1553,16 @@ const Payments: React.FC = () => {
           </div>
         </div>
 
+        {transactionsError && (
+          <p className="px-4 pb-2 text-xs text-red-500">
+            {transactionsError}
+          </p>
+        )}
+
         {/* Transactions List */}
-        {rows.length === 0 ? (
+        {transactionsLoading ? (
+          <div className="p-8 text-sm text-gray-500">Loading payments...</div>
+        ) : rows.length === 0 ? (
           <div className="p-8">
             <EmptyState
               title="No transactions"

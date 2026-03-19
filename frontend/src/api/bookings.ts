@@ -4,6 +4,7 @@ import { withQuery } from "./query";
 export const bookingsApi = {
   list: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/bookings", params)),
+  stats: () => apiRequest("/api/bookings/stats"),
   create: (payload: unknown) =>
     apiRequest("/api/bookings", { method: "POST", body: payload }),
   getById: (id: string) => apiRequest(`/api/bookings/${id}`),
@@ -37,8 +38,8 @@ export const bookingsApi = {
   sendConfirmation: (id: string) =>
     apiRequest(`/api/bookings/${id}/send-confirmation`, { method: "POST" }),
   cancel: (id: string, reason: string) =>
-    apiRequest(`/api/bookings/${id}/cancel`, {
+    apiRequest(`/api/bookings/${id}/status`, {
       method: "POST",
-      body: { reason },
+      body: { status: "CANCELLED", cancellationReason: reason },
     }),
 };

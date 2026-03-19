@@ -19,6 +19,7 @@ export const authApi = {
     apiRequest<LoginResponse>("/api/auth/login", {
       method: "POST",
       body: payload,
+      skipAuth: true,
     }),
   forgotPassword: (payload: { email: string }) =>
     apiRequest<{ message: string }>("/api/auth/forgot-password", {

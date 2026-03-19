@@ -77,6 +77,12 @@ const list = z.object({
     .optional(),
 });
 
+const stats = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const create = z.object({
   body: createPayload,
   params: z.object({}).optional(),
@@ -128,6 +134,7 @@ const generateInvoice = z.object({
 
 const BookingsValidation = {
   list,
+  stats,
   create,
   update,
   byId,

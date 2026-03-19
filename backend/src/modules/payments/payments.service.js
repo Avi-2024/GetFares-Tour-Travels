@@ -164,6 +164,14 @@ function createPaymentsService({ repository, logger, events }) {
       return repository.findAll(filters);
     },
 
+    async stats(context = {}) {
+      logger.debug(
+        { module: "payments", requestId: context.requestId },
+        "Fetching payment stats",
+      );
+      return repository.getStats();
+    },
+
     getById,
 
     async create(payload, context = {}) {

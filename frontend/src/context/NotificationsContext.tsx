@@ -9,6 +9,7 @@ import {
 } from "react";
 import { notificationsApi } from "../api/notifications";
 import type { NotificationItem } from "../types";
+import { useAuth } from "./AuthContext";
 
 type NotificationsContextValue = {
   notifications: NotificationItem[];
@@ -55,10 +56,11 @@ export const NotificationsProvider = ({
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const notificationsService = useNotificationsService();
+  const { token } = useAuth();
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const token = localStorage.getItem("auth_token");
     if (!token) {
       setNotifications(fallbackNotifications);
       setUnreadCount(
@@ -83,7 +85,7 @@ export const NotificationsProvider = ({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [notificationsService, token]);
 
   useEffect(() => {
     void refresh();
