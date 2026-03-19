@@ -28,6 +28,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import { validateBookingTransition } from '../../utils/workflowValidation'
 import { useBookingsService } from '../../hooks/useBookingsService'
 import { quotationsApi } from '../../api/quotations'
+import { leadsApi } from '../../api/leads'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -65,6 +66,7 @@ interface NewBookingData {
 type QuoteOption = {
   id: string
   label: string
+  value: string
 }
 
 interface PaymentData {
@@ -152,6 +154,13 @@ const CreateBookingModal = ({
   onClose: () => void
   onSave: (data: NewBookingData) => void
 }) => {
+  const isUuid = (value?: string) =>
+    Boolean(
+      value &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          value
+        )
+    )
   const [quotationOptions, setQuotationOptions] = useState<QuoteOption[]>([])
   const [quotationLoading, setQuotationLoading] = useState(false)
   const [quotationAutofillLoading, setQuotationAutofillLoading] =
@@ -195,7 +204,9 @@ const CreateBookingModal = ({
         []
       const options: QuoteOption[] = (Array.isArray(raw) ? raw : [])
         .map((q: any) => {
-          const id = String(q.id ?? q.quotationId ?? '')
+          const id = String(
+            q.id ?? q.quotationId ?? q.quotation_id ?? q.code ?? ''
+          )
           if (!id) return null
           const quoteNumber =
             q.quoteNumber ?? q.quotationNumber ?? q.code ?? `Quote ${id}`
@@ -208,7 +219,7 @@ const CreateBookingModal = ({
           const label = customer
             ? `${quoteNumber} - ${customer}`
             : quoteNumber
-          return { id, label }
+          return { id, value: id, label }
         })
         .filter(Boolean) as QuoteOption[]
       setQuotationOptions(options)
@@ -223,31 +234,69 @@ const CreateBookingModal = ({
 
   const applyQuotationToForm = (quote: any) => {
     if (!quote) return
-    const lead = quote.lead ?? quote.leadSnapshot ?? quote.templateSnapshot?.lead
+    const lead =
+      quote.lead ??
+      quote.leadSnapshot ??
+      quote.templateSnapshot?.lead ??
+      quote.customerSnapshot ??
+      quote.client ??
+      quote.customer ??
+      {}
     const customer =
-      lead?.name ?? quote.customerName ?? quote.customer ?? formData.customer
+      lead?.name ??
+      lead?.fullName ??
+      quote.customer?.name ??
+      quote.customerSnapshot?.name ??
+      quote.customerName ??
+      quote.clientName ??
+      quote.customer ??
+      formData.customer
     const email =
-      lead?.email ?? quote.email ?? quote.customerEmail ?? formData.email
+      lead?.email ??
+      lead?.primaryEmail ??
+      quote.customer?.email ??
+      quote.customerSnapshot?.email ??
+      quote.email ??
+      quote.customerEmail ??
+      quote.clientEmail ??
+      formData.email
     const phone =
-      lead?.phone ?? quote.phone ?? quote.customerPhone ?? formData.phone
+      lead?.phone ??
+      lead?.mobile ??
+      lead?.whatsapp ??
+      quote.customer?.phone ??
+      quote.customerSnapshot?.phone ??
+      quote.phone ??
+      quote.customerPhone ??
+      quote.clientPhone ??
+      formData.phone
     const destination =
+      quote.destination?.name ??
+      quote.destinationName ??
       quote.destination ??
       quote.tripDestination ??
       quote.templateSnapshot?.destination ??
+      lead?.destination ??
       formData.destination
     const travelStart =
       quote.travelStartDate ??
       quote.travelStart ??
+      quote.tripStartDate ??
+      quote.startDate ??
       quote.templateSnapshot?.travelStartDate
     const travelEnd =
       quote.travelEndDate ??
       quote.travelEnd ??
+      quote.tripEndDate ??
+      quote.endDate ??
       quote.templateSnapshot?.travelEndDate
     const totalAmountRaw =
       quote.finalPrice ??
       quote.totalSaleValue ??
       quote.totalCost ??
-      quote.totalAmount
+      quote.totalAmount ??
+      quote.pricing?.total ??
+      quote.pricing?.finalPrice
     const totalAmount =
       totalAmountRaw !== undefined
         ? Number(totalAmountRaw) || 0
@@ -257,7 +306,9 @@ const CreateBookingModal = ({
       quote.costAmount ??
       quote.supplierCost ??
       quote.cost ??
-      quote.totalAmount
+      quote.totalAmount ??
+      quote.pricing?.cost ??
+      quote.pricing?.supplierCost
     const costAmount =
       costAmountRaw !== undefined
         ? Number(costAmountRaw) || 0
@@ -297,9 +348,67 @@ const CreateBookingModal = ({
       const res = await quotationsApi.getById(quotationId)
       const quote =
         (res as any)?.data?.data ?? (res as any)?.data ?? res ?? null
+      const resolvedId = String(
+        quote?.id ??
+          quote?.quotationId ??
+          quote?.quotation_id ??
+          quotationId ??
+          ''
+      )
+      if (isUuid(resolvedId)) {
+        setFormData(prev => ({ ...prev, quotationId: resolvedId }))
+        setQuotationError('')
+      } else {
+        setQuotationError('Selected quotation has no valid UUID')
+      }
       applyQuotationToForm(quote)
+
+      const leadId =
+        quote?.leadId ??
+        quote?.lead_id ??
+        quote?.lead?.id ??
+        quote?.leadSnapshot?.id ??
+        quote?.leadSnapshot?.leadId ??
+        null
+
+      if (leadId) {
+        try {
+          const leadRes = await leadsApi.getById(String(leadId))
+          const lead =
+            (leadRes as any)?.data?.data ??
+            (leadRes as any)?.data ??
+            leadRes ??
+            null
+          const isBlank = (value?: string) =>
+            !value || value === 'N/A' || value === 'NA'
+          if (lead) {
+            setFormData(prev => ({
+              ...prev,
+              customer:
+                isBlank(prev.customer)
+                  ? lead.name ?? lead.fullName ?? prev.customer
+                  : prev.customer,
+              email:
+                isBlank(prev.email)
+                  ? lead.email ?? lead.primaryEmail ?? prev.email
+                  : prev.email,
+              phone:
+                isBlank(prev.phone)
+                  ? lead.phone ?? lead.mobile ?? lead.whatsapp ?? prev.phone
+                  : prev.phone,
+              destination:
+                isBlank(prev.destination)
+                  ? lead.destination ?? prev.destination
+                  : prev.destination
+            }))
+          }
+        } catch (leadError) {
+          console.error('Failed to load lead for quotation:', leadError)
+        }
+      }
     } catch (error) {
       console.error('Failed to load quotation:', error)
+      setQuotationError('Failed to load quotation details')
     } finally {
       setQuotationAutofillLoading(false)
     }
@@ -311,6 +420,9 @@ const CreateBookingModal = ({
     const newErrors: Partial<Record<keyof NewBookingData, string>> = {}
     if (!formData.quotationId)
       newErrors.quotationId = 'Quotation is required'
+    if (formData.quotationId && !isUuid(formData.quotationId)) {
+      newErrors.quotationId = 'Please select a valid quotation'
+    }
     if (!formData.customer) newErrors.customer = 'Customer name is required'
     if (!formData.destination) newErrors.destination = 'Destination is required'
     if (!formData.travelStart)
