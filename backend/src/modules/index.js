@@ -11,6 +11,7 @@ import { createCampaignsModule } from "./campaigns/index.js";
 import { createCustomersModule } from "./customers/index.js";
 import { createComplaintsModule } from "./complaints/index.js";
 import { createReportsModule } from "./reports/index.js";
+import { createSettingsModule } from "./settings/index.js";
 import { createWebhooksModule } from "./webhooks/index.js";
 import { createNotificationsModule } from "./notifications/index.js";
 import { createDashboardModule } from "./dashboard/index.js";
@@ -56,6 +57,7 @@ function registerModules(app, dependencies) {
     ["customers", createCustomersModule],
     ["complaints", createComplaintsModule],
     ["reports", createReportsModule],
+    ["settings", createSettingsModule],
     ["dashboard", createDashboardModule],
   ];
 
@@ -103,6 +105,7 @@ export {
   createCustomersModule,
   createComplaintsModule,
   createReportsModule,
+  createSettingsModule,
   createWebhooksModule,
   createMetaWebhookModule,
   createNotificationsModule,

@@ -8,7 +8,9 @@ import axios, {
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ??
-  "https://get-fares-tour-travels-575u.vercel.app";
+  (import.meta.env.DEV
+    ? "http://localhost:3000"
+    : "https://get-fares-tour-travels-575u.vercel.app");
 
 export type ApiError = Error & {
   status: number;
@@ -94,9 +96,20 @@ const isFormData = (data: unknown) => {
 const extractMessage = (data: unknown) => {
   if (!data) return null;
   if (typeof data === "string") return data;
-  if (typeof data === "object" && "message" in data) {
-    const message = (data as { message?: unknown }).message;
-    return message ? String(message) : null;
+  if (typeof data === "object") {
+    const payload = data as {
+      message?: unknown;
+      error?: { message?: unknown } | unknown;
+    };
+
+    if (payload.message) {
+      return String(payload.message);
+    }
+
+    if (payload.error && typeof payload.error === "object") {
+      const nestedMessage = (payload.error as { message?: unknown }).message;
+      return nestedMessage ? String(nestedMessage) : null;
+    }
   }
   return null;
 };

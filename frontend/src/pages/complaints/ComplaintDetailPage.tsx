@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaPlus, FaUser, FaXmark } from "react-icons/fa6";
 import { complaintsApi } from "../../api/complaints";
+import { useUsersService } from "../../hooks/useUsersService";
 
 interface Complaint {
   id: string;
-  bookingId: string;
-  assignedTo: string;
+  bookingId: string | null;
+  assignedTo: string | null;
   issueType: string;
   description: string;
   status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
@@ -24,9 +25,17 @@ interface Activity {
   type: string;
 }
 
+type AssignableUser = {
+  id: string;
+  fullName?: string;
+  email?: string;
+  isActive?: boolean;
+};
+
 const ComplaintDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const usersService = useUsersService();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -34,11 +43,14 @@ const ComplaintDetailPage: React.FC = () => {
   const [noteError, setNoteError] = useState("");
   const [, setStatusHistory] = useState<any[]>([]);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [loadingAssignees, setLoadingAssignees] = useState(false);
+  const [assigneeUsers, setAssigneeUsers] = useState<AssignableUser[]>([]);
+  const [selectedAssignee, setSelectedAssignee] = useState("");
 
   const [complaint, setComplaint] = useState<Complaint>({
     id: id || "CMP-001",
     bookingId: "BK-2034",
-    assignedTo: "Alex Thompson",
+    assignedTo: "",
     issueType: "Hotel Downgrade",
     description:
       "Client reported mismatch in room type. Booked Deluxe Suite but received Standard Room at check-in.",
@@ -67,6 +79,34 @@ const ComplaintDetailPage: React.FC = () => {
     },
   ]);
 
+  const getUserLabel = (userId: string | null | undefined) => {
+    if (!userId) return "Unassigned";
+    const user = assigneeUsers.find((item) => item.id === userId);
+    if (!user) return userId;
+    if (user.fullName && user.email) return `${user.fullName} (${user.email})`;
+    return user.fullName || user.email || user.id;
+  };
+
+  useEffect(() => {
+    const loadAssignableUsers = async () => {
+      if (!localStorage.getItem("auth_token")) return;
+      try {
+        setLoadingAssignees(true);
+        const response = await usersService.list();
+        const rows = ((response as { data?: AssignableUser[] }).data ?? [])
+          .filter((user) => user?.id)
+          .filter((user) => user.isActive !== false);
+        setAssigneeUsers(rows);
+      } catch (err) {
+        console.error("Failed to load users for assignment:", err);
+      } finally {
+        setLoadingAssignees(false);
+      }
+    };
+
+    void loadAssignableUsers();
+  }, [usersService]);
+
   useEffect(() => {
     const loadComplaintData = async () => {
       if (!id) return;
@@ -82,10 +122,21 @@ const ComplaintDetailPage: React.FC = () => {
             complaintsApi.getStatusHistory(id).catch(() => ({ data: [] })),
           ]);
 
-        if ((complaintRes as any)?.data) {
-          setComplaint((complaintRes as any).data);
-        } else if (complaintRes) {
-          setComplaint(complaintRes as any);
+        const complaintPayload = (complaintRes as any)?.data || complaintRes;
+        if (complaintPayload) {
+          const normalizedComplaint: Complaint = {
+            ...(complaintPayload as Complaint),
+            bookingId:
+              (complaintPayload as Complaint).bookingId === undefined
+                ? null
+                : (complaintPayload as Complaint).bookingId,
+            assignedTo:
+              (complaintPayload as Complaint).assignedTo === undefined
+                ? null
+                : (complaintPayload as Complaint).assignedTo,
+          };
+          setComplaint(normalizedComplaint);
+          setSelectedAssignee(normalizedComplaint.assignedTo || "");
         }
         
         if ((activitiesRes as any)?.data) {
@@ -110,6 +161,10 @@ const ComplaintDetailPage: React.FC = () => {
 
     loadComplaintData();
   }, [id]);
+
+  useEffect(() => {
+    setSelectedAssignee(complaint.assignedTo || "");
+  }, [complaint.assignedTo]);
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -213,16 +268,26 @@ const ComplaintDetailPage: React.FC = () => {
   };
 
   const handleAssignTo = async () => {
-    const userId = window.prompt("Enter user ID to assign to:");
-    if (!userId) return;
+    if (!id) return;
+    if (!selectedAssignee) {
+      setError("Please select an assignee.");
+      return;
+    }
 
     setAssignmentLoading(true);
     try {
-      await complaintsApi.assignTo(id!, userId);
+      await complaintsApi.assignTo(id, selectedAssignee);
+      const selectedUserLabel = getUserLabel(selectedAssignee);
+
+      setComplaint((prev) => ({
+        ...prev,
+        assignedTo: selectedAssignee,
+        updatedAt: new Date().toISOString(),
+      }));
 
       const newActivity: Activity = {
         id: `act-${Date.now()}`,
-        note: `Complaint reassigned to user ${userId}`,
+        note: `Complaint reassigned to ${selectedUserLabel}`,
         userId: "current-user",
         userName: "Current User",
         createdAt: new Date().toISOString(),
@@ -267,8 +332,8 @@ const ComplaintDetailPage: React.FC = () => {
   const handleUpdateComplaint = async () => {
     try {
       await complaintsApi.update(id!, {
-        bookingId: complaint.bookingId,
-        assignedTo: complaint.assignedTo,
+        bookingId: complaint.bookingId || undefined,
+        assignedTo: complaint.assignedTo || null,
         issueType: complaint.issueType,
         description: complaint.description,
         status: complaint.status,
@@ -401,18 +466,18 @@ const ComplaintDetailPage: React.FC = () => {
                     {isEditing ? (
                       <input
                         type="text"
-                        value={complaint.bookingId}
+                        value={complaint.bookingId || ""}
                         onChange={(e) =>
                           setComplaint({
                             ...complaint,
-                            bookingId: e.target.value,
+                            bookingId: e.target.value || null,
                           })
                         }
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
                       />
                     ) : (
                       <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                        {complaint.bookingId}
+                        {complaint.bookingId || "N/A"}
                       </p>
                     )}
                   </div>
@@ -422,20 +487,28 @@ const ComplaintDetailPage: React.FC = () => {
                       Assigned To
                     </label>
                     {isEditing ? (
-                      <input
-                        type="text"
-                        value={complaint.assignedTo}
+                      <select
+                        value={complaint.assignedTo || ""}
                         onChange={(e) =>
                           setComplaint({
                             ...complaint,
-                            assignedTo: e.target.value,
+                            assignedTo: e.target.value || null,
                           })
                         }
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                      />
+                      >
+                        <option value="">
+                          {loadingAssignees ? "Loading users..." : "Unassigned"}
+                        </option>
+                        {assigneeUsers.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.fullName || user.email || user.id}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {complaint.assignedTo}
+                        {getUserLabel(complaint.assignedTo)}
                       </p>
                     )}
                   </div>
@@ -653,9 +726,24 @@ const ComplaintDetailPage: React.FC = () => {
                 </button>
 
                 <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mt-3">
+                  <select
+                    value={selectedAssignee}
+                    onChange={(event) => setSelectedAssignee(event.target.value)}
+                    disabled={loadingAssignees}
+                    className="w-full py-2 px-3 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 mb-2 disabled:opacity-60"
+                  >
+                    <option value="">
+                      {loadingAssignees ? "Loading users..." : "Select assignee"}
+                    </option>
+                    {assigneeUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.fullName || user.email || user.id}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={handleAssignTo}
-                    disabled={assignmentLoading}
+                    disabled={assignmentLoading || !selectedAssignee}
                     className="w-full py-2 px-3 rounded-lg text-sm font-medium transition-colors bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     <FaUser className="text-xs" />
@@ -685,11 +773,14 @@ const ComplaintDetailPage: React.FC = () => {
                   Booking ID
                 </p>
                 <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-3">
-                  {complaint.bookingId}
+                  {complaint.bookingId || "N/A"}
                 </p>
                 <button
-                  onClick={() => navigate(`/bookings/${complaint.bookingId}`)}
-                  className="w-full px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800 transition-colors"
+                  onClick={() =>
+                    complaint.bookingId && navigate(`/bookings/${complaint.bookingId}`)
+                  }
+                  disabled={!complaint.bookingId}
+                  className="w-full px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   View Booking Details
                 </button>

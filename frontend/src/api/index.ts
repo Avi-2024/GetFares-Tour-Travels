@@ -12,3 +12,4 @@ export * from "./customers";
 export * from "./complaints";
 export * from "./reports";
 export * from "./notifications";
+export * from "./settings";

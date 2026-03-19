@@ -5,6 +5,15 @@ import { TextInput, UUIDSelect } from "../../components/form";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import Timeline from "../../components/ui/Timeline";
 import { complaintsApi } from "../../api/complaints";
+import { bookingsApi } from "../../api/bookings";
+import { quotationsApi } from "../../api/quotations";
+import { leadsApi } from "../../api/leads";
+import { useUsersService } from "../../hooks/useUsersService";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value: string) => UUID_PATTERN.test(value.trim());
 
 const complaintsSeed = [
   {
@@ -23,10 +32,66 @@ const complaintsSeed = [
   },
 ];
 
+type AssignableUser = {
+  id: string;
+  fullName?: string;
+  email?: string;
+  isActive?: boolean;
+};
+
+type BookingRecord = {
+  id?: string;
+  bookingNumber?: string;
+  quotationId?: string;
+  quotation_id?: string;
+};
+
+type QuotationRecord = {
+  id?: string;
+  leadId?: string;
+  lead_id?: string;
+};
+
+type LeadRecord = {
+  id?: string;
+  fullName?: string;
+  customerName?: string;
+  name?: string;
+  email?: string;
+};
+
+type BookingOption = {
+  value: string;
+  label: string;
+};
+
+type BookingMeta = {
+  customerName?: string;
+  bookingNumber?: string;
+};
+
+const extractRows = <T,>(response: unknown): T[] => {
+  const payload = response as {
+    data?: { data?: T[]; items?: T[] } | T[];
+  };
+  const data =
+    (payload?.data as { data?: T[]; items?: T[] })?.data ??
+    (payload?.data as { data?: T[]; items?: T[] })?.items ??
+    payload?.data ??
+    response;
+  return Array.isArray(data) ? (data as T[]) : [];
+};
+
+const shortId = (value: string) =>
+  value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value;
+
 const ComplaintsPage = () => {
   const navigate = useNavigate();
+  const usersService = useUsersService();
   const [rows, setRows] = useState(complaintsSeed);
   const [loading, setLoading] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingBookings, setLoadingBookings] = useState(false);
   const [form, setForm] = useState({
     bookingId: "",
     assignedTo: "",
@@ -36,6 +101,36 @@ const ComplaintsPage = () => {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [assigneeUsers, setAssigneeUsers] = useState<AssignableUser[]>([]);
+  const [bookingOptions, setBookingOptions] = useState<BookingOption[]>([]);
+  const [bookingMetaById, setBookingMetaById] = useState<
+    Record<string, BookingMeta>
+  >({});
+  const assigneeOptions = assigneeUsers.map((user) => ({
+    value: user.id,
+    label: user.fullName
+      ? `${user.fullName}${user.email ? ` (${user.email})` : ""}`
+      : user.email || user.id,
+  }));
+  const fallbackBookingOptions = Array.from(
+    new Set(rows.map((row) => row.bookingId).filter((id) => isUuid(id || ""))),
+  )
+    .filter((id) => !bookingOptions.some((option) => option.value === id))
+    .map((id) => ({
+      value: id,
+      label: shortId(id),
+    }));
+  const mergedBookingOptions = [...bookingOptions, ...fallbackBookingOptions];
+
+  const formatBookingDisplay = (bookingId?: string) => {
+    if (!bookingId) return "-";
+    const meta = bookingMetaById[bookingId];
+    if (!meta) return bookingId;
+    const bookingLabel = meta.bookingNumber || shortId(bookingId);
+    return meta.customerName
+      ? `${meta.customerName} - ${bookingLabel}`
+      : bookingLabel;
+  };
 
   // Fetch complaints on mount
   useEffect(() => {
@@ -68,9 +163,136 @@ const ComplaintsPage = () => {
     fetchComplaints();
   }, []);
 
+  useEffect(() => {
+    const loadBookingOptions = async () => {
+      if (!localStorage.getItem("auth_token")) return;
+      try {
+        setLoadingBookings(true);
+        const [bookingsResult, quotationsResult, leadsResult] =
+          await Promise.allSettled([
+            bookingsApi.list({ page: 1, limit: 500 }),
+            quotationsApi.list({ page: 1, limit: 500 }),
+            leadsApi.list({ page: 1, limit: 500 }),
+          ]);
+
+        const bookingRows =
+          bookingsResult.status === "fulfilled"
+            ? extractRows<BookingRecord>(bookingsResult.value)
+            : [];
+        const quotationRows =
+          quotationsResult.status === "fulfilled"
+            ? extractRows<QuotationRecord>(quotationsResult.value)
+            : [];
+        const leadRows =
+          leadsResult.status === "fulfilled"
+            ? extractRows<LeadRecord>(leadsResult.value)
+            : [];
+
+        const quotationToLead = new Map<string, string>();
+        quotationRows.forEach((quotation) => {
+          const quotationId = quotation.id;
+          const leadId = quotation.leadId || quotation.lead_id;
+          if (quotationId && leadId) {
+            quotationToLead.set(quotationId, leadId);
+          }
+        });
+
+        const leadNameById = new Map<string, string>();
+        leadRows.forEach((lead) => {
+          const leadId = lead.id;
+          const leadName =
+            lead.fullName || lead.customerName || lead.name || lead.email;
+          if (leadId && leadName) {
+            leadNameById.set(leadId, leadName);
+          }
+        });
+
+        const optionsMap = new Map<string, BookingOption>();
+        const bookingMeta: Record<string, BookingMeta> = {};
+
+        bookingRows.forEach((booking) => {
+          const bookingId = booking.id;
+          if (!bookingId) return;
+
+          const quotationId = booking.quotationId || booking.quotation_id;
+          const leadId = quotationId ? quotationToLead.get(quotationId) : null;
+          const customerName = leadId ? leadNameById.get(leadId) : undefined;
+          const bookingNumber = booking.bookingNumber;
+          const bookingLabel = bookingNumber || shortId(bookingId);
+          const label = customerName
+            ? `${customerName} - ${bookingLabel}`
+            : bookingLabel;
+
+          optionsMap.set(bookingId, {
+            value: bookingId,
+            label,
+          });
+
+          bookingMeta[bookingId] = {
+            customerName,
+            bookingNumber,
+          };
+        });
+
+        setBookingOptions(
+          Array.from(optionsMap.values()).sort((a, b) =>
+            a.label.localeCompare(b.label),
+          ),
+        );
+        setBookingMetaById(bookingMeta);
+      } catch (err) {
+        console.error("Failed to load bookings for complaint form:", err);
+      } finally {
+        setLoadingBookings(false);
+      }
+    };
+
+    void loadBookingOptions();
+  }, []);
+
+  useEffect(() => {
+    const loadAssignees = async () => {
+      if (!localStorage.getItem("auth_token")) return;
+      try {
+        setLoadingUsers(true);
+        const response = await usersService.list();
+        const rows = ((response as { data?: AssignableUser[] }).data ?? [])
+          .filter((user) => user?.id)
+          .filter((user) => user.isActive !== false);
+        setAssigneeUsers(rows);
+      } catch (err) {
+        console.error("Failed to load assignees:", err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    void loadAssignees();
+  }, [usersService]);
+
   const createComplaint = async () => {
-    if (!form.issueType.trim() || !form.description.trim()) {
-      setError("issueType and description are required.");
+    const bookingId = form.bookingId.trim();
+    const assignedTo = form.assignedTo.trim();
+    const issueType = form.issueType.trim();
+    const description = form.description.trim();
+
+    if (!issueType || issueType.length < 2) {
+      setError("Issue Type must be at least 2 characters.");
+      return;
+    }
+
+    if (!description || description.length < 5) {
+      setError("Description must be at least 5 characters.");
+      return;
+    }
+
+    if (bookingId && !isUuid(bookingId)) {
+      setError("Booking ID must be a valid UUID.");
+      return;
+    }
+
+    if (assignedTo && !isUuid(assignedTo)) {
+      setError("Assigned To must be a valid User UUID.");
       return;
     }
 
@@ -86,10 +308,10 @@ const ComplaintsPage = () => {
       setSuccess("");
       
       const payload = {
-        bookingId: form.bookingId || undefined,
-        assignedTo: form.assignedTo || undefined,
-        issueType: form.issueType,
-        description: form.description,
+        bookingId: bookingId || undefined,
+        assignedTo: assignedTo || undefined,
+        issueType,
+        description,
         status: form.status,
       };
 
@@ -133,7 +355,16 @@ const ComplaintsPage = () => {
       if (err?.status === 401) {
         setError('Authentication required. Please login to create complaints.');
       } else {
-        setError(err?.message || "Failed to create complaint. Please try again.");
+        const backendBodyErrors =
+          (err?.details as any)?.error?.details?.fieldErrors?.body;
+        const backendMessage = (err?.details as any)?.error?.message;
+        if (Array.isArray(backendBodyErrors) && backendBodyErrors.length > 0) {
+          setError(backendBodyErrors.join(", "));
+        } else if (typeof backendMessage === "string" && backendMessage) {
+          setError(backendMessage);
+        } else {
+          setError(err?.message || "Failed to create complaint. Please try again.");
+        }
       }
     } finally {
       setLoading(false);
@@ -170,17 +401,17 @@ const ComplaintsPage = () => {
             onChange={(value) =>
               setForm((current) => ({ ...current, bookingId: value }))
             }
-            options={rows.map((row) => ({
-              value: row.bookingId,
-              label: row.bookingId,
-            }))}
+            options={mergedBookingOptions}
+            placeholder={loadingBookings ? "Loading bookings..." : "Select booking"}
           />
-          <TextInput
+          <UUIDSelect
             label="Assigned To"
             value={form.assignedTo}
             onChange={(value) =>
               setForm((current) => ({ ...current, assignedTo: value }))
             }
+            options={assigneeOptions}
+            placeholder={loadingUsers ? "Loading assignees..." : "Select user"}
           />
           <TextInput
             label="Issue Type"
@@ -290,7 +521,7 @@ const ComplaintsPage = () => {
                     {row.id}
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">
-                    {row.bookingId}
+                    {formatBookingDisplay(row.bookingId)}
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">
                     {row.issueType}
@@ -335,3 +566,4 @@ const ComplaintsPage = () => {
 };
 
 export default ComplaintsPage;
+
