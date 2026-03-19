@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
   FaCheck,
@@ -19,6 +19,21 @@ import EmptyState from "../../components/ui/EmptyState";
 import { validateQuoteTransition } from "../../utils/workflowValidation";
 
 type QuoteStatus = "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" | "SENT";
+
+type QuoteSnapshot = {
+  id?: string;
+  quoteNumber?: string;
+  customer?: string;
+  email?: string;
+  destination?: string;
+  details?: string;
+  total?: number;
+  margin?: number;
+  status?: string;
+  lastSent?: string | null;
+  sentDate?: string | null;
+  createdAt?: string | null;
+};
 
 interface ComponentRow {
   id: string;
@@ -103,7 +118,35 @@ const seedLogs: SendLog[] = [
 const QuotationDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<QuoteStatus>("PENDING");
+  const location = useLocation();
+  const stored =
+    id && typeof window !== "undefined"
+      ? sessionStorage.getItem(`quotation:${id}`)
+      : null;
+  const storedQuote = stored ? (JSON.parse(stored) as QuoteSnapshot) : null;
+  const quote =
+    (location.state as { quotation?: QuoteSnapshot } | null)?.quotation ??
+    storedQuote;
+
+  const mapStatus = (value?: string): QuoteStatus => {
+    switch (String(value || "").toUpperCase()) {
+      case "APPROVED":
+      case "ACCEPTED":
+        return "APPROVED";
+      case "REJECTED":
+        return "REJECTED";
+      case "SENT":
+        return "SENT";
+      case "DRAFT":
+        return "DRAFT";
+      default:
+        return "PENDING";
+    }
+  };
+
+  const [status, setStatus] = useState<QuoteStatus>(
+    mapStatus(quote?.status),
+  );
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("components");
@@ -138,6 +181,26 @@ const QuotationDetailPage: React.FC = () => {
     return { totalCost, marginPercent, discount, taxAmount, finalPrice };
   }, [rows]);
 
+  const persistStatus = (nextStatus: QuoteStatus) => {
+    if (!id) return;
+    try {
+      const existing =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem(`quotation:${id}`)
+          : null;
+      const parsed = existing ? (JSON.parse(existing) as QuoteSnapshot) : {};
+      const merged = {
+        ...parsed,
+        id,
+        quoteNumber: quote?.quoteNumber ?? parsed.quoteNumber,
+        status: nextStatus,
+      };
+      sessionStorage.setItem(`quotation:${id}`, JSON.stringify(merged));
+    } catch {
+      // no-op
+    }
+  };
+
   const changeStatus = (nextStatus: QuoteStatus) => {
     if (nextStatus === "REJECTED") {
       setShowRejectModal(true);
@@ -145,6 +208,7 @@ const QuotationDetailPage: React.FC = () => {
     }
     setError("");
     setStatus(nextStatus);
+    persistStatus(nextStatus);
   };
 
   const handleRejectConfirm = () => {
@@ -160,6 +224,7 @@ const QuotationDetailPage: React.FC = () => {
     }
 
     setStatus("REJECTED");
+    persistStatus("REJECTED");
     setReason(rejectReason);
     setShowRejectModal(false);
     setRejectReason("");
@@ -169,6 +234,7 @@ const QuotationDetailPage: React.FC = () => {
   const handleSend = (method: "email" | "whatsapp") => {
     console.log(`Sending via ${method}`);
     setStatus("SENT");
+    persistStatus("SENT");
     setShowSendDropdown(false);
 
     // In real app, would add to logs state via API
@@ -264,7 +330,7 @@ const QuotationDetailPage: React.FC = () => {
           </button>
           <div className="flex items-center justify-between gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Quotation #{id}
+              Quotation #{quote?.quoteNumber ?? id}
             </h1>
             <div className="sm:hidden">
               <StatusBadge status={status} />
@@ -272,11 +338,11 @@ const QuotationDetailPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-xs sm:text-sm text-gray-500">
-              Created Mar 10, 2026
+              Created {quote?.createdAt ?? "—"}
             </p>
             <span className="text-gray-300">•</span>
             <p className="text-xs sm:text-sm text-gray-500">
-              Last updated 2h ago
+              Last sent {quote?.lastSent ?? "—"}
             </p>
           </div>
         </div>
@@ -414,7 +480,43 @@ const QuotationDetailPage: React.FC = () => {
 
       {/* Main Card */}
       <SurfaceCard className="overflow-hidden border border-gray-200 dark:border-gray-800">
-        {/* Tabs */}
+      {quote && (
+        <SurfaceCard className="p-4 sm:p-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                Customer
+              </p>
+              <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {quote.customer ?? "—"}
+              </p>
+              <p className="text-xs text-gray-500">{quote.email ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                Destination
+              </p>
+              <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {quote.destination ?? "—"}
+              </p>
+              <p className="text-xs text-gray-500">{quote.details ?? "—"}</p>
+            </div>
+            <div className="md:text-right">
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                Total
+              </p>
+              <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                ${Number(quote.total ?? 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400">
+                Margin {Number(quote.margin ?? 0)}%
+              </p>
+            </div>
+          </div>
+        </SurfaceCard>
+      )}
+
+      {/* Tabs */}
         <div className="border-b border-gray-200 dark:border-gray-800 p-3 sm:p-4">
           {/* Mobile Dropdown */}
           <div className="sm:hidden">

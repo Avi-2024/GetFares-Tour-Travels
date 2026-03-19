@@ -1,11 +1,29 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { validateLeadTransition } from "../../utils/workflowValidation";
 
 const LeadDetails: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [leadStatus, setLeadStatus] = useState("NEW");
+  const location = useLocation();
+  const stored =
+    id && typeof window !== "undefined"
+      ? sessionStorage.getItem(`lead:${id}`)
+      : null;
+  const storedLead = stored ? (JSON.parse(stored) as any) : null;
+  const lead =
+    (location.state as { lead?: any } | null)?.lead ?? storedLead ?? null;
+
+  const mapLeadStatus = (value?: string) => {
+    const normalized = String(value || "").toUpperCase();
+    if (normalized === "NEW") return "NEW";
+    if (normalized === "CONTACTED") return "CONTACTED";
+    if (normalized === "QUALIFIED") return "QUALIFIED";
+    if (normalized === "LOST") return "LOST";
+    return "NEW";
+  };
+
+  const [leadStatus, setLeadStatus] = useState(mapLeadStatus(lead?.status));
   const [leadError, setLeadError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -22,6 +40,35 @@ const LeadDetails: React.FC = () => {
   });
   const [contactDraft, setContactDraft] = useState(contactInfo);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const leadName = useMemo(() => {
+    const name = lead?.name ?? "Lead";
+    return String(name).trim() || "Lead";
+  }, [lead]);
+
+  const leadInitials = useMemo(() => {
+    const parts = leadName.split(" ").filter(Boolean);
+    if (parts.length === 0) return "LD";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }, [leadName]);
+
+  useEffect(() => {
+    if (!lead) return;
+    setContactInfo({
+      email: lead.email ?? "N/A",
+      phone: lead.phone ?? "N/A",
+      location: lead.destination ?? "N/A",
+      company: lead.packageName ?? "N/A",
+    });
+    setContactDraft({
+      email: lead.email ?? "N/A",
+      phone: lead.phone ?? "N/A",
+      location: lead.destination ?? "N/A",
+      company: lead.packageName ?? "N/A",
+    });
+    setLeadStatus(mapLeadStatus(lead.status));
+  }, [lead]);
 
   // Mock data
   const [timeline, setTimeline] = useState<any[]>([
@@ -349,11 +396,13 @@ const LeadDetails: React.FC = () => {
         <div className="lg:hidden flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-base font-bold border border-blue-200">
-              SC
+              {leadInitials}
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">Sarah Connor</h1>
-              <p className="text-xs text-gray-500">#LD-2023-001</p>
+              <h1 className="text-lg font-bold text-gray-900">{leadName}</h1>
+              <p className="text-xs text-gray-500">
+                {lead?.leadId ?? `#${id}`}
+              </p>
             </div>
           </div>
           <button
@@ -372,12 +421,12 @@ const LeadDetails: React.FC = () => {
         <div className="hidden lg:flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xl font-bold border border-blue-200 shadow-sm">
-              SC
+              {leadInitials}
             </div>
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  Sarah Connor
+                  {leadName}
                 </h1>
                 <span
                   className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -391,7 +440,8 @@ const LeadDetails: React.FC = () => {
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
                 <span className="flex items-center gap-1.5">
-                  <i className="fa-regular fa-id-card w-4"></i> #LD-2023-001
+                  <i className="fa-regular fa-id-card w-4"></i>{" "}
+                  {lead?.leadId ?? `#${id}`}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <i className="fa-solid fa-globe w-4"></i> Website
