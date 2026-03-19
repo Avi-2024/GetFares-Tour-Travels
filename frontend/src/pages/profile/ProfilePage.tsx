@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FaEdit,
   FaSave,
@@ -7,6 +7,8 @@ import {
   FaCheckCircle,
   FaInfoCircle,
 } from "react-icons/fa";
+import { isApiError } from "../../api/apiClient";
+import { authApi } from "../../api/auth";
 import { useAuth } from "../../context/AuthContext";
 
 const getDisplayName = (profile: any) => {
@@ -36,6 +38,8 @@ const ProfilePage = () => {
     message: string;
     type: "success" | "info";
   }>({ show: false, message: "", type: "success" });
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   const displayName = useMemo(() => getDisplayName(profile), [profile]);
   const initials = useMemo(() => getInitials(displayName), [displayName]);
@@ -47,6 +51,35 @@ const ProfilePage = () => {
       2400,
     );
   };
+
+  const fetchProfile = useCallback(async () => {
+    setLoadingProfile(true);
+    setProfileError("");
+    try {
+      const response = await authApi.profile();
+      const data =
+        typeof response === "object" && response && "data" in response
+          ? (response as { data: any }).data
+          : response;
+      if (data) {
+        setProfile((prev: any) => ({
+          ...prev,
+          name: data.fullName || data.name || prev.name || user?.name || "",
+          email: data.email || prev.email || user?.email || "",
+        }));
+      }
+    } catch (err) {
+      setProfileError(
+        isApiError(err) ? err.message : "Failed to load profile.",
+      );
+    } finally {
+      setLoadingProfile(false);
+    }
+  }, [user?.email, user?.name]);
+
+  useEffect(() => {
+    void fetchProfile();
+  }, [fetchProfile]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isEditing) return;
@@ -97,6 +130,12 @@ const ProfilePage = () => {
         </p>
       </div>
 
+      {profileError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/30 dark:text-red-200">
+          {profileError}
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm flex justify-between items-center dark:border-gray-800 dark:bg-gray-900">
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -135,6 +174,11 @@ const ProfilePage = () => {
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {profile.email}
             </p>
+            {loadingProfile && (
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                Loading profile...
+              </p>
+            )}
           </div>
         </div>
 

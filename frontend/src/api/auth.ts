@@ -32,7 +32,8 @@ export const authApi = {
       body: payload,
       skipAuth: true,
     }),
-  profile: () => apiRequest<ProfileResponse>("/api/auth/me"),
+  profile: () =>
+    apiRequest<ProfileResponse>(`/api/auth/me?ts=${Date.now()}`),
   forgotPassword: (payload: { email: string }) =>
     apiRequest<{ message: string }>("/api/auth/forgot-password", {
       method: "POST",
