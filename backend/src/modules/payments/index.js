@@ -24,7 +24,10 @@ function createPaymentsModule({ dependencies }) {
     events,
   });
 
-  const controller = createPaymentsController({ service });
+  const controller = createPaymentsController({
+    service,
+    s3: dependencies.storage?.s3,
+  });
 
   const router = createPaymentsRoutes({
     controller,
@@ -32,6 +35,7 @@ function createPaymentsModule({ dependencies }) {
     validateRequest: dependencies.middlewares.validateRequest,
     requireAuth: dependencies.middlewares.requireAuth,
     authorize: dependencies.middlewares.authorize,
+    config: dependencies.config,
   });
 
   return Object.freeze({

@@ -220,6 +220,101 @@ function createBookingsRepository({ db, logger, schema }) {
     return mapped;
   }
 
+  function normalizeReminderType(value) {
+    if (!value) return null;
+    return String(value).trim().toUpperCase();
+  }
+
+  async function findTravelReminderCandidates({
+    reminderType,
+    scheduledFor,
+    limit,
+  } = {}) {
+    const normalizedType = normalizeReminderType(reminderType);
+    if (!normalizedType || !scheduledFor) {
+      return [];
+    }
+
+    const dateColumn =
+      normalizedType === "PRE_TRAVEL" ? "travel_start_date" : "travel_end_date";
+
+    if (typeof db.query !== "function") {
+      const rows = await db.findMany(schema.tableName, {});
+      const list = rows.map((row) => toBooking(row)).filter(Boolean);
+      const filtered = list.filter((item) => {
+        if (item.isDeleted) return false;
+        if (item.status !== "CONFIRMED") return false;
+        const dateValue =
+          normalizedType === "PRE_TRAVEL"
+            ? item.travelStartDate
+            : item.travelEndDate;
+        return dateValue === scheduledFor;
+      });
+      return limit ? filtered.slice(0, limit) : filtered;
+    }
+
+    const params = [scheduledFor];
+    let joinClause = "";
+    const conditions = [
+      "b.is_deleted = false",
+      "b.status = 'CONFIRMED'",
+      `b.${dateColumn} = $1`,
+    ];
+
+    const hasLogsTable = await hasTable(schema.reminderLogsTable);
+    if (hasLogsTable) {
+      const columns = await getTableColumns(schema.reminderLogsTable);
+      const hasReminderTypeColumn = !columns || columns.has("reminder_type");
+      const hasScheduledForColumn = !columns || columns.has("scheduled_for");
+
+      let join = `LEFT JOIN ${schema.reminderLogsTable} r ON r.booking_id = b.id`;
+      if (hasReminderTypeColumn) {
+        params.push(normalizedType);
+        join += ` AND r.reminder_type = $${params.length}`;
+      }
+      if (hasScheduledForColumn) {
+        params.push(scheduledFor);
+        join += ` AND r.scheduled_for = $${params.length}`;
+      }
+      joinClause = join;
+      conditions.push("r.id IS NULL");
+    }
+
+    let sql = `SELECT b.* FROM ${schema.tableName} b`;
+    if (joinClause) {
+      sql += ` ${joinClause}`;
+    }
+    if (conditions.length) {
+      sql += ` WHERE ${conditions.join(" AND ")}`;
+    }
+    if (limit) {
+      params.push(limit);
+      sql += ` LIMIT $${params.length}`;
+    }
+
+    const result = await db.query(sql, params);
+    return result.rows.map((row) => toBooking(row)).filter(Boolean);
+  }
+
+  async function createReminderLog(payload = {}) {
+    const tableExists = await hasTable(schema.reminderLogsTable);
+    if (!tableExists) {
+      return null;
+    }
+
+    const record = {
+      booking_id: payload.bookingId,
+      reminder_type: normalizeReminderType(payload.reminderType),
+      scheduled_for: payload.scheduledFor,
+      sent_at: payload.sentAt || new Date().toISOString(),
+    };
+    const sanitized = await sanitizeForTable(schema.reminderLogsTable, record);
+    if (!Object.keys(sanitized).length) {
+      return null;
+    }
+    return db.insert(schema.reminderLogsTable, sanitized);
+  }
+
   async function getVerifiedPayments(bookingId) {
     const rows = await db.findMany(schema.paymentsTable, {
       booking_id: bookingId,
@@ -383,6 +478,8 @@ function createBookingsRepository({ db, logger, schema }) {
       });
       return toBooking(row);
     },
+    findTravelReminderCandidates,
+    createReminderLog,
 
     async findQuotationById(id) {
       if (!id) {

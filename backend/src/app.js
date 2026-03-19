@@ -22,7 +22,16 @@ function createApp(overrides = {}) {
 
   app.use(helmet());
   app.use(cors({ origin: container.config.app.corsOrigin }));
-  app.use(express.json({ limit: "5mb" }));
+  app.use(
+    express.json({
+      limit: "5mb",
+      verify: (req, _res, buf) => {
+        if (buf && buf.length) {
+          req.rawBody = buf.toString("utf8");
+        }
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -79,15 +88,15 @@ function createApp(overrides = {}) {
 
     try {
       const dbCheck =
-        typeof container.db?.healthCheck === "function"
-          ? await container.db.healthCheck({
-              timeoutMs: container.config.health.dbTimeoutMs,
-            })
-          : {
-              ok: true,
-              adapter: "unknown",
-              checkedAt: new Date().toISOString(),
-            };
+        typeof container.db?.healthCheck === "function" ?
+          await container.db.healthCheck({
+            timeoutMs: container.config.health.dbTimeoutMs,
+          })
+        : {
+            ok: true,
+            adapter: "unknown",
+            checkedAt: new Date().toISOString(),
+          };
 
       return res.status(200).json({
         service: container.config.app.name,

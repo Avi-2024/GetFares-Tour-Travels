@@ -17,7 +17,11 @@ const PAYMENT_POLICY = Object.freeze({
   refundableAdvanceRatio: 0.5,
 });
 
-function createBookingsService({ repository, logger, events }) {
+function createBookingsService({ repository, logger, events, config }) {
+  const reminderConfig = {
+    preTravelDays: config?.whatsapp?.preTravelDays ?? 2,
+    postTravelDays: config?.whatsapp?.postTravelDays ?? 1,
+  };
   function toNumber(value, fallback = 0) {
     if (value === null || value === undefined) {
       return fallback;
@@ -50,6 +54,19 @@ function createBookingsService({ repository, logger, events }) {
   function toDateString(value) {
     const iso = toIsoDate(value);
     return iso ? iso.slice(0, 10) : null;
+  }
+
+  function toDateOnly(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return date.toISOString().slice(0, 10);
+  }
+
+  function addDays(date, days) {
+    const next = new Date(date.getTime());
+    next.setUTCDate(next.getUTCDate() + days);
+    return next;
   }
 
   function buildBookingNumber() {
@@ -261,6 +278,100 @@ function createBookingsService({ repository, logger, events }) {
     events.emitUpdated(updated);
 
     return updated;
+  }
+
+  async function runTravelReminders(payload = {}, context = {}) {
+    const referenceDate = payload.referenceDate
+      ? new Date(payload.referenceDate)
+      : new Date();
+    if (Number.isNaN(referenceDate.getTime())) {
+      throw new AppError(
+        400,
+        "referenceDate is invalid",
+        "BOOKING_REMINDER_INVALID_DATE",
+      );
+    }
+
+    const preTravelDays =
+      payload.preTravelDays ?? reminderConfig.preTravelDays ?? 2;
+    const postTravelDays =
+      payload.postTravelDays ?? reminderConfig.postTravelDays ?? 1;
+
+    const preTravelDate = toDateOnly(addDays(referenceDate, preTravelDays));
+    const postTravelDate = toDateOnly(addDays(referenceDate, -postTravelDays));
+
+    const [preCandidates, postCandidates] = await Promise.all([
+      repository.findTravelReminderCandidates({
+        reminderType: "PRE_TRAVEL",
+        scheduledFor: preTravelDate,
+      }),
+      repository.findTravelReminderCandidates({
+        reminderType: "POST_TRAVEL",
+        scheduledFor: postTravelDate,
+      }),
+    ]);
+
+    const now = new Date().toISOString();
+    for (const booking of preCandidates) {
+      try {
+        await repository.createReminderLog({
+          bookingId: booking.id,
+          reminderType: "PRE_TRAVEL",
+          scheduledFor: preTravelDate,
+          sentAt: now,
+        });
+      } catch (error) {
+        logger?.warn(
+          { err: error, bookingId: booking.id },
+          "Failed to log pre-travel reminder",
+        );
+      }
+      events?.emitPreTravelReminder?.({
+        bookingId: booking.id,
+        scheduledFor: preTravelDate,
+        travelStartDate: booking.travelStartDate || null,
+        context: {
+          requestId: context.requestId || null,
+        },
+      });
+    }
+
+    for (const booking of postCandidates) {
+      try {
+        await repository.createReminderLog({
+          bookingId: booking.id,
+          reminderType: "POST_TRAVEL",
+          scheduledFor: postTravelDate,
+          sentAt: now,
+        });
+      } catch (error) {
+        logger?.warn(
+          { err: error, bookingId: booking.id },
+          "Failed to log post-travel reminder",
+        );
+      }
+      events?.emitPostTravelFeedback?.({
+        bookingId: booking.id,
+        scheduledFor: postTravelDate,
+        travelEndDate: booking.travelEndDate || null,
+        context: {
+          requestId: context.requestId || null,
+        },
+      });
+    }
+
+    return {
+      preTravel: {
+        scheduledFor: preTravelDate,
+        count: preCandidates.length,
+        bookingIds: preCandidates.map((item) => item.id),
+      },
+      postTravel: {
+        scheduledFor: postTravelDate,
+        count: postCandidates.length,
+        bookingIds: postCandidates.map((item) => item.id),
+      },
+    };
   }
 
   function buildCreateRecord(payload, context = {}) {
@@ -539,6 +650,7 @@ function createBookingsService({ repository, logger, events }) {
     },
 
     transitionStatus,
+    runTravelReminders,
 
     async listStatusHistory(id, context = {}) {
       await getById(id, context);

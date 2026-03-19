@@ -1,4 +1,6 @@
-function createVisaController({ service }) {
+import { AppError } from "../../core/errors/index.js";
+
+function createVisaController({ service, s3 }) {
   return Object.freeze({
     async list(req, res) {
       const result = await service.list(
@@ -40,9 +42,40 @@ function createVisaController({ service }) {
     },
 
     async createDocument(req, res) {
+      const payload = { ...req.validated.body };
+
+      if (req.file) {
+        if (!s3?.uploadBuffer) {
+          throw new AppError(
+            500,
+            "Media storage is not configured",
+            "S3_NOT_CONFIGURED",
+          );
+        }
+
+        const upload = await s3.uploadBuffer({
+          buffer: req.file.buffer,
+          contentType: req.file.mimetype,
+          originalName: req.file.originalname,
+          prefix: `visa/${req.validated.params.id}/documents`,
+          metadata: {
+            documentType: String(payload.documentType || "").trim(),
+          },
+        });
+        payload.fileUrl = upload.url;
+      }
+
+      if (!payload.fileUrl) {
+        throw new AppError(
+          400,
+          "fileUrl or file upload is required",
+          "VISA_DOCUMENT_FILE_REQUIRED",
+        );
+      }
+
       const result = await service.createDocument(
         req.validated.params.id,
-        req.validated.body,
+        payload,
         req.context,
       );
       res.status(201).json({ data: result });

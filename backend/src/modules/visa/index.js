@@ -24,7 +24,10 @@ function createVisaModule({ dependencies }) {
     events,
   });
 
-  const controller = createVisaController({ service });
+  const controller = createVisaController({
+    service,
+    s3: dependencies.storage?.s3,
+  });
 
   const router = createVisaRoutes({
     controller,
@@ -32,6 +35,7 @@ function createVisaModule({ dependencies }) {
     validateRequest: dependencies.middlewares.validateRequest,
     requireAuth: dependencies.middlewares.requireAuth,
     authorize: dependencies.middlewares.authorize,
+    config: dependencies.config,
   });
 
   return Object.freeze({

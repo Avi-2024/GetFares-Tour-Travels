@@ -22,6 +22,7 @@ function createBookingsModule({ dependencies }) {
     repository,
     logger: dependencies.logger,
     events,
+    config: dependencies.config,
   });
 
   const controller = createBookingsController({ service });

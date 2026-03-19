@@ -142,11 +142,9 @@ class InMemoryDatabase {
     const page = toPositiveInt(filters.page);
     const requestedOffset = toNonNegativeInt(filters.offset);
     const offset =
-      requestedOffset !== null
-        ? requestedOffset
-        : limit && page
-          ? (page - 1) * limit
-          : 0;
+      requestedOffset !== null ? requestedOffset
+      : limit && page ? (page - 1) * limit
+      : 0;
 
     const start = Math.max(0, offset || 0);
     if (!limit) {
@@ -265,11 +263,9 @@ class PostgresDatabase {
     const page = toPositiveInt(filters.page);
     const requestedOffset = toNonNegativeInt(filters.offset);
     const offset =
-      requestedOffset !== null
-        ? requestedOffset
-        : limit && page
-          ? (page - 1) * limit
-          : null;
+      requestedOffset !== null ? requestedOffset
+      : limit && page ? (page - 1) * limit
+      : null;
 
     if (limit) {
       values.push(limit);
@@ -422,8 +418,4 @@ function createDatabaseConnection({ config, logger }) {
   return new InMemoryDatabase();
 }
 
-export {
-  createDatabaseConnection,
-  InMemoryDatabase,
-  PostgresDatabase,
-};
+export { createDatabaseConnection, InMemoryDatabase, PostgresDatabase };

@@ -16,6 +16,7 @@ import { createWebhooksModule } from "./webhooks/index.js";
 import { createNotificationsModule } from "./notifications/index.js";
 import { createDashboardModule } from "./dashboard/index.js";
 import { createMetaWebhookModule } from "./metaWebhook/index.js";
+import { createWhatsappModule } from "./whatsapp/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -81,6 +82,19 @@ function registerModules(app, dependencies) {
   mountedModules.metaWebhook = metaWebhookModule;
   app.use("/webhook", metaWebhookModule.router);
 
+  const whatsappModule = createWhatsappModule({
+    dependencies: featureDependencies,
+    leadsService: mountedModules.leads?.service,
+    quotationsService: mountedModules.quotations?.service,
+    bookingsService: mountedModules.bookings?.service,
+    paymentsService: mountedModules.payments?.service,
+    refundsService: mountedModules.refunds?.service,
+    visaService: mountedModules.visa?.service,
+  });
+  mountedModules.whatsapp = whatsappModule;
+  app.use("/api/whatsapp", whatsappModule.router);
+  app.use("/webhook/whatsapp", whatsappModule.webhookRouter);
+
   const notificationsModule = createNotificationsModule({
     dependencies: featureDependencies,
   });
@@ -108,6 +122,7 @@ export {
   createSettingsModule,
   createWebhooksModule,
   createMetaWebhookModule,
+  createWhatsappModule,
   createNotificationsModule,
   createDashboardModule,
 };

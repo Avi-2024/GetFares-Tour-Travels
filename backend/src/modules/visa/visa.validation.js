@@ -105,7 +105,7 @@ const transitionStatus = z.object({
 const createDocument = z.object({
   body: z.object({
     documentType: z.string().trim().min(2).max(100),
-    fileUrl: z.string().trim().min(5).max(2000),
+    fileUrl: z.string().trim().min(5).max(2000).optional(),
     isVerified: z.boolean().optional(),
   }),
   params: z.object({ id: uuidSchema }),
