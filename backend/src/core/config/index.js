@@ -12,6 +12,10 @@ const config = Object.freeze({
   auth: {
     jwtAccessSecret: env.JWT_ACCESS_SECRET,
     jwtAccessExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
+    defaultRole: env.AUTH_DEFAULT_ROLE,
+  },
+  rbac: {
+    permissionCacheTtlMs: env.RBAC_PERMISSION_CACHE_TTL_SEC * 1000,
   },
   database: {
     url: env.DATABASE_URL,

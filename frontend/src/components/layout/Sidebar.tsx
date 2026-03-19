@@ -8,7 +8,6 @@ import {
   FaFileInvoiceDollar,
   FaFolderOpen,
   FaGear,
-  FaGlobe,
   FaBell,
   FaPassport,
   FaPlaneDeparture,
@@ -79,15 +78,15 @@ const sections = [
         icon: FaFolderOpen,
         permission: "complaints:read",
       },
-      { label: "Customers", to: "/customers", icon: FaUsers },
-      { label: "Campaigns", to: "/campaigns", icon: FaChartPie },
-      { label: "Notifications", to: "/notifications", icon: FaBell },
+      { label: "Customers", to: "/customers", icon: FaUsers, permission: "customers:read" },
+      // { label: "Campaigns", to: "/campaigns", icon: FaChartPie, permission: "campaigns:read" },
+      { label: "Notifications", to: "/notifications", icon: FaBell, permission: "notifications:read" },
     ],
   },
   {
     title: "Finance & Insights",
     items: [
-      { label: "Finance System", to: "/finance-system", icon: FaChartPie },
+      { label: "Finance System", to: "/finance-system", icon: FaChartPie, permission: "reports:read" },
       {
         label: "Reports",
         to: "/reports",
@@ -99,7 +98,7 @@ const sections = [
   {
     title: "System",
     items: [
-      { label: "Users", to: "/users", icon: FaUsers },
+      { label: "Users", to: "/users", icon: FaUsers, permission: "users:read" },
       {
         label: "Settings",
         to: "/settings",
@@ -129,7 +128,7 @@ const Sidebar: React.FC<{
         </div>
         {!collapsed ? (
           <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
-            GetFares CRM
+            Get2Vacation CRM
           </span>
         ) : null}
         <button

@@ -21,6 +21,16 @@ function createLeadsController({ service }) {
       res.status(201).json({ data: result });
     },
 
+    async publicCapture(req, res) {
+      const payload = {
+        ...req.validated.body,
+        source: req.validated.body.source || "website",
+        status: req.validated.body.status || "OPEN",
+      };
+      const result = await service.create(payload, req.context);
+      res.status(201).json({ data: result });
+    },
+
     async update(req, res) {
       const result = await service.update(
         req.validated.params.id,

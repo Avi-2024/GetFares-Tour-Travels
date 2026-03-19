@@ -29,6 +29,7 @@ import { validateBookingTransition } from '../../utils/workflowValidation'
 import { useBookingsService } from '../../hooks/useBookingsService'
 import { quotationsApi } from '../../api/quotations'
 import { leadsApi } from '../../api/leads'
+import { getApiErrorMessage } from '../../api/apiClient'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -225,7 +226,7 @@ const CreateBookingModal = ({
       setQuotationOptions(options)
     } catch (error) {
       console.error('Failed to load quotations:', error)
-      setQuotationError('Failed to load quotations')
+      setQuotationError(getApiErrorMessage(error, 'Failed to load quotations'))
       setQuotationOptions([])
     } finally {
       setQuotationLoading(false)
@@ -408,7 +409,9 @@ const CreateBookingModal = ({
       }
     } catch (error) {
       console.error('Failed to load quotation:', error)
-      setQuotationError('Failed to load quotation details')
+      setQuotationError(
+        getApiErrorMessage(error, 'Failed to load quotation details')
+      )
     } finally {
       setQuotationAutofillLoading(false)
     }
@@ -1291,8 +1294,8 @@ const BookingsPage: React.FC = () => {
       setStats(calculateStats(mapped))
     } catch (err) {
       console.error('Failed to load bookings:', err)
-      setError('Failed to load bookings')
-      setStatsError('Failed to load booking stats')
+      setError(getApiErrorMessage(err, 'Failed to load bookings'))
+      setStatsError(getApiErrorMessage(err, 'Failed to load booking stats'))
       setBookingItems([])
     } finally {
       setLoading(false)
@@ -1319,7 +1322,10 @@ const BookingsPage: React.FC = () => {
       showToast('Confirmation sent successfully', 'success')
     } catch (error) {
       console.error('Failed to send confirmation:', error)
-      showToast('Failed to send confirmation', 'error')
+      showToast(
+        getApiErrorMessage(error, 'Failed to send confirmation'),
+        'error'
+      )
     } finally {
       setLoading(false)
     }
@@ -1341,7 +1347,7 @@ const BookingsPage: React.FC = () => {
       // Update local state would go here
     } catch (error) {
       console.error('Failed to record payment:', error)
-      showToast('Failed to record payment', 'error')
+      showToast(getApiErrorMessage(error, 'Failed to record payment'), 'error')
     } finally {
       setLoading(false)
     }
@@ -1354,7 +1360,10 @@ const BookingsPage: React.FC = () => {
       showToast('Invoice generated successfully', 'success')
     } catch (error) {
       console.error('Failed to generate invoice:', error)
-      showToast('Failed to generate invoice', 'error')
+      showToast(
+        getApiErrorMessage(error, 'Failed to generate invoice'),
+        'error'
+      )
     } finally {
       setLoading(false)
     }
@@ -1395,7 +1404,7 @@ const BookingsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to create booking:', error)
-      showToast('Failed to create booking', 'error')
+      showToast(getApiErrorMessage(error, 'Failed to create booking'), 'error')
     } finally {
       setLoading(false)
     }
@@ -1427,7 +1436,7 @@ const BookingsPage: React.FC = () => {
       showToast('Booking cancelled successfully', 'success')
     } catch (error) {
       console.error('Failed to cancel booking:', error)
-      showToast('Failed to cancel booking', 'error')
+      showToast(getApiErrorMessage(error, 'Failed to cancel booking'), 'error')
     } finally {
       setLoading(false)
     }

@@ -13,12 +13,68 @@ import {
   FaShieldAlt,
   FaUserCheck
 } from 'react-icons/fa'
-import { authApi } from '../../api'
-import { isApiError } from '../../api/apiClient'
+import { authApi, rbacApi } from '../../api'
+import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 
 const DEMO_EMAIL = 'admin@travel-crm.com'
 const DEMO_PASSWORD = 'admin@123'
+
+const normalizePermissionKey = (permission: string) =>
+  String(permission || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, ':')
+
+const hasPermission = (grantedPermissions: string[], required: string) => {
+  const requiredKey = normalizePermissionKey(required)
+  const normalized = grantedPermissions
+    .map(normalizePermissionKey)
+    .filter(Boolean)
+
+  return normalized.some((permission) => {
+    if (permission === '*' || permission === requiredKey) return true
+    if (permission.endsWith(':*')) {
+      const scope = permission.slice(0, -2)
+      return requiredKey.startsWith(`${scope}:`)
+    }
+    if (permission.endsWith(':write')) {
+      const scope = permission.slice(0, -6)
+      return (
+        requiredKey === `${scope}:read` ||
+        requiredKey === `${scope}:create` ||
+        requiredKey === `${scope}:update` ||
+        requiredKey === `${scope}:delete` ||
+        requiredKey === `${scope}:write`
+      )
+    }
+    return false
+  })
+}
+
+const resolveLandingRoute = (permissions: string[]) => {
+  const routeOrder: Array<{ permission: string; to: string }> = [
+    { permission: 'reports:read', to: '/dashboard' },
+    { permission: 'leads:read', to: '/leads' },
+    { permission: 'quotations:read', to: '/quotations' },
+    { permission: 'bookings:read', to: '/bookings' },
+    { permission: 'payments:read', to: '/payments' },
+    { permission: 'refunds:read', to: '/refunds' },
+    { permission: 'visa:read', to: '/visa' },
+    { permission: 'campaigns:read', to: '/campaigns' },
+    { permission: 'customers:read', to: '/customers' },
+    { permission: 'complaints:read', to: '/complaints' },
+    { permission: 'users:read', to: '/users' },
+    { permission: 'settings:read', to: '/settings' }
+  ]
+
+  for (const candidate of routeOrder) {
+    if (hasPermission(permissions, candidate.permission)) {
+      return candidate.to
+    }
+  }
+  return '/dashboard'
+}
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false)
@@ -79,23 +135,12 @@ const Login = () => {
         roleId: data.user.roleId
       })
       await refreshPermissions(data.accessToken)
-      const roleRoutes: Record<string, string> = {
-        admin: '/dashboard',
-        manager: '/dashboard',
-        sales_consultant: '/dashboard',
-        visa_executive: '/visa',
-        accounts: '/payments',
-        marketing: '/campaigns',
-        operations: '/operations',
-        management: '/reports'
-      }
-      navigate(roleRoutes[userRole ?? ''] ?? '/dashboard')
+      const permissionsResponse = await rbacApi.myPermissions().catch(() => null)
+      const permissions = permissionsResponse?.data?.permissions ?? []
+      await refreshPermissions(data.accessToken)
+      navigate(resolveLandingRoute(permissions))
     } catch (err) {
-      if (isApiError(err)) {
-        setApiError(err.message || 'Unable to sign in. Please try again.')
-      } else {
-        setApiError('Unable to sign in right now. Please try again.')
-      }
+      setApiError(getApiErrorMessage(err, 'Unable to sign in right now. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -218,7 +263,7 @@ const Login = () => {
                 </div>
                 <div className='flex flex-col'>
                   <span className='text-2xl font-black tracking-tighter text-white uppercase'>
-                    GetFares <span className='text-blue-500'>CRM</span>
+                    Get2Vacation <span className='text-blue-500'>CRM</span>
                   </span>
                   <span className='text-[10px] font-bold tracking-[0.4em] text-blue-400/70 uppercase'>
                     Travel Intelligence
@@ -296,7 +341,7 @@ const Login = () => {
                   </div>
                   <div>
                     <p className='text-xs font-semibold uppercase tracking-[0.2em] text-blue-600'>
-                      GetFares CRM
+                      Get2Vacation CRM
                     </p>
                     <p className='text-lg font-semibold text-slate-900'>
                       Sign in to continue
@@ -407,7 +452,7 @@ const Login = () => {
               </div>
 
               <p className='mt-6 text-center text-xs text-slate-400'>
-                Powered by GetFares Tour & Travels CRM
+                Powered by Get2Vacation Tour & Travels CRM
               </p>
             </div>
           </section>

@@ -13,7 +13,7 @@ import { DateInput } from "../../components/form";
 import FilterTabs from "../../components/ui/FilterTabs";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { reportsApi } from "../../api/reports";
-import { isApiError } from "../../api/apiClient";
+import { getApiErrorMessage } from "../../api/apiClient";
 
 type ReportTabId =
   | "dashboard_executive_kpis"
@@ -300,7 +300,7 @@ const ReportsHubPage = () => {
         setRows(mappedRows.length > 0 ? mappedRows : fallbackRowsByTab[tab]);
       } catch (err) {
         if (cancelled) return;
-        const message = isApiError(err) ? err.message : "Failed to load report data";
+        const message = getApiErrorMessage(err, "Failed to load report data");
         setError(message);
         setRows(fallbackRowsByTab[tab]);
       } finally {

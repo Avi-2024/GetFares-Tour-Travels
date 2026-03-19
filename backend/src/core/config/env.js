@@ -16,6 +16,8 @@ const envSchema = z.object({
     .min(128)
     .default("super-secret-key-minimum-16-chars"),
   JWT_ACCESS_EXPIRES_IN: z.string().default("7d"),
+  AUTH_DEFAULT_ROLE: z.string().default("sales_consultant"),
+  RBAC_PERMISSION_CACHE_TTL_SEC: z.coerce.number().int().positive().default(60),
   DATABASE_URL: z.string().optional(),
   LOG_LEVEL: z.string().default("info"),
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),

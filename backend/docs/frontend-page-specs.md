@@ -4,7 +4,7 @@
 
 | Item             | Value                                                                              |
 | ---------------- | ---------------------------------------------------------------------------------- |
-| Product          | Getfares Holidays and Visa CRM                                                     |
+| Product          | Get2Vacation Holidays and Visa CRM                                                     |
 | Document Type    | Frontend Master Specification                                                      |
 | Version          | 2.0                                                                                |
 | Date             | 2026-03-13                                                                         |

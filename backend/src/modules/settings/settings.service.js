@@ -1,8 +1,8 @@
 import { AppError } from "../../core/errors/index.js";
 
 const DEFAULT_SYSTEM_SETTINGS = Object.freeze({
-  companyName: "GetFares Travel CRM",
-  supportEmail: "support@getfares.com",
+  companyName: "Get2Vacation Travel CRM",
+  supportEmail: "support@Get2Vacation.com",
   supportPhone: "",
   timezone: "Asia/Kolkata",
   currency: "INR",

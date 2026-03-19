@@ -18,6 +18,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import { validateQuoteTransition } from "../../utils/workflowValidation";
 import { quotationsApi } from "../../api/quotations";
 import { leadsApi } from "../../api/leads";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
 type Status = "pending" | "accepted" | "expired" | "rejected" | "draft";
@@ -272,13 +273,7 @@ const QuotationsPage: React.FC = () => {
         }
       } catch (error: any) {
         console.error('Failed to load quotations:', error);
-        
-        // Check if it's an auth error
-        if (error.status === 401 || error.message?.includes('token')) {
-          setError('Authentication failed. Please login again.');
-        } else {
-          setError('Failed to load quotations.');
-        }
+        setError(getApiErrorMessage(error, 'Failed to load quotations.'));
         
         // No fallback data on error
         setQuotations([]);
@@ -377,7 +372,7 @@ const QuotationsPage: React.FC = () => {
       setError('');
     } catch (error) {
       console.error('Failed to reject quotation:', error);
-      setError('Failed to reject quotation');
+      setError(getApiErrorMessage(error, 'Failed to reject quotation'));
     } finally {
       setLoading(false);
     }
@@ -417,7 +412,7 @@ const QuotationsPage: React.FC = () => {
       setError('');
     } catch (error) {
       console.error('Failed to send via WhatsApp:', error);
-      setError('Failed to send quotation via WhatsApp');
+      setError(getApiErrorMessage(error, 'Failed to send quotation via WhatsApp'));
     } finally {
       setLoading(false);
     }
@@ -430,7 +425,7 @@ const QuotationsPage: React.FC = () => {
       setError('');
     } catch (error) {
       console.error('Failed to generate PDF:', error);
-      setError('Failed to generate PDF');
+      setError(getApiErrorMessage(error, 'Failed to generate PDF'));
     } finally {
       setLoading(false);
     }

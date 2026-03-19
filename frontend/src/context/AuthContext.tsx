@@ -34,6 +34,12 @@ const STORAGE_TOKEN = "auth_token";
 const STORAGE_USER = "auth_user";
 const STORAGE_PERMISSIONS = "auth_permissions";
 
+const normalizePermissionKey = (permission: string) =>
+  String(permission || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, ":");
+
 const parseTokenExpiryMs = (token: string): number | null => {
   if (typeof window === "undefined" || !token) return null;
 
@@ -54,29 +60,6 @@ const parseTokenExpiryMs = (token: string): number | null => {
   }
 };
 
-const DEFAULT_PERMISSIONS = [
-  "users:read",
-  "users:create",
-  "users:update",
-  "leads.read",
-  "leads.write",
-  "quotations.read",
-  "quotations.write",
-  "bookings.read",
-  "bookings.write",
-  "payments.read",
-  "payments.write",
-  "refunds.read",
-  "refunds.write",
-  "visa.read",
-  "visa.write",
-  "complaints.read",
-  "complaints.write",
-  "reports.read",
-  "notifications.read",
-  "settings.read",
-];
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string>(
     () => localStorage.getItem(STORAGE_TOKEN) ?? "",
@@ -95,14 +78,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     async (customToken?: string) => {
       const activeToken = customToken || token;
       if (!activeToken) return;
-      if (user?.role === "admin") {
-        setPermissions(DEFAULT_PERMISSIONS);
-        localStorage.setItem(
-          STORAGE_PERMISSIONS,
-          JSON.stringify(DEFAULT_PERMISSIONS),
-        );
-        return;
-      }
       setLoadingPermissions(true);
       try {
         const response = await rbacApi.myPermissions();
@@ -111,19 +86,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             ?.permissions ??
           (response as { permissions?: string[] }).permissions ??
           [];
-        setPermissions(next);
-        localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(next));
+        const normalized = next.map(normalizePermissionKey).filter(Boolean);
+        setPermissions(normalized);
+        localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(normalized));
       } catch {
-        setPermissions(DEFAULT_PERMISSIONS);
-        localStorage.setItem(
-          STORAGE_PERMISSIONS,
-          JSON.stringify(DEFAULT_PERMISSIONS),
-        );
+        setPermissions([]);
+        localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify([]));
       } finally {
         setLoadingPermissions(false);
       }
     },
-    [token, user?.role],
+    [token],
   );
 
   useEffect(() => {
@@ -137,14 +110,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
     setToken(nextToken);
     setUser(nextUser);
-
-    if (nextUser.role === "admin") {
-      setPermissions(DEFAULT_PERMISSIONS);
-      localStorage.setItem(
-        STORAGE_PERMISSIONS,
-        JSON.stringify(DEFAULT_PERMISSIONS),
-      );
-    }
   };
 
   const logout = useCallback(() => {
@@ -183,9 +148,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [token, logout]);
 
   const hasPermission = useCallback(
-    (permission: string) =>
-      user?.role === "admin" ? true : permissions.includes(permission),
-    [permissions, user],
+    (permission: string) => {
+      const required = normalizePermissionKey(permission);
+      if (!required) {
+        return true;
+      }
+
+      const granted = permissions.map(normalizePermissionKey).filter(Boolean);
+      return granted.some((item) => {
+        if (item === "*" || item === required) {
+          return true;
+        }
+
+        if (item.endsWith(":*")) {
+          const scope = item.slice(0, -2);
+          return required.startsWith(`${scope}:`);
+        }
+
+        if (item.endsWith(":write")) {
+          const scope = item.slice(0, -6);
+          return (
+            required === `${scope}:read` ||
+            required === `${scope}:create` ||
+            required === `${scope}:update` ||
+            required === `${scope}:delete` ||
+            required === `${scope}:write`
+          );
+        }
+
+        return false;
+      });
+    },
+    [permissions],
   );
 
   const value = useMemo(

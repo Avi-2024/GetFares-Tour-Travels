@@ -24,6 +24,7 @@ import {
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { dashboardApi } from "../../api/dashboard";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
 // Type definitions
@@ -135,14 +136,9 @@ const Dashboard: React.FC = () => {
         setError('');
       } catch (error: any) {
         console.error('Failed to load dashboard data:', error);
-        
-        if (error.status === 401 || error.message?.includes('token')) {
-          setError('Authentication failed. Please login again.');
-        } else if (error.status === 404) {
-          setError('Dashboard API endpoints not found. Please check backend server.');
-        } else {
-          setError('Failed to load dashboard data. Using offline data.');
-        }
+        setError(
+          getApiErrorMessage(error, 'Failed to load dashboard data. Using offline data.'),
+        );
         
         // Use fallback data
         if (!dashboardStats) {

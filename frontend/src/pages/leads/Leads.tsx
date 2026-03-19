@@ -15,7 +15,7 @@ import {
 import EmptyState from "../../components/ui/EmptyState";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
-import { isApiError } from "../../api/apiClient";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import type { LeadListItem } from "../../services/leadsService";
 
@@ -70,10 +70,7 @@ const Leads: React.FC = () => {
         });
         setFetchedLeads(mapped);
       } catch (err) {
-        const msg = isApiError(err)
-          ? err.message || "Failed to load leads"
-          : "Failed to load leads";
-        setError(msg);
+        setError(getApiErrorMessage(err, "Failed to load leads"));
         setFetchedLeads([]);
       } finally {
         setLoading(false);

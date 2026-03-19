@@ -1,4 +1,4 @@
-Getfares Tour & Travel CRM
+Get2Vacation Tour & Travel CRM
 Module A: Complete System Overview
 Business Requirements
 • Provide an all-in-one CRM for Tour & Travel companies.

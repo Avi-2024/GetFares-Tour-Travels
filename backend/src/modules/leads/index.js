@@ -31,6 +31,7 @@ function createLeadsModule({ dependencies }) {
     validation: LeadsValidation,
     validateRequest: dependencies.middlewares.validateRequest,
     requireAuth: dependencies.middlewares.requireAuth,
+    optionalAuth: dependencies.middlewares.optionalAuth,
     authorize: dependencies.middlewares.authorize,
   });
 

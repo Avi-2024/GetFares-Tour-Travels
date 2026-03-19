@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "GetFares CRM - Webhooks",
+    "name": "Get2Vacation CRM - Webhooks",
     "description": "Webhook endpoints for Meta/Website/WhatsApp lead capture",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

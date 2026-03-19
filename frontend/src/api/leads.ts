@@ -33,9 +33,9 @@ export const leadsApi = {
   getFollowups: (id: string) => apiRequest<any>(`/api/leads/${id}/followups`),
   getTimeline: (id: string) => apiRequest<any>(`/api/leads/${id}/timeline`),
   markAsLost: (id: string, reason: string, notes?: string) =>
-    apiRequest<any>(`/api/leads/${id}/lost`, {
-      method: "POST",
-      body: { reason, notes },
+    apiRequest<any>(`/api/leads/${id}`, {
+      method: "PATCH",
+      body: { status: "LOST", closedReason: reason, notes },
     }),
   checkDuplicate: async (email?: string, phone?: string) => {
     if (!email && !phone) {
@@ -66,5 +66,8 @@ export const leadsApi = {
     apiRequest<any>("/api/leads/sla/process-breaches", { method: "POST" }),
   getSlaStatus: (id: string) => apiRequest<any>(`/api/leads/${id}/sla-status`),
   publicCapture: (payload: unknown) =>
-    apiRequest<any>("/api/leads/public-capture", { method: "POST", body: payload }),
+    apiRequest<any>("/api/webhooks/website-enquiry", {
+      method: "POST",
+      body: payload,
+    }),
 };

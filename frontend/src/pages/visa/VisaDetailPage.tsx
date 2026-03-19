@@ -25,6 +25,7 @@ import Timeline from "../../components/ui/Timeline";
 import EmptyState from "../../components/ui/EmptyState";
 import { validateVisaTransition } from "../../utils/workflowValidation";
 import { visaApi } from "../../api/visa";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
 // Types
@@ -496,7 +497,7 @@ const VisaDetailPage = () => {
         setChecklist(mapChecklist(checklistPayload || {}));
       } catch (err) {
         console.error("Failed to load visa case:", err);
-        setPageError("Failed to load visa case.");
+        setPageError(getApiErrorMessage(err, "Failed to load visa case."));
       } finally {
         setLoading(false);
       }
@@ -584,7 +585,7 @@ const VisaDetailPage = () => {
       return true;
     } catch (err) {
       console.error("Failed to update status:", err);
-      showToast("Failed to update status", "error");
+      showToast(getApiErrorMessage(err, "Failed to update status"), "error");
       return false;
     } finally {
       setSavingStatus(false);
@@ -656,7 +657,7 @@ const VisaDetailPage = () => {
       showToast("Document verified successfully", "success");
     } catch (err) {
       console.error("Failed to verify document:", err);
-      showToast("Failed to verify document", "error");
+      showToast(getApiErrorMessage(err, "Failed to verify document"), "error");
     }
   };
 
@@ -717,7 +718,7 @@ const VisaDetailPage = () => {
       showToast("Document uploaded successfully", "success");
     } catch (err) {
       console.error("Failed to upload document:", err);
-      showToast("Failed to upload document", "error");
+      showToast(getApiErrorMessage(err, "Failed to upload document"), "error");
     }
   };
 
@@ -747,7 +748,7 @@ const VisaDetailPage = () => {
           item.id === fieldId ? { ...item, completed: currentItem.completed } : item,
         ),
       );
-      showToast("Failed to update checklist", "error");
+      showToast(getApiErrorMessage(err, "Failed to update checklist"), "error");
     }
   };
 

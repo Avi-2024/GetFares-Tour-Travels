@@ -10,7 +10,7 @@ import {
   FaXmark,
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
-import { isApiError } from "../../api/apiClient";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { DESTINATIONS } from "../../data/staticLists";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { useCampaignsService } from "../../hooks/useCampaignsService";
@@ -274,11 +274,7 @@ const CreateLead: React.FC = () => {
         navigate("/leads");
       } catch (error) {
         console.error("Failed to create lead:", error);
-        if (isApiError(error)) {
-          setApiError(error.message || "Could not create lead.");
-        } else {
-          setApiError("Could not create lead.");
-        }
+        setApiError(getApiErrorMessage(error, "Could not create lead."));
         setLoading(false);
       }
     }

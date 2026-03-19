@@ -45,19 +45,23 @@ export const createLeadsDatasource = (client: HttpClient) => ({
   getFollowups: (id: string) => client.get(`/api/leads/${id}/followups`),
   getTimeline: (id: string) => client.get(`/api/leads/${id}/timeline`),
   markAsLost: (id: string, reason: string, notes?: string) =>
-    client.post(`/api/leads/${id}/lost`, { reason, notes }),
+    client.patch(`/api/leads/${id}`, {
+      status: "LOST",
+      closedReason: reason,
+      notes,
+    }),
   checkDuplicate: (email?: string, phone?: string) =>
     client.get<LeadsListResponse>("/api/leads", {
       params: { email, phone, page: 1, limit: 1 },
     }),
-  getCampaigns: () => client.get("/api/campaigns/active"),
+  getCampaigns: () => client.get("/api/campaigns", { params: { status: "ACTIVE" } }),
   getDestinations: () => client.get("/api/destinations"),
   distribute: () => client.post("/api/leads/distribute"),
   reassignInactive: () => client.post("/api/leads/reassign-inactive"),
   processSlaBreaches: () => client.post("/api/leads/sla/process-breaches"),
   getSlaStatus: (id: string) => client.get(`/api/leads/${id}/sla-status`),
   publicCapture: (payload: unknown) =>
-    client.post("/api/leads/public-capture", payload, { skipAuth: true }),
+    client.post("/api/webhooks/website-enquiry", payload, { skipAuth: true }),
 });
 
 export type LeadsDatasource = ReturnType<typeof createLeadsDatasource>;

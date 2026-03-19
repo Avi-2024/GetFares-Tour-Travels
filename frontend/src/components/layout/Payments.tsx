@@ -25,6 +25,7 @@ import { FaEdit } from "react-icons/fa";
 import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
 import { paymentsApi } from "../../api/payments";
+import { getApiErrorMessage } from "../../api/apiClient";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
 type PaymentMode = "bank" | "card" | "cash" | "cheque" | "online";
@@ -1146,7 +1147,7 @@ const Payments: React.FC = () => {
       setTransactions(rows);
     } catch (err) {
       console.error("Failed to load payments:", err);
-      setTransactionsError("Failed to load payments");
+      setTransactionsError(getApiErrorMessage(err, "Failed to load payments"));
       setTransactions([]);
     } finally {
       setTransactionsLoading(false);
@@ -1171,7 +1172,7 @@ const Payments: React.FC = () => {
       });
     } catch (err) {
       console.error("Failed to load payment stats:", err);
-      setStatsError("Failed to load payment stats");
+      setStatsError(getApiErrorMessage(err, "Failed to load payment stats"));
     } finally {
       setStatsLoading(false);
     }
@@ -1222,7 +1223,7 @@ const Payments: React.FC = () => {
       await fetchStats();
     } catch (err) {
       console.error("Failed to verify payment:", err);
-      showToast("Failed to verify payment", "error");
+      showToast(getApiErrorMessage(err, "Failed to verify payment"), "error");
     }
   };
 
@@ -1273,7 +1274,7 @@ const Payments: React.FC = () => {
       await fetchStats();
     } catch (err) {
       console.error("Failed to update payment:", err);
-      showToast("Failed to update payment", "error");
+      showToast(getApiErrorMessage(err, "Failed to update payment"), "error");
     }
   };
 
@@ -1298,7 +1299,7 @@ const Payments: React.FC = () => {
       await fetchStats();
     } catch (err) {
       console.error("Failed to add payment:", err);
-      showToast("Failed to add payment", "error");
+      showToast(getApiErrorMessage(err, "Failed to add payment"), "error");
     }
   };
 

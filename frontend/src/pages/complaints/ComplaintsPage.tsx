@@ -8,6 +8,7 @@ import { complaintsApi } from "../../api/complaints";
 import { bookingsApi } from "../../api/bookings";
 import { quotationsApi } from "../../api/quotations";
 import { leadsApi } from "../../api/leads";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useUsersService } from "../../hooks/useUsersService";
 
 const UUID_PATTERN =
@@ -149,11 +150,14 @@ const ComplaintsPage = () => {
         } else if (Array.isArray(response)) {
           setRows(response);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Failed to fetch complaints:', err);
-        if (err?.status === 401) {
-          setError('Authentication required. Please login to view complaints.');
-        }
+        setError(
+          getApiErrorMessage(
+            err,
+            "Authentication required. Please login to view complaints.",
+          ),
+        );
         // Keep using seed data on error
       } finally {
         setLoading(false);
@@ -350,22 +354,14 @@ const ComplaintsPage = () => {
           status: "OPEN",
         });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to create complaint:', err);
-      if (err?.status === 401) {
-        setError('Authentication required. Please login to create complaints.');
-      } else {
-        const backendBodyErrors =
-          (err?.details as any)?.error?.details?.fieldErrors?.body;
-        const backendMessage = (err?.details as any)?.error?.message;
-        if (Array.isArray(backendBodyErrors) && backendBodyErrors.length > 0) {
-          setError(backendBodyErrors.join(", "));
-        } else if (typeof backendMessage === "string" && backendMessage) {
-          setError(backendMessage);
-        } else {
-          setError(err?.message || "Failed to create complaint. Please try again.");
-        }
-      }
+      setError(
+        getApiErrorMessage(
+          err,
+          "Failed to create complaint. Please try again.",
+        ),
+      );
     } finally {
       setLoading(false);
     }

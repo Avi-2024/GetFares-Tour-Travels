@@ -47,63 +47,88 @@ function App() {
         {/* Dashboard Layout */}
         <Route element={<PermissionRoute />}>
           <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-
-            <Route path="/leads" element={<Leads />} />
-            <Route path="/leads/:id" element={<LeadsDetail />} />
-            <Route path="/leads-details" element={<LeadsDetail />} />
-            <Route path="/create-lead" element={<CreateLead />} />
-            <Route
-              path="/public/lead-capture"
-              element={<PublicLeadCapturePage />}
-            />
-
-            <Route path="/bookings" element={<BookingsPage />} />
-            <Route path="/bookings/:id" element={<BookingDetailPage />} />
-
-            <Route path="/quotations" element={<QuotationsPage />} />
-            <Route
-              path="/quotations/builder"
-              element={<QuotationBuilderPage />}
-            />
-            <Route path="/quotations/:id" element={<QuotationDetailPage />} />
-            <Route
-              path="/quotations/templates"
-              element={<QuotationTemplatesPage />}
-            />
-
-            <Route path="/settings" element={<Settings />} />
-
-            <Route path="/payments" element={<Payments />} />
-
-            <Route path="/refunds" element={<RefundsPage />} />
-
-            <Route path="/visa" element={<VisaCasesPage />} />
-            <Route path="/visa/:id" element={<VisaDetailPage />} />
-
-            <Route path="/complaints" element={<ComplaintsPage />} />
-            <Route path="/complaints/:id" element={<ComplaintDetailPage />} />
-
-            <Route path="/reports" element={<ReportsHubPage />} />
-
-            <Route path="/campaigns" element={<CampaignsPage />} />
-
-            <Route path="/customers" element={<CustomersPage />} />
-            <Route path="/customers/new" element={<NewCustomerPage />} />
-            <Route path="/customers/:id" element={<CustomerDetailPage />} />
-
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-
-            <Route
-              element={
-                <PermissionRoute permission="users:read" roles={["admin"]} />
-              }
-            >
-              <Route path="/users" element={<UsersPage />} />
+            <Route element={<PermissionRoute permission="reports:read" />}>
+              <Route path="/dashboard" element={<Dashboard />} />
             </Route>
 
-            <Route path="/finance-system" element={<FinanceSystem />} />
+            <Route element={<PermissionRoute permission="leads:read" />}>
+              <Route path="/leads" element={<Leads />} />
+              <Route path="/leads/:id" element={<LeadsDetail />} />
+              <Route path="/leads-details" element={<LeadsDetail />} />
+            </Route>
+            <Route element={<PermissionRoute permission="leads:create" />}>
+              <Route path="/create-lead" element={<CreateLead />} />
+              <Route
+                path="/public/lead-capture"
+                element={<PublicLeadCapturePage />}
+              />
+            </Route>
+
+            <Route element={<PermissionRoute permission="bookings:read" />}>
+              <Route path="/bookings" element={<BookingsPage />} />
+              <Route path="/bookings/:id" element={<BookingDetailPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="quotations:read" />}>
+              <Route path="/quotations" element={<QuotationsPage />} />
+              <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+              <Route
+                path="/quotations/templates"
+                element={<QuotationTemplatesPage />}
+              />
+            </Route>
+            <Route element={<PermissionRoute permission="quotations:create" />}>
+              <Route
+                path="/quotations/builder"
+                element={<QuotationBuilderPage />}
+              />
+            </Route>
+
+            <Route element={<PermissionRoute permission="settings:read" />}>
+              <Route path="/settings" element={<Settings />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="payments:read" />}>
+              <Route path="/payments" element={<Payments />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="refunds:read" />}>
+              <Route path="/refunds" element={<RefundsPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="visa:read" />}>
+              <Route path="/visa" element={<VisaCasesPage />} />
+              <Route path="/visa/:id" element={<VisaDetailPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="complaints:read" />}>
+              <Route path="/complaints" element={<ComplaintsPage />} />
+              <Route path="/complaints/:id" element={<ComplaintDetailPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="reports:read" />}>
+              <Route path="/reports" element={<ReportsHubPage />} />
+              <Route path="/finance-system" element={<FinanceSystem />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="campaigns:read" />}>
+              <Route path="/campaigns" element={<CampaignsPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="customers:read" />}>
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/customers/new" element={<NewCustomerPage />} />
+              <Route path="/customers/:id" element={<CustomerDetailPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="notifications:read" />}>
+              <Route path="/notifications" element={<NotificationsPage />} />
+            </Route>
+            <Route path="/profile" element={<ProfilePage />} />
+
+            <Route element={<PermissionRoute permission="users:read" />}>
+              <Route path="/users" element={<UsersPage />} />
+            </Route>
           </Route>
         </Route>
       </Routes>

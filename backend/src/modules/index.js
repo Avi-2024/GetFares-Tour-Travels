@@ -37,9 +37,14 @@ function registerModules(app, dependencies) {
   const rbacModule = createRbacModule({ dependencies: dependenciesWithAuth });
   mountedModules.rbac = rbacModule;
   app.use("/api/rbac", rbacModule.router);
+  app.use("/api/permissions", rbacModule.permissionsRouter);
+  app.use("/api/roles", rbacModule.rolesRouter);
 
   const featureDependencies = {
     ...dependenciesWithAuth,
+    services: {
+      rbac: rbacModule.service,
+    },
     middlewares: {
       ...dependenciesWithAuth.middlewares,
       authorize: rbacModule.middleware.authorize,

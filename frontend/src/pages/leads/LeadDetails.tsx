@@ -1,25 +1,45 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLeadsService } from "../../hooks/useLeadsService";
 import { validateLeadTransition } from "../../utils/workflowValidation";
+import { getApiErrorMessage } from "../../api/apiClient";
+
+const parseStoredLead = (raw: string | null) => {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as any;
+  } catch {
+    return null;
+  }
+};
 
 const LeadDetails: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const location = useLocation();
+  const leadsService = useLeadsService();
   const stored =
     id && typeof window !== "undefined"
       ? sessionStorage.getItem(`lead:${id}`)
       : null;
-  const storedLead = stored ? (JSON.parse(stored) as any) : null;
-  const lead =
-    (location.state as { lead?: any } | null)?.lead ?? storedLead ?? null;
+  const storedLead = parseStoredLead(stored);
+  const routeLead = (location.state as { lead?: any } | null)?.lead ?? null;
+  const [lead, setLead] = useState<any>(routeLead ?? storedLead ?? null);
+  const [isLoadingLead, setIsLoadingLead] = useState(false);
+  const [loadLeadError, setLoadLeadError] = useState("");
 
   const mapLeadStatus = (value?: string) => {
     const normalized = String(value || "").toUpperCase();
-    if (normalized === "NEW") return "NEW";
-    if (normalized === "CONTACTED") return "CONTACTED";
-    if (normalized === "QUALIFIED") return "QUALIFIED";
-    if (normalized === "LOST") return "LOST";
+    if (normalized === "OPEN" || normalized === "NEW") return "NEW";
+    if (
+      normalized === "CONTACTED" ||
+      normalized === "WIP" ||
+      normalized === "FOLLOW_UP"
+    )
+      return "CONTACTED";
+    if (normalized === "QUALIFIED" || normalized === "QUOTED" || normalized === "CONVERTED")
+      return "QUALIFIED";
+    if (normalized === "LOST" || normalized === "NON_RESPONSIVE") return "LOST";
     return "NEW";
   };
 
@@ -42,7 +62,7 @@ const LeadDetails: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const leadName = useMemo(() => {
-    const name = lead?.name ?? "Lead";
+    const name = lead?.fullName ?? lead?.name ?? "Lead";
     return String(name).trim() || "Lead";
   }, [lead]);
 
@@ -52,6 +72,67 @@ const LeadDetails: React.FC = () => {
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   }, [leadName]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    let cancelled = false;
+    const loadLead = async () => {
+      setIsLoadingLead(true);
+      setLoadLeadError("");
+
+      try {
+        const response = await leadsService.getLeadById(id);
+        const backendLead =
+          (response as { data?: { data?: any } })?.data?.data ??
+          (response as { data?: any })?.data ??
+          response;
+
+        if (!backendLead || typeof backendLead !== "object") {
+          throw new Error("Lead details are empty.");
+        }
+
+        const normalizedLead = {
+          ...(routeLead ?? storedLead ?? {}),
+          ...backendLead,
+          id: backendLead.id ?? id,
+          leadId: backendLead.leadId ?? routeLead?.leadId ?? `#${id}`,
+          name:
+            backendLead.fullName ??
+            backendLead.name ??
+            routeLead?.name ??
+            "Lead",
+          destination:
+            backendLead.destination ??
+            routeLead?.destination ??
+            (backendLead.destinationId ? `ID: ${backendLead.destinationId}` : "N/A"),
+          consultant:
+            backendLead.consultant ??
+            routeLead?.consultant ??
+            (backendLead.assignedTo ? "Assigned" : "Unassigned"),
+        };
+
+        if (cancelled) return;
+        setLead(normalizedLead);
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(`lead:${id}`, JSON.stringify(normalizedLead));
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setLoadLeadError(getApiErrorMessage(error, "Failed to load lead details."));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingLead(false);
+        }
+      }
+    };
+
+    void loadLead();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, leadsService]);
 
   useEffect(() => {
     if (!lead) return;
@@ -147,11 +228,6 @@ const LeadDetails: React.FC = () => {
       color: "text-blue-500 dark:text-blue-300",
     },
   ]);
-
-  useEffect(() => {
-    // Simulate loading - using id parameter
-    console.log("Loading lead:", id);
-  }, [id]);
 
   const markLost = () => {
     const closedReason = window.prompt(
@@ -444,10 +520,14 @@ const LeadDetails: React.FC = () => {
                   {lead?.leadId ?? `#${id}`}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <i className="fa-solid fa-globe w-4"></i> Website
+                  <i className="fa-solid fa-globe w-4"></i>{" "}
+                  {lead?.source ?? "Manual"}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <i className="fa-regular fa-clock w-4"></i> Created 2h ago
+                  <i className="fa-regular fa-clock w-4"></i>{" "}
+                  {lead?.createdAt ?
+                    `Created ${new Date(lead.createdAt).toLocaleString()}`
+                  : "Created recently"}
                 </span>
               </div>
             </div>
@@ -514,6 +594,22 @@ const LeadDetails: React.FC = () => {
             <p className="text-sm text-red-600 flex items-center gap-2 dark:text-red-200">
               <i className="fa-solid fa-circle-exclamation"></i>
               {leadError}
+            </p>
+          </div>
+        )}
+        {isLoadingLead && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
+            <p className="text-sm text-blue-600 flex items-center gap-2 dark:text-blue-200">
+              <i className="fa-solid fa-spinner fa-spin"></i>
+              Loading latest lead details...
+            </p>
+          </div>
+        )}
+        {loadLeadError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+            <p className="text-sm text-red-600 flex items-center gap-2 dark:text-red-200">
+              <i className="fa-solid fa-circle-exclamation"></i>
+              {loadLeadError}
             </p>
           </div>
         )}

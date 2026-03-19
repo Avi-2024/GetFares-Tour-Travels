@@ -10,12 +10,13 @@ import {
   FaUserPlus,
   FaUsers,
 } from "react-icons/fa6";
-import { isApiError } from "../../api/apiClient";
+import { getApiErrorMessage } from "../../api/apiClient";
 import {
   settingsApi,
   type IntegrationSettingsPayload,
   type SystemSettingsPayload,
 } from "../../api/settings";
+import { useAuth } from "../../context/AuthContext";
 import { useAuthService } from "../../hooks/useAuthService";
 import { useUsersService } from "../../hooks/useUsersService";
 import SurfaceCard from "../ui/SurfaceCard";
@@ -34,6 +35,7 @@ type UserRecord = {
   fullName: string;
   email: string;
   role?: string;
+  roleId?: string;
   isActive: boolean;
   lastActive: string;
 };
@@ -45,6 +47,8 @@ type RawUser = {
   name?: string;
   email?: string;
   role?: string;
+  roleId?: string;
+  role_id?: string;
   isActive?: boolean;
   is_active?: boolean;
   lastLogin?: string;
@@ -56,7 +60,14 @@ type RawUser = {
 type RoleOption = {
   id: string;
   name: string;
-  value: string;
+  description?: string | null;
+};
+
+type PermissionOption = {
+  id: string;
+  key: string;
+  description?: string | null;
+  isActive?: boolean;
 };
 
 type SystemSettingsForm = Required<SystemSettingsPayload>;
@@ -74,26 +85,12 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: "roles-permissions", label: "Roles & Permissions" },
   { id: "system-settings", label: "System Settings" },
   { id: "pdf-templates", label: "PDF Templates" },
-  { id: "integrations", label: "Integrations" },
+  // { id: "integrations", label: "Integrations" },
 ];
-
-const roles: RoleOption[] = [
-  { id: "admin", name: "Admin", value: "admin" },
-  { id: "manager", name: "Manager", value: "manager" },
-  { id: "sales_consultant", name: "Sales Consultant", value: "sales_consultant" },
-  { id: "visa_executive", name: "Visa Executive", value: "visa_executive" },
-  { id: "accounts", name: "Accounts", value: "accounts" },
-  { id: "marketing", name: "Marketing", value: "marketing" },
-  { id: "operations", name: "Operations", value: "operations" },
-  { id: "management", name: "Management", value: "management" },
-];
-
-const roleLabel = new Map(roles.map((r) => [r.value, r.name] as const));
-const getRoleLabel = (role?: string) => roleLabel.get(role ?? "") ?? role ?? "-";
 
 const DEFAULT_SYSTEM: SystemSettingsForm = {
-  companyName: "GetFares Travel CRM",
-  supportEmail: "support@getfares.com",
+  companyName: "Get2Vacation Travel CRM",
+  supportEmail: "support@Get2Vacation.com",
   supportPhone: "",
   timezone: "Asia/Kolkata",
   currency: "INR",
@@ -120,6 +117,12 @@ const parseDate = (value?: string) => {
   return date.toLocaleString();
 };
 
+const getRoleLabel = (
+  roleName: string | undefined,
+  roleId: string | undefined,
+  roleMap: Map<string, string>,
+) => roleName ?? roleMap.get(roleId ?? "") ?? "-";
+
 const extractRows = <T,>(response: unknown): T[] => {
   const payload = response as { data?: T[] | { data?: T[]; items?: T[] } };
   if (Array.isArray(payload?.data)) return payload.data;
@@ -145,6 +148,7 @@ const normalizeUsers = (rows: RawUser[]): UserRecord[] =>
         row.fullName || row.full_name || row.name || row.email?.split("@")[0] || "User",
       email: row.email as string,
       role: row.role,
+      roleId: row.roleId || row.role_id,
       isActive: typeof row.isActive === "boolean" ? row.isActive : row.is_active !== false,
       lastActive: parseDate(
         row.lastLogin || row.last_login || row.createdAt || row.created_at,
@@ -152,12 +156,24 @@ const normalizeUsers = (rows: RawUser[]): UserRecord[] =>
     }));
 
 const Settings: React.FC = () => {
+  const { hasPermission } = useAuth();
   const usersService = useUsersService();
   const authService = useAuthService();
   const [activeTab, setActiveTab] = useState<Tab>("user-management");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
   const [users, setUsers] = useState<UserRecord[]>([]);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [permissionsCatalog, setPermissionsCatalog] = useState<PermissionOption[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsError, setPermissionsError] = useState("");
+  const [selectedRolePermissionsRoleId, setSelectedRolePermissionsRoleId] = useState("");
+  const [selectedRolePermissions, setSelectedRolePermissions] = useState<string[]>([]);
+  const [rolePermissionCounts, setRolePermissionCounts] = useState<
+    Record<string, number>
+  >({});
+  const [loadingRolePermissions, setLoadingRolePermissions] = useState(false);
+  const [savingRolePermissions, setSavingRolePermissions] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -168,12 +184,12 @@ const Settings: React.FC = () => {
     fullName: "",
     email: "",
     password: "",
-    role: "",
+    roleId: "",
   });
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignUserId, setAssignUserId] = useState("");
-  const [assignRole, setAssignRole] = useState("");
+  const [assignRoleId, setAssignRoleId] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
 
   const [systemSettings, setSystemSettings] = useState<SystemSettingsForm>(DEFAULT_SYSTEM);
@@ -181,22 +197,144 @@ const Settings: React.FC = () => {
     useState<IntegrationSettingsForm>(DEFAULT_INTEGRATIONS);
   const [savingSystem, setSavingSystem] = useState(false);
   const [savingIntegrations, setSavingIntegrations] = useState(false);
+  const roleLabelMap = useMemo(
+    () => new Map(roles.map((role) => [role.id, role.name])),
+    [roles],
+  );
+  const canReadUsers = hasPermission("users:read");
+  const canCreateUsers = hasPermission("users:create");
+  const canUpdateUsers = hasPermission("users:update");
+  const canManageRbac = hasPermission("rbac:manage");
+  const canReadSettings = hasPermission("settings:read");
+  const canUpdateSettings = hasPermission("settings:update");
+  const visibleTabs = useMemo(
+    () =>
+      tabs.filter((tab) => {
+        if (tab.id === "user-management") return canReadUsers;
+        if (tab.id === "roles-permissions") return canManageRbac;
+        return canReadSettings;
+      }),
+    [canManageRbac, canReadSettings, canReadUsers],
+  );
 
   const loadUsers = useCallback(async () => {
+    if (!canReadUsers) {
+      setUsers([]);
+      return;
+    }
     setLoadingUsers(true);
     try {
       const response = await usersService.list();
       setUsers(normalizeUsers(extractRows<RawUser>(response)));
     } catch (e) {
-      setError(isApiError(e) ? e.message : "Unable to load users");
+      setError(getApiErrorMessage(e, "Unable to load users"));
     } finally {
       setLoadingUsers(false);
     }
-  }, [usersService]);
+  }, [canReadUsers, usersService]);
 
   useEffect(() => {
     void loadUsers();
   }, [loadUsers]);
+
+  const loadRoles = useCallback(async () => {
+    if (!canManageRbac) {
+      setRoles([]);
+      return;
+    }
+    try {
+      const rows = await authService.listRoles();
+      setRoles(
+        rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description ?? null,
+        })),
+      );
+    } catch (e) {
+      setRoles([]);
+      setError(getApiErrorMessage(e, "Unable to load roles"));
+    }
+  }, [authService, canManageRbac]);
+
+  useEffect(() => {
+    void loadRoles();
+  }, [loadRoles]);
+
+  const loadPermissions = useCallback(async () => {
+    if (!canManageRbac) {
+      setPermissionsCatalog([]);
+      setPermissionsError("");
+      return;
+    }
+
+    setPermissionsLoading(true);
+    setPermissionsError("");
+    try {
+      const rows = await authService.listPermissions();
+      const activePermissions = rows.filter(
+        (permission) => permission.isActive !== false,
+      );
+      setPermissionsCatalog(activePermissions);
+    } catch (e) {
+      setPermissionsCatalog([]);
+      setPermissionsError(getApiErrorMessage(e, "Unable to load permissions"));
+    } finally {
+      setPermissionsLoading(false);
+    }
+  }, [authService, canManageRbac]);
+
+  useEffect(() => {
+    void loadPermissions();
+  }, [loadPermissions]);
+
+  useEffect(() => {
+    if (!roles.length) {
+      setSelectedRolePermissionsRoleId("");
+      return;
+    }
+
+    const exists = roles.some((role) => role.id === selectedRolePermissionsRoleId);
+    if (!exists) {
+      setSelectedRolePermissionsRoleId(roles[0].id);
+    }
+  }, [roles, selectedRolePermissionsRoleId]);
+
+  const loadRolePermissions = useCallback(async () => {
+    if (!canManageRbac || !selectedRolePermissionsRoleId) {
+      setSelectedRolePermissions([]);
+      return;
+    }
+
+    setLoadingRolePermissions(true);
+    try {
+      const rows = await authService.getRolePermissionsById(
+        selectedRolePermissionsRoleId,
+      );
+      setSelectedRolePermissions(
+        Array.isArray(rows) ? rows : [],
+      );
+    } catch (e) {
+      setSelectedRolePermissions([]);
+      setPermissionsError(
+        getApiErrorMessage(e, "Unable to load role permissions"),
+      );
+    } finally {
+      setLoadingRolePermissions(false);
+    }
+  }, [authService, canManageRbac, selectedRolePermissionsRoleId]);
+
+  useEffect(() => {
+    void loadRolePermissions();
+  }, [loadRolePermissions]);
+
+  useEffect(() => {
+    if (!visibleTabs.length) return;
+    const stillVisible = visibleTabs.some((tab) => tab.id === activeTab);
+    if (!stillVisible) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [activeTab, visibleTabs]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -208,7 +346,7 @@ const Settings: React.FC = () => {
           setIntegrationSettings((s) => ({ ...s, ...data.integrations }));
         }
       } catch (e) {
-        setError(isApiError(e) ? e.message : "Unable to load settings");
+        setError(getApiErrorMessage(e, "Unable to load settings"));
       }
     };
     void loadSettings();
@@ -220,26 +358,72 @@ const Settings: React.FC = () => {
         const matched =
           user.fullName.toLowerCase().includes(search.toLowerCase()) ||
           user.email.toLowerCase().includes(search.toLowerCase()) ||
-          getRoleLabel(user.role).toLowerCase().includes(search.toLowerCase());
+          getRoleLabel(user.role, user.roleId, roleLabelMap)
+            .toLowerCase()
+            .includes(search.toLowerCase());
         const statusMatched =
           statusFilter === "all" ||
           (statusFilter === "active" && user.isActive) ||
           (statusFilter === "inactive" && !user.isActive);
         return matched && statusMatched;
       }),
-    [users, search, statusFilter],
+    [users, search, statusFilter, roleLabelMap],
   );
 
   const roleStats = useMemo(
-    () =>
-      roles.map((r) => ({
-        ...r,
-        users: users.filter((u) => u.role === r.value).length,
-      })),
-    [users],
+    () => {
+      const usersByRoleId = new Map<string, number>();
+      users.forEach((user) => {
+        const key = user.roleId || "";
+        if (!key) return;
+        usersByRoleId.set(key, (usersByRoleId.get(key) ?? 0) + 1);
+      });
+
+      return roles.map((role) => ({
+        ...role,
+        users: usersByRoleId.get(role.id) ?? 0,
+        permissions: rolePermissionCounts[role.id] ?? 0,
+      }));
+    },
+    [users, roles, rolePermissionCounts],
   );
 
+  const selectedRole = useMemo(
+    () => roles.find((role) => role.id === selectedRolePermissionsRoleId) ?? null,
+    [roles, selectedRolePermissionsRoleId],
+  );
+
+  const loadRolePermissionCounts = useCallback(async () => {
+    if (!canManageRbac || roles.length === 0) {
+      setRolePermissionCounts({});
+      return;
+    }
+
+    try {
+      const entries = await Promise.all(
+        roles.map(async (role) => {
+          const rolePermissions = await authService.getRolePermissionsById(role.id);
+          return [role.id, Array.isArray(rolePermissions) ? rolePermissions.length : 0] as const;
+        }),
+      );
+      setRolePermissionCounts(Object.fromEntries(entries));
+    } catch (e) {
+      setRolePermissionCounts({});
+      setPermissionsError(
+        getApiErrorMessage(e, "Unable to load role permission summary"),
+      );
+    }
+  }, [authService, canManageRbac, roles]);
+
+  useEffect(() => {
+    void loadRolePermissionCounts();
+  }, [loadRolePermissionCounts]);
+
   const onInvite = async () => {
+    if (!canCreateUsers) {
+      setError("You do not have permission to create users.");
+      return;
+    }
     setError("");
     setMessage("");
     if (!inviteForm.fullName.trim() || !inviteForm.email.trim()) {
@@ -257,24 +441,27 @@ const Settings: React.FC = () => {
           fullName: inviteForm.fullName.trim(),
           email: inviteForm.email.trim(),
           password: inviteForm.password,
+          roleId: inviteForm.roleId || undefined,
           isActive: true,
         }),
       );
-      if (created?.id && inviteForm.role) {
-        await authService.assignRole({ userId: created.id, role: inviteForm.role });
-      }
+      void created;
       setInviteOpen(false);
-      setInviteForm({ fullName: "", email: "", password: "", role: "" });
+      setInviteForm({ fullName: "", email: "", password: "", roleId: "" });
       setMessage("User invited successfully.");
       await loadUsers();
     } catch (e) {
-      setError(isApiError(e) ? e.message : "Unable to invite user");
+      setError(getApiErrorMessage(e, "Unable to invite user"));
     } finally {
       setInviteLoading(false);
     }
   };
 
   const onDeactivate = async (id: string) => {
+    if (!canUpdateUsers) {
+      setError("You do not have permission to update users.");
+      return;
+    }
     setError("");
     setMessage("");
     try {
@@ -282,25 +469,77 @@ const Settings: React.FC = () => {
       setMessage("User deactivated.");
       await loadUsers();
     } catch (e) {
-      setError(isApiError(e) ? e.message : "Unable to deactivate user");
+      setError(getApiErrorMessage(e, "Unable to deactivate user"));
     }
   };
 
   const onAssignRole = async () => {
-    if (!assignUserId || !assignRole) {
+    if (!canManageRbac) {
+      setError("You do not have permission to assign roles.");
+      return;
+    }
+    if (!assignUserId || !assignRoleId) {
       setError("Select both user and role.");
       return;
     }
     setAssignLoading(true);
     try {
-      await authService.assignRole({ userId: assignUserId, role: assignRole });
+      await authService.assignRole({ userId: assignUserId, roleId: assignRoleId });
       setAssignOpen(false);
+      setAssignUserId("");
+      setAssignRoleId("");
       setMessage("Role assigned successfully.");
       await loadUsers();
     } catch (e) {
-      setError(isApiError(e) ? e.message : "Unable to assign role");
+      setError(getApiErrorMessage(e, "Unable to assign role"));
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  const toggleRolePermission = (permissionKey: string) => {
+    setSelectedRolePermissions((prev) => {
+      if (prev.includes(permissionKey)) {
+        return prev.filter((item) => item !== permissionKey);
+      }
+      return [...prev, permissionKey].sort((left, right) =>
+        left.localeCompare(right),
+      );
+    });
+  };
+
+  const saveRolePermissions = async () => {
+    if (!canManageRbac) {
+      setError("You do not have permission to update role permissions.");
+      return;
+    }
+    if (!selectedRolePermissionsRoleId) {
+      setError("Please select a role first.");
+      return;
+    }
+
+    setSavingRolePermissions(true);
+    setError("");
+    setMessage("");
+    try {
+      await authService.updateRolePermissions(selectedRolePermissionsRoleId, {
+        replace: true,
+        permissions: selectedRolePermissions.map((key) => ({
+          key,
+          enabled: true,
+        })),
+      });
+      setRolePermissionCounts((previous) => ({
+        ...previous,
+        [selectedRolePermissionsRoleId]: selectedRolePermissions.length,
+      }));
+      setMessage("Role permissions updated.");
+      await loadPermissions();
+      await loadUsers();
+    } catch (e) {
+      setError(getApiErrorMessage(e, "Unable to update role permissions"));
+    } finally {
+      setSavingRolePermissions(false);
     }
   };
 
@@ -308,7 +547,13 @@ const Settings: React.FC = () => {
     const lines = [
       ["Name", "Email", "Role", "Status", "Last Active"].join(","),
       ...filteredUsers.map((u) =>
-        [u.fullName, u.email, getRoleLabel(u.role), u.isActive ? "Active" : "Inactive", u.lastActive]
+        [
+          u.fullName,
+          u.email,
+          getRoleLabel(u.role, u.roleId, roleLabelMap),
+          u.isActive ? "Active" : "Inactive",
+          u.lastActive,
+        ]
           .map((v) => `\"${String(v).replace(/\"/g, '\"\"')}\"`)
           .join(","),
       ),
@@ -325,6 +570,10 @@ const Settings: React.FC = () => {
   };
 
   const saveSystem = async () => {
+    if (!canUpdateSettings) {
+      setError("You do not have permission to update settings.");
+      return;
+    }
     setSavingSystem(true);
     setError("");
     try {
@@ -334,13 +583,17 @@ const Settings: React.FC = () => {
       if (data) setSystemSettings((s) => ({ ...s, ...data }));
       setMessage("System settings saved.");
     } catch (e) {
-      setError(isApiError(e) ? e.message : "Unable to save system settings");
+      setError(getApiErrorMessage(e, "Unable to save system settings"));
     } finally {
       setSavingSystem(false);
     }
   };
 
   const saveIntegrations = async () => {
+    if (!canUpdateSettings) {
+      setError("You do not have permission to update settings.");
+      return;
+    }
     setSavingIntegrations(true);
     setError("");
     try {
@@ -350,7 +603,7 @@ const Settings: React.FC = () => {
       if (data) setIntegrationSettings((s) => ({ ...s, ...data }));
       setMessage("Integration settings saved.");
     } catch (e) {
-      setError(isApiError(e) ? e.message : "Unable to save integration settings");
+      setError(getApiErrorMessage(e, "Unable to save integration settings"));
     } finally {
       setSavingIntegrations(false);
     }
@@ -361,7 +614,7 @@ const Settings: React.FC = () => {
       <SurfaceCard className="h-fit p-3">
         <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Administration</p>
         <div className="space-y-1">
-          {tabs.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -391,7 +644,9 @@ const Settings: React.FC = () => {
               <div className="ml-3 flex gap-2">
                 <button onClick={() => setStatusFilter(statusFilter === "all" ? "active" : statusFilter === "active" ? "inactive" : "all")} className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-100"><FaFilter /></button>
                 <button onClick={onExport} className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-100"><FaDownload /></button>
-                <button onClick={() => setInviteOpen(true)} className="rounded-lg bg-blue-600 px-3 py-2 text-white"><FaUserPlus /></button>
+                {canCreateUsers ? (
+                  <button onClick={() => setInviteOpen(true)} className="rounded-lg bg-blue-600 px-3 py-2 text-white"><FaUserPlus /></button>
+                ) : null}
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 px-4 pt-4 sm:grid-cols-3">
@@ -408,10 +663,18 @@ const Settings: React.FC = () => {
                   ) : filteredUsers.map((u) => (
                     <tr key={u.id}>
                       <td className="px-3 py-3"><p className="text-sm font-medium">{u.fullName}</p><p className="text-xs text-gray-500">{u.email}</p></td>
-                      <td className="px-3 py-3 text-sm">{getRoleLabel(u.role)}</td>
+                      <td className="px-3 py-3 text-sm">
+                        {getRoleLabel(u.role, u.roleId, roleLabelMap)}
+                      </td>
                       <td className="px-3 py-3 text-sm">{u.isActive ? "Active" : "Inactive"}</td>
                       <td className="px-3 py-3 text-sm text-gray-500">{u.lastActive}</td>
-                      <td className="px-3 py-3 text-right"><button disabled={!u.isActive} onClick={() => void onDeactivate(u.id)} className="text-red-500 disabled:opacity-30"><FaTrash /></button></td>
+                      <td className="px-3 py-3 text-right">
+                        {canUpdateUsers ? (
+                          <button disabled={!u.isActive} onClick={() => void onDeactivate(u.id)} className="text-red-500 disabled:opacity-30"><FaTrash /></button>
+                        ) : (
+                          <span className="text-xs text-gray-400">No access</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -422,16 +685,117 @@ const Settings: React.FC = () => {
 
         {activeTab === "roles-permissions" ? (
           <SurfaceCard>
-            <h2 className="mb-3 text-xl font-semibold">Roles & Permissions</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {roleStats.map((r) => (
-                <button key={r.id} onClick={() => { setAssignRole(r.value); setAssignOpen(true); }} className="rounded-xl border border-gray-200 p-4 text-left hover:bg-gray-50">
-                  <div className="flex items-center justify-between"><p className="font-medium">{r.name}</p><FaChevronRight className="text-gray-400" /></div>
-                  <p className="mt-1 text-sm text-gray-500">{r.users} users assigned</p>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-xl font-semibold">Roles & Permissions</h2>
+              {canManageRbac ? (
+                <button
+                  onClick={() => setAssignOpen(true)}
+                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+                >
+                  <FaPlus className="mr-2 inline" />
+                  Assign Role to User
                 </button>
-              ))}
+              ) : null}
             </div>
-            <button onClick={() => setAssignOpen(true)} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white"><FaPlus className="mr-2 inline" /> Assign Role</button>
+            {!canManageRbac ? (
+              <p className="text-sm text-gray-500">
+                You do not have permission to manage roles and permissions.
+              </p>
+            ) : (
+              <>
+                <div className="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {roleStats.map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => {
+                          setAssignRoleId(r.id);
+                          setSelectedRolePermissionsRoleId(r.id);
+                        }}
+                        className={`rounded-xl border p-4 text-left transition-colors ${
+                          selectedRolePermissionsRoleId === r.id
+                            ? "border-blue-400 bg-blue-50"
+                            : "border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between"><p className="font-medium">{r.name}</p><FaChevronRight className="text-gray-400" /></div>
+                        <p className="mt-1 text-sm text-gray-500">{r.users} users assigned</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {r.permissions} permissions enabled
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="flex flex-col gap-3">
+                      <h3 className="text-base font-semibold text-gray-900">
+                        Edit Permissions
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        {selectedRole
+                          ? `Role: ${selectedRole.name}`
+                          : "Select a role to start editing permissions."}
+                      </p>
+                      <select
+                        className="field-input"
+                        value={selectedRolePermissionsRoleId}
+                        onChange={(e) => setSelectedRolePermissionsRoleId(e.target.value)}
+                      >
+                        <option value="">Select role</option>
+                        {roles.map((role) => (
+                          <option key={role.id} value={role.id}>
+                            {role.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                      {permissionsLoading || loadingRolePermissions ? (
+                        <p className="text-sm text-gray-500">Loading permissions...</p>
+                      ) : permissionsError ? (
+                        <p className="text-sm text-red-600">{permissionsError}</p>
+                      ) : permissionsCatalog.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                          No active permissions found. Seed/create permissions first.
+                        </p>
+                      ) : (
+                        permissionsCatalog.map((permission) => (
+                          <label key={permission.id} className="flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={selectedRolePermissions.includes(permission.key)}
+                              onChange={() => toggleRolePermission(permission.key)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>{permission.key}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-2">
+                      <p className="text-xs text-gray-500">
+                        {selectedRolePermissions.length} selected
+                      </p>
+                      <button
+                        onClick={() => void saveRolePermissions()}
+                        disabled={
+                          savingRolePermissions ||
+                          !selectedRolePermissionsRoleId ||
+                          permissionsLoading ||
+                          loadingRolePermissions
+                        }
+                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      >
+                        {savingRolePermissions ? "Saving..." : "Save Permissions"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </SurfaceCard>
         ) : null}
 
@@ -444,7 +808,7 @@ const Settings: React.FC = () => {
               <div><label className="field-label">Support Phone</label><input className="field-input" value={systemSettings.supportPhone} onChange={(e) => setSystemSettings((s) => ({ ...s, supportPhone: e.target.value }))} /></div>
               <div><label className="field-label">Website URL</label><input className="field-input" value={systemSettings.websiteUrl} onChange={(e) => setSystemSettings((s) => ({ ...s, websiteUrl: e.target.value }))} /></div>
             </div>
-            <button onClick={() => void saveSystem()} disabled={savingSystem} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">{savingSystem ? "Saving..." : "Save Settings"}</button>
+            <button onClick={() => void saveSystem()} disabled={savingSystem || !canUpdateSettings} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{savingSystem ? "Saving..." : "Save Settings"}</button>
           </SurfaceCard>
         ) : null}
 
@@ -465,12 +829,12 @@ const Settings: React.FC = () => {
               <div><label className="field-label">WhatsApp API Token</label><input className="field-input" value={integrationSettings.whatsappApiToken} onChange={(e) => setIntegrationSettings((s) => ({ ...s, whatsappApiToken: e.target.value }))} /></div>
               <div><label className="field-label">SMTP Host</label><input className="field-input" value={integrationSettings.smtpHost} onChange={(e) => setIntegrationSettings((s) => ({ ...s, smtpHost: e.target.value }))} /></div>
             </div>
-            <button onClick={() => void saveIntegrations()} disabled={savingIntegrations} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">{savingIntegrations ? "Saving..." : "Save Integrations"}</button>
+            <button onClick={() => void saveIntegrations()} disabled={savingIntegrations || !canUpdateSettings} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{savingIntegrations ? "Saving..." : "Save Integrations"}</button>
           </SurfaceCard>
         ) : null}
       </div>
 
-      {inviteOpen ? (
+      {inviteOpen && canCreateUsers ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setInviteOpen(false)} />
           <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
@@ -479,9 +843,9 @@ const Settings: React.FC = () => {
               <input className="field-input" placeholder="Full Name" value={inviteForm.fullName} onChange={(e) => setInviteForm((f) => ({ ...f, fullName: e.target.value }))} />
               <input className="field-input" placeholder="Email" value={inviteForm.email} onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))} />
               <input className="field-input" placeholder="Temporary Password" type="password" value={inviteForm.password} onChange={(e) => setInviteForm((f) => ({ ...f, password: e.target.value }))} />
-              <select className="field-input" value={inviteForm.role} onChange={(e) => setInviteForm((f) => ({ ...f, role: e.target.value }))}>
+              <select className="field-input" value={inviteForm.roleId} onChange={(e) => setInviteForm((f) => ({ ...f, roleId: e.target.value }))}>
                 <option value="">Select Role (optional)</option>
-                {roles.map((r) => <option key={r.id} value={r.value}>{r.name}</option>)}
+                {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -492,7 +856,7 @@ const Settings: React.FC = () => {
         </div>
       ) : null}
 
-      {assignOpen ? (
+      {assignOpen && canManageRbac ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setAssignOpen(false)} />
           <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
@@ -502,9 +866,9 @@ const Settings: React.FC = () => {
                 <option value="">Select user</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.fullName} ({u.email})</option>)}
               </select>
-              <select className="field-input" value={assignRole} onChange={(e) => setAssignRole(e.target.value)}>
+              <select className="field-input" value={assignRoleId} onChange={(e) => setAssignRoleId(e.target.value)}>
                 <option value="">Select role</option>
-                {roles.map((r) => <option key={r.id} value={r.value}>{r.name}</option>)}
+                {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
             <div className="mt-5 flex justify-end gap-2">
