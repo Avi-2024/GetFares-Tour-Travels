@@ -50,45 +50,22 @@ interface LeadSource {
 }
 
 type Range = "Today" | "Week" | "Month" | "Year";
-const data: Record<
-  Range,
-  Array<{ name: string; revenue: number; last: number }>
-> = {
-  Today: [
-    { name: "08:00", revenue: 1200, last: 900 },
-    { name: "10:00", revenue: 1800, last: 1250 },
-    { name: "12:00", revenue: 1400, last: 1150 },
-    { name: "14:00", revenue: 2100, last: 1580 },
-    { name: "16:00", revenue: 2400, last: 2000 },
-  ],
-  Week: [
-    { name: "Mon", revenue: 9200, last: 7800 },
-    { name: "Tue", revenue: 12400, last: 10020 },
-    { name: "Wed", revenue: 11100, last: 9440 },
-    { name: "Thu", revenue: 13800, last: 12000 },
-    { name: "Fri", revenue: 15900, last: 13300 },
-    { name: "Sat", revenue: 17400, last: 15000 },
-    { name: "Sun", revenue: 14600, last: 12800 },
-  ],
-  Month: [
-    { name: "W1", revenue: 28000, last: 24200 },
-    { name: "W2", revenue: 31400, last: 26600 },
-    { name: "W3", revenue: 29200, last: 27900 },
-    { name: "W4", revenue: 36800, last: 30200 },
-  ],
-  Year: [
-    { name: "Jan", revenue: 98000, last: 84000 },
-    { name: "Feb", revenue: 103000, last: 90000 },
-    { name: "Mar", revenue: 118000, last: 97000 },
-    { name: "Apr", revenue: 126000, last: 104000 },
-  ],
+const EMPTY_REVENUE_DATA: Record<Range, RevenueData[]> = {
+  Today: [],
+  Week: [],
+  Month: [],
+  Year: [],
 };
-const sources = [
-  { name: "Social", value: 42 },
-  { name: "Website", value: 27 },
-  { name: "Referrals", value: 19 },
-  { name: "Partners", value: 12 },
-];
+const EMPTY_STATS: DashboardStats = {
+  totalLeads: 0,
+  totalLeadsChange: 0,
+  revenue: 0,
+  revenueChange: 0,
+  pendingCalls: 0,
+  pendingCallsChange: 0,
+  bookings: 0,
+  bookingsChange: 0,
+};
 const colors = ["#2563eb", "#22c55e", "#a855f7", "#f59e0b"];
 
 const Dashboard: React.FC = () => {
@@ -97,15 +74,18 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  const [revenueData, setRevenueData] = useState<Record<Range, RevenueData[]>>(data);
-  const [leadSources, setLeadSources] = useState<LeadSource[]>(sources);
+  const [revenueData, setRevenueData] = useState<Record<Range, RevenueData[]>>(EMPTY_REVENUE_DATA);
+  const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   
   const rev = useMemo(() => revenueData[range], [revenueData, range]);
   // Load dashboard data
   useEffect(() => {
     const loadDashboardData = async () => {
       if (!token) {
-        console.log('No auth token available, using static data');
+        setDashboardStats(null);
+        setRevenueData(EMPTY_REVENUE_DATA);
+        setLeadSources([]);
+        setError("Please login to view dashboard data.");
         return;
       }
       
@@ -121,14 +101,14 @@ const Dashboard: React.FC = () => {
         // Load revenue data
         const revenueResponse = await dashboardApi.getRevenue({ range: range.toLowerCase() }) as any;
         const revenue = revenueResponse?.data || revenueResponse;
-        if (revenue && Array.isArray(revenue)) {
+        if (Array.isArray(revenue)) {
           setRevenueData(prev => ({ ...prev, [range]: revenue }));
         }
         
         // Load lead sources
         const sourcesResponse = await dashboardApi.getLeadSources() as any;
         const sources = sourcesResponse?.data || sourcesResponse;
-        if (sources && Array.isArray(sources)) {
+        if (Array.isArray(sources)) {
           setLeadSources(sources);
         }
         
@@ -141,22 +121,11 @@ const Dashboard: React.FC = () => {
         } else if (error.status === 404) {
           setError('Dashboard API endpoints not found. Please check backend server.');
         } else {
-          setError('Failed to load dashboard data. Using offline data.');
+          setError('Failed to load dashboard data.');
         }
-        
-        // Use fallback data
-        if (!dashboardStats) {
-          setDashboardStats({
-            totalLeads: 1248,
-            totalLeadsChange: 12,
-            revenue: 84200,
-            revenueChange: 9.4,
-            pendingCalls: 12,
-            pendingCallsChange: -4,
-            bookings: 186,
-            bookingsChange: 6
-          });
-        }
+        setDashboardStats((current) => current ?? EMPTY_STATS);
+        setRevenueData((current) => ({ ...current, [range]: [] }));
+        setLeadSources([]);
       } finally {
         setLoading(false);
       }
@@ -170,32 +139,32 @@ const Dashboard: React.FC = () => {
       return [
         {
           title: "Total Leads",
-          value: "1,248",
-          trend: "+12%",
+          value: "--",
+          trend: "0%",
           up: true,
           icon: FaUserGroup,
           bg: "bg-blue-100 text-blue-600",
         },
         {
           title: "Revenue",
-          value: "$84.2k",
-          trend: "+9.4%",
+          value: "--",
+          trend: "0%",
           up: true,
           icon: FaSackDollar,
           bg: "bg-green-100 text-green-600",
         },
         {
           title: "Pending Calls",
-          value: "12",
-          trend: "-4%",
-          up: false,
+          value: "--",
+          trend: "0%",
+          up: true,
           icon: FaPhone,
           bg: "bg-amber-100 text-amber-500",
         },
         {
           title: "Bookings",
-          value: "186",
-          trend: "+6%",
+          value: "--",
+          trend: "0%",
           up: true,
           icon: FaPlane,
           bg: "bg-gray-100 text-gray-700",
