@@ -97,19 +97,20 @@ const extractMessage = (data: unknown) => {
   if (!data) return null;
   if (typeof data === "string") return data;
   if (typeof data === "object") {
-    const payload = data as {
-      message?: unknown;
-      error?: { message?: unknown } | unknown;
-    };
-
-    if (payload.message) {
-      return String(payload.message);
+    const obj = data as Record<string, unknown>;
+    if ("message" in obj && obj.message) return String(obj.message);
+    if ("error" in obj && obj.error) {
+      if (typeof obj.error === "string") return obj.error;
+      if (typeof obj.error === "object") {
+        const nested = obj.error as Record<string, unknown>;
+        if ("message" in nested && nested.message) return String(nested.message);
+      }
     }
-
-    if (payload.error && typeof payload.error === "object") {
-      const nestedMessage = (payload.error as { message?: unknown }).message;
-      return nestedMessage ? String(nestedMessage) : null;
-    }
+  }
+  if (typeof data === "object" && "error" in data) {
+    const error = (data as { error?: { message?: unknown } }).error;
+    const message = error?.message;
+    return message ? String(message) : null;
   }
   return null;
 };
@@ -245,6 +246,7 @@ type LegacyRequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   token?: string;
+  skipAuth?: boolean;
   responseType?: "json" | "blob" | "text";
 };
 
@@ -280,17 +282,24 @@ const resolveResponseType = (
   if (responseType === "blob" || responseType === "text") return responseType;
   return "json";
 };
-  
+
 export async function apiRequest<T>(
   path: string,
   options: LegacyRequestOptions = {},
 ): Promise<T> {
-  const { method = "GET", body, token, responseType = "json" } = options;
+  const {
+    method = "GET",
+    body,
+    token,
+    skipAuth,
+    responseType = "json",
+  } = options;
 
   const config: ApiRequestConfig = {
     url: path,
     method,
     responseType: resolveResponseType(responseType),
+    skipAuth,
   };
 
   if (token) {

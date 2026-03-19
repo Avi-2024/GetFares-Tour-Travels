@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   FaFileInvoice,
@@ -13,9 +13,8 @@ import {
   FaCircleCheck,
   FaCircleExclamation,
 } from "react-icons/fa6";
-
-let bookingIdCounter = 1000;
-const nextBookingId = (prefix = "") => `${prefix}${++bookingIdCounter}`;
+import { bookingsApi } from "../../api/bookings";
+import { paymentsApi } from "../../api/payments";
 
 // Types
 interface Booking {
@@ -45,6 +44,7 @@ interface Invoice {
   status: "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
   dueDate: string;
   createdAt: string;
+  generatedAt?: string;
   paidAt?: string;
   paidAmount?: number;
   pdfUrl?: string;
@@ -68,10 +68,240 @@ interface Payment {
   id: string;
   amount: number;
   date: string;
-  mode: "cash" | "card" | "bank";
-  reference: string;
+  mode: "cash" | "card" | "bank" | "gateway";
+  reference?: string;
   status: "pending" | "completed" | "failed";
 }
+
+const unwrapData = <T,>(response: unknown): T | null => {
+  if (!response) return null;
+  if (typeof response === "object" && response && "data" in response) {
+    return (response as { data: T }).data ?? null;
+  }
+  return response as T;
+};
+
+const toNumber = (value: unknown, fallback = 0) => {
+  if (value === null || value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toIso = (value: unknown): string | null => {
+  if (!value) return null;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
+
+const normalizeStatus = (value?: string): Booking["status"] => {
+  switch ((value ?? "").toUpperCase()) {
+    case "CONFIRMED":
+      return "CONFIRMED";
+    case "CANCELLED":
+    case "CANCELED":
+      return "CANCELLED";
+    case "PENDING":
+    default:
+      return "PENDING";
+  }
+};
+
+const normalizePaymentStatus = (
+  value?: string,
+): Booking["paymentStatus"] => {
+  switch ((value ?? "").toUpperCase()) {
+    case "FULL":
+    case "COMPLETED":
+    case "PAID":
+      return "COMPLETED";
+    case "PARTIAL":
+      return "PARTIAL";
+    case "REFUNDED":
+      return "REFUNDED";
+    case "PENDING":
+    default:
+      return "PENDING";
+  }
+};
+
+const normalizePaymentMode = (value?: string): Payment["mode"] => {
+  switch ((value ?? "").toUpperCase()) {
+    case "CASH":
+      return "cash";
+    case "CARD":
+      return "card";
+    case "PAYMENT_GATEWAY":
+    case "GATEWAY":
+    case "UPI":
+      return "gateway";
+    case "BANK_TRANSFER":
+    case "BANK":
+    default:
+      return "bank";
+  }
+};
+
+const mapBookingFromApi = (raw: any): Booking => {
+  const totalAmount = toNumber(raw?.totalAmount ?? raw?.total_amount, 0);
+  const costAmount = toNumber(raw?.costAmount ?? raw?.cost_amount, 0);
+  const profit = Number((totalAmount - costAmount).toFixed(2));
+  return {
+    id: String(raw?.id ?? ""),
+    bookingNumber:
+      raw?.bookingNumber ??
+      raw?.booking_number ??
+      raw?.code ??
+      raw?.bookingId ??
+      "N/A",
+    quotationId: raw?.quotationId ?? raw?.quotation_id ?? "",
+    travelStart:
+      raw?.travelStartDate ??
+      raw?.travel_start_date ??
+      raw?.travelStart ??
+      "",
+    travelEnd:
+      raw?.travelEndDate ?? raw?.travel_end_date ?? raw?.travelEnd ?? "",
+    totalAmount,
+    costAmount,
+    profit,
+    status: normalizeStatus(raw?.status),
+    paymentStatus: normalizePaymentStatus(
+      raw?.paymentStatus ?? raw?.payment_status,
+    ),
+    advanceRequired: toNumber(
+      raw?.advanceRequired ?? raw?.advance_required,
+      0,
+    ),
+    advanceReceived: toNumber(
+      raw?.advanceReceived ?? raw?.advance_received,
+      0,
+    ),
+    clientCurrency: raw?.clientCurrency ?? raw?.client_currency ?? "INR",
+    supplierCurrency: raw?.supplierCurrency ?? raw?.supplier_currency ?? "INR",
+    cancellationReason:
+      raw?.cancellationReason ?? raw?.cancellation_reason ?? undefined,
+    cancelledAt: raw?.cancelledAt ?? raw?.cancelled_at ?? undefined,
+    cancelledBy: raw?.cancelledBy ?? raw?.cancelled_by ?? undefined,
+  };
+};
+
+const addDays = (dateIso: string, days: number) => {
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime())) return dateIso;
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split("T")[0];
+};
+
+const mapInvoiceFromApi = (raw: any, booking: Booking): Invoice => {
+  const generatedAt =
+    toIso(raw?.generatedAt ?? raw?.generated_at ?? raw?.createdAt) ??
+    new Date().toISOString();
+  const createdAt = generatedAt;
+  const dueDate = raw?.dueDate ?? raw?.due_date ?? addDays(createdAt, 7);
+  const amount = toNumber(
+    raw?.amount ??
+      raw?.totalAmount ??
+      raw?.total_amount ??
+      Math.max(booking.totalAmount - booking.advanceReceived, 0),
+    0,
+  );
+  const statusRaw = String(raw?.status ?? "").toUpperCase();
+  const status: Invoice["status"] = [
+    "DRAFT",
+    "SENT",
+    "PAID",
+    "OVERDUE",
+    "CANCELLED",
+  ].includes(statusRaw)
+    ? (statusRaw as Invoice["status"])
+    : raw?.pdfUrl
+      ? "SENT"
+      : "DRAFT";
+  return {
+    id: String(raw?.id ?? ""),
+    invoiceNumber:
+      raw?.invoiceNumber ?? raw?.invoice_number ?? raw?.code ?? "INV",
+    amount,
+    status,
+    dueDate,
+    createdAt,
+    generatedAt,
+    pdfUrl: raw?.pdfUrl ?? raw?.pdf_url ?? undefined,
+  };
+};
+
+const mapPaymentFromApi = (raw: any): Payment => {
+  const statusRaw = String(raw?.status ?? "").toUpperCase();
+  const isVerified = raw?.isVerified === true || raw?.is_verified === true;
+  const status: Payment["status"] = isVerified || statusRaw === "FULL"
+    ? "completed"
+    : statusRaw === "REFUNDED"
+      ? "failed"
+      : "pending";
+  return {
+    id: String(raw?.id ?? ""),
+    amount: toNumber(raw?.amount, 0),
+    date:
+      toIso(raw?.paidAt ?? raw?.paid_at ?? raw?.createdAt ?? raw?.created_at) ??
+      new Date().toISOString(),
+    mode: normalizePaymentMode(raw?.paymentMode ?? raw?.payment_mode),
+    reference:
+      raw?.paymentReference ??
+      raw?.payment_reference ??
+      raw?.gatewayPaymentId ??
+      raw?.gateway_payment_id ??
+      undefined,
+    status,
+  };
+};
+
+const buildHistory = (
+  rows: any[],
+  invoices: Invoice[],
+  payments: Payment[],
+): StatusHistory[] => {
+  const statusEntries = (Array.isArray(rows) ? rows : []).map((row) => {
+    const oldStatus = row?.oldStatus ?? row?.old_status ?? null;
+    const newStatus = row?.newStatus ?? row?.new_status ?? row?.status ?? "";
+    return {
+      id: String(row?.id ?? `status-${newStatus}-${row?.changedAt ?? ""}`),
+      status: String(newStatus || "UPDATED"),
+      changedBy: row?.changedBy ?? row?.changed_by ?? "System",
+      changedAt:
+        toIso(row?.changedAt ?? row?.changed_at) ?? new Date().toISOString(),
+      reason:
+        oldStatus && newStatus
+          ? `Status changed from ${oldStatus} to ${newStatus}`
+          : undefined,
+      type: "status_change" as const,
+    };
+  });
+
+  const invoiceEntries = invoices.map((invoice) => ({
+    id: `invoice-${invoice.id}`,
+    status: "INVOICE_GENERATED",
+    changedBy: "System",
+    changedAt: invoice.generatedAt ?? invoice.createdAt,
+    reason: invoice.invoiceNumber
+      ? `Invoice ${invoice.invoiceNumber} generated`
+      : "Invoice generated",
+    type: "invoice_generated" as const,
+  }));
+
+  const paymentEntries = payments.map((payment) => ({
+    id: `payment-${payment.id}`,
+    status: "PAYMENT_RECEIVED",
+    changedBy: "System",
+    changedAt: payment.date,
+    reason: `Payment of ${payment.amount} received`,
+    type: "payment_received" as const,
+  }));
+
+  return [...statusEntries, ...invoiceEntries, ...paymentEntries].sort(
+    (a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime(),
+  );
+};
 
 // Toast Component
 const Toast = ({
@@ -121,12 +351,14 @@ const InvoiceDetailsModal = ({
   onClose,
   onDownload,
   onMarkAsPaid,
+  currency,
 }: {
   isOpen: boolean;
   invoice: Invoice | null;
   onClose: () => void;
   onDownload: () => void;
   onMarkAsPaid: () => void;
+  currency?: string;
 }) => {
   if (!isOpen || !invoice) return null;
 
@@ -174,7 +406,7 @@ const InvoiceDetailsModal = ({
               <p className="text-xl font-bold text-gray-900">
                 {new Intl.NumberFormat("en-US", {
                   style: "currency",
-                  currency: "USD",
+                  currency: currency || "USD",
                 }).format(invoice.amount)}
               </p>
             </div>
@@ -326,6 +558,7 @@ const BookingDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
   const [cancelError, setCancelError] = useState("");
@@ -342,101 +575,6 @@ const BookingDetailPage: React.FC = () => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
 
-  // Mock data with payments
-  const [booking, setBooking] = useState<Booking>({
-    id: id || "BKG-001",
-    bookingNumber: "BKG-2023-001",
-    quotationId: "Q-2023-001",
-    travelStart: "2023-12-15",
-    travelEnd: "2023-12-22",
-    totalAmount: 7500,
-    costAmount: 5200,
-    profit: 2300,
-    status: "CONFIRMED",
-    paymentStatus: "PARTIAL",
-    advanceRequired: 3000,
-    advanceReceived: 1500,
-    clientCurrency: "USD",
-    supplierCurrency: "USD",
-  });
-
-  const [invoices, setInvoices] = useState<Invoice[]>([
-    {
-      id: "INV-001",
-      invoiceNumber: "INV-2023-001",
-      amount: 3000,
-      status: "SENT",
-      dueDate: "2023-11-30",
-      createdAt: "2023-11-15",
-      pdfUrl: "#",
-    },
-    {
-      id: "INV-002",
-      invoiceNumber: "INV-2023-002",
-      amount: 4500,
-      status: "DRAFT",
-      dueDate: "2023-12-15",
-      createdAt: "2023-11-20",
-      notes: "Final payment invoice",
-    },
-  ]);
-
-  const [payments, setPayments] = useState<Payment[]>([
-    {
-      id: "PAY-001",
-      amount: 1000,
-      date: "2023-11-20T10:30:00Z",
-      mode: "card",
-      reference: "CARD-1234",
-      status: "completed",
-    },
-    {
-      id: "PAY-002",
-      amount: 500,
-      date: "2023-11-25T14:20:00Z",
-      mode: "bank",
-      reference: "NEFT-5678",
-      status: "completed",
-    },
-  ]);
-
-  const [history, setHistory] = useState<StatusHistory[]>([
-    {
-      id: "1",
-      status: "CREATED",
-      changedBy: "John Smith",
-      changedAt: "2023-11-15T10:30:00Z",
-      type: "status_change",
-    },
-    {
-      id: "2",
-      status: "CONFIRMED",
-      changedBy: "Sarah Johnson",
-      changedAt: "2023-11-16T14:20:00Z",
-      type: "status_change",
-    },
-    {
-      id: "3",
-      status: "INVOICE_GENERATED",
-      changedBy: "System",
-      changedAt: "2023-11-20T09:15:00Z",
-      reason: "Invoice INV-2023-001 generated",
-      type: "invoice_generated",
-    },
-    {
-      id: "4",
-      status: "PAYMENT_RECEIVED",
-      changedBy: "System",
-      changedAt: "2023-11-20T10:35:00Z",
-      reason: "Payment of $1,000 received",
-      type: "payment_received",
-    },
-  ]);
-
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 1000);
-  }, [id]);
-
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ show: true, message, type });
     setTimeout(
@@ -444,6 +582,80 @@ const BookingDetailPage: React.FC = () => {
       3000,
     );
   };
+
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [history, setHistory] = useState<StatusHistory[]>([]);
+
+  const fetchBookingData = async () => {
+    if (!id) return;
+    setLoading(true);
+    setError("");
+    try {
+      const [bookingRes, invoiceRes, historyRes, paymentRes] =
+        await Promise.allSettled([
+          bookingsApi.getById(id),
+          bookingsApi.listInvoices(id),
+          bookingsApi.statusHistory(id),
+          paymentsApi.list({ bookingId: id }),
+        ]);
+
+      if (bookingRes.status !== "fulfilled") {
+        throw bookingRes.reason;
+      }
+
+      const bookingData = unwrapData<any>(bookingRes.value);
+      if (!bookingData) {
+        throw new Error("Booking not found");
+      }
+      const mappedBooking = mapBookingFromApi(bookingData);
+      const invoiceData =
+        invoiceRes.status === "fulfilled"
+          ? unwrapData<any[]>(invoiceRes.value) ?? []
+          : [];
+      const paymentData =
+        paymentRes.status === "fulfilled"
+          ? unwrapData<any[]>(paymentRes.value) ?? []
+          : [];
+      const statusData =
+        historyRes.status === "fulfilled"
+          ? unwrapData<any[]>(historyRes.value) ?? []
+          : [];
+
+      const mappedInvoices = (Array.isArray(invoiceData) ? invoiceData : []).map(
+        (row) => mapInvoiceFromApi(row, mappedBooking),
+      );
+      const mappedPayments = (Array.isArray(paymentData) ? paymentData : []).map(
+        (row) => mapPaymentFromApi(row),
+      );
+      const mappedHistory = buildHistory(
+        Array.isArray(statusData) ? statusData : [],
+        mappedInvoices,
+        mappedPayments,
+      );
+
+      setBooking(mappedBooking);
+      setInvoices(mappedInvoices);
+      setPayments(mappedPayments);
+      setHistory(mappedHistory);
+    } catch (err) {
+      console.error("Failed to load booking details:", err);
+      setError("Failed to load booking details");
+      showToast("Failed to load booking details", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!id) {
+      setError("Booking ID is missing");
+      setLoading(false);
+      return;
+    }
+    void fetchBookingData();
+  }, [id]);
 
   const handleStatusChange = async (
     newStatus: "PENDING" | "CONFIRMED" | "CANCELLED",
@@ -455,19 +667,9 @@ const BookingDetailPage: React.FC = () => {
 
     try {
       setLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      setBooking((prev) => ({ ...prev, status: newStatus }));
-
-      const newHistory: StatusHistory = {
-        id: nextBookingId(),
-        status: newStatus,
-        changedBy: "Current User",
-        changedAt: new Date().toISOString(),
-        type: "status_change",
-      };
-      setHistory((prev) => [newHistory, ...prev]);
-
+      if (!id) throw new Error("Missing booking id");
+      await bookingsApi.changeStatus(id, { status: newStatus });
+      await fetchBookingData();
       showToast(`Booking status updated to ${newStatus}`, "success");
     } catch (err) {
       showToast("Failed to update booking status", "error");
@@ -484,26 +686,9 @@ const BookingDetailPage: React.FC = () => {
 
     try {
       setLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      setBooking((prev) => ({
-        ...prev,
-        status: "CANCELLED",
-        cancellationReason,
-        cancelledAt: new Date().toISOString(),
-        cancelledBy: "Current User",
-      }));
-
-      const newHistory: StatusHistory = {
-        id: nextBookingId(),
-        status: "CANCELLED",
-        changedBy: "Current User",
-        changedAt: new Date().toISOString(),
-        reason: cancellationReason,
-        type: "cancellation",
-      };
-      setHistory((prev) => [newHistory, ...prev]);
-
+      if (!id) throw new Error("Missing booking id");
+      await bookingsApi.cancel(id, cancellationReason);
+      await fetchBookingData();
       setShowCancelModal(false);
       setCancellationReason("");
       setCancelError("");
@@ -518,38 +703,15 @@ const BookingDetailPage: React.FC = () => {
   const handleGenerateInvoice = async () => {
     try {
       setLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const newInvoice: Invoice = {
-        id: `INV-${nextBookingId()}`,
-        invoiceNumber: `INV-2023-${String(invoices.length + 1).padStart(
-          3,
-          "0",
-        )}`,
-        amount: booking.totalAmount - booking.advanceReceived,
-        status: "DRAFT",
-        dueDate: (() => {
-          const d = new Date();
-          d.setDate(d.getDate() + 7);
-          return d.toISOString().split("T")[0];
-        })(),
-        createdAt: new Date().toISOString().split("T")[0],
-      };
-
-      setInvoices((prev) => [...prev, newInvoice]);
-      setSelectedInvoice(newInvoice);
-      setShowInvoiceModal(true);
-
-      const newHistory: StatusHistory = {
-        id: nextBookingId(),
-        status: "INVOICE_GENERATED",
-        changedBy: "Current User",
-        changedAt: new Date().toISOString(),
-        reason: `Invoice ${newInvoice.invoiceNumber} generated`,
-        type: "invoice_generated",
-      };
-      setHistory((prev) => [newHistory, ...prev]);
-
+      if (!id) throw new Error("Missing booking id");
+      const res = await bookingsApi.generateInvoice(id);
+      const invoiceData = unwrapData<any>(res);
+      if (booking && invoiceData) {
+        const mapped = mapInvoiceFromApi(invoiceData, booking);
+        setSelectedInvoice(mapped);
+        setShowInvoiceModal(true);
+      }
+      await fetchBookingData();
       showToast("Invoice generated successfully", "success");
     } catch (err) {
       showToast("Failed to generate invoice", "error");
@@ -558,75 +720,57 @@ const BookingDetailPage: React.FC = () => {
     }
   };
 
-  const handleMarkInvoiceAsPaid = (invoiceId: string) => {
-    setInvoices((prev) =>
-      prev.map((inv) =>
-        inv.id === invoiceId
-          ? {
-              ...inv,
-              status: "PAID",
-              paidAt: new Date().toISOString(),
-              paidAmount: inv.amount,
-            }
-          : inv,
-      ),
-    );
-
-    const paidAmount = invoices.find((i) => i.id === invoiceId)?.amount || 0;
-    setBooking((prev) => ({
-      ...prev,
-      advanceReceived: prev.advanceReceived + paidAmount,
-      paymentStatus:
-        prev.advanceReceived + paidAmount >= prev.advanceRequired
-          ? "COMPLETED"
-          : "PARTIAL",
-    }));
-
-    const newHistory: StatusHistory = {
-      id: nextBookingId(),
-      status: "PAYMENT_RECEIVED",
-      changedBy: "Current User",
-      changedAt: new Date().toISOString(),
-      reason: `Payment of $${paidAmount} received for invoice`,
-      type: "payment_received",
-    };
-    setHistory((prev) => [newHistory, ...prev]);
-
-    setShowInvoiceModal(false);
-    showToast("Invoice marked as paid", "success");
+  const handleMarkInvoiceAsPaid = async (invoiceId: string) => {
+    if (!booking || !id) return;
+    const invoice = invoices.find((item) => item.id === invoiceId);
+    if (!invoice) return;
+    try {
+      setLoading(true);
+      await paymentsApi.create({
+        bookingId: id,
+        amount: invoice.amount,
+        paymentMode: "CASH",
+        status: "FULL",
+        isVerified: true,
+        paidAt: new Date().toISOString(),
+      });
+      await fetchBookingData();
+      setShowInvoiceModal(false);
+      showToast("Invoice marked as paid", "success");
+    } catch (err) {
+      showToast("Failed to mark invoice as paid", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAddPayment = () => {
-    const newPayment: Payment = {
-      id: `PAY-${nextBookingId()}`,
-      amount: 500,
-      date: new Date().toISOString(),
-      mode: "cash",
-      reference: "CASH-001",
-      status: "completed",
-    };
+  const handleAddPayment = async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      await paymentsApi.create({
+        bookingId: id,
+        amount: 500,
+        paymentMode: "CASH",
+        status: "PARTIAL",
+        isVerified: true,
+        paidAt: new Date().toISOString(),
+      });
+      await fetchBookingData();
+      showToast("Payment added successfully", "success");
+    } catch (err) {
+      showToast("Failed to add payment", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    setPayments((prev) => [...prev, newPayment]);
-    setBooking((prev) => ({
-      ...prev,
-      advanceReceived: prev.advanceReceived + 500,
-      paymentStatus:
-        prev.advanceReceived + 500 >= prev.advanceRequired
-          ? "COMPLETED"
-          : "PARTIAL",
-    }));
-
-    const newHistory: StatusHistory = {
-      id: nextBookingId(),
-      status: "PAYMENT_RECEIVED",
-      changedBy: "Current User",
-      changedAt: new Date().toISOString(),
-      reason: "Manual payment of $500 added",
-      type: "payment_received",
-    };
-    setHistory((prev) => [newHistory, ...prev]);
-
-    showToast("Payment added successfully", "success");
+  const handleUpdateBooking = () => {
+    if (!booking) return;
+    showToast("Updated successfully", "success");
+    setTimeout(() => {
+      navigate("/bookings", { state: { updatedBooking: booking } });
+    }, 1200);
   };
 
   const getStatusColor = (status: string) => {
@@ -694,16 +838,22 @@ const BookingDetailPage: React.FC = () => {
     }).format(amount);
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("en-US", {
+  const formatDate = (date?: string) => {
+    if (!date) return "-";
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return parsed.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
   };
 
-  const formatDateTime = (dateTime: string) => {
-    return new Date(dateTime).toLocaleString("en-US", {
+  const formatDateTime = (dateTime?: string) => {
+    if (!dateTime) return "-";
+    const parsed = new Date(dateTime);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return parsed.toLocaleString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -734,6 +884,45 @@ const BookingDetailPage: React.FC = () => {
     );
   }
 
+  if (!booking) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Unable to load booking
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              {error || "Please try again later."}
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => void fetchBookingData()}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => navigate("/bookings")}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Back to Bookings
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const paymentProgress =
+    booking.advanceRequired > 0
+      ? Math.min(
+          (booking.advanceReceived / booking.advanceRequired) * 100,
+          100,
+        )
+      : 0;
+
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
       {/* Toast */}
@@ -756,13 +945,18 @@ const BookingDetailPage: React.FC = () => {
           setSelectedInvoice(null);
         }}
         onDownload={() => {
-          showToast("Downloading invoice PDF...", "info");
+          if (selectedInvoice?.pdfUrl) {
+            window.open(selectedInvoice.pdfUrl, "_blank", "noopener,noreferrer");
+            return;
+          }
+          showToast("Invoice PDF not available", "info");
         }}
         onMarkAsPaid={() => {
           if (selectedInvoice) {
             handleMarkInvoiceAsPaid(selectedInvoice.id);
           }
         }}
+        currency={booking.clientCurrency}
       />
 
       <PaymentDetailsModal
@@ -812,7 +1006,7 @@ const BookingDetailPage: React.FC = () => {
               <FaFileInvoice /> Generate Invoice
             </button>
             <button
-              onClick={() => navigate(`/bookings/${id}/edit`)}
+              onClick={handleUpdateBooking}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-2"
             >
               <FaCreditCard /> Update Booking
@@ -946,7 +1140,11 @@ const BookingDetailPage: React.FC = () => {
                                   {invoice.invoiceNumber}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  {formatCurrency(invoice.amount)} • Due{" "}
+                                  {formatCurrency(
+                                    invoice.amount,
+                                    booking.clientCurrency,
+                                  )}{" "}
+                                  • Due{" "}
                                   {formatDate(invoice.dueDate)}
                                 </p>
                               </div>
@@ -1039,17 +1237,53 @@ const BookingDetailPage: React.FC = () => {
                                 </span>
                               </div>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatCurrency(invoice.amount)} • Created{" "}
+                                {formatCurrency(
+                                  invoice.amount,
+                                  booking.clientCurrency,
+                                )}{" "}
+                                • Created{" "}
                                 {formatDate(invoice.createdAt)} • Due{" "}
                                 {formatDate(invoice.dueDate)}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (invoice.pdfUrl) {
+                                  window.open(
+                                    invoice.pdfUrl,
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                  );
+                                } else {
+                                  showToast(
+                                    "Invoice PDF not available",
+                                    "info",
+                                  );
+                                }
+                              }}
+                              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                            >
                               <FaDownload />
                             </button>
-                            <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (invoice.pdfUrl) {
+                                  window.open(
+                                    invoice.pdfUrl,
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                  );
+                                } else {
+                                  setSelectedInvoice(invoice);
+                                  setShowInvoiceModal(true);
+                                }
+                              }}
+                              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                            >
                               <FaEye />
                             </button>
                           </div>
@@ -1157,11 +1391,7 @@ const BookingDetailPage: React.FC = () => {
                         <div
                           className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all"
                           style={{
-                            width: `${
-                              (booking.advanceReceived /
-                                booking.advanceRequired) *
-                              100
-                            }%`,
+                            width: `${paymentProgress}%`,
                           }}
                         />
                       </div>
@@ -1176,7 +1406,10 @@ const BookingDetailPage: React.FC = () => {
                         >
                           <div>
                             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {formatCurrency(payment.amount)}
+                              {formatCurrency(
+                                payment.amount,
+                                booking.clientCurrency,
+                              )}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               {formatDateTime(payment.date)} • {payment.mode}
@@ -1298,10 +1531,7 @@ const BookingDetailPage: React.FC = () => {
                       Progress
                     </span>
                     <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {Math.round(
-                        (booking.advanceReceived / booking.advanceRequired) *
-                          100,
-                      )}
+                      {Math.round(paymentProgress)}
                       %
                     </span>
                   </div>
@@ -1309,10 +1539,7 @@ const BookingDetailPage: React.FC = () => {
                     <div
                       className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all"
                       style={{
-                        width: `${
-                          (booking.advanceReceived / booking.advanceRequired) *
-                          100
-                        }%`,
+                        width: `${paymentProgress}%`,
                       }}
                     />
                   </div>

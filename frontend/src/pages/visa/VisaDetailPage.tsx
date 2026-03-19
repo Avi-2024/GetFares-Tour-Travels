@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   FaListCheck,
   FaPassport,
@@ -24,6 +24,8 @@ import SurfaceCard from "../../components/ui/SurfaceCard";
 import Timeline from "../../components/ui/Timeline";
 import EmptyState from "../../components/ui/EmptyState";
 import { validateVisaTransition } from "../../utils/workflowValidation";
+import { visaApi } from "../../api/visa";
+import { useAuth } from "../../context/AuthContext";
 
 // Types
 interface Document {
@@ -56,6 +58,100 @@ interface TimelineItem {
   icon: React.ReactElement;
   description?: string;
 }
+
+type VisaCase = {
+  id: string;
+  bookingId?: string | null;
+  supplierId?: string | null;
+  country?: string | null;
+  visaType?: string | null;
+  visaNumber?: string | null;
+  fees?: number | null;
+  appointmentDate?: string | null;
+  submissionDate?: string | null;
+  status?: string | null;
+  rejectionReason?: string | null;
+  visaValidUntil?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+type ChecklistKey =
+  | "passportVerified"
+  | "visaVerified"
+  | "insuranceVerified"
+  | "ticketVerified"
+  | "hotelVerified"
+  | "transferVerified"
+  | "tourVerified"
+  | "finalItineraryUploaded"
+  | "travelReady";
+
+const checklistConfig: Array<{
+  id: ChecklistKey;
+  label: string;
+  required: boolean;
+}> = [
+  { id: "passportVerified", label: "Passport Copy", required: true },
+  { id: "visaVerified", label: "Visa Form", required: true },
+  { id: "insuranceVerified", label: "Travel Insurance", required: true },
+  { id: "ticketVerified", label: "Flight Itinerary", required: false },
+  { id: "hotelVerified", label: "Hotel Booking", required: false },
+  { id: "transferVerified", label: "Transfer Details", required: false },
+  { id: "tourVerified", label: "Tour Vouchers", required: false },
+  { id: "finalItineraryUploaded", label: "Final Itinerary", required: false },
+  { id: "travelReady", label: "Travel Ready", required: false },
+];
+
+const mapApiStatusToUi = (status?: string) => {
+  switch (String(status || "").toUpperCase()) {
+    case "SUBMITTED":
+      return "SUBMITTED";
+    case "APPROVED":
+      return "APPROVED";
+    case "REJECTED":
+      return "REJECTED";
+    case "DOCUMENT_PENDING":
+    default:
+      return "DRAFT";
+  }
+};
+
+const mapUiStatusToApi = (
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED",
+) => {
+  if (status === "DRAFT") return "DOCUMENT_PENDING";
+  return status;
+};
+
+const getDocTypeFromName = (name: string) => {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".pdf")) return "pdf";
+  if (lower.match(/\.(png|jpg|jpeg|webp|gif)$/)) return "image";
+  if (lower.match(/\.(doc|docx)$/)) return "doc";
+  return "other";
+};
+
+const mapApiDocument = (doc: any): Document => ({
+  id: doc?.id || "",
+  name: doc?.documentType || doc?.document_type || doc?.fileUrl || "document",
+  type: getDocTypeFromName(
+    doc?.fileUrl || doc?.file_url || doc?.documentType || "document",
+  ) as Document["type"],
+  size: doc?.size || "-",
+  uploadedAt: doc?.uploadedAt || doc?.uploaded_at || new Date().toISOString(),
+  uploadedBy: doc?.uploadedBy || doc?.uploaded_by || "System",
+  verified: Boolean(doc?.isVerified ?? doc?.is_verified ?? false),
+  url: doc?.fileUrl || doc?.file_url || "#",
+});
+
+const mapChecklist = (data?: Record<string, any>): ChecklistItem[] =>
+  checklistConfig.map((item) => ({
+    id: item.id,
+    label: item.label,
+    required: item.required,
+    completed: Boolean(data?.[item.id] ?? false),
+  }));
 
 // Toast Notification Component
 const Toast = ({
@@ -247,15 +343,21 @@ const DocumentPreviewModal = ({
 
 const VisaDetailPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { token } = useAuth();
   // const navigate = useNavigate()
 
   // Status state
   const [status, setStatus] = useState<
     "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
-  >("SUBMITTED");
+  >("DRAFT");
   const [rejectionReason, setRejectionReason] = useState("");
   const [visaValidUntil, setVisaValidUntil] = useState("");
   const [error, setError] = useState("");
+  const [pageError, setPageError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [visaCase, setVisaCase] = useState<VisaCase | null>(null);
 
   // UI state
   const [toast, setToast] = useState<{
@@ -273,119 +375,135 @@ const VisaDetailPage = () => {
   const [showPreview, setShowPreview] = useState(false);
 
   // Documents state
-  const [documents, setDocuments] = useState<Document[]>([
-    {
-      id: "doc1",
-      name: "passport_front.pdf",
-      type: "pdf",
-      size: "2.4 MB",
-      uploadedAt: "2026-03-10T10:30:00Z",
-      uploadedBy: "Alex Morgan",
-      verified: true,
-      verifiedAt: "2026-03-11T14:20:00Z",
-      verifiedBy: "Sarah Lee",
-      url: "#",
-    },
-    {
-      id: "doc2",
-      name: "passport_back.jpg",
-      type: "image",
-      size: "1.8 MB",
-      uploadedAt: "2026-03-10T10:31:00Z",
-      uploadedBy: "Alex Morgan",
-      verified: true,
-      verifiedAt: "2026-03-11T14:21:00Z",
-      verifiedBy: "Sarah Lee",
-      url: "https://images.unsplash.com/photo-1586952518485-11c180c9278e?w=400",
-    },
-    {
-      id: "doc3",
-      name: "bank_statement.pdf",
-      type: "pdf",
-      size: "3.2 MB",
-      uploadedAt: "2026-03-11T09:15:00Z",
-      uploadedBy: "Alex Morgan",
-      verified: false,
-      url: "#",
-    },
-    {
-      id: "doc4",
-      name: "travel_insurance.pdf",
-      type: "pdf",
-      size: "1.2 MB",
-      uploadedAt: "2026-03-12T11:20:00Z",
-      uploadedBy: "Alex Morgan",
-      verified: false,
-      url: "#",
-    },
-  ]);
+  const [documents, setDocuments] = useState<Document[]>([]);
 
   // Checklist state
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([
-    { id: "passport", label: "Passport Copy", required: true, completed: true },
-    {
-      id: "photo",
-      label: "Passport Size Photo",
-      required: true,
-      completed: true,
-    },
-    { id: "bank", label: "Bank Statement", required: true, completed: false },
-    {
-      id: "insurance",
-      label: "Travel Insurance",
-      required: true,
-      completed: false,
-    },
-    {
-      id: "flight",
-      label: "Flight Itinerary",
-      required: false,
-      completed: false,
-    },
-    { id: "hotel", label: "Hotel Booking", required: false, completed: false },
-  ]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(
+    mapChecklist(),
+  );
 
   // Timeline state
-  const [timeline, setTimeline] = useState<TimelineItem[]>([
-    {
-      id: "1",
-      title: "Visa case created",
-      meta: "Alex Morgan",
-      time: "2026-03-10T09:20:00Z",
-      icon: <FaPassport />,
-      description: "Initial case created for Maldives tourist visa",
-    },
-    {
-      id: "2",
-      title: "Documents uploaded",
-      meta: "Alex Morgan",
-      time: "2026-03-10T10:35:00Z",
-      icon: <FaUpload />,
-      description: "Passport copies uploaded",
-    },
-    {
-      id: "3",
-      title: "Documents verified",
-      meta: "Sarah Lee",
-      time: "2026-03-11T14:25:00Z",
-      icon: <FaCheck />,
-      description: "Passport documents verified",
-    },
-  ]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
 
   // Upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadName, setUploadName] = useState("");
 
-  // Case summary data
-  const caseSummary = {
-    country: "Maldives",
-    visaType: "Tourist",
-    appointmentDate: "2026-03-16",
-    fees: "$150",
-    processingTime: "5-7 days",
-  };
+  const caseSummary = useMemo(
+    () => ({
+      country: visaCase?.country || "-",
+      visaType: visaCase?.visaType || "-",
+      appointmentDate: visaCase?.appointmentDate
+        ? new Date(visaCase.appointmentDate).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })
+        : "-",
+      fees:
+        visaCase?.fees !== undefined && visaCase?.fees !== null
+          ? `₹${Number(visaCase.fees).toLocaleString("en-IN")}`
+          : "-",
+      processingTime: "-",
+    }),
+    [visaCase],
+  );
+
+  useEffect(() => {
+    const loadVisaCase = async () => {
+      if (!id) return;
+      const isUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          id,
+        );
+      if (!isUuid) {
+        setPageError("Invalid visa case id. Please open from the visa list.");
+        return;
+      }
+      if (!token) {
+        setPageError("Please login to view this visa case.");
+        return;
+      }
+
+      setLoading(true);
+      setPageError("");
+      try {
+        const [caseResponse, docsResponse, checklistResponse] =
+          await Promise.all([
+            visaApi.getById(id),
+            visaApi.listDocuments(id),
+            visaApi.getChecklist(id),
+          ]);
+
+        const casePayload =
+          (caseResponse as any)?.data?.data ??
+          (caseResponse as any)?.data ??
+          caseResponse;
+        const docPayload =
+          (docsResponse as any)?.data?.data ??
+          (docsResponse as any)?.data ??
+          docsResponse;
+        const checklistPayload =
+          (checklistResponse as any)?.data?.data ??
+          (checklistResponse as any)?.data ??
+          checklistResponse;
+
+        if (casePayload) {
+          const mapped: VisaCase = {
+            id: casePayload.id,
+            bookingId: casePayload.bookingId ?? casePayload.booking_id ?? null,
+            supplierId:
+              casePayload.supplierId ?? casePayload.supplier_id ?? null,
+            country: casePayload.country ?? null,
+            visaType: casePayload.visaType ?? casePayload.visa_type ?? null,
+            visaNumber:
+              casePayload.visaNumber ?? casePayload.visa_number ?? null,
+            fees: casePayload.fees ?? null,
+            appointmentDate:
+              casePayload.appointmentDate ??
+              casePayload.appointment_date ??
+              null,
+            submissionDate:
+              casePayload.submissionDate ??
+              casePayload.submission_date ??
+              null,
+            status: casePayload.status ?? null,
+            rejectionReason:
+              casePayload.rejectionReason ??
+              casePayload.rejection_reason ??
+              null,
+            visaValidUntil:
+              casePayload.visaValidUntil ??
+              casePayload.visa_valid_until ??
+              null,
+            createdAt: casePayload.createdAt ?? casePayload.created_at ?? null,
+            updatedAt: casePayload.updatedAt ?? casePayload.updated_at ?? null,
+          };
+
+          setVisaCase(mapped);
+          setStatus(mapApiStatusToUi(mapped.status) as any);
+          setVisaValidUntil(mapped.visaValidUntil || "");
+          setRejectionReason(mapped.rejectionReason || "");
+        }
+
+        if (Array.isArray(docPayload)) {
+          setDocuments(docPayload.map(mapApiDocument));
+        } else {
+          setDocuments([]);
+        }
+
+        setChecklist(mapChecklist(checklistPayload || {}));
+      } catch (err) {
+        console.error("Failed to load visa case:", err);
+        setPageError("Failed to load visa case.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadVisaCase();
+  }, [id, token]);
 
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ show: true, message, type });
@@ -395,14 +513,55 @@ const VisaDetailPage = () => {
     );
   };
 
-  const saveStatus = () => {
+  const saveStatus = async (): Promise<boolean> => {
     const validationError = validateVisaTransition(
       status,
       rejectionReason,
       visaValidUntil,
     );
     setError(validationError);
-    if (!validationError) {
+    if (validationError || !id) return false;
+
+    setSavingStatus(true);
+    try {
+      const payload: Record<string, unknown> = {
+        status: mapUiStatusToApi(status),
+      };
+
+      if (status === "REJECTED") {
+        payload.rejectionReason = rejectionReason;
+      }
+      if (status === "APPROVED") {
+        payload.visaValidUntil = visaValidUntil;
+      }
+      if (status === "SUBMITTED" && !visaCase?.submissionDate) {
+        payload.submissionDate = new Date().toISOString().slice(0, 10);
+      }
+
+      const response = await visaApi.changeStatus(id, payload);
+      const updated =
+        (response as any)?.data?.data ??
+        (response as any)?.data ??
+        response;
+
+      setVisaCase((prev) => ({
+        ...(prev || { id }),
+        status: mapUiStatusToApi(status),
+        visaValidUntil:
+          status === "APPROVED" ? visaValidUntil : prev?.visaValidUntil ?? null,
+        rejectionReason:
+          status === "REJECTED"
+            ? rejectionReason
+            : prev?.rejectionReason ?? null,
+        submissionDate:
+          status === "SUBMITTED"
+            ? updated?.submissionDate ??
+              updated?.submission_date ??
+              prev?.submissionDate ??
+              null
+            : prev?.submissionDate ?? null,
+      }));
+
       const newTimelineItem: TimelineItem = {
         id: Date.now().toString(),
         title: `Status changed to ${status}`,
@@ -422,53 +581,83 @@ const VisaDetailPage = () => {
       setTimeline((prev) => [newTimelineItem, ...prev]);
       setError("");
       showToast(`Status updated to ${status}`, "success");
+      return true;
+    } catch (err) {
+      console.error("Failed to update status:", err);
+      showToast("Failed to update status", "error");
+      return false;
+    } finally {
+      setSavingStatus(false);
     }
   };
 
-  const handleVerifyDocument = (docId: string) => {
-    setDocuments((prev) =>
-      prev.map((doc) =>
-        doc.id === docId
-          ? {
-              ...doc,
-              verified: true,
-              verifiedAt: new Date().toISOString(),
-              verifiedBy: "Current User",
-            }
-          : doc,
-      ),
-    );
-
-    const doc = documents.find((d) => d.id === docId);
-    if (doc?.name.includes("passport")) {
-      setChecklist((prev) =>
-        prev.map((item) =>
-          item.id === "passport" ? { ...item, completed: true } : item,
-        ),
-      );
-    } else if (doc?.name.includes("bank")) {
-      setChecklist((prev) =>
-        prev.map((item) =>
-          item.id === "bank" ? { ...item, completed: true } : item,
-        ),
-      );
-    } else if (doc?.name.includes("insurance")) {
-      setChecklist((prev) =>
-        prev.map((item) =>
-          item.id === "insurance" ? { ...item, completed: true } : item,
-        ),
-      );
+  const handleSaveAndBack = async () => {
+    const ok = await saveStatus();
+    if (ok) {
+      navigate("/visa");
     }
+  };
 
-    const newTimelineItem: TimelineItem = {
-      id: Date.now().toString(),
-      title: `Document verified: ${doc?.name}`,
-      meta: "Current User",
-      time: new Date().toISOString(),
-      icon: <FaCheck />,
-    };
-    setTimeline((prev) => [newTimelineItem, ...prev]);
-    showToast("Document verified successfully", "success");
+  const handleVerifyDocument = async (docId: string) => {
+    try {
+      await visaApi.verifyDocument(docId, { isVerified: true });
+
+      setDocuments((prev) =>
+        prev.map((doc) =>
+          doc.id === docId
+            ? {
+                ...doc,
+                verified: true,
+                verifiedAt: new Date().toISOString(),
+                verifiedBy: "Current User",
+              }
+            : doc,
+        ),
+      );
+
+      const doc = documents.find((d) => d.id === docId);
+      const name = doc?.name?.toLowerCase() || "";
+      const checklistField: ChecklistKey | null =
+        name.includes("passport")
+          ? "passportVerified"
+          : name.includes("visa")
+            ? "visaVerified"
+            : name.includes("insurance")
+              ? "insuranceVerified"
+              : name.includes("flight") || name.includes("ticket")
+                ? "ticketVerified"
+                : name.includes("hotel")
+                  ? "hotelVerified"
+                  : name.includes("transfer")
+                    ? "transferVerified"
+                    : name.includes("tour")
+                      ? "tourVerified"
+                      : null;
+
+      if (checklistField && id) {
+        await visaApi.updateChecklist(id, { [checklistField]: true });
+        setChecklist((prev) =>
+          prev.map((item) =>
+            item.id === checklistField
+              ? { ...item, completed: true }
+              : item,
+          ),
+        );
+      }
+
+      const newTimelineItem: TimelineItem = {
+        id: Date.now().toString(),
+        title: `Document verified: ${doc?.name || "Document"}`,
+        meta: "Current User",
+        time: new Date().toISOString(),
+        icon: <FaCheck />,
+      };
+      setTimeline((prev) => [newTimelineItem, ...prev]);
+      showToast("Document verified successfully", "success");
+    } catch (err) {
+      console.error("Failed to verify document:", err);
+      showToast("Failed to verify document", "error");
+    }
   };
 
   const handleDeleteClick = (docId: string) => {
@@ -495,43 +684,71 @@ const VisaDetailPage = () => {
     }
   };
 
-  const handleUploadDocument = () => {
-    if (!uploadFile) return;
+  const handleUploadDocument = async () => {
+    if (!uploadFile || !id) return;
 
-    const newDoc: Document = {
-      id: `doc${Date.now()}`,
-      name: uploadName || uploadFile.name,
-      type: uploadFile.type.includes("pdf")
-        ? "pdf"
-        : uploadFile.type.includes("image")
-          ? "image"
-          : "other",
-      size: `${(uploadFile.size / (1024 * 1024)).toFixed(1)} MB`,
-      uploadedAt: new Date().toISOString(),
-      uploadedBy: "Current User",
-      verified: false,
-      url: URL.createObjectURL(uploadFile),
-    };
+    try {
+      const fileUrl = URL.createObjectURL(uploadFile);
+      const payload = {
+        documentType: uploadName || uploadFile.name,
+        fileUrl,
+      };
 
-    setDocuments((prev) => [newDoc, ...prev]);
-    setShowUploadModal(false);
-    setUploadFile(null);
-    setUploadName("");
+      const response = await visaApi.addDocument(id, payload);
+      const created =
+        (response as any)?.data?.data ??
+        (response as any)?.data ??
+        response;
+      const newDoc = mapApiDocument(created);
 
-    const newTimelineItem: TimelineItem = {
-      id: Date.now().toString(),
-      title: `Document uploaded: ${newDoc.name}`,
-      meta: "Current User",
-      time: new Date().toISOString(),
-      icon: <FaUpload />,
-    };
-    setTimeline((prev) => [newTimelineItem, ...prev]);
-    showToast("Document uploaded successfully", "success");
+      setDocuments((prev) => [newDoc, ...prev]);
+      setShowUploadModal(false);
+      setUploadFile(null);
+      setUploadName("");
+
+      const newTimelineItem: TimelineItem = {
+        id: Date.now().toString(),
+        title: `Document uploaded: ${newDoc.name}`,
+        meta: "Current User",
+        time: new Date().toISOString(),
+        icon: <FaUpload />,
+      };
+      setTimeline((prev) => [newTimelineItem, ...prev]);
+      showToast("Document uploaded successfully", "success");
+    } catch (err) {
+      console.error("Failed to upload document:", err);
+      showToast("Failed to upload document", "error");
+    }
   };
 
   const handleViewDocument = (doc: Document) => {
     setPreviewDocument(doc);
     setShowPreview(true);
+  };
+
+  const handleChecklistToggle = async (fieldId: ChecklistKey) => {
+    if (!id) return;
+    const currentItem = checklist.find((item) => item.id === fieldId);
+    if (!currentItem) return;
+
+    const nextValue = !currentItem.completed;
+    setChecklist((prev) =>
+      prev.map((item) =>
+        item.id === fieldId ? { ...item, completed: nextValue } : item,
+      ),
+    );
+
+    try {
+      await visaApi.updateChecklist(id, { [fieldId]: nextValue });
+    } catch (err) {
+      console.error("Failed to update checklist:", err);
+      setChecklist((prev) =>
+        prev.map((item) =>
+          item.id === fieldId ? { ...item, completed: currentItem.completed } : item,
+        ),
+      );
+      showToast("Failed to update checklist", "error");
+    }
   };
 
   const getDocumentIcon = (type: string) => {
@@ -547,7 +764,8 @@ const VisaDetailPage = () => {
     }
   };
 
-  const formatDateTime = (dateStr: string) => {
+  const formatDateTime = (dateStr?: string | null) => {
+    if (!dateStr) return "-";
     return new Date(dateStr).toLocaleString("en-US", {
       month: "short",
       day: "numeric",
@@ -556,9 +774,24 @@ const VisaDetailPage = () => {
     });
   };
 
-  const progressPercentage =
-    (checklist.filter((item) => item.completed).length / checklist.length) *
-    100;
+  const formatAuditDate = (dateStr?: string | null) => {
+    if (!dateStr) return undefined;
+    return new Date(dateStr).toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const progressPercentage = useMemo(() => {
+    if (!checklist.length) return 0;
+    return (
+      (checklist.filter((item) => item.completed).length / checklist.length) *
+      100
+    );
+  }, [checklist]);
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0 max-w-7xl mx-auto">
@@ -604,9 +837,18 @@ const VisaDetailPage = () => {
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
             Manage visa status, documents, and readiness checklist
           </p>
+          {pageError ? (
+            <p className="mt-2 text-xs sm:text-sm text-red-500">{pageError}</p>
+          ) : null}
         </div>
         <StatusBadge status={status} />
       </div>
+
+      {loading ? (
+        <div className="p-8 flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      ) : null}
 
       {/* Progress Bar */}
       <SurfaceCard className="p-4">
@@ -674,9 +916,17 @@ const VisaDetailPage = () => {
 
             <button
               onClick={saveStatus}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              disabled={savingStatus}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
             >
-              Update Status
+              {savingStatus ? "Saving..." : "Update Status"}
+            </button>
+            <button
+              onClick={handleSaveAndBack}
+              disabled={savingStatus}
+              className="mt-4 ml-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-60"
+            >
+              {savingStatus ? "Saving..." : "Save & Back"}
             </button>
           </SurfaceCard>
 
@@ -862,15 +1112,7 @@ const VisaDetailPage = () => {
                   <input
                     type="checkbox"
                     checked={item.completed}
-                    onChange={() =>
-                      setChecklist((prev) =>
-                        prev.map((i) =>
-                          i.id === item.id
-                            ? { ...i, completed: !i.completed }
-                            : i,
-                        ),
-                      )
-                    }
+                    onChange={() => handleChecklistToggle(item.id as ChecklistKey)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span
@@ -929,10 +1171,10 @@ const VisaDetailPage = () => {
 
           {/* Audit Meta */}
           <AuditMeta
-            createdBy="Alex Morgan"
-            createdAt="2026-03-10T09:20:00Z"
-            updatedBy="Visa Team"
-            updatedAt="2026-03-11T14:25:00Z"
+            createdBy="System"
+            createdAt={formatAuditDate(visaCase?.createdAt)}
+            updatedBy="System"
+            updatedAt={formatAuditDate(visaCase?.updatedAt)}
           />
         </div>
       </div>

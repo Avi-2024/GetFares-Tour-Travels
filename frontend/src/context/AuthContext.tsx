@@ -24,7 +24,7 @@ type AuthContextValue = {
   loadingPermissions: boolean;
   setAuthState: (token: string, user: AuthUser) => void;
   logout: () => void;
-  refreshPermissions: () => Promise<void>;
+  refreshPermissions: (customToken?: string) => Promise<void>;
   hasPermission: (permission: string) => boolean;
 };
 
@@ -91,35 +91,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
   const [loadingPermissions, setLoadingPermissions] = useState(false);
 
-  const refreshPermissions = useCallback(async () => {
-    if (!token) return;
-    if (user?.role === "admin") {
-      setPermissions(DEFAULT_PERMISSIONS);
-      localStorage.setItem(
-        STORAGE_PERMISSIONS,
-        JSON.stringify(DEFAULT_PERMISSIONS),
-      );
-      return;
-    }
-    setLoadingPermissions(true);
-    try {
-      const response = await rbacApi.myPermissions();
-      const next =
-        (response as { data?: { permissions?: string[] } }).data?.permissions ??
-        (response as { permissions?: string[] }).permissions ??
-        [];
-      setPermissions(next);
-      localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(next));
-    } catch {
-      setPermissions(DEFAULT_PERMISSIONS);
-      localStorage.setItem(
-        STORAGE_PERMISSIONS,
-        JSON.stringify(DEFAULT_PERMISSIONS),
-      );
-    } finally {
-      setLoadingPermissions(false);
-    }
-  }, [token]);
+  const refreshPermissions = useCallback(
+    async (customToken?: string) => {
+      const activeToken = customToken || token;
+      if (!activeToken) return;
+      if (user?.role === "admin") {
+        setPermissions(DEFAULT_PERMISSIONS);
+        localStorage.setItem(
+          STORAGE_PERMISSIONS,
+          JSON.stringify(DEFAULT_PERMISSIONS),
+        );
+        return;
+      }
+      setLoadingPermissions(true);
+      try {
+        const response = await rbacApi.myPermissions();
+        const next =
+          (response as { data?: { permissions?: string[] } }).data
+            ?.permissions ??
+          (response as { permissions?: string[] }).permissions ??
+          [];
+        setPermissions(next);
+        localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(next));
+      } catch {
+        setPermissions(DEFAULT_PERMISSIONS);
+        localStorage.setItem(
+          STORAGE_PERMISSIONS,
+          JSON.stringify(DEFAULT_PERMISSIONS),
+        );
+      } finally {
+        setLoadingPermissions(false);
+      }
+    },
+    [token, user?.role],
+  );
 
   useEffect(() => {
     if (token && permissions.length === 0) {

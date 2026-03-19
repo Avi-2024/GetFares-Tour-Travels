@@ -12,7 +12,7 @@ import {
 } from "react-icons/fa";
 import { FaXmark, FaFilter } from "react-icons/fa6";
 import { isApiError } from "../../api/apiClient";
-import { useUsersService } from "../../hooks/useUsersService";
+import { usersApi } from "../../api/users";
 import { useAuthService } from "../../hooks/useAuthService";
 
 interface User {
@@ -32,62 +32,8 @@ interface Role {
   description?: string;
 }
 
-const ROLE_OPTIONS: Role[] = [
-  {
-    id: "admin",
-    name: "Admin",
-    value: "admin",
-    description: "Full system access",
-  },
-  {
-    id: "manager",
-    name: "Manager",
-    value: "manager",
-    description: "Management access",
-  },
-  {
-    id: "sales_consultant",
-    name: "Sales Consultant",
-    value: "sales_consultant",
-    description: "Sales operations",
-  },
-  {
-    id: "visa_executive",
-    name: "Visa Executive",
-    value: "visa_executive",
-    description: "Visa processing",
-  },
-  {
-    id: "accounts",
-    name: "Accounts",
-    value: "accounts",
-    description: "Payments and finance",
-  },
-  {
-    id: "marketing",
-    name: "Marketing",
-    value: "marketing",
-    description: "Campaigns and outreach",
-  },
-  {
-    id: "operations",
-    name: "Operations",
-    value: "operations",
-    description: "Operations access",
-  },
-  {
-    id: "management",
-    name: "Management",
-    value: "management",
-    description: "Read-only leadership",
-  },
-];
-
-const ROLE_LABELS = new Map(
-  ROLE_OPTIONS.map((role) => [role.value, role.name]),
-);
-const getRoleLabel = (value?: string) =>
-  ROLE_LABELS.get(value ?? "") ?? value ?? "No Role";
+const getRoleLabel = (value?: string, roleMap?: Map<string, string>) =>
+  roleMap?.get(value ?? "") ?? value ?? "No Role";
 
 // Toast Component
 const Toast = ({
@@ -135,11 +81,13 @@ const Toast = ({
 const ConfirmDeleteModal = ({
   isOpen,
   user,
+  roleLabelMap,
   onConfirm,
   onCancel,
 }: {
   isOpen: boolean;
   user: User | null;
+  roleLabelMap: Map<string, string>;
   onConfirm: () => void;
   onCancel: () => void;
 }) => {
@@ -177,7 +125,7 @@ const ConfirmDeleteModal = ({
           </p>
           {user.role && (
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              Role: {getRoleLabel(user.role)}
+              Role: {getRoleLabel(user.role, roleLabelMap)}
             </p>
           )}
         </div>
@@ -504,10 +452,9 @@ const AssignRoleModal = ({
 };
 
 const UsersPage: React.FC = () => {
-  const usersService = useUsersService();
   const authService = useAuthService();
   const [users, setUsers] = useState<User[]>([]);
-  const [roles] = useState<Role[]>(ROLE_OPTIONS);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingError, setLoadingError] = useState("");
   const [search, setSearch] = useState("");
@@ -528,25 +475,56 @@ const UsersPage: React.FC = () => {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const roleLabelMap = React.useMemo(
+    () => new Map(roles.map((role) => [role.value, role.name])),
+    [roles],
+  );
+
+  const normalizeUsers = (response: unknown): User[] => {
+    const payload = (response as { data?: unknown })?.data ?? response ?? [];
+    const data =
+      (payload as { data?: unknown })?.data ??
+      (payload as { items?: unknown })?.items ??
+      payload;
+    return Array.isArray(data) ? (data as User[]) : [];
+  };
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setLoadingError("");
     try {
-      const response = await usersService.list();
-      const rows = (response as { data?: User[] }).data ?? [];
-      setUsers(rows);
+      const response = await usersApi.list();
+      setUsers(normalizeUsers(response));
     } catch (err) {
       const message = isApiError(err) ? err.message : "Unable to load users";
       setLoadingError(message);
     } finally {
       setLoading(false);
     }
-  }, [usersService]);
+  }, []);
+
+  const loadRoles = useCallback(async () => {
+    try {
+      const response = await usersApi.listRoles();
+      const payload = (response as { data?: unknown })?.data ?? response ?? [];
+      const data =
+        (payload as { data?: unknown })?.data ??
+        (payload as { items?: unknown })?.items ??
+        payload;
+      if (Array.isArray(data)) {
+        setRoles(data as Role[]);
+      } else {
+        setRoles([]);
+      }
+    } catch {
+      setRoles([]);
+    }
+  }, []);
 
   useEffect(() => {
     void loadUsers();
-  }, [loadUsers]);
+    void loadRoles();
+  }, [loadUsers, loadRoles]);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ show: true, message, type });
@@ -556,21 +534,65 @@ const UsersPage: React.FC = () => {
     );
   };
 
+  const isValidPhone = (phone?: string) => {
+    if (!phone) return true;
+    const normalized = phone.replace(/[\s\-\(\)]/g, "");
+    return normalized.length >= 6 && normalized.length <= 20;
+  };
+
+  const normalizePhone = (phone?: string) => {
+    if (!phone) return undefined;
+    const digits = phone.replace(/\D/g, "");
+    return digits ? digits : undefined;
+  };
+
+  const isValidEmail = (email?: string) => {
+    if (!email) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
   const handleCreateUser = async (formData: any) => {
+    if (!formData.fullName?.trim() || formData.fullName.trim().length < 2) {
+      showToast("Full name must be at least 2 characters.", "error");
+      return;
+    }
+    if (!formData.email?.trim() || !isValidEmail(formData.email)) {
+      showToast("Please enter a valid email address.", "error");
+      return;
+    }
+    if (!formData.password || formData.password.length < 8) {
+      showToast("Password must be at least 8 characters.", "error");
+      return;
+    }
+    if (!isValidPhone(formData.phone)) {
+      showToast("Phone number must be 6-20 digits.", "error");
+      return;
+    }
+
     try {
-      const response = await usersService.create({
+      const response = await usersApi.create({
         fullName: formData.fullName,
         email: formData.email,
-        phone: formData.phone || undefined,
+        phone: normalizePhone(formData.phone),
         password: formData.password,
         isActive: true,
       });
-      const created = (response as { data?: User }).data;
+      const created =
+        (response as { data?: { data?: User } }).data?.data ??
+        (response as { data?: User }).data ??
+        (response as User);
       if (created && formData.role) {
-        await authService.assignRole({
-          userId: created.id,
-          role: formData.role,
-        });
+        try {
+          await authService.assignRole({
+            userId: created.id,
+            role: formData.role,
+          });
+        } catch (err) {
+          const message = isApiError(err)
+            ? err.message
+            : "Role assignment failed";
+          showToast(message, "info");
+        }
       }
       setShowCreateModal(false);
       showToast("User created successfully", "success");
@@ -583,20 +605,39 @@ const UsersPage: React.FC = () => {
 
   const handleUpdateUser = async (formData: any) => {
     if (!selectedUser) return;
+    if (!formData.fullName?.trim() || formData.fullName.trim().length < 2) {
+      showToast("Full name must be at least 2 characters.", "error");
+      return;
+    }
+    if (!formData.email?.trim() || !isValidEmail(formData.email)) {
+      showToast("Please enter a valid email address.", "error");
+      return;
+    }
+    if (!isValidPhone(formData.phone)) {
+      showToast("Phone number must be 6-20 digits.", "error");
+      return;
+    }
 
     try {
-      await usersService.update(selectedUser.id, {
+      await usersApi.update(selectedUser.id, {
         fullName: formData.fullName,
         email: formData.email,
-        phone: formData.phone || undefined,
+        phone: normalizePhone(formData.phone),
         isActive: formData.isActive,
       });
 
       if (formData.role && formData.role !== selectedUser.role) {
-        await authService.assignRole({
-          userId: selectedUser.id,
-          role: formData.role,
-        });
+        try {
+          await authService.assignRole({
+            userId: selectedUser.id,
+            role: formData.role,
+          });
+        } catch (err) {
+          const message = isApiError(err)
+            ? err.message
+            : "Role assignment failed";
+          showToast(message, "info");
+        }
       }
 
       setShowEditModal(false);
@@ -626,7 +667,7 @@ const UsersPage: React.FC = () => {
     if (!selectedUser) return;
 
     try {
-      await usersService.update(selectedUser.id, { isActive: false });
+      await usersApi.update(selectedUser.id, { isActive: false });
       setShowDeleteModal(false);
       setSelectedUser(null);
       showToast("User deactivated successfully", "success");
@@ -658,7 +699,9 @@ const UsersPage: React.FC = () => {
     (user) =>
       user.fullName.toLowerCase().includes(search.toLowerCase()) ||
       user.email.toLowerCase().includes(search.toLowerCase()) ||
-      getRoleLabel(user.role).toLowerCase().includes(search.toLowerCase()),
+      getRoleLabel(user.role, roleLabelMap)
+        .toLowerCase()
+        .includes(search.toLowerCase()),
   );
 
   if (loading) {
@@ -737,6 +780,7 @@ const UsersPage: React.FC = () => {
       <ConfirmDeleteModal
         isOpen={showDeleteModal}
         user={selectedUser}
+        roleLabelMap={roleLabelMap}
         onConfirm={handleDeleteUser}
         onCancel={() => {
           setShowDeleteModal(false);
@@ -886,7 +930,7 @@ const UsersPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900">
-                        {getRoleLabel(user.role)}
+                        {getRoleLabel(user.role, roleLabelMap)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -984,7 +1028,7 @@ const UsersPage: React.FC = () => {
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Role</p>
                 <span className="inline-flex items-center px-2.5 py-1 mt-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900">
-                  {getRoleLabel(user.role)}
+                  {getRoleLabel(user.role, roleLabelMap)}
                 </span>
               </div>
 

@@ -18,12 +18,12 @@ import EmptyState from "../../components/ui/EmptyState";
 import { validateQuoteTransition } from "../../utils/workflowValidation";
 import { quotationsApi } from "../../api/quotations";
 import { leadsApi } from "../../api/leads";
-import { customersApi } from "../../api/customers";
 import { useAuth } from "../../context/AuthContext";
 
 type Status = "pending" | "accepted" | "expired" | "rejected" | "draft";
 interface Quotation {
   id: string;
+  leadId?: string | null;
   quoteNumber: string;
   customer: string;
   email: string;
@@ -34,62 +34,8 @@ interface Quotation {
   status: Status;
   lastSent: string | null;
   sentDate: string | null;
+  createdAt?: string | null;
 }
-
-const baseItems: Quotation[] = [
-  {
-    id: "1",
-    quoteNumber: "QT-2026-089",
-    customer: "Sarah Jenkins",
-    email: "sarah.j@example.com",
-    destination: "Maldives Retreat",
-    details: "5 Nights - All Inclusive",
-    total: 4250,
-    margin: 12,
-    status: "pending",
-    lastSent: "Mar 9 - Email",
-    sentDate: "2026-03-09",
-  },
-  {
-    id: "2",
-    quoteNumber: "QT-2026-088",
-    customer: "Michael Ross",
-    email: "m.ross@company.com",
-    destination: "Tokyo Business Trip",
-    details: "7 Nights - Hotel Only",
-    total: 2800,
-    margin: 15,
-    status: "accepted",
-    lastSent: "Mar 8 - WhatsApp",
-    sentDate: "2026-03-08",
-  },
-  {
-    id: "3",
-    quoteNumber: "QT-2026-085",
-    customer: "Emma Lewis",
-    email: "emma.l@gmail.com",
-    destination: "Paris Family Vacation",
-    details: "10 Nights - Package",
-    total: 8450,
-    margin: 10,
-    status: "expired",
-    lastSent: "Mar 2 - Email",
-    sentDate: "2026-03-02",
-  },
-  {
-    id: "4",
-    quoteNumber: "Draft",
-    customer: "David Kim",
-    email: "New Lead",
-    destination: "Bali Honeymoon",
-    details: "14 Nights",
-    total: 5100,
-    margin: 0,
-    status: "draft",
-    lastSent: null,
-    sentDate: null,
-  },
-];
 
 const tabs = [
   "All",
@@ -110,6 +56,23 @@ const styles: Record<Status, string> = {
     "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900",
   draft:
     "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
+};
+
+const mapApiStatusToUi = (status?: string): Status => {
+  switch (String(status || "").toUpperCase()) {
+    case "SENT":
+    case "VIEWED":
+      return "pending";
+    case "APPROVED":
+      return "accepted";
+    case "REJECTED":
+      return "rejected";
+    case "EXPIRED":
+      return "expired";
+    case "DRAFT":
+    default:
+      return "draft";
+  }
 };
 
 const QuotationsPage: React.FC = () => {
@@ -183,31 +146,23 @@ const QuotationsPage: React.FC = () => {
     const loadQuotations = async () => {
       // Don't make API calls if no token
       if (!token) {
-        console.log('No auth token available, using fallback data');
-        setQuotations(baseItems);
+        console.log('No auth token available, skipping API call');
+        setQuotations([]);
+        setError('Please login to view quotations.');
         return;
       }
       
       setLoading(true);
       try {
-        // Debug: Check if token exists
-        console.log('Auth token exists:', !!token);
-        console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'No token');
-        
-        // Test API call with explicit token
-        const response = await quotationsApi.list({
-          status: tab === 'All' ? undefined : tab,
-          search: search || undefined,
-          date: selectedDate || undefined,
-          page,
-          limit: pageSize
-        });
-        
-        console.log('API Response:', response);
+        const response = await quotationsApi.list({ includeItems: false });
         
         // Check if response has the expected structure
         if (response && typeof response === 'object') {
-          const data = (response as any).data || (response as any).quotations || response;
+          const payload = (response as any).data ?? response;
+          const data =
+            (payload as any)?.data ||
+            (payload as any)?.quotations ||
+            payload;
           
           if (Array.isArray(data)) {
             // Process quotations and fetch customer data
@@ -221,21 +176,32 @@ const QuotationsPage: React.FC = () => {
                 };
                 
                 let leadData = null;
+                const leadId = q.leadId || q.lead_id;
                 
                 // Fetch customer data if leadId exists
-                if (q.leadId) {
-                  customerData = await fetchCustomerByLeadId(q.leadId);
+                if (leadId) {
+                  customerData = await fetchCustomerByLeadId(leadId);
                   // Also get the lead data for additional details
                   try {
-                    const leadResponse = await leadsApi.getById(q.leadId);
+                    const leadResponse = await leadsApi.getById(leadId);
                     leadData = leadResponse?.data || leadResponse;
                   } catch (error) {
                     console.log('Could not fetch lead data for details:', error);
                   }
                 }
+
+                const sentAt = q.sentAt || q.sent_at;
+                const sentDate = sentAt
+                  ? new Date(sentAt).toISOString().split('T')[0]
+                  : null;
+                const lastSent = sentAt
+                  ? `${new Date(sentAt).toLocaleDateString()} - Sent`
+                  : null;
+                const createdAt = q.createdAt || q.created_at || null;
                 
                 return {
                   id: q.id || Math.random().toString(),
+                  leadId,
                   quoteNumber: q.quoteNumber || q.quote_number || 'N/A',
                   customer: customerData.name,
                   email: customerData.email,
@@ -244,9 +210,10 @@ const QuotationsPage: React.FC = () => {
                           (leadData ? `${leadData.adultsCount || 0} Adults${leadData.childrenCount ? `, ${leadData.childrenCount} Children` : ''} - ${leadData.travelPurpose || 'Travel'}` : 'No details'),
                   total: Number(q.totalSaleValue || q.finalPrice || q.total || q.amount || 0),
                   margin: Number(q.marginPercent || q.margin || 0),
-                  status: (q.status?.toLowerCase() || 'draft') as Status,
-                  lastSent: q.lastSent || q.last_sent || (q.sentAt ? `${new Date(q.sentAt).toLocaleDateString()} - Email` : null),
-                  sentDate: q.sentDate || q.sent_date || (q.sentAt ? new Date(q.sentAt).toISOString().split('T')[0] : null)
+                  status: mapApiStatusToUi(q.status),
+                  lastSent,
+                  sentDate,
+                  createdAt
                 };
               })
             );
@@ -255,13 +222,13 @@ const QuotationsPage: React.FC = () => {
             setError('');
           } else {
             console.warn('API response data is not an array:', data);
-            setQuotations(baseItems);
-            setError('Invalid data format from API. Using offline data.');
+            setQuotations([]);
+            setError('Invalid data format from API.');
           }
         } else {
           console.warn('Unexpected API response format:', response);
-          setQuotations(baseItems);
-          setError('Unexpected response format. Using offline data.');
+          setQuotations([]);
+          setError('Unexpected response format.');
         }
       } catch (error: any) {
         console.error('Failed to load quotations:', error);
@@ -270,23 +237,49 @@ const QuotationsPage: React.FC = () => {
         if (error.status === 401 || error.message?.includes('token')) {
           setError('Authentication failed. Please login again.');
         } else {
-          setError('Failed to load quotations. Using offline data.');
+          setError('Failed to load quotations.');
         }
         
-        // Fallback to base items on error
-        setQuotations(baseItems);
+        // No fallback data on error
+        setQuotations([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadQuotations();
-  }, [tab, search, selectedDate, page, token, customerCache]);
+  }, [token]);
 
-  const allItems = useMemo(
-    () => quotations.length > 0 ? quotations : baseItems,
-    [quotations],
-  );
+  const allItems = useMemo(() => quotations, [quotations]);
+
+  const kpis = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const isInCurrentMonth = (dateStr?: string | null) => {
+      if (!dateStr) return false;
+      const date = new Date(dateStr);
+      if (Number.isNaN(date.getTime())) return false;
+      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    };
+
+    const activeCount = quotations.filter((q) =>
+      q.status === "pending" || q.status === "draft",
+    ).length;
+    const pendingCount = quotations.filter((q) => q.status === "pending").length;
+    const convertedCount = quotations.filter((q) => q.status === "accepted").length;
+    const valueThisMonth = quotations
+      .filter((q) => q.status === "accepted")
+      .filter((q) => isInCurrentMonth(q.createdAt) || isInCurrentMonth(q.sentDate))
+      .reduce((sum, q) => sum + Number(q.total || 0), 0);
+
+    return {
+      activeCount,
+      pendingCount,
+      convertedCount,
+      valueThisMonth,
+    };
+  }, [quotations]);
 
   const filtered = useMemo(
     () =>
@@ -328,7 +321,7 @@ const QuotationsPage: React.FC = () => {
     setLoading(true);
     try {
       await quotationsApi.changeStatus(selectedQuotation.id, {
-        status: 'rejected',
+        status: 'REJECTED',
         reason: rejectReason
       });
       
@@ -354,30 +347,30 @@ const QuotationsPage: React.FC = () => {
     setLoading(true);
     try {
       // Try to get phone number from customer cache or fetch it
-      let phone = quotation.email; // fallback
-      
-      // Find the original quotation data to get leadId
-      const originalQuotation = quotations.find(q => q.id === quotation.id);
-      if (originalQuotation) {
-        // Check if we have customer data in cache
-        const leadId = Object.keys(customerCache).find(key => 
-          customerCache[key].name === quotation.customer
-        );
-        
-        if (leadId && customerCache[leadId]?.phone) {
-          phone = customerCache[leadId].phone;
-        }
+      const leadId = quotation.leadId;
+      const cached = leadId ? customerCache[leadId] : null;
+      const phone = cached?.phone;
+
+      if (!phone || phone === 'No phone') {
+        setError('Phone number not available for WhatsApp sending');
+        setLoading(false);
+        return;
       }
       
       await quotationsApi.send(quotation.id, {
-        method: 'whatsapp',
-        phone: phone
+        channel: 'WHATSAPP',
+        recipientPhone: phone
       });
       
       // Update local state to reflect sent status
       setQuotations(prev => prev.map(q => 
         q.id === quotation.id 
-          ? { ...q, lastSent: `${new Date().toLocaleDateString()} - WhatsApp` }
+          ? { 
+              ...q, 
+              status: 'pending',
+              lastSent: `${new Date().toLocaleDateString()} - WhatsApp`,
+              sentDate: new Date().toISOString().split('T')[0]
+            }
           : q
       ));
       
@@ -442,10 +435,16 @@ const QuotationsPage: React.FC = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { t: "Total Active", v: "142", c: "+12%" },
-          { t: "Pending", v: "28", c: "Attention" },
-          { t: "Converted", v: "45", c: "This Month" },
-          { t: "Value", v: "$342.8k", c: "USD" },
+          { t: "Total Active", v: kpis.activeCount.toLocaleString(), c: "Live" },
+          { t: "Pending", v: kpis.pendingCount.toLocaleString(), c: "Awaiting" },
+          { t: "Converted", v: kpis.convertedCount.toLocaleString(), c: "Approved" },
+          {
+            t: "Value",
+            v: `₹${kpis.valueThisMonth.toLocaleString("en-IN", {
+              maximumFractionDigits: 0,
+            })}`,
+            c: "This Month",
+          },
         ].map((k) => (
           <SurfaceCard key={k.t} hoverable className="p-3 sm:p-5">
             <div className="flex items-start justify-between">

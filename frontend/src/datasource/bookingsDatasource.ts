@@ -7,6 +7,7 @@ export type BookingsQuery = Record<
 
 export const createBookingsDatasource = (client: HttpClient) => ({
   list: (params?: BookingsQuery) => client.get("/api/bookings", { params }),
+  stats: () => client.get("/api/bookings/stats"),
   create: (payload: unknown) => client.post("/api/bookings", payload),
   getById: (id: string) => client.get(`/api/bookings/${id}`),
   update: (id: string, payload: unknown) =>
@@ -29,7 +30,10 @@ export const createBookingsDatasource = (client: HttpClient) => ({
   sendConfirmation: (id: string) =>
     client.post(`/api/bookings/${id}/send-confirmation`),
   cancel: (id: string, reason: string) =>
-    client.post(`/api/bookings/${id}/cancel`, { reason }),
+    client.post(`/api/bookings/${id}/status`, {
+      status: "CANCELLED",
+      cancellationReason: reason,
+    }),
 });
 
 export type BookingsDatasource = ReturnType<typeof createBookingsDatasource>;

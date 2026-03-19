@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaArrowRotateRight,
@@ -12,6 +12,9 @@ import {
   FaPlus,
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
+import { leadsApi } from "../../api/leads";
+import { quotationsApi } from "../../api/quotations";
+import { useAuth } from "../../context/AuthContext";
 
 type Currency = "USD" | "EUR" | "INR";
 type SavedQuote = {
@@ -40,6 +43,18 @@ interface Price {
   markup: number;
   price: number;
 }
+
+type LeadOption = {
+  id: string;
+  fullName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  destinationId?: string | null;
+  travelDate?: string | null;
+  adultsCount?: number | null;
+  childrenCount?: number | null;
+  travelPurpose?: string | null;
+};
 const initialItinerary: Item[] = [
   {
     id: "1",
@@ -62,22 +77,31 @@ const pricing: Price[] = [
 
 const QuotationBuilderPage: React.FC = () => {
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [showPreview, setShowPreview] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [currency, setCurrency] = useState<Currency>("INR");
+  const [leads, setLeads] = useState<LeadOption[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadsError, setLeadsError] = useState("");
+  const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
+    {},
+  );
   const [form, setForm] = useState({
-    quote: "QT-2026-089",
-    version: "v1.2 Draft",
-    customer: "Sarah Jenkins",
-    email: "sarah.j@example.com",
-    destination: "Maldives Retreat",
-    startDate: "2026-12-15",
-    nights: 5,
-    adults: 2,
-    validUntil: "2026-11-15",
-    inclusions:
-      "5 nights stay\nDaily breakfast and dinner\nRoundtrip transfers",
-    exclusions: "International flights\nTravel insurance\nPersonal expenses",
+    quote: "",
+    version: "Draft",
+    customer: "",
+    email: "",
+    destination: "",
+    startDate: "",
+    nights: 1,
+    adults: 1,
+    validUntil: "",
+    inclusions: "",
+    exclusions: "",
   });
   const [downloading, setDownloading] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
@@ -109,6 +133,86 @@ const QuotationBuilderPage: React.FC = () => {
     discount: 0,
   });
   const previewRef = useRef<HTMLDivElement | null>(null);
+
+  const selectedLead = useMemo(
+    () => leads.find((lead) => lead.id === selectedLeadId) || null,
+    [leads, selectedLeadId],
+  );
+
+  useEffect(() => {
+    const loadDestinations = async () => {
+      try {
+        const response = await leadsApi.getDestinations();
+        const list =
+          (response as { data?: Array<{ id: string; name?: string }> }).data ??
+          (response as Array<{ id: string; name?: string }>) ??
+          [];
+        const map: Record<string, string> = {};
+        list.forEach((item) => {
+          if (item?.id) {
+            map[item.id] = item.name || item.id;
+          }
+        });
+        setDestinationMap(map);
+      } catch (_error) {
+        setDestinationMap({});
+      }
+    };
+
+    void loadDestinations();
+  }, []);
+
+  useEffect(() => {
+    const loadLeads = async () => {
+      if (!token) {
+        setLeads([]);
+        setLeadsError("Login required to load leads.");
+        return;
+      }
+
+      setLeadsLoading(true);
+      setLeadsError("");
+      try {
+        const response = await leadsApi.list({ page: 1, limit: 100 });
+        const payload = (response as any)?.data ?? response;
+        const data =
+          (payload as any)?.data || (payload as any)?.items || payload;
+        if (Array.isArray(data)) {
+          setLeads(data as LeadOption[]);
+        } else {
+          setLeads([]);
+          setLeadsError("Invalid lead data from API.");
+        }
+      } catch (error) {
+        console.error("Failed to load leads:", error);
+        setLeads([]);
+        setLeadsError("Failed to load leads from API.");
+      } finally {
+        setLeadsLoading(false);
+      }
+    };
+
+    void loadLeads();
+  }, [token]);
+
+  useEffect(() => {
+    if (!selectedLead) return;
+
+    const destinationName = selectedLead.destinationId
+      ? destinationMap[selectedLead.destinationId] || form.destination
+      : form.destination;
+
+    setForm((prev) => ({
+      ...prev,
+      customer: selectedLead.fullName || prev.customer,
+      email: selectedLead.email || prev.email,
+      destination: destinationName,
+      startDate: selectedLead.travelDate
+        ? selectedLead.travelDate.slice(0, 10)
+        : prev.startDate,
+      adults: Number(selectedLead.adultsCount || prev.adults || 1),
+    }));
+  }, [selectedLead, destinationMap, form.destination]);
 
   const computed = useMemo(() => {
     const supplier = Number(costs.supplierCost) || 0;
@@ -146,15 +250,24 @@ const QuotationBuilderPage: React.FC = () => {
   };
 
   const autofillCustomer = () => {
-    setForm((p) => ({
-      ...p,
-      customer: "Sarah Connor",
-      email: "sarah.c@gmail.com",
-      destination: "Maldives - Water Villa",
-      startDate: "2026-11-20",
-      nights: 6,
-      adults: 2,
-    }));
+    if (selectedLead) {
+      setForm((p) => ({
+        ...p,
+        customer: selectedLead.fullName || p.customer,
+        email: selectedLead.email || p.email,
+        destination:
+          (selectedLead.destinationId &&
+            destinationMap[selectedLead.destinationId]) ||
+          p.destination,
+        startDate: selectedLead.travelDate
+          ? selectedLead.travelDate.slice(0, 10)
+          : p.startDate,
+        adults: Number(selectedLead.adultsCount || p.adults || 1),
+      }));
+      setSaveError("");
+      return;
+    }
+    setSaveError("Select a lead to auto-fill.");
   };
 
   const addItineraryItem = () => {
@@ -248,33 +361,104 @@ const QuotationBuilderPage: React.FC = () => {
   };
 
   const handleSave = () => {
-    const newQuote: SavedQuote = {
-      id: String(Date.now()),
-      quoteNumber: form.quote || "Draft",
-      customer: form.customer || "Unnamed Customer",
-      email: form.email || "New Lead",
-      destination: form.destination || "Destination",
-      details: `${form.nights} nights - ${packageType}`,
-      total: computed.totalPrice,
-      margin: Number(computed.margin.toFixed(1)),
-      status: "pending",
-      lastSent: null,
-      sentDate: new Date().toISOString().slice(0, 10),
-    };
+    setSaveError("");
 
-    if (typeof window !== "undefined") {
-      const existingRaw = localStorage.getItem("quotations_custom");
-      const existing = existingRaw
-        ? (JSON.parse(existingRaw) as SavedQuote[])
-        : [];
-      localStorage.setItem(
-        "quotations_custom",
-        JSON.stringify([newQuote, ...existing]),
-      );
+    if (!token) {
+      const newQuote: SavedQuote = {
+        id: String(Date.now()),
+        quoteNumber: form.quote || "Draft",
+        customer: form.customer || "Unnamed Customer",
+        email: form.email || "New Lead",
+        destination: form.destination || "Destination",
+        details: `${form.nights} nights - ${packageType}`,
+        total: computed.totalPrice,
+        margin: Number(computed.margin.toFixed(1)),
+        status: "pending",
+        lastSent: null,
+        sentDate: new Date().toISOString().slice(0, 10),
+      };
+
+      if (typeof window !== "undefined") {
+        const existingRaw = localStorage.getItem("quotations_custom");
+        const existing = existingRaw
+          ? (JSON.parse(existingRaw) as SavedQuote[])
+          : [];
+        localStorage.setItem(
+          "quotations_custom",
+          JSON.stringify([newQuote, ...existing]),
+        );
+      }
+
+      setShowSaved(true);
+      setTimeout(() => navigate("/quotations"), 1200);
+      return;
     }
 
-    setShowSaved(true);
-    setTimeout(() => navigate("/quotations"), 1200);
+    if (!selectedLeadId) {
+      setSaveError("Please select a lead before saving.");
+      return;
+    }
+
+    const supplier = Number(costs.supplierCost) || 0;
+    const serviceFee = Number(costs.serviceFee) || 0;
+    const components = [
+      {
+        itemType: "OTHER",
+        description: "Package Cost",
+        cost: supplier,
+      },
+      ...(serviceFee
+        ? [
+            {
+              itemType: "OTHER",
+              description: "Service Fee",
+              cost: serviceFee,
+            },
+          ]
+        : []),
+    ];
+
+    const taxPercent = Number(costs.taxPercent) || 0;
+    const discount = Number(costs.discount) || 0;
+    const markupAmount =
+      Number(costs.supplierCost || 0) * (Number(costs.markupPercent || 0) / 100);
+
+    const expiresInHours = (() => {
+      if (!form.validUntil) return undefined;
+      const diffMs = new Date(form.validUntil).getTime() - Date.now();
+      if (!Number.isFinite(diffMs) || diffMs <= 0) return undefined;
+      const hours = Math.ceil(diffMs / (1000 * 60 * 60));
+      return Math.min(hours, 720);
+    })();
+
+    const payload = {
+      leadId: selectedLeadId,
+      components,
+      marginPercent: Number(costs.markupPercent) || 0,
+      discount,
+      taxPercent,
+      supplierCost: supplier,
+      markupAmount,
+      serviceFeeAmount: serviceFee,
+      taxAmount: Number(computed.taxVal) || 0,
+      costCurrency: currency,
+      clientCurrency: currency,
+      supplierCurrency: currency,
+      ...(expiresInHours ? { expiresInHours } : {}),
+    };
+
+    setSaving(true);
+    quotationsApi
+      .create(payload)
+      .then(() => {
+        setShowSaved(true);
+        setTimeout(() => navigate("/quotations"), 1200);
+      })
+      .catch((error) => {
+        console.error("Failed to save quotation:", error);
+        setSaveError("Failed to save quotation. Please try again.");
+      })
+      .finally(() => setSaving(false));
   };
 
   return (
@@ -288,6 +472,9 @@ const QuotationBuilderPage: React.FC = () => {
             <p className="text-sm text-gray-500">
               Create and preview polished quotations quickly.
             </p>
+            {saveError ? (
+              <p className="mt-2 text-sm text-red-600">{saveError}</p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
@@ -306,7 +493,8 @@ const QuotationBuilderPage: React.FC = () => {
             </button>
             <button
               onClick={handleSave}
-              className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              disabled={saving}
+              className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
               <FaFloppyDisk className="mr-2 inline" /> Save Quote
             </button>
@@ -329,7 +517,9 @@ const QuotationBuilderPage: React.FC = () => {
                     Auto-fill
                   </button>
                   <button
-                    onClick={() => navigate("/leads/1")}
+                    onClick={() =>
+                      navigate(selectedLeadId ? `/leads/${selectedLeadId}` : "/leads")
+                    }
                     className="text-sm text-blue-600"
                   >
                     Edit Lead
@@ -337,6 +527,33 @@ const QuotationBuilderPage: React.FC = () => {
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="field-label">Lead</label>
+                  <select
+                    className="field-input"
+                    value={selectedLeadId}
+                    onChange={(e) => setSelectedLeadId(e.target.value)}
+                    disabled={leadsLoading}
+                  >
+                    <option value="">Select a lead</option>
+                    {leads.map((lead) => (
+                      <option key={lead.id} value={lead.id}>
+                        {lead.fullName ||
+                          lead.email ||
+                          lead.phone ||
+                          lead.id}
+                      </option>
+                    ))}
+                  </select>
+                  {leadsLoading ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Loading leads...
+                    </p>
+                  ) : null}
+                  {leadsError ? (
+                    <p className="mt-1 text-xs text-red-600">{leadsError}</p>
+                  ) : null}
+                </div>
                 <Field
                   label="Customer"
                   value={form.customer}

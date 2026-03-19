@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaPlus,
@@ -14,6 +14,8 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import EmptyState from "../../components/ui/EmptyState";
 import { SUPPLIERS } from "../../data/staticLists";
+import { visaApi } from "../../api/visa";
+import { useAuth } from "../../context/AuthContext";
 
 type VisaStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
 
@@ -29,39 +31,31 @@ type VisaCase = {
   supplierId: string;
 };
 
-const rows: VisaCase[] = [
-  {
-    id: "visa-1",
-    bookingId: "BK-2034",
-    country: "Maldives",
-    visaType: "Tourist",
-    status: "SUBMITTED",
-    appointmentDate: "2026-03-16",
-    submissionDate: "2026-03-10",
-    supplierId: "sup-2",
-  },
-  {
-    id: "visa-2",
-    bookingId: "BK-2030",
-    country: "France",
-    visaType: "Schengen",
-    status: "APPROVED",
-    appointmentDate: "2026-03-08",
-    submissionDate: "2026-03-03",
-    visaValidUntil: "2026-09-08",
-    supplierId: "sup-2",
-  },
-  {
-    id: "visa-3",
-    bookingId: "BK-2028",
-    country: "Japan",
-    visaType: "Tourist",
-    status: "REJECTED",
-    appointmentDate: "2026-02-20",
-    submissionDate: "2026-02-15",
-    supplierId: "sup-1",
-  },
-];
+const mapApiStatusToUi = (status?: string): VisaStatus => {
+  switch (String(status || "").toUpperCase()) {
+    case "SUBMITTED":
+      return "SUBMITTED";
+    case "APPROVED":
+      return "APPROVED";
+    case "REJECTED":
+      return "REJECTED";
+    case "DOCUMENT_PENDING":
+    default:
+      return "DRAFT";
+  }
+};
+
+const mapApiVisa = (visa: any): VisaCase => ({
+  id: visa?.id || "",
+  bookingId: visa?.bookingId ?? visa?.booking_id ?? "",
+  country: visa?.country ?? "",
+  visaType: visa?.visaType ?? visa?.visa_type ?? "",
+  status: mapApiStatusToUi(visa?.status),
+  appointmentDate: visa?.appointmentDate ?? visa?.appointment_date ?? "",
+  submissionDate: visa?.submissionDate ?? visa?.submission_date ?? "",
+  visaValidUntil: visa?.visaValidUntil ?? visa?.visa_valid_until ?? undefined,
+  supplierId: visa?.supplierId ?? visa?.supplier_id ?? "",
+});
 
 const tabs = [
   { id: "ALL", label: "All" },
@@ -73,11 +67,49 @@ const tabs = [
 
 const VisaCasesPage = () => {
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [tab, setTab] = useState("ALL");
   const [search, setSearch] = useState("");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<VisaCase[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const pageSize = 4;
+
+  useEffect(() => {
+    const loadVisaCases = async () => {
+      if (!token) {
+        setRows([]);
+        setError("Please login to view visa cases.");
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+      try {
+        const response = await visaApi.list();
+        const payload = (response as any)?.data ?? response;
+        const data =
+          (payload as any)?.data || (payload as any)?.items || payload;
+
+        if (Array.isArray(data)) {
+          setRows(data.map(mapApiVisa));
+        } else {
+          setRows([]);
+          setError("Invalid visa data from API.");
+        }
+      } catch (err) {
+        console.error("Failed to load visa cases:", err);
+        setRows([]);
+        setError("Failed to load visa cases.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadVisaCases();
+  }, [token]);
 
   const filtered = useMemo(() => {
     return rows.filter((row) => {
@@ -96,10 +128,13 @@ const VisaCasesPage = () => {
 
   const getSupplierName = (supplierId: string) => {
     const supplier = SUPPLIERS.find((s) => s.id === supplierId);
-    return supplier?.name || "-";
+    if (supplier?.name) return supplier.name;
+    if (!supplierId) return "-";
+    return supplierId.length > 8 ? `${supplierId.slice(0, 8)}...` : supplierId;
   };
 
   const formatDate = (date: string) => {
+    if (!date) return "-";
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
@@ -118,6 +153,9 @@ const VisaCasesPage = () => {
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
             Track visa pipeline, appointments and approvals
           </p>
+          {error ? (
+            <p className="mt-2 text-xs sm:text-sm text-red-500">{error}</p>
+          ) : null}
         </div>
         <button
           onClick={() => navigate("/visa/visa-1")}
@@ -194,7 +232,14 @@ const VisaCasesPage = () => {
 
       {/* Desktop: Filters */}
       <div className="hidden sm:flex sm:flex-row sm:items-center sm:justify-between gap-4">
-        <FilterTabs tabs={tabs} active={tab} onChange={setTab} />
+        <FilterTabs
+          tabs={tabs}
+          active={tab}
+          onChange={(next) => {
+            setTab(next);
+            setPage(1);
+          }}
+        />
         <div className="flex items-center gap-3">
           <div className="relative w-64">
             <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400" />
@@ -217,7 +262,11 @@ const VisaCasesPage = () => {
 
       {/* Main Card */}
       <SurfaceCard className="p-0 overflow-hidden border border-gray-200 dark:border-gray-800">
-        {paginatedRows.length === 0 ? (
+        {loading ? (
+          <div className="p-8 flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : paginatedRows.length === 0 ? (
           <div className="p-8">
             <EmptyState
               title="No visa cases found"

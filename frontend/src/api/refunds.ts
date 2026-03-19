@@ -13,6 +13,6 @@ export const refundsApi = {
     apiRequest(`/api/refunds/${id}/approve`, { method: "POST" }),
   reject: (id: string, payload?: unknown) =>
     apiRequest(`/api/refunds/${id}/reject`, { method: "POST", body: payload }),
-  process: (id: string) =>
-    apiRequest(`/api/refunds/${id}/process`, { method: "POST" }),
+  process: (id: string, payload?: unknown) =>
+    apiRequest(`/api/refunds/${id}/process`, { method: "POST", body: payload }),
 };

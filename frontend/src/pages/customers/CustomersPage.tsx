@@ -14,7 +14,7 @@ import {
 } from "react-icons/fa";
 import { MdOutlineSegment } from "react-icons/md";
 import { isApiError } from "../../api/apiClient";
-import { useCustomersService } from "../../hooks/useCustomersService";
+import { customersApi } from "../../api/customers";
 
 interface Customer {
   id: string;
@@ -34,7 +34,6 @@ interface Customer {
 
 const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
-  const customersService = useCustomersService();
   const [search, setSearch] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
@@ -166,16 +165,22 @@ const CustomersPage: React.FC = () => {
     }).format(safeAmount);
   };
 
+  const normalizeCustomers = (response: unknown): Customer[] => {
+    const payload =
+      (response as { data?: unknown })?.data ?? response ?? [];
+    const data =
+      (payload as { data?: unknown })?.data ??
+      (payload as { items?: unknown })?.items ??
+      payload;
+    return Array.isArray(data) ? (data as Customer[]) : [];
+  };
+
   const loadCustomers = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const response = await customersService.list();
-      const rows =
-        (response as { data?: Customer[] }).data ??
-        (response as Customer[]) ??
-        [];
-      setCustomers(rows);
+      const response = await customersApi.list();
+      setCustomers(normalizeCustomers(response));
     } catch (err) {
       const message = isApiError(err)
         ? err.message
@@ -184,7 +189,7 @@ const CustomersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [customersService]);
+  }, []);
 
   useEffect(() => {
     void loadCustomers();
@@ -197,7 +202,7 @@ const CustomersPage: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      await customersService.remove(id);
+      await customersApi.delete(id);
       await loadCustomers();
     } catch (err) {
       const message = isApiError(err)
@@ -292,7 +297,7 @@ const CustomersPage: React.FC = () => {
     setError("");
 
     try {
-      await customersService.update(editingCustomer.id, {
+      await customersApi.update(editingCustomer.id, {
         fullName: editFormData.fullName,
         phone: editFormData.phone || undefined,
         email: editFormData.email || undefined,
@@ -317,7 +322,7 @@ const CustomersPage: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      const blob = await customersService.export();
+      const blob = await customersApi.export();
       const url = window.URL.createObjectURL(blob as Blob);
       const link = document.createElement("a");
       link.href = url;

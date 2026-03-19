@@ -100,11 +100,18 @@ const list = z.object({
     .optional(),
 });
 
+const stats = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const PaymentsValidation = {
   create,
   update,
   byId,
   list,
+  stats,
   verify: verifyPayload,
 };
 

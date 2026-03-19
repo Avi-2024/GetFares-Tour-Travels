@@ -83,6 +83,16 @@ function createUsersService({ repository, logger, events }) {
     return rows.map((row) => toUser(row, roleLookup));
   }
 
+  async function listRoles() {
+    const roles = await repository.findRoles();
+    return roles.map((role) => ({
+      id: role.id,
+      name: role.name,
+      value: role.name,
+      description: role.description ?? null,
+    }));
+  }
+
   async function getById(id, context = {}) {
     logger.debug(
       { module: "users", requestId: context.requestId, id },
@@ -157,6 +167,7 @@ function createUsersService({ repository, logger, events }) {
     getById,
     create,
     update,
+    listRoles,
   });
 }
 
