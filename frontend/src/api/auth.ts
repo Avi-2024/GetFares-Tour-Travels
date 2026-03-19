@@ -14,6 +14,17 @@ type LoginResponse = {
   };
 };
 
+type ProfileResponse = {
+  data: {
+    id: string;
+    email: string;
+    fullName?: string;
+    name?: string;
+    role?: string;
+    roleId?: string;
+  };
+};
+
 export const authApi = {
   login: (payload: { email: string; password: string; rememberMe?: boolean }) =>
     apiRequest<LoginResponse>("/api/auth/login", {
@@ -21,6 +32,8 @@ export const authApi = {
       body: payload,
       skipAuth: true,
     }),
+  profile: () =>
+    apiRequest<ProfileResponse>(`/api/auth/me?ts=${Date.now()}`),
   forgotPassword: (payload: { email: string }) =>
     apiRequest<{ message: string }>("/api/auth/forgot-password", {
       method: "POST",
