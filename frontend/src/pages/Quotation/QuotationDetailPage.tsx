@@ -181,6 +181,26 @@ const QuotationDetailPage: React.FC = () => {
     return { totalCost, marginPercent, discount, taxAmount, finalPrice };
   }, [rows]);
 
+  const persistStatus = (nextStatus: QuoteStatus) => {
+    if (!id) return;
+    try {
+      const existing =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem(`quotation:${id}`)
+          : null;
+      const parsed = existing ? (JSON.parse(existing) as QuoteSnapshot) : {};
+      const merged = {
+        ...parsed,
+        id,
+        quoteNumber: quote?.quoteNumber ?? parsed.quoteNumber,
+        status: nextStatus,
+      };
+      sessionStorage.setItem(`quotation:${id}`, JSON.stringify(merged));
+    } catch {
+      // no-op
+    }
+  };
+
   const changeStatus = (nextStatus: QuoteStatus) => {
     if (nextStatus === "REJECTED") {
       setShowRejectModal(true);
@@ -188,6 +208,7 @@ const QuotationDetailPage: React.FC = () => {
     }
     setError("");
     setStatus(nextStatus);
+    persistStatus(nextStatus);
   };
 
   const handleRejectConfirm = () => {
@@ -203,6 +224,7 @@ const QuotationDetailPage: React.FC = () => {
     }
 
     setStatus("REJECTED");
+    persistStatus("REJECTED");
     setReason(rejectReason);
     setShowRejectModal(false);
     setRejectReason("");
@@ -212,6 +234,7 @@ const QuotationDetailPage: React.FC = () => {
   const handleSend = (method: "email" | "whatsapp") => {
     console.log(`Sending via ${method}`);
     setStatus("SENT");
+    persistStatus("SENT");
     setShowSendDropdown(false);
 
     // In real app, would add to logs state via API

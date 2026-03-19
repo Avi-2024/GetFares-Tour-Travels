@@ -239,8 +239,26 @@ const QuotationsPage: React.FC = () => {
                 };
               })
             );
-            
-            setQuotations(quotationsWithCustomers);
+
+            const withStatusOverrides = quotationsWithCustomers.map((item) => {
+              const stored =
+                typeof window !== "undefined"
+                  ? sessionStorage.getItem(`quotation:${item.id}`)
+                  : null;
+              if (!stored) return item;
+              try {
+                const parsed = JSON.parse(stored) as { status?: string };
+                if (!parsed?.status) return item;
+                return {
+                  ...item,
+                  status: mapApiStatusToUi(parsed.status),
+                };
+              } catch {
+                return item;
+              }
+            });
+
+            setQuotations(withStatusOverrides);
             setError('');
           } else {
             console.warn('API response data is not an array:', data);
