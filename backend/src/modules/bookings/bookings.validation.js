@@ -83,6 +83,18 @@ const stats = z.object({
   query: z.any().optional(),
 });
 
+const runReminders = z.object({
+  body: z
+    .object({
+      referenceDate: z.string().date().optional(),
+      preTravelDays: z.coerce.number().int().min(0).max(365).optional(),
+      postTravelDays: z.coerce.number().int().min(0).max(365).optional(),
+    })
+    .optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const create = z.object({
   body: createPayload,
   params: z.object({}).optional(),
@@ -135,6 +147,7 @@ const generateInvoice = z.object({
 const BookingsValidation = {
   list,
   stats,
+  runReminders,
   create,
   update,
   byId,

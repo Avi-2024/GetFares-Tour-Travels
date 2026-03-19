@@ -32,8 +32,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/webhooks/meta-leads",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "webhooks", "meta-leads"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "meta-leads"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -54,8 +60,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/webhooks/website-enquiry",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "webhooks", "website-enquiry"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "website-enquiry"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -76,14 +88,81 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/webhooks/whatsapp-enquiry",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "webhooks", "whatsapp-enquiry"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "webhooks",
+                "whatsapp-enquiry"
+              ]
             },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"fullName\": \"Rohan Gupta\",\n  \"phone\": \"+91-9876543226\",\n  \"email\": \"rohan.gupta@example.com\",\n  \"budget\": 90000,\n  \"travelDate\": \"2026-07-15\",\n  \"utmSource\": \"whatsapp\",\n  \"utmMedium\": \"chat\",\n  \"utmCampaign\": \"domestic_holiday\",\n  \"source\": \"WhatsApp\"\n}"
             },
             "description": "Capture a lead from WhatsApp enquiry."
+          }
+        }
+      ]
+    },
+    {
+      "name": "WhatsApp Webhook",
+      "item": [
+        {
+          "name": "Verify WhatsApp Webhook",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/webhook/whatsapp?hub.mode=subscribe&hub.verify_token={{whatsappVerifyToken}}&hub.challenge=12345",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "whatsapp"
+              ],
+              "query": [
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "{{whatsappVerifyToken}}"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "12345"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Receive WhatsApp Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"changes\": [\n        {\n          \"value\": {\n            \"messages\": [\n              {\n                \"from\": \"919876543210\",\n                \"id\": \"wamid.test\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"Need visa assistance\"\n                }\n              }\n            ],\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Webhook User\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/webhook/whatsapp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "whatsapp"
+              ]
+            }
           }
         }
       ]

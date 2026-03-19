@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/utils/index.js";
+import { createMemoryUpload } from "../../core/uploads/index.js";
 
 function createPaymentsRoutes({
   controller,
@@ -7,8 +8,12 @@ function createPaymentsRoutes({
   validateRequest,
   requireAuth,
   authorize,
+  config,
 }) {
   const router = Router();
+  const upload = createMemoryUpload({
+    maxFileSizeMb: config?.uploads?.maxFileSizeMb,
+  });
 
   router.get(
     "/",
@@ -35,6 +40,7 @@ function createPaymentsRoutes({
     "/",
     requireAuth,
     authorize("payments:create"),
+    upload.single("file"),
     validateRequest(validation.create),
     asyncHandler(controller.create),
   );
@@ -42,6 +48,7 @@ function createPaymentsRoutes({
     "/:id",
     requireAuth,
     authorize("payments:update"),
+    upload.single("file"),
     validateRequest(validation.update),
     asyncHandler(controller.update),
   );
@@ -49,6 +56,7 @@ function createPaymentsRoutes({
     "/:id/verify",
     requireAuth,
     authorize("payments:update"),
+    upload.single("file"),
     validateRequest(validation.verify),
     asyncHandler(controller.verify),
   );

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/utils/index.js";
+import { createMemoryUpload } from "../../core/uploads/index.js";
 
 function createVisaRoutes({
   controller,
@@ -7,8 +8,12 @@ function createVisaRoutes({
   validateRequest,
   requireAuth,
   authorize,
+  config,
 }) {
   const router = Router();
+  const upload = createMemoryUpload({
+    maxFileSizeMb: config?.uploads?.maxFileSizeMb,
+  });
 
   router.get(
     "/reports/summary",
@@ -38,6 +43,7 @@ function createVisaRoutes({
     "/:id/documents",
     requireAuth,
     authorize("visa:update"),
+    upload.single("file"),
     validateRequest(validation.createDocument),
     asyncHandler(controller.createDocument),
   );

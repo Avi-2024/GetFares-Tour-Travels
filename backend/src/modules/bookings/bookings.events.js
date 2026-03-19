@@ -26,6 +26,20 @@ function createBookingsEvents({ eventBus, logger }) {
       );
       eventBus.emit("bookings.invoice_generated", payload);
     },
+    emitPreTravelReminder(payload) {
+      logger.info(
+        { bookingId: payload.bookingId, scheduledFor: payload.scheduledFor },
+        "bookings.pre_travel_reminder",
+      );
+      eventBus.emit("bookings.pre_travel_reminder", payload);
+    },
+    emitPostTravelFeedback(payload) {
+      logger.info(
+        { bookingId: payload.bookingId, scheduledFor: payload.scheduledFor },
+        "bookings.post_travel_feedback",
+      );
+      eventBus.emit("bookings.post_travel_feedback", payload);
+    },
   });
 }
 

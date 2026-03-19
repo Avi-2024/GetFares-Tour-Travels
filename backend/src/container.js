@@ -4,6 +4,7 @@ import { logger } from "./core/logger/index.js";
 import { createDatabaseConnection } from "./core/database/index.js";
 import { createSocketEventPublisher } from "./core/realtime/index.js";
 import { createMetricsStore } from "./core/observability/index.js";
+import { createS3Service } from "./core/storage/index.js";
 import * as coreMiddlewares from "./core/middlewares/index.js";
 
 function createContainer(overrides = {}) {
@@ -17,6 +18,7 @@ function createContainer(overrides = {}) {
       serviceName: config.app.name,
       serviceVersion: config.app.version,
     });
+  const s3 = overrides.s3 || createS3Service({ config, logger });
 
   return {
     config,
@@ -25,6 +27,9 @@ function createContainer(overrides = {}) {
     eventBus,
     eventPublisher,
     metricsStore,
+    storage: {
+      s3,
+    },
     middlewares: {
       ...coreMiddlewares,
       requireAuth: (req, res, next) => next(),

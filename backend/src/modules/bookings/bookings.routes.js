@@ -25,6 +25,13 @@ function createBookingsRoutes({
     asyncHandler(controller.stats),
   );
   router.post(
+    "/reminders/run",
+    requireAuth,
+    authorize("bookings:update"),
+    validateRequest(validation.runReminders),
+    asyncHandler(controller.runTravelReminders),
+  );
+  router.post(
     "/",
     requireAuth,
     authorize("bookings:create"),

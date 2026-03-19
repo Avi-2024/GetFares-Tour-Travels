@@ -870,6 +870,38 @@
               ]
             }
           }
+        },
+        {
+          "name": "Run Travel Reminders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referenceDate\": \"2026-07-10\",\n  \"preTravelDays\": 2,\n  \"postTravelDays\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/reminders/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "reminders",
+                "run"
+              ]
+            }
+          }
         }
       ]
     },
@@ -1995,6 +2027,129 @@
                 "suppliers",
                 "payables",
                 "{{payableId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "WhatsApp",
+      "item": [
+        {
+          "name": "Send WhatsApp Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"919876543210\",\n  \"text\": \"Hello! This is a WhatsApp test message.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/whatsapp/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "whatsapp",
+                "send"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send WhatsApp Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"919876543210\",\n  \"templateName\": \"your_template_name\",\n  \"language\": \"en_US\",\n  \"components\": [\n    {\n      \"type\": \"body\",\n      \"parameters\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"Template parameter\"\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/whatsapp/send-template",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "whatsapp",
+                "send-template"
+              ]
+            }
+          }
+        },
+        {
+          "name": "WhatsApp Webhook Verify",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/webhook/whatsapp?hub.mode=subscribe&hub.verify_token={{whatsappVerifyToken}}&hub.challenge=12345",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "whatsapp"
+              ],
+              "query": [
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "{{whatsappVerifyToken}}"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "12345"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "WhatsApp Webhook Receive",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"changes\": [\n        {\n          \"value\": {\n            \"messages\": [\n              {\n                \"from\": \"919876543210\",\n                \"id\": \"wamid.test\",\n                \"type\": \"text\",\n                \"text\": {\n                  \"body\": \"I need a tour package\"\n                }\n              }\n            ],\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Test User\"\n                }\n              }\n            ]\n          }\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/webhook/whatsapp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "whatsapp"
               ]
             }
           }
