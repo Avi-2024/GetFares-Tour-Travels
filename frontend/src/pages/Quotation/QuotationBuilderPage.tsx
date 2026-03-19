@@ -503,7 +503,7 @@ const QuotationBuilderPage: React.FC = () => {
 
         <div className="relative grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.1fr]">
           {/* Left Column - Scrollable with hidden scrollbar */}
-          <div className="space-y-6 overflow-y-auto max-h-[calc(100vh-200px)] pr-2 scrollbar-hide">
+          <div className="space-y-6 overflow-y-auto  pr-2 scrollbar-hide">
             <SurfaceCard>
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -564,11 +564,21 @@ const QuotationBuilderPage: React.FC = () => {
                   value={form.email}
                   onChange={(v) => setForm((p) => ({ ...p, email: v }))}
                 />
-                <Field
-                  label="Destination"
-                  value={form.destination}
-                  onChange={(v) => setForm((p) => ({ ...p, destination: v }))}
-                />
+                <div>
+                  <label className="field-label">Destination</label>
+                  <select
+                    className="field-input"
+                    value={form.destination}
+                    onChange={(e) => setForm((p) => ({ ...p, destination: e.target.value }))}
+                  >
+                    <option value="">Select destination</option>
+                    {Object.entries(destinationMap).map(([id, name]) => (
+                      <option key={id} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="field-label">Start Date</label>
                   <input
@@ -917,58 +927,190 @@ const QuotationBuilderPage: React.FC = () => {
                   </div>
                   <div
                     ref={previewRef}
-                    className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${
+                    className={`mx-auto rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${
                       mobile ? "max-w-[360px]" : "max-w-3xl"
                     }`}
                   >
-                    <div className="mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-                          <FaPlaneDeparture />
+                    {/* Header */}
+                    <div className="mb-6 flex items-start justify-between border-b border-gray-200 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-white">
+                          <FaPlaneDeparture className="text-xl" />
                         </div>
                         <div>
-                          <p className="font-semibold">GetFares Travel CRM</p>
-                          <p className="text-xs text-gray-500">
-                            support@getfares.com
-                          </p>
+                          <p className="text-lg font-bold text-gray-900">GetFares Travel CRM</p>
+                          <p className="text-xs text-gray-500">support@getfares.com</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold text-blue-600">
-                          QUOTATION
-                        </p>
-                        <p className="text-xs text-gray-500">#{form.quote}</p>
+                        <p className="text-xl font-bold text-blue-600">QUOTATION</p>
+                        <p className="text-xs text-gray-500">#{form.quote || 'DRAFT'}</p>
+                        <p className="text-xs text-gray-500 mt-1">{form.version}</p>
                       </div>
                     </div>
-                    <div className="mb-5 flex items-center justify-between text-sm">
+
+                    {/* Customer & Trip Info */}
+                    <div className="mb-6 grid grid-cols-2 gap-4">
                       <div>
-                        <p className="font-medium">{form.customer}</p>
-                        <p className="text-xs text-gray-500">{form.email}</p>
+                        <p className="text-xs text-gray-500 mb-1">Customer</p>
+                        <p className="font-semibold text-gray-900">{form.customer || 'N/A'}</p>
+                        <p className="text-xs text-gray-600">{form.email || 'N/A'}</p>
                       </div>
-                      <div className="text-right text-xs text-gray-500">
-                        <p>{form.destination}</p>
-                        <p>
-                          {form.nights} nights - {form.adults} adults
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mb-5 rounded-xl bg-gray-50 p-3 dark:bg-gray-800">
-                      <div className="mb-2 flex justify-between text-xs text-gray-500">
-                        <span>Travel Date</span>
-                        <span>{form.startDate}</span>
-                      </div>
-                      <div className="mb-2 flex justify-between text-xs text-gray-500">
-                        <span>Valid Until</span>
-                        <span>{form.validUntil}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold">
-                        <span>Total</span>
-                        <span className="text-blue-600">{money(total)}</span>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500 mb-1">Destination</p>
+                        <p className="font-semibold text-gray-900">{form.destination || 'N/A'}</p>
+                        <p className="text-xs text-gray-600">{form.nights} nights • {form.adults} adults</p>
                       </div>
                     </div>
-                    <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
-                      <FaCheck className="mr-1 inline" /> Preview validated and
-                      ready to share.
+
+                    {/* Travel Dates */}
+                    <div className="mb-6 rounded-lg bg-gray-50 p-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Travel Date</p>
+                          <p className="font-medium text-gray-900">{form.startDate || 'Not set'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Valid Until</p>
+                          <p className="font-medium text-gray-900">{form.validUntil || 'Not set'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Package Type & Services */}
+                    <div className="mb-6">
+                      <h3 className="text-sm font-bold text-gray-900 mb-3 border-b pb-2">Package Details</h3>
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-500">Package Type</p>
+                        <p className="text-sm font-medium text-gray-900">{packageType}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-2">Included Services</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(services)
+                            .filter(([, v]) => v)
+                            .map(([key]) => (
+                              <span key={key} className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 capitalize">
+                                {key}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Itinerary */}
+                    {itineraryItems.length > 0 && (
+                      <div className="mb-6">
+                        <h3 className="text-sm font-bold text-gray-900 mb-3 border-b pb-2">Itinerary</h3>
+                        <div className="space-y-3">
+                          {itineraryItems.map((item) => (
+                            <div key={item.id} className="border-l-4 border-blue-500 pl-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                  {item.day}
+                                </span>
+                                <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                              </div>
+                              <p className="text-xs text-gray-600">{item.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Pricing Breakdown */}
+                    <div className="mb-6">
+                      <h3 className="text-sm font-bold text-gray-900 mb-3 border-b pb-2">Pricing Breakdown</h3>
+                      <table className="w-full text-sm mb-4">
+                        <thead>
+                          <tr className="border-b text-xs text-gray-500">
+                            <th className="py-2 text-left">Item</th>
+                            <th className="py-2 text-right">Cost</th>
+                            <th className="py-2 text-right">Markup</th>
+                            <th className="py-2 text-right">Price</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pricing.map((p) => (
+                            <tr key={p.id} className="border-b border-gray-100">
+                              <td className="py-2 text-gray-900">{p.name}</td>
+                              <td className="py-2 text-right text-gray-600">{money(p.cost)}</td>
+                              <td className="py-2 text-right text-green-600">{p.markup}%</td>
+                              <td className="py-2 text-right font-medium text-gray-900">{money(p.price)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="rounded-lg bg-gray-50 p-4">
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between text-gray-600">
+                            <span>Subtotal</span>
+                            <span>{money(subtotal)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-600">
+                            <span>Taxes ({costs.taxPercent}%)</span>
+                            <span>{money(taxes)}</span>
+                          </div>
+                          {costs.discount > 0 && (
+                            <div className="flex justify-between text-red-600">
+                              <span>Discount</span>
+                              <span>-{money(costs.discount)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between border-t border-gray-300 pt-2 text-base font-bold">
+                            <span className="text-gray-900">Total Amount</span>
+                            <span className="text-blue-600">{money(total)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cost Summary */}
+                    <div className="mb-6 grid grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-blue-50 p-3">
+                        <p className="text-xs text-blue-600 mb-1">Supplier Cost</p>
+                        <p className="text-sm font-bold text-blue-900">{money(computed.supplier)}</p>
+                      </div>
+                      <div className="rounded-lg bg-green-50 p-3">
+                        <p className="text-xs text-green-600 mb-1">Profit</p>
+                        <p className="text-sm font-bold text-green-900">{money(computed.profit)}</p>
+                      </div>
+                      <div className="rounded-lg bg-amber-50 p-3">
+                        <p className="text-xs text-amber-600 mb-1">Margin</p>
+                        <p className="text-sm font-bold text-amber-900">{computed.margin.toFixed(1)}%</p>
+                      </div>
+                      <div className="rounded-lg bg-purple-50 p-3">
+                        <p className="text-xs text-purple-600 mb-1">Markup</p>
+                        <p className="text-sm font-bold text-purple-900">{costs.markupPercent}%</p>
+                      </div>
+                    </div>
+
+                    {/* Inclusions & Exclusions */}
+                    {(form.inclusions || form.exclusions) && (
+                      <div className="mb-6 grid grid-cols-1 gap-4">
+                        {form.inclusions && (
+                          <div>
+                            <h3 className="text-sm font-bold text-green-700 mb-2">✓ Inclusions</h3>
+                            <div className="text-xs text-gray-700 whitespace-pre-line bg-green-50 p-3 rounded-lg">
+                              {form.inclusions}
+                            </div>
+                          </div>
+                        )}
+                        {form.exclusions && (
+                          <div>
+                            <h3 className="text-sm font-bold text-red-700 mb-2">✗ Exclusions</h3>
+                            <div className="text-xs text-gray-700 whitespace-pre-line bg-red-50 p-3 rounded-lg">
+                              {form.exclusions}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Footer */}
+                    <div className="border-t border-gray-200 pt-4 text-center">
+                      <p className="text-xs text-gray-500">Thank you for choosing GetFares Travel CRM</p>
+                      <p className="text-xs text-gray-400 mt-1">For queries, contact: support@getfares.com</p>
                     </div>
                   </div>
                 </SurfaceCard>

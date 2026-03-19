@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -116,6 +116,8 @@ const QuotationDetailPage: React.FC = () => {
   );
   const [rejectReason, setRejectReason] = useState("");
   const [rejectError, setRejectError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const pdfRef = useRef<HTMLDivElement | null>(null);
 
   // New component form state
   const [newComponent, setNewComponent] = useState({
@@ -145,6 +147,92 @@ const QuotationDetailPage: React.FC = () => {
     }
     setError("");
     setStatus(nextStatus);
+  };
+
+  const handleDownloadPdf = async () => {
+    if (downloading) return;
+    
+    const pdfContent = pdfRef.current;
+    if (!pdfContent) {
+      alert("PDF content not found. Please try again.");
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      // Temporarily show the hidden PDF content
+      pdfContent.classList.remove('hidden');
+      
+      // @ts-expect-error
+      const html2canvas = (
+        await import(
+          /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm"
+        )
+      ).default;
+      // @ts-expect-error
+      const { default: JsPDF } = await import(
+        /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm"
+      );
+
+      const canvas = await html2canvas(pdfContent, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+      
+      // Hide the PDF content again
+      pdfContent.classList.add('hidden');
+      
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new JsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(
+        imgData,
+        "PNG",
+        0,
+        position,
+        imgWidth,
+        imgHeight,
+        "",
+        "FAST",
+      );
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(
+          imgData,
+          "PNG",
+          0,
+          position,
+          imgWidth,
+          imgHeight,
+          "",
+          "FAST",
+        );
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`quotation-${id || 'detail'}.pdf`);
+    } catch (err) {
+      console.error("PDF export failed", err);
+      alert("Failed to download PDF. Please try again.");
+      // Make sure to hide the content even if there's an error
+      if (pdfContent) {
+        pdfContent.classList.add('hidden');
+      }
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleRejectConfirm = () => {
@@ -264,7 +352,7 @@ const QuotationDetailPage: React.FC = () => {
           </button>
           <div className="flex items-center justify-between gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Quotation #{id}
+              Quotation 
             </h1>
             <div className="sm:hidden">
               <StatusBadge status={status} />
@@ -289,9 +377,13 @@ const QuotationDetailPage: React.FC = () => {
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {/* PDF Button */}
-            <button className="flex-1 sm:flex-none h-9 px-3 sm:px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center justify-center sm:justify-start">
+            <button 
+              onClick={handleDownloadPdf}
+              disabled={downloading}
+              className="flex-1 sm:flex-none h-9 px-3 sm:px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center justify-center sm:justify-start disabled:opacity-50"
+            >
               <FaFilePdf className="mr-2" />
-              <span className="hidden sm:inline">PDF</span>
+              <span className="hidden sm:inline">{downloading ? 'Preparing...' : 'PDF'}</span>
             </button>
 
             {/* Send Button with Dropdown */}
@@ -410,6 +502,168 @@ const QuotationDetailPage: React.FC = () => {
             </div>
           </SurfaceCard>
         ))}
+      </div>
+
+      {/* Hidden PDF Content - Only for PDF Generation */}
+      <div ref={pdfRef} style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        <div className="bg-white p-8 max-w-4xl mx-auto">
+          {/* PDF Header */}
+          <div className="mb-6 pb-4 border-b-2 border-gray-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">GetFares Travel CRM</h1>
+                <p className="text-sm text-gray-600 mt-1">support@getfares.com | +1 (555) 123-4567</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-blue-600">QUOTATION</p>
+                <p className="text-sm text-gray-600 mt-1">ID: #{id}</p>
+                <p className="text-xs text-gray-500 mt-1">Created: Mar 10, 2026</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Status Badge */}
+          <div className="mb-6">
+            <span className={`inline-block px-4 py-2 rounded-lg text-sm font-semibold ${
+              status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+              status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+              status === 'SENT' ? 'bg-blue-100 text-blue-800' :
+              status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
+              'bg-gray-100 text-gray-800'
+            }`}>
+              Status: {status}
+            </span>
+          </div>
+
+          {/* Summary Section */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">Summary</h2>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-600 mb-1">Total Cost</p>
+                <p className="text-xl font-bold text-gray-900">${summary.totalCost.toLocaleString()}</p>
+                <p className="text-xs text-gray-500 mt-1">Supplier cost</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-600 mb-1">Margin</p>
+                <p className="text-xl font-bold text-gray-900">{summary.marginPercent}%</p>
+                <p className="text-xs text-gray-500 mt-1">14% margin</p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-xs text-gray-600 mb-1">Discount</p>
+                <p className="text-xl font-bold text-gray-900">${summary.discount.toLocaleString()}</p>
+                <p className="text-xs text-gray-500 mt-1">Special offer</p>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-xs text-blue-600 mb-1">Final Price</p>
+                <p className="text-xl font-bold text-blue-600">${summary.finalPrice.toLocaleString()}</p>
+                <p className="text-xs text-blue-500 mt-1">Inc. taxes</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Components Table */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">Components Breakdown</h2>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
+                  <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Description</th>
+                  <th className="border border-gray-300 px-4 py-3 text-right text-sm font-semibold text-gray-700">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr key={row.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700">{row.itemType}</td>
+                    <td className="border border-gray-300 px-4 py-3 text-sm text-gray-900">{row.description}</td>
+                    <td className="border border-gray-300 px-4 py-3 text-sm text-right font-medium text-gray-900">${row.cost.toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="bg-gray-100 font-bold">
+                  <td className="border border-gray-300 px-4 py-3 text-sm" colSpan={2}>Subtotal</td>
+                  <td className="border border-gray-300 px-4 py-3 text-sm text-right">${summary.totalCost.toLocaleString()}</td>
+                </tr>
+                <tr className="bg-white">
+                  <td className="border border-gray-300 px-4 py-3 text-sm" colSpan={2}>Discount</td>
+                  <td className="border border-gray-300 px-4 py-3 text-sm text-right text-red-600">-${summary.discount.toLocaleString()}</td>
+                </tr>
+                <tr className="bg-white">
+                  <td className="border border-gray-300 px-4 py-3 text-sm" colSpan={2}>Tax (10%)</td>
+                  <td className="border border-gray-300 px-4 py-3 text-sm text-right">${summary.taxAmount.toFixed(2)}</td>
+                </tr>
+                <tr className="bg-blue-50 font-bold">
+                  <td className="border border-gray-300 px-4 py-3 text-sm" colSpan={2}>Final Price</td>
+                  <td className="border border-gray-300 px-4 py-3 text-sm text-right text-blue-600">${summary.finalPrice.toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Version History */}
+          {versions.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">Version History</h2>
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Version</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Created By</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Changes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {versions.map((v, index) => (
+                    <tr key={v.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-900">v{v.version}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700">{formatDate(v.createdAt)}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700">{v.createdBy}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700">{v.changes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Send Logs */}
+          {logs.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">Send Logs</h2>
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Method</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Sent To</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Sent At</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Views</th>
+                    <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700">Last Viewed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((log, index) => (
+                    <tr key={log.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700 capitalize">{log.method}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700">{log.sentTo}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700">{formatDate(log.sentAt)}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700">{log.viewCount}</td>
+                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-700">{log.viewedAt ? formatDate(log.viewedAt) : 'Not viewed'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="mt-8 pt-4 border-t border-gray-300 text-center">
+            <p className="text-sm text-gray-600">Thank you for choosing GetFares Travel CRM</p>
+            <p className="text-xs text-gray-500 mt-2">This is a computer-generated quotation and does not require a signature.</p>
+            <p className="text-xs text-gray-500 mt-1">For any queries, please contact us at support@getfares.com</p>
+          </div>
+        </div>
       </div>
 
       {/* Main Card */}

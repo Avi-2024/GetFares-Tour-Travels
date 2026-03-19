@@ -91,7 +91,28 @@ const QuotationsPage: React.FC = () => {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [customerCache, setCustomerCache] = useState<Record<string, any>>({});
+  const [destinationMap, setDestinationMap] = useState<Record<string, string>>({});
   const pageSize = 4;
+
+  // Load destinations once on mount
+  useEffect(() => {
+    const loadDestinations = async () => {
+      try {
+        const response = await leadsApi.getDestinations();
+        const list = (response as { data?: Array<{ id: string; name?: string }> }).data ?? (response as Array<{ id: string; name?: string }>) ?? [];
+        const map: Record<string, string> = {};
+        list.forEach((item) => {
+          if (item?.id) {
+            map[item.id] = item.name || item.id;
+          }
+        });
+        setDestinationMap(map);
+      } catch (error) {
+        console.error('Failed to load destinations:', error);
+      }
+    };
+    void loadDestinations();
+  }, []);
 
   // Function to fetch customer data by leadId
   const fetchCustomerByLeadId = async (leadId: string) => {
@@ -105,18 +126,10 @@ const QuotationsPage: React.FC = () => {
       const lead = leadResponse?.data || leadResponse;
       
       if (lead) {
-        // Get destination name if destinationId exists
+        // Get destination name from cached map
         let destinationName = 'Unknown Destination';
         if (lead.destinationId) {
-          try {
-            // You might need to fetch destination details or use a lookup
-            // For now, we'll use the destinationId or try to get destinations list
-            const destinations = await leadsApi.getDestinations();
-            const destination = destinations?.data?.find((d: any) => d.id === lead.destinationId);
-            destinationName = destination?.name || destination?.title || `Destination (${lead.destinationId.substring(0, 8)}...)`;
-          } catch (error) {
-            destinationName = `Destination (${lead.destinationId.substring(0, 8)}...)`;
-          }
+          destinationName = destinationMap[lead.destinationId] || `Destination (${lead.destinationId.substring(0, 8)}...)`;
         }
         
         const customerData = {
