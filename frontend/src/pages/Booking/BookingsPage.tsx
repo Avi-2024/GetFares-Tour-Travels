@@ -1110,6 +1110,30 @@ const BookingsPage: React.FC = () => {
     documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0)
   })
 
+  const calculateStats = (items: Booking[]) => {
+    const totalBookings = items.length
+    const activeBookings = items.filter(item => item.status === 'confirmed').length
+    const pendingBookings = items.filter(item => item.status === 'pending').length
+    const cancelledBookings = items.filter(item => item.status === 'cancelled').length
+    const nonCancelled = items.filter(item => item.status !== 'cancelled')
+    const pendingPayments = nonCancelled.filter(item => item.paid < item.total)
+    const pendingPaymentsAmount = pendingPayments.reduce(
+      (sum, item) => sum + Math.max(item.total - item.paid, 0),
+      0
+    )
+
+    return {
+      totalBookings,
+      activeBookings,
+      pendingBookings,
+      completedBookings: 0,
+      cancelledBookings,
+      totalRevenue: nonCancelled.reduce((sum, item) => sum + item.total, 0),
+      pendingPaymentsAmount,
+      pendingPaymentsCount: pendingPayments.length
+    }
+  }
+
   useEffect(() => {
     const updatedBooking = (location.state as any)?.updatedBooking
     if (!updatedBooking) return
@@ -1130,7 +1154,9 @@ const BookingsPage: React.FC = () => {
 
   const fetchBookings = useCallback(async () => {
     setLoading(true)
+    setStatsLoading(true)
     setError('')
+    setStatsError('')
     try {
       const params: Record<string, string | number | boolean> = {
         page: 1,
@@ -1150,46 +1176,21 @@ const BookingsPage: React.FC = () => {
         (b: any, idx: number) => mapBooking(b, idx)
       )
       setBookingItems(mapped)
+      setStats(calculateStats(mapped))
     } catch (err) {
       console.error('Failed to load bookings:', err)
       setError('Failed to load bookings')
+      setStatsError('Failed to load booking stats')
       setBookingItems([])
     } finally {
       setLoading(false)
-    }
-  }, [bookingsService, statusFilter])
-
-  const fetchStats = useCallback(async () => {
-    setStatsLoading(true)
-    setStatsError('')
-    try {
-      const res = await bookingsService.stats()
-      const data = (res as any)?.data ?? res
-      setStats({
-        totalBookings: Number(data?.totalBookings ?? 0),
-        activeBookings: Number(data?.activeBookings ?? 0),
-        pendingBookings: Number(data?.pendingBookings ?? 0),
-        completedBookings: Number(data?.completedBookings ?? 0),
-        cancelledBookings: Number(data?.cancelledBookings ?? 0),
-        totalRevenue: Number(data?.totalRevenue ?? 0),
-        pendingPaymentsAmount: Number(data?.pendingPaymentsAmount ?? 0),
-        pendingPaymentsCount: Number(data?.pendingPaymentsCount ?? 0)
-      })
-    } catch (err) {
-      console.error('Failed to load booking stats:', err)
-      setStatsError('Failed to load booking stats')
-    } finally {
       setStatsLoading(false)
     }
-  }, [bookingsService])
+  }, [bookingsService, statusFilter])
 
   useEffect(() => {
     void fetchBookings()
   }, [fetchBookings])
-
-  useEffect(() => {
-    void fetchStats()
-  }, [fetchStats])
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ show: true, message, type })
@@ -1280,7 +1281,6 @@ const BookingsPage: React.FC = () => {
       } else {
         await fetchBookings()
       }
-      await fetchStats()
     } catch (error) {
       console.error('Failed to create booking:', error)
       showToast('Failed to create booking', 'error')
@@ -1303,15 +1303,16 @@ const BookingsPage: React.FC = () => {
         return
       }
       await bookingsService.cancel(bookingId, reason)
-      setBookingItems(prev =>
-        prev.map(booking =>
+      setBookingItems(prev => {
+        const next = prev.map(booking =>
           booking.id === bookingId || booking.bookingId === bookingId
             ? { ...booking, status: 'cancelled' }
             : booking
         )
-      )
+        setStats(calculateStats(next))
+        return next
+      })
       showToast('Booking cancelled successfully', 'success')
-      await fetchStats()
     } catch (error) {
       console.error('Failed to cancel booking:', error)
       showToast('Failed to cancel booking', 'error')

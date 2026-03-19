@@ -10,6 +10,7 @@ import {
 import { notificationsApi } from "../api/notifications";
 import type { NotificationItem } from "../types";
 import { useAuth } from "./AuthContext";
+import { useNotificationsService } from "../hooks/useNotificationsService";
 
 type NotificationsContextValue = {
   notifications: NotificationItem[];

@@ -78,9 +78,9 @@ const list = z.object({
 });
 
 const stats = z.object({
-  body: z.object({}).optional(),
-  params: z.object({}).optional(),
-  query: z.object({}).optional(),
+  body: z.any().optional(),
+  params: z.any().optional(),
+  query: z.any().optional(),
 });
 
 const create = z.object({
