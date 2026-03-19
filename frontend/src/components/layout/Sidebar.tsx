@@ -21,74 +21,90 @@ import { useAuth } from "../../context/AuthContext";
 
 const sections = [
   {
-    title: "Main",
+    title: "Pipeline",
     items: [
       {
         label: "Dashboard",
         to: "/dashboard",
         icon: FaTableCellsLarge,
-        permission: "reports.read",
+        permission: "reports:read",
       },
+      // { label: "Public Lead Form", to: "/public/lead-capture", icon: FaGlobe },
       {
         label: "Leads",
         to: "/leads",
         icon: FaUserGroup,
-        permission: "leads.read",
+        permission: "leads:read",
       },
       {
         label: "Quotations",
         to: "/quotations",
         icon: FaFileInvoiceDollar,
-        permission: "quotations.read",
+        permission: "quotations:read",
+      },
+      {
+        label: "Quotation Templates",
+        to: "/quotations/templates",
+        icon: FaFileInvoiceDollar,
+        permission: "quotations:read",
       },
       {
         label: "Bookings",
         to: "/bookings",
         icon: FaPassport,
-        permission: "bookings.read",
+        permission: "bookings:read",
       },
       {
         label: "Payments",
         to: "/payments",
         icon: FaCreditCard,
-        permission: "payments.read",
+        permission: "payments:read",
       },
       {
         label: "Refunds",
         to: "/refunds",
         icon: FaCreditCard,
-        permission: "refunds.read",
+        permission: "refunds:read",
       },
-
-      { label: "Finance System", to: "/finance-system", icon: FaChartPie },
-      { label: "Visa", to: "/visa", icon: FaPassport, permission: "visa.read" },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { label: "Visa Cases", to: "/visa", icon: FaPassport, permission: "visa:read" },
+      { label: "Documents", to: "#", icon: FaFolderOpen },
       {
         label: "Complaints",
         to: "/complaints",
         icon: FaFolderOpen,
-        permission: "complaints.read",
+        permission: "complaints:read",
       },
-      { label: "Documents", to: "#", icon: FaFolderOpen },
       { label: "Customers", to: "/customers", icon: FaUsers },
-      { label: "Public Lead Form", to: "/public/lead-capture", icon: FaGlobe },
+      { label: "Campaigns", to: "/campaigns", icon: FaChartPie },
       { label: "Notifications", to: "/notifications", icon: FaBell },
-      { label: "Users", to: "/users", icon: FaUsers },
+    ],
+  },
+  {
+    title: "Finance & Insights",
+    items: [
+      { label: "Finance System", to: "/finance-system", icon: FaChartPie },
       {
         label: "Reports",
         to: "/reports",
         icon: FaChartPie,
-        permission: "reports.read",
+        permission: "reports:read",
       },
     ],
   },
   {
     title: "System",
     items: [
+      { label: "Users", to: "/users", icon: FaUsers },
       {
         label: "Settings",
         to: "/settings",
         icon: FaGear,
-        permission: "settings.read",
+        permission: "settings:read",
       },
     ],
   },
