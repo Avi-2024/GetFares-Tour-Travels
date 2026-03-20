@@ -151,13 +151,16 @@ function createLeadsRepository({ db, logger, schema }) {
     };
   }
 
-  function toDomain(row, customerMap = new Map()) {
+  function toDomain(row, customerMap = new Map(), assigneeMap = new Map()) {
     if (!row) {
       return null;
     }
 
     const customerId = row.customer_id ?? row.customerId ?? null;
     const customer = customerMap.get(customerId) || row.customer || null;
+    const assignedTo = row.assigned_to ?? row.assignedTo ?? null;
+    const assignee =
+      assigneeMap.get(assignedTo) || row.assignee || row.assignedUser || null;
 
     return {
       id: row.id,
@@ -192,7 +195,15 @@ function createLeadsRepository({ db, logger, schema }) {
       priorityLevel: row.priority_level ?? row.priorityLevel ?? 0,
       isVip: row.is_vip ?? row.isVip ?? false,
       status: row.status,
-      assignedTo: row.assigned_to ?? row.assignedTo ?? null,
+      assignedTo,
+      assignedUser:
+        assignee ?
+          {
+            id: assignee.id ?? assignedTo,
+            fullName: assignee.fullName ?? null,
+            email: assignee.email ?? null,
+          }
+        : null,
       assignedAt: row.assigned_at ?? row.assignedAt ?? null,
       responseDeadline: row.response_deadline ?? row.responseDeadline ?? null,
       responseAt: row.response_at ?? row.responseAt ?? null,
@@ -363,21 +374,43 @@ function createLeadsRepository({ db, logger, schema }) {
     return customerMap;
   }
 
+  async function loadUsersByIds(userIds = []) {
+    const ids = [...new Set(userIds.filter(Boolean))];
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(ids.map((id) => db.findById(schema.usersTable, id)));
+    const userMap = new Map();
+
+    rows.filter(Boolean).forEach((row) => {
+      userMap.set(row.id, {
+        id: row.id,
+        fullName: row.full_name ?? row.fullName ?? null,
+        email: row.email ?? null,
+      });
+    });
+
+    return userMap;
+  }
+
   async function mapRowsToDomain(rows = []) {
-    const customerMap = await loadCustomersByIds(
-      rows.map((row) => row.customer_id ?? row.customerId),
-    );
-    return rows.map((row) => toDomain(row, customerMap));
+    const [customerMap, assigneeMap] = await Promise.all([
+      loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId)),
+      loadUsersByIds(rows.map((row) => row.assigned_to ?? row.assignedTo)),
+    ]);
+    return rows.map((row) => toDomain(row, customerMap, assigneeMap));
   }
 
   async function mapRowToDomain(row) {
     if (!row) {
       return null;
     }
-    const customerMap = await loadCustomersByIds([
-      row.customer_id ?? row.customerId,
+    const [customerMap, assigneeMap] = await Promise.all([
+      loadCustomersByIds([row.customer_id ?? row.customerId]),
+      loadUsersByIds([row.assigned_to ?? row.assignedTo]),
     ]);
-    return toDomain(row, customerMap);
+    return toDomain(row, customerMap, assigneeMap);
   }
 
   async function findCustomerByContact({ email, phone }) {
@@ -883,14 +916,14 @@ function createLeadsRepository({ db, logger, schema }) {
       logger.debug({ module: "leads", payload }, "Creating lead");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.insert(schema.tableName, sanitized);
-      return toDomain(row);
+      return mapRowToDomain(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: "leads", id, payload }, "Updating lead");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.update(schema.tableName, id, sanitized);
-      return toDomain(row);
+      return mapRowToDomain(row);
     },
 
     async createActivity(payload) {

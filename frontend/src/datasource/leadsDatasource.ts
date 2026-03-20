@@ -22,8 +22,12 @@ export type LeadApiRecord = {
   temperature?: string;
   sla?: string;
   slaStatus?: string;
-  consultant?: string;
-  owner?: string;
+  assignedTo?: string | null;
+  assignedUser?: {
+    id?: string | null;
+    fullName?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 export type LeadsListResponse =

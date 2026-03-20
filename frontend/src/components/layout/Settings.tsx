@@ -113,6 +113,31 @@ const DEFAULT_INTEGRATIONS: IntegrationSettingsForm = {
   webhookUrl: "",
 };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const isValidOptionalUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  try {
+    new URL(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const toTrimmedOrUndefined = (value: string | number | undefined) => {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+};
+
+const compactObject = <T extends Record<string, unknown>>(payload: T) =>
+  Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+
 const parseDate = (value?: string) => {
   if (!value) return "-";
   const date = new Date(value);
@@ -198,6 +223,7 @@ const Settings: React.FC = () => {
   const [systemSettings, setSystemSettings] = useState<SystemSettingsForm>(DEFAULT_SYSTEM);
   const [integrationSettings, setIntegrationSettings] =
     useState<IntegrationSettingsForm>(DEFAULT_INTEGRATIONS);
+  const [loadingSettings, setLoadingSettings] = useState(false);
   const [savingSystem, setSavingSystem] = useState(false);
   const [savingIntegrations, setSavingIntegrations] = useState(false);
   const roleLabelMap = useMemo(
@@ -341,12 +367,18 @@ const Settings: React.FC = () => {
 
   useEffect(() => {
     const loadSettings = async () => {
+      setLoadingSettings(true);
       try {
         const response = await settingsApi.getAll();
         const data = extractObject<SettingsResponse>(response);
         if (data?.system) setSystemSettings((s) => ({ ...s, ...data.system }));
         if (data?.integrations) {
-          setIntegrationSettings((s) => ({ ...s, ...data.integrations }));
+          const nextPort = Number(data.integrations.smtpPort);
+          setIntegrationSettings((s) => ({
+            ...s,
+            ...data.integrations,
+            smtpPort: Number.isFinite(nextPort) && nextPort > 0 ? nextPort : s.smtpPort,
+          }));
         }
       } catch (e) {
         setError(getApiErrorMessage(e, "Unable to load settings"));
@@ -572,6 +604,45 @@ const Settings: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const validateSystemSettings = () => {
+    if (!systemSettings.companyName.trim()) return "Company name is required.";
+    if (!systemSettings.supportEmail.trim()) return "Support email is required.";
+    if (!EMAIL_REGEX.test(systemSettings.supportEmail.trim())) {
+      return "Support email format is invalid.";
+    }
+    if (!systemSettings.timezone.trim()) return "Timezone is required.";
+    if (!systemSettings.currency.trim()) return "Currency is required.";
+    if (!systemSettings.dateFormat.trim()) return "Date format is required.";
+    if (systemSettings.supportPhone && systemSettings.supportPhone.trim().length < 5) {
+      return "Support phone must be at least 5 characters.";
+    }
+    if (!isValidOptionalUrl(systemSettings.websiteUrl)) {
+      return "Website URL is invalid.";
+    }
+    return null;
+  };
+
+  const validateIntegrationSettings = () => {
+    if (
+      integrationSettings.smtpPort &&
+      (!Number.isInteger(integrationSettings.smtpPort) ||
+        integrationSettings.smtpPort < 1 ||
+        integrationSettings.smtpPort > 65535)
+    ) {
+      return "SMTP port must be between 1 and 65535.";
+    }
+    if (
+      integrationSettings.smtpFromEmail &&
+      !EMAIL_REGEX.test(integrationSettings.smtpFromEmail.trim())
+    ) {
+      return "SMTP from email format is invalid.";
+    }
+    if (!isValidOptionalUrl(integrationSettings.webhookUrl)) {
+      return "Webhook URL is invalid.";
+    }
+    return null;
+  };
+
   const saveSystem = async () => {
     if (!canUpdateSettings) {
       setError("You do not have permission to update settings.");
@@ -580,8 +651,22 @@ const Settings: React.FC = () => {
     setSavingSystem(true);
     setError("");
     try {
+      const payload = compactObject({
+        companyName: toTrimmedOrUndefined(systemSettings.companyName),
+        supportEmail: toTrimmedOrUndefined(systemSettings.supportEmail),
+        supportPhone: toTrimmedOrUndefined(systemSettings.supportPhone),
+        timezone: toTrimmedOrUndefined(systemSettings.timezone),
+        currency: toTrimmedOrUndefined(systemSettings.currency),
+        dateFormat: toTrimmedOrUndefined(systemSettings.dateFormat),
+        websiteUrl: toTrimmedOrUndefined(systemSettings.websiteUrl),
+      }) as SystemSettingsPayload;
+      if (Object.keys(payload).length === 0) {
+        setError("Enter at least one system setting.");
+        return;
+      }
+
       const data = extractObject<Partial<SystemSettingsForm>>(
-        await settingsApi.updateSystem(systemSettings),
+        await settingsApi.updateSystem(payload),
       );
       if (data) setSystemSettings((s) => ({ ...s, ...data }));
       setMessage("System settings saved.");
@@ -600,8 +685,28 @@ const Settings: React.FC = () => {
     setSavingIntegrations(true);
     setError("");
     try {
+      const payload = compactObject({
+        metaAppId: toTrimmedOrUndefined(integrationSettings.metaAppId),
+        metaAccessToken: toTrimmedOrUndefined(integrationSettings.metaAccessToken),
+        whatsappApiToken: toTrimmedOrUndefined(integrationSettings.whatsappApiToken),
+        smtpHost: toTrimmedOrUndefined(integrationSettings.smtpHost),
+        smtpPort:
+          Number.isInteger(integrationSettings.smtpPort) &&
+          integrationSettings.smtpPort > 0
+            ? integrationSettings.smtpPort
+            : undefined,
+        smtpUser: toTrimmedOrUndefined(integrationSettings.smtpUser),
+        smtpPassword: toTrimmedOrUndefined(integrationSettings.smtpPassword),
+        smtpFromEmail: toTrimmedOrUndefined(integrationSettings.smtpFromEmail),
+        webhookUrl: toTrimmedOrUndefined(integrationSettings.webhookUrl),
+      }) as IntegrationSettingsPayload;
+      if (Object.keys(payload).length === 0) {
+        setError("Enter at least one integration setting.");
+        return;
+      }
+
       const data = extractObject<Partial<IntegrationSettingsForm>>(
-        await settingsApi.updateIntegrations(integrationSettings),
+        await settingsApi.updateIntegrations(payload),
       );
       if (data) setIntegrationSettings((s) => ({ ...s, ...data }));
       setMessage("Integration settings saved.");
@@ -805,11 +910,17 @@ const Settings: React.FC = () => {
         {activeTab === "system-settings" ? (
           <SurfaceCard>
             <h2 className="mb-3 text-xl font-semibold">System Settings</h2>
+            {loadingSettings ? (
+              <p className="mb-3 text-sm text-gray-500">Loading system settings...</p>
+            ) : null}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div><label className="field-label">Company Name</label><input className="field-input" value={systemSettings.companyName} onChange={(e) => setSystemSettings((s) => ({ ...s, companyName: e.target.value }))} /></div>
               <div><label className="field-label">Support Email</label><input className="field-input" value={systemSettings.supportEmail} onChange={(e) => setSystemSettings((s) => ({ ...s, supportEmail: e.target.value }))} /></div>
               <div><label className="field-label">Support Phone</label><input className="field-input" value={systemSettings.supportPhone} onChange={(e) => setSystemSettings((s) => ({ ...s, supportPhone: e.target.value }))} /></div>
-              <div><label className="field-label">Website URL</label><input className="field-input" value={systemSettings.websiteUrl} onChange={(e) => setSystemSettings((s) => ({ ...s, websiteUrl: e.target.value }))} /></div>
+              <div><label className="field-label">Timezone</label><input className="field-input" value={systemSettings.timezone} onChange={(e) => setSystemSettings((s) => ({ ...s, timezone: e.target.value }))} /></div>
+              <div><label className="field-label">Currency</label><input className="field-input" value={systemSettings.currency} onChange={(e) => setSystemSettings((s) => ({ ...s, currency: e.target.value }))} /></div>
+              <div><label className="field-label">Date Format</label><input className="field-input" value={systemSettings.dateFormat} onChange={(e) => setSystemSettings((s) => ({ ...s, dateFormat: e.target.value }))} /></div>
+              <div className="md:col-span-2"><label className="field-label">Website URL</label><input className="field-input" value={systemSettings.websiteUrl} onChange={(e) => setSystemSettings((s) => ({ ...s, websiteUrl: e.target.value }))} /></div>
             </div>
             <button onClick={() => void saveSystem()} disabled={savingSystem || !canUpdateSettings} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{savingSystem ? "Saving..." : "Save Settings"}</button>
           </SurfaceCard>
@@ -833,11 +944,19 @@ const Settings: React.FC = () => {
           <SurfaceCard>
             <h2 className="text-xl font-semibold">Integrations</h2>
             <p className="mt-1 text-sm text-gray-500">Configure Meta, WhatsApp, SMTP, and webhook settings.</p>
+            {loadingSettings ? (
+              <p className="mt-2 text-sm text-gray-500">Loading integration settings...</p>
+            ) : null}
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div><label className="field-label">Meta App ID</label><input className="field-input" value={integrationSettings.metaAppId} onChange={(e) => setIntegrationSettings((s) => ({ ...s, metaAppId: e.target.value }))} /></div>
               <div><label className="field-label">Meta Access Token</label><input className="field-input" value={integrationSettings.metaAccessToken} onChange={(e) => setIntegrationSettings((s) => ({ ...s, metaAccessToken: e.target.value }))} /></div>
               <div><label className="field-label">WhatsApp API Token</label><input className="field-input" value={integrationSettings.whatsappApiToken} onChange={(e) => setIntegrationSettings((s) => ({ ...s, whatsappApiToken: e.target.value }))} /></div>
               <div><label className="field-label">SMTP Host</label><input className="field-input" value={integrationSettings.smtpHost} onChange={(e) => setIntegrationSettings((s) => ({ ...s, smtpHost: e.target.value }))} /></div>
+              <div><label className="field-label">SMTP Port</label><input type="number" className="field-input" value={integrationSettings.smtpPort} onChange={(e) => setIntegrationSettings((s) => ({ ...s, smtpPort: Number(e.target.value) || 0 }))} /></div>
+              <div><label className="field-label">SMTP User</label><input className="field-input" value={integrationSettings.smtpUser} onChange={(e) => setIntegrationSettings((s) => ({ ...s, smtpUser: e.target.value }))} /></div>
+              <div><label className="field-label">SMTP Password</label><input type="password" className="field-input" value={integrationSettings.smtpPassword} onChange={(e) => setIntegrationSettings((s) => ({ ...s, smtpPassword: e.target.value }))} /></div>
+              <div><label className="field-label">SMTP From Email</label><input type="email" className="field-input" value={integrationSettings.smtpFromEmail} onChange={(e) => setIntegrationSettings((s) => ({ ...s, smtpFromEmail: e.target.value }))} /></div>
+              <div className="md:col-span-2"><label className="field-label">Webhook URL</label><input className="field-input" value={integrationSettings.webhookUrl} onChange={(e) => setIntegrationSettings((s) => ({ ...s, webhookUrl: e.target.value }))} /></div>
             </div>
             <button onClick={() => void saveIntegrations()} disabled={savingIntegrations || !canUpdateSettings} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{savingIntegrations ? "Saving..." : "Save Integrations"}</button>
           </SurfaceCard>
@@ -868,7 +987,7 @@ const Settings: React.FC = () => {
 
       {assignOpen && canManageRbac ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setAssignOpen(false)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setAssignOpen(false); setAssignRole(""); setAssignFullPageAccess(false); }} />
           <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold">Assign Role</h3>
             <div className="mt-4 space-y-3">
@@ -882,7 +1001,7 @@ const Settings: React.FC = () => {
               </select>
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setAssignOpen(false)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
+              <button onClick={() => { setAssignOpen(false); setAssignRole(""); setAssignFullPageAccess(false); }} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
               <button onClick={() => void onAssignRole()} disabled={assignLoading} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">{assignLoading ? "Assigning..." : "Assign Role"}</button>
             </div>
           </div>
