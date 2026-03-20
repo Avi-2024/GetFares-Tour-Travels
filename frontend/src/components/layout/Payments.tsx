@@ -26,6 +26,8 @@ import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
 import { paymentsApi } from "../../api/payments";
 import { bookingsApi } from "../../api/bookings";
+import { leadsApi } from "../../api/leads";
+import { customersApi } from "../../api/customers";
 import { getApiErrorMessage } from "../../api/apiClient";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
@@ -546,6 +548,82 @@ const PaymentFormModal = ({
 
   const [formData, setFormData] = useState(() => buildFormData(transaction));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [customers, setCustomers] = useState<Array<{ id: string; name: string; email?: string }>>([]);
+  const [bookings, setBookings] = useState<Array<{ id: string; bookingNumber: string; customer?: string }>>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+
+  // Load customers and bookings when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadData = async () => {
+      // Load customers from leads and customers
+      setLoadingCustomers(true);
+      try {
+        const [leadsRes, customersRes] = await Promise.allSettled([
+          leadsApi.list({ limit: 100 }),
+          customersApi.list({ limit: 100 }),
+        ]);
+
+        const customersList: Array<{ id: string; name: string; email?: string }> = [];
+
+        // Add leads
+        if (leadsRes.status === "fulfilled") {
+          const leadsData = leadsRes.value?.data?.data || leadsRes.value?.data || leadsRes.value || [];
+          const leads = Array.isArray(leadsData) ? leadsData : [];
+          leads.forEach((lead: any) => {
+            customersList.push({
+              id: `lead-${lead.id}`,
+              name: lead.fullName || lead.full_name || lead.name || "Unknown",
+              email: lead.email,
+            });
+          });
+        }
+
+        // Add customers
+        if (customersRes.status === "fulfilled") {
+          const customersData = customersRes.value?.data?.data || customersRes.value?.data || customersRes.value || [];
+          const customerRecords = Array.isArray(customersData) ? customersData : [];
+          customerRecords.forEach((customer: any) => {
+            customersList.push({
+              id: `customer-${customer.id}`,
+              name: customer.fullName || customer.full_name || customer.name || "Unknown",
+              email: customer.email,
+            });
+          });
+        }
+
+        setCustomers(customersList);
+      } catch (err) {
+        console.error("Failed to load customers:", err);
+      } finally {
+        setLoadingCustomers(false);
+      }
+
+      // Load bookings
+      setLoadingBookings(true);
+      try {
+        const bookingsRes = await bookingsApi.list({ limit: 100 });
+        const bookingsData = bookingsRes?.data?.data || bookingsRes?.data || bookingsRes || [];
+        const bookingsList = Array.isArray(bookingsData) ? bookingsData : [];
+        
+        setBookings(
+          bookingsList.map((booking: any) => ({
+            id: booking.id,
+            bookingNumber: booking.bookingNumber || booking.booking_number || booking.code || `BK-${booking.id}`,
+            customer: booking.customerName || booking.customer_name || booking.customer || "",
+          }))
+        );
+      } catch (err) {
+        console.error("Failed to load bookings:", err);
+      } finally {
+        setLoadingBookings(false);
+      }
+    };
+
+    void loadData();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -595,34 +673,74 @@ const PaymentFormModal = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="field-label">Customer *</label>
-              <input
-                type="text"
-                value={formData.customer}
-                onChange={(e) =>
-                  setFormData({ ...formData, customer: e.target.value })
-                }
-                className={`field-input ${
-                  errors.customer ? "border-red-500" : ""
-                }`}
-                placeholder="Customer name"
-              />
+              {transaction ? (
+                <input
+                  type="text"
+                  value={formData.customer}
+                  onChange={(e) =>
+                    setFormData({ ...formData, customer: e.target.value })
+                  }
+                  className={`field-input ${
+                    errors.customer ? "border-red-500" : ""
+                  }`}
+                  placeholder="Customer name"
+                />
+              ) : (
+                <select
+                  value={formData.customer}
+                  onChange={(e) =>
+                    setFormData({ ...formData, customer: e.target.value })
+                  }
+                  className={`field-input ${
+                    errors.customer ? "border-red-500" : ""
+                  }`}
+                  disabled={loadingCustomers}
+                >
+                  <option value="">Select customer...</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.name}>
+                      {customer.name} {customer.email ? `(${customer.email})` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
               {errors.customer && (
                 <p className="text-xs text-red-500 mt-1">{errors.customer}</p>
               )}
             </div>
             <div>
               <label className="field-label">Booking ID *</label>
-              <input
-                type="text"
-                value={formData.bookingId}
-                onChange={(e) =>
-                  setFormData({ ...formData, bookingId: e.target.value })
-                }
-                className={`field-input ${
-                  errors.bookingId ? "border-red-500" : ""
-                }`}
-                placeholder="BK-XXXX"
-              />
+              {transaction ? (
+                <input
+                  type="text"
+                  value={formData.bookingId}
+                  onChange={(e) =>
+                    setFormData({ ...formData, bookingId: e.target.value })
+                  }
+                  className={`field-input ${
+                    errors.bookingId ? "border-red-500" : ""
+                  }`}
+                  placeholder="BK-XXXX"
+                />
+              ) : (
+                <select
+                  value={formData.bookingId}
+                  onChange={(e) =>
+                    setFormData({ ...formData, bookingId: e.target.value })
+                  }
+                  className={`field-input ${
+                    errors.bookingId ? "border-red-500" : ""
+                  }`}
+                  disabled={loadingBookings}
+                >
+                  <option value="">Select booking...</option>
+                  {bookings.map((booking) => (
+                    <option key={booking.id} value={booking.id}>
+                      {booking.bookingNumber} {booking.customer ? `- ${booking.customer}` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
               {errors.bookingId && (
                 <p className="text-xs text-red-500 mt-1">{errors.bookingId}</p>
               )}
