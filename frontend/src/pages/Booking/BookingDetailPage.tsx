@@ -12,6 +12,7 @@ import {
   FaXmark,
   FaCircleCheck,
   FaCircleExclamation,
+  FaArrowLeft,
 } from "react-icons/fa6";
 import { bookingsApi } from "../../api/bookings";
 import { paymentsApi } from "../../api/payments";
@@ -971,32 +972,42 @@ const BookingDetailPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-              Booking
-            </p>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                #{booking.bookingNumber}
-              </h1>
-              <span
-                className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusColor(
-                  booking.status,
-                )}`}
-              >
-                {booking.status}
-              </span>
-            </div>
-            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
-              <span className="flex items-center gap-1.5">
-                <FaFileInvoice className="w-4" />
-                Quote: #{booking.quotationId}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <FaClock className="w-4" />
-                {formatDate(booking.travelStart)} -{" "}
-                {formatDate(booking.travelEnd)}
-              </span>
+          <div className="flex items-start gap-3">
+            <button
+              onClick={() => navigate("/bookings")}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Back to bookings"
+              title="Back to Bookings"
+            >
+              <FaArrowLeft className="text-sm" />
+            </button>
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                Booking
+              </p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  #{booking.bookingNumber}
+                </h1>
+                <span
+                  className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusColor(
+                    booking.status,
+                  )}`}
+                >
+                  {booking.status}
+                </span>
+              </div>
+              <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
+                <span className="flex items-center gap-1.5">
+                  <FaFileInvoice className="w-4" />
+                  Quote: #{booking.quotationId}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <FaClock className="w-4" />
+                  {formatDate(booking.travelStart)} -{" "}
+                  {formatDate(booking.travelEnd)}
+                </span>
+              </div>
             </div>
           </div>
 

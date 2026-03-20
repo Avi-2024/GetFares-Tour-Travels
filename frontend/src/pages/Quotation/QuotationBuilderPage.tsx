@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  FaArrowLeft,
   FaArrowRotateRight,
   FaCheck,
   FaDesktop,
@@ -469,9 +470,19 @@ const QuotationBuilderPage: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Quotation Builder
-            </h1>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/quotations")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                aria-label="Back to quotations"
+                title="Back to Quotations"
+              >
+                <FaArrowLeft className="text-sm" />
+              </button>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                Quotation Builder
+              </h1>
+            </div>
             <p className="text-sm text-gray-500">
               Create and preview polished quotations quickly.
             </p>
