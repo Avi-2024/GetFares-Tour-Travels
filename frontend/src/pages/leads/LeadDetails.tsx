@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { FaArrowLeft } from "react-icons/fa6";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { validateLeadTransition } from "../../utils/workflowValidation";
 import { getApiErrorMessage } from "../../api/apiClient";
@@ -471,6 +472,14 @@ const LeadDetails: React.FC = () => {
         {/* Mobile Header with Menu Toggle */}
         <div className="lg:hidden flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/leads")}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Back to leads"
+              title="Back to Leads"
+            >
+              <FaArrowLeft className="text-sm" />
+            </button>
             <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-base font-bold border border-blue-200">
               {leadInitials}
             </div>
@@ -496,6 +505,14 @@ const LeadDetails: React.FC = () => {
         {/* Desktop Header */}
         <div className="hidden lg:flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate("/leads")}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Back to leads"
+              title="Back to Leads"
+            >
+              <FaArrowLeft className="text-sm" />
+            </button>
             <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xl font-bold border border-blue-200 shadow-sm">
               {leadInitials}
             </div>

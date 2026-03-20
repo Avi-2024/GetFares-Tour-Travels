@@ -280,9 +280,19 @@ const CreateLead: React.FC = () => {
   return (
     <div className="mx-auto max-w-9xl space-y-6 px-0 sm:px-0 lg:px-0">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          Create New Lead
-        </h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate("/leads")}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            aria-label="Back to leads"
+            title="Back to Leads"
+          >
+            <FaArrowLeft className="text-sm" />
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            Create New Lead
+          </h1>
+        </div>
         <p className="text-sm text-gray-500">
           Capture customer intent in a guided 4-step wizard.
         </p>
