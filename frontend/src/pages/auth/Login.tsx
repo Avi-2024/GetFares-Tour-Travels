@@ -134,10 +134,14 @@ const Login = () => {
         role: userRole,
         roleId: data.user.roleId
       })
+      const isAdmin = String(userRole || '').toLowerCase() === 'admin'
       await refreshPermissions(data.accessToken)
+      if (isAdmin) {
+        navigate('/dashboard')
+        return
+      }
       const permissionsResponse = await rbacApi.myPermissions().catch(() => null)
       const permissions = permissionsResponse?.data?.permissions ?? []
-      await refreshPermissions(data.accessToken)
       navigate(resolveLandingRoute(permissions))
     } catch (err) {
       setApiError(getApiErrorMessage(err, 'Unable to sign in right now. Please try again.'))

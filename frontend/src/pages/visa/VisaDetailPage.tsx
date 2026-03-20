@@ -16,6 +16,7 @@ import {
   FaCalendarCheck,
   FaGlobe,
   FaClock,
+  FaArrowLeft,
 } from "react-icons/fa6";
 import { DateInput, TextInput } from "../../components/form";
 import AuditMeta from "../../components/ui/AuditMeta";
@@ -831,16 +832,28 @@ const VisaDetailPage = () => {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Visa Case #{id}
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage visa status, documents, and readiness checklist
-          </p>
-          {pageError ? (
-            <p className="mt-2 text-xs sm:text-sm text-red-500">{pageError}</p>
-          ) : null}
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate("/visa")}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            aria-label="Back to visa"
+            title="Back to Visa"
+          >
+            <FaArrowLeft className="text-sm" />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Visa Case #{id}
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Manage visa status, documents, and readiness checklist
+            </p>
+            {pageError ? (
+              <p className="mt-2 text-xs sm:text-sm text-red-500">
+                {pageError}
+              </p>
+            ) : null}
+          </div>
         </div>
         <StatusBadge status={status} />
       </div>
