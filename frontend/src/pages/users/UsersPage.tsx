@@ -14,7 +14,6 @@ import { FaXmark, FaFilter } from "react-icons/fa6";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { usersApi } from "../../api/users";
 import { useAuth } from "../../context/AuthContext";
-import { useAuthService } from "../../hooks/useAuthService";
 
 interface User {
   id: string;
@@ -561,7 +560,6 @@ const AssignRoleModal = ({
 };
 
 const UsersPage: React.FC = () => {
-  const authService = useAuthService();
   const { hasPermission } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -666,17 +664,6 @@ const UsersPage: React.FC = () => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
-  const createRoleIfNeeded = async (roleName?: string) => {
-    if (!roleName?.trim()) return null;
-    const created = await authService.createRole({
-      name: roleName.trim(),
-      description: undefined,
-    });
-    if (!created?.id) return null;
-    await loadRoles();
-    return created.id;
-  };
-
   const handleCreateUser = async (formData: any) => {
     if (!canCreateUsers) {
       showToast("You do not have permission to create users.", "error");
@@ -700,13 +687,15 @@ const UsersPage: React.FC = () => {
     }
 
     try {
-      const roleId = (formData.roleName ? await createRoleIfNeeded(formData.roleName) : formData.role) || formData.role || undefined;
+      const roleName = formData.roleName?.trim() || undefined;
+      const roleId = roleName ? undefined : formData.role || undefined;
       const response = await usersApi.create({
         fullName: formData.fullName,
         email: formData.email,
         phone: normalizePhone(formData.phone),
         password: formData.password,
         roleId: roleId || undefined,
+        roleName: roleName || undefined,
         isActive: true,
       });
       void response;
@@ -739,12 +728,14 @@ const UsersPage: React.FC = () => {
     }
 
     try {
-      const roleId = (formData.roleName ? await createRoleIfNeeded(formData.roleName) : formData.role) || formData.role || null;
+      const roleName = formData.roleName?.trim() || undefined;
+      const roleId = roleName ? undefined : formData.role || null;
       await usersApi.update(selectedUser.id, {
         fullName: formData.fullName,
         email: formData.email,
         phone: normalizePhone(formData.phone),
         roleId: roleId ?? null,
+        roleName: roleName || undefined,
         isActive: formData.isActive,
       });
 
@@ -764,12 +755,13 @@ const UsersPage: React.FC = () => {
       return;
     }
     try {
-      const resolvedRoleId = roleName ? await createRoleIfNeeded(roleName) : roleId;
-      if (!resolvedRoleId) {
+      const resolvedRoleName = roleName?.trim() || undefined;
+      const resolvedRoleId = resolvedRoleName ? undefined : roleId || null;
+      if (!resolvedRoleId && !resolvedRoleName) {
         showToast("Please select a role.", "error");
         return;
       }
-      await authService.assignRole({ userId, roleId: resolvedRoleId });
+      await usersApi.update(userId, { roleId: resolvedRoleId, roleName: resolvedRoleName });
       setShowRoleModal(false);
       setSelectedUser(null);
       showToast("Role assigned successfully", "success");

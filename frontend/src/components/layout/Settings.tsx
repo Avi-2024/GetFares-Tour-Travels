@@ -533,15 +533,8 @@ const Settings: React.FC = () => {
   };
 
   const onCreateAndAssignRole = async (roleName: string) => {
-    const created = await authService.createRole({
-      name: roleName.trim(),
-      description: undefined,
-    });
-    if (!created?.id) {
-      throw new Error("Unable to create role.");
-    }
-    await authService.assignRole({ userId: assignUserId, roleId: created.id });
-    return created;
+    await usersService.update(assignUserId, { roleName: roleName.trim() });
+    return { id: "" };
   };
 
   const toggleRolePermission = (permissionKey: string) => {
@@ -1087,7 +1080,7 @@ const Settings: React.FC = () => {
                       await loadRoles();
                       await loadUsers();
                     } else {
-                      await authService.assignRole({ userId: assignUserId, roleId: assignRoleId });
+                      await usersService.update(assignUserId, { roleId: assignRoleId });
                       setMessage("Role assigned successfully.");
                       await loadUsers();
                     }
