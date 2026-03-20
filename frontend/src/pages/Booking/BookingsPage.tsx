@@ -165,7 +165,7 @@ const CreateBookingModal = ({
 }: {
   isOpen: boolean
   onClose: () => void
-  onSave: (data: NewBookingData) => void
+  onSave: (data: NewBookingData) => Promise<boolean>
 }) => {
   const isUuid = (value?: string) =>
     Boolean(
@@ -178,6 +178,7 @@ const CreateBookingModal = ({
   const [quotationLoading, setQuotationLoading] = useState(false)
   const [quotationAutofillLoading, setQuotationAutofillLoading] =
     useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [quotationError, setQuotationError] = useState('')
   const [selectedQuotationId, setSelectedQuotationId] = useState('')
   const [formData, setFormData] = useState<NewBookingData>({
@@ -465,24 +466,37 @@ const CreateBookingModal = ({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = () => {
-    if (validate()) {
-      onSave(formData)
+  const resetForm = () => {
+    setFormData({
+      quotationId: '',
+      customer: '',
+      email: '',
+      phone: '',
+      destination: '',
+      travelStart: '',
+      travelEnd: '',
+      totalAmount: 0,
+      costAmount: 0,
+      advanceRequired: 0,
+      notes: ''
+    })
+    setErrors({})
+    setQuotationError('')
+    setSelectedQuotationId('')
+  }
+
+  const handleSubmit = async () => {
+    if (!validate()) return
+
+    setSubmitting(true)
+    try {
+      const saved = await onSave(formData)
+      if (!saved) return
+
+      resetForm()
       onClose()
-      setFormData({
-        quotationId: '',
-        customer: '',
-        email: '',
-        phone: '',
-        destination: '',
-        travelStart: '',
-        travelEnd: '',
-        totalAmount: 0,
-        costAmount: 0,
-        advanceRequired: 0,
-        notes: ''
-      })
-      setSelectedQuotationId('')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -495,6 +509,7 @@ const CreateBookingModal = ({
           </h3>
           <button
             onClick={onClose}
+            disabled={submitting}
             className='text-gray-400 hover:text-gray-600'
           >
             <FaXmark className='text-xl' />
@@ -712,6 +727,9 @@ const CreateBookingModal = ({
                 min='0'
                 step='0.01'
               />
+              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                Leave as 0 to let the system auto-calculate the minimum advance.
+              </p>
             </div>
           </div>
 
@@ -733,15 +751,17 @@ const CreateBookingModal = ({
         <div className='sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3'>
           <button
             onClick={onClose}
+            disabled={submitting}
             className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
+            disabled={submitting}
             className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
           >
-            Create Booking
+            {submitting ? 'Creating...' : 'Create Booking'}
           </button>
         </div>
       </div>
@@ -1522,39 +1542,26 @@ const BookingsPage: React.FC = () => {
   const handleCreateBooking = async (data: NewBookingData) => {
     setLoading(true)
     try {
-      const res = await bookingsService.create({
+      const payload: Record<string, unknown> = {
         quotationId: data.quotationId,
         travelStartDate: data.travelStart,
         travelEndDate: data.travelEnd,
         totalAmount: data.totalAmount,
-        costAmount: data.costAmount,
-        advanceRequired: data.advanceRequired
-      })
-      showToast('Booking created successfully', 'success')
-      setShowCreateModal(false)
-      const payload =
-        (res as any)?.data?.data ?? (res as any)?.data ?? res ?? null
-      if (payload) {
-        const merged = {
-          ...payload,
-          customer: payload.customer ?? data.customer,
-          email: payload.email ?? data.email,
-          phone: payload.phone ?? data.phone,
-          destination: payload.destination ?? data.destination,
-          travelStartDate: payload.travelStartDate ?? data.travelStart,
-          travelEndDate: payload.travelEndDate ?? data.travelEnd,
-          totalAmount: payload.totalAmount ?? data.totalAmount,
-          costAmount: payload.costAmount ?? data.costAmount,
-          advanceRequired: payload.advanceRequired ?? data.advanceRequired
-        }
-        const mapped = mapBooking(merged, 0)
-        setBookingItems(prev => [mapped, ...prev])
-      } else {
-        await fetchBookings()
+        costAmount: data.costAmount
       }
+
+      if (data.advanceRequired > 0) {
+        payload.advanceRequired = data.advanceRequired
+      }
+
+      await bookingsService.create(payload)
+      showToast('Booking created successfully', 'success')
+      await fetchBookings()
+      return true
     } catch (error) {
       console.error('Failed to create booking:', error)
       showToast(getApiErrorMessage(error, 'Failed to create booking'), 'error')
+      return false
     } finally {
       setLoading(false)
     }
@@ -2037,10 +2044,11 @@ const BookingsPage: React.FC = () => {
                             booking.payment === 'unpaid') && (
                             <button
                               onClick={() => handleRecordPayment(booking)}
-                              className='text-xs text-blue-600 hover:text-blue-800 underline'
+                              disabled={loading}
+                              className='inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30'
                               title='Record Payment'
                             >
-                              +Pay
+                              Pay
                             </button>
                           )}
                         </div>

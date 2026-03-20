@@ -74,6 +74,12 @@ function createUsersService({
   rbacService,
   rolesService,
 }) {
+  function isUuid(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      String(value || "").trim(),
+    );
+  }
+
   async function resolveRoleId(payload = {}) {
     if (!payload.role && !payload.roleId) {
       return payload.roleId ?? null;
@@ -83,9 +89,14 @@ function createUsersService({
       return payload.roleId ?? null;
     }
 
+    const rawRoleId = payload.roleId ? String(payload.roleId).trim() : null;
+    const normalizedRoleId = rawRoleId && isUuid(rawRoleId) ? rawRoleId : null;
+    const roleFromRoleId =
+      rawRoleId && !normalizedRoleId && !payload.role ? rawRoleId : null;
+
     const resolved = await rolesService.resolveRole({
-      role: payload.role,
-      roleId: payload.roleId,
+      role: payload.role || roleFromRoleId,
+      roleId: normalizedRoleId,
     });
     return resolved?.id || null;
   }

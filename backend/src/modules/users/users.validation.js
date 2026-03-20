@@ -6,7 +6,11 @@ const createPayload = z
     email: z.string().email().max(150),
     phone: z.string().trim().min(6).max(20).optional(),
     role: z.string().trim().min(1).optional(),
+<<<<<<< HEAD
     roleId: z.string().uuid().optional(),
+=======
+    roleId: z.string().trim().min(1).optional(),
+>>>>>>> 260e6b1e39f13ef708b754e115df8c7e0db0356f
     password: z.string().trim().min(8).optional(),
     passwordHash: z.string().trim().min(8).max(400).optional(),
     isActive: z.boolean().optional(),
@@ -34,7 +38,11 @@ const updatePayload = z
     email: z.string().email().max(150).optional(),
     phone: z.string().trim().min(6).max(20).optional(),
     role: z.string().trim().min(1).optional(),
+<<<<<<< HEAD
     roleId: z.string().uuid().nullable().optional(),
+=======
+    roleId: z.string().trim().min(1).nullable().optional(),
+>>>>>>> 260e6b1e39f13ef708b754e115df8c7e0db0356f
     isActive: z.boolean().optional(),
     isOnLeave: z.boolean().optional(),
     expertiseDestinations: z

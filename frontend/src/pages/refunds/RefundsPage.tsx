@@ -16,6 +16,8 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import EmptyState from "../../components/ui/EmptyState";
 import { refundsApi } from "../../api/refunds";
+import { bookingsApi } from "../../api/bookings";
+import { paymentsApi } from "../../api/payments";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
@@ -557,21 +559,27 @@ const RefundsPage = () => {
     serviceCharge: "" as number | "",
   });
 
+  const [bookings, setBookings] = useState<Array<{ id: string; bookingNumber: string; customer?: string }>>([]);
+  const [payments, setPayments] = useState<Array<{ id: string; referenceId: string; amount: number }>>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+
   const bookingOptions = useMemo(
     () =>
-      rows.map((item) => ({ value: item.bookingId, label: item.bookingId })),
-    [rows],
+      bookings.map((booking) => ({
+        value: booking.id,
+        label: `${booking.bookingNumber}${booking.customer ? ` - ${booking.customer}` : ""}`,
+      })),
+    [bookings],
   );
 
   const paymentOptions = useMemo(
     () =>
-      rows
-        .filter((item) => item.paymentId)
-        .map((item) => ({
-          value: item.paymentId as string,
-          label: item.paymentId as string,
-        })),
-    [rows],
+      payments.map((payment) => ({
+        value: payment.id,
+        label: `${payment.referenceId} - $${payment.amount.toFixed(2)}`,
+      })),
+    [payments],
   );
 
   // Filter and pagination
@@ -635,6 +643,55 @@ const RefundsPage = () => {
 
     void loadRefunds();
   }, [token]);
+
+  // Load bookings and payments when form is shown
+  useEffect(() => {
+    if (!showForm) return;
+
+    const loadData = async () => {
+      // Load bookings
+      setLoadingBookings(true);
+      try {
+        const bookingsRes = await bookingsApi.list({ limit: 100 });
+        const bookingsData = bookingsRes?.data?.data || bookingsRes?.data || bookingsRes || [];
+        const bookingsList = Array.isArray(bookingsData) ? bookingsData : [];
+        
+        setBookings(
+          bookingsList.map((booking: any) => ({
+            id: booking.id,
+            bookingNumber: booking.bookingNumber || booking.booking_number || booking.code || `BK-${booking.id}`,
+            customer: booking.customerName || booking.customer_name || booking.customer || "",
+          }))
+        );
+      } catch (err) {
+        console.error("Failed to load bookings:", err);
+      } finally {
+        setLoadingBookings(false);
+      }
+
+      // Load payments
+      setLoadingPayments(true);
+      try {
+        const paymentsRes = await paymentsApi.list();
+        const paymentsData = paymentsRes?.data?.data || paymentsRes?.data || paymentsRes || [];
+        const paymentsList = Array.isArray(paymentsData) ? paymentsData : [];
+        
+        setPayments(
+          paymentsList.map((payment: any) => ({
+            id: payment.id,
+            referenceId: payment.paymentReference || payment.payment_reference || payment.gatewayPaymentId || payment.gateway_payment_id || payment.id,
+            amount: Number(payment.amount || 0),
+          }))
+        );
+      } catch (err) {
+        console.error("Failed to load payments:", err);
+      } finally {
+        setLoadingPayments(false);
+      }
+    };
+
+    void loadData();
+  }, [showForm]);
 
   const createRefund = async () => {
     if (!form.bookingId || form.refundAmount === "") return;
@@ -868,25 +925,49 @@ const RefundsPage = () => {
             New Refund Request
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <UUIDSelect
-              label="Booking ID *"
-              value={form.bookingId}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, bookingId: value }))
-              }
-              options={bookingOptions}
-              required
-            />
-            <UUIDSelect
-              label="Payment ID"
-              value={form.paymentId}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, paymentId: value }))
-              }
-              options={paymentOptions}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Booking ID *
+              </label>
+              <select
+                value={form.bookingId}
+                onChange={(e) =>
+                  setForm((current) => ({ ...current, bookingId: e.target.value }))
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
+                disabled={loadingBookings}
+                required
+              >
+                <option value="">Select booking...</option>
+                {bookingOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Payment ID
+              </label>
+              <select
+                value={form.paymentId}
+                onChange={(e) =>
+                  setForm((current) => ({ ...current, paymentId: e.target.value }))
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
+                disabled={loadingPayments}
+              >
+                <option value="">Select payment...</option>
+                {paymentOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <CurrencyInput
-              label="Refund Amount *"
+              label="Refund Amount"
               value={form.refundAmount}
               onChange={(value) =>
                 setForm((current) => ({ ...current, refundAmount: value }))

@@ -73,7 +73,7 @@ const toNumber = (value: unknown, fallback = 0) => {
 };
 
 const formatDate = (value?: string | null) => {
-  if (!value) return "-";
+  if (!value) return "N/A";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return String(value);
   return parsed.toLocaleString("en-US", {
@@ -169,7 +169,7 @@ const QuotationDetailPage: React.FC = () => {
         ? quoteData.items.map((item: any) => ({
             id: String(item.id ?? `${item.itemType}-${item.description}`),
             itemType: (item.itemType || "OTHER") as ComponentRow["itemType"],
-            description: String(item.description || "-"),
+            description: String(item.description || "N/A"),
             cost: toNumber(item.cost, 0),
           }))
         : [];
@@ -219,7 +219,7 @@ const QuotationDetailPage: React.FC = () => {
           id: String(log.id ?? index),
           sentAt,
           sentTo: String(
-            log.recipientEmail ?? log.recipient_email ?? log.recipientPhone ?? log.recipient_phone ?? "-"
+            log.recipientEmail ?? log.recipient_email ?? log.recipientPhone ?? log.recipient_phone ?? "N/A"
           ),
           method: mapChannel(log.deliveryChannel ?? log.delivery_channel),
           viewedAt: lastViewedAt,
@@ -245,7 +245,11 @@ const QuotationDetailPage: React.FC = () => {
   }, [loadDetails]);
 
   const lead = quotation?.lead ?? quotation?.relations?.lead ?? null;
-  const destination = quotation?.destination ?? quotation?.relations?.destination ?? null;
+  const destination =
+    quotation?.destination ??
+    quotation?.relations?.destination ??
+    quotation?.lead?.destination ??
+    null;
   const template = quotation?.template ?? quotation?.relations?.template ?? null;
   const pricing = quotation?.pricing ?? quotation?.relations?.pricing ?? null;
   const booking = quotation?.booking ?? quotation?.relations?.booking ?? null;
@@ -494,40 +498,40 @@ const QuotationDetailPage: React.FC = () => {
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Customer</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {lead?.fullName || "-"}
+              {lead?.fullName || "N/A"}
             </p>
-            <p className="text-xs text-gray-500">{lead?.email || "-"}</p>
-            <p className="text-xs text-gray-500">{lead?.phone || "-"}</p>
+            <p className="text-xs text-gray-500">{lead?.email || "N/A"}</p>
+            <p className="text-xs text-gray-500">{lead?.phone || "N/A"}</p>
           </div>
 
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Destination</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {destination?.name || "-"}
+              {destination?.name || lead?.destinationName || "N/A"}
             </p>
-            <p className="text-xs text-gray-500">{destination?.country || "-"}</p>
+            <p className="text-xs text-gray-500">{destination?.country || "N/A"}</p>
           </div>
 
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Template</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {template?.name || quotation.templateSnapshot?.name || "-"}
+              {template?.name || quotation.templateSnapshot?.name || "N/A"}
             </p>
-            <p className="text-xs text-gray-500">{template?.code || quotation.templateSnapshot?.code || "-"}</p>
+            <p className="text-xs text-gray-500">{template?.code || quotation.templateSnapshot?.code || "N/A"}</p>
           </div>
 
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Created By</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {createdByUser?.fullName || quotation.createdBy || "-"}
+              {createdByUser?.fullName || quotation.createdBy || "N/A"}
             </p>
-            <p className="text-xs text-gray-500">{createdByUser?.email || "-"}</p>
+            <p className="text-xs text-gray-500">{createdByUser?.email || "N/A"}</p>
           </div>
 
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Approved By</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {approvedByUser?.fullName || quotation.approvedBy || "-"}
+              {approvedByUser?.fullName || quotation.approvedBy || "N/A"}
             </p>
             <p className="text-xs text-gray-500">{formatDate(quotation.approvedAt)}</p>
           </div>
@@ -535,27 +539,27 @@ const QuotationDetailPage: React.FC = () => {
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Linked Booking</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {booking?.bookingNumber || "-"}
+              {booking?.bookingNumber || "N/A"}
             </p>
             <p className="text-xs text-gray-500">
-              {booking ? `${booking.status || "-"} / ${booking.paymentStatus || "-"}` : "-"}
+              {booking ? `${booking.status || "N/A"} / ${booking.paymentStatus || "N/A"}` : "N/A"}
             </p>
           </div>
 
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Pricing Reference</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {pricing?.id || quotation.pricingId || "-"}
+              {pricing?.id || quotation.pricingId || "N/A"}
             </p>
             <p className="text-xs text-gray-500">
-              Base {pricing ? `$${toNumber(pricing.baseCost, 0).toLocaleString()}` : "-"}
+              Base {pricing ? `$${toNumber(pricing.baseCost, 0).toLocaleString()}` : "N/A"}
             </p>
           </div>
 
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Sent By</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {sentByUser?.fullName || quotation.sentBy || "-"}
+              {sentByUser?.fullName || quotation.sentBy || "N/A"}
             </p>
             <p className="text-xs text-gray-500">{formatDate(quotation.sentAt)}</p>
           </div>
