@@ -1,20 +1,43 @@
--- !! DANGER ZONE !! -- This will permanently delete ALL data from every table.
--- Make sure you have a backup before running this.
+-- -- ! FIX PERMISSIONS ==========================================
+-- INSERT INTO roles (name, description)
+-- VALUES ('ADMIN', 'Full access to CRM')
+-- ON CONFLICT (name) DO NOTHING;
 
-DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN (
-        SELECT tablename 
-        FROM pg_tables 
-        WHERE schemaname = 'public'
-    )
-    LOOP
-        EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' RESTART IDENTITY CASCADE';
-    END LOOP;
-END;
-$$;
+-- INSERT INTO permissions ("key", name, description, is_active)
+-- VALUES ('*', '*', 'All permissions', TRUE)
+-- ON CONFLICT ("key") DO NOTHING;
+
+-- INSERT INTO role_permissions (role_id, permission_id)
+-- SELECT r.id, p.id
+-- FROM roles r
+-- JOIN permissions p ON p."key" = '*'
+-- WHERE r.name = 'ADMIN'
+-- ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- UPDATE users
+-- SET role_id = (SELECT id FROM roles WHERE name = 'ADMIN')
+-- WHERE email = 'admin@travel-crm.com';
+-- -- ! =========================================================
+
+-- -----------------------------
+-- INSERT INTO roles (name, description)
+-- VALUES ('SUPER_ADMIN', 'Full access to CRM')
+-- ON CONFLICT (name) DO NOTHING;
+
+-- INSERT INTO users (
+--     role_id,
+--     full_name,
+--     email,
+--     password_hash,
+--     is_active
+-- )
+-- VALUES (
+--     (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'),
+--     'Super Admin',
+--     'admin@travel-crm.com',
+--     '$2b$10$sobkJsADDL.z5fSKtHmMVOsw28OmXODgHMlJ9G/xIa5VCsXK.H00e',
+--     TRUE
+-- );
 
 -- =========================================
 -- 1. AUTHENTICATION & RBAC TABLES
@@ -24,17 +47,27 @@ CREATE TABLE roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) UNIQUE NOT NULL,
     description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE permissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) UNIQUE NOT NULL
+    key VARCHAR(120) UNIQUE NOT NULL,
+    name VARCHAR(120) UNIQUE NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE role_permissions (
     role_id UUID REFERENCES roles(id) ON DELETE CASCADE,
     permission_id UUID REFERENCES permissions(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (role_id, permission_id)
 );
 
@@ -147,7 +180,52 @@ CREATE TABLE notification_events (
 );
 
 -- =========================================
--- 8. CUSTOMER MANAGEMENT
+-- 3.2 SETTINGS
+-- =========================================
+
+CREATE TABLE app_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key VARCHAR(80) NOT NULL UNIQUE,
+    value JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_app_settings_key ON app_settings(key);
+
+INSERT INTO app_settings (key, value)
+VALUES
+  (
+    'system',
+    jsonb_build_object(
+      'companyName', 'Get2Vacation Travel CRM',
+      'supportEmail', 'support@Get2Vacation.com',
+      'supportPhone', '',
+      'timezone', 'Asia/Kolkata',
+      'currency', 'INR',
+      'dateFormat', 'DD/MM/YYYY',
+      'websiteUrl', ''
+    )
+  ),
+  (
+    'integrations',
+    jsonb_build_object(
+      'metaAppId', '',
+      'metaAccessToken', '',
+      'whatsappApiToken', '',
+      'smtpHost', '',
+      'smtpPort', 587,
+      'smtpUser', '',
+      'smtpPassword', '',
+      'smtpFromEmail', '',
+      'webhookUrl', ''
+    )
+  )
+ON CONFLICT (key) DO NOTHING;
+
+-- =========================================
+-- 4. CUSTOMER MANAGEMENT (MOVED BEFORE LEADS)
 -- =========================================
 
 CREATE TYPE customer_segment AS ENUM (
@@ -172,15 +250,8 @@ CREATE TABLE customers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE customer_leads (
-    customer_id UUID REFERENCES customers(id),
-    lead_id UUID REFERENCES leads(id),
-    PRIMARY KEY (customer_id, lead_id),
-    is_deleted BOOLEAN DEFAULT FALSE
-);
-
 -- =========================================
--- 4. LEAD MANAGEMENT
+-- 5. LEAD MANAGEMENT
 -- =========================================
 
 CREATE TYPE lead_status AS ENUM (
@@ -225,6 +296,7 @@ CREATE TABLE leads (
     utm_source VARCHAR(100),
     utm_medium VARCHAR(100),
     utm_campaign VARCHAR(100),
+    meta_lead_id VARCHAR(120),
 
     lead_score INT DEFAULT 0 CHECK (lead_score >= 0),
 
@@ -273,8 +345,15 @@ followup_type INT CHECK (followup_type BETWEEN 1 AND 4),    followup_date TIMEST
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE customer_leads (
+    customer_id UUID REFERENCES customers(id),
+    lead_id UUID REFERENCES leads(id),
+    PRIMARY KEY (customer_id, lead_id),
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+
 -- =========================================
--- 5. QUOTATION
+-- 6. QUOTATION
 -- =========================================
 
 CREATE TYPE quote_status AS ENUM (
@@ -283,10 +362,9 @@ CREATE TYPE quote_status AS ENUM (
     'VIEWED',
     'APPROVED',
     'REJECTED',
-    'EXPIRED'
+    'EXPIRED',
+    'PENDING'
 );
-
-ALTER TYPE quote_status ADD VALUE 'PENDING';
 
 CREATE TABLE quotation_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -816,14 +894,21 @@ CREATE INDEX idx_leads_destination_id ON leads(destination_id);
 CREATE INDEX idx_leads_campaign_id ON leads(campaign_id);
 CREATE INDEX idx_leads_status ON leads(status);
 CREATE INDEX idx_leads_assigned_to ON leads(assigned_to);
+CREATE INDEX idx_leads_assigned_at ON leads(assigned_at);
 CREATE INDEX idx_leads_created_at ON leads(created_at);
 CREATE INDEX idx_leads_response_deadline ON leads(response_deadline);
+CREATE INDEX idx_leads_sla_breached ON leads(sla_breached);
 CREATE INDEX idx_active_leads ON leads(status) WHERE is_deleted = FALSE;
 -- For filtering by status + assigned_to (very common CRM query)
 CREATE INDEX idx_leads_status_assigned ON leads(status, assigned_to);
 CREATE INDEX idx_leads_temperature ON leads(temperature);
 CREATE INDEX idx_leads_sub_status ON leads(sub_status);
 CREATE INDEX idx_leads_pan_number ON leads(pan_number);
+CREATE UNIQUE INDEX idx_leads_meta_lead_id ON leads(meta_lead_id);
+CREATE INDEX idx_followups_lead_id ON followups(lead_id);
+CREATE INDEX idx_followups_due_open ON followups(followup_date, is_completed);
+CREATE INDEX idx_lead_activities_lead_user_created
+  ON lead_activities(lead_id, user_id, created_at);
 
 
 -- =============================
@@ -901,6 +986,9 @@ CREATE INDEX idx_notification_events_recipient_role ON notification_events (reci
 CREATE INDEX idx_notification_events_recipient_team ON notification_events (recipient_team_id, status, created_at DESC);
 CREATE INDEX idx_notification_events_event_name ON notification_events (event_name, created_at DESC);
 CREATE INDEX idx_notification_events_status ON notification_events (status, created_at DESC);
+CREATE INDEX idx_permissions_is_active ON permissions(is_active);
+CREATE INDEX idx_role_permissions_role_active ON role_permissions(role_id, is_active);
+CREATE INDEX idx_role_permissions_permission_active ON role_permissions(permission_id, is_active);
 
 -- =============================
 -- PACKAGES INDEXES
@@ -922,7 +1010,3 @@ CREATE INDEX idx_campaigns_start_date ON campaigns(start_date);
 -- =============================
 
 CREATE INDEX idx_customers_pan_number ON customers(pan_number);
-
-
-
-
