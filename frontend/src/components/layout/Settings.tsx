@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FaChevronRight,
   FaDownload,
@@ -205,6 +205,7 @@ const Settings: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const noticeTimerRef = useRef<number | null>(null);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -219,6 +220,12 @@ const Settings: React.FC = () => {
   const [assignUserId, setAssignUserId] = useState("");
   const [assignRoleId, setAssignRoleId] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
+  const [createRoleOpen, setCreateRoleOpen] = useState(false);
+  const [createRoleLoading, setCreateRoleLoading] = useState(false);
+  const [createRoleForm, setCreateRoleForm] = useState({
+    name: "",
+    description: "",
+  });
 
   const [systemSettings, setSystemSettings] = useState<SystemSettingsForm>(DEFAULT_SYSTEM);
   const [integrationSettings, setIntegrationSettings] =
@@ -289,6 +296,26 @@ const Settings: React.FC = () => {
   useEffect(() => {
     void loadRoles();
   }, [loadRoles]);
+
+  useEffect(() => {
+    if (!message) return;
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    setError("");
+    noticeTimerRef.current = window.setTimeout(() => {
+      setMessage("");
+      noticeTimerRef.current = null;
+    }, 1000);
+  }, [message]);
+
+  useEffect(() => {
+    if (!error) return;
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    setMessage("");
+    noticeTimerRef.current = window.setTimeout(() => {
+      setError("");
+      noticeTimerRef.current = null;
+    }, 1000);
+  }, [error]);
 
   const loadPermissions = useCallback(async () => {
     if (!canManageRbac) {
@@ -529,6 +556,33 @@ const Settings: React.FC = () => {
       setError(getApiErrorMessage(e, "Unable to assign role"));
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  const onCreateRole = async () => {
+    if (!canManageRbac) {
+      setError("You do not have permission to create roles.");
+      return;
+    }
+    if (!createRoleForm.name.trim()) {
+      setError("Role name is required.");
+      return;
+    }
+
+    setCreateRoleLoading(true);
+    try {
+      await authService.createRole({
+        name: createRoleForm.name.trim(),
+        description: createRoleForm.description.trim() || undefined,
+      });
+      setMessage("Role created successfully.");
+      setCreateRoleOpen(false);
+      setCreateRoleForm({ name: "", description: "" });
+      await loadRoles();
+    } catch (e) {
+      setError(getApiErrorMessage(e, "Unable to create role"));
+    } finally {
+      setCreateRoleLoading(false);
     }
   };
 
@@ -796,13 +850,22 @@ const Settings: React.FC = () => {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-xl font-semibold">Roles & Permissions</h2>
               {canManageRbac ? (
-                <button
-                  onClick={() => setAssignOpen(true)}
-                  className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-                >
-                  <FaPlus className="mr-2 inline" />
-                  Assign Role to User
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setCreateRoleOpen(true)}
+                    className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+                  >
+                    <FaPlus className="mr-2 inline" />
+                    Create New Role
+                  </button>
+                  <button
+                    onClick={() => setAssignOpen(true)}
+                    className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+                  >
+                    <FaPlus className="mr-2 inline" />
+                    Assign Role to User
+                  </button>
+                </div>
               ) : null}
             </div>
             {!canManageRbac ? (
@@ -1003,6 +1066,42 @@ const Settings: React.FC = () => {
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => { setAssignOpen(false); setAssignRole(""); setAssignFullPageAccess(false); }} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
               <button onClick={() => void onAssignRole()} disabled={assignLoading} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">{assignLoading ? "Assigning..." : "Assign Role"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {createRoleOpen && canManageRbac ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCreateRoleOpen(false)} />
+          <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold">Create New Role</h3>
+            <div className="mt-4 space-y-3">
+              <input
+                className="field-input"
+                placeholder="Role Name"
+                value={createRoleForm.name}
+                onChange={(e) =>
+                  setCreateRoleForm((f) => ({ ...f, name: e.target.value }))
+                }
+              />
+              <textarea
+                className="field-input min-h-[96px]"
+                placeholder="Role Description (optional)"
+                value={createRoleForm.description}
+                onChange={(e) =>
+                  setCreateRoleForm((f) => ({
+                    ...f,
+                    description: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setCreateRoleOpen(false)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
+              <button onClick={() => void onCreateRole()} disabled={createRoleLoading} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">
+                {createRoleLoading ? "Creating..." : "Create Role"}
+              </button>
             </div>
           </div>
         </div>
