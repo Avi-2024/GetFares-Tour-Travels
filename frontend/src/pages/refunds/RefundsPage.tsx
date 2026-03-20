@@ -549,7 +549,7 @@ const RefundsPage = () => {
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [actionRefundId, setActionRefundId] = useState<string | null>(null);
 
-  const pageSize = 5;
+  const pageSize = 15;
 
   const [form, setForm] = useState({
     bookingId: "",
@@ -597,8 +597,24 @@ const RefundsPage = () => {
     });
   }, [rows, search, statusFilter]);
 
-  const totalPages = Math.ceil(filteredRows.length / pageSize);
-  const paginatedRows = filteredRows.slice(
+  const toTimestamp = (value?: string | null) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const ordered = useMemo(
+    () =>
+      [...filteredRows].sort((a, b) => {
+        const left = toTimestamp(a.createdAt);
+        const right = toTimestamp(b.createdAt);
+        return right - left;
+      }),
+    [filteredRows],
+  );
+
+  const totalPages = Math.ceil(ordered.length / pageSize);
+  const paginatedRows = ordered.slice(
     (page - 1) * pageSize,
     page * pageSize,
   );

@@ -37,7 +37,7 @@ const Leads: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fetchedLeads, setFetchedLeads] = useState<LeadListItem[]>([]);
-  const pageSize = 3;
+  const pageSize = 15;
   const nav = useNavigate();
   const leadsService = useLeadsService();
 
@@ -79,6 +79,12 @@ const Leads: React.FC = () => {
     void fetchLeads();
   }, [leadsService]);
 
+  const toTimestamp = (value?: string | null) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const filtered = useMemo(
     () =>
       fetchedLeads.filter(
@@ -91,8 +97,18 @@ const Leads: React.FC = () => {
     [fetchedLeads, tab, search],
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const leads = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const ordered = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const left = toTimestamp(a.createdAt);
+        const right = toTimestamp(b.createdAt);
+        return right - left;
+      }),
+    [filtered],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+  const leads = ordered.slice((page - 1) * pageSize, page * pageSize);
   const leadStats = useMemo<LeadStats>(
     () => ({
       totalLeads: fetchedLeads.length,

@@ -1216,7 +1216,7 @@ const Payments: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const pageSize = 4;
+  const pageSize = 15;
 
   const formatAmount = (value: number) =>
     `$${Number(value || 0).toLocaleString()}`;
@@ -1233,8 +1233,24 @@ const Payments: React.FC = () => {
     });
   }, [transactions, search, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const toTimestamp = (value?: string | null) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const ordered = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const left = toTimestamp(a.createdAt ?? a.paidAt);
+        const right = toTimestamp(b.createdAt ?? b.paidAt);
+        return right - left;
+      }),
+    [filtered],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+  const rows = ordered.slice((page - 1) * pageSize, page * pageSize);
 
   const modeIcon = (mode: Transaction["mode"]) => {
     if (mode === "bank") return <FaBuildingColumns className="text-gray-500" />;

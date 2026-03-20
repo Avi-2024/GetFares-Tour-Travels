@@ -44,7 +44,7 @@ const CustomersPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const pageSize = 10;
+  const pageSize = 15;
 
   const [customers, setCustomers] = useState<Customer[]>([]);
 
@@ -112,28 +112,42 @@ const CustomersPage: React.FC = () => {
 
   // Filter and search customers
   const filteredCustomers = useMemo(() => {
-    return customers
-      .filter((customer) => {
-        const searchValue = search.toLowerCase();
-        const searchMatch =
-          (customer.fullName ?? "").toLowerCase().includes(searchValue) ||
-          (customer.email ?? "").toLowerCase().includes(searchValue) ||
-          (customer.phone ?? "").includes(search) ||
-          (customer.panNumber ?? "").toLowerCase().includes(searchValue);
+    return customers.filter((customer) => {
+      const searchValue = search.toLowerCase();
+      const searchMatch =
+        (customer.fullName ?? "").toLowerCase().includes(searchValue) ||
+        (customer.email ?? "").toLowerCase().includes(searchValue) ||
+        (customer.phone ?? "").includes(search) ||
+        (customer.panNumber ?? "").toLowerCase().includes(searchValue);
 
-        const segmentMatch =
-          segmentFilter === "all" || customer.segment === segmentFilter;
+      const segmentMatch =
+        segmentFilter === "all" || customer.segment === segmentFilter;
 
-        return searchMatch && segmentMatch;
-      })
-      .sort((a, b) => {
+      return searchMatch && segmentMatch;
+    });
+  }, [customers, search, segmentFilter]);
+
+  const toTimestamp = (value?: string | null) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const orderedCustomers = useMemo(
+    () =>
+      [...filteredCustomers].sort((a, b) => {
+        const left = toTimestamp(a.createdAt);
+        const right = toTimestamp(b.createdAt);
+        if (left !== right) {
+          return right - left;
+        }
         let comparison = 0;
         switch (sortBy) {
           case "name":
             comparison = a.fullName.localeCompare(b.fullName);
             break;
           case "ltv":
-            comparison = a.lifetimeValue! - b.lifetimeValue!;
+            comparison = (a.lifetimeValue ?? 0) - (b.lifetimeValue ?? 0);
             break;
           case "bookings":
             comparison = (a.totalBookings ?? 0) - (b.totalBookings ?? 0);
@@ -142,15 +156,16 @@ const CustomersPage: React.FC = () => {
             comparison = 0;
         }
         return sortOrder === "asc" ? comparison : -comparison;
-      });
-  }, [customers, search, segmentFilter, sortBy, sortOrder]);
+      }),
+    [filteredCustomers, sortBy, sortOrder],
+  );
 
   // Pagination
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredCustomers.length / pageSize),
+    Math.ceil(orderedCustomers.length / pageSize),
   );
-  const paginatedCustomers = filteredCustomers.slice(
+  const paginatedCustomers = orderedCustomers.slice(
     (page - 1) * pageSize,
     page * pageSize,
   );
@@ -1064,3 +1079,7 @@ const CustomersPage: React.FC = () => {
 };
 
 export default CustomersPage;
+
+
+
+
