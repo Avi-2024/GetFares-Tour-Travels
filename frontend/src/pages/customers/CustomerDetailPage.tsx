@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { customersApi } from "../../api/customers";
+import { isApiError } from "../../api/apiClient";
 
 interface Customer {
   id: string;
@@ -32,53 +34,9 @@ const CustomerDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [error] = useState("");
-
-  // Mock data - replace with API call
-  const [customer, setCustomer] = useState<Customer>({
-    id: id || "1",
-    fullName: "Sarah Connor",
-    phone: "+1 555 0100",
-    email: "sarah.connor@example.com",
-    preferences:
-      "Beach resorts, All-inclusive packages, Ocean view rooms, Late check-out",
-    lifetimeValue: 12500,
-    segment: "VIP",
-    panNumber: "ABCDE1234F",
-    addressLine: "123 Main St, Los Angeles, CA 90210",
-    clientCurrency: "USD",
-    createdAt: "2023-01-15T10:30:00Z",
-    updatedAt: "2024-02-10T14:20:00Z",
-    totalBookings: 4,
-    lastBookingDate: "2024-02-10",
-  });
-
-  const [recentBookings] = useState<Booking[]>([
-    {
-      id: "b1",
-      bookingNumber: "BK-2024-001",
-      destination: "Maldives",
-      travelDate: "2024-02-10",
-      amount: 4250,
-      status: "CONFIRMED",
-    },
-    {
-      id: "b2",
-      bookingNumber: "BK-2023-089",
-      destination: "Dubai",
-      travelDate: "2023-12-15",
-      amount: 3800,
-      status: "COMPLETED",
-    },
-    {
-      id: "b3",
-      bookingNumber: "BK-2023-045",
-      destination: "Thailand",
-      travelDate: "2023-08-20",
-      amount: 2950,
-      status: "COMPLETED",
-    },
-  ]);
+  const [error, setError] = useState("");
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -97,21 +55,86 @@ const CustomerDetailPage: React.FC = () => {
   });
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setFormData({
-        fullName: customer.fullName,
-        phone: customer.phone,
-        email: customer.email,
-        preferences: customer.preferences,
-        segment: customer.segment,
-        panNumber: customer.panNumber,
-        addressLine: customer.addressLine,
-        clientCurrency: customer.clientCurrency,
-      });
-      setLoading(false);
-    }, 500);
-  }, [id, customer]);
+    const fetchCustomerData = async () => {
+      if (!id) {
+        setError("Customer ID is required");
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+
+      try {
+        // Fetch customer details
+        const customerResponse = await customersApi.getById(id);
+        const customerData = customerResponse?.data || customerResponse;
+        
+        if (customerData) {
+          setCustomer({
+            id: customerData.id || id,
+            fullName: customerData.fullName || customerData.full_name || "",
+            phone: customerData.phone || "",
+            email: customerData.email || "",
+            preferences: customerData.preferences || "",
+            lifetimeValue: customerData.lifetimeValue || customerData.lifetime_value || 0,
+            segment: customerData.segment || "NEW",
+            panNumber: customerData.panNumber || customerData.pan_number || "",
+            addressLine: customerData.addressLine || customerData.address_line || "",
+            clientCurrency: customerData.clientCurrency || customerData.client_currency || "USD",
+            createdAt: customerData.createdAt || customerData.created_at || new Date().toISOString(),
+            updatedAt: customerData.updatedAt || customerData.updated_at || new Date().toISOString(),
+            totalBookings: customerData.totalBookings || customerData.total_bookings || 0,
+            lastBookingDate: customerData.lastBookingDate || customerData.last_booking_date,
+          });
+
+          // Initialize form data
+          setFormData({
+            fullName: customerData.fullName || customerData.full_name || "",
+            phone: customerData.phone || "",
+            email: customerData.email || "",
+            preferences: customerData.preferences || "",
+            segment: customerData.segment || "NEW",
+            panNumber: customerData.panNumber || customerData.pan_number || "",
+            addressLine: customerData.addressLine || customerData.address_line || "",
+            clientCurrency: customerData.clientCurrency || customerData.client_currency || "USD",
+          });
+        }
+
+        // Fetch customer bookings
+        try {
+          const bookingsResponse = await customersApi.getBookings(id);
+          const bookingsData = bookingsResponse?.data || bookingsResponse;
+          
+          if (Array.isArray(bookingsData)) {
+            setRecentBookings(
+              bookingsData.slice(0, 3).map((booking: any) => ({
+                id: booking.id,
+                bookingNumber: booking.bookingNumber || booking.booking_number || "N/A",
+                destination: booking.destination || "Unknown",
+                travelDate: booking.travelStartDate || booking.travel_start_date || "N/A",
+                amount: booking.totalAmount || booking.total_amount || 0,
+                status: booking.status || "PENDING",
+              }))
+            );
+          }
+        } catch (bookingError) {
+          console.log("Could not fetch bookings:", bookingError);
+          // Don't show error for bookings, just leave empty
+        }
+      } catch (err) {
+        const msg = isApiError(err)
+          ? err.message || "Failed to load customer details"
+          : "Failed to load customer details";
+        setError(msg);
+        console.error("Error fetching customer:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCustomerData();
+  }, [id]);
 
   const segments = [
     { value: "VIP", label: "VIP" },
@@ -164,22 +187,49 @@ const CustomerDetailPage: React.FC = () => {
     return isValid;
   };
 
-  const handleSave = () => {
-    if (!validateForm()) return;
+  const handleSave = async () => {
+    if (!validateForm() || !customer) return;
 
     setLoading(true);
-    setTimeout(() => {
-      setCustomer((prev) => ({
-        ...prev,
-        ...formData,
-        updatedAt: new Date().toISOString(),
-      }));
+    setError("");
+
+    try {
+      await customersApi.update(customer.id, {
+        fullName: formData.fullName,
+        phone: formData.phone,
+        email: formData.email,
+        preferences: formData.preferences,
+        segment: formData.segment,
+        panNumber: formData.panNumber,
+        addressLine: formData.addressLine,
+        clientCurrency: formData.clientCurrency,
+      });
+
+      // Update local state
+      setCustomer((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...formData,
+              updatedAt: new Date().toISOString(),
+            }
+          : null
+      );
       setIsEditing(false);
+    } catch (err) {
+      const msg = isApiError(err)
+        ? err.message || "Failed to update customer"
+        : "Failed to update customer";
+      setError(msg);
+      console.error("Error updating customer:", err);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const handleCancel = () => {
+    if (!customer) return;
+    
     setFormData({
       fullName: customer.fullName,
       phone: customer.phone,
@@ -207,7 +257,7 @@ const CustomerDetailPage: React.FC = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: customer.clientCurrency,
+      currency: customer?.clientCurrency || "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
@@ -220,6 +270,29 @@ const CustomerDetailPage: React.FC = () => {
           <div className="animate-pulse space-y-6">
             <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/4"></div>
             <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              Customer Not Found
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              {error || "The customer you're looking for doesn't exist."}
+            </p>
+            <button
+              onClick={() => navigate("/customers")}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Back to Customers
+            </button>
           </div>
         </div>
       </main>
@@ -633,22 +706,22 @@ const CustomerDetailPage: React.FC = () => {
               </div>
               <div className="p-5 space-y-2">
                 <button
-                  onClick={() => navigate("/leads/new")}
+                  onClick={() => navigate("/create-lead")}
                   className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                 >
                   Create Lead
                 </button>
                 <button
-                  onClick={() => navigate("/quotations/new")}
+                  onClick={() => navigate("/quotations/builder")}
                   className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                 >
                   Create Quotation
                 </button>
                 <button
-                  onClick={() => navigate("/bookings/new")}
+                  onClick={() => navigate("/bookings")}
                   className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                 >
-                  Create Booking
+                  View Bookings
                 </button>
               </div>
             </div>
