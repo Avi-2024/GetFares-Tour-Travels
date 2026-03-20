@@ -113,19 +113,6 @@ const DEFAULT_INTEGRATIONS: IntegrationSettingsForm = {
   webhookUrl: "",
 };
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const isValidOptionalUrl = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return true;
-  try {
-    new URL(trimmed);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 const toTrimmedOrUndefined = (value: string | number | undefined) => {
   if (typeof value === "number") return value;
   if (typeof value !== "string") return undefined;
@@ -604,45 +591,6 @@ const Settings: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const validateSystemSettings = () => {
-    if (!systemSettings.companyName.trim()) return "Company name is required.";
-    if (!systemSettings.supportEmail.trim()) return "Support email is required.";
-    if (!EMAIL_REGEX.test(systemSettings.supportEmail.trim())) {
-      return "Support email format is invalid.";
-    }
-    if (!systemSettings.timezone.trim()) return "Timezone is required.";
-    if (!systemSettings.currency.trim()) return "Currency is required.";
-    if (!systemSettings.dateFormat.trim()) return "Date format is required.";
-    if (systemSettings.supportPhone && systemSettings.supportPhone.trim().length < 5) {
-      return "Support phone must be at least 5 characters.";
-    }
-    if (!isValidOptionalUrl(systemSettings.websiteUrl)) {
-      return "Website URL is invalid.";
-    }
-    return null;
-  };
-
-  const validateIntegrationSettings = () => {
-    if (
-      integrationSettings.smtpPort &&
-      (!Number.isInteger(integrationSettings.smtpPort) ||
-        integrationSettings.smtpPort < 1 ||
-        integrationSettings.smtpPort > 65535)
-    ) {
-      return "SMTP port must be between 1 and 65535.";
-    }
-    if (
-      integrationSettings.smtpFromEmail &&
-      !EMAIL_REGEX.test(integrationSettings.smtpFromEmail.trim())
-    ) {
-      return "SMTP from email format is invalid.";
-    }
-    if (!isValidOptionalUrl(integrationSettings.webhookUrl)) {
-      return "Webhook URL is invalid.";
-    }
-    return null;
-  };
-
   const saveSystem = async () => {
     if (!canUpdateSettings) {
       setError("You do not have permission to update settings.");
@@ -987,7 +935,7 @@ const Settings: React.FC = () => {
 
       {assignOpen && canManageRbac ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => { setAssignOpen(false); setAssignRole(""); setAssignFullPageAccess(false); }} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setAssignOpen(false); setAssignRoleId(""); }} />
           <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold">Assign Role</h3>
             <div className="mt-4 space-y-3">
@@ -1001,7 +949,7 @@ const Settings: React.FC = () => {
               </select>
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => { setAssignOpen(false); setAssignRole(""); setAssignFullPageAccess(false); }} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
+              <button onClick={() => { setAssignOpen(false); setAssignRoleId(""); }} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
               <button onClick={() => void onAssignRole()} disabled={assignLoading} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">{assignLoading ? "Assigning..." : "Assign Role"}</button>
             </div>
           </div>

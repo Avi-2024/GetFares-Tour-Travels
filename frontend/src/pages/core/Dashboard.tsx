@@ -24,7 +24,6 @@ import {
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { dashboardApi } from "../../api/dashboard";
-import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
 // Type definitions

@@ -50,7 +50,10 @@ const Toast = ({
   type: "success" | "error" | "info";
   onClose: () => void;
 }) => (
-  <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
+  <div
+    className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn"
+    onClick={onClose}
+  >
     <div
       className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${
         type === "success"

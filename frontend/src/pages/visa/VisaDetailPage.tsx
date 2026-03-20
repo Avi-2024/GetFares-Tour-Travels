@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaListCheck,
-  FaPassport,
   FaUpload,
   FaCheck,
   FaXmark,
@@ -484,7 +483,7 @@ const VisaDetailPage = () => {
           };
 
           setVisaCase(mapped);
-          setStatus(mapApiStatusToUi(mapped.status) as any);
+          setStatus(mapApiStatusToUi(mapped.status ?? undefined) as any);
           setVisaValidUntil(mapped.visaValidUntil || "");
           setRejectionReason(mapped.rejectionReason || "");
         }

@@ -1,43 +1,132 @@
--- -- ! FIX PERMISSIONS ==========================================
--- INSERT INTO roles (name, description)
--- VALUES ('ADMIN', 'Full access to CRM')
--- ON CONFLICT (name) DO NOTHING;
+-- Fix: re-assign ADMIN role to a user and restore full permissions for that role.
+-- Target user: 3597aa15-8570-44a3-9db0-9fec472752a9
 
--- INSERT INTO permissions ("key", name, description, is_active)
--- VALUES ('*', '*', 'All permissions', TRUE)
--- ON CONFLICT ("key") DO NOTHING;
+WITH role_row AS (
+  SELECT id
+  FROM roles
+  WHERE LOWER(name) = LOWER('admin')
+  LIMIT 1
+),
+ins_role AS (
+  INSERT INTO roles (name, description, is_active)
+  SELECT 'admin', 'System role: admin', TRUE
+  WHERE NOT EXISTS (SELECT 1 FROM role_row)
+  RETURNING id
+),
+role_id AS (
+  SELECT id FROM role_row
+  UNION ALL
+  SELECT id FROM ins_role
+),
+perm_row AS (
+  SELECT id
+  FROM permissions
+  WHERE key = '*'
+  LIMIT 1
+),
+ins_perm AS (
+  INSERT INTO permissions (key, name, description, is_active)
+  SELECT '*', '*', 'All permissions', TRUE
+  WHERE NOT EXISTS (SELECT 1 FROM perm_row)
+  RETURNING id
+),
+perm_id AS (
+  SELECT id FROM perm_row
+  UNION ALL
+  SELECT id FROM ins_perm
+)
+INSERT INTO role_permissions (role_id, permission_id, is_active)
+SELECT (SELECT id FROM role_id), (SELECT id FROM perm_id), TRUE
+ON CONFLICT (role_id, permission_id)
+DO UPDATE
+  SET is_active = TRUE,
+      updated_at = CURRENT_TIMESTAMP;
 
--- INSERT INTO role_permissions (role_id, permission_id)
--- SELECT r.id, p.id
--- FROM roles r
--- JOIN permissions p ON p."key" = '*'
--- WHERE r.name = 'ADMIN'
--- ON CONFLICT (role_id, permission_id) DO NOTHING;
+WITH role_row AS (
+  SELECT id
+  FROM roles
+  WHERE LOWER(name) = LOWER('admin')
+  LIMIT 1
+),
+ins_role AS (
+  INSERT INTO roles (name, description, is_active)
+  SELECT 'admin', 'System role: admin', TRUE
+  WHERE NOT EXISTS (SELECT 1 FROM role_row)
+  RETURNING id
+),
+role_id AS (
+  SELECT id FROM role_row
+  UNION ALL
+  SELECT id FROM ins_role
+)
+UPDATE role_permissions
+SET is_active = TRUE,
+    updated_at = CURRENT_TIMESTAMP
+WHERE role_id = (SELECT id FROM role_id);
 
--- UPDATE users
--- SET role_id = (SELECT id FROM roles WHERE name = 'ADMIN')
--- WHERE email = 'admin@travel-crm.com';
--- -- ! =========================================================
+WITH role_row AS (
+  SELECT id
+  FROM roles
+  WHERE LOWER(name) = LOWER('admin')
+  LIMIT 1
+),
+ins_role AS (
+  INSERT INTO roles (name, description, is_active)
+  SELECT 'admin', 'System role: admin', TRUE
+  WHERE NOT EXISTS (SELECT 1 FROM role_row)
+  RETURNING id
+),
+role_id AS (
+  SELECT id FROM role_row
+  UNION ALL
+  SELECT id FROM ins_role
+)
+UPDATE users
+SET role_id = (SELECT id FROM role_id),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = '3597aa15-8570-44a3-9db0-9fec472752a9';
 
--- -----------------------------
--- INSERT INTO roles (name, description)
--- VALUES ('SUPER_ADMIN', 'Full access to CRM')
--- ON CONFLICT (name) DO NOTHING;
 
--- INSERT INTO users (
---     role_id,
---     full_name,
---     email,
---     password_hash,
---     is_active
--- )
--- VALUES (
---     (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'),
---     'Super Admin',
---     'admin@travel-crm.com',
---     '$2b$10$sobkJsADDL.z5fSKtHmMVOsw28OmXODgHMlJ9G/xIa5VCsXK.H00e',
---     TRUE
--- );
+-- ! FIX PERMISSIONS ==========================================
+INSERT INTO roles (name, description)
+VALUES ('ADMIN', 'Full access to CRM')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO permissions ("key", name, description, is_active)
+VALUES ('*', '*', 'All permissions', TRUE)
+ON CONFLICT ("key") DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON p."key" = '*'
+WHERE r.name = 'ADMIN'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+UPDATE users
+SET role_id = (SELECT id FROM roles WHERE name = 'ADMIN')
+WHERE email = 'admin@travel-crm.com';
+-- ! =========================================================
+
+-----------------------------
+INSERT INTO roles (name, description)
+VALUES ('ADMIN', 'Full access to CRM')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO users (
+    role_id,
+    full_name,
+    email,
+    password_hash,
+    is_active
+)
+VALUES (
+    (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'),
+    'Super Admin',
+    'admin@travel-crm.com',
+    '$2b$10$sobkJsADDL.z5fSKtHmMVOsw28OmXODgHMlJ9G/xIa5VCsXK.H00e',
+    TRUE
+);
 
 -- =========================================
 -- 1. AUTHENTICATION & RBAC TABLES

@@ -10,7 +10,7 @@ import {
   FaXmark,
 } from "react-icons/fa6";
 import { FaSearch } from "react-icons/fa";
-import { CurrencyInput, UUIDSelect } from "../../components/form";
+import { CurrencyInput } from "../../components/form";
 import PermissionGate from "../../components/ui/PermissionGate";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
@@ -653,7 +653,9 @@ const RefundsPage = () => {
       setLoadingBookings(true);
       try {
         const bookingsRes = await bookingsApi.list({ limit: 100 });
-        const bookingsData = bookingsRes?.data?.data || bookingsRes?.data || bookingsRes || [];
+        const bookingsPayload = bookingsRes as any;
+        const bookingsData =
+          bookingsPayload?.data?.data || bookingsPayload?.data || bookingsPayload || [];
         const bookingsList = Array.isArray(bookingsData) ? bookingsData : [];
         
         setBookings(
@@ -673,7 +675,9 @@ const RefundsPage = () => {
       setLoadingPayments(true);
       try {
         const paymentsRes = await paymentsApi.list();
-        const paymentsData = paymentsRes?.data?.data || paymentsRes?.data || paymentsRes || [];
+        const paymentsPayload = paymentsRes as any;
+        const paymentsData =
+          paymentsPayload?.data?.data || paymentsPayload?.data || paymentsPayload || [];
         const paymentsList = Array.isArray(paymentsData) ? paymentsData : [];
         
         setPayments(

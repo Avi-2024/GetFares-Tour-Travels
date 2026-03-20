@@ -2,16 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   FaArrowRight,
-  FaBolt,
-  FaChartLine,
   FaEnvelope,
   FaEye,
   FaEyeSlash,
   FaGlobeAsia,
   FaLock,
   FaPlaneDeparture,
-  FaShieldAlt,
-  FaUserCheck
 } from 'react-icons/fa'
 import { authApi, rbacApi } from '../../api'
 import { getApiErrorMessage } from '../../api/apiClient'

@@ -81,21 +81,30 @@ function createUsersService({
   }
 
   async function resolveRoleId(payload = {}) {
-    if (!payload.role && !payload.roleId) {
-      return payload.roleId ?? null;
+    const rawRole =
+      payload.role !== undefined && payload.role !== null
+        ? String(payload.role).trim()
+        : "";
+    const rawRoleId =
+      payload.roleId !== undefined && payload.roleId !== null
+        ? String(payload.roleId).trim()
+        : payload.role_id !== undefined && payload.role_id !== null
+          ? String(payload.role_id).trim()
+          : "";
+
+    if (!rawRole && !rawRoleId) {
+      return null;
     }
 
     if (!rolesService) {
-      return payload.roleId ?? null;
+      return isUuid(rawRoleId) ? rawRoleId : null;
     }
 
-    const rawRoleId = payload.roleId ? String(payload.roleId).trim() : null;
     const normalizedRoleId = rawRoleId && isUuid(rawRoleId) ? rawRoleId : null;
-    const roleFromRoleId =
-      rawRoleId && !normalizedRoleId && !payload.role ? rawRoleId : null;
+    const roleFromRoleId = rawRoleId && !normalizedRoleId && !rawRole ? rawRoleId : null;
 
     const resolved = await rolesService.resolveRole({
-      role: payload.role || roleFromRoleId,
+      role: rawRole || roleFromRoleId,
       roleId: normalizedRoleId,
     });
     return resolved?.id || null;
@@ -176,9 +185,12 @@ function createUsersService({
       }
 
       const roleId = await resolveRoleId(payload);
-      const created = await repository.create(
+      let created = await repository.create(
         mapCreatePayload({ ...payload, passwordHash, roleId }),
       );
+      if (roleId && created?.role_id !== roleId) {
+        created = await repository.update(created.id, { role_id: roleId });
+      }
 
       events.emitCreated(created);
       const roleLookup = await getRoleLookup();

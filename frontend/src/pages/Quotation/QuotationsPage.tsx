@@ -360,19 +360,6 @@ const QuotationsPage: React.FC = () => {
     }
   };
 
-  const handleGeneratePdf = async (quotation: Quotation) => {
-    setLoading(true);
-    try {
-      await quotationsApi.generatePdf(quotation.id);
-      setError('');
-    } catch (error) {
-      console.error('Failed to generate PDF:', error);
-      setError(getApiErrorMessage(error, 'Failed to generate PDF'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}

@@ -68,7 +68,8 @@ const CustomerDetailPage: React.FC = () => {
       try {
         // Fetch customer details
         const customerResponse = await customersApi.getById(id);
-        const customerData = customerResponse?.data || customerResponse;
+        const customerPayload = customerResponse as any;
+        const customerData = customerPayload?.data || customerPayload;
         
         if (customerData) {
           setCustomer({
@@ -104,7 +105,8 @@ const CustomerDetailPage: React.FC = () => {
         // Fetch customer bookings
         try {
           const bookingsResponse = await customersApi.getBookings(id);
-          const bookingsData = bookingsResponse?.data || bookingsResponse;
+          const bookingsPayload = bookingsResponse as any;
+          const bookingsData = bookingsPayload?.data || bookingsPayload;
           
           if (Array.isArray(bookingsData)) {
             setRecentBookings(

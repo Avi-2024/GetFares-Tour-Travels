@@ -75,8 +75,14 @@ export const NotificationsProvider = ({
         notificationsApi.list(),
         notificationsApi.unreadCount(),
       ]);
-      setNotifications(Array.isArray(list) ? list : list.data || []);
-      setUnreadCount(unread.unread || unread.data?.unread || 0);
+      const listPayload = list as any;
+      const unreadPayload = unread as any;
+      setNotifications(
+        Array.isArray(listPayload)
+          ? listPayload
+          : listPayload?.data?.data || listPayload?.data || [],
+      );
+      setUnreadCount(unreadPayload?.unread || unreadPayload?.data?.unread || 0);
     } catch (error) {
       console.error('Failed to load notifications:', error);
       setNotifications(fallbackNotifications);

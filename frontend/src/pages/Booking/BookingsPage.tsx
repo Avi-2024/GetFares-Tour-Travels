@@ -1584,7 +1584,7 @@ const BookingsPage: React.FC = () => {
       setBookingItems(prev => {
         const next = prev.map(booking =>
           booking.id === bookingId || booking.bookingId === bookingId
-            ? { ...booking, status: 'cancelled' }
+            ? { ...booking, status: 'cancelled' as BookingStatus }
             : booking
         )
         setStats(calculateStats(next))

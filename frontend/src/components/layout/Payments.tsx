@@ -570,7 +570,8 @@ const PaymentFormModal = ({
 
         // Add leads
         if (leadsRes.status === "fulfilled") {
-          const leadsData = leadsRes.value?.data?.data || leadsRes.value?.data || leadsRes.value || [];
+          const leadsPayload = leadsRes.value as any;
+          const leadsData = leadsPayload?.data?.data || leadsPayload?.data || leadsPayload || [];
           const leads = Array.isArray(leadsData) ? leadsData : [];
           leads.forEach((lead: any) => {
             customersList.push({
@@ -583,7 +584,9 @@ const PaymentFormModal = ({
 
         // Add customers
         if (customersRes.status === "fulfilled") {
-          const customersData = customersRes.value?.data?.data || customersRes.value?.data || customersRes.value || [];
+          const customersPayload = customersRes.value as any;
+          const customersData =
+            customersPayload?.data?.data || customersPayload?.data || customersPayload || [];
           const customerRecords = Array.isArray(customersData) ? customersData : [];
           customerRecords.forEach((customer: any) => {
             customersList.push({
@@ -605,7 +608,9 @@ const PaymentFormModal = ({
       setLoadingBookings(true);
       try {
         const bookingsRes = await bookingsApi.list({ limit: 100 });
-        const bookingsData = bookingsRes?.data?.data || bookingsRes?.data || bookingsRes || [];
+        const bookingsPayload = bookingsRes as any;
+        const bookingsData =
+          bookingsPayload?.data?.data || bookingsPayload?.data || bookingsPayload || [];
         const bookingsList = Array.isArray(bookingsData) ? bookingsData : [];
         
         setBookings(

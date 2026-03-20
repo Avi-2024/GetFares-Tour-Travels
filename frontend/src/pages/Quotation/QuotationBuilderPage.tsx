@@ -300,16 +300,16 @@ const QuotationBuilderPage: React.FC = () => {
     setDownloading(true);
     try {
       // Lazy-load only when needed to keep bundle light and avoid install.
-      // @ts-expect-error remote ESM URL import has no local types
-      const html2canvas = (
-        await import(
-          /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm"
-        )
-      ).default;
-      // @ts-expect-error remote ESM URL import has no local types
-      const { default: JsPDF } = await import(
+      // @ts-ignore - remote ESM URL has no local types
+      const html2canvasModule = (await import(
+        /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm"
+      )) as any;
+      const html2canvas = html2canvasModule.default || html2canvasModule;
+      // @ts-ignore - remote ESM URL has no local types
+      const jsPdfModule = (await import(
         /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm"
-      );
+      )) as any;
+      const JsPDF = jsPdfModule.default || jsPdfModule;
 
       const canvas = await html2canvas(previewRef.current, {
         scale: 2,

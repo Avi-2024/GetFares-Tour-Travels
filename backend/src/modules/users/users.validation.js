@@ -7,6 +7,7 @@ const createPayload = z
     phone: z.string().trim().min(6).max(20).optional(),
     role: z.string().trim().min(1).optional(),
     roleId: z.string().trim().min(1).optional(),
+    role_id: z.string().trim().min(1).optional(),
     password: z.string().trim().min(8).optional(),
     passwordHash: z.string().trim().min(8).max(400).optional(),
     isActive: z.boolean().optional(),
@@ -35,6 +36,7 @@ const updatePayload = z
     phone: z.string().trim().min(6).max(20).optional(),
     role: z.string().trim().min(1).optional(),
     roleId: z.string().trim().min(1).nullable().optional(),
+    role_id: z.string().trim().min(1).nullable().optional(),
     isActive: z.boolean().optional(),
     isOnLeave: z.boolean().optional(),
     expertiseDestinations: z

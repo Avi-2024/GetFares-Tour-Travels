@@ -65,8 +65,6 @@ export type ApiClientConfig = {
   onUnauthorized?: () => void;
 };
 
-type AxiosResponseType = NonNullable<AxiosRequestConfig["responseType"]>;
-
 export type ApiClient = HttpClient & {
   setAuthTokenProvider: (getAuthToken: () => string | null | undefined) => void;
   setOnUnauthorized: (onUnauthorized?: () => void) => void;
