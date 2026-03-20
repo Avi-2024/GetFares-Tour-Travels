@@ -6,6 +6,10 @@ export type LeadApiRecord = {
   id?: number | string;
   leadId?: string;
   code?: string;
+  createdAt?: string | null;
+  created_at?: string | null;
+  updatedAt?: string | null;
+  updated_at?: string | null;
   name?: string;
   fullName?: string;
   customerName?: string;
