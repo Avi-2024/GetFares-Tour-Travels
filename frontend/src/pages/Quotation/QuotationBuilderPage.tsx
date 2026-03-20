@@ -14,6 +14,11 @@ import {
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { leadsApi } from "../../api/leads";
 import { quotationsApi } from "../../api/quotations";
+import {
+  destinationsApi,
+  type DestinationPricingRecord,
+  type DestinationRecord,
+} from "../../api/destinations";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
@@ -56,6 +61,38 @@ type LeadOption = {
   childrenCount?: number | null;
   travelPurpose?: string | null;
 };
+
+const extractRows = <T,>(response: unknown): T[] => {
+  const payload = response as { data?: T[] | { data?: T[]; items?: T[] } };
+  if (Array.isArray(payload?.data)) return payload.data;
+  const nested = payload?.data as { data?: T[]; items?: T[] } | undefined;
+  if (Array.isArray(nested?.data)) return nested.data;
+  if (Array.isArray(nested?.items)) return nested.items;
+  return Array.isArray(response) ? (response as T[]) : [];
+};
+
+const selectCurrentPricing = (rows: DestinationPricingRecord[]) => {
+  if (!rows.length) return null;
+
+  const sorted = [...rows].sort((left, right) => {
+    const leftFrom = new Date(left.validFrom || 0).getTime() || 0;
+    const rightFrom = new Date(right.validFrom || 0).getTime() || 0;
+    if (leftFrom !== rightFrom) return rightFrom - leftFrom;
+    const leftCreated = new Date(left.createdAt || 0).getTime() || 0;
+    const rightCreated = new Date(right.createdAt || 0).getTime() || 0;
+    return rightCreated - leftCreated;
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const active = sorted.find((row) => {
+    if (row.validFrom && row.validFrom > today) return false;
+    if (row.validTo && row.validTo < today) return false;
+    return true;
+  });
+
+  return active || sorted[0];
+};
+
 const initialItinerary: Item[] = [
   {
     id: "1",
@@ -88,9 +125,14 @@ const QuotationBuilderPage: React.FC = () => {
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [destinationOptions, setDestinationOptions] = useState<DestinationRecord[]>(
+    [],
+  );
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
     {},
   );
+  const [selectedDestinationId, setSelectedDestinationId] = useState("");
+  const [selectedPricingId, setSelectedPricingId] = useState("");
   const [form, setForm] = useState({
     quote: "",
     version: "Draft",
@@ -143,11 +185,9 @@ const QuotationBuilderPage: React.FC = () => {
   useEffect(() => {
     const loadDestinations = async () => {
       try {
-        const response = await leadsApi.getDestinations();
-        const list =
-          (response as { data?: Array<{ id: string; name?: string }> }).data ??
-          (response as Array<{ id: string; name?: string }>) ??
-          [];
+        const response = await destinationsApi.list({ isActive: true, limit: 500 });
+        const list = extractRows<DestinationRecord>(response);
+        setDestinationOptions(list);
         const map: Record<string, string> = {};
         list.forEach((item) => {
           if (item?.id) {
@@ -156,6 +196,7 @@ const QuotationBuilderPage: React.FC = () => {
         });
         setDestinationMap(map);
       } catch (_error) {
+        setDestinationOptions([]);
         setDestinationMap({});
       }
     };
@@ -200,20 +241,70 @@ const QuotationBuilderPage: React.FC = () => {
     if (!selectedLead) return;
 
     const destinationName = selectedLead.destinationId
-      ? destinationMap[selectedLead.destinationId] || form.destination
-      : form.destination;
+      ? destinationMap[selectedLead.destinationId] || ""
+      : "";
 
     setForm((prev) => ({
       ...prev,
       customer: selectedLead.fullName || prev.customer,
       email: selectedLead.email || prev.email,
-      destination: destinationName,
+      destination: destinationName || prev.destination,
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
         : prev.startDate,
       adults: Number(selectedLead.adultsCount || prev.adults || 1),
     }));
-  }, [selectedLead, destinationMap, form.destination]);
+    if (selectedLead.destinationId) {
+      setSelectedDestinationId(selectedLead.destinationId);
+    }
+  }, [selectedLead, destinationMap]);
+
+  useEffect(() => {
+    if (!selectedDestinationId) {
+      setSelectedPricingId("");
+      return;
+    }
+
+    const destinationName = destinationMap[selectedDestinationId] || "";
+    if (destinationName) {
+      setForm((prev) => ({ ...prev, destination: destinationName }));
+    }
+
+    const loadCurrentPricing = async () => {
+      try {
+        const response = await destinationsApi.listPricing(selectedDestinationId);
+        const rows = extractRows<DestinationPricingRecord>(response);
+        const current = selectCurrentPricing(rows);
+
+        if (!current) {
+          setSelectedPricingId("");
+          return;
+        }
+
+        setSelectedPricingId(current.id);
+        setCosts((prev) => ({
+          ...prev,
+          supplierCost:
+            Number.isFinite(current.baseCost) && current.baseCost >= 0
+              ? current.baseCost
+              : prev.supplierCost,
+          markupPercent:
+            current.recommendedProfitPercent !== null &&
+            current.recommendedProfitPercent !== undefined
+              ? current.recommendedProfitPercent
+              : current.minProfitPercent,
+          taxPercent:
+            Number.isFinite(Number(current.taxPercent))
+              ? Number(current.taxPercent)
+              : prev.taxPercent,
+        }));
+      } catch (_error) {
+        setSelectedPricingId("");
+      }
+    };
+
+    void loadCurrentPricing();
+  }, [destinationMap, selectedDestinationId]);
 
   const computed = useMemo(() => {
     const supplier = Number(costs.supplierCost) || 0;
@@ -252,6 +343,9 @@ const QuotationBuilderPage: React.FC = () => {
 
   const autofillCustomer = () => {
     if (selectedLead) {
+      if (selectedLead.destinationId) {
+        setSelectedDestinationId(selectedLead.destinationId);
+      }
       setForm((p) => ({
         ...p,
         customer: selectedLead.fullName || p.customer,
@@ -434,6 +528,7 @@ const QuotationBuilderPage: React.FC = () => {
 
     const payload = {
       leadId: selectedLeadId,
+      pricingId: selectedPricingId || undefined,
       components,
       marginPercent: Number(costs.markupPercent) || 0,
       discount,
@@ -567,11 +662,37 @@ const QuotationBuilderPage: React.FC = () => {
                   value={form.email}
                   onChange={(v) => setForm((p) => ({ ...p, email: v }))}
                 />
-                <Field
-                  label="Destination"
-                  value={form.destination}
-                  onChange={(v) => setForm((p) => ({ ...p, destination: v }))}
-                />
+                <div>
+                  <label className="field-label">Destination</label>
+                  {destinationOptions.length ? (
+                    <select
+                      className="field-input"
+                      value={selectedDestinationId}
+                      onChange={(e) => {
+                        const nextId = e.target.value;
+                        setSelectedDestinationId(nextId);
+                        if (!nextId) {
+                          setForm((prev) => ({ ...prev, destination: "" }));
+                        }
+                      }}
+                    >
+                      <option value="">Select destination</option>
+                      {destinationOptions.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Field
+                      label=""
+                      value={form.destination}
+                      onChange={(v) =>
+                        setForm((p) => ({ ...p, destination: v }))
+                      }
+                    />
+                  )}
+                </div>
                 <div>
                   <label className="field-label">Start Date</label>
                   <input

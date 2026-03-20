@@ -172,6 +172,22 @@ const CreateLead: React.FC = () => {
     return Number.isFinite(numeric) ? numeric : undefined;
   };
 
+  const resolvePrimaryDestinationId = () => {
+    if (!form.destinations.length || !destinations.length) {
+      return undefined;
+    }
+
+    const selected = form.destinations[0];
+    const matched = destinations.find(
+      (item) =>
+        String(item?.name || "")
+          .trim()
+          .toLowerCase() === selected.trim().toLowerCase(),
+    );
+
+    return matched?.id;
+  };
+
   const buildNotes = () => {
     const parts: string[] = [];
 
@@ -255,6 +271,7 @@ const CreateLead: React.FC = () => {
           email: toOptionalString(form.email),
           phone: toOptionalString(form.phone),
           addressLine: toOptionalString(form.location),
+          destinationId: resolvePrimaryDestinationId(),
           travelDate: toOptionalString(form.startDate),
           adultsCount: form.adults,
           childrenCount: form.children,
@@ -618,14 +635,14 @@ const CreateLead: React.FC = () => {
                     ))}
                   </select>
                 </div>
-                <div>
+                {/* <div>
                   <label className="field-label">Assign To</label>
                   <input
                     className="field-input"
                     value={form.consultant}
                     readOnly
                   />
-                </div>
+                </div> */}
               </div>
               <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input
