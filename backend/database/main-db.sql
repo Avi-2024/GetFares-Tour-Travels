@@ -1,5 +1,26 @@
+-- ! FIX PERMISSIONS ==========================================
 INSERT INTO roles (name, description)
 VALUES ('ADMIN', 'Full access to CRM')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO permissions ("key", name, description, is_active)
+VALUES ('*', '*', 'All permissions', TRUE)
+ON CONFLICT ("key") DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON p."key" = '*'
+WHERE r.name = 'ADMIN'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+UPDATE users
+SET role_id = (SELECT id FROM roles WHERE name = 'ADMIN')
+WHERE email = 'admin@travel-crm.com';
+-- ! =========================================================
+
+INSERT INTO roles (name, description)
+VALUES ('SUPER_ADMIN', 'Full access to CRM')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO users (
@@ -10,13 +31,12 @@ INSERT INTO users (
     is_active
 )
 VALUES (
-    (SELECT id FROM roles WHERE name = 'ADMIN'),
+    (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'),
     'Super Admin',
     'admin@travel-crm.com',
     '$2b$10$sobkJsADDL.z5fSKtHmMVOsw28OmXODgHMlJ9G/xIa5VCsXK.H00e',
     TRUE
 );
-
 
 -- =========================================
 -- 1. AUTHENTICATION & RBAC TABLES
