@@ -27,6 +27,8 @@ const basePayload = z.object({
   addressLine: z.string().min(5).max(2000).optional(),
   clientCurrency: z.string().min(3).max(10).optional(),
   destinationId: z.string().uuid().optional(),
+  destinationName: z.string().min(2).max(150).optional(),
+  destination: z.string().min(2).max(150).optional(),
   travelDate: z.string().date().optional(),
   budget: z.coerce.number().nonnegative().optional(),
   source: z.string().min(2).max(100).optional(),

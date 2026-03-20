@@ -5,6 +5,7 @@ import { createDatabaseConnection } from "./core/database/index.js";
 import { createSocketEventPublisher } from "./core/realtime/index.js";
 import { createMetricsStore } from "./core/observability/index.js";
 import { createS3Service } from "./core/storage/index.js";
+import { createRolesService } from "./core/roles/index.js";
 import * as coreMiddlewares from "./core/middlewares/index.js";
 
 function createContainer(overrides = {}) {
@@ -19,6 +20,8 @@ function createContainer(overrides = {}) {
       serviceVersion: config.app.version,
     });
   const s3 = overrides.s3 || createS3Service({ config, logger });
+  const rolesService =
+    overrides.rolesService || createRolesService({ db, logger });
 
   return {
     config,
@@ -29,6 +32,9 @@ function createContainer(overrides = {}) {
     metricsStore,
     storage: {
       s3,
+    },
+    services: {
+      roles: rolesService,
     },
     middlewares: {
       ...coreMiddlewares,

@@ -54,10 +54,26 @@ function createBookingsRepository({ db, logger, schema }) {
     return date.toISOString();
   }
 
-  function toBooking(row) {
+  function toUserDomain(row) {
     if (!row) {
       return null;
     }
+
+    return {
+      id: row.id,
+      fullName: row.full_name ?? row.fullName ?? null,
+      email: row.email ?? null,
+    };
+  }
+
+  function toBooking(row, userMap = new Map()) {
+    if (!row) {
+      return null;
+    }
+
+    const createdBy = row.created_by ?? row.createdBy ?? null;
+    const createdByUser =
+      userMap.get(createdBy) || row.createdByUser || null;
 
     return {
       id: row.id,
@@ -85,7 +101,15 @@ function createBookingsRepository({ db, logger, schema }) {
       cancellationReason:
         row.cancellation_reason ?? row.cancellationReason ?? null,
       cancelledAt: toDate(row.cancelled_at ?? row.cancelledAt),
-      createdBy: row.created_by ?? row.createdBy ?? null,
+      createdBy,
+      createdByUser:
+        createdByUser
+          ? {
+              id: createdByUser.id ?? createdBy,
+              fullName: createdByUser.fullName ?? null,
+              email: createdByUser.email ?? null,
+            }
+          : null,
       isDeleted: toBoolean(row.is_deleted ?? row.isDeleted, false),
       createdAt: toDate(row.created_at ?? row.createdAt),
       updatedAt: toDate(row.updated_at ?? row.updatedAt),
@@ -218,6 +242,39 @@ function createBookingsRepository({ db, logger, schema }) {
     }
 
     return mapped;
+  }
+
+  async function loadUsersByIds(userIds = []) {
+    const ids = [...new Set(userIds.filter(Boolean))];
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(
+      ids.map((id) => db.findById(schema.usersTable, id)),
+    );
+    const userMap = new Map();
+
+    rows.filter(Boolean).forEach((row) => {
+      userMap.set(row.id, toUserDomain(row));
+    });
+
+    return userMap;
+  }
+
+  async function mapRowsToDomain(rows = []) {
+    const userMap = await loadUsersByIds(
+      rows.map((row) => row.created_by ?? row.createdBy),
+    );
+    return rows.map((row) => toBooking(row, userMap)).filter(Boolean);
+  }
+
+  async function mapRowToDomain(row) {
+    if (!row) {
+      return null;
+    }
+    const userMap = await loadUsersByIds([row.created_by ?? row.createdBy]);
+    return toBooking(row, userMap);
   }
 
   function normalizeReminderType(value) {
@@ -447,7 +504,7 @@ function createBookingsRepository({ db, logger, schema }) {
     },
     async findAll(filters = {}) {
       const rows = await db.findMany(schema.tableName, mapListFilters(filters));
-      let list = rows.map((row) => toBooking(row));
+      let list = await mapRowsToDomain(rows);
 
       if (!filters.includeDeleted) {
         list = list.filter((item) => !item.isDeleted);
@@ -462,21 +519,21 @@ function createBookingsRepository({ db, logger, schema }) {
 
     async findById(id) {
       const row = await db.findById(schema.tableName, id);
-      return toBooking(row);
+      return mapRowToDomain(row);
     },
 
     async findByQuotationId(quotationId) {
       const row = await db.findOne(schema.tableName, {
         quotation_id: quotationId,
       });
-      return toBooking(row);
+      return mapRowToDomain(row);
     },
 
     async findByBookingNumber(bookingNumber) {
       const row = await db.findOne(schema.tableName, {
         booking_number: bookingNumber,
       });
-      return toBooking(row);
+      return mapRowToDomain(row);
     },
     findTravelReminderCandidates,
     createReminderLog,
@@ -502,14 +559,14 @@ function createBookingsRepository({ db, logger, schema }) {
       logger.debug({ module: "bookings", payload }, "Creating booking");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.insert(schema.tableName, sanitized);
-      return toBooking(row);
+      return mapRowToDomain(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: "bookings", id, payload }, "Updating booking");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.update(schema.tableName, id, sanitized);
-      return toBooking(row);
+      return mapRowToDomain(row);
     },
 
     async createStatusHistory(payload) {

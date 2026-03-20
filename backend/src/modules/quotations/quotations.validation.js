@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const quotationStatus = z.enum([
   "DRAFT",
+  "PENDING",
   "SENT",
   "VIEWED",
   "APPROVED",

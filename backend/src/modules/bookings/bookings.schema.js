@@ -6,6 +6,7 @@ const BookingsSchema = Object.freeze({
   invoicesTable: "invoices",
   statusHistoryTable: "booking_status_history",
   reminderLogsTable: "booking_reminder_logs",
+  usersTable: "users",
   entityName: "Bookings",
 });
 

@@ -83,6 +83,33 @@ const listRoles = z.object({
     .optional(),
 });
 
+const createRole = z.object({
+  body: z.object({
+    name: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(500).nullable().optional(),
+    isActive: z.boolean().optional(),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const updateRole = z.object({
+  body: z
+    .object({
+      name: z.string().trim().min(1).max(120).optional(),
+      description: z.string().trim().max(500).nullable().optional(),
+      isActive: z.boolean().optional(),
+    })
+    .refine(
+      (value) => Object.keys(value).length > 0,
+      "At least one field is required",
+    ),
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+  query: z.object({}).optional(),
+});
+
 const rolePermissionPatchObject = z
   .object({
     permissionId: z.string().uuid().optional(),
@@ -168,6 +195,8 @@ const RbacValidation = {
   createPermission,
   updatePermission,
   listRoles,
+  createRole,
+  updateRole,
   updateRolePermissions,
   rolePermissionsById,
   rolePermissionsByRole,

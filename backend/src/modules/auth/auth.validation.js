@@ -7,6 +7,7 @@ const register = z.object({
     phone: z.string().min(6).max(20).optional(),
     password: z.string().min(8),
     role: z.string().optional(),
+    roleId: z.string().uuid().optional(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),

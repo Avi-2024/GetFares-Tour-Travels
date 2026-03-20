@@ -67,7 +67,29 @@ function toUser(entity, roleLookup, permissions = []) {
   };
 }
 
-function createUsersService({ repository, logger, events, rbacService }) {
+function createUsersService({
+  repository,
+  logger,
+  events,
+  rbacService,
+  rolesService,
+}) {
+  async function resolveRoleId(payload = {}) {
+    if (!payload.role && !payload.roleId) {
+      return payload.roleId ?? null;
+    }
+
+    if (!rolesService) {
+      return payload.roleId ?? null;
+    }
+
+    const resolved = await rolesService.resolveRole({
+      role: payload.role,
+      roleId: payload.roleId,
+    });
+    return resolved?.id || null;
+  }
+
   async function getRoleLookup() {
     const roles = await repository.findRoles();
     return new Map(roles.map((role) => [role.id, role.name]));
@@ -142,8 +164,9 @@ function createUsersService({ repository, logger, events, rbacService }) {
         );
       }
 
+      const roleId = await resolveRoleId(payload);
       const created = await repository.create(
-        mapCreatePayload({ ...payload, passwordHash }),
+        mapCreatePayload({ ...payload, passwordHash, roleId }),
       );
 
       events.emitCreated(created);
@@ -175,7 +198,14 @@ function createUsersService({ repository, logger, events, rbacService }) {
     await getById(id, context);
 
     try {
-      const updated = await repository.update(id, mapUpdatePayload(payload));
+      const roleId =
+        payload.role !== undefined || payload.roleId !== undefined ?
+          await resolveRoleId(payload)
+        : payload.roleId;
+      const updated = await repository.update(
+        id,
+        mapUpdatePayload({ ...payload, roleId }),
+      );
 
       events.emitUpdated(updated);
       const roleLookup = await getRoleLookup();

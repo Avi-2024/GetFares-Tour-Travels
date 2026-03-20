@@ -24,6 +24,7 @@ function createRbacModule({ dependencies }) {
     events,
     logger: dependencies.logger,
     cacheTtlMs: dependencies.config?.rbac?.permissionCacheTtlMs || 60_000,
+    rolesService: dependencies.services?.roles,
   });
 
   const middleware = createRbacMiddleware({ rbacService: service });
