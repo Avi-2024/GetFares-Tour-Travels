@@ -404,7 +404,7 @@ function createQuotationsService({ repository, logger, events }) {
     });
 
     const items = await repository.replaceItems(created.id, pricing.components);
-    const quotation = { ...created, items };
+    let quotation = { ...created, items };
 
     await logVersion({
       quotation,
@@ -415,6 +415,8 @@ function createQuotationsService({ repository, logger, events }) {
         requiresApproval,
       },
     });
+
+    quotation = await attachRelations(quotation);
 
     events.emitCreated(quotation);
     return quotation;
@@ -507,7 +509,7 @@ function createQuotationsService({ repository, logger, events }) {
       ? await repository.replaceItems(id, pricing.components)
       : current.items;
 
-    const quotation = { ...updated, items };
+    let quotation = { ...updated, items };
 
     await logVersion({
       quotation,
@@ -518,6 +520,8 @@ function createQuotationsService({ repository, logger, events }) {
         requiresApproval,
       },
     });
+
+    quotation = await attachRelations(quotation);
 
     events.emitUpdated(quotation);
     return quotation;
@@ -695,13 +699,28 @@ function createQuotationsService({ repository, logger, events }) {
         return rows;
       }
 
-      const userMap = await repository.findUsersByIds(
-        rows.map((row) => row.createdBy),
+      const [userMap, leadMap] = await Promise.all([
+        repository.findUsersByIds(rows.map((row) => row.createdBy)),
+        repository.findLeadsByIds(rows.map((row) => row.leadId)),
+      ]);
+
+      const destinationMap = await repository.findDestinationsByIds(
+        [...leadMap.values()].map((lead) => lead?.destinationId),
       );
-      const withUsers = rows.map((row) => ({
-        ...row,
-        createdByUser: userMap.get(row.createdBy) || null,
-      }));
+
+      const withUsers = rows.map((row) => {
+        const lead = leadMap.get(row.leadId) || null;
+        const destination = lead?.destinationId
+          ? destinationMap.get(lead.destinationId) || null
+          : null;
+
+        return {
+          ...row,
+          lead,
+          destination,
+          createdByUser: userMap.get(row.createdBy) || null,
+        };
+      });
 
       if (!filters.includeItems) {
         return withUsers;

@@ -245,7 +245,11 @@ const QuotationDetailPage: React.FC = () => {
   }, [loadDetails]);
 
   const lead = quotation?.lead ?? quotation?.relations?.lead ?? null;
-  const destination = quotation?.destination ?? quotation?.relations?.destination ?? null;
+  const destination =
+    quotation?.destination ??
+    quotation?.relations?.destination ??
+    quotation?.lead?.destination ??
+    null;
   const template = quotation?.template ?? quotation?.relations?.template ?? null;
   const pricing = quotation?.pricing ?? quotation?.relations?.pricing ?? null;
   const booking = quotation?.booking ?? quotation?.relations?.booking ?? null;
@@ -503,7 +507,7 @@ const QuotationDetailPage: React.FC = () => {
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">Destination</p>
             <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {destination?.name || "N/A"}
+              {destination?.name || lead?.destinationName || "N/A"}
             </p>
             <p className="text-xs text-gray-500">{destination?.country || "N/A"}</p>
           </div>

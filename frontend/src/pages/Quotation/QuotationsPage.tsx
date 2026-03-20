@@ -17,7 +17,6 @@ import SurfaceCard from "../../components/ui/SurfaceCard";
 import EmptyState from "../../components/ui/EmptyState";
 import { validateQuoteTransition } from "../../utils/workflowValidation";
 import { quotationsApi } from "../../api/quotations";
-import { leadsApi } from "../../api/leads";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
@@ -28,6 +27,7 @@ interface Quotation {
   quoteNumber: string;
   customer: string;
   email: string;
+  phone?: string | null;
   destination: string;
   details: string;
   total: number;
@@ -91,7 +91,6 @@ const QuotationsPage: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
-  const [customerCache, setCustomerCache] = useState<Record<string, any>>({});
   const pageSize = 4;
 
   const handleViewQuotation = (quotation: Quotation) => {
@@ -114,55 +113,6 @@ const QuotationsPage: React.FC = () => {
       JSON.stringify(snapshot),
     );
     nav(`/quotations/${quotation.id}`, { state: { quotation: snapshot } });
-  };
-
-  // Function to fetch customer data by leadId
-  const fetchCustomerByLeadId = async (leadId: string) => {
-    if (customerCache[leadId]) {
-      return customerCache[leadId];
-    }
-
-    try {
-      // First get the lead to find customer info
-      const leadResponse = await leadsApi.getById(leadId);
-      const lead = leadResponse?.data || leadResponse;
-      
-      if (lead) {
-        // Get destination name if destinationId exists
-        let destinationName = 'Unknown Destination';
-        if (lead.destinationId) {
-          try {
-            // You might need to fetch destination details or use a lookup
-            // For now, we'll use the destinationId or try to get destinations list
-            const destinations = await leadsApi.getDestinations();
-            const destination = destinations?.data?.find((d: any) => d.id === lead.destinationId);
-            destinationName = destination?.name || destination?.title || `Destination (${lead.destinationId.substring(0, 8)}...)`;
-          } catch (error) {
-            destinationName = `Destination (${lead.destinationId.substring(0, 8)}...)`;
-          }
-        }
-        
-        const customerData = {
-          name: lead.fullName || lead.customerName || lead.name || 'Unknown Customer',
-          email: lead.email || 'No email',
-          phone: lead.phone || 'No phone',
-          destination: destinationName
-        };
-        
-        // Cache the result
-        setCustomerCache(prev => ({ ...prev, [leadId]: customerData }));
-        return customerData;
-      }
-    } catch (error) {
-      console.error('Failed to fetch customer for leadId:', leadId, error);
-    }
-    
-    return {
-      name: 'Unknown Customer',
-      email: 'No email',
-      phone: 'No phone',
-      destination: 'Unknown Destination'
-    };
   };
 
   useEffect(() => {
@@ -191,27 +141,21 @@ const QuotationsPage: React.FC = () => {
             // Process quotations and fetch customer data
             const quotationsWithCustomers = await Promise.all(
               data.map(async (q: any) => {
-                let customerData = {
-                  name: 'Unknown Customer',
-                  email: 'No email',
-                  phone: 'No phone',
-                  destination: 'Unknown Destination'
-                };
-                
-                let leadData = null;
                 const leadId = q.leadId || q.lead_id;
-                
-                // Fetch customer data if leadId exists
-                if (leadId) {
-                  customerData = await fetchCustomerByLeadId(leadId);
-                  // Also get the lead data for additional details
-                  try {
-                    const leadResponse = await leadsApi.getById(leadId);
-                    leadData = leadResponse?.data || leadResponse;
-                  } catch (error) {
-                    console.log('Could not fetch lead data for details:', error);
-                  }
-                }
+                const leadData = q.lead || q.relations?.lead || null;
+                const destinationData = q.destination || q.relations?.destination || null;
+                const customerName =
+                  leadData?.fullName ||
+                  leadData?.customerName ||
+                  leadData?.name ||
+                  "Unknown Customer";
+                const customerEmail = leadData?.email || "No email";
+                const customerPhone = leadData?.phone || "No phone";
+                const destinationName =
+                  destinationData?.name ||
+                  leadData?.destination?.name ||
+                  leadData?.destinationName ||
+                  "Unknown Destination";
 
                 const sentAt = q.sentAt || q.sent_at;
                 const sentDate = sentAt
@@ -226,9 +170,10 @@ const QuotationsPage: React.FC = () => {
                   id: q.id || Math.random().toString(),
                   leadId,
                   quoteNumber: q.quoteNumber || q.quote_number || 'N/A',
-                  customer: customerData.name,
-                  email: customerData.email,
-                  destination: customerData.destination,
+                  customer: customerName,
+                  email: customerEmail,
+                  phone: customerPhone,
+                  destination: destinationName,
                   details: q.details || q.description || q.templateSnapshot?.description || 
                           (leadData ? `${leadData.adultsCount || 0} Adults${leadData.childrenCount ? `, ${leadData.childrenCount} Children` : ''} - ${leadData.travelPurpose || 'Travel'}` : 'No details'),
                   total: Number(q.totalSaleValue || q.finalPrice || q.total || q.amount || 0),
@@ -381,10 +326,7 @@ const QuotationsPage: React.FC = () => {
   const handleSendWhatsApp = async (quotation: Quotation) => {
     setLoading(true);
     try {
-      // Try to get phone number from customer cache or fetch it
-      const leadId = quotation.leadId;
-      const cached = leadId ? customerCache[leadId] : null;
-      const phone = cached?.phone;
+      const phone = quotation.phone;
 
       if (!phone || phone === 'No phone') {
         setError('Phone number not available for WhatsApp sending');

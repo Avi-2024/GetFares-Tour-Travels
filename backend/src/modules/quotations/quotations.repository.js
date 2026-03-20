@@ -304,6 +304,40 @@ function createQuotationsRepository({ db, logger, schema }) {
     };
   }
 
+  async function findLeadsByIds(leadIds = []) {
+    const ids = [...new Set(leadIds.filter(Boolean))];
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(ids.map((id) => db.findById(schema.leadsTable, id)));
+    const leadMap = new Map();
+
+    rows.filter(Boolean).forEach((row) => {
+      leadMap.set(row.id, toLead(row));
+    });
+
+    return leadMap;
+  }
+
+  async function findDestinationsByIds(destinationIds = []) {
+    const ids = [...new Set(destinationIds.filter(Boolean))];
+    if (!ids.length || !schema.destinationsTable) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(
+      ids.map((id) => db.findById(schema.destinationsTable, id)),
+    );
+    const destinationMap = new Map();
+
+    rows.filter(Boolean).forEach((row) => {
+      destinationMap.set(row.id, toDestination(row));
+    });
+
+    return destinationMap;
+  }
+
   function toPricing(row) {
     if (!row) {
       return null;
@@ -754,6 +788,9 @@ function createQuotationsRepository({ db, logger, schema }) {
       const row = await db.findById(schema.destinationsTable, id);
       return toDestination(row);
     },
+
+    findLeadsByIds,
+    findDestinationsByIds,
 
     async findQuotationSummaryById(id) {
       if (!id) {

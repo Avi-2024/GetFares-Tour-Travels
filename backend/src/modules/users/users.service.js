@@ -150,7 +150,7 @@ function createUsersService({
     return toUser(item, roleLookup, permissions);
   }
 
-  async function create(payload, context = {}) {
+  async function create(payload) {
     try {
       const passwordHash =
         payload.passwordHash ||
