@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FaChevronRight,
   FaDownload,
@@ -192,6 +192,7 @@ const Settings: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const noticeTimerRef = useRef<number | null>(null);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -206,6 +207,9 @@ const Settings: React.FC = () => {
   const [assignUserId, setAssignUserId] = useState("");
   const [assignRoleId, setAssignRoleId] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
+  const [assignRoleSearch, setAssignRoleSearch] = useState("");
+  const [assignRoleDropdownOpen, setAssignRoleDropdownOpen] = useState(false);
+  const [assignCreateRoleName, setAssignCreateRoleName] = useState("");
 
   const [systemSettings, setSystemSettings] = useState<SystemSettingsForm>(DEFAULT_SYSTEM);
   const [integrationSettings, setIntegrationSettings] =
@@ -276,6 +280,26 @@ const Settings: React.FC = () => {
   useEffect(() => {
     void loadRoles();
   }, [loadRoles]);
+
+  useEffect(() => {
+    if (!message) return;
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    setError("");
+    noticeTimerRef.current = window.setTimeout(() => {
+      setMessage("");
+      noticeTimerRef.current = null;
+    }, 1000);
+  }, [message]);
+
+  useEffect(() => {
+    if (!error) return;
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    setMessage("");
+    noticeTimerRef.current = window.setTimeout(() => {
+      setError("");
+      noticeTimerRef.current = null;
+    }, 1000);
+  }, [error]);
 
   const loadPermissions = useCallback(async () => {
     if (!canManageRbac) {
@@ -495,28 +519,9 @@ const Settings: React.FC = () => {
     }
   };
 
-  const onAssignRole = async () => {
-    if (!canManageRbac) {
-      setError("You do not have permission to assign roles.");
-      return;
-    }
-    if (!assignUserId || !assignRoleId) {
-      setError("Select both user and role.");
-      return;
-    }
-    setAssignLoading(true);
-    try {
-      await authService.assignRole({ userId: assignUserId, roleId: assignRoleId });
-      setAssignOpen(false);
-      setAssignUserId("");
-      setAssignRoleId("");
-      setMessage("Role assigned successfully.");
-      await loadUsers();
-    } catch (e) {
-      setError(getApiErrorMessage(e, "Unable to assign role"));
-    } finally {
-      setAssignLoading(false);
-    }
+  const onCreateAndAssignRole = async (roleName: string) => {
+    await usersService.update(assignUserId, { roleName: roleName.trim() });
+    return { id: "" };
   };
 
   const toggleRolePermission = (permissionKey: string) => {
@@ -935,7 +940,7 @@ const Settings: React.FC = () => {
 
       {assignOpen && canManageRbac ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => { setAssignOpen(false); setAssignRoleId(""); }} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setAssignOpen(false); setAssignRoleSearch(""); setAssignCreateRoleName(""); setAssignRoleDropdownOpen(false); }} />
           <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold">Assign Role</h3>
             <div className="mt-4 space-y-3">
@@ -943,14 +948,107 @@ const Settings: React.FC = () => {
                 <option value="">Select user</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.fullName} ({u.email})</option>)}
               </select>
-              <select className="field-input" value={assignRoleId} onChange={(e) => setAssignRoleId(e.target.value)}>
-                <option value="">Select role</option>
-                {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
+              <div className="relative">
+                <input
+                  className="field-input"
+                  placeholder="Select or type role"
+                  value={assignRoleSearch}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setAssignRoleSearch(next);
+                    setAssignRoleDropdownOpen(true);
+                    setAssignRoleId("");
+                    setAssignCreateRoleName("");
+                  }}
+                  onFocus={() => setAssignRoleDropdownOpen(true)}
+                />
+                {assignRoleDropdownOpen ? (
+                  <div className="absolute z-10 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                    {(() => {
+                      const query = assignRoleSearch.trim().toLowerCase();
+                      const filtered = roles.filter((r) =>
+                        r.name.toLowerCase().includes(query),
+                      );
+                      const exactMatch = roles.some(
+                        (r) => r.name.toLowerCase() === query,
+                      );
+                      return (
+                        <>
+                          {filtered.map((role) => (
+                            <button
+                              key={role.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                              onClick={() => {
+                                setAssignRoleId(role.id);
+                                setAssignRoleSearch(role.name);
+                                setAssignCreateRoleName("");
+                                setAssignRoleDropdownOpen(false);
+                              }}
+                            >
+                              {role.name}
+                            </button>
+                          ))}
+                          {!exactMatch && query ? (
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                              onClick={() => {
+                                setAssignRoleId("");
+                                setAssignCreateRoleName(assignRoleSearch.trim());
+                                setAssignRoleDropdownOpen(false);
+                              }}
+                            >
+                              Create new role: "{assignRoleSearch.trim()}"
+                            </button>
+                          ) : null}
+                          {filtered.length === 0 && !query ? (
+                            <p className="px-3 py-2 text-sm text-gray-500">No roles found.</p>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => { setAssignOpen(false); setAssignRoleId(""); }} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
-              <button onClick={() => void onAssignRole()} disabled={assignLoading} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white">{assignLoading ? "Assigning..." : "Assign Role"}</button>
+              <button onClick={() => { setAssignOpen(false); setAssignRoleSearch(""); setAssignCreateRoleName(""); setAssignRoleDropdownOpen(false); }} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
+              <button
+                onClick={async () => {
+                  if (!assignUserId) {
+                    setError("Please select a user.");
+                    return;
+                  }
+                  setAssignLoading(true);
+                  try {
+                    if (assignCreateRoleName) {
+                      await onCreateAndAssignRole(assignCreateRoleName);
+                      setMessage("Role created and assigned successfully.");
+                      await loadRoles();
+                      await loadUsers();
+                    } else {
+                      await usersService.update(assignUserId, { roleId: assignRoleId });
+                      setMessage("Role assigned successfully.");
+                      await loadUsers();
+                    }
+                    setAssignOpen(false);
+                    setAssignUserId("");
+                    setAssignRoleId("");
+                    setAssignRoleSearch("");
+                    setAssignCreateRoleName("");
+                    setAssignRoleDropdownOpen(false);
+                  } catch (e) {
+                    setError(getApiErrorMessage(e, "Unable to assign role"));
+                  } finally {
+                    setAssignLoading(false);
+                  }
+                }}
+                disabled={assignLoading || !assignUserId || (!assignRoleId && !assignCreateRoleName)}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {assignLoading ? "Assigning..." : "Assign Role"}
+              </button>
             </div>
           </div>
         </div>
