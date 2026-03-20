@@ -77,7 +77,7 @@ export const createAuthDatasource = (client: HttpClient) => ({
     client.get<PermissionCatalogResponse>("/api/permissions"),
   listRoles: () => client.get<RolesResponse>("/api/roles"),
   createRole: (payload: CreateRolePayload) =>
-    client.post<CreateRoleResponse>("/api/roles", payload),
+    client.post<CreateRoleResponse>("/api/users/roles", payload),
   getRolePermissions: (role: string) =>
     client.get<StringListResponse>(`/api/rbac/roles/${role}/permissions`),
   getRolePermissionsById: (roleId: string) =>
