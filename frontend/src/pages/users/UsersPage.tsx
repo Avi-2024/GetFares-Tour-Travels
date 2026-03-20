@@ -14,7 +14,6 @@ import { FaXmark, FaFilter } from "react-icons/fa6";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { usersApi } from "../../api/users";
 import { useAuth } from "../../context/AuthContext";
-import { useAuthService } from "../../hooks/useAuthService";
 
 interface User {
   id: string;
@@ -193,12 +192,24 @@ const UserFormModal = ({
         };
 
   const [formData, setFormData] = useState(initialFormData);
+  const [roleSearch, setRoleSearch] = useState(() => {
+    const selected = roles.find((role) => role.id === initialFormData.role);
+    return selected?.name ?? "";
+  });
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [createRoleName, setCreateRoleName] = useState("");
 
   if (!isOpen) return null;
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    onSave(formData);
+    const inferredRoleName = !formData.role && roleSearch.trim()
+      ? roleSearch.trim()
+      : undefined;
+    onSave({
+      ...formData,
+      roleName: createRoleName || inferredRoleName || undefined,
+    });
   };
 
   return (
@@ -268,20 +279,71 @@ const UserFormModal = ({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Role
             </label>
-            <select
-              value={formData.role}
-              onChange={(e) =>
-                setFormData({ ...formData, role: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-            >
-              <option value="">Select Role</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                value={roleSearch}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setRoleSearch(next);
+                  setRoleDropdownOpen(true);
+                  setCreateRoleName("");
+                  setFormData({ ...formData, role: "" });
+                }}
+                onFocus={() => setRoleDropdownOpen(true)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
+                placeholder="Select or type role"
+              />
+              {roleDropdownOpen ? (
+                <div className="absolute z-10 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                  {(() => {
+                    const query = roleSearch.trim().toLowerCase();
+                    const filtered = roles.filter((role) =>
+                      role.name.toLowerCase().includes(query),
+                    );
+                    const exactMatch = roles.some(
+                      (role) => role.name.toLowerCase() === query,
+                    );
+                    return (
+                      <>
+                        {filtered.map((role) => (
+                          <button
+                            key={role.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                            onClick={() => {
+                              setFormData({ ...formData, role: role.id });
+                              setRoleSearch(role.name);
+                              setCreateRoleName("");
+                              setRoleDropdownOpen(false);
+                            }}
+                          >
+                            {role.name}
+                          </button>
+                        ))}
+                        {!exactMatch && query ? (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                            onClick={() => {
+                              setFormData({ ...formData, role: "" });
+                              setCreateRoleName(roleSearch.trim());
+                              setRoleDropdownOpen(false);
+                            }}
+                          >
+                            Create new role: "{roleSearch.trim()}"
+                          </button>
+                        ) : null}
+                        {filtered.length === 0 && !query ? (
+                          <p className="px-3 py-2 text-sm text-gray-500">
+                            No roles found.
+                          </p>
+                        ) : null}
+                      </>
+                    );
+                  })()}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {mode === "create" && (
@@ -355,20 +417,29 @@ const AssignRoleModal = ({
   user: User | null;
   roles: Role[];
   onClose: () => void;
-  onAssign: (userId: string, roleId: string) => void;
+  onAssign: (userId: string, roleId: string | null, roleName?: string) => void;
 }) => {
   const [selectedRole, setSelectedRole] = useState(user?.roleId || "");
+  const [roleSearch, setRoleSearch] = useState(() => {
+    const selected = roles.find((role) => role.id === (user?.roleId || ""));
+    return selected?.name ?? "";
+  });
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [createRoleName, setCreateRoleName] = useState("");
   const [error, setError] = useState("");
 
   if (!isOpen || !user) return null;
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!selectedRole) {
+    if (!selectedRole && !createRoleName) {
       setError("Please select a role");
       return;
     }
-    onAssign(user.id, selectedRole);
+    const inferredRoleName = !selectedRole && roleSearch.trim()
+      ? roleSearch.trim()
+      : undefined;
+    onAssign(user.id, selectedRole || null, createRoleName || inferredRoleName || undefined);
   };
 
   return (
@@ -400,25 +471,76 @@ const AssignRoleModal = ({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Select Role <span className="text-red-500">*</span>
             </label>
-            <select
-              value={selectedRole}
-              onChange={(e) => {
-                setSelectedRole(e.target.value);
-                setError("");
-              }}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-800 dark:text-gray-100 ${
-                error
-                  ? "border-red-500"
-                  : "border-gray-300 dark:border-gray-700"
-              }`}
-            >
-              <option value="">Choose a role...</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name} {role.description && `- ${role.description}`}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                value={roleSearch}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setRoleSearch(next);
+                  setRoleDropdownOpen(true);
+                  setSelectedRole("");
+                  setCreateRoleName("");
+                  setError("");
+                }}
+                onFocus={() => setRoleDropdownOpen(true)}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-800 dark:text-gray-100 ${
+                  error
+                    ? "border-red-500"
+                    : "border-gray-300 dark:border-gray-700"
+                }`}
+                placeholder="Select or type role"
+              />
+              {roleDropdownOpen ? (
+                <div className="absolute z-10 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                  {(() => {
+                    const query = roleSearch.trim().toLowerCase();
+                    const filtered = roles.filter((role) =>
+                      role.name.toLowerCase().includes(query),
+                    );
+                    const exactMatch = roles.some(
+                      (role) => role.name.toLowerCase() === query,
+                    );
+                    return (
+                      <>
+                        {filtered.map((role) => (
+                          <button
+                            key={role.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                            onClick={() => {
+                              setSelectedRole(role.id);
+                              setRoleSearch(role.name);
+                              setCreateRoleName("");
+                              setRoleDropdownOpen(false);
+                            }}
+                          >
+                            {role.name} {role.description && `- ${role.description}`}
+                          </button>
+                        ))}
+                        {!exactMatch && query ? (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                            onClick={() => {
+                              setSelectedRole("");
+                              setCreateRoleName(roleSearch.trim());
+                              setRoleDropdownOpen(false);
+                            }}
+                          >
+                            Create new role: "{roleSearch.trim()}"
+                          </button>
+                        ) : null}
+                        {filtered.length === 0 && !query ? (
+                          <p className="px-3 py-2 text-sm text-gray-500">
+                            No roles found.
+                          </p>
+                        ) : null}
+                      </>
+                    );
+                  })()}
+                </div>
+              ) : null}
+            </div>
             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
           </div>
 
@@ -450,7 +572,6 @@ const AssignRoleModal = ({
 };
 
 const UsersPage: React.FC = () => {
-  const authService = useAuthService();
   const { hasPermission } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -511,7 +632,9 @@ const UsersPage: React.FC = () => {
       return;
     }
     try {
-      const list = await authService.listRoles();
+      const response = await usersApi.listRoles();
+      const rows = (response as { data?: Role[] })?.data ?? response ?? [];
+      const list = Array.isArray(rows) ? rows : [];
       const mapped = list.map((role) => ({
         id: role.id,
         name: role.name,
@@ -521,7 +644,7 @@ const UsersPage: React.FC = () => {
     } catch {
       setRoles([]);
     }
-  }, [authService, canManageRbac]);
+  }, [canManageRbac]);
 
   useEffect(() => {
     void loadUsers();
@@ -576,12 +699,15 @@ const UsersPage: React.FC = () => {
     }
 
     try {
+      const roleName = formData.roleName?.trim() || undefined;
+      const roleId = roleName ? undefined : formData.role || undefined;
       const response = await usersApi.create({
         fullName: formData.fullName,
         email: formData.email,
         phone: normalizePhone(formData.phone),
         password: formData.password,
-        roleId: formData.role || undefined,
+        roleId: roleId || undefined,
+        roleName: roleName || undefined,
         isActive: true,
       });
       void response;
@@ -614,11 +740,14 @@ const UsersPage: React.FC = () => {
     }
 
     try {
+      const roleName = formData.roleName?.trim() || undefined;
+      const roleId = roleName ? undefined : formData.role || null;
       await usersApi.update(selectedUser.id, {
         fullName: formData.fullName,
         email: formData.email,
         phone: normalizePhone(formData.phone),
-        roleId: formData.role || null,
+        roleId: roleId ?? null,
+        roleName: roleName || undefined,
         isActive: formData.isActive,
       });
 
@@ -632,13 +761,19 @@ const UsersPage: React.FC = () => {
     }
   };
 
-  const handleAssignRole = async (userId: string, roleId: string) => {
+  const handleAssignRole = async (userId: string, roleId: string | null, roleName?: string) => {
     if (!canManageRbac) {
       showToast("You do not have permission to manage RBAC.", "error");
       return;
     }
     try {
-      await authService.assignRole({ userId, roleId });
+      const resolvedRoleName = roleName?.trim() || undefined;
+      const resolvedRoleId = resolvedRoleName ? undefined : roleId || null;
+      if (!resolvedRoleId && !resolvedRoleName) {
+        showToast("Please select a role.", "error");
+        return;
+      }
+      await usersApi.update(userId, { roleId: resolvedRoleId, roleName: resolvedRoleName });
       setShowRoleModal(false);
       setSelectedUser(null);
       showToast("Role assigned successfully", "success");

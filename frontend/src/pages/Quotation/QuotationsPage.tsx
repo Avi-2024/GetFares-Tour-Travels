@@ -91,7 +91,7 @@ const QuotationsPage: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
-  const pageSize = 4;
+  const pageSize = 15;
 
   const handleViewQuotation = (quotation: Quotation) => {
     const snapshot = {
@@ -276,8 +276,24 @@ const QuotationsPage: React.FC = () => {
     [tab, search, selectedDate, allItems],
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const toTimestamp = (value?: string | null) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const ordered = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const left = toTimestamp(a.createdAt);
+        const right = toTimestamp(b.createdAt);
+        return right - left;
+      }),
+    [filtered],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+  const rows = ordered.slice((page - 1) * pageSize, page * pageSize);
 
   const rejectQuotation = (quotation: Quotation) => {
     setSelectedQuotation(quotation);

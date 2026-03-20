@@ -11,6 +11,7 @@ export type LeadPriority = "High" | "Medium" | "Low";
 export type LeadListItem = {
   id: number | string;
   leadId: string;
+  createdAt: string | null;
   name: string;
   email: string;
   phone: string;
@@ -87,6 +88,7 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     id: lead.id ?? index,
     leadId:
       lead.leadId ?? lead.code ?? `#LD-${String(index + 1).padStart(3, "0")}`,
+    createdAt: lead.createdAt ?? lead.created_at ?? null,
     name: lead.name ?? lead.fullName ?? lead.customerName ?? "Unknown",
     email: lead.email ?? "N/A",
     phone: lead.phone ?? lead.mobile ?? "N/A",

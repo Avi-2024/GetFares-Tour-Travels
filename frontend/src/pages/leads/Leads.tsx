@@ -37,7 +37,7 @@ const Leads: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fetchedLeads, setFetchedLeads] = useState<LeadListItem[]>([]);
-  const pageSize = 3;
+  const pageSize = 15;
   const nav = useNavigate();
   const leadsService = useLeadsService();
 
@@ -79,6 +79,12 @@ const Leads: React.FC = () => {
     void fetchLeads();
   }, [leadsService]);
 
+  const toTimestamp = (value?: string | null) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const filtered = useMemo(
     () =>
       fetchedLeads.filter(
@@ -91,8 +97,18 @@ const Leads: React.FC = () => {
     [fetchedLeads, tab, search],
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const leads = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const ordered = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const left = toTimestamp(a.createdAt);
+        const right = toTimestamp(b.createdAt);
+        return right - left;
+      }),
+    [filtered],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+  const leads = ordered.slice((page - 1) * pageSize, page * pageSize);
   const leadStats = useMemo<LeadStats>(
     () => ({
       totalLeads: fetchedLeads.length,
@@ -103,6 +119,16 @@ const Leads: React.FC = () => {
     }),
     [fetchedLeads],
   );
+  const formatCompact = (value: number) => {
+    if (value < 1000) return value.toString();
+    if (value < 1_000_000) {
+      return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+    }
+    if (value < 1_000_000_000) {
+      return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    }
+    return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+  };
 
   const getPriorityClass = (priority: string) => {
     switch (priority) {
@@ -150,22 +176,22 @@ const Leads: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <KpiCard
             title="All Leads"
-            value={leadStats.totalLeads.toLocaleString()}
+            value={formatCompact(leadStats.totalLeads)}
             icon={<FaUsers className="text-blue-600 text-xl" />}
           />
           <KpiCard
             title="New Today"
-            value={leadStats.newToday.toLocaleString()}
+            value={formatCompact(leadStats.newToday)}
             icon={<FaCalendarPlus className="text-green-500 text-xl" />}
           />
           <KpiCard
             title="Hot Leads"
-            value={leadStats.hotLeads.toLocaleString()}
+            value={formatCompact(leadStats.hotLeads)}
             icon={<FaFire className="text-red-500 text-xl" />}
           />
           <KpiCard
             title="Qualified"
-            value={leadStats.qualified.toLocaleString()}
+            value={formatCompact(leadStats.qualified)}
             icon={<FaFileInvoiceDollar className="text-amber-500 text-xl" />}
           />
         </div>

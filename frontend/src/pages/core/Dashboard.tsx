@@ -74,10 +74,28 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [statsLoaded, setStatsLoaded] = useState(false);
   const [revenueData, setRevenueData] = useState<Record<Range, RevenueData[]>>(EMPTY_REVENUE_DATA);
+  const [revenueLoaded, setRevenueLoaded] = useState(false);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
+  const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false);
   
   const rev = useMemo(() => revenueData[range], [revenueData, range]);
+  const formatStatNumber = (value: unknown, formatter: (num: number) => string) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return "N/A";
+    return formatter(parsed);
+  };
+  const formatCompact = (value: number) => {
+    if (value < 1000) return value.toString();
+    if (value < 1_000_000) {
+      return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+    }
+    if (value < 1_000_000_000) {
+      return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    }
+    return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+  };
   // Load dashboard data
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -85,6 +103,9 @@ const Dashboard: React.FC = () => {
         setDashboardStats(null);
         setRevenueData(EMPTY_REVENUE_DATA);
         setLeadSources([]);
+        setStatsLoaded(false);
+        setRevenueLoaded(false);
+        setLeadSourcesLoaded(false);
         setError("Please login to view dashboard data.");
         return;
       }
@@ -96,6 +117,9 @@ const Dashboard: React.FC = () => {
         const stats = statsResponse?.data || statsResponse;
         if (stats) {
           setDashboardStats(stats);
+          setStatsLoaded(true);
+        } else {
+          setStatsLoaded(false);
         }
         
         // Load revenue data
@@ -103,6 +127,10 @@ const Dashboard: React.FC = () => {
         const revenue = revenueResponse?.data || revenueResponse;
         if (Array.isArray(revenue)) {
           setRevenueData(prev => ({ ...prev, [range]: revenue }));
+          setRevenueLoaded(true);
+        } else {
+          setRevenueData(prev => ({ ...prev, [range]: [] }));
+          setRevenueLoaded(false);
         }
         
         // Load lead sources
@@ -110,6 +138,10 @@ const Dashboard: React.FC = () => {
         const sources = sourcesResponse?.data || sourcesResponse;
         if (Array.isArray(sources)) {
           setLeadSources(sources);
+          setLeadSourcesLoaded(true);
+        } else {
+          setLeadSources([]);
+          setLeadSourcesLoaded(false);
         }
         
         setError('');
@@ -128,6 +160,9 @@ const Dashboard: React.FC = () => {
         setDashboardStats((current) => current ?? EMPTY_STATS);
         setRevenueData((current) => ({ ...current, [range]: [] }));
         setLeadSources([]);
+        setStatsLoaded(false);
+        setRevenueLoaded(false);
+        setLeadSourcesLoaded(false);
       } finally {
         setLoading(false);
       }
@@ -137,37 +172,29 @@ const Dashboard: React.FC = () => {
   }, [token, range]);
 
   const kpis = useMemo(() => {
-    if (!dashboardStats) {
+    if (!dashboardStats || !statsLoaded) {
       return [
         {
           title: "Total Leads",
-          value: "--",
-          trend: "0%",
-          up: true,
+          value: "N/A",
           icon: FaUserGroup,
           bg: "bg-blue-100 text-blue-600",
         },
         {
           title: "Revenue",
-          value: "--",
-          trend: "0%",
-          up: true,
+          value: "N/A",
           icon: FaSackDollar,
           bg: "bg-green-100 text-green-600",
         },
         {
           title: "Pending Calls",
-          value: "--",
-          trend: "0%",
-          up: true,
+          value: "N/A",
           icon: FaPhone,
           bg: "bg-amber-100 text-amber-500",
         },
         {
           title: "Bookings",
-          value: "--",
-          trend: "0%",
-          up: true,
+          value: "N/A",
           icon: FaPlane,
           bg: "bg-gray-100 text-gray-700",
         },
@@ -177,7 +204,7 @@ const Dashboard: React.FC = () => {
     return [
       {
         title: "Total Leads",
-        value: dashboardStats.totalLeads.toLocaleString(),
+        value: formatStatNumber(dashboardStats.totalLeads, formatCompact),
         trend: `${dashboardStats.totalLeadsChange >= 0 ? '+' : ''}${dashboardStats.totalLeadsChange}%`,
         up: dashboardStats.totalLeadsChange >= 0,
         icon: FaUserGroup,
@@ -185,7 +212,9 @@ const Dashboard: React.FC = () => {
       },
       {
         title: "Revenue",
-        value: `$${(dashboardStats.revenue / 1000).toFixed(1)}k`,
+        value: formatStatNumber(dashboardStats.revenue, (num) =>
+          `$${formatCompact(num)}`,
+        ),
         trend: `${dashboardStats.revenueChange >= 0 ? '+' : ''}${dashboardStats.revenueChange}%`,
         up: dashboardStats.revenueChange >= 0,
         icon: FaSackDollar,
@@ -193,7 +222,7 @@ const Dashboard: React.FC = () => {
       },
       {
         title: "Pending Calls",
-        value: dashboardStats.pendingCalls.toString(),
+        value: formatStatNumber(dashboardStats.pendingCalls, formatCompact),
         trend: `${dashboardStats.pendingCallsChange >= 0 ? '+' : ''}${dashboardStats.pendingCallsChange}%`,
         up: dashboardStats.pendingCallsChange >= 0,
         icon: FaPhone,
@@ -201,7 +230,7 @@ const Dashboard: React.FC = () => {
       },
       {
         title: "Bookings",
-        value: dashboardStats.bookings.toString(),
+        value: formatStatNumber(dashboardStats.bookings, formatCompact),
         trend: `${dashboardStats.bookingsChange >= 0 ? '+' : ''}${dashboardStats.bookingsChange}%`,
         up: dashboardStats.bookingsChange >= 0,
         icon: FaPlane,
@@ -253,16 +282,18 @@ const Dashboard: React.FC = () => {
                 >
                   <k.icon />
                 </div>
-                <span
-                  className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${k.up ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
-                >
-                  {k.up ? (
-                    <FaArrowTrendUp className="mr-1" />
-                  ) : (
-                    <FaArrowTrendDown className="mr-1" />
-                  )}
-                  {k.trend}
-                </span>
+                {k.trend ? (
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${k.up ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                  >
+                    {k.up ? (
+                      <FaArrowTrendUp className="mr-1" />
+                    ) : (
+                      <FaArrowTrendDown className="mr-1" />
+                    )}
+                    {k.trend}
+                  </span>
+                ) : null}
               </div>
               <p className="mt-4 text-sm text-gray-500">{k.title}</p>
               <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">
@@ -297,7 +328,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={rev}>
+            <AreaChart data={revenueLoaded ? rev : []}>
               <defs>
                 <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} />
@@ -341,28 +372,34 @@ const Dashboard: React.FC = () => {
           <p className="mb-4 text-sm text-gray-500">
             Channel split for new leads.
           </p>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie
-                data={leadSources}
-                innerRadius={65}
-                outerRadius={95}
-                paddingAngle={4}
-                dataKey="value"
-                nameKey="name"
-              >
-                {leadSources.map((_, i) => (
-                  <Cell key={i} fill={colors[i % colors.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(v: number | string | undefined) =>
-                  `${Number(v ?? 0)}%`
-                }
-              />
-              <Legend iconType="circle" />
-            </PieChart>
-          </ResponsiveContainer>
+          {leadSourcesLoaded ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={leadSources}
+                  innerRadius={65}
+                  outerRadius={95}
+                  paddingAngle={4}
+                  dataKey="value"
+                  nameKey="name"
+                >
+                  {leadSources.map((_, i) => (
+                    <Cell key={i} fill={colors[i % colors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v: number | string | undefined) =>
+                    `${Number(v ?? 0)}%`
+                  }
+                />
+                <Legend iconType="circle" />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-[280px] items-center justify-center text-sm text-gray-400">
+              N/A
+            </div>
+          )}
         </SurfaceCard>
       </div>
     </div>

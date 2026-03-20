@@ -42,6 +42,7 @@ interface Booking {
   dates: string
   startDate?: string
   endDate?: string
+  createdAt?: string | null
   status: BookingStatus
   payment: PaymentStatus
   paid: number
@@ -1198,7 +1199,7 @@ const BookingsPage: React.FC = () => {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
 
-  const pageSize = 4
+  const pageSize = 15
 
   const normalizeStatus = (value?: string): BookingStatus => {
     switch ((value ?? '').toUpperCase()) {
@@ -1283,6 +1284,7 @@ const BookingsPage: React.FC = () => {
       ),
       startDate: b.travelStartDate ?? b.travelStart,
       endDate: b.travelEndDate ?? b.travelEnd,
+      createdAt: b.createdAt ?? b.created_at ?? null,
       status: normalizeStatus(b.status),
       payment: normalizePayment(b.paymentStatus ?? b.payment_status),
       paid: Number(b.paid ?? b.paidAmount ?? b.advanceReceived ?? 0),
@@ -1611,8 +1613,24 @@ const BookingsPage: React.FC = () => {
     })
   }, [search, statusFilter, bookingItems])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const rows = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const toTimestamp = (value?: string | null) => {
+    if (!value) return 0
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
+  const ordered = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const left = toTimestamp(a.createdAt)
+        const right = toTimestamp(b.createdAt)
+        return right - left
+      }),
+    [filtered]
+  )
+
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize))
+  const rows = ordered.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <div className='space-y-4 sm:space-y-6'>

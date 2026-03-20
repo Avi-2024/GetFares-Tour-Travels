@@ -66,7 +66,7 @@ const QuotationTemplatesPage: React.FC = () => {
     minMarginPercent: 0,
     isActive: true,
   });
-  const pageSize = 4;
+  const pageSize = 15;
 
   const filtered = useMemo(
     () =>
@@ -78,8 +78,24 @@ const QuotationTemplatesPage: React.FC = () => {
     [rows, search],
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const toTimestamp = (value?: string | null) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const ordered = useMemo(
+    () =>
+      [...filtered].sort((a, b) => {
+        const left = toTimestamp(a.updatedAt);
+        const right = toTimestamp(b.updatedAt);
+        return right - left;
+      }),
+    [filtered],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+  const pageRows = ordered.slice((page - 1) * pageSize, page * pageSize);
 
   const openCreate = () => {
     setEditingId(null);
