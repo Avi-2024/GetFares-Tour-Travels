@@ -200,7 +200,13 @@ const UserFormModal = ({
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    onSave({ ...formData, roleName: createRoleName || undefined });
+    const inferredRoleName = !formData.role && roleSearch.trim()
+      ? roleSearch.trim()
+      : undefined;
+    onSave({
+      ...formData,
+      roleName: createRoleName || inferredRoleName || undefined,
+    });
   };
 
   return (
@@ -427,7 +433,10 @@ const AssignRoleModal = ({
       setError("Please select a role");
       return;
     }
-    onAssign(user.id, selectedRole || null, createRoleName || undefined);
+    const inferredRoleName = !selectedRole && roleSearch.trim()
+      ? roleSearch.trim()
+      : undefined;
+    onAssign(user.id, selectedRole || null, createRoleName || inferredRoleName || undefined);
   };
 
   return (

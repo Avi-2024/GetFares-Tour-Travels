@@ -7,10 +7,14 @@ const createPayload = z
     phone: z.string().trim().min(6).max(20).optional(),
     role: z.string().trim().min(1).optional(),
 <<<<<<< HEAD
+<<<<<<< HEAD
     roleId: z.string().uuid().optional(),
 =======
     roleId: z.string().trim().min(1).optional(),
 >>>>>>> 260e6b1e39f13ef708b754e115df8c7e0db0356f
+=======
+    roleId: z.string().trim().min(1).optional(),
+>>>>>>> fb108051f5efc0275ff61e2e8784b6916667c065
     password: z.string().trim().min(8).optional(),
     passwordHash: z.string().trim().min(8).max(400).optional(),
     isActive: z.boolean().optional(),
@@ -39,10 +43,14 @@ const updatePayload = z
     phone: z.string().trim().min(6).max(20).optional(),
     role: z.string().trim().min(1).optional(),
 <<<<<<< HEAD
+<<<<<<< HEAD
     roleId: z.string().uuid().nullable().optional(),
 =======
     roleId: z.string().trim().min(1).nullable().optional(),
 >>>>>>> 260e6b1e39f13ef708b754e115df8c7e0db0356f
+=======
+    roleId: z.string().trim().min(1).nullable().optional(),
+>>>>>>> fb108051f5efc0275ff61e2e8784b6916667c065
     isActive: z.boolean().optional(),
     isOnLeave: z.boolean().optional(),
     expertiseDestinations: z
