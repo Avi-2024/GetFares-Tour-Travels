@@ -151,7 +151,26 @@ function createLeadsRepository({ db, logger, schema }) {
     };
   }
 
-  function toDomain(row, customerMap = new Map(), assigneeMap = new Map()) {
+  function toDestinationDomain(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      name: row.name ?? null,
+      country: row.country ?? null,
+      isActive: row.is_active ?? row.isActive ?? true,
+      createdAt: row.created_at ?? row.createdAt ?? null,
+    };
+  }
+
+  function toDomain(
+    row,
+    customerMap = new Map(),
+    assigneeMap = new Map(),
+    destinationMap = new Map(),
+  ) {
     if (!row) {
       return null;
     }
@@ -161,6 +180,8 @@ function createLeadsRepository({ db, logger, schema }) {
     const assignedTo = row.assigned_to ?? row.assignedTo ?? null;
     const assignee =
       assigneeMap.get(assignedTo) || row.assignee || row.assignedUser || null;
+    const destinationId = row.destination_id ?? row.destinationId ?? null;
+    const destination = destinationMap.get(destinationId) || null;
 
     return {
       id: row.id,
@@ -177,7 +198,9 @@ function createLeadsRepository({ db, logger, schema }) {
         row.clientCurrency ??
         null,
       nationality: row.nationality ?? null,
-      destinationId: row.destination_id ?? row.destinationId ?? null,
+      destinationId,
+      destination: destination ? toDestinationDomain(destination) : null,
+      destinationName: destination?.name ?? null,
       travelDate: row.travel_date ?? row.travelDate ?? null,
       budget: row.budget ?? null,
       adultsCount: row.adults_count ?? row.adultsCount ?? 1,
@@ -394,23 +417,47 @@ function createLeadsRepository({ db, logger, schema }) {
     return userMap;
   }
 
+  async function loadDestinationsByIds(destinationIds = []) {
+    const ids = [...new Set(destinationIds.filter(Boolean))];
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(
+      ids.map((id) => db.findById(schema.destinationsTable, id)),
+    );
+    const destinationMap = new Map();
+
+    rows.filter(Boolean).forEach((row) => {
+      destinationMap.set(row.id, row);
+    });
+
+    return destinationMap;
+  }
+
   async function mapRowsToDomain(rows = []) {
-    const [customerMap, assigneeMap] = await Promise.all([
+    const [customerMap, assigneeMap, destinationMap] = await Promise.all([
       loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId)),
       loadUsersByIds(rows.map((row) => row.assigned_to ?? row.assignedTo)),
+      loadDestinationsByIds(
+        rows.map((row) => row.destination_id ?? row.destinationId),
+      ),
     ]);
-    return rows.map((row) => toDomain(row, customerMap, assigneeMap));
+    return rows.map((row) =>
+      toDomain(row, customerMap, assigneeMap, destinationMap),
+    );
   }
 
   async function mapRowToDomain(row) {
     if (!row) {
       return null;
     }
-    const [customerMap, assigneeMap] = await Promise.all([
+    const [customerMap, assigneeMap, destinationMap] = await Promise.all([
       loadCustomersByIds([row.customer_id ?? row.customerId]),
       loadUsersByIds([row.assigned_to ?? row.assignedTo]),
+      loadDestinationsByIds([row.destination_id ?? row.destinationId]),
     ]);
-    return toDomain(row, customerMap, assigneeMap);
+    return toDomain(row, customerMap, assigneeMap, destinationMap);
   }
 
   async function findCustomerByContact({ email, phone }) {
@@ -570,6 +617,50 @@ function createLeadsRepository({ db, logger, schema }) {
         return null;
       }
       return db.findById(schema.destinationsTable, id);
+    },
+
+    async findDestinationByName(name) {
+      if (!name) {
+        return null;
+      }
+      const normalized = String(name).trim();
+      if (!normalized) {
+        return null;
+      }
+
+      if (db.adapter === "postgres") {
+        const result = await db.query(
+          `SELECT * FROM ${schema.destinationsTable} WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+          [normalized],
+        );
+        return result.rows?.[0] || null;
+      }
+
+      const rows = await db.findMany(schema.destinationsTable, {});
+      return (
+        rows.find(
+          (row) =>
+            String(row.name || "").trim().toLowerCase() ===
+            normalized.toLowerCase(),
+        ) || null
+      );
+    },
+
+    async ensureDestinationByName(name) {
+      const normalized = String(name || "").trim();
+      if (!normalized) {
+        return null;
+      }
+
+      const existing = await this.findDestinationByName(normalized);
+      if (existing) {
+        return existing;
+      }
+
+      return db.insert(schema.destinationsTable, {
+        name: normalized,
+        is_active: true,
+      });
     },
 
     async findDuplicateCandidate({ email, phone }) {

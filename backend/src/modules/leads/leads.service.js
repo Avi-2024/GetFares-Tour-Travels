@@ -320,6 +320,22 @@ function createLeadsService({ repository, logger, events }) {
     return mapped;
   }
 
+  async function resolveDestinationId(payload = {}) {
+    if (payload.destinationId) {
+      return payload.destinationId;
+    }
+
+    const destinationName =
+      payload.destinationName || payload.destination || null;
+    if (!destinationName) {
+      return null;
+    }
+
+    const destination =
+      await repository.ensureDestinationByName(destinationName);
+    return destination?.id || null;
+  }
+
   async function getById(id, context = {}) {
     logger.debug(
       { module: "leads", requestId: context.requestId, id },
@@ -508,6 +524,11 @@ function createLeadsService({ repository, logger, events }) {
   }
 
   async function create(payload, context = {}) {
+    const resolvedDestinationId = await resolveDestinationId(payload);
+    if (resolvedDestinationId) {
+      payload.destinationId = resolvedDestinationId;
+    }
+
     const useCustomerLinking = await repository.hasLeadCustomerColumn();
     const duplicate = await repository.findDuplicateCandidate({
       email: payload.email,
@@ -921,6 +942,11 @@ function createLeadsService({ repository, logger, events }) {
       }
       if (payload.clientCurrency !== undefined) {
         customerPatch.clientCurrency = payload.clientCurrency;
+      }
+
+      const resolvedDestinationId = await resolveDestinationId(payload);
+      if (resolvedDestinationId && payload.destinationId === undefined) {
+        payload.destinationId = resolvedDestinationId;
       }
 
       if (
