@@ -4,7 +4,6 @@ import type {
   LeadsListResponse,
   LeadsQuery,
 } from "../datasource/leadsDatasource";
-import { DESTINATIONS } from "../data/staticLists";
 
 export type LeadStatus = "New" | "Contacted" | "Qualified" | "Lost";
 export type LeadPriority = "High" | "Medium" | "Low";
@@ -129,13 +128,8 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
   },
   getCampaigns: () => datasource.getCampaigns(),
   getDestinations: async () => {
-    try {
-      const response = await datasource.getDestinations();
-      const list = extractArray(response);
-      return list.length ? list : DESTINATIONS;
-    } catch {
-      return DESTINATIONS;
-    }
+    const response = await datasource.getDestinations();
+    return extractArray(response);
   },
   distributeLeads: () => datasource.distribute(),
   reassignInactiveLeads: () => datasource.reassignInactive(),

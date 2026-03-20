@@ -230,6 +230,54 @@ function createQuotationsService({ repository, logger, events }) {
     };
   }
 
+  async function attachRelations(quotation) {
+    if (!quotation) {
+      return quotation;
+    }
+
+    const [
+      lead,
+      template,
+      pricing,
+      createdByUser,
+      approvedByUser,
+      sentByUser,
+      pdfGeneratedByUser,
+      parentQuotation,
+      booking,
+    ] = await Promise.all([
+      repository.findLeadDetailsById(quotation.leadId),
+      repository.findTemplateById(quotation.templateId),
+      repository.findPricingById(quotation.pricingId),
+      repository.findUserById(quotation.createdBy),
+      repository.findUserById(quotation.approvedBy),
+      repository.findUserById(quotation.sentBy),
+      repository.findUserById(quotation.pdfGeneratedBy),
+      repository.findQuotationSummaryById(quotation.parentQuoteId),
+      repository.findBookingSummaryByQuotationId(quotation.id),
+    ]);
+
+    const destinationId =
+      lead?.destinationId || pricing?.destinationId || null;
+    const destination = destinationId
+      ? await repository.findDestinationById(destinationId)
+      : null;
+
+    return {
+      ...quotation,
+      lead: lead || null,
+      template: template || null,
+      pricing: pricing || null,
+      destination: destination || null,
+      createdByUser: createdByUser || null,
+      approvedByUser: approvedByUser || null,
+      sentByUser: sentByUser || null,
+      pdfGeneratedByUser: pdfGeneratedByUser || null,
+      parentQuotation: parentQuotation || null,
+      booking: booking || null,
+    };
+  }
+
   async function getById(id, context = {}, options = {}) {
     logger.debug(
       { module: "quotations", requestId: context.requestId, id },
@@ -241,12 +289,18 @@ function createQuotationsService({ repository, logger, events }) {
       throw new AppError(404, "Quotation not found", "QUOTATION_NOT_FOUND");
     }
 
-    if (options.includeItems === false) {
-      return quotation;
+    let response = quotation;
+
+    if (options.includeItems !== false) {
+      const items = await repository.findItemsByQuotationId(id);
+      response = { ...response, items };
     }
 
-    const items = await repository.findItemsByQuotationId(id);
-    return { ...quotation, items };
+    if (options.includeRelations) {
+      response = await attachRelations(response);
+    }
+
+    return response;
   }
 
   async function logVersion({ quotation, action, changeLog, editorId }) {

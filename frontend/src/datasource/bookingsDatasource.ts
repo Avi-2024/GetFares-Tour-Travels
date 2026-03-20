@@ -5,6 +5,24 @@ export type BookingsQuery = Record<
   string | number | boolean | undefined
 >;
 
+const mapPaymentMode = (value?: string) => {
+  const mode = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (mode === "cash") return "CASH";
+  if (mode === "card") return "CARD";
+  if (mode === "cheque") return "BANK_TRANSFER";
+  if (mode === "bank") return "BANK_TRANSFER";
+  return "BANK_TRANSFER";
+};
+
+const toIsoDate = (value?: string) => {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+};
+
 export const createBookingsDatasource = (client: HttpClient) => ({
   list: (params?: BookingsQuery) => client.get("/api/bookings", { params }),
   stats: () => client.get("/api/bookings/stats"),
@@ -23,12 +41,30 @@ export const createBookingsDatasource = (client: HttpClient) => ({
   uploadDocument: (id: string, formData: FormData) =>
     client.post(`/api/bookings/${id}/documents`, formData),
   getPaymentStatus: (id: string) =>
-    client.get(`/api/bookings/${id}/payment-status`),
-  recordPayment: (id: string, payload: unknown) =>
-    client.post(`/api/bookings/${id}/payments`, payload),
-  getPayments: (id: string) => client.get(`/api/bookings/${id}/payments`),
+    client.get(`/api/bookings/${id}`),
+  recordPayment: (id: string, payload: unknown) => {
+    const body = (payload as {
+      amount?: number;
+      method?: string;
+      reference?: string;
+      notes?: string;
+      date?: string;
+    }) || { amount: 0 };
+    return client.post("/api/payments", {
+      bookingId: id,
+      amount: body.amount ?? 0,
+      paymentMode: mapPaymentMode(body.method),
+      paymentReference: body.reference || undefined,
+      paidAt: toIsoDate(body.date),
+      status: "PENDING",
+      isVerified: false,
+      notes: body.notes || undefined,
+    });
+  },
+  getPayments: (id: string) =>
+    client.get("/api/payments", { params: { bookingId: id } }),
   sendConfirmation: (id: string) =>
-    client.post(`/api/bookings/${id}/send-confirmation`),
+    client.post(`/api/bookings/${id}/status`, { status: "CONFIRMED" }),
   cancel: (id: string, reason: string) =>
     client.post(`/api/bookings/${id}/status`, {
       status: "CANCELLED",

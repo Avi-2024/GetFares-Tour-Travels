@@ -20,11 +20,13 @@ import { useAuth } from "../../context/AuthContext";
 import { useAuthService } from "../../hooks/useAuthService";
 import { useUsersService } from "../../hooks/useUsersService";
 import SurfaceCard from "../ui/SurfaceCard";
+import DestinationPricingManager from "../settings/DestinationPricingManager";
 
 type Tab =
   | "user-management"
   | "roles-permissions"
   | "system-settings"
+  | "destinations-pricing"
   | "pdf-templates"
   | "integrations";
 
@@ -84,6 +86,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: "user-management", label: "User Management" },
   { id: "roles-permissions", label: "Roles & Permissions" },
   { id: "system-settings", label: "System Settings" },
+  { id: "destinations-pricing", label: "Destinations & Pricing" },
   { id: "pdf-templates", label: "PDF Templates" },
   // { id: "integrations", label: "Integrations" },
 ];
@@ -810,6 +813,13 @@ const Settings: React.FC = () => {
             </div>
             <button onClick={() => void saveSystem()} disabled={savingSystem || !canUpdateSettings} className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{savingSystem ? "Saving..." : "Save Settings"}</button>
           </SurfaceCard>
+        ) : null}
+
+        {activeTab === "destinations-pricing" ? (
+          <DestinationPricingManager
+            canReadSettings={canReadSettings}
+            canUpdateSettings={canUpdateSettings}
+          />
         ) : null}
 
         {activeTab === "pdf-templates" ? (

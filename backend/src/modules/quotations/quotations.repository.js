@@ -160,6 +160,8 @@ function createQuotationsRepository({ db, logger, schema }) {
       versionNumber: Number(row.version_number ?? row.versionNumber ?? 1),
       status: row.status,
       pdfUrl: row.pdf_url ?? row.pdfUrl ?? null,
+      pdfGeneratedAt: toDate(row.pdf_generated_at ?? row.pdfGeneratedAt),
+      pdfGeneratedBy: row.pdf_generated_by ?? row.pdfGeneratedBy ?? null,
       sentAt: toDate(row.sent_at ?? row.sentAt),
       sentBy: row.sent_by ?? row.sentBy ?? null,
       viewCount: Number(row.view_count ?? row.viewCount ?? 0),
@@ -173,6 +175,7 @@ function createQuotationsRepository({ db, logger, schema }) {
       ),
       isDeleted: Boolean(row.is_deleted ?? row.isDeleted ?? false),
       createdAt: toDate(row.created_at ?? row.createdAt),
+      updatedAt: toDate(row.updated_at ?? row.updatedAt),
     };
   }
 
@@ -229,6 +232,115 @@ function createQuotationsRepository({ db, logger, schema }) {
       updatedBy: row.updated_by ?? row.updatedBy ?? null,
       createdAt: toDate(row.created_at ?? row.createdAt),
       updatedAt: toDate(row.updated_at ?? row.updatedAt),
+    };
+  }
+
+  function toUser(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      fullName: row.full_name ?? row.fullName ?? null,
+      email: row.email ?? null,
+      phone: row.phone ?? null,
+      roleId: row.role_id ?? row.roleId ?? null,
+      isActive: toBoolean(row.is_active ?? row.isActive, true),
+      isOnLeave: toBoolean(row.is_on_leave ?? row.isOnLeave, false),
+    };
+  }
+
+  function toLead(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      fullName: row.full_name ?? row.fullName ?? null,
+      phone: row.phone ?? null,
+      email: row.email ?? null,
+      destinationId: row.destination_id ?? row.destinationId ?? null,
+      nationality: row.nationality ?? null,
+      travelDate: row.travel_date ?? row.travelDate ?? null,
+      adultsCount: Number(row.adults_count ?? row.adultsCount ?? 1),
+      childrenCount: Number(row.children_count ?? row.childrenCount ?? 0),
+      leadType: row.lead_type ?? row.leadType ?? "HOLIDAY",
+      source: row.source ?? null,
+      status: row.status ?? null,
+      assignedTo: row.assigned_to ?? row.assignedTo ?? null,
+      createdAt: toDate(row.created_at ?? row.createdAt),
+    };
+  }
+
+  function toDestination(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      name: row.name ?? null,
+      country: row.country ?? null,
+      isActive: toBoolean(row.is_active ?? row.isActive, true),
+      createdAt: toDate(row.created_at ?? row.createdAt),
+    };
+  }
+
+  function toPricing(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      destinationId: row.destination_id ?? row.destinationId ?? null,
+      baseCost: toNumber(row.base_cost ?? row.baseCost, 0),
+      minProfitPercent: toNumber(
+        row.min_profit_percent ?? row.minProfitPercent,
+        0,
+      ),
+      recommendedProfitPercent: toNumber(
+        row.recommended_profit_percent ?? row.recommendedProfitPercent,
+        null,
+      ),
+      taxPercent: toNumber(row.tax_percent ?? row.taxPercent, 0),
+      validFrom: row.valid_from ?? row.validFrom ?? null,
+      validTo: row.valid_to ?? row.validTo ?? null,
+      createdBy: row.created_by ?? row.createdBy ?? null,
+      createdAt: toDate(row.created_at ?? row.createdAt),
+    };
+  }
+
+  function toQuotationSummary(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      quoteNumber: row.quote_number ?? row.quoteNumber ?? null,
+      status: row.status ?? null,
+      finalPrice: toNumber(row.final_price ?? row.finalPrice, 0),
+      createdAt: toDate(row.created_at ?? row.createdAt),
+    };
+  }
+
+  function toBookingSummary(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      bookingNumber: row.booking_number ?? row.bookingNumber ?? null,
+      status: row.status ?? null,
+      paymentStatus: row.payment_status ?? row.paymentStatus ?? null,
+      totalAmount: toNumber(row.total_amount ?? row.totalAmount, 0),
+      travelStartDate: row.travel_start_date ?? row.travelStartDate ?? null,
+      travelEndDate: row.travel_end_date ?? row.travelEndDate ?? null,
+      createdAt: toDate(row.created_at ?? row.createdAt),
     };
   }
 
@@ -566,6 +678,14 @@ function createQuotationsRepository({ db, logger, schema }) {
       return db.findById(schema.leadsTable, id);
     },
 
+    async findLeadDetailsById(id) {
+      if (!id) {
+        return null;
+      }
+      const row = await db.findById(schema.leadsTable, id);
+      return toLead(row);
+    },
+
     async updateLeadStatus(leadId, status) {
       return db.update(schema.leadsTable, leadId, { status });
     },
@@ -578,9 +698,51 @@ function createQuotationsRepository({ db, logger, schema }) {
       return db.insert(schema.bookingsTable, payload);
     },
 
+    async findBookingSummaryByQuotationId(quotationId) {
+      if (!quotationId) {
+        return null;
+      }
+      const row = await db.findOne(schema.bookingsTable, {
+        quotation_id: quotationId,
+      });
+      return toBookingSummary(row);
+    },
+
+    async findUserById(id) {
+      if (!id) {
+        return null;
+      }
+      const row = await db.findById(schema.usersTable, id);
+      return toUser(row);
+    },
+
     async findTemplateById(id) {
       const row = await db.findById(schema.templatesTable, id);
       return toTemplate(row);
+    },
+
+    async findPricingById(id) {
+      if (!id || !schema.pricingTable) {
+        return null;
+      }
+      const row = await db.findById(schema.pricingTable, id);
+      return toPricing(row);
+    },
+
+    async findDestinationById(id) {
+      if (!id || !schema.destinationsTable) {
+        return null;
+      }
+      const row = await db.findById(schema.destinationsTable, id);
+      return toDestination(row);
+    },
+
+    async findQuotationSummaryById(id) {
+      if (!id) {
+        return null;
+      }
+      const row = await db.findById(schema.tableName, id);
+      return toQuotationSummary(row);
     },
 
     async findTemplateByCode(code) {

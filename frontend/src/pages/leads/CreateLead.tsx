@@ -11,7 +11,6 @@ import {
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { getApiErrorMessage } from "../../api/apiClient";
-import { DESTINATIONS } from "../../data/staticLists";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { useCampaignsService } from "../../hooks/useCampaignsService";
 
@@ -76,11 +75,9 @@ const CreateLead: React.FC = () => {
 
       if (destinationsRes.status === "fulfilled") {
         const list = destinationsRes.value;
-        setDestinations(
-          Array.isArray(list) && list.length ? list : DESTINATIONS,
-        );
+        setDestinations(Array.isArray(list) ? list : []);
       } else {
-        setDestinations(DESTINATIONS);
+        setDestinations([]);
       }
     };
     loadData();

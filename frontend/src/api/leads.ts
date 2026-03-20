@@ -1,6 +1,5 @@
 import { apiRequest } from "./apiClient";
 import { withQuery } from "./query";
-import { DESTINATIONS } from "../data/staticLists";
 
 const extractList = (response: unknown) => {
   const data =
@@ -58,7 +57,7 @@ export const leadsApi = {
   },
   getCampaigns: () =>
     apiRequest<any>(withQuery("/api/campaigns", { status: "ACTIVE" })),
-  getDestinations: async () => ({ data: DESTINATIONS }),
+  getDestinations: () => apiRequest<any>("/api/destinations"),
   distribute: () => apiRequest<any>("/api/leads/distribute", { method: "POST" }),
   reassignInactive: () =>
     apiRequest<any>("/api/leads/reassign-inactive", { method: "POST" }),
