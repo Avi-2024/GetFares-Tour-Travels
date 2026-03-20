@@ -17,8 +17,8 @@ VALUES
   (
     'system',
     jsonb_build_object(
-      'companyName', 'GetFares Travel CRM',
-      'supportEmail', 'support@getfares.com',
+      'companyName', 'Get2Vacation Travel CRM',
+      'supportEmail', 'support@Get2Vacation.com',
       'supportPhone', '',
       'timezone', 'Asia/Kolkata',
       'currency', 'INR',

@@ -10,8 +10,7 @@ import {
   FaXmark,
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
-import { isApiError } from "../../api/apiClient";
-import { DESTINATIONS } from "../../data/staticLists";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { useCampaignsService } from "../../hooks/useCampaignsService";
 
@@ -76,11 +75,9 @@ const CreateLead: React.FC = () => {
 
       if (destinationsRes.status === "fulfilled") {
         const list = destinationsRes.value;
-        setDestinations(
-          Array.isArray(list) && list.length ? list : DESTINATIONS,
-        );
+        setDestinations(Array.isArray(list) ? list : []);
       } else {
-        setDestinations(DESTINATIONS);
+        setDestinations([]);
       }
     };
     loadData();
@@ -274,11 +271,7 @@ const CreateLead: React.FC = () => {
         navigate("/leads");
       } catch (error) {
         console.error("Failed to create lead:", error);
-        if (isApiError(error)) {
-          setApiError(error.message || "Could not create lead.");
-        } else {
-          setApiError("Could not create lead.");
-        }
+        setApiError(getApiErrorMessage(error, "Could not create lead."));
         setLoading(false);
       }
     }

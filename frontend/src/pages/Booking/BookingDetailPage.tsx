@@ -15,6 +15,7 @@ import {
 } from "react-icons/fa6";
 import { bookingsApi } from "../../api/bookings";
 import { paymentsApi } from "../../api/payments";
+import { getApiErrorMessage } from "../../api/apiClient";
 
 // Types
 interface Booking {
@@ -641,8 +642,9 @@ const BookingDetailPage: React.FC = () => {
       setHistory(mappedHistory);
     } catch (err) {
       console.error("Failed to load booking details:", err);
-      setError("Failed to load booking details");
-      showToast("Failed to load booking details", "error");
+      const message = getApiErrorMessage(err, "Failed to load booking details");
+      setError(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -672,7 +674,7 @@ const BookingDetailPage: React.FC = () => {
       await fetchBookingData();
       showToast(`Booking status updated to ${newStatus}`, "success");
     } catch (err) {
-      showToast("Failed to update booking status", "error");
+      showToast(getApiErrorMessage(err, "Failed to update booking status"), "error");
     } finally {
       setLoading(false);
     }
@@ -694,7 +696,7 @@ const BookingDetailPage: React.FC = () => {
       setCancelError("");
       showToast("Booking cancelled successfully", "success");
     } catch (err) {
-      showToast("Failed to cancel booking", "error");
+      showToast(getApiErrorMessage(err, "Failed to cancel booking"), "error");
     } finally {
       setLoading(false);
     }
@@ -714,7 +716,7 @@ const BookingDetailPage: React.FC = () => {
       await fetchBookingData();
       showToast("Invoice generated successfully", "success");
     } catch (err) {
-      showToast("Failed to generate invoice", "error");
+      showToast(getApiErrorMessage(err, "Failed to generate invoice"), "error");
     } finally {
       setLoading(false);
     }
@@ -738,7 +740,7 @@ const BookingDetailPage: React.FC = () => {
       setShowInvoiceModal(false);
       showToast("Invoice marked as paid", "success");
     } catch (err) {
-      showToast("Failed to mark invoice as paid", "error");
+      showToast(getApiErrorMessage(err, "Failed to mark invoice as paid"), "error");
     } finally {
       setLoading(false);
     }
@@ -759,7 +761,7 @@ const BookingDetailPage: React.FC = () => {
       await fetchBookingData();
       showToast("Payment added successfully", "success");
     } catch (err) {
-      showToast("Failed to add payment", "error");
+      showToast(getApiErrorMessage(err, "Failed to add payment"), "error");
     } finally {
       setLoading(false);
     }

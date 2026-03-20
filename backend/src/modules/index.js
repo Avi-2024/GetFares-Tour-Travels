@@ -17,6 +17,7 @@ import { createNotificationsModule } from "./notifications/index.js";
 import { createDashboardModule } from "./dashboard/index.js";
 import { createMetaWebhookModule } from "./metaWebhook/index.js";
 import { createWhatsappModule } from "./whatsapp/index.js";
+import { createDestinationsModule } from "./destinations/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -37,9 +38,14 @@ function registerModules(app, dependencies) {
   const rbacModule = createRbacModule({ dependencies: dependenciesWithAuth });
   mountedModules.rbac = rbacModule;
   app.use("/api/rbac", rbacModule.router);
+  app.use("/api/permissions", rbacModule.permissionsRouter);
+  app.use("/api/roles", rbacModule.rolesRouter);
 
   const featureDependencies = {
     ...dependenciesWithAuth,
+    services: {
+      rbac: rbacModule.service,
+    },
     middlewares: {
       ...dependenciesWithAuth.middlewares,
       authorize: rbacModule.middleware.authorize,
@@ -55,6 +61,7 @@ function registerModules(app, dependencies) {
     ["refunds", createRefundsModule],
     ["visa", createVisaModule],
     ["campaigns", createCampaignsModule],
+    ["destinations", createDestinationsModule],
     ["customers", createCustomersModule],
     ["complaints", createComplaintsModule],
     ["reports", createReportsModule],
@@ -116,6 +123,7 @@ export {
   createRefundsModule,
   createVisaModule,
   createCampaignsModule,
+  createDestinationsModule,
   createCustomersModule,
   createComplaintsModule,
   createReportsModule,

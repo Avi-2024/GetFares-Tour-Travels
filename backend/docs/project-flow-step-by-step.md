@@ -1,4 +1,4 @@
-# Getfares CRM - Complete Project Flow (Step-by-Step)
+# Get2Vacation CRM - Complete Project Flow (Step-by-Step)
 
 1. User opens the CRM and lands on the login screen.
 2. User enters email and password and submits the login form.

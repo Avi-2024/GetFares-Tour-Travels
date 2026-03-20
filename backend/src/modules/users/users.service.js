@@ -41,7 +41,7 @@ function mapUpdatePayload(payload) {
   };
 }
 
-function toUser(entity, roleLookup) {
+function toUser(entity, roleLookup, permissions = []) {
   if (!entity) {
     return null;
   }
@@ -52,6 +52,7 @@ function toUser(entity, roleLookup) {
     id: entity.id,
     roleId: entity.role_id,
     role: roleName,
+    permissions,
     fullName: entity.full_name,
     email: entity.email,
     phone: entity.phone,
@@ -66,7 +67,7 @@ function toUser(entity, roleLookup) {
   };
 }
 
-function createUsersService({ repository, logger, events }) {
+function createUsersService({ repository, logger, events, rbacService }) {
   async function getRoleLookup() {
     const roles = await repository.findRoles();
     return new Map(roles.map((role) => [role.id, role.name]));
@@ -80,7 +81,16 @@ function createUsersService({ repository, logger, events }) {
     );
     const rows = await repository.findAll(mappedFilters);
     const roleLookup = await getRoleLookup();
-    return rows.map((row) => toUser(row, roleLookup));
+    let permissionsByUserId = new Map();
+    if (rbacService) {
+      permissionsByUserId = await rbacService.getPermissionsForUserIds(
+        rows.map((row) => row.id),
+      );
+    }
+
+    return rows.map((row) =>
+      toUser(row, roleLookup, permissionsByUserId.get(row.id) || []),
+    );
   }
 
   async function listRoles() {
@@ -105,7 +115,17 @@ function createUsersService({ repository, logger, events }) {
     }
 
     const roleLookup = await getRoleLookup();
-    return toUser(item, roleLookup);
+    let permissions = [];
+    if (rbacService) {
+      const access = await rbacService.getPermissionsForUser({
+        id: item.id,
+        roleId: item.role_id,
+        role: roleLookup.get(item.role_id) || null,
+      });
+      permissions = access.permissions;
+    }
+
+    return toUser(item, roleLookup, permissions);
   }
 
   async function create(payload, context = {}) {
@@ -128,7 +148,17 @@ function createUsersService({ repository, logger, events }) {
 
       events.emitCreated(created);
       const roleLookup = await getRoleLookup();
-      return toUser(created, roleLookup);
+      let permissions = [];
+      if (rbacService) {
+        const access = await rbacService.getPermissionsForUser({
+          id: created.id,
+          roleId: created.role_id,
+          role: roleLookup.get(created.role_id) || null,
+        });
+        permissions = access.permissions;
+      }
+
+      return toUser(created, roleLookup, permissions);
     } catch (error) {
       if (error?.code === "23505") {
         throw new AppError(
@@ -149,7 +179,17 @@ function createUsersService({ repository, logger, events }) {
 
       events.emitUpdated(updated);
       const roleLookup = await getRoleLookup();
-      return toUser(updated, roleLookup);
+      let permissions = [];
+      if (rbacService) {
+        const access = await rbacService.getPermissionsForUser({
+          id: updated.id,
+          roleId: updated.role_id,
+          role: roleLookup.get(updated.role_id) || null,
+        });
+        permissions = access.permissions;
+      }
+
+      return toUser(updated, roleLookup, permissions);
     } catch (error) {
       if (error?.code === "23505") {
         throw new AppError(

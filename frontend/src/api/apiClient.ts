@@ -33,6 +33,16 @@ export const isApiError = (error: unknown): error is ApiError => {
   return "status" in error && typeof (error as ApiError).status === "number";
 };
 
+export const getApiErrorMessage = (
+  error: unknown,
+  fallback = "Something went wrong",
+) => {
+  if (isApiError(error) && error.message?.trim()) {
+    return error.message.trim();
+  }
+  return fallback;
+};
+
 export type ApiRequestConfig = AxiosRequestConfig & {
   skipAuth?: boolean;
   token?: string;

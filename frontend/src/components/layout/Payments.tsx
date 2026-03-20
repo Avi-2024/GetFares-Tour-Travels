@@ -25,6 +25,8 @@ import { FaEdit } from "react-icons/fa";
 import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
 import { paymentsApi } from "../../api/payments";
+import { bookingsApi } from "../../api/bookings";
+import { getApiErrorMessage } from "../../api/apiClient";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
 type PaymentMode = "bank" | "card" | "cash" | "cheque" | "online";
@@ -35,6 +37,7 @@ interface Transaction {
   date: string;
   customer: string;
   bookingId: string;
+  bookingLabel?: string;
   amount: number;
   mode: PaymentMode;
   status: TxStatus;
@@ -187,6 +190,7 @@ const mapPaymentToTransaction = (row: any): Transaction => {
       row?.clientName ??
       "Unknown",
     bookingId,
+    bookingLabel: bookingId,
     amount: toNumber(row?.amount, 0),
     mode: mapApiModeToTx(row?.paymentMode ?? row?.payment_mode),
     status: mapApiStatusToTx(row?.status),
@@ -376,7 +380,7 @@ const VerifyModal = ({
             <div className="flex justify-between">
               <span className="text-sm text-gray-500">Booking ID</span>
               <span className="text-sm font-medium text-gray-900">
-                {transaction.bookingId}
+                {transaction.bookingLabel || transaction.bookingId}
               </span>
             </div>
             <div className="flex justify-between">
@@ -542,13 +546,6 @@ const PaymentFormModal = ({
 
   const [formData, setFormData] = useState(() => buildFormData(transaction));
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (isOpen) {
-      setFormData(buildFormData(transaction));
-      setErrors({});
-    }
-  }, [isOpen, transaction?.id]);
 
   if (!isOpen) return null;
 
@@ -916,7 +913,7 @@ const DetailsModal = ({
               <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                 <span className="text-sm text-gray-500">Booking ID</span>
                 <span className="text-sm font-medium text-gray-900">
-                  {transaction.bookingId}
+                  {transaction.bookingLabel || transaction.bookingId}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
@@ -1112,7 +1109,8 @@ const Payments: React.FC = () => {
       const searchMatch =
         tx.referenceId.toLowerCase().includes(search.toLowerCase()) ||
         tx.customer.toLowerCase().includes(search.toLowerCase()) ||
-        tx.bookingId.toLowerCase().includes(search.toLowerCase());
+        tx.bookingId.toLowerCase().includes(search.toLowerCase()) ||
+        (tx.bookingLabel || "").toLowerCase().includes(search.toLowerCase());
       return statusMatch && searchMatch;
     });
   }, [transactions, search, statusFilter]);
@@ -1140,13 +1138,64 @@ const Payments: React.FC = () => {
     try {
       const res = await paymentsApi.list();
       const data = unwrapData<any[]>(res) ?? [];
-      const rows = (Array.isArray(data) ? data : []).map((row) =>
-        mapPaymentToTransaction(row),
+      const paymentRows = Array.isArray(data) ? data : [];
+
+      const bookingIds = Array.from(
+        new Set(
+          paymentRows
+            .map((row) => String(row?.bookingId ?? row?.booking_id ?? ""))
+            .filter(Boolean),
+        ),
       );
+
+      let bookingById: Record<string, any> = {};
+      if (bookingIds.length) {
+        try {
+          const bookingsRes = await bookingsApi.list({ page: 1, limit: 500 });
+          const bookingsData = unwrapData<any[]>(bookingsRes) ?? [];
+          bookingById = (Array.isArray(bookingsData) ? bookingsData : []).reduce(
+            (acc, booking) => {
+              const key = String(
+                booking?.id ?? booking?.bookingId ?? booking?.booking_id ?? "",
+              );
+              if (key) acc[key] = booking;
+              return acc;
+            },
+            {} as Record<string, any>,
+          );
+        } catch (_error) {
+          bookingById = {};
+        }
+      }
+
+      const rows = paymentRows.map((row) => {
+        const tx = mapPaymentToTransaction(row);
+        const bookingKey = String(row?.bookingId ?? row?.booking_id ?? "");
+        const booking = bookingById[bookingKey];
+        if (!booking) return tx;
+
+        const bookingNumber =
+          booking?.bookingNumber ?? booking?.bookingId ?? booking?.code ?? tx.bookingId;
+        const bookingCustomer =
+          booking?.customer ??
+          booking?.customerName ??
+          booking?.clientName ??
+          booking?.lead?.name ??
+          tx.customer;
+
+        return {
+          ...tx,
+          bookingLabel: String(bookingNumber || tx.bookingId),
+          customer:
+            tx.customer === "Unknown"
+              ? String(bookingCustomer || tx.customer)
+              : tx.customer,
+        };
+      });
       setTransactions(rows);
     } catch (err) {
       console.error("Failed to load payments:", err);
-      setTransactionsError("Failed to load payments");
+      setTransactionsError(getApiErrorMessage(err, "Failed to load payments"));
       setTransactions([]);
     } finally {
       setTransactionsLoading(false);
@@ -1171,7 +1220,7 @@ const Payments: React.FC = () => {
       });
     } catch (err) {
       console.error("Failed to load payment stats:", err);
-      setStatsError("Failed to load payment stats");
+      setStatsError(getApiErrorMessage(err, "Failed to load payment stats"));
     } finally {
       setStatsLoading(false);
     }
@@ -1222,7 +1271,7 @@ const Payments: React.FC = () => {
       await fetchStats();
     } catch (err) {
       console.error("Failed to verify payment:", err);
-      showToast("Failed to verify payment", "error");
+      showToast(getApiErrorMessage(err, "Failed to verify payment"), "error");
     }
   };
 
@@ -1252,6 +1301,7 @@ const Payments: React.FC = () => {
                 ...tx,
                 customer: data.customer,
                 bookingId: data.bookingId,
+                bookingLabel: data.bookingId,
                 amount: toNumber(data.amount, 0) * (selectedTransaction?.amount && selectedTransaction.amount < 0 ? -1 : 1),
                 mode: data.mode as PaymentMode,
                 referenceId: data.referenceId || tx.referenceId,
@@ -1273,7 +1323,7 @@ const Payments: React.FC = () => {
       await fetchStats();
     } catch (err) {
       console.error("Failed to update payment:", err);
-      showToast("Failed to update payment", "error");
+      showToast(getApiErrorMessage(err, "Failed to update payment"), "error");
     }
   };
 
@@ -1298,7 +1348,7 @@ const Payments: React.FC = () => {
       await fetchStats();
     } catch (err) {
       console.error("Failed to add payment:", err);
-      showToast("Failed to add payment", "error");
+      showToast(getApiErrorMessage(err, "Failed to add payment"), "error");
     }
   };
 
@@ -1348,6 +1398,7 @@ const Payments: React.FC = () => {
       />
 
       <PaymentFormModal
+        key={`edit-${selectedTransaction?.id ?? "none"}-${showEditModal ? "open" : "closed"}`}
         isOpen={showEditModal}
         transaction={selectedTransaction}
         onSave={handleSaveEdit}
@@ -1358,6 +1409,7 @@ const Payments: React.FC = () => {
       />
 
       <PaymentFormModal
+        key={`add-${showAddPanel ? "open" : "closed"}`}
         isOpen={showAddPanel}
         transaction={null}
         onSave={handleAddPayment}
@@ -1602,7 +1654,7 @@ const Payments: React.FC = () => {
                       {tx.customer}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Booking #{tx.bookingId}
+                      Booking #{tx.bookingLabel || tx.bookingId}
                     </p>
                   </div>
 
@@ -1697,7 +1749,9 @@ const Payments: React.FC = () => {
                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {tx.customer}
                         </p>
-                        <p className="text-xs text-gray-500">#{tx.bookingId}</p>
+                        <p className="text-xs text-gray-500">
+                          #{tx.bookingLabel || tx.bookingId}
+                        </p>
                       </td>
                       <td
                         className={`px-5 py-4 text-right text-sm font-semibold ${

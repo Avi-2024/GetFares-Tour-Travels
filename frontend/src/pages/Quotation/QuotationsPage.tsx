@@ -18,6 +18,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import { validateQuoteTransition } from "../../utils/workflowValidation";
 import { quotationsApi } from "../../api/quotations";
 import { leadsApi } from "../../api/leads";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
 type Status = "pending" | "accepted" | "expired" | "rejected" | "draft";
@@ -92,6 +93,28 @@ const QuotationsPage: React.FC = () => {
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [customerCache, setCustomerCache] = useState<Record<string, any>>({});
   const pageSize = 4;
+
+  const handleViewQuotation = (quotation: Quotation) => {
+    const snapshot = {
+      id: quotation.id,
+      quoteNumber: quotation.quoteNumber,
+      customer: quotation.customer,
+      email: quotation.email,
+      destination: quotation.destination,
+      details: quotation.details,
+      total: quotation.total,
+      margin: quotation.margin,
+      status: quotation.status,
+      lastSent: quotation.lastSent,
+      sentDate: quotation.sentDate,
+      createdAt: quotation.createdAt,
+    };
+    sessionStorage.setItem(
+      `quotation:${quotation.id}`,
+      JSON.stringify(snapshot),
+    );
+    nav(`/quotations/${quotation.id}`, { state: { quotation: snapshot } });
+  };
 
   // Function to fetch customer data by leadId
   const fetchCustomerByLeadId = async (leadId: string) => {
@@ -217,8 +240,26 @@ const QuotationsPage: React.FC = () => {
                 };
               })
             );
-            
-            setQuotations(quotationsWithCustomers);
+
+            const withStatusOverrides = quotationsWithCustomers.map((item) => {
+              const stored =
+                typeof window !== "undefined"
+                  ? sessionStorage.getItem(`quotation:${item.id}`)
+                  : null;
+              if (!stored) return item;
+              try {
+                const parsed = JSON.parse(stored) as { status?: string };
+                if (!parsed?.status) return item;
+                return {
+                  ...item,
+                  status: mapApiStatusToUi(parsed.status),
+                };
+              } catch {
+                return item;
+              }
+            });
+
+            setQuotations(withStatusOverrides);
             setError('');
           } else {
             console.warn('API response data is not an array:', data);
@@ -232,13 +273,7 @@ const QuotationsPage: React.FC = () => {
         }
       } catch (error: any) {
         console.error('Failed to load quotations:', error);
-        
-        // Check if it's an auth error
-        if (error.status === 401 || error.message?.includes('token')) {
-          setError('Authentication failed. Please login again.');
-        } else {
-          setError('Failed to load quotations.');
-        }
+        setError(getApiErrorMessage(error, 'Failed to load quotations.'));
         
         // No fallback data on error
         setQuotations([]);
@@ -337,7 +372,7 @@ const QuotationsPage: React.FC = () => {
       setError('');
     } catch (error) {
       console.error('Failed to reject quotation:', error);
-      setError('Failed to reject quotation');
+      setError(getApiErrorMessage(error, 'Failed to reject quotation'));
     } finally {
       setLoading(false);
     }
@@ -377,7 +412,7 @@ const QuotationsPage: React.FC = () => {
       setError('');
     } catch (error) {
       console.error('Failed to send via WhatsApp:', error);
-      setError('Failed to send quotation via WhatsApp');
+      setError(getApiErrorMessage(error, 'Failed to send quotation via WhatsApp'));
     } finally {
       setLoading(false);
     }
@@ -390,7 +425,7 @@ const QuotationsPage: React.FC = () => {
       setError('');
     } catch (error) {
       console.error('Failed to generate PDF:', error);
-      setError('Failed to generate PDF');
+      setError(getApiErrorMessage(error, 'Failed to generate PDF'));
     } finally {
       setLoading(false);
     }
@@ -673,7 +708,7 @@ const QuotationsPage: React.FC = () => {
                   {/* Actions */}
                   <div className="flex justify-end gap-2 pt-2">
                     <button
-                      onClick={() => nav(`/quotations/${q.id}`)}
+                      onClick={() => handleViewQuotation(q)}
                       className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                       title="View"
                     >
@@ -772,7 +807,7 @@ const QuotationsPage: React.FC = () => {
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-2 transition-all duration-200">
                           <button
-                            onClick={() => nav(`/quotations/${q.id}`)}
+                            onClick={() => handleViewQuotation(q)}
                             className="rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                           >
                             <FaEye />

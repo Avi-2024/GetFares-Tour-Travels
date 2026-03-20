@@ -7,7 +7,7 @@ import {
   FaCheckCircle,
   FaInfoCircle,
 } from "react-icons/fa";
-import { isApiError } from "../../api/apiClient";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { authApi } from "../../api/auth";
 import { useAuth } from "../../context/AuthContext";
 
@@ -69,9 +69,7 @@ const ProfilePage = () => {
         }));
       }
     } catch (err) {
-      setProfileError(
-        isApiError(err) ? err.message : "Failed to load profile.",
-      );
+      setProfileError(getApiErrorMessage(err, "Failed to load profile."));
     } finally {
       setLoadingProfile(false);
     }

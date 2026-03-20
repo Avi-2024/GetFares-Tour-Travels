@@ -3,7 +3,7 @@
 ## 1. Document Status
 
 - Last updated: 2026-03-10
-- Product: Getfares Tour & Travel CRM
+- Product: Get2Vacation Tour & Travel CRM
 - Architecture: Modular Monolith (`Node.js + Express + PostgreSQL`)
 - API style: REST JSON with JWT + RBAC
 

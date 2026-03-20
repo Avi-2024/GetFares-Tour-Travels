@@ -708,7 +708,7 @@ async function seedDatabase() {
       for (const template of templates) {
         await upsertByUnique("quotation_templates", "code", {
           ...template,
-          header_branding: "GetFares Holidays",
+          header_branding: "Get2Vacation Holidays",
           inclusions: "Hotel, Transfers, Breakfast",
           exclusions: "Flights, Visa fees",
           payment_terms: "50% advance to confirm booking",

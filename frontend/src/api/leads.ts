@@ -1,6 +1,5 @@
 import { apiRequest } from "./apiClient";
 import { withQuery } from "./query";
-import { DESTINATIONS } from "../data/staticLists";
 
 const extractList = (response: unknown) => {
   const data =
@@ -33,9 +32,9 @@ export const leadsApi = {
   getFollowups: (id: string) => apiRequest<any>(`/api/leads/${id}/followups`),
   getTimeline: (id: string) => apiRequest<any>(`/api/leads/${id}/timeline`),
   markAsLost: (id: string, reason: string, notes?: string) =>
-    apiRequest<any>(`/api/leads/${id}/lost`, {
-      method: "POST",
-      body: { reason, notes },
+    apiRequest<any>(`/api/leads/${id}`, {
+      method: "PATCH",
+      body: { status: "LOST", closedReason: reason, notes },
     }),
   checkDuplicate: async (email?: string, phone?: string) => {
     if (!email && !phone) {
@@ -58,7 +57,7 @@ export const leadsApi = {
   },
   getCampaigns: () =>
     apiRequest<any>(withQuery("/api/campaigns", { status: "ACTIVE" })),
-  getDestinations: async () => ({ data: DESTINATIONS }),
+  getDestinations: () => apiRequest<any>("/api/destinations"),
   distribute: () => apiRequest<any>("/api/leads/distribute", { method: "POST" }),
   reassignInactive: () =>
     apiRequest<any>("/api/leads/reassign-inactive", { method: "POST" }),
@@ -66,5 +65,8 @@ export const leadsApi = {
     apiRequest<any>("/api/leads/sla/process-breaches", { method: "POST" }),
   getSlaStatus: (id: string) => apiRequest<any>(`/api/leads/${id}/sla-status`),
   publicCapture: (payload: unknown) =>
-    apiRequest<any>("/api/leads/public-capture", { method: "POST", body: payload }),
+    apiRequest<any>("/api/webhooks/website-enquiry", {
+      method: "POST",
+      body: payload,
+    }),
 };

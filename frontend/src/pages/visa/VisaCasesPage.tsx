@@ -15,6 +15,7 @@ import SurfaceCard from "../../components/ui/SurfaceCard";
 import EmptyState from "../../components/ui/EmptyState";
 import { SUPPLIERS } from "../../data/staticLists";
 import { visaApi } from "../../api/visa";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
 type VisaStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
@@ -102,7 +103,7 @@ const VisaCasesPage = () => {
       } catch (err) {
         console.error("Failed to load visa cases:", err);
         setRows([]);
-        setError("Failed to load visa cases.");
+        setError(getApiErrorMessage(err, "Failed to load visa cases."));
       } finally {
         setLoading(false);
       }

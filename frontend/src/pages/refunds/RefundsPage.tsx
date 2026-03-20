@@ -16,6 +16,7 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import EmptyState from "../../components/ui/EmptyState";
 import { refundsApi } from "../../api/refunds";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
 type RefundStatus = "PENDING" | "APPROVED" | "REJECTED" | "PROCESSED";
@@ -626,7 +627,7 @@ const RefundsPage = () => {
       } catch (err) {
         console.error("Failed to load refunds:", err);
         setRows([]);
-        setError("Failed to load refunds.");
+        setError(getApiErrorMessage(err, "Failed to load refunds."));
       } finally {
         setLoading(false);
       }
@@ -664,7 +665,7 @@ const RefundsPage = () => {
       showToast("Refund created successfully", "success");
     } catch (err) {
       console.error("Failed to create refund:", err);
-      showToast("Failed to create refund", "error");
+      showToast(getApiErrorMessage(err, "Failed to create refund"), "error");
     } finally {
       setLoading(false);
     }
@@ -697,7 +698,7 @@ const RefundsPage = () => {
       })
       .catch((err) => {
         console.error("Failed to approve refund:", err);
-        showToast("Failed to approve refund", "error");
+        showToast(getApiErrorMessage(err, "Failed to approve refund"), "error");
       })
       .finally(() => {
         setShowApproveConfirm(false);
@@ -733,7 +734,7 @@ const RefundsPage = () => {
       })
       .catch((err) => {
         console.error("Failed to reject refund:", err);
-        showToast("Failed to reject refund", "error");
+        showToast(getApiErrorMessage(err, "Failed to reject refund"), "error");
       })
       .finally(() => {
         setShowRejectModal(false);
@@ -769,7 +770,7 @@ const RefundsPage = () => {
       })
       .catch((err) => {
         console.error("Failed to process refund:", err);
-        showToast("Failed to process refund", "error");
+        showToast(getApiErrorMessage(err, "Failed to process refund"), "error");
       })
       .finally(() => {
         setShowProcessModal(false);
@@ -850,7 +851,7 @@ const RefundsPage = () => {
             <p className="mt-2 text-xs sm:text-sm text-red-500">{error}</p>
           ) : null}
         </div>
-        <PermissionGate permission="refunds.write">
+        <PermissionGate permission="refunds:update">
           <button
             onClick={() => setShowForm((open) => !open)}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors w-full sm:w-auto"
@@ -1031,7 +1032,7 @@ const RefundsPage = () => {
                         <StatusBadge status={row.status} />
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <PermissionGate permission="refunds.write">
+                        <PermissionGate permission="refunds:update">
                           <div className="flex justify-end gap-2">
                             <button
                               onClick={() => handleViewDetails(row)}

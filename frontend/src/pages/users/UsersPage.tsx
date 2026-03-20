@@ -11,8 +11,9 @@ import {
   FaCheckCircle,
 } from "react-icons/fa";
 import { FaXmark, FaFilter } from "react-icons/fa6";
-import { isApiError } from "../../api/apiClient";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { usersApi } from "../../api/users";
+import { useAuth } from "../../context/AuthContext";
 import { useAuthService } from "../../hooks/useAuthService";
 
 interface User {
@@ -21,6 +22,8 @@ interface User {
   email: string;
   phone?: string;
   role?: string;
+  roleId?: string;
+  permissions?: string[];
   isActive: boolean;
   createdAt: string;
 }
@@ -28,12 +31,14 @@ interface User {
 interface Role {
   id: string;
   name: string;
-  value: string;
   description?: string;
 }
 
-const getRoleLabel = (value?: string, roleMap?: Map<string, string>) =>
-  roleMap?.get(value ?? "") ?? value ?? "No Role";
+const getRoleLabel = (
+  roleName?: string,
+  roleId?: string,
+  roleMap?: Map<string, string>,
+) => roleName ?? roleMap?.get(roleId ?? "") ?? "No Role";
 
 // Toast Component
 const Toast = ({
@@ -125,7 +130,7 @@ const ConfirmDeleteModal = ({
           </p>
           {user.role && (
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              Role: {getRoleLabel(user.role, roleLabelMap)}
+              Role: {getRoleLabel(user.role, user.roleId, roleLabelMap)}
             </p>
           )}
         </div>
@@ -165,41 +170,31 @@ const UserFormModal = ({
   onClose: () => void;
   onSave: (formData: any) => void;
 }) => {
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    role: "",
-    password: "",
-    isActive: true,
-  });
+  const initialFormData =
+    user && mode === "edit"
+      ? {
+          fullName: user.fullName,
+          email: user.email,
+          phone: user.phone || "",
+          role: user.roleId || "",
+          password: "",
+          isActive: user.isActive,
+        }
+      : {
+          fullName: "",
+          email: "",
+          phone: "",
+          role: "",
+          password: "",
+          isActive: true,
+        };
 
-  useEffect(() => {
-    if (user && mode === "edit") {
-      setFormData({
-        fullName: user.fullName,
-        email: user.email,
-        phone: user.phone || "",
-        role: user.role || "",
-        password: "",
-        isActive: user.isActive,
-      });
-    } else {
-      setFormData({
-        fullName: "",
-        email: "",
-        phone: "",
-        role: "",
-        password: "",
-        isActive: true,
-      });
-    }
-  }, [user, mode, isOpen]);
+  const [formData, setFormData] = useState(initialFormData);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     onSave(formData);
   };
 
@@ -279,7 +274,7 @@ const UserFormModal = ({
             >
               <option value="">Select Role</option>
               {roles.map((role) => (
-                <option key={role.id} value={role.value}>
+                <option key={role.id} value={role.id}>
                   {role.name}
                 </option>
               ))}
@@ -357,22 +352,15 @@ const AssignRoleModal = ({
   user: User | null;
   roles: Role[];
   onClose: () => void;
-  onAssign: (userId: string, role: string) => void;
+  onAssign: (userId: string, roleId: string) => void;
 }) => {
-  const [selectedRole, setSelectedRole] = useState("");
+  const [selectedRole, setSelectedRole] = useState(user?.roleId || "");
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (user) {
-      setSelectedRole(user.role || "");
-    }
-    setError("");
-  }, [user, isOpen]);
 
   if (!isOpen || !user) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!selectedRole) {
       setError("Please select a role");
       return;
@@ -382,10 +370,10 @@ const AssignRoleModal = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full">
         <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Assign Role
+            Assign Access
           </h3>
           <button
             onClick={onClose}
@@ -423,12 +411,19 @@ const AssignRoleModal = ({
             >
               <option value="">Choose a role...</option>
               {roles.map((role) => (
-                <option key={role.id} value={role.value}>
+                <option key={role.id} value={role.id}>
                   {role.name} {role.description && `- ${role.description}`}
                 </option>
               ))}
             </select>
             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          </div>
+
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Permissions are inherited from the selected role. To edit role
+              permissions, use <strong>Settings &gt; Roles &amp; Permissions</strong>.
+            </p>
           </div>
         </form>
 
@@ -443,7 +438,7 @@ const AssignRoleModal = ({
             onClick={handleSubmit}
             className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
           >
-            <FaCheck /> Assign Role
+            <FaCheck /> Save Access
           </button>
         </div>
       </div>
@@ -453,6 +448,7 @@ const AssignRoleModal = ({
 
 const UsersPage: React.FC = () => {
   const authService = useAuthService();
+  const { hasPermission } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -476,9 +472,12 @@ const UsersPage: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const roleLabelMap = React.useMemo(
-    () => new Map(roles.map((role) => [role.value, role.name])),
+    () => new Map(roles.map((role) => [role.id, role.name])),
     [roles],
   );
+  const canCreateUsers = hasPermission("users:create");
+  const canUpdateUsers = hasPermission("users:update");
+  const canManageRbac = hasPermission("rbac:manage");
 
   const normalizeUsers = (response: unknown): User[] => {
     const payload = (response as { data?: unknown })?.data ?? response ?? [];
@@ -496,7 +495,7 @@ const UsersPage: React.FC = () => {
       const response = await usersApi.list();
       setUsers(normalizeUsers(response));
     } catch (err) {
-      const message = isApiError(err) ? err.message : "Unable to load users";
+      const message = getApiErrorMessage(err, "Unable to load users");
       setLoadingError(message);
     } finally {
       setLoading(false);
@@ -504,27 +503,27 @@ const UsersPage: React.FC = () => {
   }, []);
 
   const loadRoles = useCallback(async () => {
+    if (!canManageRbac) {
+      setRoles([]);
+      return;
+    }
     try {
-      const response = await usersApi.listRoles();
-      const payload = (response as { data?: unknown })?.data ?? response ?? [];
-      const data =
-        (payload as { data?: unknown })?.data ??
-        (payload as { items?: unknown })?.items ??
-        payload;
-      if (Array.isArray(data)) {
-        setRoles(data as Role[]);
-      } else {
-        setRoles([]);
-      }
+      const list = await authService.listRoles();
+      const mapped = list.map((role) => ({
+        id: role.id,
+        name: role.name,
+        description: role.description || undefined,
+      }));
+      setRoles(mapped);
     } catch {
       setRoles([]);
     }
-  }, []);
+  }, [authService, canManageRbac]);
 
   useEffect(() => {
     void loadUsers();
     void loadRoles();
-  }, [loadUsers, loadRoles]);
+  }, [loadRoles, loadUsers]);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ show: true, message, type });
@@ -552,6 +551,10 @@ const UsersPage: React.FC = () => {
   };
 
   const handleCreateUser = async (formData: any) => {
+    if (!canCreateUsers) {
+      showToast("You do not have permission to create users.", "error");
+      return;
+    }
     if (!formData.fullName?.trim() || formData.fullName.trim().length < 2) {
       showToast("Full name must be at least 2 characters.", "error");
       return;
@@ -575,35 +578,24 @@ const UsersPage: React.FC = () => {
         email: formData.email,
         phone: normalizePhone(formData.phone),
         password: formData.password,
+        roleId: formData.role || undefined,
         isActive: true,
       });
-      const created =
-        (response as { data?: { data?: User } }).data?.data ??
-        (response as { data?: User }).data ??
-        (response as User);
-      if (created && formData.role) {
-        try {
-          await authService.assignRole({
-            userId: created.id,
-            role: formData.role,
-          });
-        } catch (err) {
-          const message = isApiError(err)
-            ? err.message
-            : "Role assignment failed";
-          showToast(message, "info");
-        }
-      }
+      void response;
       setShowCreateModal(false);
       showToast("User created successfully", "success");
       await loadUsers();
     } catch (err) {
-      const message = isApiError(err) ? err.message : "Unable to create user";
+      const message = getApiErrorMessage(err, "Unable to create user");
       showToast(message, "error");
     }
   };
 
   const handleUpdateUser = async (formData: any) => {
+    if (!canUpdateUsers) {
+      showToast("You do not have permission to update users.", "error");
+      return;
+    }
     if (!selectedUser) return;
     if (!formData.fullName?.trim() || formData.fullName.trim().length < 2) {
       showToast("Full name must be at least 2 characters.", "error");
@@ -623,47 +615,42 @@ const UsersPage: React.FC = () => {
         fullName: formData.fullName,
         email: formData.email,
         phone: normalizePhone(formData.phone),
+        roleId: formData.role || null,
         isActive: formData.isActive,
       });
-
-      if (formData.role && formData.role !== selectedUser.role) {
-        try {
-          await authService.assignRole({
-            userId: selectedUser.id,
-            role: formData.role,
-          });
-        } catch (err) {
-          const message = isApiError(err)
-            ? err.message
-            : "Role assignment failed";
-          showToast(message, "info");
-        }
-      }
 
       setShowEditModal(false);
       setSelectedUser(null);
       showToast("User updated successfully", "success");
       await loadUsers();
     } catch (err) {
-      const message = isApiError(err) ? err.message : "Unable to update user";
+      const message = getApiErrorMessage(err, "Unable to update user");
       showToast(message, "error");
     }
   };
 
-  const handleAssignRole = async (userId: string, role: string) => {
+  const handleAssignRole = async (userId: string, roleId: string) => {
+    if (!canManageRbac) {
+      showToast("You do not have permission to manage RBAC.", "error");
+      return;
+    }
     try {
-      await authService.assignRole({ userId, role });
+      await authService.assignRole({ userId, roleId });
       setShowRoleModal(false);
       setSelectedUser(null);
       showToast("Role assigned successfully", "success");
       await loadUsers();
     } catch (err) {
-      const message = isApiError(err) ? err.message : "Unable to assign role";
+      const message = getApiErrorMessage(err, "Unable to assign role");
       showToast(message, "error");
     }
   };
 
   const handleDeleteUser = async () => {
+    if (!canUpdateUsers) {
+      showToast("You do not have permission to update users.", "error");
+      return;
+    }
     if (!selectedUser) return;
 
     try {
@@ -673,9 +660,7 @@ const UsersPage: React.FC = () => {
       showToast("User deactivated successfully", "success");
       await loadUsers();
     } catch (err) {
-      const message = isApiError(err)
-        ? err.message
-        : "Unable to deactivate user";
+      const message = getApiErrorMessage(err, "Unable to deactivate user");
       showToast(message, "error");
     }
   };
@@ -699,7 +684,7 @@ const UsersPage: React.FC = () => {
     (user) =>
       user.fullName.toLowerCase().includes(search.toLowerCase()) ||
       user.email.toLowerCase().includes(search.toLowerCase()) ||
-      getRoleLabel(user.role, roleLabelMap)
+      getRoleLabel(user.role, user.roleId, roleLabelMap)
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
@@ -745,48 +730,59 @@ const UsersPage: React.FC = () => {
       )}
 
       {/* Modals */}
-      <UserFormModal
-        isOpen={showCreateModal}
-        mode="create"
-        user={null}
-        roles={roles}
-        onClose={() => setShowCreateModal(false)}
-        onSave={handleCreateUser}
-      />
+      {canCreateUsers ? (
+        <UserFormModal
+          key={`create-${showCreateModal ? "open" : "closed"}`}
+          isOpen={showCreateModal}
+          mode="create"
+          user={null}
+          roles={roles}
+          onClose={() => setShowCreateModal(false)}
+          onSave={handleCreateUser}
+        />
+      ) : null}
 
-      <UserFormModal
-        isOpen={showEditModal}
-        mode="edit"
-        user={selectedUser}
-        roles={roles}
-        onClose={() => {
-          setShowEditModal(false);
-          setSelectedUser(null);
-        }}
-        onSave={handleUpdateUser}
-      />
+      {canUpdateUsers ? (
+        <UserFormModal
+          key={`edit-${selectedUser?.id ?? "none"}-${showEditModal ? "open" : "closed"}`}
+          isOpen={showEditModal}
+          mode="edit"
+          user={selectedUser}
+          roles={roles}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedUser(null);
+          }}
+          onSave={handleUpdateUser}
+        />
+      ) : null}
 
-      <AssignRoleModal
-        isOpen={showRoleModal}
-        user={selectedUser}
-        roles={roles}
-        onClose={() => {
-          setShowRoleModal(false);
-          setSelectedUser(null);
-        }}
-        onAssign={handleAssignRole}
-      />
+      {canManageRbac ? (
+        <AssignRoleModal
+          key={`assign-${selectedUser?.id ?? "none"}-${showRoleModal ? "open" : "closed"}`}
+          isOpen={showRoleModal}
+          user={selectedUser}
+          roles={roles}
+          onClose={() => {
+            setShowRoleModal(false);
+            setSelectedUser(null);
+          }}
+          onAssign={handleAssignRole}
+        />
+      ) : null}
 
-      <ConfirmDeleteModal
-        isOpen={showDeleteModal}
-        user={selectedUser}
-        roleLabelMap={roleLabelMap}
-        onConfirm={handleDeleteUser}
-        onCancel={() => {
-          setShowDeleteModal(false);
-          setSelectedUser(null);
-        }}
-      />
+      {canUpdateUsers ? (
+        <ConfirmDeleteModal
+          isOpen={showDeleteModal}
+          user={selectedUser}
+          roleLabelMap={roleLabelMap}
+          onConfirm={handleDeleteUser}
+          onCancel={() => {
+            setShowDeleteModal(false);
+            setSelectedUser(null);
+          }}
+        />
+      ) : null}
 
       <div className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-0 py-4 sm:py-6 lg:py-8">
         {/* Header */}
@@ -799,12 +795,14 @@ const UsersPage: React.FC = () => {
               Manage users and assign roles • {users.length} total users
             </p>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
-          >
-            <FaPlus className="mr-2" /> New User
-          </button>
+          {canCreateUsers ? (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
+            >
+              <FaPlus className="mr-2" /> New User
+            </button>
+          ) : null}
         </div>
 
         {/* Search and Filter - Mobile */}
@@ -850,7 +848,7 @@ const UsersPage: React.FC = () => {
                 <select className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500">
                   <option value="all">All Roles</option>
                   {roles.map((role) => (
-                    <option key={role.id} value={role.name}>
+                    <option key={role.id} value={role.id}>
                       {role.name}
                     </option>
                   ))}
@@ -930,7 +928,7 @@ const UsersPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900">
-                        {getRoleLabel(user.role, roleLabelMap)}
+                        {getRoleLabel(user.role, user.roleId, roleLabelMap)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -946,27 +944,33 @@ const UsersPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => openRoleModal(user)}
-                          className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
-                          title="Assign Role"
-                        >
-                          <FaUserShield />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(user)}
-                          className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          onClick={() => openDeleteModal(user)}
-                          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <FaTrash />
-                        </button>
+                        {canManageRbac ? (
+                          <button
+                            onClick={() => openRoleModal(user)}
+                            className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                            title="Assign Role"
+                          >
+                            <FaUserShield />
+                          </button>
+                        ) : null}
+                        {canUpdateUsers ? (
+                          <button
+                            onClick={() => openEditModal(user)}
+                            className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <FaEdit />
+                          </button>
+                        ) : null}
+                        {canUpdateUsers ? (
+                          <button
+                            onClick={() => openDeleteModal(user)}
+                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <FaTrash />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -1028,33 +1032,39 @@ const UsersPage: React.FC = () => {
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Role</p>
                 <span className="inline-flex items-center px-2.5 py-1 mt-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900">
-                  {getRoleLabel(user.role, roleLabelMap)}
+                  {getRoleLabel(user.role, user.roleId, roleLabelMap)}
                 </span>
               </div>
 
               {/* Actions */}
               <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-                <button
-                  onClick={() => openRoleModal(user)}
-                  className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
-                  title="Assign Role"
-                >
-                  <FaUserShield className="text-sm" />
-                </button>
-                <button
-                  onClick={() => openEditModal(user)}
-                  className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                  title="Edit"
-                >
-                  <FaEdit className="text-sm" />
-                </button>
-                <button
-                  onClick={() => openDeleteModal(user)}
-                  className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                  title="Delete"
-                >
-                  <FaTrash className="text-sm" />
-                </button>
+                {canManageRbac ? (
+                  <button
+                    onClick={() => openRoleModal(user)}
+                    className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                    title="Assign Role"
+                  >
+                    <FaUserShield className="text-sm" />
+                  </button>
+                ) : null}
+                {canUpdateUsers ? (
+                  <button
+                    onClick={() => openEditModal(user)}
+                    className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <FaEdit className="text-sm" />
+                  </button>
+                ) : null}
+                {canUpdateUsers ? (
+                  <button
+                    onClick={() => openDeleteModal(user)}
+                    className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <FaTrash className="text-sm" />
+                  </button>
+                ) : null}
               </div>
             </div>
           ))}
