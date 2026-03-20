@@ -73,11 +73,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return raw ? (JSON.parse(raw) as string[]) : [];
   });
   const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const isAdmin = useMemo(
+    () => String(user?.role ?? "").toLowerCase() === "admin",
+    [user?.role],
+  );
 
   const refreshPermissions = useCallback(
     async (customToken?: string) => {
       const activeToken = customToken || token;
       if (!activeToken) return;
+      if (isAdmin) {
+        const allPermissions = ["*"];
+        setPermissions(allPermissions);
+        localStorage.setItem(
+          STORAGE_PERMISSIONS,
+          JSON.stringify(allPermissions),
+        );
+        return;
+      }
       setLoadingPermissions(true);
       try {
         const response = await rbacApi.myPermissions();
@@ -96,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoadingPermissions(false);
       }
     },
-    [token],
+    [token, isAdmin],
   );
 
   useEffect(() => {
@@ -149,6 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const hasPermission = useCallback(
     (permission: string) => {
+      if (isAdmin) return true;
       const required = normalizePermissionKey(permission);
       if (!required) {
         return true;
@@ -179,7 +193,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       });
     },
-    [permissions],
+    [permissions, isAdmin],
   );
 
   const value = useMemo(
