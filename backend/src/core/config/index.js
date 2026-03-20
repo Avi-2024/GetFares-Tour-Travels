@@ -1,0 +1,79 @@
+import { env } from "./env.js";
+
+const config = Object.freeze({
+  env: env.NODE_ENV,
+  app: {
+    name: env.APP_NAME,
+    version: env.APP_VERSION,
+    port: env.PORT,
+    corsOrigin: env.CORS_ORIGIN,
+    shutdownTimeoutMs: env.SHUTDOWN_TIMEOUT_MS,
+  },
+  auth: {
+    jwtAccessSecret: env.JWT_ACCESS_SECRET,
+    jwtAccessExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
+    defaultRole: env.AUTH_DEFAULT_ROLE,
+  },
+  rbac: {
+    permissionCacheTtlMs: env.RBAC_PERMISSION_CACHE_TTL_SEC * 1000,
+  },
+  database: {
+    url: env.DATABASE_URL,
+  },
+  logger: {
+    level: env.LOG_LEVEL,
+  },
+  health: {
+    dbTimeoutMs: env.HEALTH_DB_TIMEOUT_MS,
+  },
+  metrics: {
+    enabled: env.METRICS_ENABLED,
+    token: env.METRICS_TOKEN,
+  },
+  meta: {
+    verifyToken: env.META_VERIFY_TOKEN,
+    accessToken: env.META_ACCESS_TOKEN,
+    graphBaseUrl: env.META_GRAPH_BASE_URL,
+    graphVersion: env.META_GRAPH_VERSION,
+    graphFields: env.META_GRAPH_FIELDS.split(",")
+      .map((field) => field.trim())
+      .filter(Boolean),
+  },
+  whatsapp: {
+    verifyToken: env.META_VERIFY_TOKEN,
+    accessToken: env.WHATSAPP_ACCESS_TOKEN,
+    appSecret: env.WHATSAPP_APP_SECRET,
+    appId: env.WHATSAPP_APP_ID,
+    phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
+    apiBaseUrl: env.WHATSAPP_API_BASE_URL || env.META_GRAPH_BASE_URL,
+    apiVersion: env.WHATSAPP_API_VERSION,
+    preTravelDays: env.WHATSAPP_PRE_TRAVEL_DAYS,
+    postTravelDays: env.WHATSAPP_POST_TRAVEL_DAYS,
+    templates: {
+      leadWelcome: env.WHATSAPP_TEMPLATE_LEAD_WELCOME,
+      leadFollowup: env.WHATSAPP_TEMPLATE_LEAD_FOLLOWUP,
+      quotation: env.WHATSAPP_TEMPLATE_QUOTATION,
+      quotationReminder: env.WHATSAPP_TEMPLATE_QUOTATION_REMINDER,
+      booking: env.WHATSAPP_TEMPLATE_BOOKING,
+      payment: env.WHATSAPP_TEMPLATE_PAYMENT,
+      visa: env.WHATSAPP_TEMPLATE_VISA,
+      preTravel: env.WHATSAPP_TEMPLATE_PRE_TRAVEL,
+      postTravel: env.WHATSAPP_TEMPLATE_POST_TRAVEL,
+    },
+  },
+  aws: {
+    accessKeyId: env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+    region: env.AWS_REGION,
+    bucket: env.AWS_S3_BUCKET_NAME,
+    publicRead: env.AWS_S3_PUBLIC_READ ?? false,
+    publicBaseUrl: env.AWS_S3_PUBLIC_BASE_URL,
+    uploadPrefix: env.AWS_S3_UPLOAD_PREFIX,
+    maxUploadSizeMb: env.UPLOAD_MAX_SIZE_MB || 10,
+  },
+  uploads: {
+    maxFileSizeMb: env.UPLOAD_MAX_SIZE_MB || 10,
+  },
+});
+
+export { config };
