@@ -2,7 +2,9 @@ import { AppError } from "../../core/errors/index.js";
 
 const QUOTATION_STATUS = Object.freeze({
   DRAFT: "DRAFT",
+  PENDING: "PENDING",
   SENT: "SENT",
+  VIEWED: "VIEWED",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
   EXPIRED: "EXPIRED",
@@ -689,12 +691,24 @@ function createQuotationsService({ repository, logger, events }) {
       );
       const rows = await repository.findAll(filters);
 
-      if (!filters.includeItems) {
+      if (!rows.length) {
         return rows;
       }
 
+      const userMap = await repository.findUsersByIds(
+        rows.map((row) => row.createdBy),
+      );
+      const withUsers = rows.map((row) => ({
+        ...row,
+        createdByUser: userMap.get(row.createdBy) || null,
+      }));
+
+      if (!filters.includeItems) {
+        return withUsers;
+      }
+
       const result = [];
-      for (const row of rows) {
+      for (const row of withUsers) {
         const items = await repository.findItemsByQuotationId(row.id);
         result.push({ ...row, items });
       }

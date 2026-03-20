@@ -48,6 +48,20 @@ function createRbacRoutes({
     validateRequest(validation.listRoles),
     asyncHandler(controller.listRoles),
   );
+  adminRouter.post(
+    "/roles",
+    requireAuth,
+    authorize("rbac:manage"),
+    validateRequest(validation.createRole),
+    asyncHandler(controller.createRole),
+  );
+  adminRouter.patch(
+    "/roles/:id",
+    requireAuth,
+    authorize("rbac:manage"),
+    validateRequest(validation.updateRole),
+    asyncHandler(controller.updateRole),
+  );
   adminRouter.patch(
     "/roles/:id/permissions",
     requireAuth,
@@ -112,6 +126,20 @@ function createRbacRoutes({
     authorize("rbac:manage"),
     validateRequest(validation.listRoles),
     asyncHandler(controller.listRoles),
+  );
+  rolesRouter.post(
+    "/",
+    requireAuth,
+    authorize("rbac:manage"),
+    validateRequest(validation.createRole),
+    asyncHandler(controller.createRole),
+  );
+  rolesRouter.patch(
+    "/:id",
+    requireAuth,
+    authorize("rbac:manage"),
+    validateRequest(validation.updateRole),
+    asyncHandler(controller.updateRole),
   );
   rolesRouter.patch(
     "/:id/permissions",

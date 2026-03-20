@@ -23,6 +23,7 @@ function createUsersModule({ dependencies }) {
     logger: dependencies.logger,
     events,
     rbacService: dependencies.services?.rbac,
+    rolesService: dependencies.services?.roles,
   });
 
   const controller = createUsersController({ service });

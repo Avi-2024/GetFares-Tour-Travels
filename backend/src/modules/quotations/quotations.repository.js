@@ -251,6 +251,22 @@ function createQuotationsRepository({ db, logger, schema }) {
     };
   }
 
+  async function findUsersByIds(userIds = []) {
+    const ids = [...new Set(userIds.filter(Boolean))];
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(ids.map((id) => db.findById(schema.usersTable, id)));
+    const userMap = new Map();
+
+    rows.filter(Boolean).forEach((row) => {
+      userMap.set(row.id, toUser(row));
+    });
+
+    return userMap;
+  }
+
   function toLead(row) {
     if (!row) {
       return null;
@@ -715,6 +731,8 @@ function createQuotationsRepository({ db, logger, schema }) {
       const row = await db.findById(schema.usersTable, id);
       return toUser(row);
     },
+
+    findUsersByIds,
 
     async findTemplateById(id) {
       const row = await db.findById(schema.templatesTable, id);

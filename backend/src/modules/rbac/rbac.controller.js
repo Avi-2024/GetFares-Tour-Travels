@@ -28,6 +28,19 @@ function createRbacController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async createRole(req, res) {
+      const result = await service.createRole(req.validated.body);
+      res.status(201).json({ data: result });
+    },
+
+    async updateRole(req, res) {
+      const result = await service.updateRole(
+        req.validated.params.id,
+        req.validated.body,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async updateRolePermissions(req, res) {
       const result = await service.updateRolePermissionsById({
         roleId: req.validated.params.id,

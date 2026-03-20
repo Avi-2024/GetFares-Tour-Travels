@@ -5,6 +5,7 @@ function createRbacService({
   events,
   logger,
   cacheTtlMs = 60_000,
+  rolesService,
 }) {
   const rolePermissionsCache = new Map();
   const userRoleCache = new Map();
@@ -184,9 +185,15 @@ function createRbacService({
         );
       }
 
+      let resolvedRoleId = roleId;
+      if (!resolvedRoleId && role && rolesService) {
+        const resolved = await rolesService.resolveRole({ role });
+        resolvedRoleId = resolved?.id || null;
+      }
+
       const assignment =
-        roleId ?
-          await repository.assignRoleById(userId, roleId)
+        resolvedRoleId ?
+          await repository.assignRoleById(userId, resolvedRoleId)
         : await repository.assignRole(userId, role);
 
       if (!assignment) {
@@ -206,6 +213,30 @@ function createRbacService({
         description: row.description ?? null,
         isActive: row.is_active !== false,
       }));
+    },
+
+    async createRole(payload = {}) {
+      if (!rolesService) {
+        throw new AppError(
+          500,
+          "Role service unavailable",
+          "RBAC_ROLE_SERVICE_UNAVAILABLE",
+        );
+      }
+      const created = await rolesService.createRole(payload);
+      return created;
+    },
+
+    async updateRole(roleId, payload = {}) {
+      if (!rolesService) {
+        throw new AppError(
+          500,
+          "Role service unavailable",
+          "RBAC_ROLE_SERVICE_UNAVAILABLE",
+        );
+      }
+      const updated = await rolesService.updateRole(roleId, payload);
+      return updated;
     },
 
     async listPermissions({ includeInactive = true } = {}) {

@@ -44,6 +44,7 @@ function registerModules(app, dependencies) {
   const featureDependencies = {
     ...dependenciesWithAuth,
     services: {
+      ...(dependenciesWithAuth.services || {}),
       rbac: rbacModule.service,
     },
     middlewares: {

@@ -4,7 +4,13 @@ import { AppError } from "../../core/errors/index.js";
 import { DEFAULT_ROLE } from "../../core/constants/index.js";
 
 
-function createAuthService({ repository, logger, events, authConfig }) {
+function createAuthService({
+  repository,
+  logger,
+  events,
+  authConfig,
+  rolesService,
+}) {
   function serializeUser(user) {
     return {
       id: user.id,
@@ -66,12 +72,21 @@ function createAuthService({ repository, logger, events, authConfig }) {
       }
 
       const passwordHash = await bcrypt.hash(payload.password, 12);
+      const desiredRole =
+        payload.role || authConfig.defaultRole || DEFAULT_ROLE;
+      const resolvedRole = rolesService ?
+        await rolesService.resolveRole({
+          role: desiredRole,
+          roleId: payload.roleId,
+        })
+      : null;
       const user = await repository.createUser({
         fullName: payload.fullName,
         email: payload.email,
         phone: payload.phone || null,
         passwordHash,
-        role: payload.role || authConfig.defaultRole || DEFAULT_ROLE,
+        role: desiredRole,
+        roleId: resolvedRole?.id || payload.roleId || null,
         isActive: true,
       });
 

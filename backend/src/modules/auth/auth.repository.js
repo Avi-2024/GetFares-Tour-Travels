@@ -67,7 +67,10 @@ function createAuthRepository({ db, logger, schema }) {
         "Creating auth user",
       );
 
-      const roleRecord = await resolveRole(payload.role);
+      const roleRecord =
+        payload.roleId ?
+          { id: payload.roleId, name: payload.role || null }
+        : await resolveRole(payload.role);
 
       const created = await db.insert(schema.usersTable, {
         role_id: roleRecord.id,
