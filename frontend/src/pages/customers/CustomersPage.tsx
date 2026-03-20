@@ -337,7 +337,7 @@ const CustomersPage: React.FC = () => {
 
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <div className="max-w-8xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8">
+      <div className="max-w-8xl mx-auto ">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-0 sm:px-0">
           <div>
