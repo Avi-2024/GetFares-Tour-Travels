@@ -375,16 +375,20 @@ const QuotationDetailPage: React.FC = () => {
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <button
-            onClick={() => navigate("/quotations")}
-            className="mb-2 inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-          >
-            <FaArrowLeft className="text-xs" /> Back to Quotations
-          </button>
           <div className="flex items-center justify-between gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Quotation #{quotation.quoteNumber ?? quotation.id}
-            </h1>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/quotations")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                aria-label="Back to quotations"
+                title="Back to Quotations"
+              >
+                <FaArrowLeft className="text-sm" />
+              </button>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
+                Quotation #{quotation.quoteNumber ?? quotation.id}
+              </h1>
+            </div>
             <div className="sm:hidden">
               <StatusBadge status={status} />
             </div>
