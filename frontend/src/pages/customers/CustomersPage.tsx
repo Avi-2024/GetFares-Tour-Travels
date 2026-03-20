@@ -13,7 +13,7 @@ import {
   FaEnvelope,
 } from "react-icons/fa";
 import { MdOutlineSegment } from "react-icons/md";
-import { isApiError } from "../../api/apiClient";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { customersApi } from "../../api/customers";
 
 interface Customer {
@@ -182,9 +182,7 @@ const CustomersPage: React.FC = () => {
       const response = await customersApi.list();
       setCustomers(normalizeCustomers(response));
     } catch (err) {
-      const message = isApiError(err)
-        ? err.message
-        : "Unable to load customers";
+      const message = getApiErrorMessage(err, "Unable to load customers");
       setError(message);
     } finally {
       setLoading(false);
@@ -205,9 +203,7 @@ const CustomersPage: React.FC = () => {
       await customersApi.delete(id);
       await loadCustomers();
     } catch (err) {
-      const message = isApiError(err)
-        ? err.message
-        : "Failed to delete customer";
+      const message = getApiErrorMessage(err, "Failed to delete customer");
       setError(message);
     } finally {
       setLoading(false);
@@ -311,8 +307,8 @@ const CustomersPage: React.FC = () => {
       setShowEditModal(false);
       setEditingCustomer(null);
       await loadCustomers();
-    } catch (error: any) {
-      setError(error.message || "Failed to update customer");
+    } catch (error) {
+      setError(getApiErrorMessage(error, "Failed to update customer"));
     } finally {
       setLoading(false);
     }
@@ -332,7 +328,7 @@ const CustomersPage: React.FC = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      const message = isApiError(err) ? err.message : "Export failed";
+      const message = getApiErrorMessage(err, "Export failed");
       setError(message);
     } finally {
       setLoading(false);

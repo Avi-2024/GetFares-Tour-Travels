@@ -9,17 +9,27 @@ CREATE TABLE roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) UNIQUE NOT NULL,
     description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE permissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) UNIQUE NOT NULL
+    key VARCHAR(120) UNIQUE NOT NULL,
+    name VARCHAR(120) UNIQUE NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE role_permissions (
     role_id UUID REFERENCES roles(id) ON DELETE CASCADE,
     permission_id UUID REFERENCES permissions(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (role_id, permission_id)
 );
 
@@ -151,8 +161,8 @@ VALUES
   (
     'system',
     jsonb_build_object(
-      'companyName', 'GetFares Travel CRM',
-      'supportEmail', 'support@getfares.com',
+      'companyName', 'Get2Vacation Travel CRM',
+      'supportEmail', 'support@Get2Vacation.com',
       'supportPhone', '',
       'timezone', 'Asia/Kolkata',
       'currency', 'INR',
@@ -938,6 +948,9 @@ CREATE INDEX idx_notification_events_recipient_role ON notification_events (reci
 CREATE INDEX idx_notification_events_recipient_team ON notification_events (recipient_team_id, status, created_at DESC);
 CREATE INDEX idx_notification_events_event_name ON notification_events (event_name, created_at DESC);
 CREATE INDEX idx_notification_events_status ON notification_events (status, created_at DESC);
+CREATE INDEX idx_permissions_is_active ON permissions(is_active);
+CREATE INDEX idx_role_permissions_role_active ON role_permissions(role_id, is_active);
+CREATE INDEX idx_role_permissions_permission_active ON role_permissions(permission_id, is_active);
 
 -- =============================
 -- PACKAGES INDEXES

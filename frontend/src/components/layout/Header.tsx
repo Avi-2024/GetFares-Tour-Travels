@@ -68,7 +68,7 @@ const Header: React.FC<{
         >
           {dark ? <FaSun /> : <FaMoon />}
         </button>
-        {hasPermission("notifications.read") ? (
+        {hasPermission("notifications:read") ? (
           <div className="relative">
             <button
               onClick={() => navigate("/notifications")}

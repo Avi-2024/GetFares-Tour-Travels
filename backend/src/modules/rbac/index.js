@@ -22,13 +22,15 @@ function createRbacModule({ dependencies }) {
   const service = createRbacService({
     repository,
     events,
+    logger: dependencies.logger,
+    cacheTtlMs: dependencies.config?.rbac?.permissionCacheTtlMs || 60_000,
   });
 
   const middleware = createRbacMiddleware({ rbacService: service });
 
   const controller = createRbacController({ service });
 
-  const router = createRbacRoutes({
+  const routes = createRbacRoutes({
     controller,
     validation: RbacValidation,
     validateRequest: dependencies.middlewares.validateRequest,
@@ -38,7 +40,9 @@ function createRbacModule({ dependencies }) {
 
   return Object.freeze({
     name: "rbac",
-    router,
+    router: routes.adminRouter,
+    permissionsRouter: routes.permissionsRouter,
+    rolesRouter: routes.rolesRouter,
     controller,
     service,
     repository,

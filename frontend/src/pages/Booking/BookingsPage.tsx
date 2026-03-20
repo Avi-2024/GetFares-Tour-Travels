@@ -28,6 +28,8 @@ import EmptyState from '../../components/ui/EmptyState'
 import { validateBookingTransition } from '../../utils/workflowValidation'
 import { useBookingsService } from '../../hooks/useBookingsService'
 import { quotationsApi } from '../../api/quotations'
+import { leadsApi } from '../../api/leads'
+import { getApiErrorMessage } from '../../api/apiClient'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -65,6 +67,7 @@ interface NewBookingData {
 type QuoteOption = {
   id: string
   label: string
+  value: string
 }
 
 interface PaymentData {
@@ -80,6 +83,12 @@ interface InvoiceData {
   amount: number
   dueDate: string
   items?: Array<{ description: string; amount: number }>
+}
+
+type BookingLookups = {
+  quotationById: Record<string, any>
+  leadById: Record<string, any>
+  destinationById: Record<string, string>
 }
 
 const statusClasses: Record<BookingStatus, string> = {
@@ -99,6 +108,12 @@ const paymentClasses: Record<PaymentStatus, string> = {
   paid: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900',
   refunded:
     'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+}
+
+const getDefaultInvoiceDueDate = () => {
+  const dueDate = new Date()
+  dueDate.setDate(dueDate.getDate() + 7)
+  return dueDate.toISOString().split('T')[0]
 }
 
 // Toast Component
@@ -152,6 +167,13 @@ const CreateBookingModal = ({
   onClose: () => void
   onSave: (data: NewBookingData) => void
 }) => {
+  const isUuid = (value?: string) =>
+    Boolean(
+      value &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          value
+        )
+    )
   const [quotationOptions, setQuotationOptions] = useState<QuoteOption[]>([])
   const [quotationLoading, setQuotationLoading] = useState(false)
   const [quotationAutofillLoading, setQuotationAutofillLoading] =
@@ -195,7 +217,9 @@ const CreateBookingModal = ({
         []
       const options: QuoteOption[] = (Array.isArray(raw) ? raw : [])
         .map((q: any) => {
-          const id = String(q.id ?? q.quotationId ?? '')
+          const id = String(
+            q.id ?? q.quotationId ?? q.quotation_id ?? q.code ?? ''
+          )
           if (!id) return null
           const quoteNumber =
             q.quoteNumber ?? q.quotationNumber ?? q.code ?? `Quote ${id}`
@@ -208,13 +232,13 @@ const CreateBookingModal = ({
           const label = customer
             ? `${quoteNumber} - ${customer}`
             : quoteNumber
-          return { id, label }
+          return { id, value: id, label }
         })
         .filter(Boolean) as QuoteOption[]
       setQuotationOptions(options)
     } catch (error) {
       console.error('Failed to load quotations:', error)
-      setQuotationError('Failed to load quotations')
+      setQuotationError(getApiErrorMessage(error, 'Failed to load quotations'))
       setQuotationOptions([])
     } finally {
       setQuotationLoading(false)
@@ -223,31 +247,69 @@ const CreateBookingModal = ({
 
   const applyQuotationToForm = (quote: any) => {
     if (!quote) return
-    const lead = quote.lead ?? quote.leadSnapshot ?? quote.templateSnapshot?.lead
+    const lead =
+      quote.lead ??
+      quote.leadSnapshot ??
+      quote.templateSnapshot?.lead ??
+      quote.customerSnapshot ??
+      quote.client ??
+      quote.customer ??
+      {}
     const customer =
-      lead?.name ?? quote.customerName ?? quote.customer ?? formData.customer
+      lead?.name ??
+      lead?.fullName ??
+      quote.customer?.name ??
+      quote.customerSnapshot?.name ??
+      quote.customerName ??
+      quote.clientName ??
+      quote.customer ??
+      formData.customer
     const email =
-      lead?.email ?? quote.email ?? quote.customerEmail ?? formData.email
+      lead?.email ??
+      lead?.primaryEmail ??
+      quote.customer?.email ??
+      quote.customerSnapshot?.email ??
+      quote.email ??
+      quote.customerEmail ??
+      quote.clientEmail ??
+      formData.email
     const phone =
-      lead?.phone ?? quote.phone ?? quote.customerPhone ?? formData.phone
+      lead?.phone ??
+      lead?.mobile ??
+      lead?.whatsapp ??
+      quote.customer?.phone ??
+      quote.customerSnapshot?.phone ??
+      quote.phone ??
+      quote.customerPhone ??
+      quote.clientPhone ??
+      formData.phone
     const destination =
+      quote.destination?.name ??
+      quote.destinationName ??
       quote.destination ??
       quote.tripDestination ??
       quote.templateSnapshot?.destination ??
+      lead?.destination ??
       formData.destination
     const travelStart =
       quote.travelStartDate ??
       quote.travelStart ??
+      quote.tripStartDate ??
+      quote.startDate ??
       quote.templateSnapshot?.travelStartDate
     const travelEnd =
       quote.travelEndDate ??
       quote.travelEnd ??
+      quote.tripEndDate ??
+      quote.endDate ??
       quote.templateSnapshot?.travelEndDate
     const totalAmountRaw =
       quote.finalPrice ??
       quote.totalSaleValue ??
       quote.totalCost ??
-      quote.totalAmount
+      quote.totalAmount ??
+      quote.pricing?.total ??
+      quote.pricing?.finalPrice
     const totalAmount =
       totalAmountRaw !== undefined
         ? Number(totalAmountRaw) || 0
@@ -257,7 +319,9 @@ const CreateBookingModal = ({
       quote.costAmount ??
       quote.supplierCost ??
       quote.cost ??
-      quote.totalAmount
+      quote.totalAmount ??
+      quote.pricing?.cost ??
+      quote.pricing?.supplierCost
     const costAmount =
       costAmountRaw !== undefined
         ? Number(costAmountRaw) || 0
@@ -297,9 +361,69 @@ const CreateBookingModal = ({
       const res = await quotationsApi.getById(quotationId)
       const quote =
         (res as any)?.data?.data ?? (res as any)?.data ?? res ?? null
+      const resolvedId = String(
+        quote?.id ??
+          quote?.quotationId ??
+          quote?.quotation_id ??
+          quotationId ??
+          ''
+      )
+      if (isUuid(resolvedId)) {
+        setFormData(prev => ({ ...prev, quotationId: resolvedId }))
+        setQuotationError('')
+      } else {
+        setQuotationError('Selected quotation has no valid UUID')
+      }
       applyQuotationToForm(quote)
+
+      const leadId =
+        quote?.leadId ??
+        quote?.lead_id ??
+        quote?.lead?.id ??
+        quote?.leadSnapshot?.id ??
+        quote?.leadSnapshot?.leadId ??
+        null
+
+      if (leadId) {
+        try {
+          const leadRes = await leadsApi.getById(String(leadId))
+          const lead =
+            (leadRes as any)?.data?.data ??
+            (leadRes as any)?.data ??
+            leadRes ??
+            null
+          const isBlank = (value?: string) =>
+            !value || value === 'N/A' || value === 'NA'
+          if (lead) {
+            setFormData(prev => ({
+              ...prev,
+              customer:
+                isBlank(prev.customer)
+                  ? lead.name ?? lead.fullName ?? prev.customer
+                  : prev.customer,
+              email:
+                isBlank(prev.email)
+                  ? lead.email ?? lead.primaryEmail ?? prev.email
+                  : prev.email,
+              phone:
+                isBlank(prev.phone)
+                  ? lead.phone ?? lead.mobile ?? lead.whatsapp ?? prev.phone
+                  : prev.phone,
+              destination:
+                isBlank(prev.destination)
+                  ? lead.destination ?? prev.destination
+                  : prev.destination
+            }))
+          }
+        } catch (leadError) {
+          console.error('Failed to load lead for quotation:', leadError)
+        }
+      }
     } catch (error) {
       console.error('Failed to load quotation:', error)
+      setQuotationError(
+        getApiErrorMessage(error, 'Failed to load quotation details')
+      )
     } finally {
       setQuotationAutofillLoading(false)
     }
@@ -311,6 +435,9 @@ const CreateBookingModal = ({
     const newErrors: Partial<Record<keyof NewBookingData, string>> = {}
     if (!formData.quotationId)
       newErrors.quotationId = 'Quotation is required'
+    if (formData.quotationId && !isUuid(formData.quotationId)) {
+      newErrors.quotationId = 'Please select a valid quotation'
+    }
     if (!formData.customer) newErrors.customer = 'Customer name is required'
     if (!formData.destination) newErrors.destination = 'Destination is required'
     if (!formData.travelStart)
@@ -815,9 +942,7 @@ const GenerateInvoiceModal = ({
   const [formData, setFormData] = useState<InvoiceData>({
     bookingId: booking?.id || '',
     amount: booking?.total || 0,
-    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split('T')[0],
+    dueDate: getDefaultInvoiceDueDate(),
     items: []
   })
   const [errors, setErrors] = useState<{ amount?: string }>({})
@@ -1090,25 +1215,62 @@ const BookingsPage: React.FC = () => {
   }
 
 
-  const mapBooking = (b: any, idx: number): Booking => ({
-    id: String(b.id ?? idx),
-    bookingId: b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
-    customer: b.customer ?? b.customerName ?? b.clientName ?? 'Unknown',
-    destination: b.destination ?? b.tripDestination ?? 'N/A',
-    dates: formatDateRange(
-      b.travelStartDate ?? b.travelStart,
-      b.travelEndDate ?? b.travelEnd,
-      b.dates
-    ),
-    startDate: b.travelStartDate ?? b.travelStart,
-    endDate: b.travelEndDate ?? b.travelEnd,
-    status: normalizeStatus(b.status),
-    payment: normalizePayment(b.paymentStatus ?? b.payment_status),
-    paid: Number(b.paid ?? b.paidAmount ?? b.advanceReceived ?? 0),
-    total: Number(b.total ?? b.totalAmount ?? 0),
-    documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
-    documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0)
-  })
+  const mapBooking = (
+    b: any,
+    idx: number,
+    lookups?: BookingLookups
+  ): Booking => {
+    const quotationId = String(
+      b.quotationId ?? b.quotation_id ?? b.quoteId ?? b.quote_id ?? ''
+    )
+    const quotation = quotationId ? lookups?.quotationById?.[quotationId] : null
+    const leadId = String(
+      b.leadId ??
+        b.lead_id ??
+        quotation?.leadId ??
+        quotation?.lead_id ??
+        quotation?.lead?.id ??
+        ''
+    )
+    const lead = leadId ? lookups?.leadById?.[leadId] : null
+    const destinationId = String(
+      lead?.destinationId ?? lead?.destination_id ?? ''
+    )
+    const destinationName = destinationId
+      ? lookups?.destinationById?.[destinationId]
+      : undefined
+
+    return {
+      id: String(b.id ?? idx),
+      bookingId: b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
+      customer:
+        b.customer ??
+        b.customerName ??
+        b.clientName ??
+        lead?.fullName ??
+        lead?.name ??
+        'Unknown',
+      destination:
+        b.destination ??
+        b.tripDestination ??
+        destinationName ??
+        lead?.destination ??
+        'N/A',
+      dates: formatDateRange(
+        b.travelStartDate ?? b.travelStart,
+        b.travelEndDate ?? b.travelEnd,
+        b.dates
+      ),
+      startDate: b.travelStartDate ?? b.travelStart,
+      endDate: b.travelEndDate ?? b.travelEnd,
+      status: normalizeStatus(b.status),
+      payment: normalizePayment(b.paymentStatus ?? b.payment_status),
+      paid: Number(b.paid ?? b.paidAmount ?? b.advanceReceived ?? 0),
+      total: Number(b.total ?? b.totalAmount ?? 0),
+      documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
+      documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0)
+    }
+  }
 
   const calculateStats = (items: Booking[]) => {
     const totalBookings = items.length
@@ -1158,6 +1320,16 @@ const BookingsPage: React.FC = () => {
     setError('')
     setStatsError('')
     try {
+      const unwrapList = (response: any) => {
+        const payload =
+          response?.data?.data ??
+          response?.data?.items ??
+          response?.data ??
+          response ??
+          []
+        return Array.isArray(payload) ? payload : []
+      }
+
       const params: Record<string, string | number | boolean> = {
         page: 1,
         limit: 20
@@ -1172,15 +1344,107 @@ const BookingsPage: React.FC = () => {
         (res as any)?.data ??
         res ??
         []
-      const mapped: Booking[] = (Array.isArray(raw) ? raw : []).map(
-        (b: any, idx: number) => mapBooking(b, idx)
+      const bookingRows = Array.isArray(raw) ? raw : []
+      const lookups: BookingLookups = {
+        quotationById: {},
+        leadById: {},
+        destinationById: {},
+      }
+
+      const quotationIds = Array.from(
+        new Set(
+          bookingRows
+            .map((row: any) =>
+              String(
+                row?.quotationId ??
+                  row?.quotation_id ??
+                  row?.quoteId ??
+                  row?.quote_id ??
+                  ''
+              )
+            )
+            .filter(Boolean)
+        )
+      )
+
+      if (quotationIds.length) {
+        try {
+          const quotationsRes = await quotationsApi.list({ page: 1, limit: 500 })
+          const quotationRows = unwrapList(quotationsRes)
+          quotationRows.forEach((quote: any) => {
+            const quoteId = String(
+              quote?.id ?? quote?.quotationId ?? quote?.quotation_id ?? ''
+            )
+            if (quoteId) {
+              lookups.quotationById[quoteId] = quote
+            }
+          })
+        } catch (_error) {
+          lookups.quotationById = {}
+        }
+      }
+
+      const leadIds = Array.from(
+        new Set(
+          bookingRows
+            .map((row: any) =>
+              String(row?.leadId ?? row?.lead_id ?? '')
+            )
+            .concat(
+              Object.values(lookups.quotationById).map((quote: any) =>
+                String(
+                  quote?.leadId ??
+                    quote?.lead_id ??
+                    quote?.lead?.id ??
+                    quote?.leadSnapshot?.id ??
+                    ''
+                )
+              )
+            )
+            .filter(Boolean)
+        )
+      )
+
+      if (leadIds.length) {
+        try {
+          const leadsRes = await leadsApi.list({ page: 1, limit: 500 })
+          const leadRows = unwrapList(leadsRes)
+          leadRows.forEach((lead: any) => {
+            const leadId = String(lead?.id ?? lead?.leadId ?? lead?.lead_id ?? '')
+            if (leadId) {
+              lookups.leadById[leadId] = lead
+            }
+          })
+        } catch (_error) {
+          lookups.leadById = {}
+        }
+      }
+
+      try {
+        const destinationsRes = await leadsApi.getDestinations()
+        const destinationRows = unwrapList(destinationsRes)
+        destinationRows.forEach((destination: any) => {
+          const destinationId = String(destination?.id ?? '')
+          const destinationName = String(
+            destination?.name ?? destination?.label ?? ''
+          )
+          if (destinationId && destinationName) {
+            lookups.destinationById[destinationId] = destinationName
+          }
+        })
+      } catch (_error) {
+        lookups.destinationById = {}
+      }
+
+      const mapped: Booking[] = bookingRows.map((b: any, idx: number) =>
+        mapBooking(b, idx, lookups)
       )
       setBookingItems(mapped)
       setStats(calculateStats(mapped))
     } catch (err) {
       console.error('Failed to load bookings:', err)
-      setError('Failed to load bookings')
-      setStatsError('Failed to load booking stats')
+      setError(getApiErrorMessage(err, 'Failed to load bookings'))
+      setStatsError(getApiErrorMessage(err, 'Failed to load booking stats'))
       setBookingItems([])
     } finally {
       setLoading(false)
@@ -1204,10 +1468,14 @@ const BookingsPage: React.FC = () => {
     setLoading(true)
     try {
       await bookingsService.sendConfirmation(bookingId)
-      showToast('Confirmation sent successfully', 'success')
+      await fetchBookings()
+      showToast('Booking confirmed successfully', 'success')
     } catch (error) {
       console.error('Failed to send confirmation:', error)
-      showToast('Failed to send confirmation', 'error')
+      showToast(
+        getApiErrorMessage(error, 'Failed to confirm booking'),
+        'error'
+      )
     } finally {
       setLoading(false)
     }
@@ -1225,11 +1493,11 @@ const BookingsPage: React.FC = () => {
     setLoading(true)
     try {
       await bookingsService.recordPayment(bookingId, paymentData)
+      await fetchBookings()
       showToast('Payment recorded successfully', 'success')
-      // Update local state would go here
     } catch (error) {
       console.error('Failed to record payment:', error)
-      showToast('Failed to record payment', 'error')
+      showToast(getApiErrorMessage(error, 'Failed to record payment'), 'error')
     } finally {
       setLoading(false)
     }
@@ -1242,7 +1510,10 @@ const BookingsPage: React.FC = () => {
       showToast('Invoice generated successfully', 'success')
     } catch (error) {
       console.error('Failed to generate invoice:', error)
-      showToast('Failed to generate invoice', 'error')
+      showToast(
+        getApiErrorMessage(error, 'Failed to generate invoice'),
+        'error'
+      )
     } finally {
       setLoading(false)
     }
@@ -1283,7 +1554,7 @@ const BookingsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to create booking:', error)
-      showToast('Failed to create booking', 'error')
+      showToast(getApiErrorMessage(error, 'Failed to create booking'), 'error')
     } finally {
       setLoading(false)
     }
@@ -1315,7 +1586,7 @@ const BookingsPage: React.FC = () => {
       showToast('Booking cancelled successfully', 'success')
     } catch (error) {
       console.error('Failed to cancel booking:', error)
-      showToast('Failed to cancel booking', 'error')
+      showToast(getApiErrorMessage(error, 'Failed to cancel booking'), 'error')
     } finally {
       setLoading(false)
     }

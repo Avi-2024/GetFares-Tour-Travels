@@ -352,11 +352,14 @@ function createDatabaseConnection({ config, logger }) {
       max: isServerless ? 2 : 10,
       // Keep idle connections for longer to avoid reconnects
       idleTimeoutMillis: isServerless ? 20000 : 30000,
-      // Shorter timeout for connection establishment in serverless
-      connectionTimeoutMillis: isServerless ? 3000 : 5000,
-      // Ensure we don't keep stale connections (milliseconds)
-      statement_timeout: 30000,
-      query_timeout: 30000,
+      // Connection establishment to remote RDS can be slow on some networks.
+      connectionTimeoutMillis: isServerless ? 7000 : 15000,
+      // Keep TCP alive to reduce abrupt idle disconnects.
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      // Query safety timeouts (milliseconds)
+      statement_timeout: 60000,
+      query_timeout: 60000,
     };
 
     // AWS RDS requires SSL connection
@@ -411,7 +414,11 @@ function createDatabaseConnection({ config, logger }) {
       },
       "Using PostgreSQL database adapter.",
     );
-    return new PostgresDatabase({ pool: new Pool(poolConfig) });
+    const pool = new Pool(poolConfig);
+    pool.on("error", (error) => {
+      logger.error({ err: error }, "Unexpected PostgreSQL pool error");
+    });
+    return new PostgresDatabase({ pool });
   }
 
   logger.warn("DATABASE_URL is not set. Falling back to in-memory adapter.");

@@ -9,5 +9,7 @@ export const QuotationsSchema = Object.freeze({
   leadsTable: "leads",
   bookingsTable: "bookings",
   usersTable: "users",
+  destinationsTable: "destinations",
+  pricingTable: "destination_pricing",
   entityName: "Quotations",
 });

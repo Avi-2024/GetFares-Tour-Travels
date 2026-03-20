@@ -28,15 +28,24 @@ export const bookingsApi = {
     });
   },
   getPaymentStatus: (id: string) =>
-    apiRequest(`/api/bookings/${id}/payment-status`),
-  recordPayment: (id: string, payload: unknown) =>
-    apiRequest(`/api/bookings/${id}/payments`, {
+    apiRequest(`/api/bookings/${id}`),
+  recordPayment: (id: string, payload: unknown) => {
+    const body = (payload as Record<string, unknown>) || {};
+    return apiRequest(`/api/payments`, {
       method: "POST",
-      body: payload,
-    }),
-  getPayments: (id: string) => apiRequest(`/api/bookings/${id}/payments`),
+      body: {
+        bookingId: id,
+        ...body,
+      },
+    });
+  },
+  getPayments: (id: string) =>
+    apiRequest(withQuery(`/api/payments`, { bookingId: id })),
   sendConfirmation: (id: string) =>
-    apiRequest(`/api/bookings/${id}/send-confirmation`, { method: "POST" }),
+    apiRequest(`/api/bookings/${id}/status`, {
+      method: "POST",
+      body: { status: "CONFIRMED" },
+    }),
   cancel: (id: string, reason: string) =>
     apiRequest(`/api/bookings/${id}/status`, {
       method: "POST",

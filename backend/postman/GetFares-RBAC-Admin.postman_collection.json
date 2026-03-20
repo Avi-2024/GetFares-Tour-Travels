@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "GetFares CRM - RBAC & Admin",
+    "name": "Get2Vacation CRM - RBAC & Admin",
     "_postman_id": "7e3d4b3a-6c7c-4b9b-8f9b-0c1d2e3f4a5b",
     "description": "Auth + RBAC + Admin user management",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"

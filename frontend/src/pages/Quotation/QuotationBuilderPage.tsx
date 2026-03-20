@@ -14,6 +14,7 @@ import {
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { leadsApi } from "../../api/leads";
 import { quotationsApi } from "../../api/quotations";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
 type Currency = "USD" | "EUR" | "INR";
@@ -186,7 +187,7 @@ const QuotationBuilderPage: React.FC = () => {
       } catch (error) {
         console.error("Failed to load leads:", error);
         setLeads([]);
-        setLeadsError("Failed to load leads from API.");
+        setLeadsError(getApiErrorMessage(error, "Failed to load leads from API."));
       } finally {
         setLeadsLoading(false);
       }
@@ -298,13 +299,13 @@ const QuotationBuilderPage: React.FC = () => {
     setDownloading(true);
     try {
       // Lazy-load only when needed to keep bundle light and avoid install.
-      // @ts-expect-error
+      // @ts-expect-error remote ESM URL import has no local types
       const html2canvas = (
         await import(
           /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm"
         )
       ).default;
-      // @ts-expect-error
+      // @ts-expect-error remote ESM URL import has no local types
       const { default: JsPDF } = await import(
         /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm"
       );
@@ -456,7 +457,9 @@ const QuotationBuilderPage: React.FC = () => {
       })
       .catch((error) => {
         console.error("Failed to save quotation:", error);
-        setSaveError("Failed to save quotation. Please try again.");
+        setSaveError(
+          getApiErrorMessage(error, "Failed to save quotation. Please try again."),
+        );
       })
       .finally(() => setSaving(false));
   };
@@ -927,9 +930,9 @@ const QuotationBuilderPage: React.FC = () => {
                           <FaPlaneDeparture />
                         </div>
                         <div>
-                          <p className="font-semibold">GetFares Travel CRM</p>
+                          <p className="font-semibold">Get2Vacation Travel CRM</p>
                           <p className="text-xs text-gray-500">
-                            support@getfares.com
+                            support@Get2Vacation.com
                           </p>
                         </div>
                       </div>

@@ -178,7 +178,7 @@ async function main() {
         code: `READY_${seed}`,
         name: "Ready Package Template",
         templateType: "READY_PACKAGE",
-        headerBranding: "Getfares Branding",
+        headerBranding: "Get2Vacation Branding",
         inclusions: "Hotel, Flight, Transfer",
         exclusions: "Personal expenses",
         paymentTerms: "50% advance",

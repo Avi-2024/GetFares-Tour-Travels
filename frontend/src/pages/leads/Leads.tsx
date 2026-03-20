@@ -15,7 +15,7 @@ import {
 import EmptyState from "../../components/ui/EmptyState";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
-import { isApiError } from "../../api/apiClient";
+import { getApiErrorMessage } from "../../api/apiClient";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import type { LeadListItem } from "../../services/leadsService";
 
@@ -41,6 +41,24 @@ const Leads: React.FC = () => {
   const nav = useNavigate();
   const leadsService = useLeadsService();
 
+  const handleViewLead = (lead: LeadListItem) => {
+    const snapshot = {
+      id: lead.id,
+      leadId: lead.leadId,
+      name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
+      destination: lead.destination,
+      packageName: lead.packageName,
+      status: lead.status,
+      priority: lead.priority,
+      sla: lead.sla,
+      consultant: lead.consultant,
+    };
+    sessionStorage.setItem(`lead:${lead.id}`, JSON.stringify(snapshot));
+    nav(`/leads/${lead.id}`, { state: { lead: snapshot } });
+  };
+
   useEffect(() => {
     const fetchLeads = async () => {
       setLoading(true);
@@ -52,10 +70,7 @@ const Leads: React.FC = () => {
         });
         setFetchedLeads(mapped);
       } catch (err) {
-        const msg = isApiError(err)
-          ? err.message || "Failed to load leads"
-          : "Failed to load leads";
-        setError(msg);
+        setError(getApiErrorMessage(err, "Failed to load leads"));
         setFetchedLeads([]);
       } finally {
         setLoading(false);
@@ -309,7 +324,7 @@ const Leads: React.FC = () => {
                       </p>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => nav(`/leads/${lead.id}`)}
+                          onClick={() => handleViewLead(lead)}
                           className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
                         >
                           <FaEye />
@@ -356,7 +371,7 @@ const Leads: React.FC = () => {
                       <tr
                         key={lead.id}
                         className="group hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-                        onClick={() => nav(`/leads/${lead.id}`)}
+                        onClick={() => handleViewLead(lead)}
                       >
                         <td className="px-5 py-4">
                           <p className="font-medium text-gray-900 dark:text-gray-100">
@@ -397,7 +412,7 @@ const Leads: React.FC = () => {
                           >
                             <button
                               className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 transition-colors"
-                              onClick={() => nav(`/leads/${lead.id}`)}
+                              onClick={() => handleViewLead(lead)}
                             >
                               <FaEye />
                             </button>

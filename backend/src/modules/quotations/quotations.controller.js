@@ -25,7 +25,7 @@
       const result = await service.getById(
         req.validated.params.id,
         req.context,
-        { includeItems: true },
+        { includeItems: true, includeRelations: true },
       );
       res.status(200).json({ data: result });
     },

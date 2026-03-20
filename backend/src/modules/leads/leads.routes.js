@@ -6,6 +6,7 @@ function createLeadsRoutes({
   validation,
   validateRequest,
   requireAuth,
+  optionalAuth,
   authorize,
 }) {
   const router = Router();
@@ -23,6 +24,13 @@ function createLeadsRoutes({
     authorize("leads:create"),
     validateRequest(validation.create),
     asyncHandler(controller.create),
+  );
+
+  router.post(
+    "/public-capture",
+    optionalAuth,
+    validateRequest(validation.create),
+    asyncHandler(controller.publicCapture),
   );
 
   router.post(

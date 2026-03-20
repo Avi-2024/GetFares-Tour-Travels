@@ -48,7 +48,41 @@ export const authApi = {
 
 export const rbacApi = {
   myPermissions: () =>
-    apiRequest<{ data: { permissions: string[] } }>("/api/rbac/me/permissions"),
-  assignRole: (payload: { userId: string; role: string }) =>
+    apiRequest<{ data: { roleId?: string; role?: string; permissions: string[] } }>(
+      "/api/rbac/me/permissions",
+    ),
+  assignRole: (payload: { userId: string; role?: string; roleId?: string }) =>
     apiRequest("/api/rbac/assign", { method: "POST", body: payload }),
+  listPermissions: () =>
+    apiRequest<{
+      data: { id: string; key: string; description?: string | null; isActive?: boolean }[];
+    }>("/api/permissions"),
+  listRoles: () =>
+    apiRequest<{
+      data: { id: string; name: string; description?: string | null; isActive?: boolean }[];
+    }>("/api/roles"),
+  getRolePermissionsById: (roleId: string) =>
+    apiRequest<{ data: string[] }>(`/api/roles/${roleId}/permissions`),
+  updateRolePermissions: (
+    roleId: string,
+    payload: {
+      replace?: boolean;
+      permissionIds?: string[];
+      permissions?: { permissionId?: string; key?: string; enabled?: boolean }[];
+    },
+  ) =>
+    apiRequest<{ data: { roleId: string; role: string; permissions: string[] } }>(
+      `/api/roles/${roleId}/permissions`,
+      { method: "PATCH", body: payload },
+    ),
+  getRolePermissions: (role: string) =>
+    apiRequest<{ data: string[] }>(`/api/rbac/roles/${role}/permissions`),
+  setRolePermissions: (role: string, payload: { permissions: string[] }) =>
+    apiRequest<{ data: { role: string; permissions: string[] } }>(
+      `/api/rbac/roles/${role}/permissions`,
+      {
+        method: "PUT",
+        body: payload,
+      },
+    ),
 };

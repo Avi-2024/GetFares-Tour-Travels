@@ -71,7 +71,7 @@ function createAuthService({ repository, logger, events, authConfig }) {
         email: payload.email,
         phone: payload.phone || null,
         passwordHash,
-        role: payload.role || DEFAULT_ROLE,
+        role: payload.role || authConfig.defaultRole || DEFAULT_ROLE,
         isActive: true,
       });
 
