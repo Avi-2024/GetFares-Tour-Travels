@@ -103,6 +103,16 @@ const Leads: React.FC = () => {
     }),
     [fetchedLeads],
   );
+  const formatCompact = (value: number) => {
+    if (value < 1000) return value.toString();
+    if (value < 1_000_000) {
+      return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+    }
+    if (value < 1_000_000_000) {
+      return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    }
+    return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+  };
 
   const getPriorityClass = (priority: string) => {
     switch (priority) {
@@ -150,22 +160,22 @@ const Leads: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <KpiCard
             title="All Leads"
-            value={leadStats.totalLeads.toLocaleString()}
+            value={formatCompact(leadStats.totalLeads)}
             icon={<FaUsers className="text-blue-600 text-xl" />}
           />
           <KpiCard
             title="New Today"
-            value={leadStats.newToday.toLocaleString()}
+            value={formatCompact(leadStats.newToday)}
             icon={<FaCalendarPlus className="text-green-500 text-xl" />}
           />
           <KpiCard
             title="Hot Leads"
-            value={leadStats.hotLeads.toLocaleString()}
+            value={formatCompact(leadStats.hotLeads)}
             icon={<FaFire className="text-red-500 text-xl" />}
           />
           <KpiCard
             title="Qualified"
-            value={leadStats.qualified.toLocaleString()}
+            value={formatCompact(leadStats.qualified)}
             icon={<FaFileInvoiceDollar className="text-amber-500 text-xl" />}
           />
         </div>
