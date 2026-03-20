@@ -1,4 +1,5 @@
 import express from "express";
+import path from "node:path";
 import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
@@ -23,7 +24,7 @@ function createApp(overrides = {}) {
   app.use(cors({ origin: container.config.app.corsOrigin }));
   app.use(
     express.json({
-      limit: "1mb",
+      limit: "5mb",
       verify: (req, _res, buf) => {
         if (buf && buf.length) {
           req.rawBody = buf.toString("utf8");
@@ -31,6 +32,10 @@ function createApp(overrides = {}) {
       },
     }),
   );
+  app.use(express.urlencoded({ extended: true, limit: "5mb" }));
+
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
   app.use(pinoHttp({ logger: container.logger }));
   app.use(requestContext);
   app.use(

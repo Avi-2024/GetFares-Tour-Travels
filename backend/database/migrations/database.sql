@@ -1,5 +1,6 @@
 
 
+
 -- =========================================
 -- 1. AUTHENTICATION & RBAC TABLES
 -- =========================================
@@ -131,7 +132,52 @@ CREATE TABLE notification_events (
 );
 
 -- =========================================
--- 8. CUSTOMER MANAGEMENT
+-- 3.2 SETTINGS
+-- =========================================
+
+CREATE TABLE app_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key VARCHAR(80) NOT NULL UNIQUE,
+    value JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_app_settings_key ON app_settings(key);
+
+INSERT INTO app_settings (key, value)
+VALUES
+  (
+    'system',
+    jsonb_build_object(
+      'companyName', 'GetFares Travel CRM',
+      'supportEmail', 'support@getfares.com',
+      'supportPhone', '',
+      'timezone', 'Asia/Kolkata',
+      'currency', 'INR',
+      'dateFormat', 'DD/MM/YYYY',
+      'websiteUrl', ''
+    )
+  ),
+  (
+    'integrations',
+    jsonb_build_object(
+      'metaAppId', '',
+      'metaAccessToken', '',
+      'whatsappApiToken', '',
+      'smtpHost', '',
+      'smtpPort', 587,
+      'smtpUser', '',
+      'smtpPassword', '',
+      'smtpFromEmail', '',
+      'webhookUrl', ''
+    )
+  )
+ON CONFLICT (key) DO NOTHING;
+
+-- =========================================
+-- 4. CUSTOMER MANAGEMENT (MOVED BEFORE LEADS)
 -- =========================================
 
 CREATE TYPE customer_segment AS ENUM (
@@ -156,15 +202,8 @@ CREATE TABLE customers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE customer_leads (
-    customer_id UUID REFERENCES customers(id),
-    lead_id UUID REFERENCES leads(id),
-    PRIMARY KEY (customer_id, lead_id),
-    is_deleted BOOLEAN DEFAULT FALSE
-);
-
 -- =========================================
--- 4. LEAD MANAGEMENT
+-- 5. LEAD MANAGEMENT
 -- =========================================
 
 CREATE TYPE lead_status AS ENUM (
@@ -258,8 +297,15 @@ followup_type INT CHECK (followup_type BETWEEN 1 AND 4),    followup_date TIMEST
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE customer_leads (
+    customer_id UUID REFERENCES customers(id),
+    lead_id UUID REFERENCES leads(id),
+    PRIMARY KEY (customer_id, lead_id),
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+
 -- =========================================
--- 5. QUOTATION
+-- 6. QUOTATION
 -- =========================================
 
 CREATE TYPE quote_status AS ENUM (
@@ -800,8 +846,10 @@ CREATE INDEX idx_leads_destination_id ON leads(destination_id);
 CREATE INDEX idx_leads_campaign_id ON leads(campaign_id);
 CREATE INDEX idx_leads_status ON leads(status);
 CREATE INDEX idx_leads_assigned_to ON leads(assigned_to);
+CREATE INDEX idx_leads_assigned_at ON leads(assigned_at);
 CREATE INDEX idx_leads_created_at ON leads(created_at);
 CREATE INDEX idx_leads_response_deadline ON leads(response_deadline);
+CREATE INDEX idx_leads_sla_breached ON leads(sla_breached);
 CREATE INDEX idx_active_leads ON leads(status) WHERE is_deleted = FALSE;
 -- For filtering by status + assigned_to (very common CRM query)
 CREATE INDEX idx_leads_status_assigned ON leads(status, assigned_to);
@@ -809,6 +857,10 @@ CREATE INDEX idx_leads_temperature ON leads(temperature);
 CREATE INDEX idx_leads_sub_status ON leads(sub_status);
 CREATE INDEX idx_leads_pan_number ON leads(pan_number);
 CREATE UNIQUE INDEX idx_leads_meta_lead_id ON leads(meta_lead_id);
+CREATE INDEX idx_followups_lead_id ON followups(lead_id);
+CREATE INDEX idx_followups_due_open ON followups(followup_date, is_completed);
+CREATE INDEX idx_lead_activities_lead_user_created
+  ON lead_activities(lead_id, user_id, created_at);
 
 
 -- =============================

@@ -96,7 +96,7 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     status: normalizedStatus,
     priority: normalizePriority(lead),
     sla: lead.sla ?? lead.slaStatus ?? "—",
-    consultant: lead.consultant ?? lead.owner ?? "Unassigned",
+    consultant: lead.assignedUser?.fullName ?? "Unassigned",
   };
 };
 
