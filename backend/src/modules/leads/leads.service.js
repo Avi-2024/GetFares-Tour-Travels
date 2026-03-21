@@ -64,6 +64,23 @@ function createLeadsService({ repository, logger, events }) {
     return 1;
   }
 
+  function isAdminContext(context = {}) {
+    return String(context.user?.role || "")
+      .trim()
+      .toLowerCase() === "admin";
+  }
+
+  function scopeReadFilters(filters = {}, context = {}) {
+    if (isAdminContext(context) || !context.user?.id) {
+      return { ...filters };
+    }
+
+    return {
+      ...filters,
+      assignedTo: context.user.id,
+    };
+  }
+
   function getDaysUntilTravel(travelDate) {
     if (!travelDate) {
       return null;
@@ -347,6 +364,15 @@ function createLeadsService({ repository, logger, events }) {
       throw new AppError(404, "Lead not found", "LEAD_NOT_FOUND");
     }
 
+    if (
+      !isAdminContext(context) &&
+      context.user?.id &&
+      item.assignedTo &&
+      item.assignedTo !== context.user.id
+    ) {
+      throw new AppError(404, "Lead not found", "LEAD_NOT_FOUND");
+    }
+
     return withTemperature(item);
   }
 
@@ -603,7 +629,7 @@ function createLeadsService({ repository, logger, events }) {
         { module: "leads", requestId: context.requestId, filters },
         "Listing leads",
       );
-      const leads = await repository.findAll(filters);
+      const leads = await repository.findAll(scopeReadFilters(filters, context));
       return leads.map((lead) => withTemperature(lead));
     },
 
