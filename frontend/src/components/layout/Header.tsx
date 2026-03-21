@@ -11,21 +11,43 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationsContext";
 
+const getDisplayName = (name?: string, email?: string) => {
+  const value = name?.trim() || email?.split("@")[0] || "User";
+  return value;
+};
+
+const getInitials = (name: string) => {
+  const parts = name.split(" ").filter(Boolean);
+  if (parts.length === 0) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+};
+
+const formatRoleLabel = (role?: string) => {
+  if (!role) return "Signed in";
+  return role
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+};
+
 const Header: React.FC<{
   onMenuClick: () => void;
 }> = ({ onMenuClick }) => {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
-  const { hasPermission, logout } = useAuth();
+  const { hasPermission, logout, user } = useAuth();
   const { unreadCount } = useNotifications();
+  const displayName = getDisplayName(user?.name, user?.email);
+  const roleLabel = formatRoleLabel(user?.role);
+  const initials = getInitials(displayName);
 
   useEffect(() => {
-    const enabled = localStorage.getItem("theme") === "dark";
-    setDark(enabled);
-    document.documentElement.classList.toggle("dark", enabled);
-  }, []);
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
@@ -88,16 +110,14 @@ const Header: React.FC<{
             onClick={() => setMenuOpen((p) => !p)}
             className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
           >
-            <img
-              className="h-8 w-8 rounded-full"
-              src="https://storage.googleapis.com/uxpilot-auth.appspot.com/28c2bdaa36-0690aa93f5755609852b.png"
-              alt="Alex"
-            />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+              {initials}
+            </div>
             <div className="hidden text-left sm:block">
               <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
-                Alex Morgan
+                {displayName}
               </p>
-              <p className="text-xs text-gray-500">Admin</p>
+              <p className="text-xs text-gray-500">{roleLabel}</p>
             </div>
             <FaChevronDown className="text-xs text-gray-500" />
           </button>
