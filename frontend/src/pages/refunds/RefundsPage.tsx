@@ -18,6 +18,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import { refundsApi } from "../../api/refunds";
 import { bookingsApi } from "../../api/bookings";
 import { paymentsApi } from "../../api/payments";
+import { quotationsApi } from "../../api/quotations";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 
@@ -42,6 +43,85 @@ type RefundRow = {
   processedAt?: string;
   processedBy?: string;
   gatewayRefundId?: string;
+};
+
+type BookingReference = {
+  id: string;
+  bookingNumber: string;
+  quotationId?: string;
+  customer?: string;
+};
+
+type QuotationReference = {
+  id: string;
+  customer?: string;
+};
+
+const mapBookingReference = (booking: any): BookingReference | null => {
+  if (!booking?.id) {
+    return null;
+  }
+
+  return {
+    id: String(booking.id),
+    bookingNumber:
+      booking.bookingNumber ||
+      booking.booking_number ||
+      booking.code ||
+      `BK-${booking.id}`,
+    quotationId:
+      booking.quotationId ||
+      booking.quotation_id ||
+      booking.quoteId ||
+      booking.quote_id ||
+      undefined,
+    customer:
+      booking.customerName ||
+      booking.customer_name ||
+      booking.customer ||
+      booking.clientName ||
+      undefined,
+  };
+};
+
+const mapQuotationReference = (quotation: any): QuotationReference | null => {
+  if (!quotation?.id) {
+    return null;
+  }
+
+  const rawCustomer =
+    quotation.customerName ||
+    quotation.customer?.fullName ||
+    quotation.customer?.name ||
+    quotation.customerSnapshot?.fullName ||
+    quotation.customerSnapshot?.name ||
+    quotation.clientName ||
+    quotation.lead?.fullName ||
+    quotation.lead?.name ||
+    (typeof quotation.customer === "string" ? quotation.customer : "");
+
+  return {
+    id: String(quotation.id),
+    customer: rawCustomer || undefined,
+  };
+};
+
+const mergeReferenceItems = <T extends { id: string }>(
+  current: T[],
+  incoming: Array<T | null | undefined>,
+) => {
+  const merged = new Map(current.map((item) => [item.id, item]));
+
+  incoming.forEach((item) => {
+    if (!item?.id) {
+      return;
+    }
+
+    const existing = merged.get(item.id);
+    merged.set(item.id, existing ? { ...existing, ...item } : item);
+  });
+
+  return Array.from(merged.values());
 };
 
 // Toast Component
@@ -559,18 +639,41 @@ const RefundsPage = () => {
     serviceCharge: "" as number | "",
   });
 
-  const [bookings, setBookings] = useState<Array<{ id: string; bookingNumber: string; customer?: string }>>([]);
+  const [bookings, setBookings] = useState<BookingReference[]>([]);
   const [payments, setPayments] = useState<Array<{ id: string; referenceId: string; amount: number }>>([]);
+  const [quotations, setQuotations] = useState<QuotationReference[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
+
+  const bookingLookup = useMemo(
+    () => new Map(bookings.map((booking) => [booking.id, booking])),
+    [bookings],
+  );
+
+  const quotationLookup = useMemo(
+    () => new Map(quotations.map((quotation) => [quotation.id, quotation])),
+    [quotations],
+  );
 
   const bookingOptions = useMemo(
     () =>
       bookings.map((booking) => ({
         value: booking.id,
-        label: `${booking.bookingNumber}${booking.customer ? ` - ${booking.customer}` : ""}`,
+        label: `${booking.bookingNumber}${
+          booking.customer ||
+          (booking.quotationId
+            ? quotationLookup.get(booking.quotationId)?.customer
+            : "")
+            ? ` - ${
+                booking.customer ||
+                (booking.quotationId
+                  ? quotationLookup.get(booking.quotationId)?.customer
+                  : "")
+              }`
+            : ""
+        }`,
       })),
-    [bookings],
+    [bookings, quotationLookup],
   );
 
   const paymentOptions = useMemo(
@@ -582,20 +685,55 @@ const RefundsPage = () => {
     [payments],
   );
 
+  const getCustomerName = (bookingId: string) => {
+    const booking = bookingLookup.get(bookingId);
+    if (!booking) {
+      return "Unknown customer";
+    }
+
+    return (
+      booking.customer ||
+      (booking.quotationId
+        ? quotationLookup.get(booking.quotationId)?.customer
+        : undefined) ||
+      "Unknown customer"
+    );
+  };
+
+  const getBookingLabel = (bookingId: string) => {
+    const booking = bookingLookup.get(bookingId);
+    if (!booking) {
+      return bookingId;
+    }
+
+    return booking.bookingNumber;
+  };
+
   // Filter and pagination
   const filteredRows = useMemo(() => {
+    const searchValue = search.toLowerCase();
+
     return rows.filter((row) => {
+      const booking = bookingLookup.get(row.bookingId);
+      const customerName =
+        booking?.customer ||
+        (booking?.quotationId
+          ? quotationLookup.get(booking.quotationId)?.customer
+          : "") ||
+        "";
       const matchesSearch =
-        row.id.toLowerCase().includes(search.toLowerCase()) ||
-        row.bookingId.toLowerCase().includes(search.toLowerCase()) ||
-        (row.paymentId?.toLowerCase() || "").includes(search.toLowerCase());
+        row.id.toLowerCase().includes(searchValue) ||
+        row.bookingId.toLowerCase().includes(searchValue) ||
+        (booking?.bookingNumber || "").toLowerCase().includes(searchValue) ||
+        customerName.toLowerCase().includes(searchValue) ||
+        (row.paymentId?.toLowerCase() || "").includes(searchValue);
 
       const matchesStatus =
         statusFilter === "all" || row.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
-  }, [rows, search, statusFilter]);
+  }, [rows, search, statusFilter, bookingLookup, quotationLookup]);
 
   const toTimestamp = (value?: string | null) => {
     if (!value) return 0;
@@ -660,6 +798,104 @@ const RefundsPage = () => {
     void loadRefunds();
   }, [token]);
 
+  useEffect(() => {
+    if (!token || !rows.length) {
+      return;
+    }
+
+    const missingBookingIds = [...new Set(
+      rows
+        .map((row) => row.bookingId)
+        .filter((bookingId) => bookingId && !bookingLookup.has(bookingId)),
+    )];
+    const missingQuotationIds = [...new Set(
+      rows
+        .map((row) => bookingLookup.get(row.bookingId)?.quotationId)
+        .filter(
+          (quotationId): quotationId is string =>
+            Boolean(quotationId && !quotationLookup.has(quotationId)),
+        ),
+    )];
+
+    if (!missingBookingIds.length && !missingQuotationIds.length) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadReferences = async () => {
+      try {
+        const bookingResults = missingBookingIds.length
+          ? await Promise.allSettled(
+              missingBookingIds.map((bookingId) => bookingsApi.getById(bookingId)),
+            )
+          : [];
+
+        if (cancelled) {
+          return;
+        }
+
+        const resolvedBookings = bookingResults.flatMap((result) => {
+          if (result.status !== "fulfilled") {
+            return [];
+          }
+
+          const payload = (result.value as any)?.data ?? result.value;
+          const booking = mapBookingReference((payload as any)?.data ?? payload);
+          return booking ? [booking] : [];
+        });
+
+        if (resolvedBookings.length) {
+          setBookings((current) => mergeReferenceItems(current, resolvedBookings));
+        }
+
+        const quotationIdsToLoad = [...new Set(
+          [...missingQuotationIds, ...resolvedBookings.map((booking) => booking.quotationId)]
+            .filter(
+              (quotationId): quotationId is string =>
+                Boolean(quotationId && !quotationLookup.has(quotationId)),
+            ),
+        )];
+
+        if (!quotationIdsToLoad.length) {
+          return;
+        }
+
+        const quotationResults = await Promise.allSettled(
+          quotationIdsToLoad.map((quotationId) => quotationsApi.getById(quotationId)),
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        const resolvedQuotations = quotationResults.flatMap((result) => {
+          if (result.status !== "fulfilled") {
+            return [];
+          }
+
+          const payload = (result.value as any)?.data ?? result.value;
+          const quotation = mapQuotationReference((payload as any)?.data ?? payload);
+          return quotation ? [quotation] : [];
+        });
+
+        if (resolvedQuotations.length) {
+          setQuotations((current) =>
+            mergeReferenceItems(current, resolvedQuotations),
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load refund customer references:", error);
+      }
+    };
+
+    void loadReferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, rows, bookingLookup, quotationLookup]);
+
   // Load bookings and payments when form is shown
   useEffect(() => {
     if (!showForm) return;
@@ -674,12 +910,11 @@ const RefundsPage = () => {
           bookingsPayload?.data?.data || bookingsPayload?.data || bookingsPayload || [];
         const bookingsList = Array.isArray(bookingsData) ? bookingsData : [];
         
-        setBookings(
-          bookingsList.map((booking: any) => ({
-            id: booking.id,
-            bookingNumber: booking.bookingNumber || booking.booking_number || booking.code || `BK-${booking.id}`,
-            customer: booking.customerName || booking.customer_name || booking.customer || "",
-          }))
+        setBookings((current) =>
+          mergeReferenceItems(
+            current,
+            bookingsList.map((booking: any) => mapBookingReference(booking)),
+          ),
         );
       } catch (err) {
         console.error("Failed to load bookings:", err);
@@ -1037,7 +1272,7 @@ const RefundsPage = () => {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search by ID, booking, payment..."
+            placeholder="Search by customer, refund, booking..."
             className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800"
           />
         </div>
@@ -1079,7 +1314,7 @@ const RefundsPage = () => {
                 <thead className="bg-gray-50 dark:bg-gray-800/50">
                   <tr>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
-                      Refund ID
+                      Customer
                     </th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
                       Booking
@@ -1105,15 +1340,15 @@ const RefundsPage = () => {
                       className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                     >
                       <td className="px-5 py-4">
-                        <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                          {row.id}
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          {getCustomerName(row.bookingId)}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {row.paymentId || "No payment"}
+                          Refund: {row.id}
                         </p>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300">
-                        {row.bookingId}
+                        {getBookingLabel(row.bookingId)}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -1184,11 +1419,14 @@ const RefundsPage = () => {
                 <div key={row.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                        {row.id}
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {getCustomerName(row.bookingId)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Booking: {row.bookingId}
+                        Refund: {row.id}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Booking: {getBookingLabel(row.bookingId)}
                       </p>
                     </div>
                     <StatusBadge status={row.status} />
