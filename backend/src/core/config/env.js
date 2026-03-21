@@ -33,6 +33,7 @@ const envSchema = z.object({
     .default(
       "id,created_time,field_data,ad_id,adset_id,campaign_id,form_id,page_id",
     ),
+  WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),
   WHATSAPP_APP_ID: z.string().optional(),

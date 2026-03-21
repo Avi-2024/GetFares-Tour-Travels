@@ -10,6 +10,14 @@ function createWhatsappRoutes({
 }) {
   const router = Router();
 
+  router.get(
+    "/config-status",
+    requireAuth,
+    authorize("notifications:read"),
+    validateRequest(validation.configStatus),
+    asyncHandler(controller.configStatus),
+  );
+
   router.post(
     "/send",
     requireAuth,

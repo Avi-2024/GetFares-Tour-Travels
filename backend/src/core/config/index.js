@@ -40,8 +40,8 @@ const config = Object.freeze({
       .filter(Boolean),
   },
   whatsapp: {
-    verifyToken: env.META_VERIFY_TOKEN,
-    accessToken: env.WHATSAPP_ACCESS_TOKEN,
+    verifyToken: env.WHATSAPP_VERIFY_TOKEN || env.META_VERIFY_TOKEN,
+    accessToken: env.WHATSAPP_ACCESS_TOKEN || env.META_ACCESS_TOKEN,
     appSecret: env.WHATSAPP_APP_SECRET,
     appId: env.WHATSAPP_APP_ID,
     phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
