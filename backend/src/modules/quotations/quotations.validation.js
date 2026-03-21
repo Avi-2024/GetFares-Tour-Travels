@@ -11,6 +11,11 @@ const quotationStatus = z.enum([
 ]);
 const transitionStatus = z.enum(["APPROVED", "REJECTED"]);
 const templateType = z.enum(["READY_PACKAGE", "VISA", "CUSTOM_ITINERARY"]);
+const responseCategory = z.enum([
+  "READY_PACKAGE",
+  "CUSTOMIZED",
+  "COMPLEX_ITINERARY",
+]);
 const deliveryChannel = z.enum(["EMAIL", "WHATSAPP", "MANUAL"]);
 const itemType = z.enum([
   "HOTEL",
@@ -51,6 +56,8 @@ const create = z.object({
     clientCurrency: currencyCode.optional(),
     supplierCurrency: currencyCode.optional(),
     expiresInHours: z.coerce.number().int().positive().max(720).optional(),
+    importantNotes: z.string().max(4000).optional(),
+    responseCategory: responseCategory.optional(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
@@ -76,6 +83,8 @@ const update = z.object({
       clientCurrency: currencyCode.optional(),
       supplierCurrency: currencyCode.optional(),
       notes: z.string().max(2000).optional(),
+      importantNotes: z.string().max(4000).optional(),
+      responseCategory: responseCategory.optional(),
     })
     .refine(
       (value) => Object.keys(value).length > 0,
@@ -124,6 +133,23 @@ const send = z.object({
       recipientPhone: z.string().min(6).max(25).optional(),
       message: z.string().max(1000).optional(),
       expiresInHours: z.coerce.number().int().positive().max(720).optional(),
+      responseCategory: responseCategory.optional(),
+    })
+    .superRefine((value, ctx) => {
+      if (value.channel === "EMAIL" && !value.recipientEmail) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["recipientEmail"],
+          message: "recipientEmail is required when channel is EMAIL",
+        });
+      }
+      if (value.channel === "WHATSAPP" && !value.recipientPhone) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["recipientPhone"],
+          message: "recipientPhone is required when channel is WHATSAPP",
+        });
+      }
     })
     .optional(),
   params: z.object({ id: z.string().uuid() }),

@@ -307,6 +307,13 @@ function createWhatsAppService({
   }
 
   async function notifyQuotationSent(payload = {}) {
+    const channel = String(
+      payload.channel || payload.deliveryChannel || "",
+    ).toUpperCase();
+    if (channel && channel !== "WHATSAPP") {
+      return null;
+    }
+
     const quotationId = payload.id || payload.quotationId;
     const { quote, phone } = await resolveQuotationDetails(quotationId);
     if (!phone) return null;

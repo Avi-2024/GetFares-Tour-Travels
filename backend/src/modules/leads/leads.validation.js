@@ -1,16 +1,13 @@
 import { z } from "zod";
 
-const leadStatus = z.enum([
-  "OPEN",
-  "CONTACTED",
-  "WIP",
-  "QUOTED",
-  "FOLLOW_UP",
-  "CONVERTED",
-  "LOST",
-  "NON_RESPONSIVE",
-]);
+const leadStatus = z
+  .string()
+  .trim()
+  .min(2)
+  .max(40)
+  .transform((value) => value.toUpperCase());
 const leadType = z.enum(["HOLIDAY", "VISA", "BOTH"]);
+const hotelCategory = z.enum(["3_STAR", "4_STAR", "5_STAR", "ANY"]).optional();
 
 const dateTimeString = z
   .string()
@@ -40,6 +37,7 @@ const basePayload = z.object({
   childrenCount: z.coerce.number().int().min(0).optional(),
   visaRequired: z.boolean().optional(),
   leadType: leadType.optional(),
+  preferredHotelCategory: hotelCategory,
   travelPurpose: z.string().max(50).optional(),
   subStatus: z.string().max(60).optional(),
   respondedPositively: z.boolean().optional(),
@@ -157,9 +155,16 @@ const createFollowup = z.object({
       .enum(["CALL", "WHATSAPP", "EMAIL", "FINAL_REMINDER", "TASK"])
       .optional(),
     followupNumber: z.coerce.number().int().min(1).max(4).optional(),
+    cadenceCode: z.string().max(50).optional(),
     followupDate: dateTimeString,
     notes: z.string().max(2000).optional(),
   }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const listFollowupsByLeadId = z.object({
+  body: z.object({}).optional(),
   params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
 });
@@ -205,6 +210,17 @@ const processNonResponsive = z.object({
   query: z.object({}).optional(),
 });
 
+const processCadenceAutomation = z.object({
+  body: z
+    .object({
+      limit: z.coerce.number().int().positive().max(500).optional(),
+      staleDays: z.coerce.number().int().positive().max(30).optional(),
+    })
+    .optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const LeadsValidation = {
   create,
   update,
@@ -214,10 +230,12 @@ const LeadsValidation = {
   distribute,
   reassignInactive,
   createFollowup,
+  listFollowupsByLeadId,
   listOverdueFollowups,
   processOverdueFollowups,
   processSlaBreaches,
   processNonResponsive,
+  processCadenceAutomation,
 };
 
 export { LeadsValidation };

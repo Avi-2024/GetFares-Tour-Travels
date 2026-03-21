@@ -15,6 +15,7 @@ import { createBookingsDatasource } from "../datasource/bookingsDatasource";
 import { createComplaintsDatasource } from "../datasource/complaintsDatasource";
 import { createUsersDatasource } from "../datasource/usersDatasource";
 import { createNotificationsDatasource } from "../datasource/notificationsDatasource";
+import { createPackagesDatasource } from "../datasource/packagesDatasource";
 import { createAuthService, type AuthService } from "../services/authService";
 import {
   createLeadsService,
@@ -44,6 +45,10 @@ import {
   createNotificationsService,
   type NotificationsService,
 } from "../services/notificationsService";
+import {
+  createPackagesService,
+  type PackagesService,
+} from "../services/packagesService";
 import { useAuth } from "./AuthContext";
 
 export type ServiceContextValue = {
@@ -55,6 +60,7 @@ export type ServiceContextValue = {
   complaintsService: ComplaintsService;
   usersService: UsersService;
   notificationsService: NotificationsService;
+  packagesService: PackagesService;
 };
 
 const ServiceContext = createContext<ServiceContextValue | null>(null);
@@ -88,6 +94,7 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
     const complaintsDatasource = createComplaintsDatasource(apiClient);
     const usersDatasource = createUsersDatasource(apiClient);
     const notificationsDatasource = createNotificationsDatasource(apiClient);
+    const packagesDatasource = createPackagesDatasource(apiClient);
 
     return {
       authService: createAuthService(authDatasource),
@@ -98,6 +105,7 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
       complaintsService: createComplaintsService(complaintsDatasource),
       usersService: createUsersService(usersDatasource),
       notificationsService: createNotificationsService(notificationsDatasource),
+      packagesService: createPackagesService(packagesDatasource),
     };
   }, [apiClient]);
 

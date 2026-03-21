@@ -1,4 +1,6 @@
 import { AppError } from "../../core/errors/index.js";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 const QUOTATION_STATUS = Object.freeze({
   DRAFT: "DRAFT",
@@ -8,6 +10,18 @@ const QUOTATION_STATUS = Object.freeze({
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
   EXPIRED: "EXPIRED",
+});
+
+const RESPONSE_CATEGORY = Object.freeze({
+  READY_PACKAGE: "READY_PACKAGE",
+  CUSTOMIZED: "CUSTOMIZED",
+  COMPLEX_ITINERARY: "COMPLEX_ITINERARY",
+});
+
+const RESPONSE_SLA_MINUTES = Object.freeze({
+  [RESPONSE_CATEGORY.READY_PACKAGE]: 30,
+  [RESPONSE_CATEGORY.CUSTOMIZED]: 120,
+  [RESPONSE_CATEGORY.COMPLEX_ITINERARY]: 360,
 });
 
 function roundCurrency(value) {
@@ -47,7 +61,7 @@ function buildQuoteNumber() {
   return `QT-${stamp}-${randomPart}`;
 }
 
-function createQuotationsService({ repository, logger, events }) {
+function createQuotationsService({ repository, logger, events, s3 }) {
   function assertAuthenticatedUser(user) {
     if (!user?.id) {
       throw new AppError(401, "Authentication required", "AUTH_REQUIRED");
@@ -67,6 +81,42 @@ function createQuotationsService({ repository, logger, events }) {
       return fallback;
     }
     return String(value).trim().toUpperCase();
+  }
+
+  function normalizeResponseCategory(value) {
+    if (!value) return null;
+    const normalized = String(value).trim().toUpperCase();
+    if (Object.values(RESPONSE_CATEGORY).includes(normalized)) {
+      return normalized;
+    }
+    return null;
+  }
+
+  function inferResponseCategory({
+    requestedCategory,
+    existingCategory,
+    templateType,
+    itemCount,
+  }) {
+    const requested = normalizeResponseCategory(requestedCategory);
+    if (requested) return requested;
+
+    const existing = normalizeResponseCategory(existingCategory);
+    if (existing) return existing;
+
+    if (templateType === "READY_PACKAGE") {
+      return RESPONSE_CATEGORY.READY_PACKAGE;
+    }
+
+    if (templateType === "CUSTOM_ITINERARY" && Number(itemCount || 0) >= 8) {
+      return RESPONSE_CATEGORY.COMPLEX_ITINERARY;
+    }
+
+    return RESPONSE_CATEGORY.CUSTOMIZED;
+  }
+
+  function getSlaTargetMinutes(responseCategory) {
+    return RESPONSE_SLA_MINUTES[responseCategory] || RESPONSE_SLA_MINUTES.CUSTOMIZED;
   }
 
   function calculatePricing(payload) {
@@ -232,6 +282,241 @@ function createQuotationsService({ repository, logger, events }) {
     };
   }
 
+  async function resolvePdfDocumentConstructor() {
+    try {
+      const imported = await import("pdfkit");
+      return imported.default || imported;
+    } catch (_error) {
+      throw new AppError(
+        500,
+        "PDF engine is not configured. Install backend dependency: pdfkit",
+        "QUOTATION_PDF_ENGINE_MISSING",
+      );
+    }
+  }
+
+  async function resolveMailerLibrary() {
+    try {
+      const imported = await import("nodemailer");
+      return imported.default || imported;
+    } catch (_error) {
+      throw new AppError(
+        500,
+        "Email engine is not configured. Install backend dependency: nodemailer",
+        "QUOTATION_EMAIL_ENGINE_MISSING",
+      );
+    }
+  }
+
+  function normalizeEmail(value) {
+    if (!value) return null;
+    const normalized = String(value).trim().toLowerCase();
+    return normalized || null;
+  }
+
+  async function sendQuotationEmail({
+    smtpSettings,
+    toEmail,
+    quotation,
+    lead,
+  }) {
+    const smtpHost = String(smtpSettings?.smtpHost || "").trim();
+    const smtpPort = Number(smtpSettings?.smtpPort || 587);
+    const smtpUser = String(smtpSettings?.smtpUser || "").trim();
+    const smtpPassword = String(smtpSettings?.smtpPassword || "").trim();
+    const smtpFromEmail = String(smtpSettings?.smtpFromEmail || "").trim();
+
+    if (!smtpHost || !smtpPort || !smtpFromEmail) {
+      throw new AppError(
+        500,
+        "SMTP is not configured in Settings > Integrations",
+        "QUOTATION_SMTP_NOT_CONFIGURED",
+      );
+    }
+
+    const nodemailer = await resolveMailerLibrary();
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth:
+        smtpUser && smtpPassword
+          ? {
+              user: smtpUser,
+              pass: smtpPassword,
+            }
+          : undefined,
+    });
+
+    const customerName = lead?.full_name || lead?.fullName || "Customer";
+    const subject = `Quotation ${quotation.quoteNumber || quotation.id} from GetFares`;
+    const quotationUrl = quotation.pdfUrl || "";
+    const text = [
+      `Hi ${customerName},`,
+      "",
+      "Your travel quotation is ready.",
+      quotationUrl ? `Quotation Link: ${quotationUrl}` : "",
+      "",
+      `Quote Number: ${quotation.quoteNumber || quotation.id}`,
+      `Final Amount: INR ${Number(quotation.finalPrice || 0).toFixed(2)}`,
+      "",
+      "Thanks,",
+      "GetFares Team",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+        <p>Hi ${customerName},</p>
+        <p>Your travel quotation is ready.</p>
+        ${
+          quotationUrl
+            ? `<p><a href="${quotationUrl}" target="_blank" rel="noopener noreferrer">View Quotation PDF</a></p>`
+            : ""
+        }
+        <p><strong>Quote Number:</strong> ${quotation.quoteNumber || quotation.id}</p>
+        <p><strong>Final Amount:</strong> INR ${Number(quotation.finalPrice || 0).toFixed(2)}</p>
+        <p>Thanks,<br/>GetFares Team</p>
+      </div>
+    `;
+
+    const info = await transporter.sendMail({
+      from: smtpFromEmail,
+      to: toEmail,
+      subject,
+      text,
+      html,
+    });
+
+    return {
+      messageId: info?.messageId || null,
+      accepted: Array.isArray(info?.accepted) ? info.accepted : [],
+      rejected: Array.isArray(info?.rejected) ? info.rejected : [],
+    };
+  }
+
+  function createPdfBufferFromDocument(PDFDocument, quotation) {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: "A4", margin: 50 });
+      const chunks = [];
+      doc.on("data", (chunk) => chunks.push(chunk));
+      doc.on("error", reject);
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+
+      const lead = quotation.lead || {};
+      const templateSnapshot = quotation.templateSnapshot || quotation.template || {};
+      const companyName =
+        String(templateSnapshot.headerBranding || "").trim() ||
+        "GetFares Travel CRM";
+
+      doc.fontSize(20).text(companyName, { align: "left" });
+      doc.moveDown(0.5);
+      doc.fontSize(10).fillColor("gray").text("Travel Quotation", { align: "left" });
+      doc.fillColor("black");
+      doc.moveDown();
+
+      doc.fontSize(12).text(`Quote Number: ${quotation.quoteNumber || quotation.id}`);
+      doc.text(`Status: ${quotation.status || "-"}`);
+      doc.text(`Created At: ${quotation.createdAt || "-"}`);
+      doc.text(`Expiry: ${quotation.expiresAt || "-"}`);
+      doc.moveDown();
+
+      doc.fontSize(13).text("Customer Details", { underline: true });
+      doc.fontSize(11);
+      doc.text(`Name: ${lead.fullName || "-"}`);
+      doc.text(`Phone: ${lead.phone || "-"}`);
+      doc.text(`Email: ${lead.email || "-"}`);
+      doc.text(`Destination: ${quotation.destination?.name || "-"}`);
+      doc.moveDown();
+
+      doc.fontSize(13).text("Items", { underline: true });
+      doc.fontSize(11);
+      const items = Array.isArray(quotation.items) ? quotation.items : [];
+      if (!items.length) {
+        doc.text("No line items.");
+      } else {
+        items.forEach((item, index) => {
+          doc.text(
+            `${index + 1}. ${item.itemType || "ITEM"} | ${item.description || "-"} | INR ${Number(item.cost || 0).toFixed(2)}`,
+          );
+        });
+      }
+      doc.moveDown();
+
+      doc.fontSize(13).text("Pricing Summary", { underline: true });
+      doc.fontSize(11);
+      doc.text(`Total Cost: INR ${Number(quotation.totalCost || 0).toFixed(2)}`);
+      doc.text(`Margin %: ${Number(quotation.marginPercent || 0).toFixed(2)}`);
+      doc.text(`Markup Amount: INR ${Number(quotation.markupAmount || 0).toFixed(2)}`);
+      doc.text(`Tax: INR ${Number(quotation.taxAmount || quotation.tax || 0).toFixed(2)}`);
+      doc.text(`Final Price: INR ${Number(quotation.finalPrice || 0).toFixed(2)}`);
+      doc.moveDown();
+
+      if (templateSnapshot.inclusions) {
+        doc.fontSize(13).text("Inclusions", { underline: true });
+        doc.fontSize(11).text(String(templateSnapshot.inclusions));
+        doc.moveDown();
+      }
+
+      if (templateSnapshot.exclusions) {
+        doc.fontSize(13).text("Exclusions", { underline: true });
+        doc.fontSize(11).text(String(templateSnapshot.exclusions));
+        doc.moveDown();
+      }
+
+      if (templateSnapshot.cancellationPolicy) {
+        doc.fontSize(13).text("Cancellation Policy", { underline: true });
+        doc.fontSize(11).text(String(templateSnapshot.cancellationPolicy));
+        doc.moveDown();
+      }
+
+      if (quotation.importantNotes) {
+        doc.fontSize(13).text("Important Notes", { underline: true });
+        doc.fontSize(11).text(String(quotation.importantNotes));
+        doc.moveDown();
+      }
+
+      doc.fontSize(10).fillColor("gray").text("Generated by GetFares CRM");
+      doc.end();
+    });
+  }
+
+  async function storeGeneratedPdf({ quotation, pdfBuffer, context }) {
+    const fileSafeQuoteNumber = String(quotation.quoteNumber || quotation.id || "quote")
+      .replace(/[^a-zA-Z0-9-_]/g, "_")
+      .slice(0, 100);
+    const fileName = `${fileSafeQuoteNumber}.pdf`;
+
+    if (s3?.uploadBuffer) {
+      try {
+        const upload = await s3.uploadBuffer({
+          buffer: pdfBuffer,
+          contentType: "application/pdf",
+          originalName: fileName,
+          prefix: "quotations",
+        });
+        if (upload?.url) {
+          return upload.url;
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error, quotationId: quotation.id },
+          "S3 upload failed for quotation PDF. Falling back to local uploads",
+        );
+      }
+    }
+
+    const uploadsDir = path.join(process.cwd(), "uploads", "quotations");
+    await fs.mkdir(uploadsDir, { recursive: true });
+
+    const fullPath = path.join(uploadsDir, fileName);
+    await fs.writeFile(fullPath, pdfBuffer);
+
+    const relativeUrl = `/uploads/quotations/${fileName}`;
+    const requestBaseUrl = String(context?.requestBaseUrl || "").replace(/\/+$/g, "");
+    return requestBaseUrl ? `${requestBaseUrl}${relativeUrl}` : relativeUrl;
+  }
+
   async function attachRelations(quotation) {
     if (!quotation) {
       return quotation;
@@ -345,6 +630,12 @@ function createQuotationsService({ repository, logger, events }) {
 
     const pricing = calculatePricing(payload);
     const finance = calculateFinanceBreakdown(payload, pricing);
+    const responseCategory = inferResponseCategory({
+      requestedCategory: payload.responseCategory,
+      templateType: template?.templateType,
+      itemCount: pricing.components.length,
+    });
+    const responseSlaMinutes = getSlaTargetMinutes(responseCategory);
     const minMarginPercent = roundCurrency(
       payload.minMarginPercent ?? template?.minMarginPercent ?? 0,
     );
@@ -395,9 +686,14 @@ function createQuotationsService({ repository, logger, events }) {
       min_margin_percent: minMarginPercent,
       requires_approval: requiresApproval,
       lead_to_quote_minutes: leadToQuoteMinutes,
+      lead_to_quote_sent_minutes: null,
+      response_category: responseCategory,
+      response_sla_minutes: responseSlaMinutes,
+      response_sla_breached: false,
       expires_at: expiresAt,
       view_count: 0,
       version_number: 1,
+      important_notes: payload.importantNotes || null,
       status: QUOTATION_STATUS.DRAFT,
       is_deleted: false,
       updated_at: now.toISOString(),
@@ -413,6 +709,8 @@ function createQuotationsService({ repository, logger, events }) {
       changeLog: {
         createdBy: context.user.id,
         requiresApproval,
+        responseCategory,
+        responseSlaMinutes,
       },
     });
 
@@ -466,6 +764,14 @@ function createQuotationsService({ repository, logger, events }) {
       },
       pricing,
     );
+    const responseCategory = inferResponseCategory({
+      requestedCategory: payload.responseCategory,
+      existingCategory: current.responseCategory,
+      templateType:
+        template?.templateType || current.templateSnapshot?.templateType,
+      itemCount: pricing.components.length,
+    });
+    const responseSlaMinutes = getSlaTargetMinutes(responseCategory);
 
     const minMarginPercent = roundCurrency(
       payload.minMarginPercent ??
@@ -502,7 +808,13 @@ function createQuotationsService({ repository, logger, events }) {
       supplier_currency: finance.supplierCurrency,
       min_margin_percent: minMarginPercent,
       requires_approval: requiresApproval,
+      response_category: responseCategory,
+      response_sla_minutes: responseSlaMinutes,
       version_number: Number(current.versionNumber || 1) + 1,
+      important_notes:
+        payload.importantNotes !== undefined || payload.notes !== undefined
+          ? payload.importantNotes || payload.notes || null
+          : undefined,
     });
 
     const items = payload.components
@@ -518,6 +830,8 @@ function createQuotationsService({ repository, logger, events }) {
       changeLog: {
         fields: Object.keys(payload || {}),
         requiresApproval,
+        responseCategory,
+        responseSlaMinutes,
       },
     });
 
@@ -529,9 +843,22 @@ function createQuotationsService({ repository, logger, events }) {
 
   async function generatePdf(id, payload = {}, context = {}) {
     assertAuthenticatedUser(context.user);
-    await getById(id, context, { includeItems: false });
+    let quotation = await getById(id, context, {
+      includeItems: true,
+      includeRelations: true,
+    });
 
-    const pdfUrl = payload.pdfUrl || `https://crm.local/quotations/${id}.pdf`;
+    let pdfUrl = payload.pdfUrl || null;
+    if (!pdfUrl) {
+      const PDFDocument = await resolvePdfDocumentConstructor();
+      const pdfBuffer = await createPdfBufferFromDocument(PDFDocument, quotation);
+      pdfUrl = await storeGeneratedPdf({
+        quotation,
+        pdfBuffer,
+        context,
+      });
+    }
+
     const updated = await repository.update(id, {
       pdf_url: pdfUrl,
       pdf_generated_at: new Date().toISOString(),
@@ -539,14 +866,22 @@ function createQuotationsService({ repository, logger, events }) {
       updated_at: new Date().toISOString(),
     });
 
+    quotation = {
+      ...quotation,
+      pdfUrl: updated.pdfUrl,
+      pdfGeneratedAt: updated.pdfGeneratedAt,
+      pdfGeneratedBy: updated.pdfGeneratedBy,
+    };
+
     events.emitPdfGenerated({ id: updated.id, pdfUrl: updated.pdfUrl });
-    return updated;
+    return quotation;
   }
 
   async function send(id, payload = {}, context = {}) {
     assertAuthenticatedUser(context.user);
 
     let quotation = await getById(id, context, { includeItems: true });
+    const deliveryChannel = String(payload.channel || "MANUAL").toUpperCase();
 
     if (
       [
@@ -570,6 +905,20 @@ function createQuotationsService({ repository, logger, events }) {
       );
     }
 
+    const lead = quotation.leadId
+      ? await repository.findLeadById(quotation.leadId)
+      : null;
+    const recipientEmail =
+      normalizeEmail(payload.recipientEmail) ||
+      normalizeEmail(lead?.email || lead?.email_address || null);
+    if (deliveryChannel === "EMAIL" && !recipientEmail) {
+      throw new AppError(
+        400,
+        "recipientEmail is required to send quotation via EMAIL",
+        "QUOTATION_EMAIL_RECIPIENT_REQUIRED",
+      );
+    }
+
     const now = new Date();
     const expiresInHours = payload.expiresInHours
       ? toHours(payload.expiresInHours, null)
@@ -577,13 +926,59 @@ function createQuotationsService({ repository, logger, events }) {
     const nextExpiresAt = expiresInHours
       ? addHours(now, expiresInHours).toISOString()
       : quotation.expiresAt || null;
+    const leadCreatedAt = lead?.created_at || lead?.createdAt || null;
+    const leadCreatedTs = leadCreatedAt ? new Date(leadCreatedAt).getTime() : null;
+    const leadToQuoteSentMinutes =
+      leadCreatedTs !== null && Number.isFinite(leadCreatedTs)
+        ? Math.max(0, Math.round((now.getTime() - leadCreatedTs) / 60000))
+        : null;
+    const responseCategory = inferResponseCategory({
+      requestedCategory: payload.responseCategory,
+      existingCategory: quotation.responseCategory,
+      templateType: quotation.templateSnapshot?.templateType,
+      itemCount: quotation.items?.length || 0,
+    });
+    const responseSlaMinutes =
+      quotation.responseSlaMinutes || getSlaTargetMinutes(responseCategory);
+    const responseSlaBreached =
+      leadToQuoteSentMinutes !== null
+        ? leadToQuoteSentMinutes > responseSlaMinutes
+        : false;
+    let pdfUrl = quotation.pdfUrl;
+    if (!pdfUrl) {
+      const PDFDocument = await resolvePdfDocumentConstructor();
+      const pdfBuffer = await createPdfBufferFromDocument(PDFDocument, quotation);
+      pdfUrl = await storeGeneratedPdf({
+        quotation,
+        pdfBuffer,
+        context,
+      });
+    }
+
+    let emailDelivery = null;
+    if (deliveryChannel === "EMAIL") {
+      const integrationSettings = await repository.findIntegrationSettings();
+      emailDelivery = await sendQuotationEmail({
+        smtpSettings: integrationSettings,
+        toEmail: recipientEmail,
+        quotation: {
+          ...quotation,
+          pdfUrl,
+        },
+        lead,
+      });
+    }
 
     const updated = await repository.update(id, {
       status: QUOTATION_STATUS.SENT,
       sent_at: now.toISOString(),
       sent_by: context.user.id,
-      pdf_url: quotation.pdfUrl || `https://crm.local/quotations/${id}.pdf`,
+      pdf_url: pdfUrl,
       expires_at: nextExpiresAt,
+      response_category: responseCategory,
+      response_sla_minutes: responseSlaMinutes,
+      lead_to_quote_sent_minutes: leadToQuoteSentMinutes,
+      response_sla_breached: responseSlaBreached,
       updated_at: now.toISOString(),
     });
 
@@ -594,11 +989,12 @@ function createQuotationsService({ repository, logger, events }) {
     await repository.createSendLog({
       quotationId: id,
       sentBy: context.user.id,
-      deliveryChannel: payload.channel || "MANUAL",
-      recipientEmail: payload.recipientEmail || null,
+      deliveryChannel,
+      recipientEmail: recipientEmail || null,
       recipientPhone: payload.recipientPhone || null,
       metadata: {
         message: payload.message || null,
+        emailDelivery,
       },
     });
 
@@ -607,13 +1003,22 @@ function createQuotationsService({ repository, logger, events }) {
       action: "SENT",
       editorId: context.user.id,
       changeLog: {
-        channel: payload.channel || "MANUAL",
-        recipientEmail: payload.recipientEmail || null,
+        channel: deliveryChannel,
+        recipientEmail: recipientEmail || null,
         recipientPhone: payload.recipientPhone || null,
+        responseCategory,
+        responseSlaMinutes,
+        leadToQuoteSentMinutes,
+        responseSlaBreached,
+        emailDelivery,
       },
     });
 
-    events.emitSent({ id: updated.id, sentBy: context.user.id });
+    events.emitSent({
+      id: updated.id,
+      sentBy: context.user.id,
+      channel: deliveryChannel,
+    });
     return {
       ...updated,
       items: quotation.items,

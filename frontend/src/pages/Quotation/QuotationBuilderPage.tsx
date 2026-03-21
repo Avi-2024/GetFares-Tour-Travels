@@ -13,10 +13,10 @@ import {
   FaPlus,
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
-import { leadsApi } from "../../api/leads";
 import { quotationsApi } from "../../api/quotations";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
+import { useLeadsService } from "../../hooks/useLeadsService";
 
 type Currency = "USD" | "EUR" | "INR";
 type SavedQuote = {
@@ -52,6 +52,8 @@ type LeadOption = {
   email?: string | null;
   phone?: string | null;
   destinationId?: string | null;
+  destination?: any;
+  destinationName?: string | null;
   travelDate?: string | null;
   adultsCount?: number | null;
   childrenCount?: number | null;
@@ -80,6 +82,7 @@ const pricing: Price[] = [
 const QuotationBuilderPage: React.FC = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
+  const leadsService = useLeadsService();
   const [showPreview, setShowPreview] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [currency, setCurrency] = useState<Currency>("INR");
@@ -144,13 +147,9 @@ const QuotationBuilderPage: React.FC = () => {
   useEffect(() => {
     const loadDestinations = async () => {
       try {
-        const response = await leadsApi.getDestinations();
-        const list =
-          (response as { data?: Array<{ id: string; name?: string }> }).data ??
-          (response as Array<{ id: string; name?: string }>) ??
-          [];
+        const list = await leadsService.getDestinations();
         const map: Record<string, string> = {};
-        list.forEach((item) => {
+        (Array.isArray(list) ? list : []).forEach((item: any) => {
           if (item?.id) {
             map[item.id] = item.name || item.id;
           }
@@ -162,7 +161,7 @@ const QuotationBuilderPage: React.FC = () => {
     };
 
     void loadDestinations();
-  }, []);
+  }, [leadsService]);
 
   useEffect(() => {
     const loadLeads = async () => {
@@ -175,16 +174,8 @@ const QuotationBuilderPage: React.FC = () => {
       setLeadsLoading(true);
       setLeadsError("");
       try {
-        const response = await leadsApi.list({ page: 1, limit: 100 });
-        const payload = (response as any)?.data ?? response;
-        const data =
-          (payload as any)?.data || (payload as any)?.items || payload;
-        if (Array.isArray(data)) {
-          setLeads(data as LeadOption[]);
-        } else {
-          setLeads([]);
-          setLeadsError("Invalid lead data from API.");
-        }
+        const data = await leadsService.listLeadsRaw({ page: 1, limit: 100 });
+        setLeads((Array.isArray(data) ? data : []) as LeadOption[]);
       } catch (error) {
         console.error("Failed to load leads:", error);
         setLeads([]);
@@ -195,14 +186,18 @@ const QuotationBuilderPage: React.FC = () => {
     };
 
     void loadLeads();
-  }, [token]);
+  }, [leadsService, token]);
 
   useEffect(() => {
     if (!selectedLead) return;
 
+    const resolvedDestination =
+      typeof selectedLead.destination === "string"
+        ? selectedLead.destination
+        : selectedLead.destination?.name ?? selectedLead.destinationName ?? "";
     const destinationName = selectedLead.destinationId
-      ? destinationMap[selectedLead.destinationId] || form.destination
-      : form.destination;
+      ? destinationMap[selectedLead.destinationId] || resolvedDestination || form.destination
+      : resolvedDestination || form.destination;
 
     setForm((prev) => ({
       ...prev,
@@ -300,12 +295,10 @@ const QuotationBuilderPage: React.FC = () => {
     setDownloading(true);
     try {
       // Lazy-load only when needed to keep bundle light and avoid install.
-      // @ts-ignore - remote ESM URL has no local types
       const html2canvasModule = (await import(
         /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm"
       )) as any;
       const html2canvas = html2canvasModule.default || html2canvasModule;
-      // @ts-ignore - remote ESM URL has no local types
       const jsPdfModule = (await import(
         /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm"
       )) as any;

@@ -207,6 +207,8 @@ function createLeadsRepository({ db, logger, schema }) {
       childrenCount: row.children_count ?? row.childrenCount ?? 0,
       visaRequired: row.visa_required ?? row.visaRequired ?? false,
       leadType: row.lead_type ?? row.leadType ?? "HOLIDAY",
+      preferredHotelCategory:
+        row.preferred_hotel_category ?? row.preferredHotelCategory ?? null,
       travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
       source: row.source ?? null,
       campaignId: row.campaign_id ?? row.campaignId ?? null,
@@ -264,6 +266,7 @@ function createLeadsRepository({ db, logger, schema }) {
       followupType: FOLLOWUP_TYPE_FROM_DB[followupType] || "CALL",
       followupTypeCode: followupType,
       followupDate: row.followup_date ?? row.followupDate ?? null,
+      cadenceCode: row.cadence_code ?? row.cadenceCode ?? null,
       notes: row.notes ?? null,
       isCompleted: row.is_completed ?? row.isCompleted ?? false,
       createdAt: row.created_at ?? row.createdAt ?? null,
@@ -1032,6 +1035,7 @@ function createLeadsRepository({ db, logger, schema }) {
         user_id: payload.userId || null,
         followup_type: normalizeFollowupType(payload.followupType),
         followup_date: payload.followupDate,
+        cadence_code: payload.cadenceCode || null,
         notes: payload.notes || null,
         is_completed: payload.isCompleted ?? false,
       });
@@ -1064,6 +1068,65 @@ function createLeadsRepository({ db, logger, schema }) {
         .slice(0, normalizedLimit);
 
       return overdue.map((row) => toFollowupDomain(row));
+    },
+
+    async listFollowupsByLeadId(leadId) {
+      const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
+      return rows.map((row) => toFollowupDomain(row));
+    },
+
+    async getFollowupComplianceStats(leadId) {
+      const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
+      const followups = rows.map((row) => toFollowupDomain(row));
+      const stats = {
+        total: followups.length,
+        calls: 0,
+        whatsapp: 0,
+        finalReminders: 0,
+      };
+
+      followups.forEach((item) => {
+        const type = String(item.followupType || "").toUpperCase();
+        if (type === "CALL") stats.calls += 1;
+        if (type === "WHATSAPP") stats.whatsapp += 1;
+        if (type === "FINAL_REMINDER") stats.finalReminders += 1;
+      });
+
+      return stats;
+    },
+
+    async findCadenceCandidates({ staleDays = 4, limit = 100 } = {}) {
+      const normalizedLimit = toPositiveInt(limit, 100);
+      const normalizedStaleDays = toPositiveInt(staleDays, 4, 30);
+      const lowerBound = Date.now() - normalizedStaleDays * 3 * 24 * 60 * 60 * 1000;
+
+      const rows = await db.findMany(schema.tableName, {});
+      const candidates = rows
+        .filter((row) => {
+          const status = String(row.status || "").toUpperCase();
+          if (["CONVERTED", "LOST", "NON_RESPONSIVE"].includes(status)) {
+            return false;
+          }
+          const responseAt = row.response_at ?? row.responseAt ?? null;
+          if (responseAt) {
+            return false;
+          }
+
+          const createdAt = toDate(row.created_at ?? row.createdAt);
+          if (!createdAt) {
+            return false;
+          }
+
+          return createdAt.getTime() >= lowerBound;
+        })
+        .sort((a, b) => {
+          const left = toDate(a.created_at ?? a.createdAt)?.getTime() || 0;
+          const right = toDate(b.created_at ?? b.createdAt)?.getTime() || 0;
+          return left - right;
+        })
+        .slice(0, normalizedLimit);
+
+      return mapRowsToDomain(candidates);
     },
   });
 }

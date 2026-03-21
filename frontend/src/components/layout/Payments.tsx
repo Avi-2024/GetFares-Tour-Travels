@@ -26,9 +26,9 @@ import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
 import { paymentsApi } from "../../api/payments";
 import { bookingsApi } from "../../api/bookings";
-import { leadsApi } from "../../api/leads";
 import { customersApi } from "../../api/customers";
 import { getApiErrorMessage } from "../../api/apiClient";
+import { useLeadsService } from "../../hooks/useLeadsService";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
 type PaymentMode = "bank" | "card" | "cash" | "cheque" | "online";
@@ -524,6 +524,7 @@ const PaymentFormModal = ({
   onSave: (data: any) => void;
   onCancel: () => void;
 }) => {
+  const leadsService = useLeadsService();
   const buildFormData = (tx: Transaction | null) => ({
     customer: tx?.customer || "",
     bookingId: tx?.bookingId || "",
@@ -562,7 +563,7 @@ const PaymentFormModal = ({
       setLoadingCustomers(true);
       try {
         const [leadsRes, customersRes] = await Promise.allSettled([
-          leadsApi.list({ limit: 100 }),
+          leadsService.listLeadsRaw({ limit: 100 }),
           customersApi.list({ limit: 100 }),
         ]);
 
@@ -570,9 +571,7 @@ const PaymentFormModal = ({
 
         // Add leads
         if (leadsRes.status === "fulfilled") {
-          const leadsPayload = leadsRes.value as any;
-          const leadsData = leadsPayload?.data?.data || leadsPayload?.data || leadsPayload || [];
-          const leads = Array.isArray(leadsData) ? leadsData : [];
+          const leads = Array.isArray(leadsRes.value) ? leadsRes.value : [];
           leads.forEach((lead: any) => {
             customersList.push({
               id: `lead-${lead.id}`,
@@ -628,7 +627,7 @@ const PaymentFormModal = ({
     };
 
     void loadData();
-  }, [isOpen]);
+  }, [isOpen, leadsService]);
 
   if (!isOpen) return null;
 
