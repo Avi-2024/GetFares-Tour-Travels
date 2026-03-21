@@ -761,11 +761,15 @@ function createLeadsRepository({ db, logger, schema }) {
       return hasColumn(schema.tableName, "customer_id");
     },
 
-    async findActiveAssignableUsers() {
+    async findActiveAssignableUsers(roleName = null) {
       const [users, roleLookup] = await Promise.all([
         db.findMany(schema.usersTable, {}),
         loadRoleLookup(),
       ]);
+
+      const normalizedRole = roleName ?
+        String(roleName).trim().toLowerCase()
+      : null;
 
       const activeUsers = users
         .filter((row) => {
@@ -782,6 +786,10 @@ function createLeadsRepository({ db, logger, schema }) {
             (roleFromLookup ? String(roleFromLookup).toLowerCase() : null);
           return toAssignableUser(row, roleName);
         });
+
+      if (normalizedRole) {
+        return activeUsers.filter((user) => user.role === normalizedRole);
+      }
 
       const preferred = activeUsers.filter((user) =>
         ASSIGNABLE_ROLES.has(user.role),
