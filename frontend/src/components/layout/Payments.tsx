@@ -1889,12 +1889,9 @@ const Payments: React.FC = () => {
                   key={tx.id}
                   className="p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors"
                 >
-                  {/* Header with Reference and Status */}
+                  {/* Header with Date and Status */}
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                        #{tx.referenceId}
-                      </p>
                       <p className="text-xs text-gray-500">{tx.date}</p>
                     </div>
                     <span
@@ -1969,9 +1966,6 @@ const Payments: React.FC = () => {
                 <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95">
                   <tr>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Reference
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Date
                     </th>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1997,9 +1991,6 @@ const Payments: React.FC = () => {
                       key={tx.id}
                       className="hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors"
                     >
-                      <td className="px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300">
-                        #{tx.referenceId}
-                      </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
                         {tx.date}
                       </td>
