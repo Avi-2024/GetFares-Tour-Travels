@@ -7,16 +7,49 @@ type Props = {
   onClose: () => void;
 };
 
+const toPlainText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value.trim() || fallback;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => toPlainText(item))
+      .filter(Boolean)
+      .join(", ");
+    return joined || fallback;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferred = [
+      record.title,
+      record.name,
+      record.message,
+      record.label,
+      record.id,
+    ]
+      .map((item) => toPlainText(item))
+      .find(Boolean);
+    if (preferred) return preferred;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+};
+
 const toTitle = (eventName?: string | null, title?: string | null) => {
-  if (title?.trim()) return title.trim();
-  return String(eventName || "notification")
+  const safeTitle = toPlainText(title);
+  if (safeTitle) return safeTitle;
+  return toPlainText(eventName, "notification")
     .split(".")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 };
 
 const toModule = (entityType?: string | null, eventName?: string | null) => {
-  const source = entityType || eventName?.split(".")[0] || "general";
+  const source =
+    toPlainText(entityType) || toPlainText(eventName).split(".")[0] || "general";
   return source
     .split(/[_\s.-]+/)
     .filter(Boolean)
@@ -25,9 +58,10 @@ const toModule = (entityType?: string | null, eventName?: string | null) => {
 };
 
 const formatDateTime = (value?: string | null) => {
-  if (!value) return "Unknown time";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  const text = toPlainText(value, "Unknown time");
+  if (!text || text === "Unknown time") return "Unknown time";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
   return new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -90,7 +124,7 @@ const NotificationDrawer = ({ open, onClose }: Props) => {
                   {toModule(notification.entityType, notification.eventName)}
                 </p>
                 <p className="mt-1 text-xs text-gray-500">
-                  {notification.message || "No message available."}
+                  {toPlainText(notification.message, "No message available.")}
                 </p>
                 <p className="mt-1 text-xs text-gray-400">
                   {formatDateTime(notification.createdAt)}

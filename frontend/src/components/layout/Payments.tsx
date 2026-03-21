@@ -26,6 +26,7 @@ import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
 import { paymentsApi } from "../../api/payments";
 import { bookingsApi } from "../../api/bookings";
+import { quotationsApi } from "../../api/quotations";
 import { leadsApi } from "../../api/leads";
 import { customersApi } from "../../api/customers";
 import { getApiErrorMessage } from "../../api/apiClient";
@@ -84,6 +85,44 @@ const unwrapData = <T,>(response: unknown): T | null => {
     return (response as { data: T }).data ?? null;
   }
   return response as T;
+};
+
+const unwrapList = (response: unknown) => {
+  const data = unwrapData<any>(response);
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+};
+
+const pickCustomerName = (...sources: any[]) => {
+  for (const source of sources) {
+    const candidate =
+      source?.customerName ??
+      source?.customer_name ??
+      source?.customer?.fullName ??
+      source?.customer?.full_name ??
+      source?.customer?.name ??
+      source?.customerSnapshot?.fullName ??
+      source?.customerSnapshot?.full_name ??
+      source?.customerSnapshot?.name ??
+      source?.clientName ??
+      source?.lead?.fullName ??
+      source?.lead?.full_name ??
+      source?.lead?.name ??
+      source?.leadSnapshot?.fullName ??
+      source?.leadSnapshot?.full_name ??
+      source?.leadSnapshot?.name ??
+      source?.fullName ??
+      source?.full_name ??
+      source?.name;
+
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return "";
 };
 
 const toNumber = (value: unknown, fallback = 0) => {
@@ -187,9 +226,8 @@ const mapPaymentToTransaction = (row: any): Transaction => {
       "",
     date: toDisplayDate(paidAt ?? row?.createdAt ?? row?.created_at),
     customer:
-      row?.customerName ??
-      row?.customer ??
-      row?.clientName ??
+      pickCustomerName(row, row?.customer, row?.lead) ||
+      row?.customer ||
       "Unknown",
     bookingId,
     bookingLabel: bookingId,
@@ -1288,22 +1326,88 @@ const Payments: React.FC = () => {
       );
 
       let bookingById: Record<string, any> = {};
+      let quotationById: Record<string, any> = {};
+      let leadById: Record<string, any> = {};
       if (bookingIds.length) {
         try {
           const bookingsRes = await bookingsApi.list({ page: 1, limit: 500 });
-          const bookingsData = unwrapData<any[]>(bookingsRes) ?? [];
-          bookingById = (Array.isArray(bookingsData) ? bookingsData : []).reduce(
-            (acc, booking) => {
-              const key = String(
-                booking?.id ?? booking?.bookingId ?? booking?.booking_id ?? "",
-              );
-              if (key) acc[key] = booking;
-              return acc;
-            },
-            {} as Record<string, any>,
-          );
+          const bookingsData = unwrapList(bookingsRes);
+          bookingById = bookingsData.reduce((acc, booking) => {
+            const key = String(
+              booking?.id ?? booking?.bookingId ?? booking?.booking_id ?? "",
+            );
+            if (key) acc[key] = booking;
+            return acc;
+          }, {} as Record<string, any>);
         } catch (_error) {
           bookingById = {};
+        }
+      }
+
+      const quotationIds = Array.from(
+        new Set(
+          Object.values(bookingById)
+            .map((booking: any) =>
+              String(
+                booking?.quotationId ??
+                  booking?.quotation_id ??
+                  booking?.quoteId ??
+                  booking?.quote_id ??
+                  "",
+              ),
+            )
+            .filter(Boolean),
+        ),
+      );
+
+      if (quotationIds.length) {
+        try {
+          const quotationsRes = await quotationsApi.list({ page: 1, limit: 500 });
+          const quotationRows = unwrapList(quotationsRes);
+          quotationById = quotationRows.reduce((acc, quote) => {
+            const key = String(
+              quote?.id ?? quote?.quotationId ?? quote?.quotation_id ?? "",
+            );
+            if (key) acc[key] = quote;
+            return acc;
+          }, {} as Record<string, any>);
+        } catch (_error) {
+          quotationById = {};
+        }
+      }
+
+      const leadIds = Array.from(
+        new Set(
+          Object.values(bookingById)
+            .map((booking: any) =>
+              String(booking?.leadId ?? booking?.lead_id ?? ""),
+            )
+            .concat(
+              Object.values(quotationById).map((quote: any) =>
+                String(
+                  quote?.leadId ??
+                    quote?.lead_id ??
+                    quote?.lead?.id ??
+                    quote?.leadSnapshot?.id ??
+                    "",
+                ),
+              ),
+            )
+            .filter(Boolean),
+        ),
+      );
+
+      if (leadIds.length) {
+        try {
+          const leadsRes = await leadsApi.list({ page: 1, limit: 500 });
+          const leadRows = unwrapList(leadsRes);
+          leadById = leadRows.reduce((acc, lead) => {
+            const key = String(lead?.id ?? lead?.leadId ?? lead?.lead_id ?? "");
+            if (key) acc[key] = lead;
+            return acc;
+          }, {} as Record<string, any>);
+        } catch (_error) {
+          leadById = {};
         }
       }
 
@@ -1313,14 +1417,29 @@ const Payments: React.FC = () => {
         const booking = bookingById[bookingKey];
         if (!booking) return tx;
 
+        const quotationKey = String(
+          booking?.quotationId ??
+            booking?.quotation_id ??
+            booking?.quoteId ??
+            booking?.quote_id ??
+            "",
+        );
+        const quotation = quotationById[quotationKey];
+        const leadKey = String(
+          booking?.leadId ??
+            booking?.lead_id ??
+            quotation?.leadId ??
+            quotation?.lead_id ??
+            quotation?.lead?.id ??
+            quotation?.leadSnapshot?.id ??
+            "",
+        );
+        const lead = leadById[leadKey];
+
         const bookingNumber =
           booking?.bookingNumber ?? booking?.bookingId ?? booking?.code ?? tx.bookingId;
         const bookingCustomer =
-          booking?.customer ??
-          booking?.customerName ??
-          booking?.clientName ??
-          booking?.lead?.name ??
-          tx.customer;
+          pickCustomerName(booking, quotation, lead) || tx.customer;
 
         return {
           ...tx,

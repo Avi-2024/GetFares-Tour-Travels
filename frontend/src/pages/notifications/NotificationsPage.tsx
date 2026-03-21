@@ -26,16 +26,50 @@ const STATUS_OPTIONS: Array<{ label: string; value: "" | NotificationStatus }> =
 
 const LIMIT_OPTIONS = [10, 20, 50];
 
+const toPlainText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value.trim() || fallback;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => toPlainText(item))
+      .filter(Boolean)
+      .join(", ");
+    return joined || fallback;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferred = [
+      record.title,
+      record.name,
+      record.message,
+      record.label,
+      record.id,
+    ]
+      .map((item) => toPlainText(item))
+      .find(Boolean);
+    if (preferred) return preferred;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+};
+
 const toTitle = (notification: NotificationItem) => {
-  if (notification.title?.trim()) return notification.title.trim();
-  return String(notification.eventName || "Notification")
+  const title = toPlainText(notification.title);
+  if (title) return title;
+  return toPlainText(notification.eventName, "Notification")
     .split(".")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 };
 
 const toModule = (notification: NotificationItem) => {
-  const source = notification.entityType || notification.eventName?.split(".")[0] || "general";
+  const eventName = toPlainText(notification.eventName);
+  const source =
+    toPlainText(notification.entityType) || eventName.split(".")[0] || "general";
   return source
     .split(/[_\s.-]+/)
     .filter(Boolean)
@@ -44,9 +78,10 @@ const toModule = (notification: NotificationItem) => {
 };
 
 const formatDateTime = (value?: string | null) => {
-  if (!value) return "Unknown time";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  const text = toPlainText(value, "Unknown time");
+  if (!text || text === "Unknown time") return "Unknown time";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
   return new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -152,11 +187,11 @@ const NotificationsPage: React.FC = () => {
 
       const haystack = [
         toTitle(notification),
-        notification.message,
-        notification.entityType,
-        notification.entityId,
-        notification.eventName,
-        notification.channel,
+        toPlainText(notification.message),
+        toPlainText(notification.entityType),
+        toPlainText(notification.entityId),
+        toPlainText(notification.eventName),
+        toPlainText(notification.channel),
       ]
         .filter(Boolean)
         .join(" ")
@@ -361,16 +396,18 @@ const NotificationsPage: React.FC = () => {
                         </h3>
 
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                          {notification.message || "No message available."}
+                          {toPlainText(notification.message, "No message available.")}
                         </p>
 
                         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
-                          <span>Event: {notification.eventName}</span>
-                          <span>Channel: {notification.channel}</span>
-                          {notification.entityId ? <span>Entity ID: {notification.entityId}</span> : null}
+                          <span>Event: {toPlainText(notification.eventName, "Unknown")}</span>
+                          <span>Channel: {toPlainText(notification.channel, "Unknown")}</span>
+                          {toPlainText(notification.entityId) ? (
+                            <span>Entity ID: {toPlainText(notification.entityId)}</span>
+                          ) : null}
                           {notification.lastError ? (
                             <span className="text-red-600 dark:text-red-300">
-                              Error: {notification.lastError}
+                              Error: {toPlainText(notification.lastError)}
                             </span>
                           ) : null}
                         </div>

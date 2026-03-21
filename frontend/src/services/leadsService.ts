@@ -23,6 +23,49 @@ export type LeadListItem = {
   consultant: string;
 };
 
+const toPlainText = (value: unknown, fallback = "N/A"): string => {
+  if (typeof value === "string") {
+    const text = value.trim();
+    return text || fallback;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => toPlainText(item, ""))
+      .filter(Boolean)
+      .join(", ");
+    return joined || fallback;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferred = [
+      record.fullName,
+      record.name,
+      record.title,
+      record.label,
+      record.country,
+      record.id,
+    ]
+      .map((item) => toPlainText(item, ""))
+      .find(Boolean);
+
+    if (preferred) return preferred;
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+};
+
 const extractList = (response: LeadsListResponse) => {
   const data =
     (response as { data?: { data?: LeadApiRecord[]; items?: LeadApiRecord[] } })
@@ -89,15 +132,21 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     leadId:
       lead.leadId ?? lead.code ?? `#LD-${String(index + 1).padStart(3, "0")}`,
     createdAt: lead.createdAt ?? lead.created_at ?? null,
-    name: lead.name ?? lead.fullName ?? lead.customerName ?? "Unknown",
-    email: lead.email ?? "N/A",
-    phone: lead.phone ?? lead.mobile ?? "N/A",
-    destination: lead.destination ?? lead.country ?? "N/A",
-    packageName: lead.packageName ?? lead.package ?? "N/A",
+    name: toPlainText(
+      lead.name ?? lead.fullName ?? lead.customerName,
+      "Unknown",
+    ),
+    email: toPlainText(lead.email, "N/A"),
+    phone: toPlainText(lead.phone ?? lead.mobile, "N/A"),
+    destination: toPlainText(lead.destination ?? lead.country, "N/A"),
+    packageName: toPlainText(lead.packageName ?? lead.package, "N/A"),
     status: normalizedStatus,
     priority: normalizePriority(lead),
     sla: lead.sla ?? lead.slaStatus ?? "—",
-    consultant: lead.assignedUser?.fullName ?? "Unassigned",
+    consultant: toPlainText(
+      lead.assignedUser?.fullName ?? lead.assignedTo,
+      "Unassigned",
+    ),
   };
 };
 
