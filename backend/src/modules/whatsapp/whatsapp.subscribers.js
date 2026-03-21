@@ -14,6 +14,7 @@ function registerWhatsappSubscribers({ eventBus, service, logger }) {
   }
 
   on("leads.created", service.notifyLeadWelcome);
+  on("leads.followup_created", service.notifyFollowupScheduled);
   on("quotations.sent", service.notifyQuotationSent);
   on("quotations.reminder_triggered", service.notifyQuotationReminder);
   on("bookings.pre_travel_reminder", service.notifyPreTravel);

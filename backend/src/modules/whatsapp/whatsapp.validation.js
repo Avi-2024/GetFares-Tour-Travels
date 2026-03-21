@@ -18,6 +18,12 @@ const receive = z.object({
   query: z.object({}).optional(),
 });
 
+const configStatus = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const sendText = z.object({
   body: z.object({
     to: z.string().min(6).max(25),
@@ -42,6 +48,7 @@ const sendTemplate = z.object({
 export const WhatsAppValidation = {
   verify,
   receive,
+  configStatus,
   sendText,
   sendTemplate,
 };

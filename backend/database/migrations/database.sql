@@ -385,6 +385,7 @@ CREATE TABLE quotations (
     approved_by UUID REFERENCES users(id),
     approved_at TIMESTAMP,
     approval_note TEXT,
+    important_notes TEXT,
 
     version_number INT DEFAULT 1 CHECK (version_number > 0),
 
@@ -401,6 +402,10 @@ CREATE TABLE quotations (
     expires_at TIMESTAMP,
     locked_at TIMESTAMP,
     lead_to_quote_minutes INT,
+    lead_to_quote_sent_minutes INT,
+    response_category VARCHAR(30) CHECK (response_category IN ('READY_PACKAGE', 'CUSTOMIZED', 'COMPLEX_ITINERARY')),
+    response_sla_minutes INT CHECK (response_sla_minutes > 0),
+    response_sla_breached BOOLEAN DEFAULT FALSE,
 
     is_deleted BOOLEAN DEFAULT FALSE,
 

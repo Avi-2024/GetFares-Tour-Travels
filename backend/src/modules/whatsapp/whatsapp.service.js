@@ -55,17 +55,42 @@ function createWhatsAppService({
   const templates = config?.templates || {};
   const templateAliases = {
     leadWelcome: templates.leadWelcome ?? templates.leadFollowup ?? null,
+    leadFollowup: templates.leadFollowup ?? templates.leadWelcome ?? null,
     quotationSent: templates.quotationSent ?? templates.quotation ?? null,
     quotationReminder: templates.quotationReminder ?? templates.quotation ?? null,
     preTravel: templates.preTravel ?? templates.booking ?? null,
     postTravel: templates.postTravel ?? templates.booking ?? null,
   };
 
+  function getConfigStatus() {
+    const checks = {
+      verifyToken: Boolean(config?.verifyToken),
+      accessToken: Boolean(config?.accessToken),
+      phoneNumberId: Boolean(config?.phoneNumberId),
+      appSecret: Boolean(config?.appSecret),
+      appId: Boolean(config?.appId),
+    };
+
+    const missing = Object.entries(checks)
+      .filter(([, isSet]) => !isSet)
+      .map(([key]) => key);
+
+    return {
+      ready: missing.length === 0,
+      checks,
+      missing,
+      webhook: {
+        verifyPath: "/webhook/whatsapp",
+        receivePath: "/webhook/whatsapp",
+      },
+    };
+  }
+
   function verifyWebhook(query = {}) {
     if (!verifyToken) {
       throw new AppError(
         500,
-        "META_VERIFY_TOKEN is not configured",
+        "WHATSAPP_VERIFY_TOKEN or META_VERIFY_TOKEN is not configured",
         "WHATSAPP_CONFIG_MISSING",
       );
     }
@@ -306,7 +331,43 @@ function createWhatsAppService({
     });
   }
 
+  async function notifyFollowupScheduled(payload = {}) {
+    const followupType = String(payload.followupType || "").toUpperCase();
+    if (!["WHATSAPP", "FINAL_REMINDER"].includes(followupType)) {
+      return null;
+    }
+
+    const leadId = payload.leadId || null;
+    const lead = leadId && leadsService?.getById ?
+      await leadsService.getById(leadId, {})
+    : null;
+    const phone = normalizePhone(payload.phone) || normalizePhone(lead?.phone);
+    if (!phone) {
+      return null;
+    }
+
+    const name = lead?.fullName || "there";
+    const fallbackText =
+      followupType === "FINAL_REMINDER" ?
+        `Hi ${name}, this is our final reminder regarding your travel enquiry. Please reply if you want us to keep this request active.`
+      : `Hi ${name}, just checking in on your travel enquiry. Please share a convenient time to connect.`;
+    const text = String(payload.notes || "").trim() || fallbackText;
+
+    return sendEventMessage({
+      phone,
+      text,
+      templateName: templateAliases.leadFollowup,
+    });
+  }
+
   async function notifyQuotationSent(payload = {}) {
+    const channel = String(
+      payload.channel || payload.deliveryChannel || "",
+    ).toUpperCase();
+    if (channel && channel !== "WHATSAPP") {
+      return null;
+    }
+
     const quotationId = payload.id || payload.quotationId;
     const { quote, phone } = await resolveQuotationDetails(quotationId);
     if (!phone) return null;
@@ -384,11 +445,13 @@ function createWhatsAppService({
   }
 
   return Object.freeze({
+    getConfigStatus,
     verifyWebhook,
     handleWebhook,
     sendTextMessage,
     sendTemplateMessage,
     notifyLeadWelcome,
+    notifyFollowupScheduled,
     notifyQuotationSent,
     notifyQuotationReminder,
     notifyPreTravel,

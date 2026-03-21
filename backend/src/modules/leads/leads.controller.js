@@ -74,6 +74,14 @@ function createLeadsController({ service }) {
       res.status(201).json({ data: result });
     },
 
+    async listFollowups(req, res) {
+      const result = await service.listFollowups(
+        req.validated.params.id,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async listOverdueFollowups(req, res) {
       const result = await service.listOverdueFollowups(
         req.validated.query || req.query,
@@ -98,6 +106,14 @@ function createLeadsController({ service }) {
 
     async processNonResponsive(req, res) {
       const result = await service.processNonResponsive(
+        req.validated.body || {},
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async processCadenceAutomation(req, res) {
+      const result = await service.processCadenceAutomation(
         req.validated.body || {},
         req.context,
       );

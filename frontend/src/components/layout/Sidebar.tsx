@@ -9,6 +9,7 @@ import {
   FaFolderOpen,
   FaGear,
   FaBell,
+  FaBoxOpen,
   FaPassport,
   FaPlaneDeparture,
   FaTableCellsLarge,
@@ -71,6 +72,7 @@ const sections = [
     title: "Operations",
     items: [
       { label: "Visa Cases", to: "/visa", icon: FaPassport, permission: "visa:read" },
+      { label: "Packages", to: "/packages", icon: FaBoxOpen, permission: "settings:read" },
       { label: "Documents", to: "#", icon: FaFolderOpen },
       {
         label: "Complaints",

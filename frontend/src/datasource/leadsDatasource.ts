@@ -2,6 +2,21 @@ import type { HttpClient } from "../api/apiClient";
 
 export type LeadsQuery = Record<string, string | number | boolean | undefined>;
 
+export type LeadDestinationRecord =
+  | {
+      id?: string | null;
+      name?: string | null;
+      country?: string | null;
+    }
+  | string
+  | null;
+
+export type LeadAssignedUser = {
+  id?: string | null;
+  fullName?: string | null;
+  email?: string | null;
+} | null;
+
 export type LeadApiRecord = {
   id?: number | string;
   leadId?: string;
@@ -10,28 +25,53 @@ export type LeadApiRecord = {
   created_at?: string | null;
   updatedAt?: string | null;
   updated_at?: string | null;
-  name?: string;
-  fullName?: string;
-  customerName?: string;
-  email?: string;
-  phone?: string;
-  mobile?: string;
-  destination?: string;
-  country?: string;
-  packageName?: string;
-  package?: string;
-  status?: string;
-  priority?: string;
-  priorityLevel?: number | string;
-  temperature?: string;
-  sla?: string;
-  slaStatus?: string;
+  fullName?: string | null;
+  name?: string | null;
+  customerName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  destination?: LeadDestinationRecord;
+  destinationId?: string | null;
+  destinationName?: string | null;
+  country?: string | null;
+  packageName?: string | null;
+  package?: string | null;
+  status?: string | null;
+  statusLabel?: string | null;
+  subStatus?: string | null;
+  priority?: string | null;
+  priorityLevel?: number | string | null;
+  temperature?: string | null;
+  sla?: string | null;
+  slaStatus?: string | null;
+  slaBreached?: boolean | null;
   assignedTo?: string | null;
-  assignedUser?: {
-    id?: string | null;
-    fullName?: string | null;
-    email?: string | null;
-  } | null;
+  assignedUser?: LeadAssignedUser;
+  adultsCount?: number | null;
+  childrenCount?: number | null;
+  travelDate?: string | null;
+  budget?: number | null;
+  visaRequired?: boolean | null;
+  preferredHotelCategory?: string | null;
+  travelPurpose?: string | null;
+  qualificationCompleted?: boolean | null;
+  followupAttempts?: number | null;
+  finalReminderAt?: string | null;
+  nonResponsiveMarkedAt?: string | null;
+};
+
+export type LeadFollowupRecord = {
+  id?: string;
+  leadId?: string;
+  userId?: string | null;
+  followupType?: "CALL" | "WHATSAPP" | "EMAIL" | "FINAL_REMINDER" | "TASK";
+  followupTypeCode?: number;
+  followupDate?: string | null;
+  cadenceCode?: string | null;
+  notes?: string | null;
+  isCompleted?: boolean;
+  createdAt?: string | null;
 };
 
 export type LeadsListResponse =
@@ -39,19 +79,22 @@ export type LeadsListResponse =
   | { data?: LeadApiRecord[] }
   | LeadApiRecord[];
 
+export type LeadFollowupsResponse =
+  | { data?: { data?: LeadFollowupRecord[]; items?: LeadFollowupRecord[] } }
+  | { data?: LeadFollowupRecord[] }
+  | LeadFollowupRecord[];
+
 export const createLeadsDatasource = (client: HttpClient) => ({
   list: (params?: LeadsQuery) =>
     client.get<LeadsListResponse>("/api/leads", { params }),
   create: (payload: unknown) => client.post("/api/leads", payload),
   getById: (id: string) => client.get(`/api/leads/${id}`),
-  update: (id: string, payload: unknown) =>
-    client.patch(`/api/leads/${id}`, payload),
-  assign: (id: string, payload: unknown) =>
-    client.post(`/api/leads/${id}/assign`, payload),
+  update: (id: string, payload: unknown) => client.patch(`/api/leads/${id}`, payload),
+  assign: (id: string, payload: unknown) => client.post(`/api/leads/${id}/assign`, payload),
   addFollowup: (id: string, payload: unknown) =>
     client.post(`/api/leads/${id}/followups`, payload),
-  getFollowups: (id: string) => client.get(`/api/leads/${id}/followups`),
-  getTimeline: (id: string) => client.get(`/api/leads/${id}/timeline`),
+  getFollowups: (id: string) =>
+    client.get<LeadFollowupsResponse>(`/api/leads/${id}/followups`),
   markAsLost: (id: string, reason: string, notes?: string) =>
     client.patch(`/api/leads/${id}`, {
       status: "LOST",
@@ -64,10 +107,20 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     }),
   getCampaigns: () => client.get("/api/campaigns", { params: { status: "ACTIVE" } }),
   getDestinations: () => client.get("/api/destinations"),
-  distribute: () => client.post("/api/leads/distribute"),
-  reassignInactive: () => client.post("/api/leads/reassign-inactive"),
-  processSlaBreaches: () => client.post("/api/leads/sla/process-breaches"),
-  getSlaStatus: (id: string) => client.get(`/api/leads/${id}/sla-status`),
+  distribute: (payload?: { limit?: number; reason?: string }) =>
+    client.post("/api/leads/distribute", payload),
+  reassignInactive: (payload?: { inactiveMinutes?: number; limit?: number; reason?: string }) =>
+    client.post("/api/leads/reassign-inactive", payload),
+  listOverdueFollowups: (params?: { limit?: number }) =>
+    client.get("/api/leads/followups/overdue", { params }),
+  processOverdueFollowups: (payload?: { limit?: number }) =>
+    client.post("/api/leads/followups/process-overdue", payload),
+  processSlaBreaches: (payload?: { limit?: number }) =>
+    client.post("/api/leads/sla/process-breaches", payload),
+  processNonResponsive: (payload?: { staleDays?: number; limit?: number }) =>
+    client.post("/api/leads/followups/process-non-responsive", payload),
+  processCadenceAutomation: (payload?: { staleDays?: number; limit?: number }) =>
+    client.post("/api/leads/followups/process-cadence-automation", payload),
   publicCapture: (payload: unknown) =>
     client.post("/api/webhooks/website-enquiry", payload, { skipAuth: true }),
 });
