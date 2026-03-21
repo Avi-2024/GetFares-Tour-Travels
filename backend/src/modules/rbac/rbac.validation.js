@@ -20,17 +20,7 @@ const assignRole = z.object({
   body: z
     .object({
       userId: z.string().uuid(),
-      role: z.string().trim().min(1).optional(),
-      roleId: z.string().uuid().optional(),
-    })
-    .superRefine((value, ctx) => {
-      if (!value.role && !value.roleId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Either role or roleId is required",
-          path: ["role"],
-        });
-      }
+      roleId: z.string().uuid(),
     }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
