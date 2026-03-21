@@ -10,7 +10,6 @@ import {
 import { notificationsApi } from "../api/notifications";
 import type { NotificationItem } from "../types";
 import { useAuth } from "./AuthContext";
-import { useNotificationsService } from "../hooks/useNotificationsService";
 
 type NotificationsContextValue = {
   notifications: NotificationItem[];
@@ -25,30 +24,6 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(
   null,
 );
 
-const fallbackNotifications: NotificationItem[] = [
-  {
-    id: "ntf-1",
-    title: "New lead assigned",
-    module: "Leads",
-    time: "Today, 11:20 AM",
-    isRead: false,
-  },
-  {
-    id: "ntf-2",
-    title: "Quotation approved",
-    module: "Quotations",
-    time: "Today, 9:05 AM",
-    isRead: false,
-  },
-  {
-    id: "ntf-3",
-    title: "Payment verification pending",
-    module: "Payments",
-    time: "Yesterday, 6:30 PM",
-    isRead: true,
-  },
-];
-
 export const NotificationsProvider = ({
   children,
 }: {
@@ -57,42 +32,32 @@ export const NotificationsProvider = ({
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const notificationsService = useNotificationsService();
   const { token } = useAuth();
 
   const refresh = useCallback(async () => {
     setLoading(true);
     if (!token) {
-      setNotifications(fallbackNotifications);
-      setUnreadCount(
-        fallbackNotifications.filter((item) => !item.isRead).length,
-      );
+      setNotifications([]);
+      setUnreadCount(0);
       setLoading(false);
       return;
     }
     try {
       const [list, unread] = await Promise.all([
-        notificationsApi.list(),
+        notificationsApi.list({ page: 1, limit: 20 }),
         notificationsApi.unreadCount(),
       ]);
-      const listPayload = list as any;
-      const unreadPayload = unread as any;
-      setNotifications(
-        Array.isArray(listPayload)
-          ? listPayload
-          : listPayload?.data?.data || listPayload?.data || [],
-      );
-      setUnreadCount(unreadPayload?.unread || unreadPayload?.data?.unread || 0);
+
+      setNotifications(Array.isArray(list.data?.items) ? list.data.items : []);
+      setUnreadCount(Number(unread.data?.unreadCount ?? list.data?.unreadCount ?? 0));
     } catch (error) {
-      console.error('Failed to load notifications:', error);
-      setNotifications(fallbackNotifications);
-      setUnreadCount(
-        fallbackNotifications.filter((item) => !item.isRead).length,
-      );
+      console.error("Failed to load notifications:", error);
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
-  }, [notificationsService, token]);
+  }, [token]);
 
   useEffect(() => {
     void refresh();
@@ -100,30 +65,33 @@ export const NotificationsProvider = ({
 
   const markRead = async (id: string) => {
     try {
-      await notificationsApi.markRead(id);
+      const response = await notificationsApi.markRead(id);
+      const updated = response.data;
+      setNotifications((current) =>
+        current.map((item) => (item.id === id ? updated : item)),
+      );
+      setUnreadCount((count) =>
+        updated.status === "READ" ? Math.max(0, count - 1) : count,
+      );
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      console.error("Failed to mark notification as read:", error);
     }
-
-    setNotifications((current) =>
-      current.map((item) =>
-        item.id === id ? { ...item, isRead: true } : item,
-      ),
-    );
-    setUnreadCount((count) => Math.max(0, count - 1));
   };
 
   const markAllRead = async () => {
     try {
       await notificationsApi.markAllRead();
+      setNotifications((current) =>
+        current.map((item) => ({
+          ...item,
+          status: "READ",
+          readAt: item.readAt || new Date().toISOString(),
+        })),
+      );
+      setUnreadCount(0);
     } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
+      console.error("Failed to mark all notifications as read:", error);
     }
-
-    setNotifications((current) =>
-      current.map((item) => ({ ...item, isRead: true })),
-    );
-    setUnreadCount(0);
   };
 
   const value = useMemo(

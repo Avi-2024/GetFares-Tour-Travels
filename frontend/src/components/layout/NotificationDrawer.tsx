@@ -7,6 +7,33 @@ type Props = {
   onClose: () => void;
 };
 
+const toTitle = (eventName?: string | null, title?: string | null) => {
+  if (title?.trim()) return title.trim();
+  return String(eventName || "notification")
+    .split(".")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
+const toModule = (entityType?: string | null, eventName?: string | null) => {
+  const source = entityType || eventName?.split(".")[0] || "general";
+  return source
+    .split(/[_\s.-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "Unknown time";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+};
+
 const NotificationDrawer = ({ open, onClose }: Props) => {
   const { notifications, markRead, markAllRead } = useNotifications();
 
@@ -53,17 +80,22 @@ const NotificationDrawer = ({ open, onClose }: Props) => {
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {notification.title}
+                    {toTitle(notification.eventName, notification.title)}
                   </p>
                   <StatusBadge
-                    status={notification.isRead ? "Read" : "Unread"}
+                    status={notification.status === "READ" ? "Read" : notification.status}
                   />
                 </div>
-                <p className="text-xs text-gray-500">{notification.module}</p>
-                <p className="mt-1 text-xs text-gray-400">
-                  {notification.time}
+                <p className="text-xs text-gray-500">
+                  {toModule(notification.entityType, notification.eventName)}
                 </p>
-                {!notification.isRead ? (
+                <p className="mt-1 text-xs text-gray-500">
+                  {notification.message || "No message available."}
+                </p>
+                <p className="mt-1 text-xs text-gray-400">
+                  {formatDateTime(notification.createdAt)}
+                </p>
+                {notification.status !== "READ" ? (
                   <button
                     onClick={() => void markRead(notification.id)}
                     className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700"
