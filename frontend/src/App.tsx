@@ -34,6 +34,7 @@ import PublicLeadCapturePage from "./pages/public/PublicLeadCapturePage";
 import FinanceSystem from "./pages/Finance/FinanceSystem";
 import ProfilePage from "./pages/profile/ProfilePage";
 import PackagesPage from "./pages/packages/PackagesPage";
+import DestinationsPage from "./pages/destinations/DestinationsPage";
 
 function App() {
   return (
@@ -88,6 +89,7 @@ function App() {
             <Route element={<PermissionRoute permission="settings:read" />}>
               <Route path="/settings" element={<Settings />} />
               <Route path="/packages" element={<PackagesPage />} />
+              <Route path="/destinations" element={<DestinationsPage />} />
             </Route>
 
             <Route element={<PermissionRoute permission="payments:read" />}>

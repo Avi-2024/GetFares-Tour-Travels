@@ -1,5 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
+import { FaGlobe } from "react-icons/fa";
 import {
   FaChartPie,
   FaChevronLeft,
@@ -72,6 +73,7 @@ const sections = [
     title: "Operations",
     items: [
       { label: "Visa Cases", to: "/visa", icon: FaPassport, permission: "visa:read" },
+      { label: "Destinations", to: "/destinations", icon: FaGlobe, permission: "settings:read" },
       { label: "Packages", to: "/packages", icon: FaBoxOpen, permission: "settings:read" },
       { label: "Documents", to: "#", icon: FaFolderOpen },
       {

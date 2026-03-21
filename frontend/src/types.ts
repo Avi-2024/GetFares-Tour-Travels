@@ -29,10 +29,25 @@ export interface PermissionItem {
   key: string;
 }
 
+export type NotificationStatus = "PENDING" | "DELIVERED" | "READ" | "FAILED";
+
 export interface NotificationItem {
   id: UUID;
-  title: string;
-  module: string;
-  time: string;
-  isRead: boolean;
+  eventName: string;
+  channel: string;
+  entityType: string | null;
+  entityId: string | null;
+  title: string | null;
+  message: string | null;
+  payload: Record<string, unknown>;
+  recipientUserId: string | null;
+  recipientRole: string | null;
+  recipientTeamId: string | null;
+  status: NotificationStatus;
+  deliveryAttempts: number;
+  deliveredAt: string | null;
+  readAt: string | null;
+  lastError: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
 }

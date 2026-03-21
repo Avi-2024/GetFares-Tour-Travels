@@ -83,6 +83,6 @@ export const rbacApi = {
       {
         method: "PUT",
         body: payload,
-      },
+      }, 
     ),
 };
