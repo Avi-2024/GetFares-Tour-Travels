@@ -18,8 +18,6 @@
 -- SET role_id = (SELECT id FROM roles WHERE name = 'ADMIN')
 -- WHERE email = 'admin@travel-crm.com';
 -- -- ! =========================================================
-
--- -----------------------------
 -- INSERT INTO roles (name, description)
 -- VALUES ('SUPER_ADMIN', 'Full access to CRM')
 -- ON CONFLICT (name) DO NOTHING;
@@ -38,6 +36,7 @@
 --     '$2b$10$sobkJsADDL.z5fSKtHmMVOsw28OmXODgHMlJ9G/xIa5VCsXK.H00e',
 --     TRUE
 -- );
+-- -- ! =========================================================
 
 -- =========================================
 -- 1. AUTHENTICATION & RBAC TABLES

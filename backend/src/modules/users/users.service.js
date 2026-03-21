@@ -72,42 +72,15 @@ function createUsersService({
   logger,
   events,
   rbacService,
-  rolesService,
 }) {
-  function isUuid(value) {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      String(value || "").trim(),
-    );
-  }
-
-  async function resolveRoleId(payload = {}) {
-    const rawRole =
-      payload.role !== undefined && payload.role !== null
-        ? String(payload.role).trim()
-        : "";
-    const rawRoleId =
-      payload.roleId !== undefined && payload.roleId !== null
-        ? String(payload.roleId).trim()
-        : payload.role_id !== undefined && payload.role_id !== null
-          ? String(payload.role_id).trim()
-          : "";
-
-    if (!rawRole && !rawRoleId) {
-      return null;
+  function getRoleIdFromPayload(payload = {}) {
+    if (Object.prototype.hasOwnProperty.call(payload, "roleId")) {
+      return payload.roleId;
     }
-
-    if (!rolesService) {
-      return isUuid(rawRoleId) ? rawRoleId : null;
+    if (Object.prototype.hasOwnProperty.call(payload, "role_id")) {
+      return payload.role_id;
     }
-
-    const normalizedRoleId = rawRoleId && isUuid(rawRoleId) ? rawRoleId : null;
-    const roleFromRoleId = rawRoleId && !normalizedRoleId && !rawRole ? rawRoleId : null;
-
-    const resolved = await rolesService.resolveRole({
-      role: rawRole || roleFromRoleId,
-      roleId: normalizedRoleId,
-    });
-    return resolved?.id || null;
+    return undefined;
   }
 
   async function getRoleLookup() {
@@ -184,13 +157,10 @@ function createUsersService({
         );
       }
 
-      const roleId = await resolveRoleId(payload);
-      let created = await repository.create(
+      const roleId = getRoleIdFromPayload(payload);
+      const created = await repository.create(
         mapCreatePayload({ ...payload, passwordHash, roleId }),
       );
-      if (roleId && created?.role_id !== roleId) {
-        created = await repository.update(created.id, { role_id: roleId });
-      }
 
       events.emitCreated(created);
       const roleLookup = await getRoleLookup();
@@ -221,10 +191,7 @@ function createUsersService({
     await getById(id, context);
 
     try {
-      const roleId =
-        payload.role !== undefined || payload.roleId !== undefined ?
-          await resolveRoleId(payload)
-        : payload.roleId;
+      const roleId = getRoleIdFromPayload(payload);
       const updated = await repository.update(
         id,
         mapUpdatePayload({ ...payload, roleId }),
