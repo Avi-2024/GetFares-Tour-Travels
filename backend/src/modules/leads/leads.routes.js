@@ -81,6 +81,14 @@ function createLeadsRoutes({
     asyncHandler(controller.processNonResponsive),
   );
 
+  router.post(
+    "/followups/process-cadence-automation",
+    requireAuth,
+    authorize("leads:update"),
+    validateRequest(validation.processCadenceAutomation),
+    asyncHandler(controller.processCadenceAutomation),
+  );
+
   router.get(
     "/:id",
     requireAuth,
@@ -110,6 +118,13 @@ function createLeadsRoutes({
     authorize("leads:update"),
     validateRequest(validation.createFollowup),
     asyncHandler(controller.createFollowup),
+  );
+  router.get(
+    "/:id/followups",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.listFollowupsByLeadId),
+    asyncHandler(controller.listFollowups),
   );
 
   return router;

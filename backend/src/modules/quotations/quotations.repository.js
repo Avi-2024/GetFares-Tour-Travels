@@ -157,6 +157,7 @@ function createQuotationsRepository({ db, logger, schema }) {
       approvedBy: row.approved_by ?? row.approvedBy ?? null,
       approvedAt: toDate(row.approved_at ?? row.approvedAt),
       approvalNote: row.approval_note ?? row.approvalNote ?? null,
+      importantNotes: row.important_notes ?? row.importantNotes ?? null,
       versionNumber: Number(row.version_number ?? row.versionNumber ?? 1),
       status: row.status,
       pdfUrl: row.pdf_url ?? row.pdfUrl ?? null,
@@ -172,6 +173,19 @@ function createQuotationsRepository({ db, logger, schema }) {
       leadToQuoteMinutes: toNumber(
         row.lead_to_quote_minutes ?? row.leadToQuoteMinutes,
         null,
+      ),
+      leadToQuoteSentMinutes: toNumber(
+        row.lead_to_quote_sent_minutes ?? row.leadToQuoteSentMinutes,
+        null,
+      ),
+      responseCategory: row.response_category ?? row.responseCategory ?? null,
+      responseSlaMinutes: toNumber(
+        row.response_sla_minutes ?? row.responseSlaMinutes,
+        null,
+      ),
+      responseSlaBreached: toBoolean(
+        row.response_sla_breached ?? row.responseSlaBreached,
+        false,
       ),
       isDeleted: Boolean(row.is_deleted ?? row.isDeleted ?? false),
       createdAt: toDate(row.created_at ?? row.createdAt),
@@ -789,6 +803,25 @@ function createQuotationsRepository({ db, logger, schema }) {
       return toDestination(row);
     },
 
+    async findIntegrationSettings() {
+      if (!schema.appSettingsTable) {
+        return {};
+      }
+
+      try {
+        const row = await db.findOne(schema.appSettingsTable, {
+          key: "integrations",
+        });
+        return toJson(row?.value, {}) || {};
+      } catch (error) {
+        logger.warn(
+          { err: error, module: "quotations" },
+          "Unable to load integration settings from app_settings",
+        );
+        return {};
+      }
+    },
+
     findLeadsByIds,
     findDestinationsByIds,
 
@@ -900,9 +933,17 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*)::int AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected_quotes,
-          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_minutes,
+          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_created_minutes,
+          AVG(
+            CASE
+              WHEN q.sent_at IS NOT NULL
+              THEN EXTRACT(EPOCH FROM (q.sent_at - l.created_at)) / 60.0
+              ELSE NULL
+            END
+          )::numeric(10,2) AS avg_lead_to_quote_sent_minutes,
           AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
-          AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent
+          AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent,
+          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END)::int AS sla_breached_quotes
         FROM quotations q
         LEFT JOIN users u ON u.id = q.created_by
         LEFT JOIN leads l ON l.id = q.lead_id
@@ -916,9 +957,17 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*)::int AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected_quotes,
-          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_minutes,
+          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_created_minutes,
+          AVG(
+            CASE
+              WHEN q.sent_at IS NOT NULL
+              THEN EXTRACT(EPOCH FROM (q.sent_at - l.created_at)) / 60.0
+              ELSE NULL
+            END
+          )::numeric(10,2) AS avg_lead_to_quote_sent_minutes,
           AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
-          AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent
+          AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent,
+          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END)::int AS sla_breached_quotes
         FROM quotations q
         LEFT JOIN leads l ON l.id = q.lead_id
         WHERE ${whereSql}
@@ -942,8 +991,20 @@ function createQuotationsRepository({ db, logger, schema }) {
           totalQuotes: total,
           approvedQuotes: approved,
           rejectedQuotes: rejected,
+          slaBreachedQuotes: Number(row.sla_breached_quotes || 0),
           approvalRatePercent,
-          avgLeadToQuoteMinutes: toNumber(row.avg_lead_to_quote_minutes, 0),
+          avgLeadToQuoteMinutes: toNumber(
+            row.avg_lead_to_quote_sent_minutes,
+            0,
+          ),
+          avgLeadToQuoteCreatedMinutes: toNumber(
+            row.avg_lead_to_quote_created_minutes,
+            0,
+          ),
+          avgLeadToQuoteSentMinutes: toNumber(
+            row.avg_lead_to_quote_sent_minutes,
+            0,
+          ),
           avgQuoteValue: toNumber(row.avg_quote_value, 0),
           avgMarginPercent: toNumber(row.avg_margin_percent, 0),
         };
@@ -958,12 +1019,21 @@ function createQuotationsRepository({ db, logger, schema }) {
           totalQuotes: overallTotal,
           approvedQuotes: overallApproved,
           rejectedQuotes: Number(overallRow.rejected_quotes || 0),
+          slaBreachedQuotes: Number(overallRow.sla_breached_quotes || 0),
           approvalRatePercent:
             overallTotal > 0
               ? Number(((overallApproved / overallTotal) * 100).toFixed(2))
               : 0,
           avgLeadToQuoteMinutes: toNumber(
-            overallRow.avg_lead_to_quote_minutes,
+            overallRow.avg_lead_to_quote_sent_minutes,
+            0,
+          ),
+          avgLeadToQuoteCreatedMinutes: toNumber(
+            overallRow.avg_lead_to_quote_created_minutes,
+            0,
+          ),
+          avgLeadToQuoteSentMinutes: toNumber(
+            overallRow.avg_lead_to_quote_sent_minutes,
             0,
           ),
           avgQuoteValue: toNumber(overallRow.avg_quote_value, 0),

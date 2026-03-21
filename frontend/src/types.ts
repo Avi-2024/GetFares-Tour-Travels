@@ -1,6 +1,14 @@
 export type UUID = string;
 
-export type LeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "LOST";
+export type LeadStatus =
+  | "OPEN"
+  | "CONTACTED"
+  | "WIP"
+  | "QUOTED"
+  | "FOLLOW_UP"
+  | "CONVERTED"
+  | "LOST"
+  | "NON_RESPONSIVE";
 export type QuoteStatus =
   | "DRAFT"
   | "PENDING"

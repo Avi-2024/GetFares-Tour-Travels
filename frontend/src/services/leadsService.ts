@@ -1,11 +1,19 @@
 import type {
   LeadApiRecord,
+  LeadDestinationRecord,
+  LeadFollowupRecord,
+  LeadFollowupsResponse,
   LeadsDatasource,
   LeadsListResponse,
   LeadsQuery,
 } from "../datasource/leadsDatasource";
+import {
+  deriveSopStatusLabel,
+  normalizeStatusToken,
+  type CanonicalLeadStatus,
+  type SopStatusLabel,
+} from "../utils/leadStatus";
 
-export type LeadStatus = "New" | "Contacted" | "Qualified" | "Lost";
 export type LeadPriority = "High" | "Medium" | "Low";
 
 export type LeadListItem = {
@@ -17,9 +25,12 @@ export type LeadListItem = {
   phone: string;
   destination: string;
   packageName: string;
-  status: LeadStatus;
+  status: CanonicalLeadStatus;
+  statusLabel: SopStatusLabel;
+  subStatus: string | null;
   priority: LeadPriority;
   sla: string;
+  slaBreached: boolean;
   consultant: string;
 };
 
@@ -30,6 +41,20 @@ const extractList = (response: LeadsListResponse) => {
     (response as { data?: { data?: LeadApiRecord[]; items?: LeadApiRecord[] } })
       ?.data?.items ??
     (response as { data?: LeadApiRecord[] })?.data ??
+    response;
+
+  return Array.isArray(data) ? data : [];
+};
+
+const extractFollowups = (response: LeadFollowupsResponse) => {
+  const data =
+    (response as {
+      data?: { data?: LeadFollowupRecord[]; items?: LeadFollowupRecord[] };
+    })?.data?.data ??
+    (response as {
+      data?: { data?: LeadFollowupRecord[]; items?: LeadFollowupRecord[] };
+    })?.data?.items ??
+    (response as { data?: LeadFollowupRecord[] })?.data ??
     response;
 
   return Array.isArray(data) ? data : [];
@@ -68,21 +93,46 @@ const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
   return "Medium";
 };
 
-const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
-  const statusMap: Record<string, LeadStatus> = {
-    OPEN: "New",
-    CONTACTED: "Contacted",
-    WIP: "Contacted",
-    FOLLOW_UP: "Contacted",
-    QUALIFIED: "Qualified",
-    QUOTED: "Qualified",
-    CONVERTED: "Qualified",
-    LOST: "Lost",
-    NON_RESPONSIVE: "Lost",
-  };
+const normalizeDestination = (
+  destination: LeadDestinationRecord | undefined,
+  fallbackName?: string | null,
+  country?: string | null,
+) => {
+  if (typeof destination === "string" && destination.trim()) {
+    return destination.trim();
+  }
+  if (destination && typeof destination === "object") {
+    if (destination.name && String(destination.name).trim()) {
+      return String(destination.name).trim();
+    }
+    if (destination.country && String(destination.country).trim()) {
+      return String(destination.country).trim();
+    }
+  }
+  if (fallbackName && String(fallbackName).trim()) {
+    return String(fallbackName).trim();
+  }
+  if (country && String(country).trim()) {
+    return String(country).trim();
+  }
+  return "N/A";
+};
 
-  const normalizedStatus =
-    statusMap[String(lead.status ?? "").toUpperCase()] ?? "New";
+const normalizeCanonicalStatus = (value: unknown): CanonicalLeadStatus => {
+  const normalized = normalizeStatusToken(value);
+  if (normalized === "CONTACTED") return "CONTACTED";
+  if (normalized === "WIP") return "WIP";
+  if (normalized === "QUOTED") return "QUOTED";
+  if (normalized === "FOLLOW_UP") return "FOLLOW_UP";
+  if (normalized === "CONVERTED") return "CONVERTED";
+  if (normalized === "LOST") return "LOST";
+  if (normalized === "NON_RESPONSIVE") return "NON_RESPONSIVE";
+  return "OPEN";
+};
+
+const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
+  const status = normalizeCanonicalStatus(lead.status);
+  const statusLabel = deriveSopStatusLabel(lead.status, lead.subStatus, lead.statusLabel);
 
   return {
     id: lead.id ?? index,
@@ -92,11 +142,18 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     name: lead.name ?? lead.fullName ?? lead.customerName ?? "Unknown",
     email: lead.email ?? "N/A",
     phone: lead.phone ?? lead.mobile ?? "N/A",
-    destination: lead.destination ?? lead.country ?? "N/A",
+    destination: normalizeDestination(
+      lead.destination,
+      lead.destinationName,
+      lead.country,
+    ),
     packageName: lead.packageName ?? lead.package ?? "N/A",
-    status: normalizedStatus,
+    status,
+    statusLabel,
+    subStatus: lead.subStatus ?? null,
     priority: normalizePriority(lead),
-    sla: lead.sla ?? lead.slaStatus ?? "—",
+    sla: lead.sla ?? lead.slaStatus ?? "N/A",
+    slaBreached: Boolean(lead.slaBreached),
     consultant: lead.assignedUser?.fullName ?? "Unassigned",
   };
 };
@@ -107,14 +164,19 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     const items = extractList(response);
     return items.map((lead, index) => toListItem(lead, index));
   },
+  listLeadsRaw: async (params?: LeadsQuery): Promise<LeadApiRecord[]> => {
+    const response = await datasource.list(params);
+    return extractList(response);
+  },
   createLead: (payload: unknown) => datasource.create(payload),
   getLeadById: (id: string) => datasource.getById(id),
   updateLead: (id: string, payload: unknown) => datasource.update(id, payload),
   assignLead: (id: string, payload: unknown) => datasource.assign(id, payload),
-  addFollowup: (id: string, payload: unknown) =>
-    datasource.addFollowup(id, payload),
-  getFollowups: (id: string) => datasource.getFollowups(id),
-  getTimeline: (id: string) => datasource.getTimeline(id),
+  addFollowup: (id: string, payload: unknown) => datasource.addFollowup(id, payload),
+  getFollowups: async (id: string): Promise<LeadFollowupRecord[]> => {
+    const response = await datasource.getFollowups(id);
+    return extractFollowups(response);
+  },
   markAsLost: (id: string, reason: string, notes?: string) =>
     datasource.markAsLost(id, reason, notes),
   checkDuplicate: async (email?: string, phone?: string) => {
@@ -133,10 +195,23 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     const response = await datasource.getDestinations();
     return extractArray(response);
   },
-  distributeLeads: () => datasource.distribute(),
-  reassignInactiveLeads: () => datasource.reassignInactive(),
-  processSlaBreaches: () => datasource.processSlaBreaches(),
-  getSlaStatus: (id: string) => datasource.getSlaStatus(id),
+  distributeLeads: (payload?: { limit?: number; reason?: string }) =>
+    datasource.distribute(payload),
+  reassignInactiveLeads: (payload?: {
+    inactiveMinutes?: number;
+    limit?: number;
+    reason?: string;
+  }) => datasource.reassignInactive(payload),
+  listOverdueFollowups: (params?: { limit?: number }) =>
+    datasource.listOverdueFollowups(params),
+  processOverdueFollowups: (payload?: { limit?: number }) =>
+    datasource.processOverdueFollowups(payload),
+  processSlaBreaches: (payload?: { limit?: number }) =>
+    datasource.processSlaBreaches(payload),
+  processNonResponsive: (payload?: { staleDays?: number; limit?: number }) =>
+    datasource.processNonResponsive(payload),
+  processCadenceAutomation: (payload?: { staleDays?: number; limit?: number }) =>
+    datasource.processCadenceAutomation(payload),
   submitPublicLead: (payload: unknown) => datasource.publicCapture(payload),
 });
 

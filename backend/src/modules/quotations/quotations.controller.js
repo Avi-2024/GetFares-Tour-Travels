@@ -45,10 +45,11 @@
     },
 
     async generatePdf(req, res) {
+      const requestBaseUrl = `${req.protocol}://${req.get("host")}`;
       const result = await service.generatePdf(
         req.validated.params.id,
         req.validated.body || {},
-        req.context,
+        { ...req.context, requestBaseUrl },
       );
       res.status(200).json({ data: result });
     },

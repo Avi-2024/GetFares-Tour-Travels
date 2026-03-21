@@ -15,7 +15,58 @@ const POSITIVE_RESPONSE_STATUSES = new Set([
 ]);
 const CLOSED_STATUSES = new Set(["CONVERTED", "LOST", "NON_RESPONSIVE"]);
 const NON_RESPONSIVE_STATUS = "NON_RESPONSIVE";
-const MANDATORY_FOLLOWUP_ATTEMPTS = 5; // FU1..FU4 + final reminder
+const FOLLOWUP_COMPLIANCE_RULES = Object.freeze({
+  requiredCalls: 4,
+  requiredWhatsapp: 2,
+  requiredFinalReminders: 1,
+});
+const FOLLOWUP_TOTAL_REQUIRED =
+  FOLLOWUP_COMPLIANCE_RULES.requiredCalls +
+  FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp +
+  FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders;
+const DOC_STATUS_TO_CANONICAL = Object.freeze({
+  NEW: "OPEN",
+  OPEN: "OPEN",
+  CONTACTED: "CONTACTED",
+  NEGOTIATION: "WIP",
+  WIP: "WIP",
+  QUOTED: "QUOTED",
+  FOLLOW_UP: "FOLLOW_UP",
+  FOLLOW_UP_1: "FOLLOW_UP",
+  FOLLOW_UP_2: "FOLLOW_UP",
+  FOLLOW_UP_3: "FOLLOW_UP",
+  FINAL_REMINDER: "FOLLOW_UP",
+  HOT: "OPEN",
+  WARM: "OPEN",
+  COLD: "OPEN",
+  CONVERTED: "CONVERTED",
+  LOST: "LOST",
+  NON_RESPONSIVE: "NON_RESPONSIVE",
+});
+const STATUS_REQUIRING_QUALIFICATION = new Set([
+  "CONTACTED",
+  "WIP",
+  "FOLLOW_UP",
+  "QUOTED",
+  "CONVERTED",
+  "LOST",
+  "NON_RESPONSIVE",
+]);
+const CADENCE_TEMPLATE = Object.freeze([
+  { code: "FU1_CALL", dayOffset: 0, hour: 18, minute: 0, type: "CALL" },
+  { code: "FU1_WHATSAPP", dayOffset: 0, hour: 18, minute: 10, type: "WHATSAPP" },
+  { code: "FU2_CALL", dayOffset: 1, hour: 10, minute: 0, type: "CALL" },
+  { code: "FU3_CALL", dayOffset: 1, hour: 18, minute: 0, type: "CALL" },
+  { code: "FU3_WHATSAPP", dayOffset: 1, hour: 18, minute: 10, type: "WHATSAPP" },
+  { code: "FU4_CALL", dayOffset: 2, hour: 10, minute: 0, type: "CALL" },
+  {
+    code: "FINAL_REMINDER_AUTO",
+    dayOffset: 2,
+    hour: 10,
+    minute: 10,
+    type: "FINAL_REMINDER",
+  },
+]);
 
 const AUTOMATION_DEFAULTS = Object.freeze({
   highBudgetThreshold: 150000,
@@ -52,6 +103,45 @@ function createLeadsService({ repository, logger, events }) {
       return normalized;
     }
     return "HOLIDAY";
+  }
+
+  function normalizeLeadStatus(value) {
+    if (!value) {
+      return "OPEN";
+    }
+    const normalized = String(value)
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return DOC_STATUS_TO_CANONICAL[normalized] || "OPEN";
+  }
+
+  function deriveDocStatus(canonicalStatus, subStatus) {
+    const status = String(canonicalStatus || "OPEN").toUpperCase();
+    if (status === "OPEN") return "NEW";
+    if (status === "WIP") return "NEGOTIATION";
+    if (status === "FOLLOW_UP") {
+      if (subStatus && /^FOLLOW_UP_[1-4]$/.test(String(subStatus).toUpperCase())) {
+        return String(subStatus).toUpperCase();
+      }
+      if (String(subStatus || "").toUpperCase() === "FINAL_REMINDER") {
+        return "FINAL_REMINDER";
+      }
+      return "FOLLOW_UP_1";
+    }
+    return status;
+  }
+
+  function normalizeHotelCategory(value) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    const normalized = String(value).trim().toUpperCase().replace(/\s+/g, "_");
+    if (["3_STAR", "4_STAR", "5_STAR", "ANY"].includes(normalized)) {
+      return normalized;
+    }
+    return null;
   }
 
   function mapTemperatureToPriority(temperature) {
@@ -141,7 +231,95 @@ function createLeadsService({ repository, logger, events }) {
     return {
       ...lead,
       temperature: lead.temperature || derivedTemperature,
+      statusLabel: deriveDocStatus(lead.status, lead.subStatus),
     };
+  }
+
+  function getMissingQualificationFields(input = {}) {
+    const missing = [];
+    const hasDestination = Boolean(
+      input.destinationId || input.destinationName || input.destination,
+    );
+    if (!hasDestination) {
+      missing.push("destination");
+    }
+    if (!input.travelDate) {
+      missing.push("travelDate");
+    }
+    if (input.adultsCount === undefined || input.childrenCount === undefined) {
+      missing.push("paxSplit(adultsCount,childrenCount)");
+    }
+    if (input.budget === undefined || input.budget === null) {
+      missing.push("budget");
+    }
+    if (typeof input.visaRequired !== "boolean") {
+      missing.push("visaRequired");
+    }
+    if (!normalizeHotelCategory(input.preferredHotelCategory)) {
+      missing.push("preferredHotelCategory");
+    }
+    if (!input.travelPurpose) {
+      missing.push("travelPurpose");
+    }
+    return missing;
+  }
+
+  function assertQualificationCaptured(input = {}) {
+    const missing = getMissingQualificationFields(input);
+    if (!missing.length) {
+      return;
+    }
+
+    throw new AppError(
+      400,
+      `Lead qualification is incomplete. Missing required fields: ${missing.join(", ")}`,
+      "LEAD_QUALIFICATION_REQUIRED",
+      { missing },
+    );
+  }
+
+  function assertFollowupCompliance(stats) {
+    if (isFollowupComplianceSatisfied(stats)) {
+      return;
+    }
+
+    throw new AppError(
+      409,
+      `Follow-up compliance not met. Required: ${FOLLOWUP_COMPLIANCE_RULES.requiredCalls} calls, ${FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp} WhatsApp, ${FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders} final reminder.`,
+      "LEAD_FOLLOWUP_COMPLIANCE_REQUIRED",
+      stats,
+    );
+  }
+
+  function isFollowupComplianceSatisfied(stats) {
+    if (
+      stats.calls >= FOLLOWUP_COMPLIANCE_RULES.requiredCalls &&
+      stats.whatsapp >= FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp &&
+      stats.finalReminders >= FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  function addDays(dateValue, days) {
+    const date = new Date(dateValue);
+    date.setDate(date.getDate() + days);
+    return date;
+  }
+
+  function toCadenceDate(baseDate, slot) {
+    const date = addDays(baseDate, slot.dayOffset);
+    date.setHours(slot.hour, slot.minute, 0, 0);
+    return date;
+  }
+
+  function buildCadenceSlots(lead) {
+    const anchor = lead.createdAt ? new Date(lead.createdAt) : new Date();
+    return CADENCE_TEMPLATE.map((slot) => ({
+      ...slot,
+      followupDate: toCadenceDate(anchor, slot),
+    }));
   }
 
   function buildCreateRecord(payload, options = {}) {
@@ -171,6 +349,9 @@ function createLeadsService({ repository, logger, events }) {
       children_count: payload.childrenCount ?? 0,
       visa_required: payload.visaRequired ?? false,
       lead_type: normalizeLeadType(payload.leadType),
+      preferred_hotel_category: normalizeHotelCategory(
+        payload.preferredHotelCategory,
+      ),
       travel_purpose: payload.travelPurpose || null,
       sub_status: payload.subStatus || null,
       temperature,
@@ -183,7 +364,7 @@ function createLeadsService({ repository, logger, events }) {
       priority_level:
         payload.priorityLevel ?? mapTemperatureToPriority(temperature),
       is_vip: payload.isVip ?? false,
-      status: payload.status || "OPEN",
+      status: normalizeLeadStatus(payload.status),
       assigned_to: assignedTo,
       assigned_at: assignedTo ? now.toISOString() : null,
       response_deadline: responseDeadline,
@@ -268,6 +449,11 @@ function createLeadsService({ repository, logger, events }) {
     if (payload.leadType !== undefined) {
       mapped.lead_type = normalizeLeadType(payload.leadType);
     }
+    if (payload.preferredHotelCategory !== undefined) {
+      mapped.preferred_hotel_category = normalizeHotelCategory(
+        payload.preferredHotelCategory,
+      );
+    }
     if (payload.travelPurpose !== undefined) {
       mapped.travel_purpose = payload.travelPurpose;
     }
@@ -281,7 +467,23 @@ function createLeadsService({ repository, logger, events }) {
       mapped.is_vip = payload.isVip;
     }
     if (payload.status !== undefined) {
-      mapped.status = payload.status;
+      mapped.status = normalizeLeadStatus(payload.status);
+      const requestedDocStatus = String(payload.status)
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+      if (["HOT", "WARM", "COLD"].includes(requestedDocStatus)) {
+        mapped.temperature = requestedDocStatus;
+        mapped.priority_level = mapTemperatureToPriority(requestedDocStatus);
+      }
+      if (/^FOLLOW_UP_[1-4]$/.test(requestedDocStatus)) {
+        mapped.sub_status = requestedDocStatus;
+      } else if (requestedDocStatus === "FINAL_REMINDER") {
+        mapped.sub_status = "FINAL_REMINDER";
+      } else if (mapped.status === "CONTACTED" && !payload.subStatus) {
+        mapped.sub_status = "CONTACTED";
+      }
     }
     if (payload.assignedTo !== undefined) {
       mapped.assigned_to = payload.assignedTo;
@@ -297,7 +499,7 @@ function createLeadsService({ repository, logger, events }) {
       mapped.next_followup_date = payload.nextFollowupDate;
     }
 
-    if (payload.status === "CONTACTED" && !existing.responseAt) {
+    if (mapped.status === "CONTACTED" && !existing.responseAt) {
       mapped.response_at = now;
       if (existing.responseDeadline) {
         mapped.sla_breached =
@@ -309,7 +511,7 @@ function createLeadsService({ repository, logger, events }) {
       const mergedLead = {
         travelDate: payload.travelDate ?? existing.travelDate,
         budget: payload.budget ?? existing.budget,
-        status: payload.status ?? existing.status,
+        status: normalizeLeadStatus(payload.status ?? existing.status),
         respondedPositively: payload.respondedPositively,
       };
       const nextTemperature = determineLeadTemperature(mergedLead);
@@ -524,6 +726,16 @@ function createLeadsService({ repository, logger, events }) {
   }
 
   async function create(payload, context = {}) {
+    const normalizedStatus = normalizeLeadStatus(payload.status);
+    payload.status = normalizedStatus;
+    if (
+      payload.qualificationCompleted === true ||
+      STATUS_REQUIRING_QUALIFICATION.has(normalizedStatus)
+    ) {
+      assertQualificationCaptured(payload);
+      payload.qualificationCompleted = true;
+    }
+
     const resolvedDestinationId = await resolveDestinationId(payload);
     if (resolvedDestinationId) {
       payload.destinationId = resolvedDestinationId;
@@ -603,7 +815,11 @@ function createLeadsService({ repository, logger, events }) {
         { module: "leads", requestId: context.requestId, filters },
         "Listing leads",
       );
-      const leads = await repository.findAll(filters);
+      const mappedFilters = {
+        ...filters,
+        status: filters.status ? normalizeLeadStatus(filters.status) : undefined,
+      };
+      const leads = await repository.findAll(mappedFilters);
       return leads.map((lead) => withTemperature(lead));
     },
 
@@ -729,8 +945,15 @@ function createLeadsService({ repository, logger, events }) {
 
     async createFollowup(leadId, payload, context = {}) {
       const lead = await getById(leadId, context);
-      const currentAttempts = Number(lead.followupAttempts || 0);
-      if (currentAttempts >= MANDATORY_FOLLOWUP_ATTEMPTS) {
+      const compliance = await repository.getFollowupComplianceStats(lead.id);
+      if (isFollowupComplianceSatisfied(compliance)) {
+        throw new AppError(
+          409,
+          "Follow-up compliance already achieved for this lead. Use status update flow.",
+          "LEAD_FOLLOWUP_LIMIT_REACHED",
+        );
+      }
+      if (compliance.total >= 12) {
         throw new AppError(
           409,
           "Maximum follow-up attempts reached for this lead. Use status update flow.",
@@ -738,10 +961,10 @@ function createLeadsService({ repository, logger, events }) {
         );
       }
 
-      const nextAttempt = currentAttempts + 1;
+      const nextAttempt = compliance.total + 1;
       const normalizedType =
         payload.followupType ||
-        (nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS ? "FINAL_REMINDER" : (
+        (nextAttempt >= FOLLOWUP_TOTAL_REQUIRED ? "FINAL_REMINDER" : (
           "CALL"
         ));
 
@@ -750,15 +973,17 @@ function createLeadsService({ repository, logger, events }) {
         userId: payload.userId || context.user?.id || lead.assignedTo || null,
         followupType: normalizedType,
         followupDate: payload.followupDate,
+        cadenceCode: payload.cadenceCode || null,
         notes: payload.notes,
       });
 
       const followupDate = new Date(followup.followupDate);
       const updatePayload = {
         followup_attempts: nextAttempt,
+        status: "FOLLOW_UP",
         sub_status:
-          nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS ? "FINAL_REMINDER" : (
-            `FOLLOW_UP_${nextAttempt}`
+          normalizedType === "FINAL_REMINDER" ? "FINAL_REMINDER" : (
+            `FOLLOW_UP_${Math.min(nextAttempt, 4)}`
           ),
       };
 
@@ -770,7 +995,7 @@ function createLeadsService({ repository, logger, events }) {
 
       if (
         normalizedType === "FINAL_REMINDER" ||
-        nextAttempt >= MANDATORY_FOLLOWUP_ATTEMPTS
+        nextAttempt >= FOLLOWUP_TOTAL_REQUIRED
       ) {
         updatePayload.final_reminder_at = new Date().toISOString();
       }
@@ -786,6 +1011,11 @@ function createLeadsService({ repository, logger, events }) {
 
       events.emitFollowupCreated(followup);
       return followup;
+    },
+
+    async listFollowups(leadId, context = {}) {
+      const lead = await getById(leadId, context);
+      return repository.listFollowupsByLeadId(lead.id);
     },
 
     async listOverdueFollowups(filters = {}) {
@@ -832,7 +1062,14 @@ function createLeadsService({ repository, logger, events }) {
       };
 
       for (const lead of candidates) {
-        if (Number(lead.followupAttempts || 0) < MANDATORY_FOLLOWUP_ATTEMPTS) {
+        const compliance = await repository.getFollowupComplianceStats(lead.id);
+        if (compliance.total < FOLLOWUP_TOTAL_REQUIRED) {
+          summary.skipped += 1;
+          continue;
+        }
+        try {
+          assertFollowupCompliance(compliance);
+        } catch (_error) {
           summary.skipped += 1;
           continue;
         }
@@ -859,6 +1096,82 @@ function createLeadsService({ repository, logger, events }) {
 
         summary.marked += 1;
         summary.leadIds.push(lead.id);
+      }
+
+      return summary;
+    },
+
+    async processCadenceAutomation(payload = {}, context = {}) {
+      const staleDays = toPositiveInt(payload.staleDays, 4, 30);
+      const limit = toPositiveInt(
+        payload.limit,
+        AUTOMATION_DEFAULTS.overdueFollowupLimit,
+      );
+      const candidates = await repository.findCadenceCandidates({
+        staleDays,
+        limit,
+      });
+
+      const now = new Date();
+      const summary = {
+        processed: candidates.length,
+        scheduled: 0,
+        closedAsNonResponsive: 0,
+      };
+
+      for (const lead of candidates) {
+        const existingFollowups = await repository.listFollowupsByLeadId(lead.id);
+        const existingCodes = new Set(
+          existingFollowups.map((item) => item.cadenceCode).filter(Boolean),
+        );
+        const dueSlots = buildCadenceSlots(lead).filter(
+          (slot) => slot.followupDate.getTime() <= now.getTime(),
+        );
+
+        for (const slot of dueSlots) {
+          if (existingCodes.has(slot.code)) {
+            continue;
+          }
+
+          await repository.createFollowup({
+            leadId: lead.id,
+            userId: lead.assignedTo || context.user?.id || null,
+            followupType: slot.type,
+            followupDate: slot.followupDate.toISOString(),
+            cadenceCode: slot.code,
+            notes: `AUTO_CADENCE:${slot.code}`,
+            isCompleted: false,
+          });
+          existingCodes.add(slot.code);
+          summary.scheduled += 1;
+        }
+
+        const ageDays = Math.floor(
+          (now.getTime() - new Date(lead.createdAt || now).getTime()) /
+            (24 * 60 * 60 * 1000),
+        );
+        if (ageDays < staleDays) {
+          continue;
+        }
+        if (lead.responseAt || CLOSED_STATUSES.has(lead.status)) {
+          continue;
+        }
+
+        const compliance = await repository.getFollowupComplianceStats(lead.id);
+        try {
+          assertFollowupCompliance(compliance);
+        } catch (_error) {
+          continue;
+        }
+
+        const nowIso = new Date().toISOString();
+        await repository.update(lead.id, {
+          status: NON_RESPONSIVE_STATUS,
+          sub_status: "AUTO_NON_RESPONSIVE",
+          non_responsive_marked_at: nowIso,
+          updated_at: nowIso,
+        });
+        summary.closedAsNonResponsive += 1;
       }
 
       return summary;
@@ -891,11 +1204,17 @@ function createLeadsService({ repository, logger, events }) {
           leadId: lead.id,
           assignedTo: lead.assignedTo,
           responseDeadline: lead.responseDeadline,
+          message:
+            "Lead SLA breached: not contacted within 15 minutes. Escalating to manager.",
+          roles: ["manager"],
         });
 
         events.emitEscalated({
           leadId: lead.id,
           reason: "SLA_BREACH_15_MIN",
+          message:
+            "Lead SLA breach auto-alert to manager due to missed first response window.",
+          roles: ["manager"],
         });
 
         summary.processed += 1;
@@ -907,18 +1226,36 @@ function createLeadsService({ repository, logger, events }) {
 
     async update(id, payload, context = {}) {
       const existing = await getById(id, context);
+      const nextStatus = payload.status ?
+          normalizeLeadStatus(payload.status)
+        : existing.status;
+      payload.status = nextStatus;
+
       if (
-        payload.status === "LOST" ||
-        payload.status === NON_RESPONSIVE_STATUS
+        payload.qualificationCompleted === true ||
+        STATUS_REQUIRING_QUALIFICATION.has(nextStatus)
       ) {
-        const attempts = Number(existing.followupAttempts || 0);
-        if (attempts < MANDATORY_FOLLOWUP_ATTEMPTS) {
-          throw new AppError(
-            409,
-            `Minimum ${MANDATORY_FOLLOWUP_ATTEMPTS} follow-up attempts are required before closing lead.`,
-            "LEAD_FOLLOWUP_COMPLIANCE_REQUIRED",
-          );
-        }
+        assertQualificationCaptured({
+          destinationId: payload.destinationId ?? existing.destinationId,
+          destinationName: payload.destinationName ?? existing.destinationName,
+          travelDate: payload.travelDate ?? existing.travelDate,
+          adultsCount: payload.adultsCount ?? existing.adultsCount,
+          childrenCount: payload.childrenCount ?? existing.childrenCount,
+          budget: payload.budget ?? existing.budget,
+          visaRequired: payload.visaRequired ?? existing.visaRequired,
+          preferredHotelCategory:
+            payload.preferredHotelCategory ?? existing.preferredHotelCategory,
+          travelPurpose: payload.travelPurpose ?? existing.travelPurpose,
+        });
+        payload.qualificationCompleted = true;
+      }
+
+      if (
+        nextStatus === "LOST" ||
+        nextStatus === NON_RESPONSIVE_STATUS
+      ) {
+        const compliance = await repository.getFollowupComplianceStats(id);
+        assertFollowupCompliance(compliance);
       }
       const useCustomerLinking = await repository.hasLeadCustomerColumn();
       const customerPatch = {};
@@ -978,6 +1315,25 @@ function createLeadsService({ repository, logger, events }) {
       const lead = withTemperature(updated, {
         respondedPositively: payload.respondedPositively,
       });
+
+      if (lead.slaBreached && !existing.slaBreached) {
+        events.emitSlaBreached({
+          id: lead.id,
+          leadId: lead.id,
+          assignedTo: lead.assignedTo,
+          responseDeadline: lead.responseDeadline,
+          message:
+            "Lead SLA breached: contact happened after 15-minute response window.",
+          roles: ["manager"],
+        });
+        events.emitEscalated({
+          leadId: lead.id,
+          reason: "SLA_BREACH_15_MIN",
+          message:
+            "Lead SLA breach auto-alert to manager due to delayed first contact.",
+          roles: ["manager"],
+        });
+      }
       events.emitUpdated(lead);
       return lead;
     },

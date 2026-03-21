@@ -7,9 +7,9 @@ import Timeline from "../../components/ui/Timeline";
 import { complaintsApi } from "../../api/complaints";
 import { bookingsApi } from "../../api/bookings";
 import { quotationsApi } from "../../api/quotations";
-import { leadsApi } from "../../api/leads";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useUsersService } from "../../hooks/useUsersService";
+import { useLeadsService } from "../../hooks/useLeadsService";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -89,6 +89,7 @@ const shortId = (value: string) =>
 const ComplaintsPage = () => {
   const navigate = useNavigate();
   const usersService = useUsersService();
+  const leadsService = useLeadsService();
   const [rows, setRows] = useState(complaintsSeed);
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -165,7 +166,7 @@ const ComplaintsPage = () => {
     };
 
     fetchComplaints();
-  }, []);
+  }, [leadsService]);
 
   useEffect(() => {
     const loadBookingOptions = async () => {
@@ -176,7 +177,7 @@ const ComplaintsPage = () => {
           await Promise.allSettled([
             bookingsApi.list({ page: 1, limit: 500 }),
             quotationsApi.list({ page: 1, limit: 500 }),
-            leadsApi.list({ page: 1, limit: 500 }),
+            leadsService.listLeadsRaw({ page: 1, limit: 500 }),
           ]);
 
         const bookingRows =

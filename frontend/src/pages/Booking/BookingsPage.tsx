@@ -27,8 +27,8 @@ import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import { validateBookingTransition } from '../../utils/workflowValidation'
 import { useBookingsService } from '../../hooks/useBookingsService'
+import { useLeadsService } from '../../hooks/useLeadsService'
 import { quotationsApi } from '../../api/quotations'
-import { leadsApi } from '../../api/leads'
 import { getApiErrorMessage } from '../../api/apiClient'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
@@ -168,6 +168,7 @@ const CreateBookingModal = ({
   onClose: () => void
   onSave: (data: NewBookingData) => Promise<boolean>
 }) => {
+  const leadsService = useLeadsService()
   const isUuid = (value?: string) =>
     Boolean(
       value &&
@@ -204,6 +205,15 @@ const CreateBookingModal = ({
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return ''
     return parsed.toISOString().split('T')[0]
+  }
+
+  const resolveLeadDestination = (record: any) => {
+    if (!record) return ''
+    if (typeof record.destination === 'string') return record.destination
+    if (record.destination && typeof record.destination === 'object') {
+      return record.destination.name ?? record.destination.country ?? ''
+    }
+    return record.destinationName ?? ''
   }
 
   const loadQuotations = async () => {
@@ -388,7 +398,7 @@ const CreateBookingModal = ({
 
       if (leadId) {
         try {
-          const leadRes = await leadsApi.getById(String(leadId))
+          const leadRes = await leadsService.getLeadById(String(leadId))
           const lead =
             (leadRes as any)?.data?.data ??
             (leadRes as any)?.data ??
@@ -413,7 +423,7 @@ const CreateBookingModal = ({
                   : prev.phone,
               destination:
                 isBlank(prev.destination)
-                  ? lead.destination ?? prev.destination
+                  ? resolveLeadDestination(lead) || prev.destination
                   : prev.destination
             }))
           }
@@ -1161,6 +1171,7 @@ const CancelBookingModal = ({
 
 const BookingsPage: React.FC = () => {
   const bookingsService = useBookingsService()
+  const leadsService = useLeadsService()
   const navigate = useNavigate()
   const location = useLocation()
   const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all')
@@ -1254,6 +1265,10 @@ const BookingsPage: React.FC = () => {
         ''
     )
     const lead = leadId ? lookups?.leadById?.[leadId] : null
+    const leadDestination =
+      typeof lead?.destination === 'string'
+        ? lead.destination
+        : lead?.destination?.name ?? lead?.destinationName
     const destinationId = String(
       lead?.destinationId ?? lead?.destination_id ?? ''
     )
@@ -1275,7 +1290,7 @@ const BookingsPage: React.FC = () => {
         b.destination ??
         b.tripDestination ??
         destinationName ??
-        lead?.destination ??
+        leadDestination ??
         'N/A',
       dates: formatDateRange(
         b.travelStartDate ?? b.travelStart,
@@ -1429,8 +1444,7 @@ const BookingsPage: React.FC = () => {
 
       if (leadIds.length) {
         try {
-          const leadsRes = await leadsApi.list({ page: 1, limit: 500 })
-          const leadRows = unwrapList(leadsRes)
+          const leadRows = await leadsService.listLeadsRaw({ page: 1, limit: 500 })
           leadRows.forEach((lead: any) => {
             const leadId = String(lead?.id ?? lead?.leadId ?? lead?.lead_id ?? '')
             if (leadId) {
@@ -1443,8 +1457,7 @@ const BookingsPage: React.FC = () => {
       }
 
       try {
-        const destinationsRes = await leadsApi.getDestinations()
-        const destinationRows = unwrapList(destinationsRes)
+        const destinationRows = await leadsService.getDestinations()
         destinationRows.forEach((destination: any) => {
           const destinationId = String(destination?.id ?? '')
           const destinationName = String(
@@ -1472,7 +1485,7 @@ const BookingsPage: React.FC = () => {
       setLoading(false)
       setStatsLoading(false)
     }
-  }, [bookingsService, statusFilter])
+  }, [bookingsService, leadsService, statusFilter])
 
   useEffect(() => {
     void fetchBookings()

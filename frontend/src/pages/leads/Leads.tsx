@@ -5,11 +5,9 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaEye,
-  FaFileImport,
-  FaFileInvoiceDollar,
   FaFire,
-  FaSearch,
   FaPlus,
+  FaSearch,
   FaUsers,
 } from "react-icons/fa";
 import EmptyState from "../../components/ui/EmptyState";
@@ -18,20 +16,31 @@ import SurfaceCard from "../../components/ui/SurfaceCard";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import type { LeadListItem } from "../../services/leadsService";
+import {
+  SOP_STATUS_LABELS,
+  type SopStatusLabel,
+  toStatusLabelText,
+} from "../../utils/leadStatus";
 
-// Type definitions for stats
 interface LeadStats {
   totalLeads: number;
   newToday: number;
-  hotLeads: number;
-  qualified: number;
+  followupActive: number;
+  slaBreached: number;
 }
 
-const tabs = ["All", "New", "Contacted", "Qualified", "Lost"] as const;
-type Tab = (typeof tabs)[number];
+const quickFilters = [
+  { key: "ALL", label: "All" },
+  { key: "ACTIVE", label: "Active" },
+  { key: "FOLLOW_UP", label: "Follow-up" },
+  { key: "CLOSED", label: "Closed" },
+  { key: "BREACHED", label: "SLA Breached" },
+] as const;
+type QuickFilter = (typeof quickFilters)[number]["key"];
 
 const Leads: React.FC = () => {
-  const [tab, setTab] = useState<Tab>("All");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<SopStatusLabel | "ALL">("ALL");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -40,24 +49,6 @@ const Leads: React.FC = () => {
   const pageSize = 15;
   const nav = useNavigate();
   const leadsService = useLeadsService();
-
-  const handleViewLead = (lead: LeadListItem) => {
-    const snapshot = {
-      id: lead.id,
-      leadId: lead.leadId,
-      name: lead.name,
-      email: lead.email,
-      phone: lead.phone,
-      destination: lead.destination,
-      packageName: lead.packageName,
-      status: lead.status,
-      priority: lead.priority,
-      sla: lead.sla,
-      consultant: lead.consultant,
-    };
-    sessionStorage.setItem(`lead:${lead.id}`, JSON.stringify(snapshot));
-    nav(`/leads/${lead.id}`, { state: { lead: snapshot } });
-  };
 
   useEffect(() => {
     const fetchLeads = async () => {
@@ -79,325 +70,194 @@ const Leads: React.FC = () => {
     void fetchLeads();
   }, [leadsService]);
 
-  const toTimestamp = (value?: string | null) => {
-    if (!value) return 0;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-
   const filtered = useMemo(
     () =>
-      fetchedLeads.filter(
-        (l) =>
-          (tab === "All" || l.status === tab) &&
-          `${l.name} ${l.email} ${l.destination} ${l.phone}`
-            .toLowerCase()
-            .includes(search.toLowerCase()),
-      ),
-    [fetchedLeads, tab, search],
-  );
-
-  const ordered = useMemo(
-    () =>
-      [...filtered].sort((a, b) => {
-        const left = toTimestamp(a.createdAt);
-        const right = toTimestamp(b.createdAt);
-        return right - left;
+      fetchedLeads.filter((lead) => {
+        const quickMatch =
+          quickFilter === "ALL" ||
+          (quickFilter === "ACTIVE" &&
+            ["NEW", "CONTACTED", "NEGOTIATION", "QUOTED"].includes(lead.statusLabel)) ||
+          (quickFilter === "FOLLOW_UP" &&
+            (lead.statusLabel.startsWith("FOLLOW_UP") ||
+              lead.statusLabel === "FINAL_REMINDER")) ||
+          (quickFilter === "CLOSED" &&
+            ["CONVERTED", "LOST", "NON_RESPONSIVE"].includes(lead.statusLabel)) ||
+          (quickFilter === "BREACHED" && lead.slaBreached);
+        const statusMatch =
+          statusFilter === "ALL" || lead.statusLabel === statusFilter;
+        const text = `${lead.name} ${lead.email} ${lead.destination} ${lead.phone}`.toLowerCase();
+        return quickMatch && statusMatch && text.includes(search.toLowerCase());
       }),
-    [filtered],
+    [fetchedLeads, quickFilter, search, statusFilter],
   );
 
-  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
-  const leads = ordered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
+
   const leadStats = useMemo<LeadStats>(
     () => ({
       totalLeads: fetchedLeads.length,
-      newToday: fetchedLeads.filter((lead) => lead.status === "New").length,
-      hotLeads: fetchedLeads.filter((lead) => lead.priority === "High").length,
-      qualified: fetchedLeads.filter((lead) => lead.status === "Qualified")
-        .length,
+      newToday: fetchedLeads.filter((lead) => lead.statusLabel === "NEW").length,
+      followupActive: fetchedLeads.filter(
+        (lead) =>
+          lead.statusLabel.startsWith("FOLLOW_UP") ||
+          lead.statusLabel === "FINAL_REMINDER",
+      ).length,
+      slaBreached: fetchedLeads.filter((lead) => lead.slaBreached).length,
     }),
     [fetchedLeads],
   );
-  const formatCompact = (value: number) => {
-    if (value < 1000) return value.toString();
-    if (value < 1_000_000) {
-      return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
-    }
-    if (value < 1_000_000_000) {
-      return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-    }
-    return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
-  };
 
-  const getPriorityClass = (priority: string) => {
-    switch (priority) {
-      case "High":
-        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
-      case "Medium":
-        return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300";
-      case "Low":
-        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
-      default:
-        return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-    }
+  const handleViewLead = (lead: LeadListItem) => {
+    sessionStorage.setItem(`lead:${lead.id}`, JSON.stringify(lead));
+    nav(`/leads/${lead.id}`, { state: { lead } });
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-9xl mx-auto ">
-        {/* Header Section - Desktop original, Mobile adjusted */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="max-w-9xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               Leads Management
             </h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Manage your potential customers.
+              SOP-aligned lead pipeline with follow-up and SLA visibility.
             </p>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2">
-            <button className="inline-flex h-10 min-w-[140px] items-center justify-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-              <FaFileImport /> Import
-            </button>
-
-            <button
-              onClick={() => nav("/create-lead")}
-              className="inline-flex h-10 min-w-[140px] items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 text-sm font-semibold text-white transition-colors"
-            >
-              <FaPlus /> Create Lead
-            </button>
-          </div>
+          <button
+            onClick={() => nav("/create-lead")}
+            className="inline-flex h-10 min-w-[140px] items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 text-sm font-semibold text-white transition-colors"
+          >
+            <FaPlus /> Create Lead
+          </button>
         </div>
 
-        {/* KPI Cards - Desktop: 4 in a row, Mobile: stacked */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <KpiCard
             title="All Leads"
-            value={formatCompact(leadStats.totalLeads)}
+            value={String(leadStats.totalLeads)}
             icon={<FaUsers className="text-blue-600 text-xl" />}
           />
           <KpiCard
             title="New Today"
-            value={formatCompact(leadStats.newToday)}
+            value={String(leadStats.newToday)}
             icon={<FaCalendarPlus className="text-green-500 text-xl" />}
           />
           <KpiCard
-            title="Hot Leads"
-            value={formatCompact(leadStats.hotLeads)}
-            icon={<FaFire className="text-red-500 text-xl" />}
+            title="Follow-up Active"
+            value={String(leadStats.followupActive)}
+            icon={<FaCalendarPlus className="text-amber-500 text-xl" />}
           />
           <KpiCard
-            title="Qualified"
-            value={formatCompact(leadStats.qualified)}
-            icon={<FaFileInvoiceDollar className="text-amber-500 text-xl" />}
+            title="SLA Breached"
+            value={String(leadStats.slaBreached)}
+            icon={<FaFire className="text-red-500 text-xl" />}
           />
         </div>
 
-        {/* Main Card */}
         <SurfaceCard className="overflow-hidden border border-gray-200 dark:border-gray-800">
-          {/* Search and Filter Bar */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-800 space-y-3">
             {error ? (
-              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
                 {error}
               </div>
             ) : null}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-              {/* Tabs - Horizontal scroll on mobile, inline on desktop */}
-              <div className="w-full lg:w-auto overflow-x-auto pb-1 scrollbar-hide">
-                <div className="inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1">
-                  {tabs.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => {
-                        setTab(t);
-                        setPage(1);
-                      }}
-                      className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
-                        tab === t
-                          ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
+            <div className="w-full overflow-x-auto pb-1 scrollbar-hide">
+              <div className="inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1">
+                {quickFilters.map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => {
+                      setQuickFilter(item.key);
+                      setPage(1);
+                    }}
+                    className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+                      quickFilter === item.key
+                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
-
-              {/* Search */}
-              <div className="relative w-full lg:w-80">
+            </div>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px]">
+              <div className="relative w-full">
                 <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400" />
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
+                  onChange={(event) => {
+                    setSearch(event.target.value);
                     setPage(1);
                   }}
                   placeholder="Search leads..."
                   className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value as SopStatusLabel | "ALL");
+                  setPage(1);
+                }}
+                className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="ALL">All Statuses</option>
+                {SOP_STATUS_LABELS.map((status) => (
+                  <option key={status} value={status}>
+                    {toStatusLabelText(status)}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
-          {/* Leads List */}
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Loading leads...
             </div>
-          ) : leads.length === 0 ? (
+          ) : rows.length === 0 ? (
             <div className="p-8">
               <EmptyState
                 title="No leads found"
-                description="Try adjusting your search or filters"
-                action={
-                  <button
-                    onClick={() => {
-                      setSearch("");
-                      setTab("All");
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
-                  >
-                    Clear filters
-                  </button>
-                }
+                description="Try adjusting your search or status filters."
                 icon={<FaUsers className="text-4xl" />}
               />
             </div>
           ) : (
             <>
-              {/* Mobile View - Card Layout (stacked) */}
-              <div className="block lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
-                {leads.map((lead) => (
-                  <div
-                    key={lead.id}
-                    className="p-4 space-y-4 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors"
-                  >
-                    {/* Header Row */}
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                          {lead.name}
-                        </h3>
-                        <p className="text-xs text-gray-500">{lead.leadId}</p>
-                      </div>
-                      <StatusBadge status={lead.status} />
-                    </div>
-
-                    {/* Contact Details */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs text-gray-500">Email</p>
-                        <p className="text-sm text-gray-800 dark:text-gray-300 break-all">
-                          {lead.email}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Phone</p>
-                        <p className="text-sm text-gray-800 dark:text-gray-300">
-                          {lead.phone}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Trip Details */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs text-gray-500">Destination</p>
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {lead.destination}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Package</p>
-                        <p className="text-sm text-gray-800 dark:text-gray-300">
-                          {lead.packageName}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Priority & Consultant */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs text-gray-500">Priority</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span
-                            className={`text-xs px-2 py-1 rounded-full ${getPriorityClass(
-                              lead.priority,
-                            )}`}
-                          >
-                            {lead.priority}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">SLA</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {lead.sla}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Consultant & Actions */}
-                    <div className="flex items-center justify-between pt-2">
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {lead.consultant}
-                      </p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleViewLead(lead)}
-                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
-                        >
-                          <FaEye />
-                        </button>
-                        <button className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all">
-                          <FaFileInvoiceDollar />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Desktop View - Table (ORIGINAL - UNCHANGED) */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Lead
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Contact
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Trip
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Destination
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Priority / SLA
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        SLA
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Consultant
-                      </th>
-                      <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {leads.map((lead) => (
+                    {rows.map((lead) => (
                       <tr
                         key={lead.id}
-                        className="group hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-                        onClick={() => handleViewLead(lead)}
+                        className="hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors"
                       >
                         <td className="px-5 py-4">
                           <p className="font-medium text-gray-900 dark:text-gray-100">
@@ -411,41 +271,29 @@ const Leads: React.FC = () => {
                           </p>
                           <p className="text-xs text-gray-500">{lead.phone}</p>
                         </td>
-                        <td className="px-5 py-4">
-                          <p className="text-sm text-gray-800 dark:text-gray-200">
-                            {lead.destination}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {lead.packageName}
-                          </p>
+                        <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
+                          {lead.destination}
                         </td>
                         <td className="px-5 py-4">
-                          <StatusBadge status={lead.status} />
+                          <StatusBadge status={lead.statusLabel} />
                         </td>
                         <td className="px-5 py-4">
-                          <p className="text-xs text-gray-600 dark:text-gray-300">
-                            {lead.priority}
-                          </p>
-                          <p className="text-xs text-gray-500">{lead.sla}</p>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300">
-                          {lead.consultant}
-                        </td>
-                        <td className="px-5 py-4">
-                          <div
-                            className="flex justify-end gap-2 transition-opacity"
-                            onClick={(e) => e.stopPropagation()}
+                          <p
+                            className={`text-xs ${
+                              lead.slaBreached ? "text-red-600" : "text-gray-500"
+                            }`}
                           >
-                            <button
-                              className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 transition-colors"
-                              onClick={() => handleViewLead(lead)}
-                            >
-                              <FaEye />
-                            </button>
-                            <button className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:text-gray-400 dark:hover:text-green-400 dark:hover:bg-green-900/20 transition-colors">
-                              <FaFileInvoiceDollar />
-                            </button>
-                          </div>
+                            {lead.slaBreached ? "BREACHED" : lead.sla}
+                          </p>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <button
+                            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                            onClick={() => handleViewLead(lead)}
+                          >
+                            <FaEye />
+                            View
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -453,19 +301,52 @@ const Leads: React.FC = () => {
                 </table>
               </div>
 
-              {/* Pagination */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-gray-200 dark:border-gray-800">
-                <p className="text-sm text-gray-500 dark:text-gray-400 order-2 sm:order-1">
-                  Showing {Math.min(filtered.length, (page - 1) * pageSize + 1)}
-                  -{Math.min(filtered.length, page * pageSize)} of{" "}
-                  {filtered.length}
-                </p>
+              <div className="block lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                {rows.map((lead) => (
+                  <div key={lead.id} className="p-4 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+                          {lead.name}
+                        </p>
+                        <p className="text-xs text-gray-500">{lead.leadId}</p>
+                      </div>
+                      <StatusBadge status={lead.statusLabel} />
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                      {lead.email} | {lead.phone}
+                    </p>
+                    <p className="text-sm text-gray-700 dark:text-gray-200">{lead.destination}</p>
+                    <div className="flex items-center justify-between">
+                      <p
+                        className={`text-xs ${
+                          lead.slaBreached ? "text-red-600" : "text-gray-500"
+                        }`}
+                      >
+                        SLA: {lead.slaBreached ? "BREACHED" : lead.sla}
+                      </p>
+                      <button
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                        onClick={() => handleViewLead(lead)}
+                      >
+                        <FaEye />
+                        View
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-                <div className="flex items-center gap-2 order-1 sm:order-2">
+              <div className="flex items-center justify-between px-4 py-4 border-t border-gray-200 dark:border-gray-800">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Showing {Math.min(filtered.length, (page - 1) * pageSize + 1)}-
+                  {Math.min(filtered.length, page * pageSize)} of {filtered.length}
+                </p>
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
                     disabled={page === 1}
-                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
                   >
                     <FaChevronLeft />
                   </button>
@@ -473,9 +354,9 @@ const Leads: React.FC = () => {
                     {page}
                   </span>
                   <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                     disabled={page === totalPages}
-                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
                   >
                     <FaChevronRight />
                   </button>
@@ -489,7 +370,6 @@ const Leads: React.FC = () => {
   );
 };
 
-// KPI Card Component
 const KpiCard = ({
   title,
   value,

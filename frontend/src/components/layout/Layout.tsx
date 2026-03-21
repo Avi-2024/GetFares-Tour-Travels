@@ -1,15 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 
 const Layout: React.FC = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth >= 1024;
+  });
   const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    if (window.innerWidth >= 1024) setSidebarOpen(true);
-  }, []);
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">

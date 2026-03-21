@@ -14,7 +14,10 @@ import { useNotifications } from "../../context/NotificationsContext";
 const Header: React.FC<{
   onMenuClick: () => void;
 }> = ({ onMenuClick }) => {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("theme") === "dark";
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
@@ -22,10 +25,8 @@ const Header: React.FC<{
   const { unreadCount } = useNotifications();
 
   useEffect(() => {
-    const enabled = localStorage.getItem("theme") === "dark";
-    setDark(enabled);
-    document.documentElement.classList.toggle("dark", enabled);
-  }, []);
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
