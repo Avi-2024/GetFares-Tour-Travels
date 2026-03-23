@@ -52,12 +52,14 @@ function createWhatsAppService({
 } = {}) {
   const verifyToken = config?.verifyToken;
   const appSecret = config?.appSecret;
+  const allowInsecureWebhooks = config?.allowInsecureWebhooks === true;
   const templates = config?.templates || {};
   const templateAliases = {
     leadWelcome: templates.leadWelcome ?? templates.leadFollowup ?? null,
     leadFollowup: templates.leadFollowup ?? templates.leadWelcome ?? null,
     quotationSent: templates.quotationSent ?? templates.quotation ?? null,
-    quotationReminder: templates.quotationReminder ?? templates.quotation ?? null,
+    quotationReminder:
+      templates.quotationReminder ?? templates.quotation ?? null,
     preTravel: templates.preTravel ?? templates.booking ?? null,
     postTravel: templates.postTravel ?? templates.booking ?? null,
   };
@@ -69,6 +71,7 @@ function createWhatsAppService({
       phoneNumberId: Boolean(config?.phoneNumberId),
       appSecret: Boolean(config?.appSecret),
       appId: Boolean(config?.appId),
+      allowInsecureWebhooks,
     };
 
     const missing = Object.entries(checks)
@@ -112,7 +115,11 @@ function createWhatsAppService({
     }
 
     if (token !== verifyToken) {
-      throw new AppError(403, "Invalid verify token", "WHATSAPP_WEBHOOK_DENIED");
+      throw new AppError(
+        403,
+        "Invalid verify token",
+        "WHATSAPP_WEBHOOK_DENIED",
+      );
     }
 
     if (!challenge) {
@@ -148,11 +155,15 @@ function createWhatsAppService({
   }
 
   function assertSignature(rawBody, signatureHeader) {
-    if (!appSecret) {
+    if (!appSecret || allowInsecureWebhooks) {
       return;
     }
     if (!isValidSignature(rawBody, signatureHeader)) {
-      throw new AppError(403, "Invalid signature", "WHATSAPP_SIGNATURE_INVALID");
+      throw new AppError(
+        403,
+        "Invalid signature",
+        "WHATSAPP_SIGNATURE_INVALID",
+      );
     }
   }
 
@@ -220,7 +231,11 @@ function createWhatsAppService({
 
     const text = payload.text?.trim();
     if (!text) {
-      throw new AppError(400, "Message text is required", "WHATSAPP_TEXT_EMPTY");
+      throw new AppError(
+        400,
+        "Message text is required",
+        "WHATSAPP_TEXT_EMPTY",
+      );
     }
 
     const messagePayload = buildTextPayload(to, text, payload.previewUrl);
@@ -252,8 +267,9 @@ function createWhatsAppService({
   async function sendEventMessage({ phone, text, templateName }) {
     if (!phone) return null;
     if (templateName) {
-      const components = text
-        ? [
+      const components =
+        text ?
+          [
             {
               type: "body",
               parameters: [{ type: "text", text }],
@@ -273,7 +289,11 @@ function createWhatsAppService({
     assertSignature(context.rawBody, signatureHeader);
 
     if (!payload || typeof payload !== "object") {
-      throw new AppError(400, "Invalid webhook payload", "WHATSAPP_INVALID_PAYLOAD");
+      throw new AppError(
+        400,
+        "Invalid webhook payload",
+        "WHATSAPP_INVALID_PAYLOAD",
+      );
     }
 
     const messages = extractMessages(payload);
@@ -315,14 +335,13 @@ function createWhatsAppService({
     const leadId = payload.id || payload.leadId;
     const directPhone = normalizePhone(payload.phone);
     const lead =
-      !directPhone && leadId && leadsService?.getById
-        ? await leadsService.getById(leadId, {})
-        : null;
+      !directPhone && leadId && leadsService?.getById ?
+        await leadsService.getById(leadId, {})
+      : null;
     const phone = directPhone || normalizePhone(lead?.phone);
     if (!phone) return null;
 
-    const name =
-      payload.fullName || payload.name || lead?.fullName || "there";
+    const name = payload.fullName || payload.name || lead?.fullName || "there";
     const text = `Hi ${name}, thanks for reaching out! We have received your travel enquiry and will share options shortly.`;
     return sendEventMessage({
       phone,
@@ -338,9 +357,10 @@ function createWhatsAppService({
     }
 
     const leadId = payload.leadId || null;
-    const lead = leadId && leadsService?.getById ?
-      await leadsService.getById(leadId, {})
-    : null;
+    const lead =
+      leadId && leadsService?.getById ?
+        await leadsService.getById(leadId, {})
+      : null;
     const phone = normalizePhone(payload.phone) || normalizePhone(lead?.phone);
     if (!phone) {
       return null;
@@ -372,8 +392,9 @@ function createWhatsAppService({
     const { quote, phone } = await resolveQuotationDetails(quotationId);
     if (!phone) return null;
     const pdfUrl = quote?.pdfUrl;
-    const text = pdfUrl
-      ? `Your quotation is ready. Please review it here: ${pdfUrl}`
+    const text =
+      pdfUrl ?
+        `Your quotation is ready. Please review it here: ${pdfUrl}`
       : "Your quotation is ready. Please review and let us know.";
     return sendEventMessage({
       phone,
@@ -389,12 +410,10 @@ function createWhatsAppService({
     const pdfUrl = quote?.pdfUrl;
     const reminderType = payload.reminderType || "REMINDER";
     const reminderText =
-      reminderType === "NOT_OPENED_24H"
-        ? "Just a reminder to review your quotation."
-        : "Following up on the quotation we shared.";
-    const text = pdfUrl
-      ? `${reminderText} Link: ${pdfUrl}`
-      : reminderText;
+      reminderType === "NOT_OPENED_24H" ?
+        "Just a reminder to review your quotation."
+      : "Following up on the quotation we shared.";
+    const text = pdfUrl ? `${reminderText} Link: ${pdfUrl}` : reminderText;
     return sendEventMessage({
       phone,
       text,
@@ -405,16 +424,17 @@ function createWhatsAppService({
   async function notifyPreTravel(payload = {}) {
     const bookingId = payload.bookingId || payload.id;
     const booking =
-      bookingId && bookingsService?.getById
-        ? await bookingsService.getById(bookingId, {})
-        : null;
-    const phone = booking?.leadId
-      ? await resolveLeadPhone(booking.leadId)
+      bookingId && bookingsService?.getById ?
+        await bookingsService.getById(bookingId, {})
       : null;
+    const phone =
+      booking?.leadId ? await resolveLeadPhone(booking.leadId) : null;
     if (!phone) return null;
-    const travelDate = booking?.travelStartDate || payload.travelStartDate || null;
-    const text = travelDate
-      ? `Your trip is coming up on ${travelDate}. Let us know if you need any help before departure.`
+    const travelDate =
+      booking?.travelStartDate || payload.travelStartDate || null;
+    const text =
+      travelDate ?
+        `Your trip is coming up on ${travelDate}. Let us know if you need any help before departure.`
       : "Your trip is coming up soon. Let us know if you need any help before departure.";
     return sendEventMessage({
       phone,
@@ -426,16 +446,16 @@ function createWhatsAppService({
   async function notifyPostTravel(payload = {}) {
     const bookingId = payload.bookingId || payload.id;
     const booking =
-      bookingId && bookingsService?.getById
-        ? await bookingsService.getById(bookingId, {})
-        : null;
-    const phone = booking?.leadId
-      ? await resolveLeadPhone(booking.leadId)
+      bookingId && bookingsService?.getById ?
+        await bookingsService.getById(bookingId, {})
       : null;
+    const phone =
+      booking?.leadId ? await resolveLeadPhone(booking.leadId) : null;
     if (!phone) return null;
     const travelEnd = booking?.travelEndDate || payload.travelEndDate || null;
-    const text = travelEnd
-      ? `Hope you had a great trip ending on ${travelEnd}! We would love your feedback.`
+    const text =
+      travelEnd ?
+        `Hope you had a great trip ending on ${travelEnd}! We would love your feedback.`
       : "Hope you had a great trip! We would love your feedback.";
     return sendEventMessage({
       phone,

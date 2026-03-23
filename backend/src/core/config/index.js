@@ -47,6 +47,7 @@ const config = Object.freeze({
     phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
     apiBaseUrl: env.WHATSAPP_API_BASE_URL || env.META_GRAPH_BASE_URL,
     apiVersion: env.WHATSAPP_API_VERSION,
+    allowInsecureWebhooks: env.WHATSAPP_ALLOW_INSECURE_WEBHOOKS,
     preTravelDays: env.WHATSAPP_PRE_TRAVEL_DAYS,
     postTravelDays: env.WHATSAPP_POST_TRAVEL_DAYS,
     templates: {
