@@ -51,4 +51,19 @@
   .status-dropdown-scroll::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.5);
   }
+
+  /* PDF export only: keep Included Services chips aligned inside pills */
+  .pdf-export-mode .pdf-service-chip-wrap {
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pdf-export-mode .pdf-service-chip {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.2;
+    white-space: nowrap;
+    vertical-align: middle;
+    transform: translateZ(0);
+  }
 }
