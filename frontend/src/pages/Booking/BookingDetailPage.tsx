@@ -206,6 +206,15 @@ const mapBookingFromApi = (raw: any): Booking => {
   const totalAmount = toNumber(raw?.totalAmount ?? raw?.total_amount, 0)
   const costAmount = toNumber(raw?.costAmount ?? raw?.cost_amount, 0)
   const profit = Number((totalAmount - costAmount).toFixed(2))
+  const advanceRequired = Math.max(
+    toNumber(raw?.advanceRequired ?? raw?.advance_required, 0),
+    0
+  )
+  const rawAdvanceReceived = Math.max(
+    toNumber(raw?.advanceReceived ?? raw?.advance_received, 0),
+    0
+  )
+  const advanceReceived = Math.min(rawAdvanceReceived, advanceRequired)
   const deadlineInfo =
     raw?.deadlineTracking ??
     raw?.deadline_tracking ??
@@ -311,8 +320,8 @@ const mapBookingFromApi = (raw: any): Booking => {
     paymentStatus: normalizePaymentStatus(
       raw?.paymentStatus ?? raw?.payment_status
     ),
-    advanceRequired: toNumber(raw?.advanceRequired ?? raw?.advance_required, 0),
-    advanceReceived: toNumber(raw?.advanceReceived ?? raw?.advance_received, 0),
+    advanceRequired,
+    advanceReceived,
     clientCurrency: raw?.clientCurrency ?? raw?.client_currency ?? 'INR',
     supplierCurrency: raw?.supplierCurrency ?? raw?.supplier_currency ?? 'INR',
     cancellationReason:
@@ -715,8 +724,7 @@ const BookingDetailPage: React.FC = () => {
       cancellationDeadlineAt?: string | null
       balanceDueBy?: string | null
     } | null) ?? null
-  const customerNameFromList =
-    locationState?.customerName?.trim() || ''
+  const customerNameFromList = locationState?.customerName?.trim() || ''
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -793,8 +801,10 @@ const BookingDetailPage: React.FC = () => {
             locationState?.cancellationDeadlineAt
           ) ?? undefined,
         balanceDueBy:
-          pickFirstDate(mappedBooking.balanceDueBy, locationState?.balanceDueBy) ??
-          undefined
+          pickFirstDate(
+            mappedBooking.balanceDueBy,
+            locationState?.balanceDueBy
+          ) ?? undefined
       }
       const invoiceData =
         invoiceRes.status === 'fulfilled'
@@ -914,19 +924,34 @@ const BookingDetailPage: React.FC = () => {
     if (!booking || !id) return
     const invoice = invoices.find(item => item.id === invoiceId)
     if (!invoice) return
+    const remainingAdvance = Math.max(
+      booking.advanceRequired - booking.advanceReceived,
+      0
+    )
+    if (remainingAdvance <= 0) {
+      showToast('Advance already meets the required amount', 'info')
+      return
+    }
+
+    const payableAmount = Math.min(invoice.amount, remainingAdvance)
     try {
       setLoading(true)
       await paymentsApi.create({
         bookingId: id,
-        amount: invoice.amount,
+        amount: payableAmount,
         paymentMode: 'CASH',
-        status: 'FULL',
+        status: payableAmount >= remainingAdvance ? 'FULL' : 'PARTIAL',
         isVerified: true,
         paidAt: new Date().toISOString()
       })
       await fetchBookingData()
       setShowInvoiceModal(false)
-      showToast('Invoice marked as paid', 'success')
+      showToast(
+        payableAmount < invoice.amount
+          ? 'Payment capped to remaining advance required'
+          : 'Invoice marked as paid',
+        'success'
+      )
     } catch (err) {
       showToast(
         getApiErrorMessage(err, 'Failed to mark invoice as paid'),
@@ -938,14 +963,24 @@ const BookingDetailPage: React.FC = () => {
   }
 
   const handleAddPayment = async () => {
-    if (!id) return
+    if (!booking || !id) return
+    const remainingAdvance = Math.max(
+      booking.advanceRequired - booking.advanceReceived,
+      0
+    )
+    if (remainingAdvance <= 0) {
+      showToast('Advance already meets the required amount', 'info')
+      return
+    }
+
+    const paymentAmount = Math.min(500, remainingAdvance)
     try {
       setLoading(true)
       await paymentsApi.create({
         bookingId: id,
-        amount: 500,
+        amount: paymentAmount,
         paymentMode: 'CASH',
-        status: 'PARTIAL',
+        status: paymentAmount >= remainingAdvance ? 'FULL' : 'PARTIAL',
         isVerified: true,
         paidAt: new Date().toISOString()
       })
@@ -1292,6 +1327,10 @@ const BookingDetailPage: React.FC = () => {
     booking.advanceRequired > 0
       ? Math.min((booking.advanceReceived / booking.advanceRequired) * 100, 100)
       : 0
+  const remainingAdvance = Math.max(
+    booking.advanceRequired - booking.advanceReceived,
+    0
+  )
 
   return (
     <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
@@ -1848,7 +1887,7 @@ const BookingDetailPage: React.FC = () => {
                           <p className='text-xs text-blue-700 dark:text-blue-400'>
                             Remaining:{' '}
                             {formatCurrency(
-                              booking.advanceRequired - booking.advanceReceived,
+                              remainingAdvance,
                               booking.clientCurrency
                             )}
                           </p>

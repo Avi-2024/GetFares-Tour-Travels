@@ -115,7 +115,9 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
             {filteredOptions.length ? (
               filteredOptions.map(item => {
                 const isActive = item.value === value
-                const hasSplitLabels = Boolean(item.leftLabel || item.rightLabel)
+                const hasSplitLabels = Boolean(
+                  item.leftLabel || item.rightLabel
+                )
                 return (
                   <button
                     key={`${item.value}-${item.label}`}
