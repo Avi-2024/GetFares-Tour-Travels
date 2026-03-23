@@ -22,6 +22,18 @@ function createSuppliersEvents({ eventBus, logger }) {
       );
       eventBus.emit("suppliers.payable_updated", payload);
     },
+    emitPayableDeadlineAlert(payload) {
+      logger.warn(
+        {
+          payableId: payload.payableId,
+          supplierId: payload.supplierId,
+          alertType: payload.alertType,
+          alertDate: payload.alertDate,
+        },
+        "suppliers.payable_deadline_alert",
+      );
+      eventBus.emit("suppliers.payable_deadline_alert", payload);
+    },
   });
 }
 

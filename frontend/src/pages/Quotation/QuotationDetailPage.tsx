@@ -85,6 +85,20 @@ const formatDate = (value?: string | null) => {
   });
 };
 
+const formatMoney = (amount: number, currency = "INR") => {
+  const normalized = String(currency || "INR").toUpperCase();
+  try {
+    return new Intl.NumberFormat(normalized === "INR" ? "en-IN" : "en-US", {
+      style: "currency",
+      currency: normalized,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(toNumber(amount, 0));
+  } catch (_error) {
+    return `${toNumber(amount, 0).toLocaleString()} ${normalized}`;
+  }
+};
+
 const mapStatus = (value?: string): QuoteStatus => {
   switch (String(value || "").toUpperCase()) {
     case "DRAFT":
@@ -256,6 +270,42 @@ const QuotationDetailPage: React.FC = () => {
   const createdByUser = quotation?.createdByUser ?? quotation?.relations?.createdByUser ?? null;
   const approvedByUser = quotation?.approvedByUser ?? quotation?.relations?.approvedByUser ?? null;
   const sentByUser = quotation?.sentByUser ?? quotation?.relations?.sentByUser ?? null;
+  const contentTemplate = template ?? quotation?.templateSnapshot ?? null;
+
+  const noteSections = useMemo(() => {
+    const raw = String(quotation?.importantNotes || "").trim();
+    if (!raw) return [];
+    return raw
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .map((block, index) => {
+        const lines = block.split("\n");
+        const first = lines[0]?.trim() || "";
+        if (first.endsWith(":")) {
+          return {
+            id: `${index}-${first}`,
+            title: first.slice(0, -1),
+            content: lines.slice(1).join("\n").trim() || "-",
+          };
+        }
+        return {
+          id: `${index}-Notes`,
+          title: "Notes",
+          content: block,
+        };
+      });
+  }, [quotation?.importantNotes]);
+
+  const displayCurrency = useMemo(() => {
+    const value =
+      quotation?.clientCurrency ??
+      quotation?.costCurrency ??
+      quotation?.pricing?.clientCurrency ??
+      quotation?.pricing?.costCurrency ??
+      "INR";
+    return String(value || "INR").toUpperCase();
+  }, [quotation]);
 
   const summary = useMemo(() => {
     const totalCost =
@@ -270,6 +320,34 @@ const QuotationDetailPage: React.FC = () => {
     );
 
     return { totalCost, marginPercent, discount, taxAmount, finalPrice };
+  }, [quotation, rows]);
+
+  const commercial = useMemo(() => {
+    const supplierCost =
+      toNumber(quotation?.supplierCost, NaN) ||
+      rows.reduce((sum, row) => sum + toNumber(row.cost, 0), 0);
+    const markupAmount =
+      toNumber(quotation?.markupAmount, NaN) ||
+      supplierCost * (toNumber(quotation?.marginPercent, 0) / 100);
+    const serviceFeeAmount = toNumber(quotation?.serviceFeeAmount, 0);
+    const taxAmount = toNumber(quotation?.taxAmount ?? quotation?.tax, 0);
+    const discount = toNumber(quotation?.discount, 0);
+    const subtotal = supplierCost + markupAmount + serviceFeeAmount;
+    const finalAmount = toNumber(
+      quotation?.finalPrice ?? quotation?.totalSaleValue,
+      Math.max(subtotal + taxAmount - discount, 0)
+    );
+
+    return {
+      supplierCost,
+      markupAmount,
+      serviceFeeAmount,
+      taxAmount,
+      discount,
+      subtotal,
+      finalAmount,
+      marginPercent: toNumber(quotation?.marginPercent, 0),
+    };
   }, [quotation, rows]);
 
   const handleApprove = async () => {
@@ -470,7 +548,7 @@ const QuotationDetailPage: React.FC = () => {
         <SurfaceCard className="p-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">Total Cost</p>
           <p className="text-xl font-bold mt-1 text-gray-900 dark:text-gray-100">
-            ${summary.totalCost.toLocaleString()}
+            {formatMoney(summary.totalCost, displayCurrency)}
           </p>
         </SurfaceCard>
         <SurfaceCard className="p-4">
@@ -482,16 +560,71 @@ const QuotationDetailPage: React.FC = () => {
         <SurfaceCard className="p-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">Discount</p>
           <p className="text-xl font-bold mt-1 text-gray-900 dark:text-gray-100">
-            ${summary.discount.toLocaleString()}
+            {formatMoney(summary.discount, displayCurrency)}
           </p>
         </SurfaceCard>
         <SurfaceCard className="p-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">Final Price</p>
           <p className="text-xl font-bold mt-1 text-blue-600 dark:text-blue-400">
-            ${summary.finalPrice.toLocaleString()}
+            {formatMoney(summary.finalPrice, displayCurrency)}
           </p>
         </SurfaceCard>
       </div>
+
+      <SurfaceCard className="p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Commercial Breakdown
+          </h2>
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+            Currency: {displayCurrency}
+          </span>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+            <p className="text-xs text-gray-500">Supplier Cost</p>
+            <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {formatMoney(commercial.supplierCost, displayCurrency)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+            <p className="text-xs text-gray-500">Markup ({commercial.marginPercent}%)</p>
+            <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {formatMoney(commercial.markupAmount, displayCurrency)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+            <p className="text-xs text-gray-500">Service Fee</p>
+            <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {formatMoney(commercial.serviceFeeAmount, displayCurrency)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+            <p className="text-xs text-gray-500">Tax</p>
+            <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {formatMoney(commercial.taxAmount, displayCurrency)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          Final = Supplier Cost + Markup + Service Fee + Tax - Discount
+        </div>
+        <div className="mt-3 flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300">
+          <div className="flex items-center justify-between">
+            <span>Subtotal</span>
+            <span>{formatMoney(commercial.subtotal, displayCurrency)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Discount</span>
+            <span>-{formatMoney(commercial.discount, displayCurrency)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-gray-200 pt-2 font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
+            <span>Final Amount</span>
+            <span>{formatMoney(commercial.finalAmount, displayCurrency)}</span>
+          </div>
+        </div>
+      </SurfaceCard>
 
       <SurfaceCard className="p-4 sm:p-5">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -552,7 +685,7 @@ const QuotationDetailPage: React.FC = () => {
               {pricing?.id || quotation.pricingId || "N/A"}
             </p>
             <p className="text-xs text-gray-500">
-              Base {pricing ? `$${toNumber(pricing.baseCost, 0).toLocaleString()}` : "N/A"}
+              Base {pricing ? formatMoney(toNumber(pricing.baseCost, 0), displayCurrency) : "N/A"}
             </p>
           </div>
 
@@ -573,6 +706,100 @@ const QuotationDetailPage: React.FC = () => {
           </div>
         </div>
       </SurfaceCard>
+
+      {(noteSections.length ||
+        contentTemplate?.headerBranding ||
+        contentTemplate?.inclusions ||
+        contentTemplate?.exclusions ||
+        contentTemplate?.paymentTerms ||
+        contentTemplate?.cancellationPolicy ||
+        contentTemplate?.footerDisclaimer) ? (
+        <SurfaceCard className="p-4 sm:p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Quotation Content
+          </h2>
+          <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {contentTemplate?.headerBranding ? (
+              <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Header Branding
+                </p>
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+                  {contentTemplate.headerBranding}
+                </p>
+              </div>
+            ) : null}
+            {contentTemplate?.paymentTerms ? (
+              <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Payment Terms
+                </p>
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+                  {contentTemplate.paymentTerms}
+                </p>
+              </div>
+            ) : null}
+            {contentTemplate?.cancellationPolicy ? (
+              <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Cancellation Policy
+                </p>
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+                  {contentTemplate.cancellationPolicy}
+                </p>
+              </div>
+            ) : null}
+            {contentTemplate?.footerDisclaimer ? (
+              <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Footer Disclaimer
+                </p>
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+                  {contentTemplate.footerDisclaimer}
+                </p>
+              </div>
+            ) : null}
+            {contentTemplate?.inclusions ? (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+                  Inclusions
+                </p>
+                <p className="mt-1 text-sm text-green-800 whitespace-pre-wrap">
+                  {contentTemplate.inclusions}
+                </p>
+              </div>
+            ) : null}
+            {contentTemplate?.exclusions ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
+                  Exclusions
+                </p>
+                <p className="mt-1 text-sm text-red-800 whitespace-pre-wrap">
+                  {contentTemplate.exclusions}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          {noteSections.length ? (
+            <div className="mt-4 space-y-3">
+              {noteSections.map((section) => (
+                <div
+                  key={section.id}
+                  className="rounded-lg border border-gray-200 p-3 dark:border-gray-700"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {section.title}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+                    {section.content}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </SurfaceCard>
+      ) : null}
 
       <SurfaceCard className="overflow-hidden border border-gray-200 dark:border-gray-800">
         <div className="border-b border-gray-200 dark:border-gray-800 p-3 sm:p-4">
@@ -626,7 +853,7 @@ const QuotationDetailPage: React.FC = () => {
                           <td className="py-3 text-sm text-gray-700 dark:text-gray-300">{row.itemType}</td>
                           <td className="py-3 text-sm text-gray-900 dark:text-gray-100">{row.description}</td>
                           <td className="py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100">
-                            ${row.cost.toLocaleString()}
+                            {formatMoney(row.cost, displayCurrency)}
                           </td>
                         </tr>
                       ))}

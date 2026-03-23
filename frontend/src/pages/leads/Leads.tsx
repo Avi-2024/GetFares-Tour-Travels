@@ -34,9 +34,52 @@ const quickFilters = [
   { key: "ACTIVE", label: "Active" },
   { key: "FOLLOW_UP", label: "Follow-up" },
   { key: "CLOSED", label: "Closed" },
-  { key: "BREACHED", label: "SLA Breached" },
+  { key: "LATE_RESPONSE", label: "Late Response" },
 ] as const;
 type QuickFilter = (typeof quickFilters)[number]["key"];
+
+const leadJourneySteps = [
+  {
+    title: "1. Lead Captured",
+    detail:
+      "Lead enters CRM from website, ads, call, referral, or walk-in and starts in New status.",
+  },
+  {
+    title: "2. First Contact in 15 Minutes",
+    detail:
+      "Consultant must call first within 15 minutes. If this misses, it appears in Late Response.",
+  },
+  {
+    title: "3. If No Answer, Send WhatsApp",
+    detail:
+      "After missed call, send WhatsApp and schedule next follow-up immediately.",
+  },
+  {
+    title: "4. Mandatory Qualification",
+    detail:
+      "Capture destination, travel date, adults/children, budget, visa need, hotel category, and travel purpose.",
+  },
+  {
+    title: "5. Classify Priority",
+    detail:
+      "Mark as Hot, Warm, or Cold based on travel timeline and readiness.",
+  },
+  {
+    title: "6. Send Quotation",
+    detail:
+      "Send quote with SLA buckets (30/120/360 minutes depending journey complexity).",
+  },
+  {
+    title: "7. Follow-up Compliance",
+    detail:
+      "Do required cadence: minimum 4 calls + 2 WhatsApp + 1 final reminder.",
+  },
+  {
+    title: "8. Close Outcome",
+    detail:
+      "Convert to booking if customer confirms; otherwise mark Lost/Non-Responsive as per SOP.",
+  },
+];
 
 const Leads: React.FC = () => {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
@@ -82,7 +125,7 @@ const Leads: React.FC = () => {
               lead.statusLabel === "FINAL_REMINDER")) ||
           (quickFilter === "CLOSED" &&
             ["CONVERTED", "LOST", "NON_RESPONSIVE"].includes(lead.statusLabel)) ||
-          (quickFilter === "BREACHED" && lead.slaBreached);
+          (quickFilter === "LATE_RESPONSE" && lead.slaBreached);
         const statusMatch =
           statusFilter === "ALL" || lead.statusLabel === statusFilter;
         const text = `${lead.name} ${lead.email} ${lead.destination} ${lead.phone}`.toLowerCase();
@@ -133,6 +176,32 @@ const Leads: React.FC = () => {
           </button>
         </div>
 
+        {/* <SurfaceCard className="border border-gray-200 dark:border-gray-800">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              Lead Journey Guide (As Per HOLIDAYS SOP)
+            </h2>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              First-response target: 15 minutes
+            </span>
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            {leadJourneySteps.map((step) => (
+              <div
+                key={step.title}
+                className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/40"
+              >
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {step.title}
+                </p>
+                <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                  {step.detail}
+                </p>
+              </div>
+            ))}
+          </div>
+        </SurfaceCard> */}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <KpiCard
             title="All Leads"
@@ -150,7 +219,7 @@ const Leads: React.FC = () => {
             icon={<FaCalendarPlus className="text-amber-500 text-xl" />}
           />
           <KpiCard
-            title="SLA Breached"
+            title="Late Responses"
             value={String(leadStats.slaBreached)}
             icon={<FaFire className="text-red-500 text-xl" />}
           />
@@ -283,7 +352,9 @@ const Leads: React.FC = () => {
                               lead.slaBreached ? "text-red-600" : "text-gray-500"
                             }`}
                           >
-                            {lead.slaBreached ? "BREACHED" : lead.sla}
+                            {lead.slaBreached
+                              ? "Late response (15m target missed)"
+                              : lead.sla}
                           </p>
                         </td>
                         <td className="px-5 py-4 text-right">
@@ -323,7 +394,10 @@ const Leads: React.FC = () => {
                           lead.slaBreached ? "text-red-600" : "text-gray-500"
                         }`}
                       >
-                        SLA: {lead.slaBreached ? "BREACHED" : lead.sla}
+                        SLA:{" "}
+                        {lead.slaBreached
+                          ? "Late response (15m target missed)"
+                          : lead.sla}
                       </p>
                       <button
                         className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"

@@ -32,6 +32,13 @@ function createBookingsRoutes({
     asyncHandler(controller.runTravelReminders),
   );
   router.post(
+    "/deadlines/process",
+    requireAuth,
+    authorize("bookings:update"),
+    validateRequest(validation.processDeadlineAlerts),
+    asyncHandler(controller.processDeadlineAlerts),
+  );
+  router.post(
     "/",
     requireAuth,
     authorize("bookings:create"),

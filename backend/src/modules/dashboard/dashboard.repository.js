@@ -292,13 +292,13 @@ class DashboardRepository {
       }
 
       const normalizedRange = this.normalizeRange(range);
-      const revenueExpression = await this.resolveRevenueExpression('q');
-      const quotationSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.quotations,
-        'q',
+      const bookingRevenueExpression = `COALESCE(b.total_amount, 0)`;
+      const bookingSoftDeleteClause = await this.getSoftDeleteClause(
+        this.tables.bookings,
+        'b',
       );
 
-      const approvedWhere = `q.status = 'APPROVED'${quotationSoftDeleteClause}`;
+      const bookedRevenueWhere = `COALESCE(b.status::text, '') <> 'CANCELLED'${bookingSoftDeleteClause}`;
 
       const queries = {
         today: `
@@ -311,22 +311,22 @@ class DashboardRepository {
           ),
           current_period AS (
             SELECT
-              DATE_TRUNC('hour', q.created_at) AS slot_start,
-              SUM(${revenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP)
-              AND q.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'
-              AND ${approvedWhere}
+              DATE_TRUNC('hour', b.created_at) AS slot_start,
+              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
+            FROM ${this.tables.bookings} b
+            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP)
+              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'
+              AND ${bookedRevenueWhere}
             GROUP BY 1
           ),
           previous_period AS (
             SELECT
-              DATE_TRUNC('hour', q.created_at + INTERVAL '1 day') AS slot_start,
-              SUM(${revenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '1 day'
-              AND q.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP)
-              AND ${approvedWhere}
+              DATE_TRUNC('hour', b.created_at + INTERVAL '1 day') AS slot_start,
+              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
+            FROM ${this.tables.bookings} b
+            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '1 day'
+              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP)
+              AND ${bookedRevenueWhere}
             GROUP BY 1
           )
           SELECT
@@ -348,22 +348,22 @@ class DashboardRepository {
           ),
           current_period AS (
             SELECT
-              DATE_TRUNC('day', q.created_at) AS slot_start,
-              SUM(${revenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days'
-              AND q.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'
-              AND ${approvedWhere}
+              DATE_TRUNC('day', b.created_at) AS slot_start,
+              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
+            FROM ${this.tables.bookings} b
+            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days'
+              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'
+              AND ${bookedRevenueWhere}
             GROUP BY 1
           ),
           previous_period AS (
             SELECT
-              DATE_TRUNC('day', q.created_at + INTERVAL '7 days') AS slot_start,
-              SUM(${revenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '13 days'
-              AND q.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days'
-              AND ${approvedWhere}
+              DATE_TRUNC('day', b.created_at + INTERVAL '7 days') AS slot_start,
+              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
+            FROM ${this.tables.bookings} b
+            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '13 days'
+              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days'
+              AND ${bookedRevenueWhere}
             GROUP BY 1
           )
           SELECT
@@ -385,22 +385,22 @@ class DashboardRepository {
           ),
           current_period AS (
             SELECT
-              DATE_TRUNC('week', q.created_at) AS slot_start,
-              SUM(${revenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks'
-              AND q.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) + INTERVAL '1 week'
-              AND ${approvedWhere}
+              DATE_TRUNC('week', b.created_at) AS slot_start,
+              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
+            FROM ${this.tables.bookings} b
+            WHERE b.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks'
+              AND b.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) + INTERVAL '1 week'
+              AND ${bookedRevenueWhere}
             GROUP BY 1
           ),
           previous_period AS (
             SELECT
-              DATE_TRUNC('week', q.created_at + INTERVAL '4 weeks') AS slot_start,
-              SUM(${revenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '7 weeks'
-              AND q.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks'
-              AND ${approvedWhere}
+              DATE_TRUNC('week', b.created_at + INTERVAL '4 weeks') AS slot_start,
+              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
+            FROM ${this.tables.bookings} b
+            WHERE b.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '7 weeks'
+              AND b.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks'
+              AND ${bookedRevenueWhere}
             GROUP BY 1
           )
           SELECT
@@ -422,22 +422,22 @@ class DashboardRepository {
           ),
           current_period AS (
             SELECT
-              DATE_TRUNC('month', q.created_at) AS slot_start,
-              SUM(${revenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months'
-              AND q.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) + INTERVAL '1 month'
-              AND ${approvedWhere}
+              DATE_TRUNC('month', b.created_at) AS slot_start,
+              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
+            FROM ${this.tables.bookings} b
+            WHERE b.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months'
+              AND b.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) + INTERVAL '1 month'
+              AND ${bookedRevenueWhere}
             GROUP BY 1
           ),
           previous_period AS (
             SELECT
-              DATE_TRUNC('month', q.created_at + INTERVAL '1 year') AS slot_start,
-              SUM(${revenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '23 months'
-              AND q.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months'
-              AND ${approvedWhere}
+              DATE_TRUNC('month', b.created_at + INTERVAL '1 year') AS slot_start,
+              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
+            FROM ${this.tables.bookings} b
+            WHERE b.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '23 months'
+              AND b.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months'
+              AND ${bookedRevenueWhere}
             GROUP BY 1
           )
           SELECT

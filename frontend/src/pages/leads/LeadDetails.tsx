@@ -16,6 +16,9 @@ import {
 } from "../../utils/leadStatus";
 
 type QualificationForm = {
+  panNumber: string;
+  addressLine: string;
+  clientCurrency: string;
   destinationName: string;
   travelDate: string;
   adultsCount: string;
@@ -27,6 +30,9 @@ type QualificationForm = {
 };
 
 const emptyQualification: QualificationForm = {
+  panNumber: "",
+  addressLine: "",
+  clientCurrency: "INR",
   destinationName: "",
   travelDate: "",
   adultsCount: "2",
@@ -70,6 +76,9 @@ const LeadDetails: React.FC = () => {
 
   const hydrateQualification = useCallback((item: any) => {
     setQualification({
+      panNumber: item?.panNumber ?? item?.pan_number ?? "",
+      addressLine: item?.addressLine ?? item?.address_line ?? "",
+      clientCurrency: item?.clientCurrency ?? item?.client_currency ?? "INR",
       destinationName:
         (typeof item?.destination === "object"
           ? item?.destination?.name
@@ -147,6 +156,7 @@ const LeadDetails: React.FC = () => {
 
   const qualificationMissing = useMemo(() => {
     const missing: string[] = [];
+    if (!qualification.clientCurrency.trim()) missing.push("clientCurrency");
     if (!qualification.destinationName.trim()) missing.push("destination");
     if (!qualification.travelDate) missing.push("travelDate");
     if (!qualification.budget || Number(qualification.budget) <= 0) missing.push("budget");
@@ -177,6 +187,9 @@ const LeadDetails: React.FC = () => {
 
     try {
       await leadsService.updateLead(id, {
+        panNumber: qualification.panNumber.trim() || undefined,
+        addressLine: qualification.addressLine.trim() || undefined,
+        clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim(),
         travelDate: qualification.travelDate,
         adultsCount: Number(qualification.adultsCount),
@@ -222,6 +235,9 @@ const LeadDetails: React.FC = () => {
         status: conversion.canonical,
         subStatus: conversion.subStatus,
         closedReason: closedReason.trim() || undefined,
+        panNumber: qualification.panNumber.trim() || undefined,
+        addressLine: qualification.addressLine.trim() || undefined,
+        clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim(),
         travelDate: qualification.travelDate,
         adultsCount: Number(qualification.adultsCount),
@@ -336,7 +352,7 @@ const LeadDetails: React.FC = () => {
                     {lead.fullName || lead.name || "Lead"}
                   </h2>
                   <p className="text-sm text-gray-500">
-                    {lead.email || "N/A"} • {lead.phone || "N/A"}
+                    {lead.email || "N/A"} | {lead.phone || "N/A"}
                   </p>
                 </div>
                 <StatusBadge
@@ -347,13 +363,93 @@ const LeadDetails: React.FC = () => {
               <div className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
                 <p className="font-medium text-gray-900 dark:text-gray-100">SLA</p>
                 <p className={lead.slaBreached ? "text-red-600" : "text-gray-600 dark:text-gray-300"}>
-                  {lead.slaBreached ? "15-minute first-contact SLA breached" : "Within SLA"}
+                  {lead.slaBreached
+                    ? "First response was late (15-minute target missed)"
+                    : "Within 15-minute first-contact target"}
                 </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {lead.responseAt
+                    ? `First contact logged at ${new Date(lead.responseAt).toLocaleString()}.`
+                    : "Scheduling a call does not close this SLA. After the first real conversation, move the lead to Contacted, Negotiation, Follow-up, or Quoted."}
+                </p>
+                {lead.responseDeadline ? (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    First-contact deadline: {new Date(lead.responseDeadline).toLocaleString()}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
+                <p className="font-medium text-gray-900 dark:text-gray-100">
+                  Finance Capture
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  PAN is optional at lead stage. Capture it later after payment or finance onboarding.
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    PAN:{" "}
+                    <span className="font-semibold">
+                      {qualification.panNumber || "Not captured"}
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    Client Currency:{" "}
+                    <span className="font-semibold">
+                      {qualification.clientCurrency || "Not captured"}
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 md:col-span-3">
+                    Address:{" "}
+                    <span className="font-semibold">
+                      {qualification.addressLine || "Not captured"}
+                    </span>
+                  </p>
+                </div>
               </div>
 
               <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
                 <p className="font-medium text-gray-900 dark:text-gray-100">Qualification Capture</p>
                 <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <input
+                    className="field-input"
+                    placeholder="PAN Number (capture later if not available)"
+                    value={qualification.panNumber}
+                    onChange={(event) =>
+                      setQualification((prev) => ({
+                        ...prev,
+                        panNumber: event.target.value.toUpperCase(),
+                      }))
+                    }
+                  />
+                  <select
+                    className="field-input"
+                    value={qualification.clientCurrency}
+                    onChange={(event) =>
+                      setQualification((prev) => ({
+                        ...prev,
+                        clientCurrency: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="INR">INR</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="AED">AED</option>
+                  </select>
+                  <textarea
+                    className="field-input md:col-span-2"
+                    rows={2}
+                    placeholder="Address / Location"
+                    value={qualification.addressLine}
+                    onChange={(event) =>
+                      setQualification((prev) => ({
+                        ...prev,
+                        addressLine: event.target.value,
+                      }))
+                    }
+                  />
                   <input
                     className="field-input"
                     placeholder="Destination"
@@ -448,7 +544,7 @@ const LeadDetails: React.FC = () => {
                   <p className="text-xs text-gray-500">
                     {qualificationMissing.length
                       ? `Missing: ${qualificationMissing.join(", ")}`
-                      : "All mandatory qualification fields captured."}
+                      : "All mandatory lead-stage qualification fields captured. PAN can be added later."}
                   </p>
                   <button
                     onClick={() => void saveQualification()}
@@ -511,6 +607,9 @@ const LeadDetails: React.FC = () => {
 
           <div className="mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Schedule Follow-up</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Use this for the next action only. If the customer already answered your first call, also update the lead status so the first-response SLA is closed.
+            </p>
             <div className="mt-2 grid grid-cols-1 gap-2">
               <select
                 className="field-input"
@@ -565,13 +664,16 @@ const LeadDetails: React.FC = () => {
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                 Automation Actions
               </p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Scheduler automation is enabled. Use these buttons only for manual replay/troubleshooting.
+              </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   disabled={opsRunning}
                   onClick={() => void runAutomation("processSlaBreaches")}
                   className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                 >
-                  Run SLA Breach Check
+                  Run Late Response Check
                 </button>
                 <button
                   disabled={opsRunning}

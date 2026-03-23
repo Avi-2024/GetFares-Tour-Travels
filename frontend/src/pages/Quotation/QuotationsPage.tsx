@@ -33,6 +33,8 @@ interface Quotation {
   total: number;
   margin: number;
   status: Status;
+  templateName?: string | null;
+  templateCode?: string | null;
   lastSent: string | null;
   sentDate: string | null;
   createdAt?: string | null;
@@ -104,6 +106,8 @@ const QuotationsPage: React.FC = () => {
       total: quotation.total,
       margin: quotation.margin,
       status: quotation.status,
+      templateName: quotation.templateName,
+      templateCode: quotation.templateCode,
       lastSent: quotation.lastSent,
       sentDate: quotation.sentDate,
       createdAt: quotation.createdAt,
@@ -156,6 +160,12 @@ const QuotationsPage: React.FC = () => {
                   leadData?.destination?.name ||
                   leadData?.destinationName ||
                   "Unknown Destination";
+                const templateData = q.template || q.relations?.template || null;
+                const templateSnapshot = q.templateSnapshot || q.template_snapshot || null;
+                const templateName =
+                  templateData?.name || templateSnapshot?.name || null;
+                const templateCode =
+                  templateData?.code || templateSnapshot?.code || null;
 
                 const sentAt = q.sentAt || q.sent_at;
                 const sentDate = sentAt
@@ -174,11 +184,13 @@ const QuotationsPage: React.FC = () => {
                   email: customerEmail,
                   phone: customerPhone,
                   destination: destinationName,
-                  details: q.details || q.description || q.templateSnapshot?.description || 
+                  details: q.details || q.description || templateSnapshot?.description || 
                           (leadData ? `${leadData.adultsCount || 0} Adults${leadData.childrenCount ? `, ${leadData.childrenCount} Children` : ''} - ${leadData.travelPurpose || 'Travel'}` : 'No details'),
                   total: Number(q.totalSaleValue || q.finalPrice || q.total || q.amount || 0),
                   margin: Number(q.marginPercent || q.margin || 0),
                   status: mapApiStatusToUi(q.status),
+                  templateName,
+                  templateCode,
                   lastSent,
                   sentDate,
                   createdAt
@@ -630,6 +642,12 @@ const QuotationsPage: React.FC = () => {
                       {q.destination}
                     </p>
                     <p className="text-xs text-gray-500">{q.details}</p>
+                    {q.templateName ? (
+                      <p className="text-[11px] text-blue-600 dark:text-blue-300">
+                        Template: {q.templateCode ? `${q.templateCode} - ` : ""}
+                        {q.templateName}
+                      </p>
+                    ) : null}
                   </div>
 
                   {/* Email */}
@@ -728,6 +746,12 @@ const QuotationsPage: React.FC = () => {
                           {q.destination}
                         </p>
                         <p className="text-xs text-gray-500">{q.details}</p>
+                        {q.templateName ? (
+                          <p className="text-[11px] text-blue-600 dark:text-blue-300">
+                            Template: {q.templateCode ? `${q.templateCode} - ` : ""}
+                            {q.templateName}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">

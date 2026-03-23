@@ -550,6 +550,12 @@ function createQuotationsRepository({ db, logger, schema }) {
           AND sent_at IS NOT NULL
           AND sent_at <= $1
           AND COALESCE(view_count, 0) = 0
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ${schema.reminderLogsTable} rl
+            WHERE rl.quotation_id = ${schema.tableName}.id
+              AND rl.reminder_type = 'NOT_OPENED_24H'
+          )
       `;
 
       const viewedNoActionSql = `
@@ -561,6 +567,12 @@ function createQuotationsRepository({ db, logger, schema }) {
           AND last_viewed_at IS NOT NULL
           AND last_viewed_at <= $1
           AND COALESCE(view_count, 0) > 0
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ${schema.reminderLogsTable} rl
+            WHERE rl.quotation_id = ${schema.tableName}.id
+              AND rl.reminder_type = 'VIEWED_NO_ACTION_48H'
+          )
       `;
 
       const [notOpenedResult, viewedResult] = await Promise.all([
@@ -582,6 +594,17 @@ function createQuotationsRepository({ db, logger, schema }) {
     }
 
     const rows = await db.findMany(schema.tableName, {});
+    const reminderRows = await db.findMany(schema.reminderLogsTable, {});
+    const loggedByQuotation = new Map();
+    reminderRows.forEach((row) => {
+      const quotationId = row.quotation_id ?? row.quotationId;
+      if (!quotationId) {
+        return;
+      }
+      const current = loggedByQuotation.get(quotationId) || new Set();
+      current.add(String(row.reminder_type ?? row.reminderType ?? "").toUpperCase());
+      loggedByQuotation.set(quotationId, current);
+    });
     const notOpenedCutoff = new Date(notOpenedBefore).getTime();
     const viewedCutoff = new Date(viewedNoActionBefore).getTime();
 
@@ -593,13 +616,19 @@ function createQuotationsRepository({ db, logger, schema }) {
       if (!domain || isFinalStatus.has(domain.status) || domain.isDeleted) {
         return;
       }
+      const loggedTypes = loggedByQuotation.get(domain.id) || new Set();
 
       const sentAt = domain.sentAt ? new Date(domain.sentAt).getTime() : null;
       const lastViewedAt = domain.lastViewedAt
         ? new Date(domain.lastViewedAt).getTime()
         : null;
 
-      if (sentAt && domain.viewCount === 0 && sentAt <= notOpenedCutoff) {
+      if (
+        sentAt &&
+        domain.viewCount === 0 &&
+        sentAt <= notOpenedCutoff &&
+        !loggedTypes.has("NOT_OPENED_24H")
+      ) {
         candidates.push({ quotation: domain, reminderType: "NOT_OPENED_24H" });
         return;
       }
@@ -607,7 +636,8 @@ function createQuotationsRepository({ db, logger, schema }) {
       if (
         lastViewedAt &&
         domain.viewCount > 0 &&
-        lastViewedAt <= viewedCutoff
+        lastViewedAt <= viewedCutoff &&
+        !loggedTypes.has("VIEWED_NO_ACTION_48H")
       ) {
         candidates.push({
           quotation: domain,

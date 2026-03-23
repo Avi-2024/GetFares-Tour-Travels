@@ -1,11 +1,11 @@
 import http from "node:http";
 import { createApp } from "./app.js";
 import { createSocketServer } from "./core/realtime/index.js";
+import { createAutomationRuntime } from "./core/automation/index.js";
 
-// this is comment
-
-const { app, container, runtime } = createApp();
+const { app, container, modules, runtime } = createApp();
 const httpServer = http.createServer(app);
+const automationRuntime = createAutomationRuntime({ container, modules });
 
 const socketServer = createSocketServer({
   httpServer,
@@ -25,11 +25,24 @@ httpServer.listen(container.config.app.port, () => {
     },
     `${container.config.app.name} is listening`,
   );
+
+  try {
+    automationRuntime.start();
+  } catch (error) {
+    container.logger.error(
+      { err: error, module: "automation" },
+      "Failed to start automation runtime",
+    );
+  }
 });
 
 let shuttingDown = false;
 
 async function closeDependencies() {
+  if (typeof automationRuntime?.stop === "function") {
+    automationRuntime.stop();
+  }
+
   if (typeof socketServer?.close === "function") {
     socketServer.close();
   }

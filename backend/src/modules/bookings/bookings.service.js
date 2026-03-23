@@ -17,6 +17,13 @@ const PAYMENT_POLICY = Object.freeze({
   refundableAdvanceRatio: 0.5,
 });
 
+const DEADLINE_RISK = Object.freeze({
+  SAFE: "SAFE",
+  D2_DUE: "D2_DUE",
+  DEADLINE_DUE: "DEADLINE_DUE",
+  OVERDUE: "OVERDUE",
+});
+
 function createBookingsService({ repository, logger, events, config }) {
   const reminderConfig = {
     preTravelDays: config?.whatsapp?.preTravelDays ?? 2,
@@ -56,6 +63,13 @@ function createBookingsService({ repository, logger, events, config }) {
     return iso ? iso.slice(0, 10) : null;
   }
 
+  function isIsoDateTime(value) {
+    if (!value) {
+      return false;
+    }
+    return !Number.isNaN(new Date(value).getTime());
+  }
+
   function toDateOnly(date) {
     if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
       return null;
@@ -67,6 +81,103 @@ function createBookingsService({ repository, logger, events, config }) {
     const next = new Date(date.getTime());
     next.setUTCDate(next.getUTCDate() + days);
     return next;
+  }
+
+  function normalizeObject(value, fallback = {}) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return fallback;
+    }
+    return value;
+  }
+
+  function normalizeArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function normalizeDateTime(value) {
+    if (!value) {
+      return null;
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new AppError(
+        400,
+        "Invalid date-time value in booking deadline fields",
+        "BOOKING_INVALID_DEADLINE_DATETIME",
+      );
+    }
+    return parsed.toISOString();
+  }
+
+  function computeDeadlineInsights(booking, referenceTime = new Date()) {
+    const now = referenceTime instanceof Date ? referenceTime : new Date(referenceTime);
+    const supplierDeadlineRaw = booking?.supplierPaymentDeadlineAt || null;
+    const cancellationDeadlineRaw = booking?.cancellationDeadlineAt || null;
+    const supplierDeadline = supplierDeadlineRaw ? new Date(supplierDeadlineRaw) : null;
+    const cancellationDeadline = cancellationDeadlineRaw
+      ? new Date(cancellationDeadlineRaw)
+      : null;
+    const deadlineDueStart =
+      supplierDeadline ?
+        new Date(supplierDeadline.getTime() - 24 * 60 * 60 * 1000)
+      : null;
+    const balanceDueBy = supplierDeadline
+      ? new Date(supplierDeadline.getTime() - 2 * 24 * 60 * 60 * 1000)
+      : null;
+
+    let deadlineRiskLevel = DEADLINE_RISK.SAFE;
+    if (supplierDeadline) {
+      if (now.getTime() > supplierDeadline.getTime()) {
+        deadlineRiskLevel = DEADLINE_RISK.OVERDUE;
+      } else if (
+        deadlineDueStart &&
+        now.getTime() >= deadlineDueStart.getTime() &&
+        now.getTime() <= supplierDeadline.getTime()
+      ) {
+        deadlineRiskLevel = DEADLINE_RISK.DEADLINE_DUE;
+      } else if (
+        balanceDueBy &&
+        now.getTime() >= balanceDueBy.getTime() &&
+        deadlineDueStart &&
+        now.getTime() < deadlineDueStart.getTime()
+      ) {
+        deadlineRiskLevel = DEADLINE_RISK.D2_DUE;
+      } else if (
+        balanceDueBy &&
+        now.getTime() >= balanceDueBy.getTime() &&
+        !deadlineDueStart
+      ) {
+        deadlineRiskLevel = DEADLINE_RISK.D2_DUE;
+      }
+    }
+
+    return {
+      supplierPaymentDeadlineAt:
+        supplierDeadline && !Number.isNaN(supplierDeadline.getTime())
+          ? supplierDeadline.toISOString()
+          : null,
+      cancellationDeadlineAt:
+        cancellationDeadline && !Number.isNaN(cancellationDeadline.getTime())
+          ? cancellationDeadline.toISOString()
+          : null,
+      balanceDueBy:
+        balanceDueBy && !Number.isNaN(balanceDueBy.getTime())
+          ? balanceDueBy.toISOString()
+          : null,
+      deadlineRiskLevel,
+      deadlineLastEvaluatedAt: now.toISOString(),
+    };
+  }
+
+  function withDeadlineInsights(booking, referenceTime = new Date()) {
+    if (!booking) {
+      return booking;
+    }
+    const insights = computeDeadlineInsights(booking, referenceTime);
+    return {
+      ...booking,
+      ...insights,
+    };
   }
 
   function buildBookingNumber() {
@@ -102,7 +213,7 @@ function createBookingsService({ repository, logger, events, config }) {
       throw new AppError(404, "Booking not found", "BOOKING_NOT_FOUND");
     }
 
-    return booking;
+    return withDeadlineInsights(booking);
   }
 
   async function ensureQuotationExists(quotationId) {
@@ -200,11 +311,12 @@ function createBookingsService({ repository, logger, events, config }) {
       paymentStatus = PAYMENT_STATUS.FULL;
     }
 
-    return repository.update(bookingId, {
+    const updated = await repository.update(bookingId, {
       advance_received: netReceived,
       payment_status: paymentStatus,
       updated_at: new Date().toISOString(),
     });
+    return withDeadlineInsights(updated);
   }
 
   async function transitionStatus(id, payload, context = {}) {
@@ -261,23 +373,24 @@ function createBookingsService({ repository, logger, events, config }) {
     updatePayload.updated_at = changedAt;
 
     const updated = await repository.update(existing.id, updatePayload);
+    const hydrated = withDeadlineInsights(updated);
     await appendStatusHistory({
       bookingId: existing.id,
       oldStatus: existing.status,
-      newStatus: updated.status,
+      newStatus: hydrated.status,
       changedBy: context.user?.id || null,
       changedAt,
     });
 
     events.emitStatusChanged({
-      id: updated.id,
+      id: hydrated.id,
       oldStatus: existing.status,
-      newStatus: updated.status,
+      newStatus: hydrated.status,
       changedBy: context.user?.id || null,
     });
-    events.emitUpdated(updated);
+    events.emitUpdated(hydrated);
 
-    return updated;
+    return hydrated;
   }
 
   async function runTravelReminders(payload = {}, context = {}) {
@@ -374,6 +487,56 @@ function createBookingsService({ repository, logger, events, config }) {
     };
   }
 
+  function getDeadlineAlertTypes({
+    booking,
+    referenceDate,
+    lookaheadHours,
+  }) {
+    const alerts = [];
+    const now = referenceDate;
+    const supplierDeadline = booking?.supplierPaymentDeadlineAt
+      ? new Date(booking.supplierPaymentDeadlineAt)
+      : null;
+    const cancellationDeadline = booking?.cancellationDeadlineAt
+      ? new Date(booking.cancellationDeadlineAt)
+      : null;
+    const balanceDueBy = booking?.balanceDueBy
+      ? new Date(booking.balanceDueBy)
+      : null;
+
+    if (supplierDeadline && !Number.isNaN(supplierDeadline.getTime())) {
+      const supplierDiffHours =
+        (supplierDeadline.getTime() - now.getTime()) / (60 * 60 * 1000);
+      if (now.getTime() > supplierDeadline.getTime()) {
+        alerts.push("SUPPLIER_DEADLINE_OVERDUE");
+      } else {
+        if (supplierDiffHours <= lookaheadHours) {
+          alerts.push("SUPPLIER_DEADLINE_DUE");
+        }
+        if (
+          balanceDueBy &&
+          !Number.isNaN(balanceDueBy.getTime()) &&
+          now.getTime() >= balanceDueBy.getTime() &&
+          now.getTime() <= supplierDeadline.getTime()
+        ) {
+          alerts.push("BALANCE_D2_DUE");
+        }
+      }
+    }
+
+    if (cancellationDeadline && !Number.isNaN(cancellationDeadline.getTime())) {
+      const cancellationDiffHours =
+        (cancellationDeadline.getTime() - now.getTime()) / (60 * 60 * 1000);
+      if (now.getTime() > cancellationDeadline.getTime()) {
+        alerts.push("CANCELLATION_DEADLINE_OVERDUE");
+      } else if (cancellationDiffHours <= lookaheadHours) {
+        alerts.push("CANCELLATION_DEADLINE_DUE");
+      }
+    }
+
+    return [...new Set(alerts)];
+  }
+
   function buildCreateRecord(payload, context = {}) {
     const totalAmount = toNumber(payload.totalAmount, 0);
     const costAmount = toNumber(payload.costAmount, 0);
@@ -432,6 +595,31 @@ function createBookingsService({ repository, logger, events, config }) {
       );
     }
 
+    const blockingDeadlineAt = normalizeDateTime(payload.blockingDeadlineAt);
+    const supplierPaymentDeadlineAt = normalizeDateTime(
+      payload.supplierPaymentDeadlineAt,
+    );
+    const cancellationDeadlineAt = normalizeDateTime(
+      payload.cancellationDeadlineAt,
+    );
+    const insights = computeDeadlineInsights({
+      supplierPaymentDeadlineAt,
+      cancellationDeadlineAt,
+    });
+
+    if (
+      supplierPaymentDeadlineAt &&
+      blockingDeadlineAt &&
+      new Date(blockingDeadlineAt).getTime() >
+        new Date(supplierPaymentDeadlineAt).getTime()
+    ) {
+      throw new AppError(
+        400,
+        "blockingDeadlineAt cannot be later than supplierPaymentDeadlineAt",
+        "BOOKING_INVALID_BLOCKING_DEADLINE",
+      );
+    }
+
     return {
       quotation_id: payload.quotationId,
       booking_number: payload.bookingNumber || buildBookingNumber(),
@@ -447,6 +635,18 @@ function createBookingsService({ repository, logger, events, config }) {
       supplier_currency: supplierCurrency,
       exchange_rate: exchangeRate,
       exchange_locked: payload.exchangeLocked ?? false,
+      supplier_details: normalizeObject(payload.supplierDetails, {}),
+      dmc_details: normalizeObject(payload.dmcDetails, {}),
+      hotel_segments: normalizeArray(payload.hotelSegments),
+      flight_segments: normalizeArray(payload.flightSegments),
+      insurance_details: normalizeObject(payload.insuranceDetails, {}),
+      other_services: normalizeArray(payload.otherServices),
+      blocking_deadline_at: blockingDeadlineAt,
+      supplier_payment_deadline_at: supplierPaymentDeadlineAt,
+      cancellation_deadline_at: cancellationDeadlineAt,
+      balance_due_by: insights.balanceDueBy,
+      deadline_risk_level: insights.deadlineRiskLevel,
+      deadline_last_evaluated_at: insights.deadlineLastEvaluatedAt,
       created_by: context.user?.id || null,
       updated_at: new Date().toISOString(),
     };
@@ -462,7 +662,8 @@ function createBookingsService({ repository, logger, events, config }) {
         { module: "bookings", requestId: context.requestId, filters },
         "Listing bookings",
       );
-      return repository.findAll(filters);
+      const list = await repository.findAll(filters);
+      return list.map((item) => withDeadlineInsights(item));
     },
 
     async stats(context = {}) {
@@ -501,8 +702,9 @@ function createBookingsService({ repository, logger, events, config }) {
         changedBy: context.user?.id || null,
       });
 
-      events.emitCreated(created);
-      return created;
+      const hydrated = withDeadlineInsights(created);
+      events.emitCreated(hydrated);
+      return hydrated;
     },
 
     async update(id, payload, context = {}) {
@@ -574,6 +776,42 @@ function createBookingsService({ repository, logger, events, config }) {
       if (payload.cancellationReason !== undefined) {
         updatePayload.cancellation_reason = payload.cancellationReason;
       }
+      if (payload.supplierDetails !== undefined) {
+        updatePayload.supplier_details = normalizeObject(payload.supplierDetails, {});
+      }
+      if (payload.dmcDetails !== undefined) {
+        updatePayload.dmc_details = normalizeObject(payload.dmcDetails, {});
+      }
+      if (payload.hotelSegments !== undefined) {
+        updatePayload.hotel_segments = normalizeArray(payload.hotelSegments);
+      }
+      if (payload.flightSegments !== undefined) {
+        updatePayload.flight_segments = normalizeArray(payload.flightSegments);
+      }
+      if (payload.insuranceDetails !== undefined) {
+        updatePayload.insurance_details = normalizeObject(
+          payload.insuranceDetails,
+          {},
+        );
+      }
+      if (payload.otherServices !== undefined) {
+        updatePayload.other_services = normalizeArray(payload.otherServices);
+      }
+      if (payload.blockingDeadlineAt !== undefined) {
+        updatePayload.blocking_deadline_at = normalizeDateTime(
+          payload.blockingDeadlineAt,
+        );
+      }
+      if (payload.supplierPaymentDeadlineAt !== undefined) {
+        updatePayload.supplier_payment_deadline_at = normalizeDateTime(
+          payload.supplierPaymentDeadlineAt,
+        );
+      }
+      if (payload.cancellationDeadlineAt !== undefined) {
+        updatePayload.cancellation_deadline_at = normalizeDateTime(
+          payload.cancellationDeadlineAt,
+        );
+      }
 
       if (
         (updatePayload.travel_start_date || existing.travelStartDate) &&
@@ -642,15 +880,153 @@ function createBookingsService({ repository, logger, events, config }) {
         );
       }
 
+      const resolvedBlockingDeadlineAt =
+        updatePayload.blocking_deadline_at !== undefined
+          ? updatePayload.blocking_deadline_at
+          : existing.blockingDeadlineAt;
+      const resolvedSupplierPaymentDeadlineAt =
+        updatePayload.supplier_payment_deadline_at !== undefined
+          ? updatePayload.supplier_payment_deadline_at
+          : existing.supplierPaymentDeadlineAt;
+      const resolvedCancellationDeadlineAt =
+        updatePayload.cancellation_deadline_at !== undefined
+          ? updatePayload.cancellation_deadline_at
+          : existing.cancellationDeadlineAt;
+
+      if (
+        resolvedBlockingDeadlineAt &&
+        resolvedSupplierPaymentDeadlineAt &&
+        new Date(resolvedBlockingDeadlineAt).getTime() >
+          new Date(resolvedSupplierPaymentDeadlineAt).getTime()
+      ) {
+        throw new AppError(
+          400,
+          "blockingDeadlineAt cannot be later than supplierPaymentDeadlineAt",
+          "BOOKING_INVALID_BLOCKING_DEADLINE",
+        );
+      }
+
+      const deadlineInsights = computeDeadlineInsights({
+        supplierPaymentDeadlineAt: resolvedSupplierPaymentDeadlineAt,
+        cancellationDeadlineAt: resolvedCancellationDeadlineAt,
+      });
+      updatePayload.balance_due_by = deadlineInsights.balanceDueBy;
+      updatePayload.deadline_risk_level = deadlineInsights.deadlineRiskLevel;
+      updatePayload.deadline_last_evaluated_at =
+        deadlineInsights.deadlineLastEvaluatedAt;
+
       updatePayload.updated_at = new Date().toISOString();
 
       const updated = await repository.update(id, updatePayload);
-      events.emitUpdated(updated);
-      return updated;
+      const hydrated = withDeadlineInsights(updated);
+      events.emitUpdated(hydrated);
+      return hydrated;
     },
 
     transitionStatus,
     runTravelReminders,
+    async processDeadlineAlerts(payload = {}, context = {}) {
+      const referenceDate = payload.referenceTime
+        ? new Date(payload.referenceTime)
+        : new Date();
+      if (Number.isNaN(referenceDate.getTime())) {
+        throw new AppError(
+          400,
+          "referenceTime is invalid",
+          "BOOKING_DEADLINE_INVALID_REFERENCE_TIME",
+        );
+      }
+
+      const lookaheadHoursRaw = Number(
+        payload.lookaheadHours ??
+          config?.automation?.deadlineLookaheadHours ??
+          24,
+      );
+      const lookaheadHours =
+        Number.isFinite(lookaheadHoursRaw) && lookaheadHoursRaw > 0
+          ? Math.min(Math.floor(lookaheadHoursRaw), 240)
+          : 24;
+      const limitRaw = Number(payload.limit ?? 200);
+      const limit =
+        Number.isFinite(limitRaw) && limitRaw > 0
+          ? Math.min(Math.floor(limitRaw), 1000)
+          : 200;
+      const candidates = await repository.findDeadlineCandidates({ limit });
+
+      const summary = {
+        processed: candidates.length,
+        triggered: 0,
+        skipped: 0,
+        alerts: [],
+      };
+      const alertDate = referenceDate.toISOString().slice(0, 10);
+
+      for (const booking of candidates) {
+        const hydrated = withDeadlineInsights(booking, referenceDate);
+
+        await repository.update(booking.id, {
+          balance_due_by: hydrated.balanceDueBy,
+          deadline_risk_level: hydrated.deadlineRiskLevel,
+          deadline_last_evaluated_at: hydrated.deadlineLastEvaluatedAt,
+          updated_at: new Date().toISOString(),
+        });
+
+        const alertTypes = getDeadlineAlertTypes({
+          booking: hydrated,
+          referenceDate,
+          lookaheadHours,
+        });
+
+        if (!alertTypes.length) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        for (const alertType of alertTypes) {
+          const existing = await repository.findDeadlineAlertLog({
+            bookingId: hydrated.id,
+            alertType,
+            alertDate,
+          });
+          if (existing) {
+            summary.skipped += 1;
+            continue;
+          }
+
+          await repository.createDeadlineAlertLog({
+            bookingId: hydrated.id,
+            alertType,
+            alertDate,
+            metadata: {
+              bookingNumber: hydrated.bookingNumber,
+              deadlineRiskLevel: hydrated.deadlineRiskLevel,
+              supplierPaymentDeadlineAt: hydrated.supplierPaymentDeadlineAt,
+              cancellationDeadlineAt: hydrated.cancellationDeadlineAt,
+              balanceDueBy: hydrated.balanceDueBy,
+            },
+          });
+
+          const eventPayload = {
+            bookingId: hydrated.id,
+            leadId: hydrated.leadId || null,
+            bookingNumber: hydrated.bookingNumber || null,
+            alertType,
+            alertDate,
+            deadlineRiskLevel: hydrated.deadlineRiskLevel,
+            supplierPaymentDeadlineAt: hydrated.supplierPaymentDeadlineAt,
+            cancellationDeadlineAt: hydrated.cancellationDeadlineAt,
+            balanceDueBy: hydrated.balanceDueBy,
+            triggeredBy: context.user?.id || null,
+          };
+          events.emitDeadlineAlert(eventPayload);
+          events.emitUpdated(hydrated);
+          summary.alerts.push(eventPayload);
+          summary.triggered += 1;
+        }
+      }
+
+      return summary;
+    },
 
     async listStatusHistory(id, context = {}) {
       await getById(id, context);

@@ -167,6 +167,14 @@ function createReportsController({ service }) {
       );
       res.status(200).json({ data: result });
     },
+
+    async financeCostBreakup(req, res) {
+      const result = await service.financeCostBreakup(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
   });
 }
 

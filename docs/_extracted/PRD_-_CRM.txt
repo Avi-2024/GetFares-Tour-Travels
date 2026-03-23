@@ -1,0 +1,320 @@
+
+
+===== PAGE 1 =====
+PRODUCT REQUIREMENT DOCUMENT (PRD)  
+CRM System – Travel Agency (Holidays & Visa Services ) 
+ 
+PROJECT OVERVIEW  
+1. Project Name - Travel Agency CRM – Holidays & Visa Management System  
+ 
+2. Objective  
+To develop a centralized CRM system to manage:  
+• Holiday Package Sales (B2C & B2B)  
+• Worldwide Visa Services  
+• Lead Management  
+• Quotation & Booking Workflow  
+• Payment Tracking  
+• Supplier Coordination  
+• Reporting & KPI Monitoring  
+ 
+The CRM should improve:  
+• Lead conversion ratio  
+• Response time  
+• Revenue tracking  
+• Team accountability  
+• Operational efficiency  
+ 
+USER ROLES & ACCESS LEVELS  
+1. Admin  
+• Full system access  
+• Add/edit/delete users  
+• Access to reports & revenue dashboard  
+• Modify margins & pricing settings  
+ 
+ 
+
+===== PAGE 2 =====
+ 
+2. Holiday Consultant  
+• Access to assigned leads  
+• Create quotations  
+• Update lead status  
+• Upload documents  
+• Convert to booking  
+ 
+3. Visa Consultant  
+• Manage visa leads  
+• Upload visa documents  
+• Track application stages  
+• Update status  
+ 
+4. Accounts Team  
+• Update payment status  
+• Generate invoices  
+• Refund processing  
+• View revenue reports  
+ 
+5. Management  
+• Dashboard view only  
+• KPI monitoring  
+• Conversion reports  
+• Revenue tracking  
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 3 =====
+CORE MODULES REQUIRED  
+MODULE 1: LEAD MANAGEMENT  
+Features Required:  
+1. Manual lead entry  
+2. Auto lead capture from:  
+• Website forms  
+• Meta Ads  
+• WhatsApp integration  
+• Google Ads  
+3. Lead source tracking  
+(Facebook / Instagram / Google Ad / Website / Walk -in / Referral / B2B)  
+ 
+Lead Fields:  
+• Unique Lead ID  
+• Client Name  
+• Nationality  
+• Contact Number  
+• Email  
+• Destination  
+• Travel Dates  
+• No. of Adults / Children  
+• Budget Range (Optional)  
+• Visa Required (Yes/No)  
+• Lead Type (Holiday / Visa / Both)  
+• Lead Source  
+ 
+Lead Status Stages:  
+• New  
+• Contacted  
+• Follow-up 1  
+• Follow-up 2  
+• Follow-up 3  
+• Final Reminder  
+
+===== PAGE 4 =====
+• Quoted  
+• Negotiation  
+• Hot  
+• Warm  
+• Cold  
+• Converted  
+• Lost (Mandate note required to specify reason)  
+• Non-Responsive  
+ 
+Automation Required:  
+• Auto-reminder for follow -ups  
+• Lead response time tracking (15 min SLA)  
+• Escalation alert if not contacted within 15 minutes  
+ 
+MODULE 2: QUOTATION MANAGEMENT  
+Features:  
+• Ready Package template system  
+• Custom package builder  
+• Auto markup calculation  
+• PDF quotation generator (branded format)  
+• Price validity field  
+• Inclusion / Exclusion fields  
+• Cancellation policy field  
+• Important Notes field  
+ 
+Response Time Tracking:  
+• Ready package – 0 - 30 minutes  
+• Customized package – within 2 hours  
+• Complex itinerary – within 6 working hours  
+Note - System should log time between: Lead creation → Quote sent  
+ 
+ 
+ 
+
+===== PAGE 5 =====
+MODULE 3: BOOKING MANAGEMENT  
+When lead is converted:  
+Required Fields:  
+• Booking reference number (auto generated)  
+• Supplier name  
+• DMC details  
+• Hotel details  
+• Flight details  
+• Visa requirement  
+• Insurance add -on 
+• Other Services  
+Payment Rules:  
+• Minimum 50% advance  
+• 100% for non -refundable bookings  
+• Balance before D -2 
+• No service confirmation without payment proof  
+ 
+System should:  
+• Block services for allowed number of time period (configurable)  
+• Alert if supplier deadline approaching  
+• Track cancellation deadlines  
+ 
+MODULE 4: VISA MANAGEMENT  (Separate visa workflow required)  
+Visa Stages:  
+• Document Collection  
+• Application Submitted  
+• Biometrics Scheduled  
+• Under Process  
+• Approved  
+• Rejected  
+• Delivered  
+ 
+ 
+
+===== PAGE 6 =====
+Required Features:  
+• Visa checklist per country  
+• Document upload (passport, Emirates ID, bank statement, etc)  
+• Appointment date tracking  
+• Expiry reminder  
+• Visa fees tracking  
+• SLA monitoring  
+ 
+MODULE 5: DOCUMENT MANAGEMENT  
+• Upload passport copies  
+• Upload visa copies  
+• Upload tickets  
+• Upload hotel vouchers  
+• Generate final itinerary PDF  
+• Secure storage (role -based access)  
+ 
+MODULE 6: PAYMENT & ACCOUNTS  
+Features:  
+• Invoice generation  
+• Payment status:  
+1) Pending  
+2) Partial  
+3) Paid  
+• Supplier payment tracking  
+• Profit calculation  
+• Refund management  
+• Service charge tracking  
+ 
+MODULE 7: DASHBOARD & KPI REPORTS  
+Management dashboard must show:  
+• Total Leads (Daily / Weekly / Monthly)  
+• Conversion Rate %  
+• Revenue Generated  
+• Profit Generated  
+
+===== PAGE 7 =====
+• Consultant -wise performance  
+• Destination -wise revenue  
+• Visa vs Holiday revenue split  
+• Lead source performance  
+• Response time average  
+ 
+MODULE 8: FOLLOW -UP SYSTEM  
+Minimum:  
+• 4 follow-ups mandatory  
+• 1 final reminder mandatory  
+• Auto-scheduled reminders  
+• Auto-mark as “Non -Responsive” after Day 4  
+ 
+MODULE 9: SUPPLIER MANAGEMENT  
+• Supplier database  
+• Country-wise supplier tagging  
+• Contract upload  
+• Rate validity tracking  
+• Production commitment tracking  
+• Payment deadline alerts  
+ 
+MODULE 10: MARKETING INTEGRATION  
+• Lead source analytics  
+• Campaign performance tracking  
+• Cost per lead  
+• ROI reporting  
+• WhatsApp integration  
+• Email integration  
+ 
+MODULE 11: WEBSITE INTEGRATION – PACKAGE PUBLISHING  
+1. Objective: To allow holiday packages created in CRM to be directly published and 
+synchronized with the company website.  
+2. Core Requirements  
+
+===== PAGE 8 =====
+• Package Name  
+• Destination  
+• Duration (e.g., 3N/4D)  
+• Starting Price  
+• Inclusions  
+• Exclusions  
+• Itinerary (Day -wise)  
+• Hotel Details  
+• Validity Period  
+• Cancellation Policy  
+• Package Category:  
+1) Budget  
+2) Premium  
+3) Luxury  
+4) Honeymoon  
+5) Family  
+• Banner Image Upload  
+• Gallery Images Upload  
+• SEO Fields:  
+1) Meta Title  
+2) Meta Description  
+3) Keywords  
+• Package Status:  
+1) Draft  
+2) Active  
+3) Expired  
+4) Sold Out  
+Publish to Website Feature  
+CRM must have:  
+• “Publish to Website” toggle button  
+• Auto-sync functionality  
+• Edit & auto -update website content  
+• Remove/unpublish option  
+When:  
+• Price is changed in CRM → Website auto updates  
+• Validity expires → Package auto hides  
+• Marked as Sold Out → Display “Sold Out” on website  
+
+===== PAGE 9 =====
+Website Display Requirements  
+• Website should display:  
+• Package listing page (grid view)  
+• Destination filter  
+• Price filter  
+• Duration filter  
+• “Enquire Now” button  
+• “Book Now” button (future payment integration)  
+• WhatsApp click -to-chat integration  
+Lead Capture Flow  
+When customer clicks Enquire Now → Lead must automatically enter CRM with:  
+• Package Name  
+• Travel Dates (if selected)  
+• No. of Travelers  
+• Contact Details  
+• Source: Website – Package Page  
+ 
+FUTURE PHASE (OPTIONAL)  
+• Hotel API integration  
+• Flight API integration  
+• Online payment gateway  
+• Client login portal  
+• Automated WhatsApp reminders  
+• Supplier portal access  
+ 
+SUCCESS METRICS  
+CRM should help achieve:  
+• 15-minute lead response compliance  
+• 20–30% conversion ratio  
+• Real-time revenue visibility  
+• Reduced manual follow -up errors  
+• Automated reporting  
+ 
+
+===== PAGE 10 =====
+ 

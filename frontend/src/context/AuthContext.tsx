@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { rbacApi } from "../api";
+import { authApi, rbacApi } from "../api";
 
 type AuthUser = {
   id: string;
@@ -34,6 +34,15 @@ const STORAGE_TOKEN = "auth_token";
 const STORAGE_USER = "auth_user";
 const STORAGE_PERMISSIONS = "auth_permissions";
 
+type ProfileApiUser = {
+  id?: string;
+  email?: string;
+  fullName?: string;
+  name?: string;
+  role?: string;
+  roleId?: string;
+};
+
 const normalizePermissionKey = (permission: string) =>
   String(permission || "")
     .trim()
@@ -58,6 +67,18 @@ const parseTokenExpiryMs = (token: string): number | null => {
   } catch {
     return null;
   }
+};
+
+const normalizeAuthUser = (payload?: ProfileApiUser | null): AuthUser | null => {
+  if (!payload?.id && !payload?.email) return null;
+  const fallbackName = payload.email?.split("@")[0] ?? "User";
+  return {
+    id: payload.id ?? "",
+    name: payload.fullName?.trim() || payload.name?.trim() || fallbackName,
+    email: payload.email ?? "",
+    role: payload.role,
+    roleId: payload.roleId,
+  };
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -117,6 +138,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       void refreshPermissions();
     }
   }, [token, permissions.length, refreshPermissions]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let cancelled = false;
+
+    const syncProfile = async () => {
+      try {
+        const response = await authApi.profile();
+        const nextUser = normalizeAuthUser(response?.data);
+        if (!nextUser || cancelled) return;
+        localStorage.setItem(STORAGE_USER, JSON.stringify(nextUser));
+        setUser(nextUser);
+      } catch {
+        // Keep the last stored session user if profile bootstrap fails.
+      }
+    };
+
+    void syncProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const setAuthState = (nextToken: string, nextUser: AuthUser) => {
     localStorage.setItem(STORAGE_TOKEN, nextToken);

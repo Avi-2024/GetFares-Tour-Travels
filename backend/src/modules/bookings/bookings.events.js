@@ -40,6 +40,17 @@ function createBookingsEvents({ eventBus, logger }) {
       );
       eventBus.emit("bookings.post_travel_feedback", payload);
     },
+    emitDeadlineAlert(payload) {
+      logger.warn(
+        {
+          bookingId: payload.bookingId,
+          alertType: payload.alertType,
+          alertDate: payload.alertDate,
+        },
+        "bookings.deadline_alert",
+      );
+      eventBus.emit("bookings.deadline_alert", payload);
+    },
   });
 }
 

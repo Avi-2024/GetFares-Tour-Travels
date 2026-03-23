@@ -66,6 +66,11 @@ export const destinationsApi = {
       body: payload,
     }),
 
+  remove: (id: string) =>
+    apiRequest<{ data: DestinationRecord }>(`/api/destinations/${id}`, {
+      method: "DELETE",
+    }),
+
   listPricing: (destinationId: string) =>
     apiRequest<{ data: DestinationPricingRecord[] }>(
       `/api/destinations/${destinationId}/pricing`,

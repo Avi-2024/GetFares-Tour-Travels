@@ -1,9 +1,9 @@
 import React, { useMemo, useState, useEffect } from "react";
 import {
   Area,
-  AreaChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
   Line,
   Pie,
@@ -24,6 +24,7 @@ import {
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import { dashboardApi } from "../../api/dashboard";
+import { reportsApi } from "../../api/reports";
 import { useAuth } from "../../context/AuthContext";
 
 // Type definitions
@@ -80,7 +81,19 @@ const Dashboard: React.FC = () => {
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false);
   
-  const rev = useMemo(() => revenueData[range], [revenueData, range]);
+  const rev = useMemo(
+    () =>
+      revenueData[range].map((point) => ({
+        name: String(point?.name ?? ""),
+        revenue: Number(point?.revenue ?? 0),
+        last: Number(point?.last ?? 0),
+      })),
+    [revenueData, range],
+  );
+  const hasRevenueChartData = useMemo(
+    () => rev.some((point) => point.revenue > 0 || point.last > 0),
+    [rev],
+  );
   const formatStatNumber = (value: unknown, formatter: (num: number) => string) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return "N/A";
@@ -112,11 +125,23 @@ const Dashboard: React.FC = () => {
       
       setLoading(true);
       try {
-        // Load stats
-        const statsResponse = await dashboardApi.getStats() as any;
-        const stats = statsResponse?.data || statsResponse;
-        if (stats) {
-          setDashboardStats(stats);
+        // Load KPI cards from unified executive KPI source.
+        const kpiResponse = await reportsApi.dashboardExecutiveKpis() as any;
+        const executive = kpiResponse?.data || kpiResponse;
+        if (executive) {
+          const pendingCalls =
+            Number(executive.pendingFollowups || 0) +
+            Number(executive.overdueFollowups || 0);
+          setDashboardStats({
+            totalLeads: Number(executive.totalLeads || 0),
+            totalLeadsChange: 0,
+            revenue: Number(executive.revenue || 0),
+            revenueChange: 0,
+            pendingCalls,
+            pendingCallsChange: 0,
+            bookings: Number(executive.totalBookings || 0),
+            bookingsChange: 0,
+          });
           setStatsLoaded(true);
         } else {
           setStatsLoaded(false);
@@ -191,7 +216,7 @@ const Dashboard: React.FC = () => {
           bg: "bg-green-100 text-green-600",
         },
         {
-          title: "Pending Calls",
+          title: "Open Follow-ups",
           value: "N/A",
           trend: null,
           up: true,
@@ -229,7 +254,7 @@ const Dashboard: React.FC = () => {
         bg: "bg-green-100 text-green-600",
       },
       {
-        title: "Pending Calls",
+        title: "Open Follow-ups",
         value: formatStatNumber(dashboardStats.pendingCalls, formatCompact),
         trend: `${dashboardStats.pendingCallsChange >= 0 ? '+' : ''}${dashboardStats.pendingCallsChange}%`,
         up: dashboardStats.pendingCallsChange >= 0,
@@ -245,7 +270,7 @@ const Dashboard: React.FC = () => {
         bg: "bg-gray-100 text-gray-700",
       },
     ];
-  }, [dashboardStats]);
+  }, [dashboardStats, statsLoaded]);
 
   return (
     <div className="space-y-6">
@@ -312,6 +337,10 @@ const Dashboard: React.FC = () => {
         )}
       </div>
 
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Open Follow-ups = pending follow-ups scheduled for today or future + overdue follow-ups not marked complete yet.
+      </p>
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <SurfaceCard className="xl:col-span-2">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -335,42 +364,57 @@ const Dashboard: React.FC = () => {
               ))}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={revenueLoaded ? rev : []}>
-              <defs>
-                <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} />
-              <Tooltip
-                formatter={(v: number | string | undefined) => [
-                  `$${Number(v ?? 0).toLocaleString()}`,
-                  "Revenue",
-                ]}
-              />
-              <Legend />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                fill="url(#g)"
-                stroke="#2563eb"
-                strokeWidth={2}
-                name="Current"
-              />
-              <Line
-                type="monotone"
-                dataKey="last"
-                stroke="#94a3b8"
-                strokeWidth={2}
-                dot={false}
-                name="Previous"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {!revenueLoaded ? (
+            <div className="flex h-[320px] items-center justify-center text-sm text-gray-500">
+              Loading revenue trend...
+            </div>
+          ) : !hasRevenueChartData ? (
+            <div className="flex h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-6 text-center dark:border-gray-700 dark:bg-gray-800/40">
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                No booked revenue found for this range
+              </p>
+              <p className="mt-2 max-w-md text-xs text-gray-500 dark:text-gray-400">
+                This chart updates from non-cancelled bookings. Once bookings are created in the selected period, the revenue trend will appear here.
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <ComposedChart data={rev}>
+                <defs>
+                  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
+                <YAxis stroke="#9ca3af" fontSize={12} />
+                <Tooltip
+                  formatter={(v: number | string | undefined, name) => [
+                    `$${Number(v ?? 0).toLocaleString()}`,
+                    name === "last" ? "Previous" : "Current",
+                  ]}
+                />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  fill="url(#g)"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  name="Current"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="last"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Previous"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </SurfaceCard>
 
         <SurfaceCard>

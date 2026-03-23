@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FaChevronLeft,
   FaChevronRight,
@@ -10,8 +10,10 @@ import EmptyState from "../../components/ui/EmptyState";
 import StatusBadge from "../../components/ui/StatusBadge";
 import TextInput from "../../components/form/TextInput";
 import NumberInput from "../../components/form/NumberInput";
+import { quotationsApi } from "../../api/quotations";
+import { getApiErrorMessage } from "../../api/apiClient";
 
-type TemplateType = "STANDARD" | "PREMIUM" | "CORPORATE";
+type TemplateType = "READY_PACKAGE" | "VISA" | "CUSTOM_ITINERARY";
 
 type TemplateRow = {
   id: string;
@@ -21,52 +23,84 @@ type TemplateRow = {
   minMarginPercent: number;
   isActive: boolean;
   updatedAt: string;
+  headerBranding?: string;
+  inclusions?: string;
+  exclusions?: string;
+  paymentTerms?: string;
+  cancellationPolicy?: string;
+  footerDisclaimer?: string;
 };
 
-const seedRows: TemplateRow[] = [
-  {
-    id: "tpl-1",
-    code: "STD",
-    name: "Standard Leisure",
-    templateType: "STANDARD",
-    minMarginPercent: 8,
-    isActive: true,
-    updatedAt: "2026-03-10",
-  },
-  {
-    id: "tpl-2",
-    code: "VIP",
-    name: "Luxury Premium",
-    templateType: "PREMIUM",
-    minMarginPercent: 15,
-    isActive: true,
-    updatedAt: "2026-03-08",
-  },
-  {
-    id: "tpl-3",
-    code: "CORP",
-    name: "Corporate Fast Quote",
-    templateType: "CORPORATE",
-    minMarginPercent: 6,
-    isActive: false,
-    updatedAt: "2026-03-02",
-  },
-];
-
 const QuotationTemplatesPage: React.FC = () => {
-  const [rows, setRows] = useState(seedRows);
+  const [rows, setRows] = useState<TemplateRow[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [form, setForm] = useState({
     code: "",
     name: "",
-    templateType: "STANDARD" as TemplateType,
+    templateType: "READY_PACKAGE" as TemplateType,
     minMarginPercent: 0,
     isActive: true,
+    headerBranding: "",
+    inclusions: "",
+    exclusions: "",
+    paymentTerms: "",
+    cancellationPolicy: "",
+    footerDisclaimer: "",
   });
   const pageSize = 15;
+
+  const unwrapList = (response: unknown): any[] => {
+    const payload = (response as { data?: unknown })?.data ?? response;
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray((payload as { data?: unknown[] })?.data)) {
+      return (payload as { data: unknown[] }).data;
+    }
+    if (Array.isArray((payload as { items?: unknown[] })?.items)) {
+      return (payload as { items: unknown[] }).items;
+    }
+    return [];
+  };
+
+  const mapTemplate = (raw: any): TemplateRow => ({
+    id: String(raw?.id ?? ""),
+    code: raw?.code ?? "",
+    name: raw?.name ?? "",
+    templateType: (raw?.templateType ?? raw?.template_type ?? "READY_PACKAGE") as TemplateType,
+    minMarginPercent: Number(raw?.minMarginPercent ?? raw?.min_margin_percent ?? 0),
+    isActive: raw?.isActive ?? raw?.is_active ?? true,
+    updatedAt: String(raw?.updatedAt ?? raw?.updated_at ?? raw?.createdAt ?? raw?.created_at ?? ""),
+    headerBranding: raw?.headerBranding ?? raw?.header_branding ?? "",
+    inclusions: raw?.inclusions ?? "",
+    exclusions: raw?.exclusions ?? "",
+    paymentTerms: raw?.paymentTerms ?? raw?.payment_terms ?? "",
+    cancellationPolicy: raw?.cancellationPolicy ?? raw?.cancellation_policy ?? "",
+    footerDisclaimer: raw?.footerDisclaimer ?? raw?.footer_disclaimer ?? "",
+  });
+
+  const loadTemplates = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await quotationsApi.listTemplates();
+      setRows(unwrapList(response).map(mapTemplate));
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to load quotation templates"));
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
 
   const filtered = useMemo(
     () =>
@@ -102,9 +136,15 @@ const QuotationTemplatesPage: React.FC = () => {
     setForm({
       code: "",
       name: "",
-      templateType: "STANDARD",
+      templateType: "READY_PACKAGE",
       minMarginPercent: 0,
       isActive: true,
+      headerBranding: "",
+      inclusions: "",
+      exclusions: "",
+      paymentTerms: "",
+      cancellationPolicy: "",
+      footerDisclaimer: "",
     });
     setShowForm(true);
   };
@@ -117,45 +157,55 @@ const QuotationTemplatesPage: React.FC = () => {
       templateType: row.templateType,
       minMarginPercent: row.minMarginPercent,
       isActive: row.isActive,
+      headerBranding: row.headerBranding || "",
+      inclusions: row.inclusions || "",
+      exclusions: row.exclusions || "",
+      paymentTerms: row.paymentTerms || "",
+      cancellationPolicy: row.cancellationPolicy || "",
+      footerDisclaimer: row.footerDisclaimer || "",
     });
     setShowForm(true);
   };
 
-  const saveTemplate = () => {
-    if (!form.code.trim() || !form.name.trim()) return;
-
-    if (editingId) {
-      setRows((current) =>
-        current.map((row) =>
-          row.id === editingId
-            ? {
-                ...row,
-                code: form.code,
-                name: form.name,
-                templateType: form.templateType,
-                minMarginPercent: Number(form.minMarginPercent),
-                isActive: form.isActive,
-                updatedAt: "2026-03-12",
-              }
-            : row,
-        ),
-      );
-    } else {
-      setRows((current) => [
-        {
-          id: `tpl-${current.length + 1}`,
-          code: form.code,
-          name: form.name,
-          templateType: form.templateType,
-          minMarginPercent: Number(form.minMarginPercent),
-          isActive: form.isActive,
-          updatedAt: "2026-03-12",
-        },
-        ...current,
-      ]);
+  const saveTemplate = async () => {
+    if (!form.code.trim() || !form.name.trim()) {
+      setError("Template code and name are required");
+      return;
     }
 
-    setShowForm(false);
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const payload = {
+        code: form.code.trim().toUpperCase(),
+        name: form.name.trim(),
+        templateType: form.templateType,
+        minMarginPercent: Number(form.minMarginPercent || 0),
+        isActive: form.isActive,
+        headerBranding: form.headerBranding.trim() || undefined,
+        inclusions: form.inclusions.trim() || undefined,
+        exclusions: form.exclusions.trim() || undefined,
+        paymentTerms: form.paymentTerms.trim() || undefined,
+        cancellationPolicy: form.cancellationPolicy.trim() || undefined,
+        footerDisclaimer: form.footerDisclaimer.trim() || undefined,
+      };
+
+      if (editingId) {
+        await quotationsApi.updateTemplate(editingId, payload);
+        setNotice("Template updated");
+      } else {
+        await quotationsApi.createTemplate(payload);
+        setNotice("Template created");
+      }
+
+      setShowForm(false);
+      await loadTemplates();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to save template"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -171,11 +221,31 @@ const QuotationTemplatesPage: React.FC = () => {
         </div>
         <button
           onClick={openCreate}
+          disabled={saving}
           className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           <FaPlus className="mr-2" /> New Template
         </button>
       </div>
+
+      <SurfaceCard className="p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20">
+        <p className="text-sm text-blue-800 dark:text-blue-200">
+          How Template Works: Create/update template here, select it in Quotation
+          Builder, then save quote with `templateId`. A template snapshot is stored on
+          each quotation for audit-safe rendering.
+        </p>
+      </SurfaceCard>
+
+      {notice ? (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200">
+          {notice}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+          {error}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -196,7 +266,9 @@ const QuotationTemplatesPage: React.FC = () => {
           },
           {
             title: "Avg Min Margin",
-            value: `${Math.round(rows.reduce((sum, row) => sum + row.minMarginPercent, 0) / rows.length)}%`,
+            value: rows.length
+              ? `${Math.round(rows.reduce((sum, row) => sum + row.minMarginPercent, 0) / rows.length)}%`
+              : "0%",
             chip: "Policy",
           },
         ].map((card) => (
@@ -258,9 +330,9 @@ const QuotationTemplatesPage: React.FC = () => {
                   }))
                 }
               >
-                <option value="STANDARD">STANDARD</option>
-                <option value="PREMIUM">PREMIUM</option>
-                <option value="CORPORATE">CORPORATE</option>
+                <option value="READY_PACKAGE">READY_PACKAGE</option>
+                <option value="VISA">VISA</option>
+                <option value="CUSTOM_ITINERARY">CUSTOM_ITINERARY</option>
               </select>
             </div>
             <NumberInput
@@ -275,6 +347,96 @@ const QuotationTemplatesPage: React.FC = () => {
               min={0}
               step={1}
             />
+            <div className="md:col-span-2">
+              <label className="field-label">Header Branding</label>
+              <textarea
+                rows={2}
+                className="field-input"
+                value={form.headerBranding}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    headerBranding: event.target.value,
+                  }))
+                }
+                placeholder="Brand header text used in generated quotation"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="field-label">Inclusions</label>
+              <textarea
+                rows={3}
+                className="field-input"
+                value={form.inclusions}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    inclusions: event.target.value,
+                  }))
+                }
+                placeholder="Included services and terms"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="field-label">Exclusions</label>
+              <textarea
+                rows={3}
+                className="field-input"
+                value={form.exclusions}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    exclusions: event.target.value,
+                  }))
+                }
+                placeholder="Excluded services and terms"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="field-label">Payment Terms</label>
+              <textarea
+                rows={2}
+                className="field-input"
+                value={form.paymentTerms}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    paymentTerms: event.target.value,
+                  }))
+                }
+                placeholder="Payment schedule and terms"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="field-label">Cancellation Policy</label>
+              <textarea
+                rows={2}
+                className="field-input"
+                value={form.cancellationPolicy}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    cancellationPolicy: event.target.value,
+                  }))
+                }
+                placeholder="Cancellation rules and charges"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="field-label">Footer Disclaimer</label>
+              <textarea
+                rows={2}
+                className="field-input"
+                value={form.footerDisclaimer}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    footerDisclaimer: event.target.value,
+                  }))
+                }
+                placeholder="Legal / compliance footer text"
+              />
+            </div>
           </div>
           <label className="mt-4 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input
@@ -290,10 +452,11 @@ const QuotationTemplatesPage: React.FC = () => {
             Active Template
           </label>
           <button
-            onClick={saveTemplate}
+            onClick={() => void saveTemplate()}
+            disabled={saving}
             className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
-            Save Template
+            {saving ? "Saving..." : "Save Template"}
           </button>
         </SurfaceCard>
       ) : null}
@@ -314,7 +477,9 @@ const QuotationTemplatesPage: React.FC = () => {
           </div>
         </div>
 
-        {pageRows.length === 0 ? (
+        {loading ? (
+          <div className="p-4 text-sm text-gray-500">Loading templates...</div>
+        ) : pageRows.length === 0 ? (
           <div className="p-4">
             <EmptyState
               title="No templates found"

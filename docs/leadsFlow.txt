@@ -1,0 +1,19 @@
+External call ho chuki ho to exact steps
+Schedule Follow-up section me:
+Type: Call
+Date/Time: call ka actual time (abhi call hui hai to current time)
+Notes: outcome likho (example: Call answered, requirement discussed, quote bhejna hai)
+Schedule Follow-up button dabao.
+Upar Status Transition me proper status select karo:
+Answered call: CONTACTED
+No answer + retry: FOLLOW_UP_1
+Quote bhej diya: QUOTED
+Update Status dabao.
+Agar call nahi uthi
+Pehle Call entry save karo (notes: No answer).
+Fir turant ek aur entry:
+Type: WHATSAPP
+Notes: Intro message sent after missed call
+Status FOLLOW_UP_1/FOLLOW_UP_2 set karke Update Status.
+Agar email bheja
+Schedule Follow-up me Type EMAIL select karke log karo, notes me subject/result likho, phir status update karo (QUOTED ya next follow-up stage).

@@ -90,6 +90,13 @@ function createReportsRoutes({
     validateRequest(validation.profitMargin),
     asyncHandler(controller.profitMargin),
   );
+  router.get(
+    "/finance/cost-breakup",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.financeCostBreakup),
+    asyncHandler(controller.financeCostBreakup),
+  );
 
   router.get(
     "/visa/summary",

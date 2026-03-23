@@ -19,10 +19,13 @@ import { paymentsApi } from "../../api/payments";
 import { getApiErrorMessage } from "../../api/apiClient";
 
 // Types
+type DeadlineRiskLevel = "SAFE" | "D2_DUE" | "DEADLINE_DUE" | "OVERDUE";
+
 interface Booking {
   id: string;
   bookingNumber: string;
   quotationId: string;
+  quotationNumber?: string;
   travelStart: string;
   travelEnd: string;
   totalAmount: number;
@@ -37,6 +40,17 @@ interface Booking {
   cancellationReason?: string;
   cancelledAt?: string;
   cancelledBy?: string;
+  blockingDeadlineAt?: string;
+  supplierPaymentDeadlineAt?: string;
+  cancellationDeadlineAt?: string;
+  balanceDueBy?: string;
+  deadlineRiskLevel?: DeadlineRiskLevel;
+  supplierDetails?: Record<string, unknown>;
+  dmcDetails?: Record<string, unknown>;
+  hotelSegments?: Array<Record<string, unknown>>;
+  flightSegments?: Array<Record<string, unknown>>;
+  insuranceDetails?: Record<string, unknown>;
+  otherServices?: Array<Record<string, unknown>>;
 }
 
 interface Invoice {
@@ -127,6 +141,18 @@ const normalizePaymentStatus = (
   }
 };
 
+const normalizeDeadlineRisk = (value?: string): DeadlineRiskLevel => {
+  const normalized = String(value ?? "").toUpperCase();
+  if (
+    normalized === "D2_DUE" ||
+    normalized === "DEADLINE_DUE" ||
+    normalized === "OVERDUE"
+  ) {
+    return normalized;
+  }
+  return "SAFE";
+};
+
 const normalizePaymentMode = (value?: string): Payment["mode"] => {
   switch ((value ?? "").toUpperCase()) {
     case "CASH":
@@ -157,6 +183,12 @@ const mapBookingFromApi = (raw: any): Booking => {
       raw?.bookingId ??
       "N/A",
     quotationId: raw?.quotationId ?? raw?.quotation_id ?? "",
+    quotationNumber:
+      raw?.quotationNumber ??
+      raw?.quotation_number ??
+      raw?.quotation?.quoteNumber ??
+      raw?.relations?.quotation?.quoteNumber ??
+      undefined,
     travelStart:
       raw?.travelStartDate ??
       raw?.travel_start_date ??
@@ -185,6 +217,26 @@ const mapBookingFromApi = (raw: any): Booking => {
       raw?.cancellationReason ?? raw?.cancellation_reason ?? undefined,
     cancelledAt: raw?.cancelledAt ?? raw?.cancelled_at ?? undefined,
     cancelledBy: raw?.cancelledBy ?? raw?.cancelled_by ?? undefined,
+    blockingDeadlineAt:
+      raw?.blockingDeadlineAt ?? raw?.blocking_deadline_at ?? undefined,
+    supplierPaymentDeadlineAt:
+      raw?.supplierPaymentDeadlineAt ??
+      raw?.supplier_payment_deadline_at ??
+      undefined,
+    cancellationDeadlineAt:
+      raw?.cancellationDeadlineAt ??
+      raw?.cancellation_deadline_at ??
+      undefined,
+    balanceDueBy: raw?.balanceDueBy ?? raw?.balance_due_by ?? undefined,
+    deadlineRiskLevel: normalizeDeadlineRisk(
+      raw?.deadlineRiskLevel ?? raw?.deadline_risk_level ?? "SAFE",
+    ),
+    supplierDetails: raw?.supplierDetails ?? raw?.supplier_details ?? {},
+    dmcDetails: raw?.dmcDetails ?? raw?.dmc_details ?? {},
+    hotelSegments: raw?.hotelSegments ?? raw?.hotel_segments ?? [],
+    flightSegments: raw?.flightSegments ?? raw?.flight_segments ?? [],
+    insuranceDetails: raw?.insuranceDetails ?? raw?.insurance_details ?? {},
+    otherServices: raw?.otherServices ?? raw?.other_services ?? [],
   };
 };
 
@@ -804,6 +856,27 @@ const BookingDetailPage: React.FC = () => {
     }
   };
 
+  const getDeadlineRiskColor = (risk?: DeadlineRiskLevel) => {
+    switch (risk) {
+      case "OVERDUE":
+        return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900";
+      case "DEADLINE_DUE":
+        return "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900";
+      case "D2_DUE":
+        return "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900";
+      case "SAFE":
+      default:
+        return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
+    }
+  };
+
+  const getDeadlineRiskLabel = (risk?: DeadlineRiskLevel) => {
+    if (risk === "D2_DUE") return "D-2 Due";
+    if (risk === "DEADLINE_DUE") return "Deadline Due";
+    if (risk === "OVERDUE") return "Overdue";
+    return "Safe";
+  };
+
   const getInvoiceStatusColor = (status: string) => {
     switch (status) {
       case "PAID":
@@ -863,6 +936,166 @@ const BookingDetailPage: React.FC = () => {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const toRecord = (value: unknown): Record<string, unknown> => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+    return value as Record<string, unknown>;
+  };
+
+  const toRecordArray = (value: unknown): Array<Record<string, unknown>> => {
+    if (!Array.isArray(value)) return [];
+    return value.filter(
+      (item): item is Record<string, unknown> =>
+        Boolean(item) && typeof item === "object" && !Array.isArray(item),
+    );
+  };
+
+  const toLabel = (key: string) =>
+    key
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^./, (char) => char.toUpperCase());
+
+  const formatStructuredValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === "") return "-";
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (typeof value === "number") return String(value);
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => formatStructuredValue(item))
+        .filter((item) => item !== "-")
+        .join(", ");
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const renderKeyValueBlock = (value: unknown) => {
+    const record = toRecord(value);
+    const entries = Object.entries(record).filter(
+      ([, fieldValue]) =>
+        fieldValue !== null && fieldValue !== undefined && fieldValue !== "",
+    );
+
+    if (!entries.length) {
+      return (
+        <p className="text-xs text-gray-500 dark:text-gray-400">Not set</p>
+      );
+    }
+
+    return (
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {entries.map(([key, fieldValue]) => (
+          <div
+            key={key}
+            className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/50"
+          >
+            <dt className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {toLabel(key)}
+            </dt>
+            <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 break-words">
+              {formatStructuredValue(fieldValue)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  };
+
+  const renderSegmentsTable = (value: unknown, emptyLabel: string) => {
+    const rows = toRecordArray(value);
+    if (!rows.length) {
+      return (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{emptyLabel}</p>
+      );
+    }
+
+    const columns = Array.from(
+      rows.reduce((set, row) => {
+        Object.keys(row).forEach((key) => set.add(key));
+        return set;
+      }, new Set<string>()),
+    );
+
+    if (!columns.length) {
+      return (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{emptyLabel}</p>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-800/60">
+            <tr>
+              {columns.map((column) => (
+                <th
+                  key={column}
+                  className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300"
+                >
+                  {toLabel(column)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {rows.map((row, rowIndex) => (
+              <tr key={`row-${rowIndex}`}>
+                {columns.map((column) => (
+                  <td
+                    key={`${rowIndex}-${column}`}
+                    className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200 align-top"
+                  >
+                    {formatStructuredValue(row[column])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderOtherServices = (value: unknown) => {
+    const rows = toRecordArray(value);
+    if (!rows.length) {
+      return (
+        <p className="text-xs text-gray-500 dark:text-gray-400">Not set</p>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {rows.map((row, index) => {
+          const type = formatStructuredValue(
+            row.serviceType ?? row.type ?? `Service ${index + 1}`,
+          );
+          const description = formatStructuredValue(
+            row.description ?? row.notes ?? "",
+          );
+          const tag = description && description !== "-" ? `${type}: ${description}` : type;
+
+          return (
+            <span
+              key={`service-${index}`}
+              className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200"
+            >
+              {tag}
+            </span>
+          );
+        })}
+      </div>
+    );
   };
 
   if (loading && !booking) {
@@ -996,11 +1229,18 @@ const BookingDetailPage: React.FC = () => {
                 >
                   {booking.status}
                 </span>
+                <span
+                  className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getDeadlineRiskColor(
+                    booking.deadlineRiskLevel,
+                  )}`}
+                >
+                  {getDeadlineRiskLabel(booking.deadlineRiskLevel)}
+                </span>
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
                 <span className="flex items-center gap-1.5">
                   <FaFileInvoice className="w-4" />
-                  Quote: #{booking.quotationId}
+                  Quote: {booking.quotationNumber || `#${String(booking.quotationId || "").slice(0, 8)}`}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <FaClock className="w-4" />
@@ -1116,6 +1356,98 @@ const BookingDetailPage: React.FC = () => {
                               booking.clientCurrency,
                             )}
                           </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                        <FaClock className="text-blue-500" />
+                        Deadline Tracking
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Blocking Deadline
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {formatDateTime(booking.blockingDeadlineAt)}
+                          </p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Supplier Deadline
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {formatDateTime(booking.supplierPaymentDeadlineAt)}
+                          </p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Cancellation Deadline
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {formatDateTime(booking.cancellationDeadlineAt)}
+                          </p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Balance Due By
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {formatDateTime(booking.balanceDueBy)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                        <FaFileInvoice className="text-blue-500" />
+                        Structured Service Blocks
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Supplier Details
+                          </p>
+                          {renderKeyValueBlock(booking.supplierDetails)}
+                        </div>
+                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            DMC Details
+                          </p>
+                          {renderKeyValueBlock(booking.dmcDetails)}
+                        </div>
+                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Hotel Segments
+                          </p>
+                          {renderSegmentsTable(
+                            booking.hotelSegments,
+                            "No hotel segments added yet",
+                          )}
+                        </div>
+                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Flight Segments
+                          </p>
+                          {renderSegmentsTable(
+                            booking.flightSegments,
+                            "No flight segments added yet",
+                          )}
+                        </div>
+                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Insurance Details
+                          </p>
+                          {renderKeyValueBlock(booking.insuranceDetails)}
+                        </div>
+                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            Other Services
+                          </p>
+                          {renderOtherServices(booking.otherServices)}
                         </div>
                       </div>
                     </div>
@@ -1581,7 +1913,7 @@ const BookingDetailPage: React.FC = () => {
                   className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
                 >
                   <FaFileInvoice className="text-gray-400" />
-                  View Quotation #{booking.quotationId}
+                  View Quotation {booking.quotationNumber || `#${String(booking.quotationId || "").slice(0, 8)}`}
                 </button>
                 <button
                   onClick={() => setShowPaymentsModal(true)}

@@ -110,6 +110,23 @@ const listPayables = z.object({
     .optional(),
 });
 
+const processPayableDeadlineAlerts = z.object({
+  body: z
+    .object({
+      referenceDate: z
+        .string()
+        .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+          message: "Invalid referenceDate",
+        })
+        .optional(),
+      lookaheadDays: z.coerce.number().int().min(1).max(60).optional(),
+      limit: z.coerce.number().int().min(1).max(1000).optional(),
+    })
+    .optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 const SuppliersValidation = {
   create,
   update,
@@ -118,6 +135,7 @@ const SuppliersValidation = {
   createPayable,
   updatePayable,
   listPayables,
+  processPayableDeadlineAlerts,
 };
 
 export { SuppliersValidation };

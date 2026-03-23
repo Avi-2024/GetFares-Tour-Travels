@@ -61,6 +61,22 @@ const config = Object.freeze({
       postTravel: env.WHATSAPP_TEMPLATE_POST_TRAVEL,
     },
   },
+  automation: {
+    enabled: env.AUTOMATION_ENABLED,
+    startupDelayMs: env.AUTOMATION_STARTUP_DELAY_MS,
+    lockTimeoutSec: env.AUTOMATION_LOCK_TIMEOUT_SEC,
+    deadlineLookaheadHours: env.AUTOMATION_DEADLINE_LOOKAHEAD_HOURS,
+    supplierLookaheadDays: env.AUTOMATION_SUPPLIER_LOOKAHEAD_DAYS,
+    bookingTravelBackfillDays: env.AUTOMATION_BOOKING_TRAVEL_BACKFILL_DAYS,
+    intervalsMs: {
+      leadSla: env.AUTOMATION_LEAD_SLA_INTERVAL_MS,
+      leadFollowup: env.AUTOMATION_LEAD_FOLLOWUP_INTERVAL_MS,
+      quotationReminders: env.AUTOMATION_QUOTATION_REMINDERS_INTERVAL_MS,
+      bookingTravelReminders: env.AUTOMATION_BOOKING_TRAVEL_REMINDERS_INTERVAL_MS,
+      bookingDeadlines: env.AUTOMATION_BOOKING_DEADLINES_INTERVAL_MS,
+      supplierPayables: env.AUTOMATION_SUPPLIER_PAYABLE_INTERVAL_MS,
+    },
+  },
   aws: {
     accessKeyId: env.AWS_ACCESS_KEY_ID,
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY,

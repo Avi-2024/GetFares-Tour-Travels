@@ -173,28 +173,19 @@ function createRbacService({
       userRoleCache.clear();
     },
 
-    async assignRole({ userId, role, roleId }) {
+    async assignRole({ userId, roleId }) {
       if (!userId) {
         throw new AppError(400, "userId is required", "RBAC_INVALID_INPUT");
       }
-      if (!role && !roleId) {
+      if (!roleId) {
         throw new AppError(
           400,
-          "Either role or roleId is required",
+          "roleId is required",
           "RBAC_INVALID_INPUT",
         );
       }
 
-      let resolvedRoleId = roleId;
-      if (!resolvedRoleId && role && rolesService) {
-        const resolved = await rolesService.resolveRole({ role });
-        resolvedRoleId = resolved?.id || null;
-      }
-
-      const assignment =
-        resolvedRoleId ?
-          await repository.assignRoleById(userId, resolvedRoleId)
-        : await repository.assignRole(userId, role);
+      const assignment = await repository.assignRoleById(userId, roleId);
 
       if (!assignment) {
         throw new AppError(404, "User or role not found", "RBAC_ENTITY_NOT_FOUND");

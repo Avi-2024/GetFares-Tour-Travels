@@ -23,4 +23,9 @@ export const suppliersApi = {
       method: "PATCH",
       body: payload,
     }),
+  processPayableDeadlineAlerts: (payload?: unknown) =>
+    apiRequest("/api/suppliers/payables/process-deadline-alerts", {
+      method: "POST",
+      body: payload ?? {},
+    }),
 };

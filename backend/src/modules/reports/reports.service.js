@@ -167,6 +167,14 @@ function createReportsService({ repository, logger }) {
       );
       return repository.getPipelineForecast(filters);
     },
+
+    async financeCostBreakup(filters = {}, context = {}) {
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters },
+        "Finance cost breakup report",
+      );
+      return repository.getFinanceCostBreakup(filters);
+    },
   });
 }
 

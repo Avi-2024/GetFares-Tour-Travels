@@ -1,6 +1,15 @@
 function createBookingsRepository({ db, logger, schema }) {
   const tableCache = new Map();
   const columnCache = new Map();
+  const BOOKING_JSON_COLUMNS = new Set([
+    "supplier_details",
+    "dmc_details",
+    "hotel_segments",
+    "flight_segments",
+    "insurance_details",
+    "other_services",
+  ]);
+  const DEADLINE_ALERT_LOG_JSON_COLUMNS = new Set(["metadata"]);
 
   function canIntrospect() {
     return typeof db.query === "function" && Boolean(db.pool);
@@ -54,6 +63,60 @@ function createBookingsRepository({ db, logger, schema }) {
     return date.toISOString();
   }
 
+  function toJson(value, fallback = null) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "object") {
+      return value;
+    }
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch (_error) {
+        return fallback;
+      }
+    }
+    return fallback;
+  }
+
+  function toDatabaseJsonValue(value) {
+    if (value === undefined) {
+      return undefined;
+    }
+    if (value === null) {
+      return null;
+    }
+    if (typeof value === "string") {
+      try {
+        JSON.parse(value);
+        return value;
+      } catch (_error) {
+        return JSON.stringify(value);
+      }
+    }
+    try {
+      return JSON.stringify(value);
+    } catch (_error) {
+      return JSON.stringify(null);
+    }
+  }
+
+  function serializeJsonColumns(payload = {}, columns = new Set()) {
+    if (!payload || typeof payload !== "object") {
+      return payload;
+    }
+
+    const result = { ...payload };
+    columns.forEach((column) => {
+      if (Object.prototype.hasOwnProperty.call(result, column)) {
+        result[column] = toDatabaseJsonValue(result[column]);
+      }
+    });
+
+    return result;
+  }
+
   function toUserDomain(row) {
     if (!row) {
       return null;
@@ -66,18 +129,25 @@ function createBookingsRepository({ db, logger, schema }) {
     };
   }
 
-  function toBooking(row, userMap = new Map()) {
+  function toBooking(row, userMap = new Map(), leadIdMap = new Map()) {
     if (!row) {
       return null;
     }
 
     const createdBy = row.created_by ?? row.createdBy ?? null;
+    const quotationId = row.quotation_id ?? row.quotationId ?? null;
     const createdByUser =
       userMap.get(createdBy) || row.createdByUser || null;
+    const derivedLeadId =
+      row.lead_id ??
+      row.leadId ??
+      leadIdMap.get(quotationId) ??
+      null;
 
     return {
       id: row.id,
-      quotationId: row.quotation_id ?? row.quotationId ?? null,
+      quotationId,
+      leadId: derivedLeadId,
       bookingNumber: row.booking_number ?? row.bookingNumber ?? null,
       travelStartDate: row.travel_start_date ?? row.travelStartDate ?? null,
       travelEndDate: row.travel_end_date ?? row.travelEndDate ?? null,
@@ -97,6 +167,33 @@ function createBookingsRepository({ db, logger, schema }) {
       exchangeLocked: toBoolean(
         row.exchange_locked ?? row.exchangeLocked,
         false,
+      ),
+      supplierDetails: toJson(
+        row.supplier_details ?? row.supplierDetails,
+        {},
+      ),
+      dmcDetails: toJson(row.dmc_details ?? row.dmcDetails, {}),
+      hotelSegments: toJson(row.hotel_segments ?? row.hotelSegments, []),
+      flightSegments: toJson(row.flight_segments ?? row.flightSegments, []),
+      insuranceDetails: toJson(
+        row.insurance_details ?? row.insuranceDetails,
+        {},
+      ),
+      otherServices: toJson(row.other_services ?? row.otherServices, []),
+      blockingDeadlineAt: toDate(
+        row.blocking_deadline_at ?? row.blockingDeadlineAt,
+      ),
+      supplierPaymentDeadlineAt: toDate(
+        row.supplier_payment_deadline_at ?? row.supplierPaymentDeadlineAt,
+      ),
+      cancellationDeadlineAt: toDate(
+        row.cancellation_deadline_at ?? row.cancellationDeadlineAt,
+      ),
+      balanceDueBy: toDate(row.balance_due_by ?? row.balanceDueBy),
+      deadlineRiskLevel:
+        row.deadline_risk_level ?? row.deadlineRiskLevel ?? "SAFE",
+      deadlineLastEvaluatedAt: toDate(
+        row.deadline_last_evaluated_at ?? row.deadlineLastEvaluatedAt,
       ),
       cancellationReason:
         row.cancellation_reason ?? row.cancellationReason ?? null,
@@ -262,22 +359,55 @@ function createBookingsRepository({ db, logger, schema }) {
     return userMap;
   }
 
-  async function mapRowsToDomain(rows = []) {
-    const userMap = await loadUsersByIds(
-      rows.map((row) => row.created_by ?? row.createdBy),
+  async function loadLeadIdsByQuotationIds(quotationIds = []) {
+    const ids = [...new Set(quotationIds.filter(Boolean))];
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const rows = await Promise.all(
+      ids.map((id) => db.findById(schema.quotationsTable, id)),
     );
-    return rows.map((row) => toBooking(row, userMap)).filter(Boolean);
+
+    const leadIdMap = new Map();
+    rows.filter(Boolean).forEach((row) => {
+      const quotationId = row.id;
+      const leadId = row.lead_id ?? row.leadId ?? null;
+      leadIdMap.set(quotationId, leadId);
+    });
+
+    return leadIdMap;
+  }
+
+  async function mapRowsToDomain(rows = []) {
+    const [userMap, leadIdMap] = await Promise.all([
+      loadUsersByIds(rows.map((row) => row.created_by ?? row.createdBy)),
+      loadLeadIdsByQuotationIds(
+        rows.map((row) => row.quotation_id ?? row.quotationId),
+      ),
+    ]);
+    return rows
+      .map((row) => toBooking(row, userMap, leadIdMap))
+      .filter(Boolean);
   }
 
   async function mapRowToDomain(row) {
     if (!row) {
       return null;
     }
-    const userMap = await loadUsersByIds([row.created_by ?? row.createdBy]);
-    return toBooking(row, userMap);
+    const [userMap, leadIdMap] = await Promise.all([
+      loadUsersByIds([row.created_by ?? row.createdBy]),
+      loadLeadIdsByQuotationIds([row.quotation_id ?? row.quotationId]),
+    ]);
+    return toBooking(row, userMap, leadIdMap);
   }
 
   function normalizeReminderType(value) {
+    if (!value) return null;
+    return String(value).trim().toUpperCase();
+  }
+
+  function normalizeAlertType(value) {
     if (!value) return null;
     return String(value).trim().toUpperCase();
   }
@@ -370,6 +500,94 @@ function createBookingsRepository({ db, logger, schema }) {
       return null;
     }
     return db.insert(schema.reminderLogsTable, sanitized);
+  }
+
+  async function findDeadlineCandidates({ limit } = {}) {
+    if (typeof db.query === "function") {
+      const params = [];
+      const conditions = [
+        "COALESCE(b.is_deleted, FALSE) = FALSE",
+        "b.status <> 'CANCELLED'",
+        "(b.supplier_payment_deadline_at IS NOT NULL OR b.cancellation_deadline_at IS NOT NULL)",
+      ];
+
+      let sql = `SELECT b.* FROM ${schema.tableName} b WHERE ${conditions.join(" AND ")} ORDER BY COALESCE(b.supplier_payment_deadline_at, b.cancellation_deadline_at) ASC`;
+      if (limit) {
+        params.push(limit);
+        sql += ` LIMIT $${params.length}`;
+      }
+
+      const result = await db.query(sql, params);
+      return mapRowsToDomain(result.rows || []);
+    }
+
+    const rows = await db.findMany(schema.tableName, {});
+    const list = await mapRowsToDomain(rows);
+    const filtered = list
+      .filter((item) => !item.isDeleted)
+      .filter((item) => item.status !== "CANCELLED")
+      .filter(
+        (item) =>
+          Boolean(item.supplierPaymentDeadlineAt) ||
+          Boolean(item.cancellationDeadlineAt),
+      )
+      .sort((left, right) => {
+        const leftTime = new Date(
+          left.supplierPaymentDeadlineAt || left.cancellationDeadlineAt || 0,
+        ).getTime();
+        const rightTime = new Date(
+          right.supplierPaymentDeadlineAt || right.cancellationDeadlineAt || 0,
+        ).getTime();
+        return leftTime - rightTime;
+      });
+
+    return limit ? filtered.slice(0, limit) : filtered;
+  }
+
+  async function findDeadlineAlertLog({
+    bookingId,
+    alertType,
+    alertDate,
+  } = {}) {
+    const tableExists = await hasTable(schema.deadlineAlertLogsTable);
+    if (!tableExists) {
+      return null;
+    }
+    const normalizedType = normalizeAlertType(alertType);
+    if (!bookingId || !normalizedType || !alertDate) {
+      return null;
+    }
+
+    return db.findOne(schema.deadlineAlertLogsTable, {
+      booking_id: bookingId,
+      alert_type: normalizedType,
+      alert_date: alertDate,
+    });
+  }
+
+  async function createDeadlineAlertLog(payload = {}) {
+    const tableExists = await hasTable(schema.deadlineAlertLogsTable);
+    if (!tableExists) {
+      return null;
+    }
+
+    const record = {
+      booking_id: payload.bookingId,
+      alert_type: normalizeAlertType(payload.alertType),
+      alert_date: payload.alertDate,
+      triggered_at: payload.triggeredAt || new Date().toISOString(),
+      metadata: payload.metadata || {},
+    };
+
+    const sanitized = await sanitizeForTable(
+      schema.deadlineAlertLogsTable,
+      serializeJsonColumns(record, DEADLINE_ALERT_LOG_JSON_COLUMNS),
+    );
+    if (!Object.keys(sanitized).length) {
+      return null;
+    }
+
+    return db.insert(schema.deadlineAlertLogsTable, sanitized);
   }
 
   async function getVerifiedPayments(bookingId) {
@@ -537,6 +755,9 @@ function createBookingsRepository({ db, logger, schema }) {
     },
     findTravelReminderCandidates,
     createReminderLog,
+    findDeadlineCandidates,
+    findDeadlineAlertLog,
+    createDeadlineAlertLog,
 
     async findQuotationById(id) {
       if (!id) {
@@ -557,14 +778,20 @@ function createBookingsRepository({ db, logger, schema }) {
 
     async create(payload) {
       logger.debug({ module: "bookings", payload }, "Creating booking");
-      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      const sanitized = await sanitizeForTable(
+        schema.tableName,
+        serializeJsonColumns(payload, BOOKING_JSON_COLUMNS),
+      );
       const row = await db.insert(schema.tableName, sanitized);
       return mapRowToDomain(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: "bookings", id, payload }, "Updating booking");
-      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      const sanitized = await sanitizeForTable(
+        schema.tableName,
+        serializeJsonColumns(payload, BOOKING_JSON_COLUMNS),
+      );
       const row = await db.update(schema.tableName, id, sanitized);
       return mapRowToDomain(row);
     },

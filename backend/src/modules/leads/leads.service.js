@@ -54,10 +54,22 @@ const STATUS_REQUIRING_QUALIFICATION = new Set([
 ]);
 const CADENCE_TEMPLATE = Object.freeze([
   { code: "FU1_CALL", dayOffset: 0, hour: 18, minute: 0, type: "CALL" },
-  { code: "FU1_WHATSAPP", dayOffset: 0, hour: 18, minute: 10, type: "WHATSAPP" },
+  {
+    code: "FU1_WHATSAPP",
+    dayOffset: 0,
+    hour: 18,
+    minute: 10,
+    type: "WHATSAPP",
+  },
   { code: "FU2_CALL", dayOffset: 1, hour: 10, minute: 0, type: "CALL" },
   { code: "FU3_CALL", dayOffset: 1, hour: 18, minute: 0, type: "CALL" },
-  { code: "FU3_WHATSAPP", dayOffset: 1, hour: 18, minute: 10, type: "WHATSAPP" },
+  {
+    code: "FU3_WHATSAPP",
+    dayOffset: 1,
+    hour: 18,
+    minute: 10,
+    type: "WHATSAPP",
+  },
   { code: "FU4_CALL", dayOffset: 2, hour: 10, minute: 0, type: "CALL" },
   {
     code: "FINAL_REMINDER_AUTO",
@@ -74,6 +86,10 @@ const AUTOMATION_DEFAULTS = Object.freeze({
   inactiveMinutes: 15,
   overdueFollowupLimit: 100,
   slaCheckLimit: 100,
+});
+const ASSIGNMENT_ROLES = Object.freeze({
+  AGENT: "agent",
+  MANAGER: "manager",
 });
 
 function createLeadsService({ repository, logger, events }) {
@@ -122,7 +138,10 @@ function createLeadsService({ repository, logger, events }) {
     if (status === "OPEN") return "NEW";
     if (status === "WIP") return "NEGOTIATION";
     if (status === "FOLLOW_UP") {
-      if (subStatus && /^FOLLOW_UP_[1-4]$/.test(String(subStatus).toUpperCase())) {
+      if (
+        subStatus &&
+        /^FOLLOW_UP_[1-4]$/.test(String(subStatus).toUpperCase())
+      ) {
         return String(subStatus).toUpperCase();
       }
       if (String(subStatus || "").toUpperCase() === "FINAL_REMINDER") {
@@ -308,10 +327,32 @@ function createLeadsService({ repository, logger, events }) {
     return date;
   }
 
+  function toDateOnly(value) {
+    return new Date(value).toISOString().slice(0, 10);
+  }
+
   function toCadenceDate(baseDate, slot) {
     const date = addDays(baseDate, slot.dayOffset);
     date.setHours(slot.hour, slot.minute, 0, 0);
     return date;
+  }
+
+  function isAfterResponseDeadline(responseAt, responseDeadline) {
+    if (!responseAt || !responseDeadline) {
+      return false;
+    }
+
+    const responseTime = new Date(responseAt).getTime();
+    const deadlineTime = new Date(responseDeadline).getTime();
+
+    if (
+      Number.isNaN(responseTime) ||
+      Number.isNaN(deadlineTime)
+    ) {
+      return false;
+    }
+
+    return responseTime > deadlineTime;
   }
 
   function buildCadenceSlots(lead) {
@@ -499,11 +540,13 @@ function createLeadsService({ repository, logger, events }) {
       mapped.next_followup_date = payload.nextFollowupDate;
     }
 
-    if (mapped.status === "CONTACTED" && !existing.responseAt) {
+    if (mapped.status && POSITIVE_RESPONSE_STATUSES.has(mapped.status) && !existing.responseAt) {
       mapped.response_at = now;
       if (existing.responseDeadline) {
-        mapped.sla_breached =
-          new Date(now) > new Date(existing.responseDeadline);
+        mapped.sla_breached = isAfterResponseDeadline(
+          now,
+          existing.responseDeadline,
+        );
       }
     }
 
@@ -517,6 +560,10 @@ function createLeadsService({ repository, logger, events }) {
       const nextTemperature = determineLeadTemperature(mergedLead);
       mapped.priority_level = mapTemperatureToPriority(nextTemperature);
       mapped.temperature = nextTemperature;
+    }
+
+    if (Object.keys(mapped).length) {
+      mapped.updated_at = now;
     }
 
     return mapped;
@@ -553,7 +600,14 @@ function createLeadsService({ repository, logger, events }) {
   }
 
   async function selectAssigneeForLead(lead, options = {}) {
-    let candidates = await repository.findActiveAssignableUsers();
+    const roleName = options.roleName ?
+      String(options.roleName).trim().toLowerCase()
+    : null;
+    const roundRobinOnly =
+      options.roundRobinOnly === true ||
+      roleName === ASSIGNMENT_ROLES.AGENT ||
+      roleName === ASSIGNMENT_ROLES.MANAGER;
+    let candidates = await repository.findActiveAssignableUsers(roleName);
 
     if (options.excludeUserId && candidates.length > 1) {
       const filtered = candidates.filter(
@@ -604,29 +658,32 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     const poolIds = pool.map((candidate) => candidate.id);
-    const openLoadByUser = await repository.getOpenLeadLoadByUserIds(poolIds);
 
-    const isHighValueLead =
-      Boolean(lead.isVip) ||
-      Number(lead.budget || 0) >= AUTOMATION_DEFAULTS.highBudgetThreshold;
+    if (!roundRobinOnly) {
+      const openLoadByUser =
+        await repository.getOpenLeadLoadByUserIds(poolIds);
+      const isHighValueLead =
+        Boolean(lead.isVip) ||
+        Number(lead.budget || 0) >= AUTOMATION_DEFAULTS.highBudgetThreshold;
 
-    if (isHighValueLead) {
-      const sortedByHighValueRule = [...pool].sort((left, right) => {
-        const leftLoad = openLoadByUser[left.id] || 0;
-        const rightLoad = openLoadByUser[right.id] || 0;
+      if (isHighValueLead) {
+        const sortedByHighValueRule = [...pool].sort((left, right) => {
+          const leftLoad = openLoadByUser[left.id] || 0;
+          const rightLoad = openLoadByUser[right.id] || 0;
 
-        if (leftLoad !== rightLoad) {
-          return leftLoad - rightLoad;
-        }
+          if (leftLoad !== rightLoad) {
+            return leftLoad - rightLoad;
+          }
 
-        if (left.incentivePercent !== right.incentivePercent) {
-          return right.incentivePercent - left.incentivePercent;
-        }
+          if (left.incentivePercent !== right.incentivePercent) {
+            return right.incentivePercent - left.incentivePercent;
+          }
 
-        return String(left.id).localeCompare(String(right.id));
-      });
+          return String(left.id).localeCompare(String(right.id));
+        });
 
-      return sortedByHighValueRule[0];
+        return sortedByHighValueRule[0];
+      }
     }
 
     const roundRobinPool = [...pool].sort((left, right) =>
@@ -660,14 +717,25 @@ function createLeadsService({ repository, logger, events }) {
       return existing;
     }
 
+    const roleName = payload.roleName ?
+      String(payload.roleName).trim().toLowerCase()
+    : ASSIGNMENT_ROLES.AGENT;
+
     const assignee = await selectAssigneeForLead(existing, {
       excludeUserId: payload.excludeUserId,
+      roleName,
     });
 
     if (!assignee) {
+      const reason =
+        roleName === ASSIGNMENT_ROLES.MANAGER ?
+          "NO_ASSIGNABLE_MANAGER"
+        : "NO_ASSIGNABLE_AGENT";
       events.emitEscalated({
         leadId: existing.id,
-        reason: "NO_ASSIGNABLE_CONSULTANT",
+        reason,
+        role: roleName,
+        roles: roleName === ASSIGNMENT_ROLES.MANAGER ? ["manager"] : undefined,
       });
       return existing;
     }
@@ -682,7 +750,7 @@ function createLeadsService({ repository, logger, events }) {
       assigned_at: nowIso,
     };
 
-    if (!existing.responseDeadline) {
+    if (!existing.responseAt) {
       updatePayload.response_deadline = new Date(
         Date.now() + 15 * 60 * 1000,
       ).toISOString();
@@ -712,6 +780,7 @@ function createLeadsService({ repository, logger, events }) {
         assigneeId: assignee.id,
         mode: payload.mode || "AUTO",
         reason: payload.reason || null,
+        role: roleName,
       });
     } else {
       events.emitAssigned({
@@ -719,6 +788,7 @@ function createLeadsService({ repository, logger, events }) {
         assigneeId: assignee.id,
         mode: payload.mode || "AUTO",
         reason: payload.reason || null,
+        role: roleName,
       });
     }
 
@@ -817,7 +887,8 @@ function createLeadsService({ repository, logger, events }) {
       );
       const mappedFilters = {
         ...filters,
-        status: filters.status ? normalizeLeadStatus(filters.status) : undefined,
+        status:
+          filters.status ? normalizeLeadStatus(filters.status) : undefined,
       };
       const leads = await repository.findAll(mappedFilters);
       return leads.map((lead) => withTemperature(lead));
@@ -964,9 +1035,7 @@ function createLeadsService({ repository, logger, events }) {
       const nextAttempt = compliance.total + 1;
       const normalizedType =
         payload.followupType ||
-        (nextAttempt >= FOLLOWUP_TOTAL_REQUIRED ? "FINAL_REMINDER" : (
-          "CALL"
-        ));
+        (nextAttempt >= FOLLOWUP_TOTAL_REQUIRED ? "FINAL_REMINDER" : "CALL");
 
       const followup = await repository.createFollowup({
         leadId: lead.id,
@@ -1031,16 +1100,53 @@ function createLeadsService({ repository, logger, events }) {
         payload.limit,
         AUTOMATION_DEFAULTS.overdueFollowupLimit,
       );
+      const referenceDate = payload.referenceDate
+        ? new Date(payload.referenceDate)
+        : new Date();
+      if (Number.isNaN(referenceDate.getTime())) {
+        throw new AppError(
+          400,
+          "referenceDate is invalid",
+          "LEAD_INVALID_REFERENCE_DATE",
+        );
+      }
       const overdue = await repository.findOverdueFollowups({ limit });
-
-      overdue.forEach((item) => {
-        events.emitFollowupOverdue(item);
-      });
-
-      return {
+      const alertDate = toDateOnly(referenceDate);
+      const summary = {
         processed: overdue.length,
-        followups: overdue,
+        triggered: 0,
+        skipped: 0,
+        followups: [],
       };
+
+      for (const item of overdue) {
+        const existing = await repository.findFollowupAlertLog({
+          followupId: item.id,
+          alertType: "FOLLOWUP_OVERDUE",
+          alertDate,
+        });
+        if (existing) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        await repository.createFollowupAlertLog({
+          followupId: item.id,
+          alertType: "FOLLOWUP_OVERDUE",
+          alertDate,
+          metadata: {
+            leadId: item.leadId,
+            followupType: item.followupType,
+            followupDate: item.followupDate,
+            cadenceCode: item.cadenceCode,
+          },
+        });
+        events.emitFollowupOverdue(item);
+        summary.triggered += 1;
+        summary.followups.push(item);
+      }
+
+      return summary;
     },
 
     async processNonResponsive(payload = {}, context = {}) {
@@ -1120,7 +1226,9 @@ function createLeadsService({ repository, logger, events }) {
       };
 
       for (const lead of candidates) {
-        const existingFollowups = await repository.listFollowupsByLeadId(lead.id);
+        const existingFollowups = await repository.listFollowupsByLeadId(
+          lead.id,
+        );
         const existingCodes = new Set(
           existingFollowups.map((item) => item.cadenceCode).filter(Boolean),
         );
@@ -1187,38 +1295,63 @@ function createLeadsService({ repository, logger, events }) {
       const summary = {
         processed: 0,
         breachedLeadIds: [],
+        reassigned: 0,
       };
 
       for (const lead of candidates) {
+        if (!lead.responseDeadline || !isAfterResponseDeadline(new Date().toISOString(), lead.responseDeadline)) {
+          continue;
+        }
+
+        const previousAssigneeId = lead.assignedTo || null;
         await repository.markSlaBreached(lead.id);
 
         await repository.createActivity({
           leadId: lead.id,
           userId: context.user?.id || null,
           activityType: "SLA_BREACHED",
-          notes: "Lead was not responded within SLA deadline",
+          notes: "Lead was not first-contacted within the 15-minute response SLA.",
         });
+
+        const reassigned = await assignLead(
+          lead.id,
+          {
+            force: true,
+            excludeUserId: previousAssigneeId,
+            mode: "SLA_ESCALATION",
+            reason: "AGENT_ACCEPT_TIMEOUT",
+            roleName: ASSIGNMENT_ROLES.MANAGER,
+          },
+          context,
+        );
 
         events.emitSlaBreached({
           id: lead.id,
           leadId: lead.id,
           assignedTo: lead.assignedTo,
+          previousAssigneeId,
+          escalatedTo: reassigned?.assignedTo || null,
           responseDeadline: lead.responseDeadline,
           message:
-            "Lead SLA breached: not contacted within 15 minutes. Escalating to manager.",
+            "Lead SLA breached: first contact was not completed within 15 minutes. Escalating to manager.",
           roles: ["manager"],
         });
 
         events.emitEscalated({
           leadId: lead.id,
           reason: "SLA_BREACH_15_MIN",
+          previousAssigneeId,
+          escalatedTo: reassigned?.assignedTo || null,
           message:
-            "Lead SLA breach auto-alert to manager due to missed first response window.",
+            "Lead was not first-contacted within 15 minutes. Manager assigned for escalation.",
           roles: ["manager"],
         });
 
         summary.processed += 1;
         summary.breachedLeadIds.push(lead.id);
+        if (reassigned?.assignedTo && reassigned.assignedTo !== previousAssigneeId) {
+          summary.reassigned += 1;
+        }
       }
 
       return summary;
@@ -1226,9 +1359,8 @@ function createLeadsService({ repository, logger, events }) {
 
     async update(id, payload, context = {}) {
       const existing = await getById(id, context);
-      const nextStatus = payload.status ?
-          normalizeLeadStatus(payload.status)
-        : existing.status;
+      const nextStatus =
+        payload.status ? normalizeLeadStatus(payload.status) : existing.status;
       payload.status = nextStatus;
 
       if (
@@ -1250,10 +1382,7 @@ function createLeadsService({ repository, logger, events }) {
         payload.qualificationCompleted = true;
       }
 
-      if (
-        nextStatus === "LOST" ||
-        nextStatus === NON_RESPONSIVE_STATUS
-      ) {
+      if (nextStatus === "LOST" || nextStatus === NON_RESPONSIVE_STATUS) {
         const compliance = await repository.getFollowupComplianceStats(id);
         assertFollowupCompliance(compliance);
       }

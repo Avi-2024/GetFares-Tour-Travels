@@ -20,6 +20,7 @@ const DOMAIN_EVENT_NAMES = Object.freeze([
   "quotations.reminder_triggered",
   "bookings.created",
   "bookings.updated",
+  "bookings.deadline_alert",
   "payments.created",
   "payments.updated",
   "refunds.created",
@@ -32,6 +33,11 @@ const DOMAIN_EVENT_NAMES = Object.freeze([
   "customers.updated",
   "complaints.created",
   "complaints.updated",
+  "suppliers.created",
+  "suppliers.updated",
+  "suppliers.payable_created",
+  "suppliers.payable_updated",
+  "suppliers.payable_deadline_alert",
   "webhooks.lead_captured",
 ]);
 

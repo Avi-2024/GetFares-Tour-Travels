@@ -77,6 +77,9 @@
       "refunds:read",
       "complaints:read",
       "reports:read",
+      "suppliers:read",
+      "suppliers:create",
+      "suppliers:update",
       "notifications:read",
       "notifications:update"
     ],
@@ -88,6 +91,9 @@
       "bookings:update",
       "customers:read",
       "visa:read",
+      "suppliers:read",
+      "suppliers:create",
+      "suppliers:update",
       "complaints:create",
       "complaints:read",
       "notifications:read",
@@ -109,6 +115,8 @@
       "bookings:read",
       "quotations:read",
       "customers:read",
+      "suppliers:read",
+      "suppliers:update",
       "reports:read",
       "notifications:read",
       "notifications:update"
@@ -133,6 +141,7 @@
       "campaigns:read",
       "customers:read",
       "complaints:read",
+      "suppliers:read",
       "notifications:read",
       "notifications:update"
     ]

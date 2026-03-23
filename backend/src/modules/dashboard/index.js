@@ -5,7 +5,10 @@ import { createDashboardRepository } from './dashboard.repository.js';
 
 function createDashboardModule({ dependencies }) {
   const repository = createDashboardRepository(dependencies);
-  const service = createDashboardService(repository);
+  const service = createDashboardService(
+    repository,
+    dependencies.services?.reports,
+  );
   const controller = createDashboardController(service);
   
   // Create routes with controller instance

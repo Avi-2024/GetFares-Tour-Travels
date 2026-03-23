@@ -7,11 +7,56 @@ const VISA_STATUS = Object.freeze({
   REJECTED: "REJECTED",
 });
 
-const STATUS_TRANSITIONS = Object.freeze({
-  DOCUMENT_PENDING: new Set(["SUBMITTED", "REJECTED"]),
-  SUBMITTED: new Set(["APPROVED", "REJECTED"]),
-  APPROVED: new Set([]),
-  REJECTED: new Set([]),
+const VISA_WORKFLOW_STAGE = Object.freeze({
+  DOCUMENT_COLLECTION: "DOCUMENT_COLLECTION",
+  APPLICATION_SUBMITTED: "APPLICATION_SUBMITTED",
+  BIOMETRICS_SCHEDULED: "BIOMETRICS_SCHEDULED",
+  UNDER_PROCESS: "UNDER_PROCESS",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+  DELIVERED: "DELIVERED",
+});
+
+const STAGE_TO_STATUS = Object.freeze({
+  [VISA_WORKFLOW_STAGE.DOCUMENT_COLLECTION]: VISA_STATUS.DOCUMENT_PENDING,
+  [VISA_WORKFLOW_STAGE.APPLICATION_SUBMITTED]: VISA_STATUS.SUBMITTED,
+  [VISA_WORKFLOW_STAGE.BIOMETRICS_SCHEDULED]: VISA_STATUS.SUBMITTED,
+  [VISA_WORKFLOW_STAGE.UNDER_PROCESS]: VISA_STATUS.SUBMITTED,
+  [VISA_WORKFLOW_STAGE.APPROVED]: VISA_STATUS.APPROVED,
+  [VISA_WORKFLOW_STAGE.REJECTED]: VISA_STATUS.REJECTED,
+  [VISA_WORKFLOW_STAGE.DELIVERED]: VISA_STATUS.APPROVED,
+});
+
+const DEFAULT_STAGE_BY_STATUS = Object.freeze({
+  [VISA_STATUS.DOCUMENT_PENDING]: VISA_WORKFLOW_STAGE.DOCUMENT_COLLECTION,
+  [VISA_STATUS.SUBMITTED]: VISA_WORKFLOW_STAGE.APPLICATION_SUBMITTED,
+  [VISA_STATUS.APPROVED]: VISA_WORKFLOW_STAGE.APPROVED,
+  [VISA_STATUS.REJECTED]: VISA_WORKFLOW_STAGE.REJECTED,
+});
+
+const STAGE_TRANSITIONS = Object.freeze({
+  [VISA_WORKFLOW_STAGE.DOCUMENT_COLLECTION]: new Set([
+    VISA_WORKFLOW_STAGE.APPLICATION_SUBMITTED,
+    VISA_WORKFLOW_STAGE.REJECTED,
+  ]),
+  [VISA_WORKFLOW_STAGE.APPLICATION_SUBMITTED]: new Set([
+    VISA_WORKFLOW_STAGE.BIOMETRICS_SCHEDULED,
+    VISA_WORKFLOW_STAGE.UNDER_PROCESS,
+    VISA_WORKFLOW_STAGE.APPROVED,
+    VISA_WORKFLOW_STAGE.REJECTED,
+  ]),
+  [VISA_WORKFLOW_STAGE.BIOMETRICS_SCHEDULED]: new Set([
+    VISA_WORKFLOW_STAGE.UNDER_PROCESS,
+    VISA_WORKFLOW_STAGE.APPROVED,
+    VISA_WORKFLOW_STAGE.REJECTED,
+  ]),
+  [VISA_WORKFLOW_STAGE.UNDER_PROCESS]: new Set([
+    VISA_WORKFLOW_STAGE.APPROVED,
+    VISA_WORKFLOW_STAGE.REJECTED,
+  ]),
+  [VISA_WORKFLOW_STAGE.APPROVED]: new Set([VISA_WORKFLOW_STAGE.DELIVERED]),
+  [VISA_WORKFLOW_STAGE.REJECTED]: new Set([]),
+  [VISA_WORKFLOW_STAGE.DELIVERED]: new Set([]),
 });
 
 const CHECKLIST_DOC_MAP = Object.freeze({
@@ -26,6 +71,31 @@ const CHECKLIST_DOC_MAP = Object.freeze({
 });
 
 function createVisaService({ repository, logger, events }) {
+  function normalizeWorkflowStage(value, fallback = null) {
+    const normalized = String(value || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, "_");
+
+    if (!normalized) {
+      return fallback;
+    }
+
+    if (VISA_WORKFLOW_STAGE[normalized]) {
+      return VISA_WORKFLOW_STAGE[normalized];
+    }
+
+    if (DEFAULT_STAGE_BY_STATUS[normalized]) {
+      return DEFAULT_STAGE_BY_STATUS[normalized];
+    }
+
+    return fallback;
+  }
+
+  function deriveStatusFromStage(stage) {
+    return STAGE_TO_STATUS[stage] || VISA_STATUS.DOCUMENT_PENDING;
+  }
+
   function toDateString(value, fallback = null) {
     if (!value) {
       return fallback;
@@ -98,6 +168,100 @@ function createVisaService({ repository, logger, events }) {
     );
   }
 
+  function calculateDaysToExpiry(visaValidUntil) {
+    if (!visaValidUntil) {
+      return null;
+    }
+
+    const target = new Date(visaValidUntil);
+    if (Number.isNaN(target.getTime())) {
+      return null;
+    }
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
+
+    return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  function resolveExpiryStatus(daysToExpiry) {
+    if (daysToExpiry === null) {
+      return "NOT_SET";
+    }
+    if (daysToExpiry < 0) {
+      return "EXPIRED";
+    }
+    if (daysToExpiry <= 14) {
+      return "EXPIRING_SOON";
+    }
+    return "ACTIVE";
+  }
+
+  function enrichVisaCase(visaCase) {
+    if (!visaCase) {
+      return null;
+    }
+
+    const workflowStage = normalizeWorkflowStage(
+      visaCase.workflowStage || visaCase.status,
+      VISA_WORKFLOW_STAGE.DOCUMENT_COLLECTION,
+    );
+    const daysToExpiry = calculateDaysToExpiry(visaCase.visaValidUntil);
+
+    return {
+      ...visaCase,
+      workflowStage,
+      status: deriveStatusFromStage(workflowStage),
+      daysToExpiry,
+      expiryStatus: resolveExpiryStatus(daysToExpiry),
+      isDelivered: workflowStage === VISA_WORKFLOW_STAGE.DELIVERED,
+    };
+  }
+
+  function validateStageRequirements(targetStage, payload = {}, current = null) {
+    const appointmentDate =
+      payload.appointmentDate ?? payload.appointment_date ?? current?.appointmentDate;
+    const visaValidUntil =
+      payload.visaValidUntil ?? payload.visa_valid_until ?? current?.visaValidUntil;
+    const rejectionReason =
+      payload.rejectionReason ?? payload.rejection_reason ?? current?.rejectionReason;
+
+    if (
+      targetStage === VISA_WORKFLOW_STAGE.BIOMETRICS_SCHEDULED &&
+      !appointmentDate
+    ) {
+      throw new AppError(
+        400,
+        "appointmentDate is required for BIOMETRICS_SCHEDULED stage",
+        "VISA_APPOINTMENT_DATE_REQUIRED",
+      );
+    }
+
+    if (
+      (targetStage === VISA_WORKFLOW_STAGE.APPROVED ||
+        targetStage === VISA_WORKFLOW_STAGE.DELIVERED) &&
+      !visaValidUntil
+    ) {
+      throw new AppError(
+        400,
+        "visaValidUntil is required for APPROVED or DELIVERED stage",
+        "VISA_VALID_UNTIL_REQUIRED",
+      );
+    }
+
+    if (
+      targetStage === VISA_WORKFLOW_STAGE.REJECTED &&
+      !String(rejectionReason || "").trim()
+    ) {
+      throw new AppError(
+        400,
+        "rejectionReason is required for REJECTED stage",
+        "VISA_REJECTION_REASON_REQUIRED",
+      );
+    }
+  }
+
   async function getById(id, context = {}) {
     logger.debug(
       { module: "visa", requestId: context.requestId, id },
@@ -107,7 +271,7 @@ function createVisaService({ repository, logger, events }) {
     if (!visaCase) {
       throw new AppError(404, "Visa case not found", "VISA_NOT_FOUND");
     }
-    return visaCase;
+    return enrichVisaCase(visaCase);
   }
 
   async function ensureBookingExists(bookingId) {
@@ -122,16 +286,38 @@ function createVisaService({ repository, logger, events }) {
     return booking;
   }
 
+  async function ensureSupplierExists(supplierId) {
+    if (!supplierId) {
+      return null;
+    }
+
+    const supplier = await repository.findSupplierById(supplierId);
+    if (!supplier) {
+      throw new AppError(404, "Supplier not found", "VISA_SUPPLIER_NOT_FOUND");
+    }
+
+    return supplier;
+  }
+
   async function list(filters = {}, context = {}) {
     logger.debug(
       { module: "visa", requestId: context.requestId, filters },
       "Listing visa cases",
     );
-    return repository.findAll(filters);
+    const rows = await repository.findAll(filters);
+    return rows.map((item) => enrichVisaCase(item));
   }
 
   async function create(payload, context = {}) {
     await ensureBookingExists(payload.bookingId);
+    await ensureSupplierExists(payload.supplierId);
+
+    const workflowStage = normalizeWorkflowStage(
+      payload.workflowStage || payload.status,
+      VISA_WORKFLOW_STAGE.DOCUMENT_COLLECTION,
+    );
+    validateStageRequirements(workflowStage, payload);
+    const status = deriveStatusFromStage(workflowStage);
 
     const created = await repository.create({
       booking_id: payload.bookingId || null,
@@ -141,22 +327,40 @@ function createVisaService({ repository, logger, events }) {
       visa_number: payload.visaNumber || null,
       fees: payload.fees ?? null,
       appointment_date: toDateString(payload.appointmentDate),
-      submission_date: toDateString(payload.submissionDate),
-      status: payload.status || VISA_STATUS.DOCUMENT_PENDING,
+      submission_date: toDateString(
+        payload.submissionDate,
+        status === VISA_STATUS.SUBMITTED ? new Date().toISOString().slice(0, 10) : null,
+      ),
+      status,
+      workflow_stage: workflowStage,
       rejection_reason: payload.rejectionReason || null,
       visa_valid_until: toDateString(payload.visaValidUntil),
+      delivered_at:
+        workflowStage === VISA_WORKFLOW_STAGE.DELIVERED
+          ? toDateString(payload.deliveredAt, new Date().toISOString().slice(0, 10))
+          : null,
       updated_at: new Date().toISOString(),
     });
 
-    events.emitCreated(created);
-    return created;
+    const enriched = enrichVisaCase(created);
+    events.emitCreated(enriched);
+    return enriched;
   }
 
   async function update(id, payload, context = {}) {
-    await getById(id, context);
+    const current = await getById(id, context);
     if (payload.bookingId) {
       await ensureBookingExists(payload.bookingId);
     }
+    if (payload.supplierId) {
+      await ensureSupplierExists(payload.supplierId);
+    }
+
+    const workflowStage = normalizeWorkflowStage(
+      payload.workflowStage || payload.status,
+      current.workflowStage,
+    );
+    validateStageRequirements(workflowStage, payload, current);
 
     const updated = await repository.update(id, {
       booking_id: payload.bookingId,
@@ -171,35 +375,68 @@ function createVisaService({ repository, logger, events }) {
       submission_date: payload.submissionDate
         ? toDateString(payload.submissionDate)
         : undefined,
-      rejection_reason: payload.rejectionReason,
+      status: workflowStage ? deriveStatusFromStage(workflowStage) : undefined,
+      workflow_stage: workflowStage || undefined,
+      rejection_reason:
+        payload.rejectionReason ??
+        (workflowStage === VISA_WORKFLOW_STAGE.REJECTED
+          ? current.rejectionReason ?? null
+          : undefined),
       visa_valid_until: payload.visaValidUntil
         ? toDateString(payload.visaValidUntil)
         : undefined,
+      delivered_at: payload.deliveredAt
+        ? toDateString(payload.deliveredAt)
+        : workflowStage === VISA_WORKFLOW_STAGE.DELIVERED
+          ? toDateString(current.deliveredAt, new Date().toISOString().slice(0, 10))
+          : workflowStage &&
+              workflowStage !== VISA_WORKFLOW_STAGE.DELIVERED &&
+              current.deliveredAt
+            ? null
+            : undefined,
       updated_at: new Date().toISOString(),
     });
 
-    events.emitUpdated(updated);
-    return updated;
+    const enriched = enrichVisaCase(updated);
+    events.emitUpdated(enriched);
+    return enriched;
   }
 
   async function transitionStatus(id, payload, context = {}) {
     const current = await getById(id, context);
-    const targetStatus = payload.status;
+    const currentStage = normalizeWorkflowStage(
+      current.workflowStage || current.status,
+      VISA_WORKFLOW_STAGE.DOCUMENT_COLLECTION,
+    );
+    const targetStage = normalizeWorkflowStage(
+      payload.workflowStage || payload.status,
+      currentStage,
+    );
 
-    if (!STATUS_TRANSITIONS[current.status]?.has(targetStatus)) {
+    if (
+      currentStage !== targetStage &&
+      !STAGE_TRANSITIONS[currentStage]?.has(targetStage)
+    ) {
       throw new AppError(
         409,
-        `Invalid visa status transition: ${current.status} -> ${targetStatus}`,
+        `Invalid visa workflow transition: ${currentStage} -> ${targetStage}`,
         "VISA_INVALID_STATUS_TRANSITION",
       );
     }
 
+    validateStageRequirements(targetStage, payload, current);
+
     const patch = {
-      status: targetStatus,
+      status: deriveStatusFromStage(targetStage),
+      workflow_stage: targetStage,
       updated_at: new Date().toISOString(),
     };
 
-    if (targetStatus === VISA_STATUS.SUBMITTED) {
+    if (
+      targetStage === VISA_WORKFLOW_STAGE.APPLICATION_SUBMITTED ||
+      targetStage === VISA_WORKFLOW_STAGE.BIOMETRICS_SCHEDULED ||
+      targetStage === VISA_WORKFLOW_STAGE.UNDER_PROCESS
+    ) {
       patch.submission_date = toDateString(
         payload.submissionDate,
         current.submissionDate || new Date().toISOString().slice(0, 10),
@@ -207,44 +444,56 @@ function createVisaService({ repository, logger, events }) {
       patch.rejection_reason = null;
     }
 
-    if (targetStatus === VISA_STATUS.APPROVED) {
-      if (!payload.visaValidUntil && !current.visaValidUntil) {
-        throw new AppError(
-          400,
-          "visaValidUntil is required for APPROVED status",
-          "VISA_VALID_UNTIL_REQUIRED",
-        );
-      }
+    if (targetStage === VISA_WORKFLOW_STAGE.BIOMETRICS_SCHEDULED) {
+      patch.appointment_date = toDateString(
+        payload.appointmentDate,
+        current.appointmentDate,
+      );
+    }
 
+    if (
+      targetStage === VISA_WORKFLOW_STAGE.APPROVED ||
+      targetStage === VISA_WORKFLOW_STAGE.DELIVERED
+    ) {
       patch.visa_valid_until = toDateString(
         payload.visaValidUntil,
         current.visaValidUntil,
       );
       patch.visa_number = payload.visaNumber || current.visaNumber || null;
       patch.rejection_reason = null;
+      patch.delivered_at =
+        targetStage === VISA_WORKFLOW_STAGE.DELIVERED
+          ? toDateString(
+              payload.deliveredAt,
+              current.deliveredAt || new Date().toISOString().slice(0, 10),
+            )
+          : null;
     }
 
-    if (targetStatus === VISA_STATUS.REJECTED) {
-      if (!payload.rejectionReason) {
-        throw new AppError(
-          400,
-          "rejectionReason is required for REJECTED status",
-          "VISA_REJECTION_REASON_REQUIRED",
-        );
-      }
-      patch.rejection_reason = payload.rejectionReason;
+    if (targetStage === VISA_WORKFLOW_STAGE.REJECTED) {
+      patch.rejection_reason = payload.rejectionReason || current.rejectionReason || null;
       patch.visa_valid_until = null;
+      patch.delivered_at = null;
+    }
+
+    if (
+      targetStage !== VISA_WORKFLOW_STAGE.APPROVED &&
+      targetStage !== VISA_WORKFLOW_STAGE.DELIVERED &&
+      targetStage !== VISA_WORKFLOW_STAGE.REJECTED
+    ) {
+      patch.delivered_at = null;
     }
 
     const updated = await repository.update(id, patch);
+    const enriched = enrichVisaCase(updated);
     events.emitStatusChanged({
-      id: updated.id,
-      oldStatus: current.status,
-      status: updated.status,
+      id: enriched.id,
+      oldStatus: current.workflowStage || current.status,
+      status: enriched.workflowStage,
       note: payload.note || null,
     });
-    events.emitUpdated(updated);
-    return updated;
+    events.emitUpdated(enriched);
+    return enriched;
   }
 
   async function createDocument(visaCaseId, payload, context = {}) {
@@ -399,6 +648,7 @@ function createVisaService({ repository, logger, events }) {
 
   return Object.freeze({
     VISA_STATUS,
+    VISA_WORKFLOW_STAGE,
     list,
     getById,
     create,

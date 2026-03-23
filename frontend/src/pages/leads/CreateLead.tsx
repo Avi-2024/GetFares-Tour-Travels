@@ -11,6 +11,7 @@ type FormState = {
   lastName: string;
   email: string;
   phone: string;
+  clientCurrency: string;
   location: string;
   destinationName: string;
   travelDate: string;
@@ -30,6 +31,7 @@ const initialForm: FormState = {
   lastName: "",
   email: "",
   phone: "",
+  clientCurrency: "INR",
   location: "",
   destinationName: "",
   travelDate: "",
@@ -112,6 +114,7 @@ const CreateLead: React.FC = () => {
       lastName: !form.lastName.trim(),
       email: !form.email.trim(),
       phone: !form.phone.trim(),
+      clientCurrency: !form.clientCurrency.trim(),
       destinationName: !form.destinationName.trim(),
       travelDate: !form.travelDate,
       adultsChildren:
@@ -145,6 +148,7 @@ const CreateLead: React.FC = () => {
         email: form.email.trim(),
         phone: form.phone.trim(),
         addressLine: form.location.trim() || undefined,
+        clientCurrency: form.clientCurrency.trim().toUpperCase(),
         destinationName: form.destinationName.trim(),
         travelDate: form.travelDate,
         adultsCount: form.adultsCount,
@@ -184,7 +188,7 @@ const CreateLead: React.FC = () => {
             Create New Lead
           </h1>
           <p className="text-sm text-gray-500">
-            Mandatory SOP qualification capture (7 required fields).
+            SOP qualification capture for first response. PAN can be collected later after payment or finance onboarding.
           </p>
         </div>
       </div>
@@ -230,6 +234,23 @@ const CreateLead: React.FC = () => {
             onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))}
             error={fieldError("phone")}
           />
+          <div>
+            <label className="field-label">Client Currency *</label>
+            <select
+              className={`field-input ${fieldError("clientCurrency") ? "border-red-500" : ""}`}
+              value={form.clientCurrency}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, clientCurrency: event.target.value }))
+              }
+            >
+              <option value="">Select currency</option>
+              <option value="INR">INR</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="AED">AED</option>
+            </select>
+          </div>
           <Field
             label="Address / Location"
             value={form.location}
