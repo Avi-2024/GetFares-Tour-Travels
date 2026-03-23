@@ -707,10 +707,16 @@ const BookingDetailPage: React.FC = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const locationState =
+    (location.state as {
+      customerName?: string
+      blockingDeadlineAt?: string | null
+      supplierPaymentDeadlineAt?: string | null
+      cancellationDeadlineAt?: string | null
+      balanceDueBy?: string | null
+    } | null) ?? null
   const customerNameFromList =
-    (
-      location.state as { customerName?: string } | null
-    )?.customerName?.trim() || ''
+    locationState?.customerName?.trim() || ''
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -770,7 +776,25 @@ const BookingDetailPage: React.FC = () => {
         customerName:
           mappedBooking.customerName?.trim() ||
           customerNameFromList ||
-          'Unknown'
+          'Unknown',
+        blockingDeadlineAt:
+          pickFirstDate(
+            mappedBooking.blockingDeadlineAt,
+            locationState?.blockingDeadlineAt
+          ) ?? undefined,
+        supplierPaymentDeadlineAt:
+          pickFirstDate(
+            mappedBooking.supplierPaymentDeadlineAt,
+            locationState?.supplierPaymentDeadlineAt
+          ) ?? undefined,
+        cancellationDeadlineAt:
+          pickFirstDate(
+            mappedBooking.cancellationDeadlineAt,
+            locationState?.cancellationDeadlineAt
+          ) ?? undefined,
+        balanceDueBy:
+          pickFirstDate(mappedBooking.balanceDueBy, locationState?.balanceDueBy) ??
+          undefined
       }
       const invoiceData =
         invoiceRes.status === 'fulfilled'

@@ -53,6 +53,7 @@ interface Booking {
   documentsReady: number
   documentsTotal: number
   deadlineRiskLevel?: DeadlineRiskLevel
+  blockingDeadlineAt?: string | null
   balanceDueBy?: string | null
   supplierPaymentDeadlineAt?: string | null
   cancellationDeadlineAt?: string | null
@@ -89,6 +90,10 @@ type QuoteOption = {
   id: string
   label: string
   value: string
+  selectedLabel?: string
+  searchText?: string
+  leftLabel?: string
+  rightLabel?: string
 }
 
 type SupplierOption = {
@@ -204,6 +209,7 @@ const CreateBookingModal = ({
   onClose: () => void
   onSave: (data: NewBookingData) => Promise<boolean>
 }) => {
+  const bookingsService = useBookingsService()
   const leadsService = useLeadsService()
   const isUuid = (value?: string) =>
     Boolean(
@@ -277,9 +283,12 @@ const CreateBookingModal = ({
     setQuotationLoading(true)
     setQuotationError('')
     try {
-      const [quotationsRes, leadsRows] = await Promise.all([
+      const [quotationsRes, leadsRows, bookingsRes] = await Promise.all([
         quotationsApi.list({ page: 1, limit: 50 }),
-        leadsService.listLeadsRaw({ page: 1, limit: 500 }).catch(() => [])
+        leadsService.listLeadsRaw({ page: 1, limit: 500 }).catch(() => []),
+        bookingsService
+          .list({ page: 1, limit: 1000 })
+          .catch(() => ({ data: { data: [] } }))
       ])
 
       const raw =
@@ -297,12 +306,34 @@ const CreateBookingModal = ({
         }
       })
 
+      const bookedRows =
+        (bookingsRes as any)?.data?.data ??
+        (bookingsRes as any)?.data?.items ??
+        (bookingsRes as any)?.data ??
+        bookingsRes ??
+        []
+
+      const bookedQuotationIds = new Set(
+        (Array.isArray(bookedRows) ? bookedRows : [])
+          .map((row: any) =>
+            String(
+              row?.quotationId ??
+                row?.quotation_id ??
+                row?.quoteId ??
+                row?.quote_id ??
+                ''
+            )
+          )
+          .filter(Boolean)
+      )
+
       const options: QuoteOption[] = (Array.isArray(raw) ? raw : [])
         .map((q: any) => {
           const id = String(
             q.id ?? q.quotationId ?? q.quotation_id ?? q.code ?? ''
           )
           if (!id) return null
+          if (bookedQuotationIds.has(id)) return null
 
           const leadId = String(
             q?.leadId ?? q?.lead_id ?? q?.lead?.id ?? q?.leadSnapshot?.id ?? ''
@@ -322,8 +353,16 @@ const CreateBookingModal = ({
             lead?.name ||
             'Unknown Customer'
 
-          const label = `${resolvedCustomer} - ${quoteNumber}`
-          return { id, value: id, label }
+          const displayLabel = `${resolvedCustomer} - ${quoteNumber}`
+          return {
+            id,
+            value: id,
+            label: displayLabel,
+            selectedLabel: displayLabel,
+            searchText: `${resolvedCustomer} ${quoteNumber}`,
+            leftLabel: resolvedCustomer,
+            rightLabel: quoteNumber
+          }
         })
         .filter(Boolean) as QuoteOption[]
       setQuotationOptions(options)
@@ -497,7 +536,11 @@ const CreateBookingModal = ({
       },
       ...quotationOptions.map(option => ({
         value: option.id,
-        label: option.label
+        label: option.label,
+        selectedLabel: option.selectedLabel,
+        searchText: option.searchText,
+        leftLabel: option.leftLabel,
+        rightLabel: option.rightLabel
       }))
     ],
     [quotationLoading, quotationOptions]
@@ -1649,6 +1692,39 @@ const BookingsPage: React.FC = () => {
     }
   }
 
+  const normalizeDateTime = (value: unknown): string | null => {
+    if (value === null || value === undefined || value === '') return null
+
+    const raw =
+      typeof value === 'string'
+        ? value.trim()
+        : typeof value === 'number'
+        ? String(value)
+        : String(value)
+    if (!raw) return null
+
+    const direct = new Date(raw)
+    if (!Number.isNaN(direct.getTime())) return direct.toISOString()
+
+    if (/^\d+$/.test(raw)) {
+      const asNumber = Number(raw)
+      if (Number.isFinite(asNumber)) {
+        const tsDate = new Date(asNumber)
+        if (!Number.isNaN(tsDate.getTime())) return tsDate.toISOString()
+      }
+    }
+
+    return null
+  }
+
+  const pickFirstDate = (...values: unknown[]): string | null => {
+    for (const value of values) {
+      const normalized = normalizeDateTime(value)
+      if (normalized) return normalized
+    }
+    return null
+  }
+
   const formatDateRange = (start?: string, end?: string, fallback?: string) => {
     if (!start && !end) return fallback ?? '—'
     const startLabel = start ? new Date(start).toLocaleDateString() : '—'
@@ -1661,6 +1737,70 @@ const BookingsPage: React.FC = () => {
     idx: number,
     lookups?: BookingLookups
   ): Booking => {
+    const deadlineInfo =
+      b?.deadlineTracking ??
+      b?.deadline_tracking ??
+      b?.deadlineInsights ??
+      b?.deadline_insights ??
+      b?.deadlines ??
+      {}
+
+    const blockingDeadlineAt = pickFirstDate(
+      b?.blockingDeadlineAt,
+      b?.blocking_deadline_at,
+      b?.blockingDeadline,
+      b?.blocking_deadline,
+      deadlineInfo?.blockingDeadlineAt,
+      deadlineInfo?.blocking_deadline_at,
+      deadlineInfo?.blockingDeadline,
+      deadlineInfo?.blocking_deadline
+    )
+
+    const supplierPaymentDeadlineAt = pickFirstDate(
+      b?.supplierPaymentDeadlineAt,
+      b?.supplier_payment_deadline_at,
+      b?.supplierDeadlineAt,
+      b?.supplier_deadline_at,
+      b?.supplierDeadline,
+      b?.supplier_deadline,
+      deadlineInfo?.supplierPaymentDeadlineAt,
+      deadlineInfo?.supplier_payment_deadline_at,
+      deadlineInfo?.supplierDeadlineAt,
+      deadlineInfo?.supplier_deadline_at,
+      deadlineInfo?.supplierDeadline,
+      deadlineInfo?.supplier_deadline
+    )
+
+    const cancellationDeadlineAt = pickFirstDate(
+      b?.cancellationDeadlineAt,
+      b?.cancellation_deadline_at,
+      b?.cancelDeadlineAt,
+      b?.cancel_deadline_at,
+      b?.cancellationDeadline,
+      b?.cancellation_deadline,
+      deadlineInfo?.cancellationDeadlineAt,
+      deadlineInfo?.cancellation_deadline_at,
+      deadlineInfo?.cancelDeadlineAt,
+      deadlineInfo?.cancel_deadline_at,
+      deadlineInfo?.cancellationDeadline,
+      deadlineInfo?.cancellation_deadline
+    )
+
+    const balanceDueBy = pickFirstDate(
+      b?.balanceDueBy,
+      b?.balance_due_by,
+      b?.balanceDueAt,
+      b?.balance_due_at,
+      b?.dueBy,
+      b?.due_by,
+      deadlineInfo?.balanceDueBy,
+      deadlineInfo?.balance_due_by,
+      deadlineInfo?.balanceDueAt,
+      deadlineInfo?.balance_due_at,
+      deadlineInfo?.dueBy,
+      deadlineInfo?.due_by
+    )
+
     const quotationId = String(
       b.quotationId ?? b.quotation_id ?? b.quoteId ?? b.quote_id ?? ''
     )
@@ -1718,11 +1858,10 @@ const BookingsPage: React.FC = () => {
       deadlineRiskLevel: normalizeDeadlineRisk(
         b.deadlineRiskLevel ?? b.deadline_risk_level ?? 'SAFE'
       ),
-      balanceDueBy: b.balanceDueBy ?? b.balance_due_by ?? null,
-      supplierPaymentDeadlineAt:
-        b.supplierPaymentDeadlineAt ?? b.supplier_payment_deadline_at ?? null,
-      cancellationDeadlineAt:
-        b.cancellationDeadlineAt ?? b.cancellation_deadline_at ?? null
+      blockingDeadlineAt,
+      balanceDueBy,
+      supplierPaymentDeadlineAt,
+      cancellationDeadlineAt
     }
   }
 
@@ -2491,7 +2630,15 @@ const BookingsPage: React.FC = () => {
                       className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
                       onClick={() =>
                         navigate(`/bookings/${booking.id}`, {
-                          state: { customerName: booking.customer }
+                          state: {
+                            customerName: booking.customer,
+                            blockingDeadlineAt: booking.blockingDeadlineAt,
+                            supplierPaymentDeadlineAt:
+                              booking.supplierPaymentDeadlineAt,
+                            cancellationDeadlineAt:
+                              booking.cancellationDeadlineAt,
+                            balanceDueBy: booking.balanceDueBy
+                          }
                         })
                       }
                       title='View'
@@ -2670,7 +2817,16 @@ const BookingsPage: React.FC = () => {
                             className='rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
                             onClick={() =>
                               navigate(`/bookings/${booking.id}`, {
-                                state: { customerName: booking.customer }
+                                state: {
+                                  customerName: booking.customer,
+                                  blockingDeadlineAt:
+                                    booking.blockingDeadlineAt,
+                                  supplierPaymentDeadlineAt:
+                                    booking.supplierPaymentDeadlineAt,
+                                  cancellationDeadlineAt:
+                                    booking.cancellationDeadlineAt,
+                                  balanceDueBy: booking.balanceDueBy
+                                }
                               })
                             }
                             title='View Details'

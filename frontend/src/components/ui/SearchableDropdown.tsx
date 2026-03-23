@@ -4,6 +4,10 @@ import { FaChevronDown, FaSearch } from 'react-icons/fa'
 export type DropdownOption = {
   value: string
   label: string
+  selectedLabel?: string
+  searchText?: string
+  leftLabel?: string
+  rightLabel?: string
 }
 
 type SearchableDropdownProps = {
@@ -48,7 +52,10 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   const filteredOptions = useMemo(() => {
     const term = query.trim().toLowerCase()
     if (!term) return options
-    return options.filter(item => item.label.toLowerCase().includes(term))
+    return options.filter(item => {
+      const searchable = (item.searchText ?? item.label).toLowerCase()
+      return searchable.includes(term)
+    })
   }, [options, query])
 
   const enableScroll = options.length > 5
@@ -74,7 +81,7 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
             selected ? 'font-medium' : 'text-gray-400 dark:text-gray-500'
           }`}
         >
-          {selected?.label || placeholder}
+          {selected?.selectedLabel ?? selected?.label ?? placeholder}
         </span>
         <FaChevronDown
           className={`ml-2 text-xs text-gray-500 transition-transform duration-200 ${
@@ -108,6 +115,7 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
             {filteredOptions.length ? (
               filteredOptions.map(item => {
                 const isActive = item.value === value
+                const hasSplitLabels = Boolean(item.leftLabel || item.rightLabel)
                 return (
                   <button
                     key={`${item.value}-${item.label}`}
@@ -119,11 +127,30 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                     }}
                     className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-sm transition-colors last:mb-0 ${
                       isActive
-                        ? 'bg-blue-50 font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
+                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800'
                     }`}
                   >
-                    {item.label}
+                    {hasSplitLabels ? (
+                      <div className='flex w-full items-center justify-between gap-3'>
+                        <span className='truncate font-semibold'>
+                          {item.leftLabel ?? item.label}
+                        </span>
+                        <span
+                          className={`shrink-0 text-right text-xs font-normal ${
+                            isActive
+                              ? 'text-blue-600/80 dark:text-blue-300/80'
+                              : 'text-gray-500 dark:text-gray-400'
+                          }`}
+                        >
+                          {item.rightLabel}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className={isActive ? 'font-semibold' : ''}>
+                        {item.label}
+                      </span>
+                    )}
                   </button>
                 )
               })
