@@ -58,7 +58,7 @@ const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'logs', label: 'Send Logs' }
 ]
 
-const unwrapData = <T>(response: unknown): T | null => {
+function unwrapData<T>(response: unknown): T | null {
   if (!response) return null
   if (typeof response === 'object' && response && 'data' in response) {
     return (response as { data: T }).data ?? null
@@ -473,7 +473,7 @@ const QuotationDetailPage: React.FC = () => {
   }
 
   return (
-    <div className='space-y-4 sm:space-y-6 px-4 sm:px-0'>
+    <div className='space-y-4 sm:space-y-6 px-0 sm:px-0'>
       <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4'>
         <div>
           <div className='flex items-center justify-between gap-2'>
