@@ -1379,320 +1379,316 @@ const QuotationBuilderPage: React.FC = () => {
 
           {/* Right Column - Fixed Preview */}
           {showPreview ? (
-            <div className='xl:block'>
-              <div className='sticky top-4'>
-                <SurfaceCard className='h-fit'>
-                  <div className='mb-4 flex items-center justify-between'>
+            <div className='xl:block xl:overflow-y-auto xl:max-h-[calc(100vh-200px)] xl:pr-2 scrollbar-hide'>
+              <SurfaceCard className='h-fit'>
+                <div className='mb-4 flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <button
+                      onClick={() => setMobile(false)}
+                      className={`rounded-lg px-2 py-1 text-xs ${
+                        !mobile
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                      }`}
+                    >
+                      <FaDesktop className='mr-1 inline' /> Desktop
+                    </button>
+                    <button
+                      onClick={() => setMobile(true)}
+                      className={`rounded-lg px-2 py-1 text-xs ${
+                        mobile
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                      }`}
+                    >
+                      <FaMobileScreen className='mr-1 inline' /> Mobile
+                    </button>
+                  </div>
+                  <div className='flex gap-2'>
+                    <button className='rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700'>
+                      <FaArrowRotateRight className='mr-1 inline' /> Refresh
+                    </button>
+                    <button
+                      onClick={() => setShowPreview(false)}
+                      className='rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700'
+                    >
+                      Hide
+                    </button>
+                  </div>
+                </div>
+                <div
+                  ref={previewRef}
+                  className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${
+                    mobile ? 'max-w-[360px]' : 'max-w-3xl'
+                  }`}
+                >
+                  <div className='mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800'>
                     <div className='flex items-center gap-2'>
-                      <button
-                        onClick={() => setMobile(false)}
-                        className={`rounded-lg px-2 py-1 text-xs ${
-                          !mobile
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                        }`}
-                      >
-                        <FaDesktop className='mr-1 inline' /> Desktop
-                      </button>
-                      <button
-                        onClick={() => setMobile(true)}
-                        className={`rounded-lg px-2 py-1 text-xs ${
-                          mobile
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                        }`}
-                      >
-                        <FaMobileScreen className='mr-1 inline' /> Mobile
-                      </button>
+                      <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white'>
+                        <FaPlaneDeparture />
+                      </div>
+                      <div>
+                        <p className='font-semibold'>Get2Vacation Travel CRM</p>
+                        <p className='text-xs text-gray-500'>
+                          support@Get2Vacation.com
+                        </p>
+                      </div>
                     </div>
-                    <div className='flex gap-2'>
-                      <button className='rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700'>
-                        <FaArrowRotateRight className='mr-1 inline' /> Refresh
-                      </button>
-                      <button
-                        onClick={() => setShowPreview(false)}
-                        className='rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700'
-                      >
-                        Hide
-                      </button>
+                    <div className='text-right'>
+                      <p className='text-lg font-bold text-blue-600'>
+                        QUOTATION
+                      </p>
+                      <p className='text-xs text-gray-500'>
+                        #{quoteDisplayNumber}
+                      </p>
                     </div>
                   </div>
-                  <div
-                    ref={previewRef}
-                    className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${
-                      mobile ? 'max-w-[360px]' : 'max-w-3xl'
-                    }`}
-                  >
-                    <div className='mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800'>
-                      <div className='flex items-center gap-2'>
-                        <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white'>
-                          <FaPlaneDeparture />
-                        </div>
-                        <div>
-                          <p className='font-semibold'>
-                            Get2Vacation Travel CRM
-                          </p>
-                          <p className='text-xs text-gray-500'>
-                            support@Get2Vacation.com
-                          </p>
-                        </div>
-                      </div>
-                      <div className='text-right'>
-                        <p className='text-lg font-bold text-blue-600'>
-                          QUOTATION
+                  <div className='mb-4 grid grid-cols-2 gap-2 text-[11px] text-gray-500'>
+                    <p>
+                      Quote No:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {quoteDisplayNumber}
+                      </span>
+                    </p>
+                    <p className='text-right'>
+                      Generated:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {new Date().toLocaleDateString()}
+                      </span>
+                    </p>
+                    <p>
+                      Package:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {packageType}
+                      </span>
+                    </p>
+                    <p className='text-right'>
+                      Services:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {selectedServiceDefinitions.length}
+                      </span>
+                    </p>
+                  </div>
+
+                  {selectedTemplate || form.headerBranding.trim() ? (
+                    <div className='mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700'>
+                      {selectedTemplate ? (
+                        <p>
+                          Template: {selectedTemplate.code} -{' '}
+                          {selectedTemplate.name}
+                        </p>
+                      ) : null}
+                      {form.headerBranding.trim() ? (
+                        <p className={selectedTemplate ? 'mt-1' : ''}>
+                          {form.headerBranding.trim()}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className='mb-4 rounded-xl border border-gray-200 p-3'>
+                    <div className='flex items-center justify-between text-sm'>
+                      <div>
+                        <p className='font-semibold text-gray-900'>
+                          {form.customer || 'Guest Name'}
                         </p>
                         <p className='text-xs text-gray-500'>
-                          #{quoteDisplayNumber}
+                          {form.email || 'guest@email.com'}
                         </p>
                       </div>
-                    </div>
-                    <div className='mb-4 grid grid-cols-2 gap-2 text-[11px] text-gray-500'>
-                      <p>
-                        Quote No:{' '}
-                        <span className='font-semibold text-gray-700'>
-                          {quoteDisplayNumber}
-                        </span>
-                      </p>
-                      <p className='text-right'>
-                        Generated:{' '}
-                        <span className='font-semibold text-gray-700'>
-                          {new Date().toLocaleDateString()}
-                        </span>
-                      </p>
-                      <p>
-                        Package:{' '}
-                        <span className='font-semibold text-gray-700'>
-                          {packageType}
-                        </span>
-                      </p>
-                      <p className='text-right'>
-                        Services:{' '}
-                        <span className='font-semibold text-gray-700'>
-                          {selectedServiceDefinitions.length}
-                        </span>
-                      </p>
-                    </div>
-
-                    {selectedTemplate || form.headerBranding.trim() ? (
-                      <div className='mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700'>
-                        {selectedTemplate ? (
-                          <p>
-                            Template: {selectedTemplate.code} -{' '}
-                            {selectedTemplate.name}
-                          </p>
-                        ) : null}
-                        {form.headerBranding.trim() ? (
-                          <p className={selectedTemplate ? 'mt-1' : ''}>
-                            {form.headerBranding.trim()}
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-
-                    <div className='mb-4 rounded-xl border border-gray-200 p-3'>
-                      <div className='flex items-center justify-between text-sm'>
-                        <div>
-                          <p className='font-semibold text-gray-900'>
-                            {form.customer || 'Guest Name'}
-                          </p>
-                          <p className='text-xs text-gray-500'>
-                            {form.email || 'guest@email.com'}
-                          </p>
-                        </div>
-                        <div className='text-right text-xs text-gray-500'>
-                          <p>{form.destination || 'Destination'}</p>
-                          <p>
-                            {form.nights} nights - {form.adults} adults
-                          </p>
-                        </div>
-                      </div>
-                      <div className='mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500'>
+                      <div className='text-right text-xs text-gray-500'>
+                        <p>{form.destination || 'Destination'}</p>
                         <p>
-                          Travel Date:{' '}
-                          <span className='text-gray-700'>
-                            {formatPreviewDate(form.startDate)}
-                          </span>
-                        </p>
-                        <p className='text-right'>
-                          Valid Until:{' '}
-                          <span className='text-gray-700'>
-                            {formatPreviewDateTime(form.validUntil)}
-                          </span>
+                          {form.nights} nights - {form.adults} adults
                         </p>
                       </div>
                     </div>
-
-                    <div className='mb-4'>
-                      <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                        Included Services
+                    <div className='mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500'>
+                      <p>
+                        Travel Date:{' '}
+                        <span className='text-gray-700'>
+                          {formatPreviewDate(form.startDate)}
+                        </span>
                       </p>
-                      {selectedServiceDefinitions.length ? (
-                        <div className='flex flex-wrap gap-1.5'>
-                          {selectedServiceDefinitions.map(definition => (
-                            <span
-                              key={definition.key}
-                              className='rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700'
-                            >
-                              {definition.label}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className='text-xs text-amber-600'>
-                          No services selected yet.
-                        </p>
-                      )}
+                      <p className='text-right'>
+                        Valid Until:{' '}
+                        <span className='text-gray-700'>
+                          {formatPreviewDateTime(form.validUntil)}
+                        </span>
+                      </p>
                     </div>
+                  </div>
 
-                    <div className='mb-4 rounded-xl border border-gray-200 p-3'>
-                      <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                        Financial Snapshot
-                      </p>
-                      <div className='space-y-1.5 text-xs'>
-                        {serviceCostRows.length ? (
-                          serviceCostRows.map(row => (
-                            <div
-                              key={`preview-${row.key}`}
-                              className='flex items-center justify-between text-gray-600'
-                            >
-                              <span>{row.label}</span>
-                              <span className='font-medium text-gray-800'>
-                                {money(row.sellValue)}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className='text-xs text-amber-600'>
-                            Service-wise split appears after selecting services.
-                          </p>
-                        )}
-                        <div className='flex items-center justify-between text-gray-600'>
-                          <span>Service Fee</span>
-                          <span className='font-medium text-gray-800'>
-                            {money(computed.serviceFee)}
-                          </span>
-                        </div>
-                        <div className='flex items-center justify-between text-gray-600'>
-                          <span>Tax ({costs.taxPercent}%)</span>
-                          <span className='font-medium text-gray-800'>
-                            {money(taxes)}
-                          </span>
-                        </div>
-                        {costs.discount ? (
-                          <div className='flex items-center justify-between text-gray-600'>
-                            <span>Discount</span>
-                            <span className='font-medium text-gray-800'>
-                              -{money(costs.discount)}
-                            </span>
-                          </div>
-                        ) : null}
-                        <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
-                          <span>Total Sale Value</span>
-                          <span className='text-blue-600'>{money(total)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className='mb-4 rounded-xl border border-gray-200 p-3'>
-                      <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                        Itinerary Snapshot
-                      </p>
-                      <div className='space-y-2'>
-                        {itineraryItems.map(item => (
-                          <div
-                            key={`preview-itinerary-${item.id}`}
-                            className='text-xs'
+                  <div className='mb-4'>
+                    <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Included Services
+                    </p>
+                    {selectedServiceDefinitions.length ? (
+                      <div className='flex flex-wrap gap-1.5'>
+                        {selectedServiceDefinitions.map(definition => (
+                          <span
+                            key={definition.key}
+                            className='rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700'
                           >
-                            <p className='font-medium text-gray-800'>
-                              {item.day}: {item.title}
-                            </p>
-                            <p className='text-gray-500'>{item.description}</p>
-                          </div>
+                            {definition.label}
+                          </span>
                         ))}
                       </div>
-                    </div>
-
-                    {form.inclusions.trim() || form.exclusions.trim() ? (
-                      <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2'>
-                        <div className='rounded-xl border border-green-200 bg-green-50 p-3'>
-                          <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-green-700'>
-                            Inclusions
-                          </p>
-                          {inclusionLines.length ? (
-                            <ul className='space-y-1 text-xs text-green-800'>
-                              {inclusionLines.map((line, index) => (
-                                <li key={`inc-${index}`}>- {line}</li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className='text-xs text-green-700'>
-                              No inclusions added.
-                            </p>
-                          )}
-                        </div>
-                        <div className='rounded-xl border border-red-200 bg-red-50 p-3'>
-                          <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-red-700'>
-                            Exclusions
-                          </p>
-                          {exclusionLines.length ? (
-                            <ul className='space-y-1 text-xs text-red-800'>
-                              {exclusionLines.map((line, index) => (
-                                <li key={`exc-${index}`}>- {line}</li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className='text-xs text-red-700'>
-                              No exclusions added.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700'>
-                      <FaCheck className='mr-1 inline' /> Preview validated and
-                      ready to share.
-                    </div>
-
-                    {form.paymentTerms.trim() ||
-                    form.cancellationPolicy.trim() ||
-                    form.footerDisclaimer.trim() ? (
-                      <div className='mt-4 space-y-2 rounded-xl border border-gray-200 p-3 text-xs dark:border-gray-700'>
-                        {form.paymentTerms.trim() ? (
-                          <div>
-                            <p className='font-semibold text-gray-700 dark:text-gray-200'>
-                              Payment Terms
-                            </p>
-                            <p className='text-gray-600 dark:text-gray-300'>
-                              {form.paymentTerms.trim()}
-                            </p>
-                          </div>
-                        ) : null}
-                        {form.cancellationPolicy.trim() ? (
-                          <div>
-                            <p className='font-semibold text-gray-700 dark:text-gray-200'>
-                              Cancellation Policy
-                            </p>
-                            <p className='text-gray-600 dark:text-gray-300'>
-                              {form.cancellationPolicy.trim()}
-                            </p>
-                          </div>
-                        ) : null}
-                        {form.footerDisclaimer.trim() ? (
-                          <div>
-                            <p className='font-semibold text-gray-700 dark:text-gray-200'>
-                              Footer Disclaimer
-                            </p>
-                            <p className='text-gray-600 dark:text-gray-300'>
-                              {form.footerDisclaimer.trim()}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
+                    ) : (
+                      <p className='text-xs text-amber-600'>
+                        No services selected yet.
+                      </p>
+                    )}
                   </div>
-                </SurfaceCard>
-              </div>
+
+                  <div className='mb-4 rounded-xl border border-gray-200 p-3'>
+                    <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Financial Snapshot
+                    </p>
+                    <div className='space-y-1.5 text-xs'>
+                      {serviceCostRows.length ? (
+                        serviceCostRows.map(row => (
+                          <div
+                            key={`preview-${row.key}`}
+                            className='flex items-center justify-between text-gray-600'
+                          >
+                            <span>{row.label}</span>
+                            <span className='font-medium text-gray-800'>
+                              {money(row.sellValue)}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className='text-xs text-amber-600'>
+                          Service-wise split appears after selecting services.
+                        </p>
+                      )}
+                      <div className='flex items-center justify-between text-gray-600'>
+                        <span>Service Fee</span>
+                        <span className='font-medium text-gray-800'>
+                          {money(computed.serviceFee)}
+                        </span>
+                      </div>
+                      <div className='flex items-center justify-between text-gray-600'>
+                        <span>Tax ({costs.taxPercent}%)</span>
+                        <span className='font-medium text-gray-800'>
+                          {money(taxes)}
+                        </span>
+                      </div>
+                      {costs.discount ? (
+                        <div className='flex items-center justify-between text-gray-600'>
+                          <span>Discount</span>
+                          <span className='font-medium text-gray-800'>
+                            -{money(costs.discount)}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
+                        <span>Total Sale Value</span>
+                        <span className='text-blue-600'>{money(total)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className='mb-4 rounded-xl border border-gray-200 p-3'>
+                    <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Itinerary Snapshot
+                    </p>
+                    <div className='space-y-2'>
+                      {itineraryItems.map(item => (
+                        <div
+                          key={`preview-itinerary-${item.id}`}
+                          className='text-xs'
+                        >
+                          <p className='font-medium text-gray-800'>
+                            {item.day}: {item.title}
+                          </p>
+                          <p className='text-gray-500'>{item.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {form.inclusions.trim() || form.exclusions.trim() ? (
+                    <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                      <div className='rounded-xl border border-green-200 bg-green-50 p-3'>
+                        <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-green-700'>
+                          Inclusions
+                        </p>
+                        {inclusionLines.length ? (
+                          <ul className='space-y-1 text-xs text-green-800'>
+                            {inclusionLines.map((line, index) => (
+                              <li key={`inc-${index}`}>- {line}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className='text-xs text-green-700'>
+                            No inclusions added.
+                          </p>
+                        )}
+                      </div>
+                      <div className='rounded-xl border border-red-200 bg-red-50 p-3'>
+                        <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-red-700'>
+                          Exclusions
+                        </p>
+                        {exclusionLines.length ? (
+                          <ul className='space-y-1 text-xs text-red-800'>
+                            {exclusionLines.map((line, index) => (
+                              <li key={`exc-${index}`}>- {line}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className='text-xs text-red-700'>
+                            No exclusions added.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700'>
+                    <FaCheck className='mr-1 inline' /> Preview validated and
+                    ready to share.
+                  </div>
+
+                  {form.paymentTerms.trim() ||
+                  form.cancellationPolicy.trim() ||
+                  form.footerDisclaimer.trim() ? (
+                    <div className='mt-4 space-y-2 rounded-xl border border-gray-200 p-3 text-xs dark:border-gray-700'>
+                      {form.paymentTerms.trim() ? (
+                        <div>
+                          <p className='font-semibold text-gray-700 dark:text-gray-200'>
+                            Payment Terms
+                          </p>
+                          <p className='text-gray-600 dark:text-gray-300'>
+                            {form.paymentTerms.trim()}
+                          </p>
+                        </div>
+                      ) : null}
+                      {form.cancellationPolicy.trim() ? (
+                        <div>
+                          <p className='font-semibold text-gray-700 dark:text-gray-200'>
+                            Cancellation Policy
+                          </p>
+                          <p className='text-gray-600 dark:text-gray-300'>
+                            {form.cancellationPolicy.trim()}
+                          </p>
+                        </div>
+                      ) : null}
+                      {form.footerDisclaimer.trim() ? (
+                        <div>
+                          <p className='font-semibold text-gray-700 dark:text-gray-200'>
+                            Footer Disclaimer
+                          </p>
+                          <p className='text-gray-600 dark:text-gray-300'>
+                            {form.footerDisclaimer.trim()}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </SurfaceCard>
             </div>
           ) : (
             <SurfaceCard className='flex h-fit items-center justify-center sticky top-4'>
