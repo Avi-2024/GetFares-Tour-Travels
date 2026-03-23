@@ -277,24 +277,52 @@ const CreateBookingModal = ({
     setQuotationLoading(true)
     setQuotationError('')
     try {
-      const res = await quotationsApi.list({ page: 1, limit: 50 })
+      const [quotationsRes, leadsRows] = await Promise.all([
+        quotationsApi.list({ page: 1, limit: 50 }),
+        leadsService.listLeadsRaw({ page: 1, limit: 500 }).catch(() => [])
+      ])
+
       const raw =
-        (res as any)?.data?.data ??
-        (res as any)?.data?.items ??
-        (res as any)?.data ??
-        res ??
+        (quotationsRes as any)?.data?.data ??
+        (quotationsRes as any)?.data?.items ??
+        (quotationsRes as any)?.data ??
+        quotationsRes ??
         []
+
+      const leadById: Record<string, any> = {}
+      ;(Array.isArray(leadsRows) ? leadsRows : []).forEach((lead: any) => {
+        const leadId = String(lead?.id ?? lead?.leadId ?? lead?.lead_id ?? '')
+        if (leadId) {
+          leadById[leadId] = lead
+        }
+      })
+
       const options: QuoteOption[] = (Array.isArray(raw) ? raw : [])
         .map((q: any) => {
           const id = String(
             q.id ?? q.quotationId ?? q.quotation_id ?? q.code ?? ''
           )
           if (!id) return null
-          const quoteNumber =
-            q.quoteNumber ?? q.quotationNumber ?? q.code ?? `Quote ${id}`
+
+          const leadId = String(
+            q?.leadId ?? q?.lead_id ?? q?.lead?.id ?? q?.leadSnapshot?.id ?? ''
+          )
+          const lead = leadId ? leadById[leadId] : null
+
+          const quoteNumber = q.quoteNumber ?? q.quotationNumber ?? q.code ?? id
+
           const customer =
             q.customerName ?? q.customer ?? q.clientName ?? q.lead?.name ?? ''
-          const label = customer ? `${quoteNumber} - ${customer}` : quoteNumber
+
+          const resolvedCustomer =
+            customer ||
+            q.lead?.fullName ||
+            q.leadSnapshot?.name ||
+            lead?.fullName ||
+            lead?.name ||
+            'Unknown Customer'
+
+          const label = `${resolvedCustomer} - ${quoteNumber}`
           return { id, value: id, label }
         })
         .filter(Boolean) as QuoteOption[]
