@@ -114,6 +114,12 @@ const QuotationTemplatesPage: React.FC = () => {
     void loadTemplates()
   }, [loadTemplates])
 
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(''), 1000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
   const filtered = useMemo(
     () =>
       rows.filter(row =>
@@ -459,26 +465,28 @@ const QuotationTemplatesPage: React.FC = () => {
               />
             </div>
           </div>
-          <label className='mt-4 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300'>
-            <input
-              type='checkbox'
-              checked={form.isActive}
-              onChange={event =>
-                setForm(current => ({
-                  ...current,
-                  isActive: event.target.checked
-                }))
-              }
-            />
-            Active Template
-          </label>
-          <button
-            onClick={() => void saveTemplate()}
-            disabled={saving}
-            className='mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700'
-          >
-            {saving ? 'Saving...' : 'Save Template'}
-          </button>
+          <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+            <label className='inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300'>
+              <input
+                type='checkbox'
+                checked={form.isActive}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    isActive: event.target.checked
+                  }))
+                }
+              />
+              Active Template
+            </label>
+            <button
+              onClick={() => void saveTemplate()}
+              disabled={saving}
+              className='w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:w-auto'
+            >
+              {saving ? 'Saving...' : 'Save Template'}
+            </button>
+          </div>
         </SurfaceCard>
       ) : null}
 
@@ -510,28 +518,28 @@ const QuotationTemplatesPage: React.FC = () => {
         ) : (
           <>
             <div className='overflow-x-auto'>
-              <table className='min-w-[960px] w-full divide-y divide-gray-200 dark:divide-gray-800'>
+              <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
                 <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
                   <tr>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-5'>
                       Code
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-5'>
                       Template Name
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:table-cell sm:px-5'>
                       Type
                     </th>
-                    <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='hidden px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 md:table-cell md:px-5'>
                       Min Margin %
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:table-cell sm:px-5'>
                       Status
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 md:table-cell md:px-5'>
                       Updated At
                     </th>
-                    <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 sm:px-5'>
                       Actions
                     </th>
                   </tr>
@@ -540,33 +548,35 @@ const QuotationTemplatesPage: React.FC = () => {
                   {pageRows.map(row => (
                     <tr
                       key={row.id}
-                      className='group hover:bg-blue-50/30 dark:hover:bg-gray-800/40'
+                      className='hover:bg-blue-50/30 dark:hover:bg-gray-800/40'
                     >
-                      <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
+                      <td className='px-4 py-4 text-sm font-medium text-blue-600 dark:text-blue-300 sm:px-5'>
                         {row.code}
                       </td>
-                      <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-100'>
-                        {row.name}
+                      <td className='px-4 py-4 text-sm text-gray-800 dark:text-gray-100 sm:px-5'>
+                        <div className='max-w-xs truncate'>{row.name}</div>
                       </td>
-                      <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
-                        {row.templateType}
+                      <td className='hidden px-4 py-4 text-sm text-gray-700 dark:text-gray-200 sm:table-cell sm:px-5'>
+                        <span className='inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200'>
+                          {row.templateType}
+                        </span>
                       </td>
-                      <td className='px-5 py-4 text-right text-sm text-gray-700 dark:text-gray-200'>
+                      <td className='hidden px-4 py-4 text-right text-sm font-medium text-gray-700 dark:text-gray-200 md:table-cell md:px-5'>
                         {row.minMarginPercent}%
                       </td>
-                      <td className='px-5 py-4'>
+                      <td className='hidden px-4 py-4 sm:table-cell sm:px-5'>
                         <StatusBadge
                           status={row.isActive ? 'Approved' : 'Draft'}
                         />
                       </td>
-                      <td className='px-5 py-4 text-xs text-gray-500'>
+                      <td className='hidden px-4 py-4 text-xs text-gray-500 md:table-cell md:px-5'>
                         {row.updatedAt}
                       </td>
-                      <td className='px-5 py-4'>
-                        <div className='flex justify-end gap-2 opacity-0 transition-all duration-200 group-hover:opacity-100'>
+                      <td className='px-4 py-4 sm:px-5'>
+                        <div className='flex justify-end gap-2'>
                           <button
                             onClick={() => openEdit(row)}
-                            className='rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-200'
+                            className='rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50'
                           >
                             Edit
                           </button>

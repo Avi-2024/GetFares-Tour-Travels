@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from 'react'
 import {
   Area,
   CartesianGrid,
@@ -11,8 +11,8 @@ import {
   ResponsiveContainer,
   Tooltip,
   XAxis,
-  YAxis,
-} from "recharts";
+  YAxis
+} from 'recharts'
 import {
   FaArrowTrendDown,
   FaArrowTrendUp,
@@ -20,43 +20,43 @@ import {
   FaPhone,
   FaPlane,
   FaSackDollar,
-  FaUserGroup,
-} from "react-icons/fa6";
-import SurfaceCard from "../../components/ui/SurfaceCard";
-import { dashboardApi } from "../../api/dashboard";
-import { reportsApi } from "../../api/reports";
-import { useAuth } from "../../context/AuthContext";
+  FaUserGroup
+} from 'react-icons/fa6'
+import SurfaceCard from '../../components/ui/SurfaceCard'
+import { dashboardApi } from '../../api/dashboard'
+import { reportsApi } from '../../api/reports'
+import { useAuth } from '../../context/AuthContext'
 
 // Type definitions
 interface DashboardStats {
-  totalLeads: number;
-  totalLeadsChange: number;
-  revenue: number;
-  revenueChange: number;
-  pendingCalls: number;
-  pendingCallsChange: number;
-  bookings: number;
-  bookingsChange: number;
+  totalLeads: number
+  totalLeadsChange: number
+  revenue: number
+  revenueChange: number
+  pendingCalls: number
+  pendingCallsChange: number
+  bookings: number
+  bookingsChange: number
 }
 
 interface RevenueData {
-  name: string;
-  revenue: number;
-  last: number;
+  name: string
+  revenue: number
+  last: number
 }
 
 interface LeadSource {
-  name: string;
-  value: number;
+  name: string
+  value: number
 }
 
-type Range = "Today" | "Week" | "Month" | "Year";
+type Range = 'Today' | 'Week' | 'Month' | 'Year'
 const EMPTY_REVENUE_DATA: Record<Range, RevenueData[]> = {
   Today: [],
   Week: [],
   Month: [],
-  Year: [],
-};
+  Year: []
+}
 const EMPTY_STATS: DashboardStats = {
   totalLeads: 0,
   totalLeadsChange: 0,
@@ -65,73 +65,77 @@ const EMPTY_STATS: DashboardStats = {
   pendingCalls: 0,
   pendingCallsChange: 0,
   bookings: 0,
-  bookingsChange: 0,
-};
-const colors = ["#2563eb", "#22c55e", "#a855f7", "#f59e0b"];
+  bookingsChange: 0
+}
+const colors = ['#2563eb', '#22c55e', '#a855f7', '#f59e0b']
 
 const Dashboard: React.FC = () => {
-  const { token } = useAuth();
-  const [range, setRange] = useState<Range>("Week");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  const [statsLoaded, setStatsLoaded] = useState(false);
-  const [revenueData, setRevenueData] = useState<Record<Range, RevenueData[]>>(EMPTY_REVENUE_DATA);
-  const [revenueLoaded, setRevenueLoaded] = useState(false);
-  const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
-  const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false);
-  
+  const { token } = useAuth()
+  const [range, setRange] = useState<Range>('Week')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
+    null
+  )
+  const [statsLoaded, setStatsLoaded] = useState(false)
+  const [revenueData, setRevenueData] =
+    useState<Record<Range, RevenueData[]>>(EMPTY_REVENUE_DATA)
+  const [revenueLoaded, setRevenueLoaded] = useState(false)
+  const [leadSources, setLeadSources] = useState<LeadSource[]>([])
+  const [leadSourcesLoaded, setLeadSourcesLoaded] = useState(false)
+
   const rev = useMemo(
     () =>
-      revenueData[range].map((point) => ({
-        name: String(point?.name ?? ""),
+      revenueData[range].map(point => ({
+        name: String(point?.name ?? ''),
         revenue: Number(point?.revenue ?? 0),
-        last: Number(point?.last ?? 0),
+        last: Number(point?.last ?? 0)
       })),
-    [revenueData, range],
-  );
+    [revenueData, range]
+  )
   const hasRevenueChartData = useMemo(
-    () => rev.some((point) => point.revenue > 0 || point.last > 0),
-    [rev],
-  );
-  const formatStatNumber = (value: unknown, formatter: (num: number) => string) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return "N/A";
-    return formatter(parsed);
-  };
+    () => rev.some(point => point.revenue > 0 || point.last > 0),
+    [rev]
+  )
+  const formatStatNumber = (
+    value: unknown,
+    formatter: (num: number) => string
+  ) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return 'N/A'
+    return formatter(parsed)
+  }
   const formatCompact = (value: number) => {
-    if (value < 1000) return value.toString();
+    if (value < 1000) return value.toString()
     if (value < 1_000_000) {
-      return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+      return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}k`
     }
     if (value < 1_000_000_000) {
-      return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+      return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
     }
-    return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
-  };
-  // Load dashboard data
+    return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`
+  }
+  // Load KPI stats and lead sources (not dependent on range)
   useEffect(() => {
-    const loadDashboardData = async () => {
+    const loadStaticData = async () => {
       if (!token) {
-        setDashboardStats(null);
-        setRevenueData(EMPTY_REVENUE_DATA);
-        setLeadSources([]);
-        setStatsLoaded(false);
-        setRevenueLoaded(false);
-        setLeadSourcesLoaded(false);
-        setError("Please login to view dashboard data.");
-        return;
+        setDashboardStats(null)
+        setLeadSources([])
+        setStatsLoaded(false)
+        setLeadSourcesLoaded(false)
+        setError('Please login to view dashboard data.')
+        return
       }
-      
-      setLoading(true);
+
+      setLoading(true)
       try {
         // Load KPI cards from unified executive KPI source.
-        const kpiResponse = await reportsApi.dashboardExecutiveKpis() as any;
-        const executive = kpiResponse?.data || kpiResponse;
+        const kpiResponse = (await reportsApi.dashboardExecutiveKpis()) as any
+        const executive = kpiResponse?.data || kpiResponse
         if (executive) {
           const pendingCalls =
             Number(executive.pendingFollowups || 0) +
-            Number(executive.overdueFollowups || 0);
+            Number(executive.overdueFollowups || 0)
           setDashboardStats({
             totalLeads: Number(executive.totalLeads || 0),
             totalLeadsChange: 0,
@@ -140,224 +144,260 @@ const Dashboard: React.FC = () => {
             pendingCalls,
             pendingCallsChange: 0,
             bookings: Number(executive.totalBookings || 0),
-            bookingsChange: 0,
-          });
-          setStatsLoaded(true);
+            bookingsChange: 0
+          })
+          setStatsLoaded(true)
         } else {
-          setStatsLoaded(false);
+          setStatsLoaded(false)
         }
-        
-        // Load revenue data
-        const revenueResponse = await dashboardApi.getRevenue({ range: range.toLowerCase() }) as any;
-        const revenue = revenueResponse?.data || revenueResponse;
-        if (Array.isArray(revenue)) {
-          setRevenueData(prev => ({ ...prev, [range]: revenue }));
-          setRevenueLoaded(true);
-        } else {
-          setRevenueData(prev => ({ ...prev, [range]: [] }));
-          setRevenueLoaded(false);
-        }
-        
+
         // Load lead sources
-        const sourcesResponse = await dashboardApi.getLeadSources() as any;
-        const sources = sourcesResponse?.data || sourcesResponse;
+        const sourcesResponse = (await dashboardApi.getLeadSources()) as any
+        const sources = sourcesResponse?.data || sourcesResponse
         if (Array.isArray(sources)) {
-          setLeadSources(sources);
-          setLeadSourcesLoaded(true);
+          setLeadSources(sources)
+          setLeadSourcesLoaded(true)
         } else {
-          setLeadSources([]);
-          setLeadSourcesLoaded(false);
+          setLeadSources([])
+          setLeadSourcesLoaded(false)
         }
-        
-        setError('');
+
+        setError('')
       } catch (error: any) {
-        console.error('Failed to load dashboard data:', error);
+        console.error('Failed to load dashboard static data:', error)
 
-        
         if (error.status === 401 || error.message?.includes('token')) {
-          setError('Authentication failed. Please login again.');
+          setError('Authentication failed. Please login again.')
         } else if (error.status === 404) {
-          setError('Dashboard API endpoints not found. Please check backend server.');
+          setError(
+            'Dashboard API endpoints not found. Please check backend server.'
+          )
         } else {
-          setError('Failed to load dashboard data.');
-
+          setError('Failed to load dashboard data.')
         }
-        setDashboardStats((current) => current ?? EMPTY_STATS);
-        setRevenueData((current) => ({ ...current, [range]: [] }));
-        setLeadSources([]);
-        setStatsLoaded(false);
-        setRevenueLoaded(false);
-        setLeadSourcesLoaded(false);
+        setDashboardStats(current => current ?? EMPTY_STATS)
+        setLeadSources([])
+        setStatsLoaded(false)
+        setLeadSourcesLoaded(false)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    loadDashboardData();
-  }, [token, range]);
+    loadStaticData()
+  }, [token])
+
+  // Load revenue data (dependent on range)
+  useEffect(() => {
+    const loadRevenueData = async () => {
+      if (!token) {
+        setRevenueData(EMPTY_REVENUE_DATA)
+        setRevenueLoaded(false)
+        return
+      }
+
+      try {
+        // Load revenue data
+        const revenueResponse = (await dashboardApi.getRevenue({
+          range: range.toLowerCase()
+        })) as any
+        const revenue = revenueResponse?.data || revenueResponse
+        if (Array.isArray(revenue)) {
+          setRevenueData(prev => ({ ...prev, [range]: revenue }))
+          setRevenueLoaded(true)
+        } else {
+          setRevenueData(prev => ({ ...prev, [range]: [] }))
+          setRevenueLoaded(false)
+        }
+      } catch (error: any) {
+        console.error('Failed to load revenue data:', error)
+        setRevenueData(current => ({ ...current, [range]: [] }))
+        setRevenueLoaded(false)
+      }
+    }
+
+    loadRevenueData()
+  }, [token, range])
 
   const kpis = useMemo(() => {
     if (!dashboardStats || !statsLoaded) {
       return [
         {
-          title: "Total Leads",
-          value: "N/A",
+          title: 'Total Leads',
+          value: 'N/A',
           trend: null,
           up: true,
           icon: FaUserGroup,
-          bg: "bg-blue-100 text-blue-600",
+          bg: 'bg-blue-100 text-blue-600'
         },
         {
-          title: "Revenue",
-          value: "N/A",
+          title: 'Revenue',
+          value: 'N/A',
           trend: null,
           up: true,
           icon: FaSackDollar,
-          bg: "bg-green-100 text-green-600",
+          bg: 'bg-green-100 text-green-600'
         },
         {
-          title: "Open Follow-ups",
-          value: "N/A",
+          title: 'Open Follow-ups',
+          value: 'N/A',
           trend: null,
           up: true,
           icon: FaPhone,
-          bg: "bg-amber-100 text-amber-500",
+          bg: 'bg-amber-100 text-amber-500'
         },
         {
-          title: "Bookings",
-          value: "N/A",
+          title: 'Bookings',
+          value: 'N/A',
           trend: null,
           up: true,
           icon: FaPlane,
-          bg: "bg-gray-100 text-gray-700",
-        },
-      ];
+          bg: 'bg-gray-100 text-gray-700'
+        }
+      ]
     }
-    
+
     return [
       {
-        title: "Total Leads",
+        title: 'Total Leads',
         value: formatStatNumber(dashboardStats.totalLeads, formatCompact),
-        trend: `${dashboardStats.totalLeadsChange >= 0 ? '+' : ''}${dashboardStats.totalLeadsChange}%`,
+        trend: `${dashboardStats.totalLeadsChange >= 0 ? '+' : ''}${
+          dashboardStats.totalLeadsChange
+        }%`,
         up: dashboardStats.totalLeadsChange >= 0,
         icon: FaUserGroup,
-        bg: "bg-blue-100 text-blue-600",
+        bg: 'bg-blue-100 text-blue-600'
       },
       {
-        title: "Revenue",
-        value: formatStatNumber(dashboardStats.revenue, (num) =>
-          `$${formatCompact(num)}`,
+        title: 'Revenue',
+        value: formatStatNumber(
+          dashboardStats.revenue,
+          num => `$${formatCompact(num)}`
         ),
-        trend: `${dashboardStats.revenueChange >= 0 ? '+' : ''}${dashboardStats.revenueChange}%`,
+        trend: `${dashboardStats.revenueChange >= 0 ? '+' : ''}${
+          dashboardStats.revenueChange
+        }%`,
         up: dashboardStats.revenueChange >= 0,
         icon: FaSackDollar,
-        bg: "bg-green-100 text-green-600",
+        bg: 'bg-green-100 text-green-600'
       },
       {
-        title: "Open Follow-ups",
+        title: 'Open Follow-ups',
         value: formatStatNumber(dashboardStats.pendingCalls, formatCompact),
-        trend: `${dashboardStats.pendingCallsChange >= 0 ? '+' : ''}${dashboardStats.pendingCallsChange}%`,
+        trend: `${dashboardStats.pendingCallsChange >= 0 ? '+' : ''}${
+          dashboardStats.pendingCallsChange
+        }%`,
         up: dashboardStats.pendingCallsChange >= 0,
         icon: FaPhone,
-        bg: "bg-amber-100 text-amber-500",
+        bg: 'bg-amber-100 text-amber-500'
       },
       {
-        title: "Bookings",
+        title: 'Bookings',
         value: formatStatNumber(dashboardStats.bookings, formatCompact),
-        trend: `${dashboardStats.bookingsChange >= 0 ? '+' : ''}${dashboardStats.bookingsChange}%`,
+        trend: `${dashboardStats.bookingsChange >= 0 ? '+' : ''}${
+          dashboardStats.bookingsChange
+        }%`,
         up: dashboardStats.bookingsChange >= 0,
         icon: FaPlane,
-        bg: "bg-gray-100 text-gray-700",
-      },
-    ];
-  }, [dashboardStats, statsLoaded]);
+        bg: 'bg-gray-100 text-gray-700'
+      }
+    ]
+  }, [dashboardStats, statsLoaded])
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+    <div className='space-y-6'>
+      <div className='flex flex-col justify-between gap-3 sm:flex-row sm:items-center'>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
             Dashboard Overview
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className='mt-1 text-sm text-gray-500 dark:text-gray-400'>
             Performance, pipeline health, and recent operations at a glance.
           </p>
-          {error && (
-            <p className="mt-1 text-sm text-red-500">{error}</p>
-          )}
+          {error && <p className='mt-1 text-sm text-red-500'>{error}</p>}
         </div>
-        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-          <FaCalendarDays className="text-blue-600" /> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+        <div className='flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
+          <FaCalendarDays className='text-blue-600' />{' '}
+          {new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {loading ? (
-          // Loading skeleton for KPI cards
-          Array.from({ length: 4 }).map((_, index) => (
-            <SurfaceCard key={index} className="p-5">
-              <div className="animate-pulse">
-                <div className="flex items-start justify-between">
-                  <div className="h-10 w-10 rounded-xl bg-gray-200 dark:bg-gray-700"></div>
-                  <div className="h-6 w-12 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4'>
+        {loading
+          ? // Loading skeleton for KPI cards
+            Array.from({ length: 4 }).map((_, index) => (
+              <SurfaceCard key={index} className='p-5'>
+                <div className='animate-pulse'>
+                  <div className='flex items-start justify-between'>
+                    <div className='h-10 w-10 rounded-xl bg-gray-200 dark:bg-gray-700'></div>
+                    <div className='h-6 w-12 rounded-full bg-gray-200 dark:bg-gray-700'></div>
+                  </div>
+                  <div className='mt-4 h-4 w-20 rounded bg-gray-200 dark:bg-gray-700'></div>
+                  <div className='mt-2 h-8 w-16 rounded bg-gray-200 dark:bg-gray-700'></div>
                 </div>
-                <div className="mt-4 h-4 w-20 rounded bg-gray-200 dark:bg-gray-700"></div>
-                <div className="mt-2 h-8 w-16 rounded bg-gray-200 dark:bg-gray-700"></div>
-              </div>
-            </SurfaceCard>
-          ))
-        ) : (
-          kpis.map((k) => (
-            <SurfaceCard key={k.title} hoverable className="p-5">
-              <div className="flex items-start justify-between">
-                <div
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl ${k.bg}`}
-                >
-                  <k.icon />
-                </div>
-                {k.trend ? (
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${k.up ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+              </SurfaceCard>
+            ))
+          : kpis.map(k => (
+              <SurfaceCard key={k.title} hoverable className='p-5'>
+                <div className='flex items-start justify-between'>
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl ${k.bg}`}
                   >
-                    {k.up ? (
-                      <FaArrowTrendUp className="mr-1" />
-                    ) : (
-                      <FaArrowTrendDown className="mr-1" />
-                    )}
-                    {k.trend}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-4 text-sm text-gray-500">{k.title}</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">
-                {k.value}
-              </p>
-            </SurfaceCard>
-          ))
-        )}
+                    <k.icon />
+                  </div>
+                  {k.trend ? (
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
+                        k.up
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      {k.up ? (
+                        <FaArrowTrendUp className='mr-1' />
+                      ) : (
+                        <FaArrowTrendDown className='mr-1' />
+                      )}
+                      {k.trend}
+                    </span>
+                  ) : null}
+                </div>
+                <p className='mt-4 text-sm text-gray-500'>{k.title}</p>
+                <p className='mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100'>
+                  {k.value}
+                </p>
+              </SurfaceCard>
+            ))}
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        Open Follow-ups = pending follow-ups scheduled for today or future + overdue follow-ups not marked complete yet.
+      <p className='text-xs text-gray-500 dark:text-gray-400'>
+        Open Follow-ups = pending follow-ups scheduled for today or future +
+        overdue follow-ups not marked complete yet.
       </p>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <SurfaceCard className="xl:col-span-2">
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className='grid grid-cols-1 gap-6 xl:grid-cols-3'>
+        <SurfaceCard className='xl:col-span-2'>
+          <div className='mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
                 Revenue Performance
               </h2>
-              <p className="text-sm text-gray-500">
+              <p className='text-sm text-gray-500'>
                 Current period vs previous period.
               </p>
             </div>
-            <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
-              {(["Today", "Week", "Month", "Year"] as Range[]).map((r) => (
+            <div className='inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800'>
+              {(['Today', 'Week', 'Month', 'Year'] as Range[]).map(r => (
                 <button
                   key={r}
                   onClick={() => setRange(r)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${range === r ? "bg-blue-600 text-white" : "text-gray-600"}`}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+                    range === r ? 'bg-blue-600 text-white' : 'text-gray-600'
+                  }`}
                 >
                   {r}
                 </button>
@@ -365,52 +405,54 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           {!revenueLoaded ? (
-            <div className="flex h-[320px] items-center justify-center text-sm text-gray-500">
+            <div className='flex h-[320px] items-center justify-center text-sm text-gray-500'>
               Loading revenue trend...
             </div>
           ) : !hasRevenueChartData ? (
-            <div className="flex h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-6 text-center dark:border-gray-700 dark:bg-gray-800/40">
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <div className='flex h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-6 text-center dark:border-gray-700 dark:bg-gray-800/40'>
+              <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                 No booked revenue found for this range
               </p>
-              <p className="mt-2 max-w-md text-xs text-gray-500 dark:text-gray-400">
-                This chart updates from non-cancelled bookings. Once bookings are created in the selected period, the revenue trend will appear here.
+              <p className='mt-2 max-w-md text-xs text-gray-500 dark:text-gray-400'>
+                This chart updates from non-cancelled bookings. Once bookings
+                are created in the selected period, the revenue trend will
+                appear here.
               </p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={320}>
+            <ResponsiveContainer width='100%' height={320}>
               <ComposedChart data={rev}>
                 <defs>
-                  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  <linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>
+                    <stop offset='5%' stopColor='#2563eb' stopOpacity={0.25} />
+                    <stop offset='95%' stopColor='#2563eb' stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
-                <YAxis stroke="#9ca3af" fontSize={12} />
+                <CartesianGrid strokeDasharray='3 3' stroke='#e5e7eb' />
+                <XAxis dataKey='name' stroke='#9ca3af' fontSize={12} />
+                <YAxis stroke='#9ca3af' fontSize={12} />
                 <Tooltip
                   formatter={(v: number | string | undefined, name) => [
                     `$${Number(v ?? 0).toLocaleString()}`,
-                    name === "last" ? "Previous" : "Current",
+                    name === 'last' ? 'Previous' : 'Current'
                   ]}
                 />
                 <Legend />
                 <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  fill="url(#g)"
-                  stroke="#2563eb"
+                  type='monotone'
+                  dataKey='revenue'
+                  fill='url(#g)'
+                  stroke='#2563eb'
                   strokeWidth={2}
-                  name="Current"
+                  name='Current'
                 />
                 <Line
-                  type="monotone"
-                  dataKey="last"
-                  stroke="#94a3b8"
+                  type='monotone'
+                  dataKey='last'
+                  stroke='#94a3b8'
                   strokeWidth={2}
                   dot={false}
-                  name="Previous"
+                  name='Previous'
                 />
               </ComposedChart>
             </ResponsiveContainer>
@@ -418,22 +460,22 @@ const Dashboard: React.FC = () => {
         </SurfaceCard>
 
         <SurfaceCard>
-          <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className='mb-1 text-lg font-semibold text-gray-900 dark:text-gray-100'>
             Lead Sources
           </h2>
-          <p className="mb-4 text-sm text-gray-500">
+          <p className='mb-4 text-sm text-gray-500'>
             Channel split for new leads.
           </p>
           {leadSourcesLoaded ? (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width='100%' height={280}>
               <PieChart>
                 <Pie
                   data={leadSources}
                   innerRadius={65}
                   outerRadius={95}
                   paddingAngle={4}
-                  dataKey="value"
-                  nameKey="name"
+                  dataKey='value'
+                  nameKey='name'
                 >
                   {leadSources.map((_, i) => (
                     <Cell key={i} fill={colors[i % colors.length]} />
@@ -444,18 +486,18 @@ const Dashboard: React.FC = () => {
                     `${Number(v ?? 0)}%`
                   }
                 />
-                <Legend iconType="circle" />
+                <Legend iconType='circle' />
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-[280px] items-center justify-center text-sm text-gray-400">
+            <div className='flex h-[280px] items-center justify-center text-sm text-gray-400'>
               N/A
             </div>
           )}
         </SurfaceCard>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Dashboard;
+export default Dashboard
