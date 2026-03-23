@@ -527,13 +527,31 @@ const QuotationDetailPage: React.FC = () => {
       let heightLeft = imgHeight
       let position = 0
 
-      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight, '', 'FAST')
+      pdf.addImage(
+        imgData,
+        'PNG',
+        0,
+        position,
+        pageWidth,
+        imgHeight,
+        '',
+        'FAST'
+      )
       heightLeft -= pageHeight
 
       while (heightLeft > 0) {
         position = heightLeft - imgHeight
         pdf.addPage()
-        pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight, '', 'FAST')
+        pdf.addImage(
+          imgData,
+          'PNG',
+          0,
+          position,
+          pageWidth,
+          imgHeight,
+          '',
+          'FAST'
+        )
         heightLeft -= pageHeight
       }
 
@@ -595,7 +613,8 @@ const QuotationDetailPage: React.FC = () => {
                 <FaArrowLeft className='text-sm' />
               </button>
               <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
-                Quotation #{quotation.quoteNumber ?? quotation.id}
+                {(lead?.fullName?.trim() || 'Customer Quotation') +
+                  ` (#${quotation.quoteNumber ?? quotation.id ?? 'N/A'})`}
               </h1>
             </div>
           </div>
@@ -715,447 +734,449 @@ const QuotationDetailPage: React.FC = () => {
       </div>
 
       <div ref={pdfExportRef} className='space-y-4 sm:space-y-6'>
-      <SurfaceCard className='p-4 sm:p-5'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              Customer
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {lead?.fullName || 'N/A'}
-            </p>
-            <p className='text-xs text-gray-500'>{lead?.email || 'N/A'}</p>
-            <p className='text-xs text-gray-500'>{lead?.phone || 'N/A'}</p>
-          </div>
-
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              Destination
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {destination?.name || lead?.destinationName || 'N/A'}
-            </p>
-            <p className='text-xs text-gray-500'>
-              {destination?.country || 'N/A'}
-            </p>
-          </div>
-
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              Template
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {template?.name || quotation.templateSnapshot?.name || 'N/A'}
-            </p>
-            <p className='text-xs text-gray-500'>
-              {template?.code || quotation.templateSnapshot?.code || 'N/A'}
-            </p>
-          </div>
-
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              Created By
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {createdByUser?.fullName || quotation.createdBy || 'N/A'}
-            </p>
-            <p className='text-xs text-gray-500'>
-              {createdByUser?.email || 'N/A'}
-            </p>
-          </div>
-
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              Approved By
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {approvedByUser?.fullName || quotation.approvedBy || 'N/A'}
-            </p>
-            <p className='text-xs text-gray-500'>
-              {formatDate(quotation.approvedAt)}
-            </p>
-          </div>
-
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              Linked Booking
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {booking?.bookingNumber || 'N/A'}
-            </p>
-            <p className='text-xs text-gray-500'>
-              {booking
-                ? `${booking.status || 'N/A'} / ${
-                    booking.paymentStatus || 'N/A'
-                  }`
-                : 'N/A'}
-            </p>
-          </div>
-
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              Pricing Reference
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {pricing?.id || quotation.pricingId || 'N/A'}
-            </p>
-            <p className='text-xs text-gray-500'>
-              Base{' '}
-              {pricing
-                ? formatMoney(toNumber(pricing.baseCost, 0), displayCurrency)
-                : 'N/A'}
-            </p>
-          </div>
-
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              Sent By
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {sentByUser?.fullName || quotation.sentBy || 'N/A'}
-            </p>
-            <p className='text-xs text-gray-500'>
-              {formatDate(quotation.sentAt)}
-            </p>
-          </div>
-
-          <div>
-            <p className='text-xs uppercase tracking-wide text-gray-500'>
-              View Count
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {toNumber(quotation.viewCount, 0)}
-            </p>
-            <p className='text-xs text-gray-500'>
-              Last viewed {formatDate(quotation.lastViewedAt)}
-            </p>
-          </div>
-        </div>
-      </SurfaceCard>
-
-      <SurfaceCard className='p-4 sm:p-5'>
-        <div className='flex flex-wrap items-center justify-between gap-2'>
-          <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500'>
-            Commercial Breakdown
-          </h2>
-          <span className='rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700'>
-            Currency: {displayCurrency}
-          </span>
-        </div>
-        <div className='mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4'>
-          <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-            <p className='text-xs text-gray-500'>Supplier Cost</p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {formatMoney(commercial.supplierCost, displayCurrency)}
-            </p>
-          </div>
-          <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-            <p className='text-xs text-gray-500'>
-              Markup ({commercial.marginPercent}%)
-            </p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {formatMoney(commercial.markupAmount, displayCurrency)}
-            </p>
-          </div>
-          <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-            <p className='text-xs text-gray-500'>Service Fee</p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {formatMoney(commercial.serviceFeeAmount, displayCurrency)}
-            </p>
-          </div>
-          <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-            <p className='text-xs text-gray-500'>Tax</p>
-            <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {formatMoney(commercial.taxAmount, displayCurrency)}
-            </p>
-          </div>
-        </div>
-
-        <div className='mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700'>
-          Final = Supplier Cost + Markup + Service Fee + Tax - Discount
-        </div>
-        <div className='mt-3 flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300'>
-          <div className='flex items-center justify-between'>
-            <span>Subtotal</span>
-            <span>{formatMoney(commercial.subtotal, displayCurrency)}</span>
-          </div>
-          <div className='flex items-center justify-between'>
-            <span>Discount</span>
-            <span>-{formatMoney(commercial.discount, displayCurrency)}</span>
-          </div>
-          <div className='flex items-center justify-between border-t border-gray-200 pt-2 font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100'>
-            <span>Final Amount</span>
-            <span>{formatMoney(commercial.finalAmount, displayCurrency)}</span>
-          </div>
-        </div>
-      </SurfaceCard>
-
-      {noteSections.length ||
-      contentTemplate?.headerBranding ||
-      contentTemplate?.inclusions ||
-      contentTemplate?.exclusions ||
-      contentTemplate?.paymentTerms ||
-      contentTemplate?.cancellationPolicy ||
-      contentTemplate?.footerDisclaimer ? (
         <SurfaceCard className='p-4 sm:p-5'>
-          <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500'>
-            Quotation Content
-          </h2>
-          <div className='mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2'>
-            {contentTemplate?.headerBranding ? (
-              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                  Header Branding
-                </p>
-                <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
-                  {contentTemplate.headerBranding}
-                </p>
-              </div>
-            ) : null}
-            {contentTemplate?.paymentTerms ? (
-              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                  Payment Terms
-                </p>
-                <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
-                  {contentTemplate.paymentTerms}
-                </p>
-              </div>
-            ) : null}
-            {contentTemplate?.cancellationPolicy ? (
-              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                  Cancellation Policy
-                </p>
-                <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
-                  {contentTemplate.cancellationPolicy}
-                </p>
-              </div>
-            ) : null}
-            {contentTemplate?.footerDisclaimer ? (
-              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                  Footer Disclaimer
-                </p>
-                <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
-                  {contentTemplate.footerDisclaimer}
-                </p>
-              </div>
-            ) : null}
-            {contentTemplate?.inclusions ? (
-              <div className='rounded-lg border border-green-200 bg-green-50 p-3'>
-                <p className='text-xs font-semibold uppercase tracking-wide text-green-700'>
-                  Inclusions
-                </p>
-                <p className='mt-1 text-sm text-green-800 whitespace-pre-wrap'>
-                  {contentTemplate.inclusions}
-                </p>
-              </div>
-            ) : null}
-            {contentTemplate?.exclusions ? (
-              <div className='rounded-lg border border-red-200 bg-red-50 p-3'>
-                <p className='text-xs font-semibold uppercase tracking-wide text-red-700'>
-                  Exclusions
-                </p>
-                <p className='mt-1 text-sm text-red-800 whitespace-pre-wrap'>
-                  {contentTemplate.exclusions}
-                </p>
-              </div>
-            ) : null}
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Customer
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {lead?.fullName || 'N/A'}
+              </p>
+              <p className='text-xs text-gray-500'>{lead?.email || 'N/A'}</p>
+              <p className='text-xs text-gray-500'>{lead?.phone || 'N/A'}</p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Destination
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {destination?.name || lead?.destinationName || 'N/A'}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {destination?.country || 'N/A'}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Template
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {template?.name || quotation.templateSnapshot?.name || 'N/A'}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {template?.code || quotation.templateSnapshot?.code || 'N/A'}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Created By
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {createdByUser?.fullName || quotation.createdBy || 'N/A'}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {createdByUser?.email || 'N/A'}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Approved By
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {approvedByUser?.fullName || quotation.approvedBy || 'N/A'}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {formatDate(quotation.approvedAt)}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Linked Booking
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {booking?.bookingNumber || 'N/A'}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {booking
+                  ? `${booking.status || 'N/A'} / ${
+                      booking.paymentStatus || 'N/A'
+                    }`
+                  : 'N/A'}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Pricing Reference
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {pricing?.id || quotation.pricingId || 'N/A'}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Base{' '}
+                {pricing
+                  ? formatMoney(toNumber(pricing.baseCost, 0), displayCurrency)
+                  : 'N/A'}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Sent By
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {sentByUser?.fullName || quotation.sentBy || 'N/A'}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {formatDate(quotation.sentAt)}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                View Count
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {toNumber(quotation.viewCount, 0)}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Last viewed {formatDate(quotation.lastViewedAt)}
+              </p>
+            </div>
+          </div>
+        </SurfaceCard>
+
+        <SurfaceCard className='p-4 sm:p-5'>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500'>
+              Commercial Breakdown
+            </h2>
+            <span className='rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700'>
+              Currency: {displayCurrency}
+            </span>
+          </div>
+          <div className='mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4'>
+            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+              <p className='text-xs text-gray-500'>Supplier Cost</p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {formatMoney(commercial.supplierCost, displayCurrency)}
+              </p>
+            </div>
+            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+              <p className='text-xs text-gray-500'>
+                Markup ({commercial.marginPercent}%)
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {formatMoney(commercial.markupAmount, displayCurrency)}
+              </p>
+            </div>
+            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+              <p className='text-xs text-gray-500'>Service Fee</p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {formatMoney(commercial.serviceFeeAmount, displayCurrency)}
+              </p>
+            </div>
+            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+              <p className='text-xs text-gray-500'>Tax</p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {formatMoney(commercial.taxAmount, displayCurrency)}
+              </p>
+            </div>
           </div>
 
-          {noteSections.length ? (
-            <div className='mt-4 space-y-3'>
-              {noteSections.map(section => (
-                <div
-                  key={section.id}
-                  className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'
-                >
+          <div className='mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700'>
+            Final = Supplier Cost + Markup + Service Fee + Tax - Discount
+          </div>
+          <div className='mt-3 flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300'>
+            <div className='flex items-center justify-between'>
+              <span>Subtotal</span>
+              <span>{formatMoney(commercial.subtotal, displayCurrency)}</span>
+            </div>
+            <div className='flex items-center justify-between'>
+              <span>Discount</span>
+              <span>-{formatMoney(commercial.discount, displayCurrency)}</span>
+            </div>
+            <div className='flex items-center justify-between border-t border-gray-200 pt-2 font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100'>
+              <span>Final Amount</span>
+              <span>
+                {formatMoney(commercial.finalAmount, displayCurrency)}
+              </span>
+            </div>
+          </div>
+        </SurfaceCard>
+
+        {noteSections.length ||
+        contentTemplate?.headerBranding ||
+        contentTemplate?.inclusions ||
+        contentTemplate?.exclusions ||
+        contentTemplate?.paymentTerms ||
+        contentTemplate?.cancellationPolicy ||
+        contentTemplate?.footerDisclaimer ? (
+          <SurfaceCard className='p-4 sm:p-5'>
+            <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500'>
+              Quotation Content
+            </h2>
+            <div className='mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2'>
+              {contentTemplate?.headerBranding ? (
+                <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
                   <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    {section.title}
+                    Header Branding
                   </p>
                   <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
-                    {section.content}
+                    {contentTemplate.headerBranding}
                   </p>
                 </div>
-              ))}
-            </div>
-          ) : null}
-        </SurfaceCard>
-      ) : null}
-
-      <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
-        <div className='border-b border-gray-200 dark:border-gray-800 p-3 sm:p-4'>
-          <div className='sm:hidden'>
-            <select
-              value={activeTab}
-              onChange={e => setActiveTab(e.target.value as TabId)}
-              className='w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm'
-            >
-              {tabs.map(tab => (
-                <option key={tab.id} value={tab.id}>
-                  {tab.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className='hidden sm:flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-max'>
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className='p-4'>
-          {activeTab === 'components' && (
-            <div className='space-y-4'>
-              {rows.length ? (
-                <div className='overflow-x-auto'>
-                  <table className='w-full'>
-                    <thead>
-                      <tr className='border-b border-gray-200 dark:border-gray-800'>
-                        <th className='pb-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                          Type
-                        </th>
-                        <th className='pb-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                          Description
-                        </th>
-                        <th className='pb-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                          Cost
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                      {rows.map(row => (
-                        <tr
-                          key={row.id}
-                          className='hover:bg-gray-50 dark:hover:bg-gray-800/40'
-                        >
-                          <td className='py-3 text-sm text-gray-700 dark:text-gray-300'>
-                            {row.itemType}
-                          </td>
-                          <td className='py-3 text-sm text-gray-900 dark:text-gray-100'>
-                            {row.description}
-                          </td>
-                          <td className='py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100'>
-                            {formatMoney(row.cost, displayCurrency)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              ) : null}
+              {contentTemplate?.paymentTerms ? (
+                <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    Payment Terms
+                  </p>
+                  <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
+                    {contentTemplate.paymentTerms}
+                  </p>
                 </div>
-              ) : (
-                <EmptyState
-                  title='No components'
-                  description='This quotation has no quotation items.'
-                  icon={<FaPlus className='text-4xl' />}
-                />
-              )}
+              ) : null}
+              {contentTemplate?.cancellationPolicy ? (
+                <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    Cancellation Policy
+                  </p>
+                  <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
+                    {contentTemplate.cancellationPolicy}
+                  </p>
+                </div>
+              ) : null}
+              {contentTemplate?.footerDisclaimer ? (
+                <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    Footer Disclaimer
+                  </p>
+                  <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
+                    {contentTemplate.footerDisclaimer}
+                  </p>
+                </div>
+              ) : null}
+              {contentTemplate?.inclusions ? (
+                <div className='rounded-lg border border-green-200 bg-green-50 p-3'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-green-700'>
+                    Inclusions
+                  </p>
+                  <p className='mt-1 text-sm text-green-800 whitespace-pre-wrap'>
+                    {contentTemplate.inclusions}
+                  </p>
+                </div>
+              ) : null}
+              {contentTemplate?.exclusions ? (
+                <div className='rounded-lg border border-red-200 bg-red-50 p-3'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-red-700'>
+                    Exclusions
+                  </p>
+                  <p className='mt-1 text-sm text-red-800 whitespace-pre-wrap'>
+                    {contentTemplate.exclusions}
+                  </p>
+                </div>
+              ) : null}
             </div>
-          )}
 
-          {activeTab === 'versions' && (
-            <div className='space-y-3'>
-              {versions.length ? (
-                versions.map(version => (
+            {noteSections.length ? (
+              <div className='mt-4 space-y-3'>
+                {noteSections.map(section => (
                   <div
-                    key={version.id}
-                    className='flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg'
+                    key={section.id}
+                    className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'
                   >
-                    <div className='w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0'>
-                      <FaClockRotateLeft className='text-blue-600 dark:text-blue-400 text-sm' />
-                    </div>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-center justify-between gap-2'>
-                        <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                          Version {version.version}
-                        </p>
-                        <p className='text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap'>
-                          {formatDate(version.createdAt)}
-                        </p>
-                      </div>
-                      <p className='text-xs text-gray-600 dark:text-gray-300 mt-1'>
-                        {version.changes}
-                      </p>
-                      <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                        by {version.createdBy}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <EmptyState
-                  title='No version history'
-                  description='No version logs found for this quotation.'
-                  icon={<FaClockRotateLeft className='text-4xl' />}
-                />
-              )}
-            </div>
-          )}
-
-          {activeTab === 'logs' && (
-            <div className='space-y-3'>
-              {logs.length ? (
-                logs.map(log => (
-                  <div
-                    key={log.id}
-                    className='p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg space-y-2'
-                  >
-                    <div className='flex items-center justify-between'>
-                      <div className='flex items-center gap-2'>
-                        {log.method === 'email' ? (
-                          <FaEnvelope className='text-blue-500' />
-                        ) : log.method === 'whatsapp' ? (
-                          <FaPaperPlane className='text-green-500' />
-                        ) : (
-                          <FaPaperPlane className='text-gray-500' />
-                        )}
-                        <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                          Sent via {log.method}
-                        </p>
-                      </div>
-                      <p className='text-xs text-gray-500 dark:text-gray-400'>
-                        {formatDate(log.sentAt)}
-                      </p>
-                    </div>
-                    <p className='text-xs text-gray-600 dark:text-gray-300'>
-                      To: {log.sentTo}
+                    <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      {section.title}
                     </p>
-                    {log.viewedAt ? (
-                      <p className='text-xs text-green-600 dark:text-green-400 flex items-center gap-1'>
-                        <FaEye /> Viewed {log.viewCount} times - Last{' '}
-                        {formatDate(log.viewedAt)}
-                      </p>
-                    ) : (
-                      <p className='text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1'>
-                        <FaEye /> Not viewed yet
-                      </p>
-                    )}
+                    <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
+                      {section.content}
+                    </p>
                   </div>
-                ))
-              ) : (
-                <EmptyState
-                  title='No send logs'
-                  description='Send this quotation to start tracking delivery and views.'
-                  icon={<FaEye className='text-4xl' />}
-                />
-              )}
+                ))}
+              </div>
+            ) : null}
+          </SurfaceCard>
+        ) : null}
+
+        <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+          <div className='border-b border-gray-200 dark:border-gray-800 p-3 sm:p-4'>
+            <div className='sm:hidden'>
+              <select
+                value={activeTab}
+                onChange={e => setActiveTab(e.target.value as TabId)}
+                className='w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm'
+              >
+                {tabs.map(tab => (
+                  <option key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
-        </div>
-      </SurfaceCard>
+
+            <div className='hidden sm:flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-max'>
+              {tabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className='p-4'>
+            {activeTab === 'components' && (
+              <div className='space-y-4'>
+                {rows.length ? (
+                  <div className='overflow-x-auto'>
+                    <table className='w-full'>
+                      <thead>
+                        <tr className='border-b border-gray-200 dark:border-gray-800'>
+                          <th className='pb-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                            Type
+                          </th>
+                          <th className='pb-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                            Description
+                          </th>
+                          <th className='pb-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                            Cost
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                        {rows.map(row => (
+                          <tr
+                            key={row.id}
+                            className='hover:bg-gray-50 dark:hover:bg-gray-800/40'
+                          >
+                            <td className='py-3 text-sm text-gray-700 dark:text-gray-300'>
+                              {row.itemType}
+                            </td>
+                            <td className='py-3 text-sm text-gray-900 dark:text-gray-100'>
+                              {row.description}
+                            </td>
+                            <td className='py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100'>
+                              {formatMoney(row.cost, displayCurrency)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <EmptyState
+                    title='No components'
+                    description='This quotation has no quotation items.'
+                    icon={<FaPlus className='text-4xl' />}
+                  />
+                )}
+              </div>
+            )}
+
+            {activeTab === 'versions' && (
+              <div className='space-y-3'>
+                {versions.length ? (
+                  versions.map(version => (
+                    <div
+                      key={version.id}
+                      className='flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg'
+                    >
+                      <div className='w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0'>
+                        <FaClockRotateLeft className='text-blue-600 dark:text-blue-400 text-sm' />
+                      </div>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-center justify-between gap-2'>
+                          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            Version {version.version}
+                          </p>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap'>
+                            {formatDate(version.createdAt)}
+                          </p>
+                        </div>
+                        <p className='text-xs text-gray-600 dark:text-gray-300 mt-1'>
+                          {version.changes}
+                        </p>
+                        <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                          by {version.createdBy}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState
+                    title='No version history'
+                    description='No version logs found for this quotation.'
+                    icon={<FaClockRotateLeft className='text-4xl' />}
+                  />
+                )}
+              </div>
+            )}
+
+            {activeTab === 'logs' && (
+              <div className='space-y-3'>
+                {logs.length ? (
+                  logs.map(log => (
+                    <div
+                      key={log.id}
+                      className='p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg space-y-2'
+                    >
+                      <div className='flex items-center justify-between'>
+                        <div className='flex items-center gap-2'>
+                          {log.method === 'email' ? (
+                            <FaEnvelope className='text-blue-500' />
+                          ) : log.method === 'whatsapp' ? (
+                            <FaPaperPlane className='text-green-500' />
+                          ) : (
+                            <FaPaperPlane className='text-gray-500' />
+                          )}
+                          <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                            Sent via {log.method}
+                          </p>
+                        </div>
+                        <p className='text-xs text-gray-500 dark:text-gray-400'>
+                          {formatDate(log.sentAt)}
+                        </p>
+                      </div>
+                      <p className='text-xs text-gray-600 dark:text-gray-300'>
+                        To: {log.sentTo}
+                      </p>
+                      {log.viewedAt ? (
+                        <p className='text-xs text-green-600 dark:text-green-400 flex items-center gap-1'>
+                          <FaEye /> Viewed {log.viewCount} times - Last{' '}
+                          {formatDate(log.viewedAt)}
+                        </p>
+                      ) : (
+                        <p className='text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1'>
+                          <FaEye /> Not viewed yet
+                        </p>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState
+                    title='No send logs'
+                    description='Send this quotation to start tracking delivery and views.'
+                    icon={<FaEye className='text-4xl' />}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </SurfaceCard>
       </div>
 
       {showRejectModal && (

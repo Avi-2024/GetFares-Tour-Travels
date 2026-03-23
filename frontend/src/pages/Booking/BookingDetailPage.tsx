@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   FaFileInvoice,
   FaCreditCard,
@@ -12,177 +12,288 @@ import {
   FaXmark,
   FaCircleCheck,
   FaCircleExclamation,
-  FaArrowLeft,
-} from "react-icons/fa6";
-import { bookingsApi } from "../../api/bookings";
-import { paymentsApi } from "../../api/payments";
-import { getApiErrorMessage } from "../../api/apiClient";
+  FaArrowLeft
+} from 'react-icons/fa6'
+import { bookingsApi } from '../../api/bookings'
+import { paymentsApi } from '../../api/payments'
+import { getApiErrorMessage } from '../../api/apiClient'
 
 // Types
-type DeadlineRiskLevel = "SAFE" | "D2_DUE" | "DEADLINE_DUE" | "OVERDUE";
+type DeadlineRiskLevel = 'SAFE' | 'D2_DUE' | 'DEADLINE_DUE' | 'OVERDUE'
 
 interface Booking {
-  id: string;
-  bookingNumber: string;
-  quotationId: string;
-  quotationNumber?: string;
-  travelStart: string;
-  travelEnd: string;
-  totalAmount: number;
-  costAmount: number;
-  profit: number;
-  status: "PENDING" | "CONFIRMED" | "CANCELLED";
-  paymentStatus: "PENDING" | "PARTIAL" | "COMPLETED" | "REFUNDED";
-  advanceRequired: number;
-  advanceReceived: number;
-  clientCurrency: string;
-  supplierCurrency: string;
-  cancellationReason?: string;
-  cancelledAt?: string;
-  cancelledBy?: string;
-  blockingDeadlineAt?: string;
-  supplierPaymentDeadlineAt?: string;
-  cancellationDeadlineAt?: string;
-  balanceDueBy?: string;
-  deadlineRiskLevel?: DeadlineRiskLevel;
-  supplierDetails?: Record<string, unknown>;
-  dmcDetails?: Record<string, unknown>;
-  hotelSegments?: Array<Record<string, unknown>>;
-  flightSegments?: Array<Record<string, unknown>>;
-  insuranceDetails?: Record<string, unknown>;
-  otherServices?: Array<Record<string, unknown>>;
+  id: string
+  bookingNumber: string
+  customerName?: string
+  quotationId: string
+  quotationNumber?: string
+  travelStart: string
+  travelEnd: string
+  totalAmount: number
+  costAmount: number
+  profit: number
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED'
+  paymentStatus: 'PENDING' | 'PARTIAL' | 'COMPLETED' | 'REFUNDED'
+  advanceRequired: number
+  advanceReceived: number
+  clientCurrency: string
+  supplierCurrency: string
+  cancellationReason?: string
+  cancelledAt?: string
+  cancelledBy?: string
+  blockingDeadlineAt?: string
+  supplierPaymentDeadlineAt?: string
+  cancellationDeadlineAt?: string
+  balanceDueBy?: string
+  deadlineRiskLevel?: DeadlineRiskLevel
+  supplierDetails?: Record<string, unknown>
+  dmcDetails?: Record<string, unknown>
+  hotelSegments?: Array<Record<string, unknown>>
+  flightSegments?: Array<Record<string, unknown>>
+  insuranceDetails?: Record<string, unknown>
+  otherServices?: Array<Record<string, unknown>>
 }
 
 interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  amount: number;
-  status: "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
-  dueDate: string;
-  createdAt: string;
-  generatedAt?: string;
-  paidAt?: string;
-  paidAmount?: number;
-  pdfUrl?: string;
-  notes?: string;
+  id: string
+  invoiceNumber: string
+  amount: number
+  status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED'
+  dueDate: string
+  createdAt: string
+  generatedAt?: string
+  paidAt?: string
+  paidAmount?: number
+  pdfUrl?: string
+  notes?: string
 }
 
 interface StatusHistory {
-  id: string;
-  status: string;
-  changedBy: string;
-  changedAt: string;
-  reason?: string;
+  id: string
+  status: string
+  changedBy: string
+  changedAt: string
+  reason?: string
   type:
-    | "status_change"
-    | "invoice_generated"
-    | "payment_received"
-    | "cancellation";
+    | 'status_change'
+    | 'invoice_generated'
+    | 'payment_received'
+    | 'cancellation'
 }
 
 interface Payment {
-  id: string;
-  amount: number;
-  date: string;
-  mode: "cash" | "card" | "bank" | "gateway";
-  reference?: string;
-  status: "pending" | "completed" | "failed";
+  id: string
+  amount: number
+  date: string
+  mode: 'cash' | 'card' | 'bank' | 'gateway'
+  reference?: string
+  status: 'pending' | 'completed' | 'failed'
 }
 
-const unwrapData = <T,>(response: unknown): T | null => {
-  if (!response) return null;
-  if (typeof response === "object" && response && "data" in response) {
-    return (response as { data: T }).data ?? null;
+function unwrapData<T> (response: unknown): T | null {
+  if (!response) return null
+  if (typeof response === 'object' && response && 'data' in response) {
+    return (response as { data: T }).data ?? null
   }
-  return response as T;
-};
+  return response as T
+}
 
 const toNumber = (value: unknown, fallback = 0) => {
-  if (value === null || value === undefined) return fallback;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
+  if (value === null || value === undefined) return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
 
 const toIso = (value: unknown): string | null => {
-  if (!value) return null;
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
-};
+  if (!value) return null
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString()
+}
 
-const normalizeStatus = (value?: string): Booking["status"] => {
-  switch ((value ?? "").toUpperCase()) {
-    case "CONFIRMED":
-      return "CONFIRMED";
-    case "CANCELLED":
-    case "CANCELED":
-      return "CANCELLED";
-    case "PENDING":
-    default:
-      return "PENDING";
-  }
-};
+const normalizeDateTime = (value: unknown): string | undefined => {
+  if (value === null || value === undefined || value === '') return undefined
 
-const normalizePaymentStatus = (
-  value?: string,
-): Booking["paymentStatus"] => {
-  switch ((value ?? "").toUpperCase()) {
-    case "FULL":
-    case "COMPLETED":
-    case "PAID":
-      return "COMPLETED";
-    case "PARTIAL":
-      return "PARTIAL";
-    case "REFUNDED":
-      return "REFUNDED";
-    case "PENDING":
-    default:
-      return "PENDING";
+  const raw =
+    typeof value === 'string'
+      ? value.trim()
+      : typeof value === 'number'
+      ? String(value)
+      : String(value)
+  if (!raw) return undefined
+
+  const direct = new Date(raw)
+  if (!Number.isNaN(direct.getTime())) return direct.toISOString()
+
+  if (/^\d+$/.test(raw)) {
+    const asNumber = Number(raw)
+    if (Number.isFinite(asNumber)) {
+      const tsDate = new Date(asNumber)
+      if (!Number.isNaN(tsDate.getTime())) return tsDate.toISOString()
+    }
   }
-};
+
+  return undefined
+}
+
+const pickFirstDate = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    const normalized = normalizeDateTime(value)
+    if (normalized) return normalized
+  }
+  return undefined
+}
+
+const normalizeStatus = (value?: string): Booking['status'] => {
+  switch ((value ?? '').toUpperCase()) {
+    case 'CONFIRMED':
+      return 'CONFIRMED'
+    case 'CANCELLED':
+    case 'CANCELED':
+      return 'CANCELLED'
+    case 'PENDING':
+    default:
+      return 'PENDING'
+  }
+}
+
+const normalizePaymentStatus = (value?: string): Booking['paymentStatus'] => {
+  switch ((value ?? '').toUpperCase()) {
+    case 'FULL':
+    case 'COMPLETED':
+    case 'PAID':
+      return 'COMPLETED'
+    case 'PARTIAL':
+      return 'PARTIAL'
+    case 'REFUNDED':
+      return 'REFUNDED'
+    case 'PENDING':
+    default:
+      return 'PENDING'
+  }
+}
 
 const normalizeDeadlineRisk = (value?: string): DeadlineRiskLevel => {
-  const normalized = String(value ?? "").toUpperCase();
+  const normalized = String(value ?? '').toUpperCase()
   if (
-    normalized === "D2_DUE" ||
-    normalized === "DEADLINE_DUE" ||
-    normalized === "OVERDUE"
+    normalized === 'D2_DUE' ||
+    normalized === 'DEADLINE_DUE' ||
+    normalized === 'OVERDUE'
   ) {
-    return normalized;
+    return normalized
   }
-  return "SAFE";
-};
+  return 'SAFE'
+}
 
-const normalizePaymentMode = (value?: string): Payment["mode"] => {
-  switch ((value ?? "").toUpperCase()) {
-    case "CASH":
-      return "cash";
-    case "CARD":
-      return "card";
-    case "PAYMENT_GATEWAY":
-    case "GATEWAY":
-    case "UPI":
-      return "gateway";
-    case "BANK_TRANSFER":
-    case "BANK":
+const normalizePaymentMode = (value?: string): Payment['mode'] => {
+  switch ((value ?? '').toUpperCase()) {
+    case 'CASH':
+      return 'cash'
+    case 'CARD':
+      return 'card'
+    case 'PAYMENT_GATEWAY':
+    case 'GATEWAY':
+    case 'UPI':
+      return 'gateway'
+    case 'BANK_TRANSFER':
+    case 'BANK':
     default:
-      return "bank";
+      return 'bank'
   }
-};
+}
 
 const mapBookingFromApi = (raw: any): Booking => {
-  const totalAmount = toNumber(raw?.totalAmount ?? raw?.total_amount, 0);
-  const costAmount = toNumber(raw?.costAmount ?? raw?.cost_amount, 0);
-  const profit = Number((totalAmount - costAmount).toFixed(2));
+  const totalAmount = toNumber(raw?.totalAmount ?? raw?.total_amount, 0)
+  const costAmount = toNumber(raw?.costAmount ?? raw?.cost_amount, 0)
+  const profit = Number((totalAmount - costAmount).toFixed(2))
+  const deadlineInfo =
+    raw?.deadlineTracking ??
+    raw?.deadline_tracking ??
+    raw?.deadlineInsights ??
+    raw?.deadline_insights ??
+    raw?.deadlines ??
+    {}
+
+  const blockingDeadlineAt = pickFirstDate(
+    raw?.blockingDeadlineAt,
+    raw?.blocking_deadline_at,
+    raw?.blockingDeadline,
+    raw?.blocking_deadline,
+    deadlineInfo?.blockingDeadlineAt,
+    deadlineInfo?.blocking_deadline_at,
+    deadlineInfo?.blockingDeadline,
+    deadlineInfo?.blocking_deadline
+  )
+
+  const supplierPaymentDeadlineAt = pickFirstDate(
+    raw?.supplierPaymentDeadlineAt,
+    raw?.supplier_payment_deadline_at,
+    raw?.supplierDeadlineAt,
+    raw?.supplier_deadline_at,
+    raw?.supplierDeadline,
+    raw?.supplier_deadline,
+    deadlineInfo?.supplierPaymentDeadlineAt,
+    deadlineInfo?.supplier_payment_deadline_at,
+    deadlineInfo?.supplierDeadlineAt,
+    deadlineInfo?.supplier_deadline_at,
+    deadlineInfo?.supplierDeadline,
+    deadlineInfo?.supplier_deadline
+  )
+
+  const cancellationDeadlineAt = pickFirstDate(
+    raw?.cancellationDeadlineAt,
+    raw?.cancellation_deadline_at,
+    raw?.cancelDeadlineAt,
+    raw?.cancel_deadline_at,
+    raw?.cancellationDeadline,
+    raw?.cancellation_deadline,
+    deadlineInfo?.cancellationDeadlineAt,
+    deadlineInfo?.cancellation_deadline_at,
+    deadlineInfo?.cancelDeadlineAt,
+    deadlineInfo?.cancel_deadline_at,
+    deadlineInfo?.cancellationDeadline,
+    deadlineInfo?.cancellation_deadline
+  )
+
+  const balanceDueBy = pickFirstDate(
+    raw?.balanceDueBy,
+    raw?.balance_due_by,
+    raw?.balanceDueAt,
+    raw?.balance_due_at,
+    raw?.dueBy,
+    raw?.due_by,
+    deadlineInfo?.balanceDueBy,
+    deadlineInfo?.balance_due_by,
+    deadlineInfo?.balanceDueAt,
+    deadlineInfo?.balance_due_at,
+    deadlineInfo?.dueBy,
+    deadlineInfo?.due_by
+  )
+
   return {
-    id: String(raw?.id ?? ""),
+    id: String(raw?.id ?? ''),
     bookingNumber:
       raw?.bookingNumber ??
       raw?.booking_number ??
       raw?.code ??
       raw?.bookingId ??
-      "N/A",
-    quotationId: raw?.quotationId ?? raw?.quotation_id ?? "",
+      'N/A',
+    customerName:
+      raw?.customerName ??
+      raw?.customer_name ??
+      raw?.customer ??
+      raw?.clientName ??
+      raw?.client_name ??
+      raw?.lead?.fullName ??
+      raw?.lead?.name ??
+      raw?.relations?.lead?.fullName ??
+      raw?.relations?.lead?.name ??
+      raw?.quotation?.lead?.fullName ??
+      raw?.quotation?.lead?.name ??
+      raw?.relations?.quotation?.lead?.fullName ??
+      raw?.relations?.quotation?.lead?.name ??
+      undefined,
+    quotationId: raw?.quotationId ?? raw?.quotation_id ?? '',
     quotationNumber:
       raw?.quotationNumber ??
       raw?.quotation_number ??
@@ -190,111 +301,96 @@ const mapBookingFromApi = (raw: any): Booking => {
       raw?.relations?.quotation?.quoteNumber ??
       undefined,
     travelStart:
-      raw?.travelStartDate ??
-      raw?.travel_start_date ??
-      raw?.travelStart ??
-      "",
+      raw?.travelStartDate ?? raw?.travel_start_date ?? raw?.travelStart ?? '',
     travelEnd:
-      raw?.travelEndDate ?? raw?.travel_end_date ?? raw?.travelEnd ?? "",
+      raw?.travelEndDate ?? raw?.travel_end_date ?? raw?.travelEnd ?? '',
     totalAmount,
     costAmount,
     profit,
     status: normalizeStatus(raw?.status),
     paymentStatus: normalizePaymentStatus(
-      raw?.paymentStatus ?? raw?.payment_status,
+      raw?.paymentStatus ?? raw?.payment_status
     ),
-    advanceRequired: toNumber(
-      raw?.advanceRequired ?? raw?.advance_required,
-      0,
-    ),
-    advanceReceived: toNumber(
-      raw?.advanceReceived ?? raw?.advance_received,
-      0,
-    ),
-    clientCurrency: raw?.clientCurrency ?? raw?.client_currency ?? "INR",
-    supplierCurrency: raw?.supplierCurrency ?? raw?.supplier_currency ?? "INR",
+    advanceRequired: toNumber(raw?.advanceRequired ?? raw?.advance_required, 0),
+    advanceReceived: toNumber(raw?.advanceReceived ?? raw?.advance_received, 0),
+    clientCurrency: raw?.clientCurrency ?? raw?.client_currency ?? 'INR',
+    supplierCurrency: raw?.supplierCurrency ?? raw?.supplier_currency ?? 'INR',
     cancellationReason:
       raw?.cancellationReason ?? raw?.cancellation_reason ?? undefined,
     cancelledAt: raw?.cancelledAt ?? raw?.cancelled_at ?? undefined,
     cancelledBy: raw?.cancelledBy ?? raw?.cancelled_by ?? undefined,
-    blockingDeadlineAt:
-      raw?.blockingDeadlineAt ?? raw?.blocking_deadline_at ?? undefined,
-    supplierPaymentDeadlineAt:
-      raw?.supplierPaymentDeadlineAt ??
-      raw?.supplier_payment_deadline_at ??
-      undefined,
-    cancellationDeadlineAt:
-      raw?.cancellationDeadlineAt ??
-      raw?.cancellation_deadline_at ??
-      undefined,
-    balanceDueBy: raw?.balanceDueBy ?? raw?.balance_due_by ?? undefined,
+    blockingDeadlineAt,
+    supplierPaymentDeadlineAt,
+    cancellationDeadlineAt,
+    balanceDueBy,
     deadlineRiskLevel: normalizeDeadlineRisk(
-      raw?.deadlineRiskLevel ?? raw?.deadline_risk_level ?? "SAFE",
+      raw?.deadlineRiskLevel ?? raw?.deadline_risk_level ?? 'SAFE'
     ),
     supplierDetails: raw?.supplierDetails ?? raw?.supplier_details ?? {},
     dmcDetails: raw?.dmcDetails ?? raw?.dmc_details ?? {},
     hotelSegments: raw?.hotelSegments ?? raw?.hotel_segments ?? [],
     flightSegments: raw?.flightSegments ?? raw?.flight_segments ?? [],
     insuranceDetails: raw?.insuranceDetails ?? raw?.insurance_details ?? {},
-    otherServices: raw?.otherServices ?? raw?.other_services ?? [],
-  };
-};
+    otherServices: raw?.otherServices ?? raw?.other_services ?? []
+  }
+}
 
 const addDays = (dateIso: string, days: number) => {
-  const date = new Date(dateIso);
-  if (Number.isNaN(date.getTime())) return dateIso;
-  date.setDate(date.getDate() + days);
-  return date.toISOString().split("T")[0];
-};
+  const date = new Date(dateIso)
+  if (Number.isNaN(date.getTime())) return dateIso
+  date.setDate(date.getDate() + days)
+  return date.toISOString().split('T')[0]
+}
 
 const mapInvoiceFromApi = (raw: any, booking: Booking): Invoice => {
   const generatedAt =
     toIso(raw?.generatedAt ?? raw?.generated_at ?? raw?.createdAt) ??
-    new Date().toISOString();
-  const createdAt = generatedAt;
-  const dueDate = raw?.dueDate ?? raw?.due_date ?? addDays(createdAt, 7);
+    new Date().toISOString()
+  const createdAt = generatedAt
+  const dueDate = raw?.dueDate ?? raw?.due_date ?? addDays(createdAt, 7)
   const amount = toNumber(
     raw?.amount ??
       raw?.totalAmount ??
       raw?.total_amount ??
       Math.max(booking.totalAmount - booking.advanceReceived, 0),
-    0,
-  );
-  const statusRaw = String(raw?.status ?? "").toUpperCase();
-  const status: Invoice["status"] = [
-    "DRAFT",
-    "SENT",
-    "PAID",
-    "OVERDUE",
-    "CANCELLED",
+    0
+  )
+  const statusRaw = String(raw?.status ?? '').toUpperCase()
+  const status: Invoice['status'] = [
+    'DRAFT',
+    'SENT',
+    'PAID',
+    'OVERDUE',
+    'CANCELLED'
   ].includes(statusRaw)
-    ? (statusRaw as Invoice["status"])
+    ? (statusRaw as Invoice['status'])
     : raw?.pdfUrl
-      ? "SENT"
-      : "DRAFT";
+    ? 'SENT'
+    : 'DRAFT'
   return {
-    id: String(raw?.id ?? ""),
+    id: String(raw?.id ?? ''),
     invoiceNumber:
-      raw?.invoiceNumber ?? raw?.invoice_number ?? raw?.code ?? "INV",
+      raw?.invoiceNumber ?? raw?.invoice_number ?? raw?.code ?? 'INV',
     amount,
     status,
     dueDate,
     createdAt,
     generatedAt,
-    pdfUrl: raw?.pdfUrl ?? raw?.pdf_url ?? undefined,
-  };
-};
+    pdfUrl: raw?.pdfUrl ?? raw?.pdf_url ?? undefined
+  }
+}
 
 const mapPaymentFromApi = (raw: any): Payment => {
-  const statusRaw = String(raw?.status ?? "").toUpperCase();
-  const isVerified = raw?.isVerified === true || raw?.is_verified === true;
-  const status: Payment["status"] = isVerified || statusRaw === "FULL"
-    ? "completed"
-    : statusRaw === "REFUNDED"
-      ? "failed"
-      : "pending";
+  const statusRaw = String(raw?.status ?? '').toUpperCase()
+  const isVerified = raw?.isVerified === true || raw?.is_verified === true
+  const status: Payment['status'] =
+    isVerified || statusRaw === 'FULL'
+      ? 'completed'
+      : statusRaw === 'REFUNDED'
+      ? 'failed'
+      : 'pending'
   return {
-    id: String(raw?.id ?? ""),
+    id: String(raw?.id ?? ''),
     amount: toNumber(raw?.amount, 0),
     date:
       toIso(raw?.paidAt ?? raw?.paid_at ?? raw?.createdAt ?? raw?.created_at) ??
@@ -306,97 +402,97 @@ const mapPaymentFromApi = (raw: any): Payment => {
       raw?.gatewayPaymentId ??
       raw?.gateway_payment_id ??
       undefined,
-    status,
-  };
-};
+    status
+  }
+}
 
 const buildHistory = (
   rows: any[],
   invoices: Invoice[],
-  payments: Payment[],
+  payments: Payment[]
 ): StatusHistory[] => {
-  const statusEntries = (Array.isArray(rows) ? rows : []).map((row) => {
-    const oldStatus = row?.oldStatus ?? row?.old_status ?? null;
-    const newStatus = row?.newStatus ?? row?.new_status ?? row?.status ?? "";
+  const statusEntries = (Array.isArray(rows) ? rows : []).map(row => {
+    const oldStatus = row?.oldStatus ?? row?.old_status ?? null
+    const newStatus = row?.newStatus ?? row?.new_status ?? row?.status ?? ''
     return {
-      id: String(row?.id ?? `status-${newStatus}-${row?.changedAt ?? ""}`),
-      status: String(newStatus || "UPDATED"),
-      changedBy: row?.changedBy ?? row?.changed_by ?? "System",
+      id: String(row?.id ?? `status-${newStatus}-${row?.changedAt ?? ''}`),
+      status: String(newStatus || 'UPDATED'),
+      changedBy: row?.changedBy ?? row?.changed_by ?? 'System',
       changedAt:
         toIso(row?.changedAt ?? row?.changed_at) ?? new Date().toISOString(),
       reason:
         oldStatus && newStatus
           ? `Status changed from ${oldStatus} to ${newStatus}`
           : undefined,
-      type: "status_change" as const,
-    };
-  });
+      type: 'status_change' as const
+    }
+  })
 
-  const invoiceEntries = invoices.map((invoice) => ({
+  const invoiceEntries = invoices.map(invoice => ({
     id: `invoice-${invoice.id}`,
-    status: "INVOICE_GENERATED",
-    changedBy: "System",
+    status: 'INVOICE_GENERATED',
+    changedBy: 'System',
     changedAt: invoice.generatedAt ?? invoice.createdAt,
     reason: invoice.invoiceNumber
       ? `Invoice ${invoice.invoiceNumber} generated`
-      : "Invoice generated",
-    type: "invoice_generated" as const,
-  }));
+      : 'Invoice generated',
+    type: 'invoice_generated' as const
+  }))
 
-  const paymentEntries = payments.map((payment) => ({
+  const paymentEntries = payments.map(payment => ({
     id: `payment-${payment.id}`,
-    status: "PAYMENT_RECEIVED",
-    changedBy: "System",
+    status: 'PAYMENT_RECEIVED',
+    changedBy: 'System',
     changedAt: payment.date,
     reason: `Payment of ${payment.amount} received`,
-    type: "payment_received" as const,
-  }));
+    type: 'payment_received' as const
+  }))
 
   return [...statusEntries, ...invoiceEntries, ...paymentEntries].sort(
-    (a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime(),
-  );
-};
+    (a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
+  )
+}
 
 // Toast Component
 const Toast = ({
   message,
-  type,
+  type
 }: {
-  message: string;
-  type: "success" | "error" | "info";
-  onClose: () => void;
+  message: string
+  type: 'success' | 'error' | 'info'
+  onClose: () => void
 }) => (
-  <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
+  <div className='fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn'>
     <div
       className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${
-        type === "success"
-          ? "bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800"
-          : type === "error"
-            ? "bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800"
-            : "bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800"
+        type === 'success'
+          ? 'bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800'
+          : type === 'error'
+          ? 'bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800'
+          : 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800'
       }`}
     >
-      {type === "success" ? (
-        <FaCircleCheck className="text-green-600 dark:text-green-400" />
-      ) : type === "error" ? (
-        <FaCircleExclamation className="text-red-600 dark:text-red-400" />
+      {type === 'success' ? (
+        <FaCircleCheck className='text-green-600 dark:text-green-400' />
+      ) : type === 'error' ? (
+        <FaCircleExclamation className='text-red-600 dark:text-red-400' />
       ) : (
-        <FaClock className="text-blue-600 dark:text-blue-400" />
+        <FaClock className='text-blue-600 dark:text-blue-400' />
       )}
       <p
         className={`text-sm font-medium ${
-          type === "success"
-            ? "text-green-800 dark:text-green-300"
-            : type === "error"
-              ? "text-red-800 dark:text-red-300"
-              : "text-blue-800 dark:text-blue-300"
+          type === 'success'
+            ? 'text-green-800 dark:text-green-300'
+            : type === 'error'
+            ? 'text-red-800 dark:text-red-300'
+            : 'text-blue-800 dark:text-blue-300'
         }`}
       >
         {message}
       </p>
     </div>
   </div>
-);
+)
 
 // Invoice Details Modal
 const InvoiceDetailsModal = ({
@@ -405,96 +501,96 @@ const InvoiceDetailsModal = ({
   onClose,
   onDownload,
   onMarkAsPaid,
-  currency,
+  currency
 }: {
-  isOpen: boolean;
-  invoice: Invoice | null;
-  onClose: () => void;
-  onDownload: () => void;
-  onMarkAsPaid: () => void;
-  currency?: string;
+  isOpen: boolean
+  invoice: Invoice | null
+  onClose: () => void
+  onDownload: () => void
+  onMarkAsPaid: () => void
+  currency?: string
 }) => {
-  if (!isOpen || !invoice) return null;
+  if (!isOpen || !invoice) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+    <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
+      <div className='bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto'>
+        <div className='sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between'>
+          <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             Invoice Details
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className='text-gray-400 hover:text-gray-600'
           >
-            <FaXmark className="text-xl" />
+            <FaXmark className='text-xl' />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <div className='p-6 space-y-6'>
+          <div className='flex items-center justify-between'>
             <div>
-              <p className="text-sm text-gray-500">Invoice Number</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className='text-sm text-gray-500'>Invoice Number</p>
+              <p className='text-xl font-bold text-gray-900'>
                 {invoice.invoiceNumber}
               </p>
             </div>
             <span
               className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-                invoice.status === "PAID"
-                  ? "bg-green-100 text-green-800 border-green-200"
-                  : invoice.status === "SENT"
-                    ? "bg-blue-100 text-blue-800 border-blue-200"
-                    : invoice.status === "OVERDUE"
-                      ? "bg-red-100 text-red-800 border-red-200"
-                      : "bg-gray-100 text-gray-800 border-gray-200"
+                invoice.status === 'PAID'
+                  ? 'bg-green-100 text-green-800 border-green-200'
+                  : invoice.status === 'SENT'
+                  ? 'bg-blue-100 text-blue-800 border-blue-200'
+                  : invoice.status === 'OVERDUE'
+                  ? 'bg-red-100 text-red-800 border-red-200'
+                  : 'bg-gray-100 text-gray-800 border-gray-200'
               }`}
             >
               {invoice.status}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500">Amount</p>
-              <p className="text-xl font-bold text-gray-900">
-                {new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: currency || "USD",
+          <div className='grid grid-cols-2 gap-4'>
+            <div className='p-4 bg-gray-50 rounded-lg'>
+              <p className='text-xs text-gray-500'>Amount</p>
+              <p className='text-xl font-bold text-gray-900'>
+                {new Intl.NumberFormat('en-US', {
+                  style: 'currency',
+                  currency: currency || 'USD'
                 }).format(invoice.amount)}
               </p>
             </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500">Due Date</p>
-              <p className="text-lg font-semibold text-gray-900">
+            <div className='p-4 bg-gray-50 rounded-lg'>
+              <p className='text-xs text-gray-500'>Due Date</p>
+              <p className='text-lg font-semibold text-gray-900'>
                 {new Date(invoice.dueDate).toLocaleDateString()}
               </p>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-gray-700">Details</h4>
-            <div className="space-y-2">
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-sm text-gray-500">Created At</span>
-                <span className="text-sm font-medium text-gray-900">
+          <div className='space-y-3'>
+            <h4 className='text-sm font-medium text-gray-700'>Details</h4>
+            <div className='space-y-2'>
+              <div className='flex justify-between py-2 border-b border-gray-100'>
+                <span className='text-sm text-gray-500'>Created At</span>
+                <span className='text-sm font-medium text-gray-900'>
                   {new Date(invoice.createdAt).toLocaleString()}
                 </span>
               </div>
               {invoice.paidAt && (
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-sm text-gray-500">Paid At</span>
-                  <span className="text-sm font-medium text-gray-900">
+                <div className='flex justify-between py-2 border-b border-gray-100'>
+                  <span className='text-sm text-gray-500'>Paid At</span>
+                  <span className='text-sm font-medium text-gray-900'>
                     {new Date(invoice.paidAt).toLocaleString()}
                   </span>
                 </div>
               )}
               {invoice.notes && (
-                <div className="py-2">
-                  <span className="text-sm text-gray-500 block mb-1">
+                <div className='py-2'>
+                  <span className='text-sm text-gray-500 block mb-1'>
                     Notes
                   </span>
-                  <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
+                  <p className='text-sm text-gray-700 bg-gray-50 p-2 rounded'>
                     {invoice.notes}
                   </p>
                 </div>
@@ -503,17 +599,17 @@ const InvoiceDetailsModal = ({
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3">
+        <div className='sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3'>
           <button
             onClick={onDownload}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+            className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2'
           >
             <FaDownload /> Download PDF
           </button>
-          {invoice.status !== "PAID" && (
+          {invoice.status !== 'PAID' && (
             <button
               onClick={onMarkAsPaid}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 flex items-center gap-2"
+              className='px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 flex items-center gap-2'
             >
               <FaCircleCheck /> Mark as Paid
             </button>
@@ -521,69 +617,69 @@ const InvoiceDetailsModal = ({
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
 // Payment Details Modal
 const PaymentDetailsModal = ({
   isOpen,
   payments,
   onClose,
-  onAddPayment,
+  onAddPayment
 }: {
-  isOpen: boolean;
-  payments: Payment[];
-  onClose: () => void;
-  onAddPayment: () => void;
+  isOpen: boolean
+  payments: Payment[]
+  onClose: () => void
+  onAddPayment: () => void
 }) => {
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+    <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
+      <div className='bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto'>
+        <div className='sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between'>
+          <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             Payment History
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className='text-gray-400 hover:text-gray-600'
           >
-            <FaXmark className="text-xl" />
+            <FaXmark className='text-xl' />
           </button>
         </div>
 
-        <div className="p-6">
+        <div className='p-6'>
           {payments.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No payments recorded yet</p>
+            <div className='text-center py-8'>
+              <p className='text-gray-500'>No payments recorded yet</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {payments.map((payment) => (
+            <div className='space-y-4'>
+              {payments.map(payment => (
                 <div
                   key={payment.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  className='flex items-center justify-between p-4 bg-gray-50 rounded-lg'
                 >
                   <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: "USD",
+                    <p className='text-sm font-medium text-gray-900'>
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD'
                       }).format(payment.amount)}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(payment.date).toLocaleString()} • {payment.mode}{" "}
+                    <p className='text-xs text-gray-500'>
+                      {new Date(payment.date).toLocaleString()} • {payment.mode}{' '}
                       • Ref: {payment.reference}
                     </p>
                   </div>
                   <span
                     className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      payment.status === "completed"
-                        ? "bg-green-100 text-green-800"
-                        : payment.status === "pending"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-red-100 text-red-800"
+                      payment.status === 'completed'
+                        ? 'bg-green-100 text-green-800'
+                        : payment.status === 'pending'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
                     }`}
                   >
                     {payment.status}
@@ -594,466 +690,482 @@ const PaymentDetailsModal = ({
           )}
         </div>
 
-        <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end">
+        <div className='sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end'>
           <button
             onClick={onAddPayment}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2'
           >
             <FaPlus /> Add Payment
           </button>
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
 const BookingDetailPage: React.FC = () => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("overview");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancellationReason, setCancellationReason] = useState("");
-  const [cancelError, setCancelError] = useState("");
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const customerNameFromList =
+    (
+      location.state as { customerName?: string } | null
+    )?.customerName?.trim() || ''
+  const [activeTab, setActiveTab] = useState('overview')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancellationReason, setCancellationReason] = useState('')
+  const [cancelError, setCancelError] = useState('')
   const [toast, setToast] = useState<{
-    show: boolean;
-    message: string;
-    type: "success" | "error" | "info";
+    show: boolean
+    message: string
+    type: 'success' | 'error' | 'info'
   }>({
     show: false,
-    message: "",
-    type: "success",
-  });
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [showPaymentsModal, setShowPaymentsModal] = useState(false);
+    message: '',
+    type: 'success'
+  })
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [showPaymentsModal, setShowPaymentsModal] = useState(false)
 
-  const showToast = (message: string, type: "success" | "error" | "info") => {
-    setToast({ show: true, message, type });
+  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
+    setToast({ show: true, message, type })
     setTimeout(
-      () => setToast({ show: false, message: "", type: "success" }),
-      3000,
-    );
-  };
+      () => setToast({ show: false, message: '', type: 'success' }),
+      3000
+    )
+  }
 
-  const [booking, setBooking] = useState<Booking | null>(null);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [history, setHistory] = useState<StatusHistory[]>([]);
+  const [booking, setBooking] = useState<Booking | null>(null)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [history, setHistory] = useState<StatusHistory[]>([])
 
   const fetchBookingData = async () => {
-    if (!id) return;
-    setLoading(true);
-    setError("");
+    if (!id) return
+    setLoading(true)
+    setError('')
     try {
       const [bookingRes, invoiceRes, historyRes, paymentRes] =
         await Promise.allSettled([
           bookingsApi.getById(id),
           bookingsApi.listInvoices(id),
           bookingsApi.statusHistory(id),
-          paymentsApi.list({ bookingId: id }),
-        ]);
+          paymentsApi.list({ bookingId: id })
+        ])
 
-      if (bookingRes.status !== "fulfilled") {
-        throw bookingRes.reason;
+      if (bookingRes.status !== 'fulfilled') {
+        throw bookingRes.reason
       }
 
-      const bookingData = unwrapData<any>(bookingRes.value);
+      const bookingData = unwrapData<any>(bookingRes.value)
       if (!bookingData) {
-        throw new Error("Booking not found");
+        throw new Error('Booking not found')
       }
-      const mappedBooking = mapBookingFromApi(bookingData);
+      const mappedBooking = mapBookingFromApi(bookingData)
+      const resolvedBooking: Booking = {
+        ...mappedBooking,
+        customerName:
+          mappedBooking.customerName?.trim() ||
+          customerNameFromList ||
+          'Unknown'
+      }
       const invoiceData =
-        invoiceRes.status === "fulfilled"
+        invoiceRes.status === 'fulfilled'
           ? unwrapData<any[]>(invoiceRes.value) ?? []
-          : [];
+          : []
       const paymentData =
-        paymentRes.status === "fulfilled"
+        paymentRes.status === 'fulfilled'
           ? unwrapData<any[]>(paymentRes.value) ?? []
-          : [];
+          : []
       const statusData =
-        historyRes.status === "fulfilled"
+        historyRes.status === 'fulfilled'
           ? unwrapData<any[]>(historyRes.value) ?? []
-          : [];
+          : []
 
-      const mappedInvoices = (Array.isArray(invoiceData) ? invoiceData : []).map(
-        (row) => mapInvoiceFromApi(row, mappedBooking),
-      );
-      const mappedPayments = (Array.isArray(paymentData) ? paymentData : []).map(
-        (row) => mapPaymentFromApi(row),
-      );
+      const mappedInvoices = (
+        Array.isArray(invoiceData) ? invoiceData : []
+      ).map(row => mapInvoiceFromApi(row, resolvedBooking))
+      const mappedPayments = (
+        Array.isArray(paymentData) ? paymentData : []
+      ).map(row => mapPaymentFromApi(row))
       const mappedHistory = buildHistory(
         Array.isArray(statusData) ? statusData : [],
         mappedInvoices,
-        mappedPayments,
-      );
+        mappedPayments
+      )
 
-      setBooking(mappedBooking);
-      setInvoices(mappedInvoices);
-      setPayments(mappedPayments);
-      setHistory(mappedHistory);
+      setBooking(resolvedBooking)
+      setInvoices(mappedInvoices)
+      setPayments(mappedPayments)
+      setHistory(mappedHistory)
     } catch (err) {
-      console.error("Failed to load booking details:", err);
-      const message = getApiErrorMessage(err, "Failed to load booking details");
-      setError(message);
-      showToast(message, "error");
+      console.error('Failed to load booking details:', err)
+      const message = getApiErrorMessage(err, 'Failed to load booking details')
+      setError(message)
+      showToast(message, 'error')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
     if (!id) {
-      setError("Booking ID is missing");
-      setLoading(false);
-      return;
+      setError('Booking ID is missing')
+      setLoading(false)
+      return
     }
-    void fetchBookingData();
-  }, [id]);
+    void fetchBookingData()
+  }, [id])
 
   const handleStatusChange = async (
-    newStatus: "PENDING" | "CONFIRMED" | "CANCELLED",
+    newStatus: 'PENDING' | 'CONFIRMED' | 'CANCELLED'
   ) => {
-    if (newStatus === "CANCELLED") {
-      setShowCancelModal(true);
-      return;
+    if (newStatus === 'CANCELLED') {
+      setShowCancelModal(true)
+      return
     }
 
     try {
-      setLoading(true);
-      if (!id) throw new Error("Missing booking id");
-      await bookingsApi.changeStatus(id, { status: newStatus });
-      await fetchBookingData();
-      showToast(`Booking status updated to ${newStatus}`, "success");
+      setLoading(true)
+      if (!id) throw new Error('Missing booking id')
+      await bookingsApi.changeStatus(id, { status: newStatus })
+      await fetchBookingData()
+      showToast(`Booking status updated to ${newStatus}`, 'success')
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to update booking status"), "error");
+      showToast(
+        getApiErrorMessage(err, 'Failed to update booking status'),
+        'error'
+      )
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleCancelConfirm = async () => {
     if (!cancellationReason.trim()) {
-      setCancelError("Cancellation reason is required");
-      return;
+      setCancelError('Cancellation reason is required')
+      return
     }
 
     try {
-      setLoading(true);
-      if (!id) throw new Error("Missing booking id");
-      await bookingsApi.cancel(id, cancellationReason);
-      await fetchBookingData();
-      setShowCancelModal(false);
-      setCancellationReason("");
-      setCancelError("");
-      showToast("Booking cancelled successfully", "success");
+      setLoading(true)
+      if (!id) throw new Error('Missing booking id')
+      await bookingsApi.cancel(id, cancellationReason)
+      await fetchBookingData()
+      setShowCancelModal(false)
+      setCancellationReason('')
+      setCancelError('')
+      showToast('Booking cancelled successfully', 'success')
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to cancel booking"), "error");
+      showToast(getApiErrorMessage(err, 'Failed to cancel booking'), 'error')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleGenerateInvoice = async () => {
     try {
-      setLoading(true);
-      if (!id) throw new Error("Missing booking id");
-      const res = await bookingsApi.generateInvoice(id);
-      const invoiceData = unwrapData<any>(res);
+      setLoading(true)
+      if (!id) throw new Error('Missing booking id')
+      const res = await bookingsApi.generateInvoice(id)
+      const invoiceData = unwrapData<any>(res)
       if (booking && invoiceData) {
-        const mapped = mapInvoiceFromApi(invoiceData, booking);
-        setSelectedInvoice(mapped);
-        setShowInvoiceModal(true);
+        const mapped = mapInvoiceFromApi(invoiceData, booking)
+        setSelectedInvoice(mapped)
+        setShowInvoiceModal(true)
       }
-      await fetchBookingData();
-      showToast("Invoice generated successfully", "success");
+      await fetchBookingData()
+      showToast('Invoice generated successfully', 'success')
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to generate invoice"), "error");
+      showToast(getApiErrorMessage(err, 'Failed to generate invoice'), 'error')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleMarkInvoiceAsPaid = async (invoiceId: string) => {
-    if (!booking || !id) return;
-    const invoice = invoices.find((item) => item.id === invoiceId);
-    if (!invoice) return;
+    if (!booking || !id) return
+    const invoice = invoices.find(item => item.id === invoiceId)
+    if (!invoice) return
     try {
-      setLoading(true);
+      setLoading(true)
       await paymentsApi.create({
         bookingId: id,
         amount: invoice.amount,
-        paymentMode: "CASH",
-        status: "FULL",
+        paymentMode: 'CASH',
+        status: 'FULL',
         isVerified: true,
-        paidAt: new Date().toISOString(),
-      });
-      await fetchBookingData();
-      setShowInvoiceModal(false);
-      showToast("Invoice marked as paid", "success");
+        paidAt: new Date().toISOString()
+      })
+      await fetchBookingData()
+      setShowInvoiceModal(false)
+      showToast('Invoice marked as paid', 'success')
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to mark invoice as paid"), "error");
+      showToast(
+        getApiErrorMessage(err, 'Failed to mark invoice as paid'),
+        'error'
+      )
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleAddPayment = async () => {
-    if (!id) return;
+    if (!id) return
     try {
-      setLoading(true);
+      setLoading(true)
       await paymentsApi.create({
         bookingId: id,
         amount: 500,
-        paymentMode: "CASH",
-        status: "PARTIAL",
+        paymentMode: 'CASH',
+        status: 'PARTIAL',
         isVerified: true,
-        paidAt: new Date().toISOString(),
-      });
-      await fetchBookingData();
-      showToast("Payment added successfully", "success");
+        paidAt: new Date().toISOString()
+      })
+      await fetchBookingData()
+      showToast('Payment added successfully', 'success')
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to add payment"), "error");
+      showToast(getApiErrorMessage(err, 'Failed to add payment'), 'error')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleUpdateBooking = () => {
-    if (!booking) return;
-    showToast("Updated successfully", "success");
+    if (!booking) return
+    showToast('Updated successfully', 'success')
     setTimeout(() => {
-      navigate("/bookings", { state: { updatedBooking: booking } });
-    }, 1200);
-  };
+      navigate('/bookings', { state: { updatedBooking: booking } })
+    }, 1200)
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "CONFIRMED":
-        return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
-      case "PENDING":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-900";
-      case "CANCELLED":
-        return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900";
+      case 'CONFIRMED':
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
+      case 'PENDING':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-900'
+      case 'CANCELLED':
+        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
       default:
-        return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
     }
-  };
+  }
 
   const getPaymentStatusColor = (status: string) => {
     switch (status) {
-      case "COMPLETED":
-        return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
-      case "PARTIAL":
-        return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900";
-      case "PENDING":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-900";
-      case "REFUNDED":
-        return "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-900";
+      case 'COMPLETED':
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
+      case 'PARTIAL':
+        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900'
+      case 'PENDING':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-900'
+      case 'REFUNDED':
+        return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-900'
       default:
-        return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
     }
-  };
+  }
 
   const getDeadlineRiskColor = (risk?: DeadlineRiskLevel) => {
     switch (risk) {
-      case "OVERDUE":
-        return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900";
-      case "DEADLINE_DUE":
-        return "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900";
-      case "D2_DUE":
-        return "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900";
-      case "SAFE":
+      case 'OVERDUE':
+        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
+      case 'DEADLINE_DUE':
+        return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900'
+      case 'D2_DUE':
+        return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900'
+      case 'SAFE':
       default:
-        return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
     }
-  };
+  }
 
   const getDeadlineRiskLabel = (risk?: DeadlineRiskLevel) => {
-    if (risk === "D2_DUE") return "D-2 Due";
-    if (risk === "DEADLINE_DUE") return "Deadline Due";
-    if (risk === "OVERDUE") return "Overdue";
-    return "Safe";
-  };
+    if (risk === 'D2_DUE') return 'D-2 Due'
+    if (risk === 'DEADLINE_DUE') return 'Deadline Due'
+    if (risk === 'OVERDUE') return 'Overdue'
+    return 'Safe'
+  }
 
   const getInvoiceStatusColor = (status: string) => {
     switch (status) {
-      case "PAID":
-        return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
-      case "SENT":
-        return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900";
-      case "DRAFT":
-        return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
-      case "OVERDUE":
-        return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900";
+      case 'PAID':
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
+      case 'SENT':
+        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900'
+      case 'DRAFT':
+        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+      case 'OVERDUE':
+        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
       default:
-        return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
     }
-  };
+  }
 
   const getHistoryIcon = (type: string) => {
     switch (type) {
-      case "status_change":
-        return <FaClockRotateLeft className="text-blue-600" />;
-      case "invoice_generated":
-        return <FaFileInvoice className="text-green-600" />;
-      case "payment_received":
-        return <FaCreditCard className="text-purple-600" />;
-      case "cancellation":
-        return <FaBan className="text-red-600" />;
+      case 'status_change':
+        return <FaClockRotateLeft className='text-blue-600' />
+      case 'invoice_generated':
+        return <FaFileInvoice className='text-green-600' />
+      case 'payment_received':
+        return <FaCreditCard className='text-purple-600' />
+      case 'cancellation':
+        return <FaBan className='text-red-600' />
       default:
-        return <FaClock className="text-gray-600" />;
+        return <FaClock className='text-gray-600' />
     }
-  };
+  }
 
-  const formatCurrency = (amount: number, currency: string = "USD") => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number, currency: string = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency
+    }).format(amount)
+  }
 
   const formatDate = (date?: string) => {
-    if (!date) return "-";
-    const parsed = new Date(date);
-    if (Number.isNaN(parsed.getTime())) return "-";
-    return parsed.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
+    if (!date) return '-'
+    const parsed = new Date(date)
+    if (Number.isNaN(parsed.getTime())) return '-'
+    return parsed.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
 
   const formatDateTime = (dateTime?: string) => {
-    if (!dateTime) return "-";
-    const parsed = new Date(dateTime);
-    if (Number.isNaN(parsed.getTime())) return "-";
-    return parsed.toLocaleString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+    if (!dateTime) return '-'
+    const parsed = new Date(dateTime)
+    if (Number.isNaN(parsed.getTime())) return '-'
+    return parsed.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
 
   const toRecord = (value: unknown): Record<string, unknown> => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {}
     }
-    return value as Record<string, unknown>;
-  };
+    return value as Record<string, unknown>
+  }
 
   const toRecordArray = (value: unknown): Array<Record<string, unknown>> => {
-    if (!Array.isArray(value)) return [];
+    if (!Array.isArray(value)) return []
     return value.filter(
       (item): item is Record<string, unknown> =>
-        Boolean(item) && typeof item === "object" && !Array.isArray(item),
-    );
-  };
+        Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+    )
+  }
 
   const toLabel = (key: string) =>
     key
-      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-      .replace(/_/g, " ")
-      .replace(/\s+/g, " ")
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim()
-      .replace(/^./, (char) => char.toUpperCase());
+      .replace(/^./, char => char.toUpperCase())
 
   const formatStructuredValue = (value: unknown): string => {
-    if (value === null || value === undefined || value === "") return "-";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    if (typeof value === "number") return String(value);
-    if (typeof value === "string") return value;
+    if (value === null || value === undefined || value === '') return '-'
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+    if (typeof value === 'number') return String(value)
+    if (typeof value === 'string') return value
     if (Array.isArray(value)) {
       return value
-        .map((item) => formatStructuredValue(item))
-        .filter((item) => item !== "-")
-        .join(", ");
+        .map(item => formatStructuredValue(item))
+        .filter(item => item !== '-')
+        .join(', ')
     }
     try {
-      return JSON.stringify(value);
+      return JSON.stringify(value)
     } catch {
-      return String(value);
+      return String(value)
     }
-  };
+  }
 
   const renderKeyValueBlock = (value: unknown) => {
-    const record = toRecord(value);
+    const record = toRecord(value)
     const entries = Object.entries(record).filter(
       ([, fieldValue]) =>
-        fieldValue !== null && fieldValue !== undefined && fieldValue !== "",
-    );
+        fieldValue !== null && fieldValue !== undefined && fieldValue !== ''
+    )
 
     if (!entries.length) {
-      return (
-        <p className="text-xs text-gray-500 dark:text-gray-400">Not set</p>
-      );
+      return <p className='text-xs text-gray-500 dark:text-gray-400'>Not set</p>
     }
 
     return (
-      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <dl className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
         {entries.map(([key, fieldValue]) => (
           <div
             key={key}
-            className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/50"
+            className='rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/50'
           >
-            <dt className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <dt className='text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400'>
               {toLabel(key)}
             </dt>
-            <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 break-words">
+            <dd className='mt-1 text-sm text-gray-900 dark:text-gray-100 break-words'>
               {formatStructuredValue(fieldValue)}
             </dd>
           </div>
         ))}
       </dl>
-    );
-  };
+    )
+  }
 
   const renderSegmentsTable = (value: unknown, emptyLabel: string) => {
-    const rows = toRecordArray(value);
+    const rows = toRecordArray(value)
     if (!rows.length) {
       return (
-        <p className="text-xs text-gray-500 dark:text-gray-400">{emptyLabel}</p>
-      );
+        <p className='text-xs text-gray-500 dark:text-gray-400'>{emptyLabel}</p>
+      )
     }
 
     const columns = Array.from(
       rows.reduce((set, row) => {
-        Object.keys(row).forEach((key) => set.add(key));
-        return set;
-      }, new Set<string>()),
-    );
+        Object.keys(row).forEach(key => set.add(key))
+        return set
+      }, new Set<string>())
+    )
 
     if (!columns.length) {
       return (
-        <p className="text-xs text-gray-500 dark:text-gray-400">{emptyLabel}</p>
-      );
+        <p className='text-xs text-gray-500 dark:text-gray-400'>{emptyLabel}</p>
+      )
     }
 
     return (
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800/60">
+      <div className='overflow-x-auto'>
+        <table className='min-w-full divide-y divide-gray-200 dark:divide-gray-700'>
+          <thead className='bg-gray-50 dark:bg-gray-800/60'>
             <tr>
-              {columns.map((column) => (
+              {columns.map(column => (
                 <th
                   key={column}
-                  className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300"
+                  className='px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300'
                 >
                   {toLabel(column)}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
             {rows.map((row, rowIndex) => (
               <tr key={`row-${rowIndex}`}>
-                {columns.map((column) => (
+                {columns.map(column => (
                   <td
                     key={`${rowIndex}-${column}`}
-                    className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200 align-top"
+                    className='px-3 py-2 text-sm text-gray-700 dark:text-gray-200 align-top'
                   >
                     {formatStructuredValue(row[column])}
                   </td>
@@ -1063,84 +1175,85 @@ const BookingDetailPage: React.FC = () => {
           </tbody>
         </table>
       </div>
-    );
-  };
+    )
+  }
 
   const renderOtherServices = (value: unknown) => {
-    const rows = toRecordArray(value);
+    const rows = toRecordArray(value)
     if (!rows.length) {
-      return (
-        <p className="text-xs text-gray-500 dark:text-gray-400">Not set</p>
-      );
+      return <p className='text-xs text-gray-500 dark:text-gray-400'>Not set</p>
     }
 
     return (
-      <div className="flex flex-wrap gap-2">
+      <div className='flex flex-wrap gap-2'>
         {rows.map((row, index) => {
           const type = formatStructuredValue(
-            row.serviceType ?? row.type ?? `Service ${index + 1}`,
-          );
+            row.serviceType ?? row.type ?? `Service ${index + 1}`
+          )
           const description = formatStructuredValue(
-            row.description ?? row.notes ?? "",
-          );
-          const tag = description && description !== "-" ? `${type}: ${description}` : type;
+            row.description ?? row.notes ?? ''
+          )
+          const tag =
+            description && description !== '-'
+              ? `${type}: ${description}`
+              : type
 
           return (
             <span
               key={`service-${index}`}
-              className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200"
+              className='inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
             >
               {tag}
             </span>
-          );
+          )
         })}
       </div>
-    );
-  };
+    )
+  }
 
   if (loading && !booking) {
     return (
-      <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-9xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/4"></div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-4">
-                <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
-                <div className="h-48 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
+      <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
+        <div className='max-w-9xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8'>
+          <div className='animate-pulse space-y-6'>
+            <div className='h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/4'></div>
+            <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+              <div className='lg:col-span-2 space-y-4'>
+                <div className='h-64 bg-gray-200 dark:bg-gray-800 rounded-xl'></div>
+                <div className='h-48 bg-gray-200 dark:bg-gray-800 rounded-xl'></div>
               </div>
-              <div className="space-y-4">
-                <div className="h-40 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
-                <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
+              <div className='space-y-4'>
+                <div className='h-40 bg-gray-200 dark:bg-gray-800 rounded-xl'></div>
+                <div className='h-32 bg-gray-200 dark:bg-gray-800 rounded-xl'></div>
               </div>
             </div>
           </div>
         </div>
       </main>
-    );
+    )
   }
 
   if (!booking) {
     return (
-      <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+      <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
+        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
+          <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6'>
+            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
               Unable to load booking
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              {error || "Please try again later."}
+            <p className='text-sm text-gray-600 dark:text-gray-400 mt-2'>
+              {error || 'Please try again later.'}
             </p>
-            <div className="mt-4 flex gap-2">
+            <div className='mt-4 flex gap-2'>
               <button
                 onClick={() => void fetchBookingData()}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
               >
                 Retry
               </button>
               <button
-                onClick={() => navigate("/bookings")}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                onClick={() => navigate('/bookings')}
+                className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50'
               >
                 Back to Bookings
               </button>
@@ -1148,26 +1261,23 @@ const BookingDetailPage: React.FC = () => {
           </div>
         </div>
       </main>
-    );
+    )
   }
 
   const paymentProgress =
     booking.advanceRequired > 0
-      ? Math.min(
-          (booking.advanceReceived / booking.advanceRequired) * 100,
-          100,
-        )
-      : 0;
+      ? Math.min((booking.advanceReceived / booking.advanceRequired) * 100, 100)
+      : 0
 
   return (
-    <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
+    <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
       {/* Toast */}
       {toast.show && (
         <Toast
           message={toast.message}
           type={toast.type}
           onClose={() =>
-            setToast({ show: false, message: "", type: "success" })
+            setToast({ show: false, message: '', type: 'success' })
           }
         />
       )}
@@ -1177,19 +1287,19 @@ const BookingDetailPage: React.FC = () => {
         isOpen={showInvoiceModal}
         invoice={selectedInvoice}
         onClose={() => {
-          setShowInvoiceModal(false);
-          setSelectedInvoice(null);
+          setShowInvoiceModal(false)
+          setSelectedInvoice(null)
         }}
         onDownload={() => {
           if (selectedInvoice?.pdfUrl) {
-            window.open(selectedInvoice.pdfUrl, "_blank", "noopener,noreferrer");
-            return;
+            window.open(selectedInvoice.pdfUrl, '_blank', 'noopener,noreferrer')
+            return
           }
-          showToast("Invoice PDF not available", "info");
+          showToast('Invoice PDF not available', 'info')
         }}
         onMarkAsPaid={() => {
           if (selectedInvoice) {
-            handleMarkInvoiceAsPaid(selectedInvoice.id);
+            handleMarkInvoiceAsPaid(selectedInvoice.id)
           }
         }}
         currency={booking.clientCurrency}
@@ -1202,65 +1312,65 @@ const BookingDetailPage: React.FC = () => {
         onAddPayment={handleAddPayment}
       />
 
-      <div className="max-w-7xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8">
+      <div className='max-w-7xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8'>
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div className="flex items-start gap-3">
+        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6'>
+          <div className='flex items-start gap-3'>
             <button
-              onClick={() => navigate("/bookings")}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              aria-label="Back to bookings"
-              title="Back to Bookings"
+              onClick={() => navigate('/bookings')}
+              className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+              aria-label='Back to bookings'
+              title='Back to Bookings'
             >
-              <FaArrowLeft className="text-sm" />
+              <FaArrowLeft className='text-sm' />
             </button>
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                Booking
-              </p>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  #{booking.bookingNumber}
+              <div className='flex items-center gap-3 flex-wrap'>
+                <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+                  {(booking.customerName?.trim() || 'Unknown') +
+                    ` (#${booking.bookingNumber})`}
                 </h1>
                 <span
                   className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusColor(
-                    booking.status,
+                    booking.status
                   )}`}
                 >
                   {booking.status}
                 </span>
                 <span
                   className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getDeadlineRiskColor(
-                    booking.deadlineRiskLevel,
+                    booking.deadlineRiskLevel
                   )}`}
                 >
                   {getDeadlineRiskLabel(booking.deadlineRiskLevel)}
                 </span>
               </div>
-              <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
-                <span className="flex items-center gap-1.5">
-                  <FaFileInvoice className="w-4" />
-                  Quote: {booking.quotationNumber || `#${String(booking.quotationId || "").slice(0, 8)}`}
+              <div className='flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5'>
+                <span className='flex items-center gap-1.5'>
+                  <FaFileInvoice className='w-4' />
+                  Quote:{' '}
+                  {booking.quotationNumber ||
+                    `#${String(booking.quotationId || '').slice(0, 8)}`}
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <FaClock className="w-4" />
-                  {formatDate(booking.travelStart)} -{" "}
+                <span className='flex items-center gap-1.5'>
+                  <FaClock className='w-4' />
+                  {formatDate(booking.travelStart)} -{' '}
                   {formatDate(booking.travelEnd)}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className='flex flex-wrap items-center gap-2'>
             <button
               onClick={handleGenerateInvoice}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+              className='px-4 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2'
             >
               <FaFileInvoice /> Generate Invoice
             </button>
             <button
               onClick={handleUpdateBooking}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-2"
+              className='px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-2'
             >
               <FaCreditCard /> Update Booking
             </button>
@@ -1268,92 +1378,92 @@ const BookingDetailPage: React.FC = () => {
         </div>
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
           {/* Left Column */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className='lg:col-span-2 space-y-6'>
             {/* Tabs */}
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-              <div className="border-b border-gray-200 dark:border-gray-800">
-                <div className="flex overflow-x-auto">
+            <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
+              <div className='border-b border-gray-200 dark:border-gray-800'>
+                <div className='flex overflow-x-auto'>
                   {[
-                    { id: "overview", label: "Overview", icon: FaFileInvoice },
+                    { id: 'overview', label: 'Overview', icon: FaFileInvoice },
                     {
-                      id: "invoices",
-                      label: "Invoices",
+                      id: 'invoices',
+                      label: 'Invoices',
                       icon: FaFileInvoice,
-                      badge: invoices.length,
+                      badge: invoices.length
                     },
                     {
-                      id: "history",
-                      label: "History",
-                      icon: FaClockRotateLeft,
+                      id: 'history',
+                      label: 'History',
+                      icon: FaClockRotateLeft
                     },
-                    { id: "payments", label: "Payments", icon: FaCreditCard },
-                  ].map((tab) => {
-                    const Icon = tab.icon;
+                    { id: 'payments', label: 'Payments', icon: FaCreditCard }
+                  ].map(tab => {
+                    const Icon = tab.icon
                     return (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex-1 py-4 px-4 text-center border-b-2 font-medium text-sm flex items-center justify-center gap-2 whitespace-nowrap transition-colors ${
                           activeTab === tab.id
-                            ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                            : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300"
+                            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                            : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                         }`}
                       >
-                        <Icon className="text-sm" />
+                        <Icon className='text-sm' />
                         <span>{tab.label}</span>
                         {tab.badge && (
-                          <span className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 py-0.5 px-2 rounded-full text-xs">
+                          <span className='bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 py-0.5 px-2 rounded-full text-xs'>
                             {tab.badge}
                           </span>
                         )}
                       </button>
-                    );
+                    )
                   })}
                 </div>
               </div>
 
-              <div className="p-6">
+              <div className='p-6'>
                 {/* Overview Tab */}
-                {activeTab === "overview" && (
-                  <div className="space-y-6">
+                {activeTab === 'overview' && (
+                  <div className='space-y-6'>
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                        <FaFileInvoice className="text-blue-500" />
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2'>
+                        <FaFileInvoice className='text-blue-500' />
                         Booking Information
                       </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      <div className='grid grid-cols-2 md:grid-cols-3 gap-4'>
+                        <div className='bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Total Amount
                           </p>
-                          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                          <p className='text-lg font-bold text-gray-900 dark:text-gray-100'>
                             {formatCurrency(
                               booking.totalAmount,
-                              booking.clientCurrency,
+                              booking.clientCurrency
                             )}
                           </p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Cost Amount
                           </p>
-                          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                          <p className='text-lg font-bold text-gray-900 dark:text-gray-100'>
                             {formatCurrency(
                               booking.costAmount,
-                              booking.supplierCurrency,
+                              booking.supplierCurrency
                             )}
                           </p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Profit
                           </p>
-                          <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                          <p className='text-lg font-bold text-green-600 dark:text-green-400'>
                             {formatCurrency(
                               booking.profit,
-                              booking.clientCurrency,
+                              booking.clientCurrency
                             )}
                           </p>
                         </div>
@@ -1361,40 +1471,40 @@ const BookingDetailPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                        <FaClock className="text-blue-500" />
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2'>
+                        <FaClock className='text-blue-500' />
                         Deadline Tracking
                       </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+                        <div className='bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Blocking Deadline
                           </p>
-                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                             {formatDateTime(booking.blockingDeadlineAt)}
                           </p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Supplier Deadline
                           </p>
-                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                             {formatDateTime(booking.supplierPaymentDeadlineAt)}
                           </p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Cancellation Deadline
                           </p>
-                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                             {formatDateTime(booking.cancellationDeadlineAt)}
                           </p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Balance Due By
                           </p>
-                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                             {formatDateTime(booking.balanceDueBy)}
                           </p>
                         </div>
@@ -1402,49 +1512,49 @@ const BookingDetailPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                        <FaFileInvoice className="text-blue-500" />
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2'>
+                        <FaFileInvoice className='text-blue-500' />
                         Structured Service Blocks
                       </h3>
-                      <div className="space-y-3">
-                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      <div className='space-y-3'>
+                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Supplier Details
                           </p>
                           {renderKeyValueBlock(booking.supplierDetails)}
                         </div>
-                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             DMC Details
                           </p>
                           {renderKeyValueBlock(booking.dmcDetails)}
                         </div>
-                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Hotel Segments
                           </p>
                           {renderSegmentsTable(
                             booking.hotelSegments,
-                            "No hotel segments added yet",
+                            'No hotel segments added yet'
                           )}
                         </div>
-                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Flight Segments
                           </p>
                           {renderSegmentsTable(
                             booking.flightSegments,
-                            "No flight segments added yet",
+                            'No flight segments added yet'
                           )}
                         </div>
-                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Insurance Details
                           </p>
                           {renderKeyValueBlock(booking.insuranceDetails)}
                         </div>
-                        <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Other Services
                           </p>
                           {renderOtherServices(booking.otherServices)}
@@ -1454,49 +1564,48 @@ const BookingDetailPage: React.FC = () => {
 
                     {/* Recent Invoices */}
                     <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                          <FaFileInvoice className="text-blue-500" />
+                      <div className='flex justify-between items-center mb-4'>
+                        <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
+                          <FaFileInvoice className='text-blue-500' />
                           Recent Invoices
                         </h3>
                         <button
                           onClick={handleGenerateInvoice}
-                          className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1"
+                          className='text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1'
                         >
                           <FaPlus /> Generate New
                         </button>
                       </div>
-                      <div className="space-y-2">
-                        {invoices.slice(0, 2).map((invoice) => (
+                      <div className='space-y-2'>
+                        {invoices.slice(0, 2).map(invoice => (
                           <div
                             key={invoice.id}
                             onClick={() => {
-                              setSelectedInvoice(invoice);
-                              setShowInvoiceModal(true);
+                              setSelectedInvoice(invoice)
+                              setShowInvoiceModal(true)
                             }}
-                            className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+                            className='flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer'
                           >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500">
+                            <div className='flex items-center gap-3'>
+                              <div className='w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500'>
                                 <FaFileInvoice />
                               </div>
                               <div>
-                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                                   {invoice.invoiceNumber}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className='text-xs text-gray-500 dark:text-gray-400'>
                                   {formatCurrency(
                                     invoice.amount,
-                                    booking.clientCurrency,
-                                  )}{" "}
-                                  • Due{" "}
-                                  {formatDate(invoice.dueDate)}
+                                    booking.clientCurrency
+                                  )}{' '}
+                                  • Due {formatDate(invoice.dueDate)}
                                 </p>
                               </div>
                             </div>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-medium border ${getInvoiceStatusColor(
-                                invoice.status,
+                                invoice.status
                               )}`}
                             >
                               {invoice.status}
@@ -1508,28 +1617,28 @@ const BookingDetailPage: React.FC = () => {
 
                     {/* Recent History */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                        <FaClockRotateLeft className="text-blue-500" />
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2'>
+                        <FaClockRotateLeft className='text-blue-500' />
                         Recent History
                       </h3>
-                      <div className="space-y-4">
-                        {history.slice(0, 3).map((item) => (
-                          <div key={item.id} className="flex gap-3">
-                            <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                      <div className='space-y-4'>
+                        {history.slice(0, 3).map(item => (
+                          <div key={item.id} className='flex gap-3'>
+                            <div className='w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0'>
                               {getHistoryIcon(item.type)}
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                                 {item.status}
                                 {item.reason && (
-                                  <span className="text-gray-500 dark:text-gray-400">
-                                    {" "}
+                                  <span className='text-gray-500 dark:text-gray-400'>
+                                    {' '}
                                     - {item.reason}
                                   </span>
                                 )}
                               </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {item.changedBy} •{" "}
+                              <p className='text-xs text-gray-500 dark:text-gray-400'>
+                                {item.changedBy} •{' '}
                                 {formatDateTime(item.changedAt)}
                               </p>
                             </div>
@@ -1541,93 +1650,89 @@ const BookingDetailPage: React.FC = () => {
                 )}
 
                 {/* Invoices Tab */}
-                {activeTab === "invoices" && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {activeTab === 'invoices' && (
+                  <div className='space-y-4'>
+                    <div className='flex justify-between items-center'>
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                         All Invoices
                       </h3>
                       <button
                         onClick={handleGenerateInvoice}
-                        className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1"
+                        className='text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1'
                       >
                         <FaPlus /> Generate New
                       </button>
                     </div>
-                    <div className="space-y-2">
-                      {invoices.map((invoice) => (
+                    <div className='space-y-2'>
+                      {invoices.map(invoice => (
                         <div
                           key={invoice.id}
                           onClick={() => {
-                            setSelectedInvoice(invoice);
-                            setShowInvoiceModal(true);
+                            setSelectedInvoice(invoice)
+                            setShowInvoiceModal(true)
                           }}
-                          className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+                          className='flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer'
                         >
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className="w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500">
-                              <FaFileInvoice className="text-lg" />
+                          <div className='flex items-center gap-3 flex-1'>
+                            <div className='w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500'>
+                              <FaFileInvoice className='text-lg' />
                             </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <div className='flex-1'>
+                              <div className='flex items-center gap-2'>
+                                <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                                   {invoice.invoiceNumber}
                                 </p>
                                 <span
                                   className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getInvoiceStatusColor(
-                                    invoice.status,
+                                    invoice.status
                                   )}`}
                                 >
                                   {invoice.status}
                                 </span>
                               </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                              <p className='text-xs text-gray-500 dark:text-gray-400'>
                                 {formatCurrency(
                                   invoice.amount,
-                                  booking.clientCurrency,
-                                )}{" "}
-                                • Created{" "}
-                                {formatDate(invoice.createdAt)} • Due{" "}
+                                  booking.clientCurrency
+                                )}{' '}
+                                • Created {formatDate(invoice.createdAt)} • Due{' '}
                                 {formatDate(invoice.dueDate)}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className='flex items-center gap-2'>
                             <button
-                              onClick={(event) => {
-                                event.stopPropagation();
+                              onClick={event => {
+                                event.stopPropagation()
                                 if (invoice.pdfUrl) {
                                   window.open(
                                     invoice.pdfUrl,
-                                    "_blank",
-                                    "noopener,noreferrer",
-                                  );
+                                    '_blank',
+                                    'noopener,noreferrer'
+                                  )
                                 } else {
-                                  showToast(
-                                    "Invoice PDF not available",
-                                    "info",
-                                  );
+                                  showToast('Invoice PDF not available', 'info')
                                 }
                               }}
-                              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                              className='p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800'
                             >
                               <FaDownload />
                             </button>
                             <button
-                              onClick={(event) => {
-                                event.stopPropagation();
+                              onClick={event => {
+                                event.stopPropagation()
                                 if (invoice.pdfUrl) {
                                   window.open(
                                     invoice.pdfUrl,
-                                    "_blank",
-                                    "noopener,noreferrer",
-                                  );
+                                    '_blank',
+                                    'noopener,noreferrer'
+                                  )
                                 } else {
-                                  setSelectedInvoice(invoice);
-                                  setShowInvoiceModal(true);
+                                  setSelectedInvoice(invoice)
+                                  setShowInvoiceModal(true)
                                 }
                               }}
-                              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                              className='p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800'
                             >
                               <FaEye />
                             </button>
@@ -1639,28 +1744,28 @@ const BookingDetailPage: React.FC = () => {
                 )}
 
                 {/* History Tab */}
-                {activeTab === "history" && (
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {activeTab === 'history' && (
+                  <div className='space-y-4'>
+                    <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                       Status History
                     </h3>
-                    <div className="space-y-4">
-                      {history.map((item) => (
-                        <div key={item.id} className="flex gap-3">
-                          <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                    <div className='space-y-4'>
+                      {history.map(item => (
+                        <div key={item.id} className='flex gap-3'>
+                          <div className='w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0'>
                             {getHistoryIcon(item.type)}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                               {item.status}
                             </p>
                             {item.reason && (
-                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              <p className='text-xs text-gray-600 dark:text-gray-400 mt-1'>
                                 {item.reason}
                               </p>
                             )}
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                              {item.changedBy} •{" "}
+                            <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                              {item.changedBy} •{' '}
                               {formatDateTime(item.changedAt)}
                             </p>
                           </div>
@@ -1671,100 +1776,100 @@ const BookingDetailPage: React.FC = () => {
                 )}
 
                 {/* Payments Tab */}
-                {activeTab === "payments" && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {activeTab === 'payments' && (
+                  <div className='space-y-4'>
+                    <div className='flex justify-between items-center'>
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                         Payment Details
                       </h3>
                       <button
                         onClick={() => setShowPaymentsModal(true)}
-                        className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1"
+                        className='text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1'
                       >
                         <FaEye /> View All
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    <div className='grid grid-cols-2 gap-4 mb-4'>
+                      <div className='bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg'>
+                        <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                           Advance Required
                         </p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                        <p className='text-xl font-bold text-gray-900 dark:text-gray-100'>
                           {formatCurrency(
                             booking.advanceRequired,
-                            booking.clientCurrency,
+                            booking.clientCurrency
                           )}
                         </p>
                       </div>
-                      <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      <div className='bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg'>
+                        <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                           Advance Received
                         </p>
-                        <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                        <p className='text-xl font-bold text-green-600 dark:text-green-400'>
                           {formatCurrency(
                             booking.advanceReceived,
-                            booking.clientCurrency,
+                            booking.clientCurrency
                           )}
                         </p>
                       </div>
                     </div>
 
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <div className="flex justify-between items-center">
+                    <div className='bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800'>
+                      <div className='flex justify-between items-center'>
                         <div>
-                          <p className="text-sm font-medium text-blue-900 dark:text-blue-300">
+                          <p className='text-sm font-medium text-blue-900 dark:text-blue-300'>
                             Payment Status
                           </p>
-                          <p className="text-xs text-blue-700 dark:text-blue-400">
-                            Remaining:{" "}
+                          <p className='text-xs text-blue-700 dark:text-blue-400'>
+                            Remaining:{' '}
                             {formatCurrency(
                               booking.advanceRequired - booking.advanceReceived,
-                              booking.clientCurrency,
+                              booking.clientCurrency
                             )}
                           </p>
                         </div>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium border ${getPaymentStatusColor(
-                            booking.paymentStatus,
+                            booking.paymentStatus
                           )}`}
                         >
                           {booking.paymentStatus}
                         </span>
                       </div>
-                      <div className="mt-3 w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                      <div className='mt-3 w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2'>
                         <div
-                          className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all"
+                          className='bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all'
                           style={{
-                            width: `${paymentProgress}%`,
+                            width: `${paymentProgress}%`
                           }}
                         />
                       </div>
                     </div>
 
                     {/* Recent Payments */}
-                    <div className="space-y-2">
-                      {payments.slice(0, 2).map((payment) => (
+                    <div className='space-y-2'>
+                      {payments.slice(0, 2).map(payment => (
                         <div
                           key={payment.id}
-                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                          className='flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg'
                         >
                           <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                               {formatCurrency(
                                 payment.amount,
-                                booking.clientCurrency,
+                                booking.clientCurrency
                               )}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className='text-xs text-gray-500 dark:text-gray-400'>
                               {formatDateTime(payment.date)} • {payment.mode}
                             </p>
                           </div>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              payment.status === "completed"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                              payment.status === 'completed'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
                             }`}
                           >
                             {payment.status}
@@ -1779,119 +1884,118 @@ const BookingDetailPage: React.FC = () => {
           </div>
 
           {/* Right Column */}
-          <div className="space-y-6">
+          <div className='space-y-6'>
             {/* Status Controls */}
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                <h3 className="text-xs font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide flex items-center gap-2">
-                  <FaClock className="text-blue-500" />
+            <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
+              <div className='px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50'>
+                <h3 className='text-xs font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide flex items-center gap-2'>
+                  <FaClock className='text-blue-500' />
                   Status Controls
                 </h3>
               </div>
-              <div className="p-5 space-y-3">
+              <div className='p-5 space-y-3'>
                 <button
-                  onClick={() => handleStatusChange("PENDING")}
-                  disabled={booking.status === "PENDING"}
+                  onClick={() => handleStatusChange('PENDING')}
+                  disabled={booking.status === 'PENDING'}
                   className={`w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                    booking.status === "PENDING"
-                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-900 cursor-default"
-                      : "bg-white dark:bg-gray-800 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 hover:border-yellow-300"
+                    booking.status === 'PENDING'
+                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-900 cursor-default'
+                      : 'bg-white dark:bg-gray-800 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 hover:border-yellow-300'
                   }`}
                 >
                   <FaClock /> Pending
                 </button>
                 <button
-                  onClick={() => handleStatusChange("CONFIRMED")}
-                  disabled={booking.status === "CONFIRMED"}
+                  onClick={() => handleStatusChange('CONFIRMED')}
+                  disabled={booking.status === 'CONFIRMED'}
                   className={`w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                    booking.status === "CONFIRMED"
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-900 cursor-default"
-                      : "bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 hover:border-green-300"
+                    booking.status === 'CONFIRMED'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-900 cursor-default'
+                      : 'bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 hover:border-green-300'
                   }`}
                 >
                   <FaCircleCheck /> Confirmed
                 </button>
                 <button
-                  onClick={() => handleStatusChange("CANCELLED")}
-                  disabled={booking.status === "CANCELLED"}
+                  onClick={() => handleStatusChange('CANCELLED')}
+                  disabled={booking.status === 'CANCELLED'}
                   className={`w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                    booking.status === "CANCELLED"
-                      ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-900 cursor-default"
-                      : "bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 hover:border-red-300"
+                    booking.status === 'CANCELLED'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-900 cursor-default'
+                      : 'bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 hover:border-red-300'
                   }`}
                 >
                   <FaBan /> Cancelled
                 </button>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                <p className='text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1'>
                   <FaClock /> Cancellation requires a reason
                 </p>
               </div>
             </div>
 
             {/* Payment Snapshot */}
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                <h3 className="text-xs font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide flex items-center gap-2">
-                  <FaCreditCard className="text-blue-500" />
+            <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
+              <div className='px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50'>
+                <h3 className='text-xs font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide flex items-center gap-2'>
+                  <FaCreditCard className='text-blue-500' />
                   Payment Snapshot
                 </h3>
               </div>
-              <div className="p-5 space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+              <div className='p-5 space-y-4'>
+                <div className='flex justify-between items-center'>
+                  <span className='text-sm text-gray-600 dark:text-gray-400'>
                     Advance Required
                   </span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  <span className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                     {formatCurrency(
                       booking.advanceRequired,
-                      booking.clientCurrency,
+                      booking.clientCurrency
                     )}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                <div className='flex justify-between items-center'>
+                  <span className='text-sm text-gray-600 dark:text-gray-400'>
                     Advance Received
                   </span>
-                  <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                  <span className='text-sm font-semibold text-green-600 dark:text-green-400'>
                     {formatCurrency(
                       booking.advanceReceived,
-                      booking.clientCurrency,
+                      booking.clientCurrency
                     )}
                   </span>
                 </div>
-                <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                <div className='flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800'>
+                  <span className='text-sm text-gray-600 dark:text-gray-400'>
                     Balance
                   </span>
-                  <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                  <span className='text-sm font-bold text-gray-900 dark:text-gray-100'>
                     {formatCurrency(
                       booking.advanceRequired - booking.advanceReceived,
-                      booking.clientCurrency,
+                      booking.clientCurrency
                     )}
                   </span>
                 </div>
-                <div className="mt-2">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                <div className='mt-2'>
+                  <div className='flex justify-between items-center mb-1'>
+                    <span className='text-xs text-gray-500 dark:text-gray-400'>
                       Progress
                     </span>
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {Math.round(paymentProgress)}
-                      %
+                    <span className='text-xs font-medium text-gray-700 dark:text-gray-300'>
+                      {Math.round(paymentProgress)}%
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
                     <div
-                      className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all"
+                      className='bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all'
                       style={{
-                        width: `${paymentProgress}%`,
+                        width: `${paymentProgress}%`
                       }}
                     />
                   </div>
                 </div>
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${getPaymentStatusColor(
-                    booking.paymentStatus,
+                    booking.paymentStatus
                   )}`}
                 >
                   <FaCreditCard /> {booking.paymentStatus}
@@ -1900,33 +2004,35 @@ const BookingDetailPage: React.FC = () => {
             </div>
 
             {/* Quick Links */}
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                <h3 className="text-xs font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide flex items-center gap-2">
-                  <FaFileInvoice className="text-blue-500" />
+            <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
+              <div className='px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50'>
+                <h3 className='text-xs font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide flex items-center gap-2'>
+                  <FaFileInvoice className='text-blue-500' />
                   Quick Links
                 </h3>
               </div>
-              <div className="p-5 space-y-2">
+              <div className='p-5 space-y-2'>
                 <button
                   onClick={() => navigate(`/quotations/${booking.quotationId}`)}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
+                  className='w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2'
                 >
-                  <FaFileInvoice className="text-gray-400" />
-                  View Quotation {booking.quotationNumber || `#${String(booking.quotationId || "").slice(0, 8)}`}
+                  <FaFileInvoice className='text-gray-400' />
+                  View Quotation{' '}
+                  {booking.quotationNumber ||
+                    `#${String(booking.quotationId || '').slice(0, 8)}`}
                 </button>
                 <button
                   onClick={() => setShowPaymentsModal(true)}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
+                  className='w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2'
                 >
-                  <FaCreditCard className="text-gray-400" />
+                  <FaCreditCard className='text-gray-400' />
                   View All Payments
                 </button>
                 <button
-                  onClick={() => setActiveTab("invoices")}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2"
+                  onClick={() => setActiveTab('invoices')}
+                  className='w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2'
                 >
-                  <FaFileInvoice className="text-gray-400" />
+                  <FaFileInvoice className='text-gray-400' />
                   View All Invoices
                 </button>
               </div>
@@ -1937,61 +2043,61 @@ const BookingDetailPage: React.FC = () => {
 
       {/* Cancellation Modal */}
       {showCancelModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-6 animate-fadeIn">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
+          <div className='bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-6 animate-fadeIn'>
+            <div className='flex items-center justify-between mb-4'>
+              <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
                 Cancel Booking
               </h3>
               <button
                 onClick={() => setShowCancelModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className='text-gray-400 hover:text-gray-600'
               >
-                <FaXmark className="text-xl" />
+                <FaXmark className='text-xl' />
               </button>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className='text-sm text-gray-600 dark:text-gray-400 mb-4'>
               Please provide a reason for cancelling this booking. This is
               required.
             </p>
             <textarea
               value={cancellationReason}
-              onChange={(e) => {
-                setCancellationReason(e.target.value);
-                setCancelError("");
+              onChange={e => {
+                setCancellationReason(e.target.value)
+                setCancelError('')
               }}
               rows={4}
               className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-red-500 dark:bg-gray-800 dark:text-gray-100 ${
                 cancelError
-                  ? "border-red-500"
-                  : "border-gray-300 dark:border-gray-700"
+                  ? 'border-red-500'
+                  : 'border-gray-300 dark:border-gray-700'
               }`}
-              placeholder="Enter cancellation reason..."
+              placeholder='Enter cancellation reason...'
             />
             {cancelError && (
-              <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+              <p className='mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1'>
                 <FaBan /> {cancelError}
               </p>
             )}
-            <div className="flex justify-end gap-3 mt-6">
+            <div className='flex justify-end gap-3 mt-6'>
               <button
                 onClick={() => setShowCancelModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
+                className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
               >
                 Cancel
               </button>
               <button
                 onClick={handleCancelConfirm}
                 disabled={loading}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                className='px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2'
               >
                 {loading ? (
                   <>
-                    <FaClock className="animate-spin" />
+                    <FaClock className='animate-spin' />
                     Processing...
                   </>
                 ) : (
-                  "Confirm Cancellation"
+                  'Confirm Cancellation'
                 )}
               </button>
             </div>
@@ -2009,7 +2115,7 @@ const BookingDetailPage: React.FC = () => {
         }
       `}</style>
     </main>
-  );
-};
+  )
+}
 
-export default BookingDetailPage;
+export default BookingDetailPage

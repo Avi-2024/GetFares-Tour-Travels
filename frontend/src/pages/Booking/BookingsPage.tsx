@@ -259,6 +259,11 @@ const CreateBookingModal = ({
     return parsed.toISOString().split('T')[0]
   }
 
+  const normalizePhoneNumber = (value: unknown) =>
+    String(value ?? '')
+      .replace(/\D/g, '')
+      .slice(0, 10)
+
   const resolveLeadDestination = (record: any) => {
     if (!record) return ''
     if (typeof record.destination === 'string') return record.destination
@@ -440,7 +445,7 @@ const CreateBookingModal = ({
       ...prev,
       customer: customer ?? prev.customer,
       email: email ?? prev.email,
-      phone: phone ?? prev.phone,
+      phone: normalizePhoneNumber(phone ?? prev.phone),
       destination: destination ?? prev.destination,
       travelStart: toInputDate(travelStart) || prev.travelStart,
       travelEnd: toInputDate(travelEnd) || prev.travelEnd,
@@ -548,7 +553,9 @@ const CreateBookingModal = ({
                 ? lead.email ?? lead.primaryEmail ?? prev.email
                 : prev.email,
               phone: isBlank(prev.phone)
-                ? lead.phone ?? lead.mobile ?? lead.whatsapp ?? prev.phone
+                ? normalizePhoneNumber(
+                    lead.phone ?? lead.mobile ?? lead.whatsapp ?? prev.phone
+                  )
                 : prev.phone,
               destination: isBlank(prev.destination)
                 ? resolveLeadDestination(lead) || prev.destination
@@ -578,6 +585,11 @@ const CreateBookingModal = ({
       newErrors.quotationId = 'Please select a valid quotation'
     }
     if (!formData.customer) newErrors.customer = 'Customer name is required'
+    if (!formData.phone) {
+      newErrors.phone = 'Phone number is required'
+    } else if (!/^\d{10}$/.test(formData.phone)) {
+      newErrors.phone = 'Phone number must be exactly 10 digits'
+    }
     if (!formData.destination) newErrors.destination = 'Destination is required'
     if (!formData.travelStart)
       newErrors.travelStart = 'Travel start date is required'
@@ -715,7 +727,7 @@ const CreateBookingModal = ({
                 className={`field-input ${
                   errors.customer ? 'border-red-500' : ''
                 }`}
-                placeholder='John Doe'
+                placeholder='Your Name'
               />
               {errors.customer && (
                 <p className='text-xs text-red-500 mt-1'>{errors.customer}</p>
@@ -732,7 +744,7 @@ const CreateBookingModal = ({
                 className={`field-input ${
                   errors.email ? 'border-red-500' : ''
                 }`}
-                placeholder='john@example.com'
+                placeholder='name@example.com'
               />
               {errors.email && (
                 <p className='text-xs text-red-500 mt-1'>{errors.email}</p>
@@ -742,16 +754,25 @@ const CreateBookingModal = ({
 
           <div className='grid grid-cols-2 gap-4'>
             <div>
-              <label className='field-label'>Phone</label>
+              <label className='field-label'>Phone *</label>
               <input
                 type='tel'
                 value={formData.phone}
-                onChange={e =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-                className='field-input'
-                placeholder='+1 234 567 8900'
+                onChange={e => {
+                  const normalizedPhone = normalizePhoneNumber(e.target.value)
+                  setFormData({ ...formData, phone: normalizedPhone })
+                }}
+                className={`field-input ${
+                  errors.phone ? 'border-red-500' : ''
+                }`}
+                placeholder='Your Contact Number'
+                inputMode='numeric'
+                pattern='[0-9]*'
+                maxLength={10}
               />
+              {errors.phone && (
+                <p className='text-xs text-red-500 mt-1'>{errors.phone}</p>
+              )}
             </div>
             <div>
               <label className='field-label'>Destination *</label>
@@ -1029,7 +1050,7 @@ const CreateBookingModal = ({
                     totalAmount: parseFloat(e.target.value) || 0
                   })
                 }
-                className={`field-input ${
+                className={`field-input no-spinner ${
                   errors.totalAmount ? 'border-red-500' : ''
                 }`}
                 placeholder='0.00'
@@ -1053,7 +1074,7 @@ const CreateBookingModal = ({
                     costAmount: parseFloat(e.target.value) || 0
                   })
                 }
-                className={`field-input ${
+                className={`field-input no-spinner ${
                   errors.costAmount ? 'border-red-500' : ''
                 }`}
                 placeholder='0.00'
@@ -1078,7 +1099,7 @@ const CreateBookingModal = ({
                     advanceRequired: parseFloat(e.target.value) || 0
                   })
                 }
-                className='field-input'
+                className='field-input no-spinner'
                 placeholder='0.00'
                 min='0'
                 step='0.01'
@@ -2378,7 +2399,7 @@ const BookingsPage: React.FC = () => {
                       </p>
                     </div>
                     <span
-                      className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${
+                      className={`inline-flex w-28 items-center justify-center whitespace-nowrap rounded-full border px-2 py-0.5 text-center text-xs font-medium capitalize ${
                         statusClasses[booking.status]
                       }`}
                     >
@@ -2394,7 +2415,7 @@ const BookingsPage: React.FC = () => {
                     <p className='text-xs text-gray-500'>{booking.dates}</p>
                     <div className='flex flex-wrap gap-2'>
                       <span
-                        className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                        className={`inline-flex w-28 items-center justify-center whitespace-nowrap rounded-full border px-2 py-0.5 text-center text-[11px] font-medium ${
                           deadlineRiskClasses[
                             booking.deadlineRiskLevel ?? 'SAFE'
                           ]
@@ -2415,7 +2436,12 @@ const BookingsPage: React.FC = () => {
                   <div className='flex items-center justify-between'>
                     <div>
                       <span
-                        className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${
+                        className={`${
+                          booking.payment === 'partial' ||
+                          booking.payment === 'unpaid'
+                            ? 'rounded-md'
+                            : 'rounded-full'
+                        } border px-2 py-0.5 text-xs font-medium capitalize ${
                           paymentClasses[booking.payment]
                         }`}
                       >
@@ -2435,7 +2461,11 @@ const BookingsPage: React.FC = () => {
                   <div className='flex justify-end gap-2 pt-2'>
                     <button
                       className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
-                      onClick={() => navigate(`/bookings/${booking.id}`)}
+                      onClick={() =>
+                        navigate(`/bookings/${booking.id}`, {
+                          state: { customerName: booking.customer }
+                        })
+                      }
                       title='View'
                     >
                       <FaEye className='text-sm' />
@@ -2520,14 +2550,14 @@ const BookingsPage: React.FC = () => {
                       <td className='px-5 py-4'>
                         <div className='flex flex-col gap-1'>
                           <span
-                            className={`w-fit rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+                            className={`inline-flex w-28 items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-1 text-center text-xs font-semibold capitalize ${
                               statusClasses[booking.status]
                             }`}
                           >
                             {booking.status}
                           </span>
                           <span
-                            className={`w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                            className={`inline-flex w-28 items-center justify-center whitespace-nowrap rounded-full border px-2 py-0.5 text-center text-[11px] font-medium ${
                               deadlineRiskClasses[
                                 booking.deadlineRiskLevel ?? 'SAFE'
                               ]
@@ -2540,7 +2570,12 @@ const BookingsPage: React.FC = () => {
                       <td className='px-5 py-4'>
                         <div className='flex items-center gap-2'>
                           <span
-                            className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+                            className={`${
+                              booking.payment === 'partial' ||
+                              booking.payment === 'unpaid'
+                                ? 'rounded-md'
+                                : 'rounded-full'
+                            } border px-2.5 py-1 text-xs font-semibold capitalize ${
                               paymentClasses[booking.payment]
                             }`}
                           >
@@ -2605,7 +2640,11 @@ const BookingsPage: React.FC = () => {
                         <div className='flex justify-end gap-1 transition-all duration-200'>
                           <button
                             className='rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                            onClick={() => navigate(`/bookings/${booking.id}`)}
+                            onClick={() =>
+                              navigate(`/bookings/${booking.id}`, {
+                                state: { customerName: booking.customer }
+                              })
+                            }
                             title='View Details'
                           >
                             <FaEye />
@@ -2684,6 +2723,15 @@ const BookingsPage: React.FC = () => {
         }
         .animate-fadeIn {
           animation: fadeIn 0.2s ease-out;
+        }
+        .no-spinner::-webkit-outer-spin-button,
+        .no-spinner::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .no-spinner[type='number'] {
+          -moz-appearance: textfield;
+          appearance: textfield;
         }
       `}</style>
     </div>
