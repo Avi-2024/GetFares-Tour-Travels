@@ -558,6 +558,38 @@ const QuotationBuilderPage: React.FC = () => {
   const handleDownload = async () => {
     if (!previewRef.current || downloading) return
     setDownloading(true)
+    const previewEl = previewRef.current
+    const exportStyle = document.createElement('style')
+    exportStyle.setAttribute('data-quotation-pdf', 'true')
+    exportStyle.innerHTML = `
+      .pdf-exporting .included-service-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        background-color: transparent;
+        border-color: transparent;
+        border-width: 0;
+        font-weight: 600;
+      }
+      .pdf-exporting .preview-validation {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        line-height: 1.2;
+        background-color: transparent;
+        border: 0;
+        padding: 0;
+        font-weight: 600;
+      }
+      .pdf-exporting .preview-validation-icon {
+        display: none;
+      }
+    `
+    document.head.appendChild(exportStyle)
+    previewEl.classList.add('pdf-exporting')
     try {
       // Lazy-load only when needed to keep bundle light and avoid install.
       const html2canvasModule = (await import(
@@ -616,6 +648,8 @@ const QuotationBuilderPage: React.FC = () => {
       console.error('PDF export failed', err)
       alert('Download nahi ho paya, please try again.')
     } finally {
+      previewEl.classList.remove('pdf-exporting')
+      exportStyle.remove()
       setDownloading(false)
     }
   }
@@ -810,27 +844,27 @@ const QuotationBuilderPage: React.FC = () => {
               <p className='mt-2 text-sm text-red-600'>{saveError}</p>
             ) : null}
           </div>
-          <div className='flex flex-wrap items-center gap-2'>
-            <span className='rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700'>
+          <div className='grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center'>
+            <span className='inline-flex w-full items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 sm:w-auto'>
               {form.version}
             </span>
             <button
               onClick={handleDownload}
-              className='rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+              className='inline-flex w-full items-center justify-center gap-1 rounded-xl border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:w-auto'
               disabled={downloading}
             >
-              <FaDownload className='mr-2 inline' />{' '}
+              <FaDownload className='shrink-0' />
               {downloading ? 'Preparing...' : 'Download'}
             </button>
-            <button className='rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'>
-              <FaEnvelope className='mr-2 inline' /> Send
+            <button className='inline-flex w-full items-center justify-center gap-1 rounded-xl border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:w-auto'>
+              <FaEnvelope className='shrink-0' /> Send
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className='rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60'
+              className='col-span-3 w-full rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 sm:w-auto'
             >
-              <FaFloppyDisk className='mr-2 inline' /> Save Quote
+              <FaFloppyDisk className='mr-2 inline' /> Save Quotation
             </button>
           </div>
         </div>
@@ -1528,7 +1562,7 @@ const QuotationBuilderPage: React.FC = () => {
                         {selectedServiceDefinitions.map(definition => (
                           <span
                             key={definition.key}
-                            className='rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700'
+                            className='included-service-chip rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700'
                           >
                             {definition.label}
                           </span>
@@ -1646,9 +1680,9 @@ const QuotationBuilderPage: React.FC = () => {
                     </div>
                   ) : null}
 
-                  <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700'>
-                    <FaCheck className='mr-1 inline' /> Preview validated and
-                    ready to share.
+                  <div className='preview-validation rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700'>
+                    <FaCheck className='preview-validation-icon mr-1 inline' />{' '}
+                    Preview validated and ready to share.
                   </div>
 
                   {form.paymentTerms.trim() ||
