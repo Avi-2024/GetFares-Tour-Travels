@@ -1332,7 +1332,7 @@ const Payments: React.FC = () => {
         try {
           const bookingsRes = await bookingsApi.list({ page: 1, limit: 500 });
           const bookingsData = unwrapList(bookingsRes);
-          bookingById = bookingsData.reduce((acc, booking) => {
+          bookingById = bookingsData.reduce((acc: Record<string, any>, booking: any) => {
             const key = String(
               booking?.id ?? booking?.bookingId ?? booking?.booking_id ?? "",
             );
@@ -1364,7 +1364,7 @@ const Payments: React.FC = () => {
         try {
           const quotationsRes = await quotationsApi.list({ page: 1, limit: 500 });
           const quotationRows = unwrapList(quotationsRes);
-          quotationById = quotationRows.reduce((acc, quote) => {
+          quotationById = quotationRows.reduce((acc: Record<string, any>, quote: any) => {
             const key = String(
               quote?.id ?? quote?.quotationId ?? quote?.quotation_id ?? "",
             );
@@ -1401,7 +1401,7 @@ const Payments: React.FC = () => {
         try {
           const leadsRes = await leadsApi.list({ page: 1, limit: 500 });
           const leadRows = unwrapList(leadsRes);
-          leadById = leadRows.reduce((acc, lead) => {
+          leadById = leadRows.reduce((acc: Record<string, any>, lead: any) => {
             const key = String(lead?.id ?? lead?.leadId ?? lead?.lead_id ?? "");
             if (key) acc[key] = lead;
             return acc;

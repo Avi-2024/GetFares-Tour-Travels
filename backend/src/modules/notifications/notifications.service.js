@@ -12,6 +12,7 @@ const ROLE_BY_DOMAIN = Object.freeze({
   campaigns: ["marketing", "manager"],
   customers: ["sales_consultant", "manager"],
   complaints: ["support", "manager"],
+  suppliers: ["accounts", "manager"],
   auth: ["admin", "manager"],
   webhooks: ["marketing", "manager"],
 });
@@ -116,6 +117,8 @@ function createNotificationsService({
       payload.refundId ||
       payload.campaignId ||
       payload.customerId ||
+      payload.supplierId ||
+      payload.payableId ||
       payload.complaintId ||
       null
     );

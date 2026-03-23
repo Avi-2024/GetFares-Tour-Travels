@@ -40,13 +40,23 @@ function toPayable(entity) {
     return null;
   }
 
+  const dueDateRaw = entity.due_date ?? entity.dueDate ?? null;
+  const dueDate = dueDateRaw ? new Date(dueDateRaw) : null;
+  const now = new Date();
+  const dueInDays =
+    dueDate && !Number.isNaN(dueDate.getTime())
+      ? Math.ceil((dueDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+      : null;
+
   return {
     id: entity.id,
     bookingId: entity.booking_id,
     supplierId: entity.supplier_id,
+    supplierName: entity.supplier_name ?? entity.supplierName ?? null,
     payableAmount: entity.payable_amount,
     paidAmount: entity.paid_amount,
-    dueDate: entity.due_date,
+    dueDate: dueDateRaw,
+    dueInDays,
     status: entity.status,
     paymentReference: entity.payment_reference,
     lastPaidAt: entity.last_paid_at,
@@ -55,6 +65,20 @@ function toPayable(entity) {
 }
 
 function createSuppliersService({ repository, logger, events }) {
+  function toDateOnly(value) {
+    if (!value) {
+      return null;
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  function normalizeAlertType(value) {
+    return String(value || "").trim().toUpperCase();
+  }
   function mapListFilters(filters = {}) {
     return {
       page: filters.page,
@@ -297,6 +321,112 @@ function createSuppliersService({ repository, logger, events }) {
       const payable = toPayable(updated);
       events.emitPayableUpdated(payable);
       return payable;
+    },
+
+    async processPayableDeadlineAlerts(payload = {}, context = {}) {
+      const lookaheadDaysRaw = Number(payload.lookaheadDays ?? 2);
+      const lookaheadDays =
+        Number.isFinite(lookaheadDaysRaw) && lookaheadDaysRaw > 0
+          ? Math.min(Math.floor(lookaheadDaysRaw), 60)
+          : 2;
+      const limitRaw = Number(payload.limit ?? 200);
+      const limit =
+        Number.isFinite(limitRaw) && limitRaw > 0
+          ? Math.min(Math.floor(limitRaw), 1000)
+          : 200;
+      const referenceDate = payload.referenceDate
+        ? new Date(payload.referenceDate)
+        : new Date();
+      if (Number.isNaN(referenceDate.getTime())) {
+        throw new AppError(
+          400,
+          "referenceDate is invalid",
+          "SUPPLIER_INVALID_REFERENCE_DATE",
+        );
+      }
+
+      const candidates = await repository.findPayableDeadlineCandidates({
+        limit,
+      });
+      const alertDate = toDateOnly(referenceDate);
+      const summary = {
+        processed: candidates.length,
+        triggered: 0,
+        skipped: 0,
+        alerts: [],
+      };
+
+      for (const row of candidates) {
+        const payable = toPayable(row);
+        const dueDate = payable.dueDate ? new Date(payable.dueDate) : null;
+        if (!dueDate || Number.isNaN(dueDate.getTime())) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        const diffDays = Math.ceil(
+          (dueDate.getTime() - referenceDate.getTime()) /
+            (24 * 60 * 60 * 1000),
+        );
+        let alertType = null;
+        if (diffDays < 0) {
+          alertType = "PAYABLE_OVERDUE";
+        } else if (diffDays <= lookaheadDays) {
+          alertType = "PAYABLE_DUE_SOON";
+        }
+
+        if (!alertType) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        const normalizedAlertType = normalizeAlertType(alertType);
+        const existing = await repository.findPayableAlertLog({
+          payableId: payable.id,
+          alertType: normalizedAlertType,
+          alertDate,
+        });
+        if (existing) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        await repository.createPayableAlertLog({
+          payableId: payable.id,
+          alertType: normalizedAlertType,
+          alertDate,
+          metadata: {
+            supplierId: payable.supplierId,
+            supplierName: payable.supplierName,
+            dueDate: payable.dueDate,
+            dueInDays: diffDays,
+            payableAmount: payable.payableAmount,
+            paidAmount: payable.paidAmount,
+            pendingAmount: Number(payable.payableAmount || 0) - Number(payable.paidAmount || 0),
+          },
+        });
+
+        const eventPayload = {
+          payableId: payable.id,
+          supplierId: payable.supplierId,
+          supplierName: payable.supplierName,
+          bookingId: payable.bookingId,
+          alertType: normalizedAlertType,
+          alertDate,
+          dueDate: payable.dueDate,
+          dueInDays: diffDays,
+          payableAmount: payable.payableAmount,
+          paidAmount: payable.paidAmount,
+          pendingAmount:
+            Number(payable.payableAmount || 0) - Number(payable.paidAmount || 0),
+          triggeredBy: context.user?.id || null,
+        };
+        events.emitPayableDeadlineAlert(eventPayload);
+        summary.alerts.push(eventPayload);
+        summary.triggered += 1;
+      }
+
+      return summary;
     },
   });
 }

@@ -1,744 +1,182 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  FaListCheck,
-  FaUpload,
-  FaCheck,
-  FaXmark,
-  FaEye,
-  FaDownload,
-  FaFilePdf,
-  FaFileImage,
-  FaFileWord,
-  FaTrash,
-  FaCircleInfo,
-  FaCalendarCheck,
-  FaGlobe,
-  FaClock,
-  FaArrowLeft,
-} from "react-icons/fa6";
-import { DateInput, TextInput } from "../../components/form";
-import AuditMeta from "../../components/ui/AuditMeta";
-import StatusBadge from "../../components/ui/StatusBadge";
+import { FaArrowLeft, FaCheck, FaDownload, FaEye, FaUpload, FaXmark } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
-import Timeline from "../../components/ui/Timeline";
+import StatusBadge from "../../components/ui/StatusBadge";
 import EmptyState from "../../components/ui/EmptyState";
-import { validateVisaTransition } from "../../utils/workflowValidation";
 import { visaApi } from "../../api/visa";
+import { bookingsApi } from "../../api/bookings";
+import { suppliersApi } from "../../api/suppliers";
 import { getApiErrorMessage } from "../../api/apiClient";
-import { useAuth } from "../../context/AuthContext";
+import { validateVisaTransition } from "../../utils/workflowValidation";
+import { DOCUMENT_TYPE_OPTIONS, getCountryVisaChecklist, humanizeVisaStage, normalizeVisaStage, VISA_WORKFLOW_STAGES, type VisaWorkflowStage } from "./visaWorkflow";
 
-// Types
-interface Document {
-  id: string;
-  name: string;
-  type: "pdf" | "image" | "doc" | "other";
-  size: string;
-  uploadedAt: string;
-  uploadedBy: string;
-  verified: boolean;
-  verifiedAt?: string;
-  verifiedBy?: string;
-  url: string;
-  file?: File;
-}
-
-interface ChecklistItem {
-  id: string;
-  label: string;
-  required: boolean;
-  completed: boolean;
-  documentId?: string;
-}
-
-interface TimelineItem {
-  id: string;
-  title: string;
-  meta: string;
-  time: string;
-  icon: React.ReactElement;
-  description?: string;
-}
-
+type VisaDocument = { id: string; documentType: string; fileUrl: string; isVerified: boolean; uploadedAt: string | null };
+type ChecklistKey = "passportVerified" | "visaVerified" | "insuranceVerified" | "ticketVerified" | "hotelVerified" | "transferVerified" | "tourVerified" | "finalItineraryUploaded" | "travelReady";
+type ChecklistItem = { id: ChecklistKey; label: string; completed: boolean; required: boolean };
 type VisaCase = {
-  id: string;
-  bookingId?: string | null;
-  supplierId?: string | null;
-  country?: string | null;
-  visaType?: string | null;
-  visaNumber?: string | null;
-  fees?: number | null;
-  appointmentDate?: string | null;
-  submissionDate?: string | null;
-  status?: string | null;
-  rejectionReason?: string | null;
-  visaValidUntil?: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
+  id: string; bookingId?: string | null; supplierId?: string | null; country?: string | null; visaType?: string | null;
+  visaNumber?: string | null; fees?: number | null; appointmentDate?: string | null; submissionDate?: string | null;
+  workflowStage: VisaWorkflowStage; rejectionReason?: string | null; visaValidUntil?: string | null; deliveredAt?: string | null;
+  createdAt?: string | null; updatedAt?: string | null; daysToExpiry?: number | null; expiryStatus?: string | null;
 };
 
-type ChecklistKey =
-  | "passportVerified"
-  | "visaVerified"
-  | "insuranceVerified"
-  | "ticketVerified"
-  | "hotelVerified"
-  | "transferVerified"
-  | "tourVerified"
-  | "finalItineraryUploaded"
-  | "travelReady";
-
-const checklistConfig: Array<{
-  id: ChecklistKey;
-  label: string;
-  required: boolean;
-}> = [
+const checklistConfig: Array<{ id: ChecklistKey; label: string; required: boolean }> = [
   { id: "passportVerified", label: "Passport Copy", required: true },
-  { id: "visaVerified", label: "Visa Form", required: true },
-  { id: "insuranceVerified", label: "Travel Insurance", required: true },
+  { id: "visaVerified", label: "Visa Form / Visa Copy", required: true },
+  { id: "insuranceVerified", label: "Travel Insurance", required: false },
   { id: "ticketVerified", label: "Flight Itinerary", required: false },
-  { id: "hotelVerified", label: "Hotel Booking", required: false },
+  { id: "hotelVerified", label: "Hotel Voucher", required: false },
   { id: "transferVerified", label: "Transfer Details", required: false },
   { id: "tourVerified", label: "Tour Vouchers", required: false },
   { id: "finalItineraryUploaded", label: "Final Itinerary", required: false },
   { id: "travelReady", label: "Travel Ready", required: false },
 ];
 
-const mapApiStatusToUi = (status?: string) => {
-  switch (String(status || "").toUpperCase()) {
-    case "SUBMITTED":
-      return "SUBMITTED";
-    case "APPROVED":
-      return "APPROVED";
-    case "REJECTED":
-      return "REJECTED";
-    case "DOCUMENT_PENDING":
-    default:
-      return "DRAFT";
-  }
-};
-
-const mapUiStatusToApi = (
-  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED",
-) => {
-  if (status === "DRAFT") return "DOCUMENT_PENDING";
-  return status;
-};
-
-const getDocTypeFromName = (name: string) => {
-  const lower = name.toLowerCase();
-  if (lower.endsWith(".pdf")) return "pdf";
-  if (lower.match(/\.(png|jpg|jpeg|webp|gif)$/)) return "image";
-  if (lower.match(/\.(doc|docx)$/)) return "doc";
-  return "other";
-};
-
-const mapApiDocument = (doc: any): Document => ({
-  id: doc?.id || "",
-  name: doc?.documentType || doc?.document_type || doc?.fileUrl || "document",
-  type: getDocTypeFromName(
-    doc?.fileUrl || doc?.file_url || doc?.documentType || "document",
-  ) as Document["type"],
-  size: doc?.size || "-",
-  uploadedAt: doc?.uploadedAt || doc?.uploaded_at || new Date().toISOString(),
-  uploadedBy: doc?.uploadedBy || doc?.uploaded_by || "System",
-  verified: Boolean(doc?.isVerified ?? doc?.is_verified ?? false),
-  url: doc?.fileUrl || doc?.file_url || "#",
-});
-
-const mapChecklist = (data?: Record<string, any>): ChecklistItem[] =>
-  checklistConfig.map((item) => ({
-    id: item.id,
-    label: item.label,
-    required: item.required,
-    completed: Boolean(data?.[item.id] ?? false),
-  }));
-
-// Toast Notification Component
-const Toast = ({
-  message,
-  type,
-}: {
-  message: string;
-  type: "success" | "error";
-  onClose: () => void;
-}) => (
-  <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
-    <div
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${
-        type === "success"
-          ? "bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800"
-          : "bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800"
-      }`}
-    >
-      {type === "success" ? (
-        <FaCheck className="text-green-600 dark:text-green-400" />
-      ) : (
-        <FaXmark className="text-red-600 dark:text-red-400" />
-      )}
-      <p
-        className={`text-sm font-medium ${
-          type === "success"
-            ? "text-green-800 dark:text-green-300"
-            : "text-red-800 dark:text-red-300"
-        }`}
-      >
-        {message}
-      </p>
-    </div>
-  </div>
-);
-
-// Confirmation Modal
-const ConfirmModal = ({
-  isOpen,
-  title,
-  message,
-  onConfirm,
-  onCancel,
-}: {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-6 animate-fadeIn">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
-            <FaTrash className="text-red-600 dark:text-red-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {title}
-          </h3>
-        </div>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          {message}
-        </p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Document Preview Modal
-const DocumentPreviewModal = ({
-  isOpen,
-  document,
-  onClose,
-}: {
-  isOpen: boolean;
-  document: Document | null;
-  onClose: () => void;
-}) => {
-  if (!isOpen || !document) return null;
-
-  const getIcon = () => {
-    switch (document.type) {
-      case "pdf":
-        return <FaFilePdf className="text-6xl text-red-500" />;
-      case "image":
-        return <FaFileImage className="text-6xl text-blue-500" />;
-      case "doc":
-        return <FaFileWord className="text-6xl text-blue-700" />;
-      default:
-        return <FaFileImage className="text-6xl text-gray-500" />;
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-              {getIcon()}
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate max-w-md">
-              {document.name}
-            </h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <FaXmark className="text-xl" />
-          </button>
-        </div>
-
-        <div className="p-6">
-          {document.type === "image" ? (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-8 flex items-center justify-center">
-              <img
-                src={document.url}
-                alt={document.name}
-                className="max-w-full max-h-96 object-contain"
-              />
-            </div>
-          ) : (
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-8 text-center">
-              {getIcon()}
-              <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                Preview not available for this file type
-              </p>
-              <button className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-                <FaDownload /> Download to View
-              </button>
-            </div>
-          )}
-
-          <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-gray-500">File Size</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100">
-                {document.size}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Uploaded By</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100">
-                {document.uploadedBy}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Uploaded At</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100">
-                {new Date(document.uploadedAt).toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Status</p>
-              {document.verified ? (
-                <p className="font-medium text-green-600 flex items-center gap-1">
-                  <FaCheck /> Verified by {document.verifiedBy}
-                </p>
-              ) : (
-                <p className="font-medium text-amber-600">
-                  Pending Verification
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+const mapChecklist = (data?: Record<string, any>): ChecklistItem[] => checklistConfig.map((item) => ({ id: item.id, label: item.label, required: item.required, completed: Boolean(data?.[item.id] ?? false) }));
+const mapDoc = (doc: any): VisaDocument => ({ id: String(doc?.id || ""), documentType: String(doc?.documentType || doc?.document_type || "OTHER"), fileUrl: String(doc?.fileUrl || doc?.file_url || "#"), isVerified: Boolean(doc?.isVerified ?? doc?.is_verified ?? false), uploadedAt: doc?.uploadedAt || doc?.uploaded_at || null });
+const fmtDate = (value?: string | null) => value ? new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "-";
+const fmtDateTime = (value?: string | null) => value ? new Date(value).toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+const fmtMoney = (value?: number | null) => value === null || value === undefined ? "-" : `Rs ${Number(value).toLocaleString("en-IN")}`;
 
 const VisaDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
-  // const navigate = useNavigate()
-
-  // Status state
-  const [status, setStatus] = useState<
-    "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
-  >("DRAFT");
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [visaValidUntil, setVisaValidUntil] = useState("");
-  const [error, setError] = useState("");
-  const [pageError, setPageError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [savingStatus, setSavingStatus] = useState(false);
   const [visaCase, setVisaCase] = useState<VisaCase | null>(null);
-
-  // UI state
-  const [toast, setToast] = useState<{
-    show: boolean;
-    message: string;
-    type: "success" | "error";
-  }>({
-    show: false,
-    message: "",
-    type: "success",
-  });
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
-  const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
-
-  // Documents state
-  const [documents, setDocuments] = useState<Document[]>([]);
-
-  // Checklist state
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(
-    mapChecklist(),
-  );
-
-  // Timeline state
-  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
-
-  // Upload modal state
+  const [workflowStage, setWorkflowStage] = useState<VisaWorkflowStage>("DOCUMENT_COLLECTION");
+  const [appointmentDate, setAppointmentDate] = useState("");
+  const [submissionDate, setSubmissionDate] = useState("");
+  const [visaValidUntil, setVisaValidUntil] = useState("");
+  const [deliveredAt, setDeliveredAt] = useState("");
+  const [visaNumber, setVisaNumber] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [documents, setDocuments] = useState<VisaDocument[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(mapChecklist());
+  const [bookingLabelById, setBookingLabelById] = useState<Record<string, string>>({});
+  const [supplierNameById, setSupplierNameById] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState("");
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadName, setUploadName] = useState("");
-
-  const caseSummary = useMemo(
-    () => ({
-      country: visaCase?.country || "-",
-      visaType: visaCase?.visaType || "-",
-      appointmentDate: visaCase?.appointmentDate
-        ? new Date(visaCase.appointmentDate).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })
-        : "-",
-      fees:
-        visaCase?.fees !== undefined && visaCase?.fees !== null
-          ? `₹${Number(visaCase.fees).toLocaleString("en-IN")}`
-          : "-",
-      processingTime: "-",
-    }),
-    [visaCase],
-  );
+  const [uploadDocumentType, setUploadDocumentType] = useState<string>("PASSPORT");
+  const showMessage = (text: string, type: "success" | "error") => { setMessage(text); setMessageType(type); window.setTimeout(() => setMessage(""), 3000); };
 
   useEffect(() => {
-    const loadVisaCase = async () => {
+    const loadPage = async () => {
       if (!id) return;
-      const isUuid =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-          id,
-        );
-      if (!isUuid) {
-        setPageError("Invalid visa case id. Please open from the visa list.");
-        return;
-      }
-      if (!token) {
-        setPageError("Please login to view this visa case.");
-        return;
-      }
-
-      setLoading(true);
-      setPageError("");
+      setLoading(true); setPageError("");
       try {
-        const [caseResponse, docsResponse, checklistResponse] =
-          await Promise.all([
-            visaApi.getById(id),
-            visaApi.listDocuments(id),
-            visaApi.getChecklist(id),
-          ]);
-
-        const casePayload =
-          (caseResponse as any)?.data?.data ??
-          (caseResponse as any)?.data ??
-          caseResponse;
-        const docPayload =
-          (docsResponse as any)?.data?.data ??
-          (docsResponse as any)?.data ??
-          docsResponse;
-        const checklistPayload =
-          (checklistResponse as any)?.data?.data ??
-          (checklistResponse as any)?.data ??
-          checklistResponse;
-
-        if (casePayload) {
-          const mapped: VisaCase = {
-            id: casePayload.id,
-            bookingId: casePayload.bookingId ?? casePayload.booking_id ?? null,
-            supplierId:
-              casePayload.supplierId ?? casePayload.supplier_id ?? null,
-            country: casePayload.country ?? null,
-            visaType: casePayload.visaType ?? casePayload.visa_type ?? null,
-            visaNumber:
-              casePayload.visaNumber ?? casePayload.visa_number ?? null,
-            fees: casePayload.fees ?? null,
-            appointmentDate:
-              casePayload.appointmentDate ??
-              casePayload.appointment_date ??
-              null,
-            submissionDate:
-              casePayload.submissionDate ??
-              casePayload.submission_date ??
-              null,
-            status: casePayload.status ?? null,
-            rejectionReason:
-              casePayload.rejectionReason ??
-              casePayload.rejection_reason ??
-              null,
-            visaValidUntil:
-              casePayload.visaValidUntil ??
-              casePayload.visa_valid_until ??
-              null,
-            createdAt: casePayload.createdAt ?? casePayload.created_at ?? null,
-            updatedAt: casePayload.updatedAt ?? casePayload.updated_at ?? null,
-          };
-
-          setVisaCase(mapped);
-          setStatus(mapApiStatusToUi(mapped.status ?? undefined) as any);
-          setVisaValidUntil(mapped.visaValidUntil || "");
-          setRejectionReason(mapped.rejectionReason || "");
-        }
-
-        if (Array.isArray(docPayload)) {
-          setDocuments(docPayload.map(mapApiDocument));
-        } else {
-          setDocuments([]);
-        }
-
-        setChecklist(mapChecklist(checklistPayload || {}));
-      } catch (err) {
-        console.error("Failed to load visa case:", err);
-        setPageError(getApiErrorMessage(err, "Failed to load visa case."));
-      } finally {
-        setLoading(false);
-      }
+        const [caseRes, docsRes, checklistRes, bookingsRes, suppliersRes] = await Promise.all([
+          visaApi.getById(id), visaApi.listDocuments(id), visaApi.getChecklist(id), bookingsApi.list({ page: 1, limit: 300 }), suppliersApi.list({ page: 1, limit: 300 }),
+        ]);
+        const c = (caseRes as any)?.data?.data ?? (caseRes as any)?.data ?? caseRes;
+        const bookingRows = (bookingsRes as any)?.data?.data || (bookingsRes as any)?.data?.items || (bookingsRes as any)?.data || bookingsRes || [];
+        const supplierRows = (suppliersRes as any)?.data?.data || (suppliersRes as any)?.data?.items || (suppliersRes as any)?.data || suppliersRes || [];
+        const bookingMap: Record<string, string> = {}; const supplierMap: Record<string, string> = {};
+        (Array.isArray(bookingRows) ? bookingRows : []).forEach((booking: any) => { const bookingId = String(booking?.id || ""); if (!bookingId) return; const bookingNumber = booking?.bookingNumber || booking?.booking_number || bookingId; const customer = booking?.customerName || booking?.customer_name || booking?.leadName || booking?.lead_name || ""; bookingMap[bookingId] = customer ? `${bookingNumber} - ${customer}` : String(bookingNumber); });
+        (Array.isArray(supplierRows) ? supplierRows : []).forEach((supplier: any) => { const supplierId = String(supplier?.id || ""); const name = String(supplier?.name || "").trim(); if (supplierId && name) supplierMap[supplierId] = name; });
+        setBookingLabelById(bookingMap); setSupplierNameById(supplierMap);
+        const mapped: VisaCase = { id: String(c?.id || id), bookingId: c?.bookingId ?? c?.booking_id ?? null, supplierId: c?.supplierId ?? c?.supplier_id ?? null, country: c?.country ?? null, visaType: c?.visaType ?? c?.visa_type ?? null, visaNumber: c?.visaNumber ?? c?.visa_number ?? null, fees: c?.fees ?? null, appointmentDate: c?.appointmentDate ?? c?.appointment_date ?? null, submissionDate: c?.submissionDate ?? c?.submission_date ?? null, workflowStage: normalizeVisaStage(c?.workflowStage ?? c?.workflow_stage ?? c?.status), rejectionReason: c?.rejectionReason ?? c?.rejection_reason ?? null, visaValidUntil: c?.visaValidUntil ?? c?.visa_valid_until ?? null, deliveredAt: c?.deliveredAt ?? c?.delivered_at ?? null, createdAt: c?.createdAt ?? c?.created_at ?? null, updatedAt: c?.updatedAt ?? c?.updated_at ?? null, daysToExpiry: c?.daysToExpiry ?? null, expiryStatus: c?.expiryStatus ?? null };
+        setVisaCase(mapped); setWorkflowStage(mapped.workflowStage); setAppointmentDate(mapped.appointmentDate ? String(mapped.appointmentDate).slice(0, 10) : ""); setSubmissionDate(mapped.submissionDate ? String(mapped.submissionDate).slice(0, 10) : ""); setVisaValidUntil(mapped.visaValidUntil ? String(mapped.visaValidUntil).slice(0, 10) : ""); setDeliveredAt(mapped.deliveredAt ? String(mapped.deliveredAt).slice(0, 10) : ""); setVisaNumber(mapped.visaNumber || ""); setRejectionReason(mapped.rejectionReason || "");
+        const docs = (docsRes as any)?.data?.data ?? (docsRes as any)?.data ?? docsRes; const chk = (checklistRes as any)?.data?.data ?? (checklistRes as any)?.data ?? checklistRes;
+        setDocuments(Array.isArray(docs) ? docs.map(mapDoc) : []); setChecklist(mapChecklist(chk || {}));
+      } catch (err) { console.error("Failed to load visa case:", err); setPageError(getApiErrorMessage(err, "Failed to load visa case.")); }
+      finally { setLoading(false); }
     };
+    void loadPage();
+  }, [id]);
 
-    void loadVisaCase();
-  }, [id, token]);
+  const validationError = useMemo(() => validateVisaTransition(workflowStage, rejectionReason, visaValidUntil, appointmentDate), [appointmentDate, rejectionReason, visaValidUntil, workflowStage]);
+  const countryChecklist = useMemo(() => getCountryVisaChecklist(visaCase?.country || undefined), [visaCase?.country]);
+  const progressPercentage = useMemo(() => checklist.length ? (checklist.filter((item) => item.completed).length / checklist.length) * 100 : 0, [checklist]);
+  const bookingLabel = visaCase?.bookingId ? bookingLabelById[visaCase.bookingId] || visaCase.bookingId : "Not linked";
+  const supplierLabel = visaCase?.supplierId ? supplierNameById[visaCase.supplierId] || visaCase.supplierId : "Not linked";
+  const activityItems = useMemo(() => ([
+    visaCase?.createdAt ? `Case created on ${fmtDateTime(visaCase.createdAt)}` : null,
+    submissionDate ? `Submission recorded for ${fmtDate(submissionDate)}` : null,
+    appointmentDate ? `Appointment scheduled for ${fmtDate(appointmentDate)}` : null,
+    visaValidUntil ? `Validity captured till ${fmtDate(visaValidUntil)}` : null,
+    deliveredAt ? `Delivered on ${fmtDate(deliveredAt)}` : null,
+    ...documents.map((doc) => `${humanizeVisaStage(doc.documentType)} uploaded${doc.isVerified ? " and verified" : ""}`),
+  ].filter(Boolean) as string[]), [appointmentDate, deliveredAt, documents, submissionDate, visaCase?.createdAt, visaValidUntil]);
 
-  const showToast = (message: string, type: "success" | "error") => {
-    setToast({ show: true, message, type });
-    setTimeout(
-      () => setToast({ show: false, message: "", type: "success" }),
-      3000,
-    );
-  };
-
-  const saveStatus = async (): Promise<boolean> => {
-    const validationError = validateVisaTransition(
-      status,
-      rejectionReason,
-      visaValidUntil,
-    );
-    setError(validationError);
-    if (validationError || !id) return false;
-
-    setSavingStatus(true);
+  const saveWorkflow = async () => {
+    if (!id) return;
+    if (validationError) {
+      showMessage(validationError, "error");
+      return;
+    }
+    setSaving(true);
     try {
-      const payload: Record<string, unknown> = {
-        status: mapUiStatusToApi(status),
-      };
-
-      if (status === "REJECTED") {
-        payload.rejectionReason = rejectionReason;
-      }
-      if (status === "APPROVED") {
-        payload.visaValidUntil = visaValidUntil;
-      }
-      if (status === "SUBMITTED" && !visaCase?.submissionDate) {
-        payload.submissionDate = new Date().toISOString().slice(0, 10);
-      }
-
-      const response = await visaApi.changeStatus(id, payload);
-      const updated =
-        (response as any)?.data?.data ??
-        (response as any)?.data ??
-        response;
-
+      const response = await visaApi.changeStatus(id, {
+        workflowStage,
+        appointmentDate: appointmentDate || undefined,
+        submissionDate: submissionDate || undefined,
+        visaValidUntil: visaValidUntil || undefined,
+        deliveredAt: deliveredAt || undefined,
+        visaNumber: visaNumber.trim() || undefined,
+        rejectionReason: rejectionReason.trim() || undefined,
+      });
+      const updated = (response as any)?.data?.data ?? (response as any)?.data ?? response;
       setVisaCase((prev) => ({
-        ...(prev || { id }),
-        status: mapUiStatusToApi(status),
-        visaValidUntil:
-          status === "APPROVED" ? visaValidUntil : prev?.visaValidUntil ?? null,
-        rejectionReason:
-          status === "REJECTED"
-            ? rejectionReason
-            : prev?.rejectionReason ?? null,
+        ...(prev || { id, workflowStage }),
+        bookingId: updated?.bookingId ?? updated?.booking_id ?? prev?.bookingId ?? null,
+        supplierId: updated?.supplierId ?? updated?.supplier_id ?? prev?.supplierId ?? null,
+        country: updated?.country ?? prev?.country ?? null,
+        visaType: updated?.visaType ?? updated?.visa_type ?? prev?.visaType ?? null,
+        visaNumber: (updated?.visaNumber ?? updated?.visa_number ?? visaNumber) || null,
+        fees: updated?.fees ?? prev?.fees ?? null,
+        appointmentDate:
+          (updated?.appointmentDate ?? updated?.appointment_date ?? appointmentDate) || null,
         submissionDate:
-          status === "SUBMITTED"
-            ? updated?.submissionDate ??
-              updated?.submission_date ??
-              prev?.submissionDate ??
-              null
-            : prev?.submissionDate ?? null,
-      }));
-
-      const newTimelineItem: TimelineItem = {
-        id: Date.now().toString(),
-        title: `Status changed to ${status}`,
-        meta: "Current User",
-        time: new Date().toISOString(),
-        icon:
-          status === "APPROVED" ? (
-            <FaCheck />
-          ) : status === "REJECTED" ? (
-            <FaXmark />
-          ) : (
-            <FaListCheck />
-          ),
-        description:
-          status === "REJECTED" ? `Reason: ${rejectionReason}` : undefined,
-      };
-      setTimeline((prev) => [newTimelineItem, ...prev]);
-      setError("");
-      showToast(`Status updated to ${status}`, "success");
-      return true;
-    } catch (err) {
-      console.error("Failed to update status:", err);
-      showToast(getApiErrorMessage(err, "Failed to update status"), "error");
-      return false;
-    } finally {
-      setSavingStatus(false);
-    }
-  };
-
-  const handleSaveAndBack = async () => {
-    const ok = await saveStatus();
-    if (ok) {
-      navigate("/visa");
-    }
-  };
-
-  const handleVerifyDocument = async (docId: string) => {
-    try {
-      await visaApi.verifyDocument(docId, { isVerified: true });
-
-      setDocuments((prev) =>
-        prev.map((doc) =>
-          doc.id === docId
-            ? {
-                ...doc,
-                verified: true,
-                verifiedAt: new Date().toISOString(),
-                verifiedBy: "Current User",
-              }
-            : doc,
+          (updated?.submissionDate ?? updated?.submission_date ?? submissionDate) || null,
+        workflowStage: normalizeVisaStage(
+          updated?.workflowStage ?? updated?.workflow_stage ?? workflowStage,
         ),
-      );
-
-      const doc = documents.find((d) => d.id === docId);
-      const name = doc?.name?.toLowerCase() || "";
-      const checklistField: ChecklistKey | null =
-        name.includes("passport")
-          ? "passportVerified"
-          : name.includes("visa")
-            ? "visaVerified"
-            : name.includes("insurance")
-              ? "insuranceVerified"
-              : name.includes("flight") || name.includes("ticket")
-                ? "ticketVerified"
-                : name.includes("hotel")
-                  ? "hotelVerified"
-                  : name.includes("transfer")
-                    ? "transferVerified"
-                    : name.includes("tour")
-                      ? "tourVerified"
-                      : null;
-
-      if (checklistField && id) {
-        await visaApi.updateChecklist(id, { [checklistField]: true });
-        setChecklist((prev) =>
-          prev.map((item) =>
-            item.id === checklistField
-              ? { ...item, completed: true }
-              : item,
-          ),
-        );
-      }
-
-      const newTimelineItem: TimelineItem = {
-        id: Date.now().toString(),
-        title: `Document verified: ${doc?.name || "Document"}`,
-        meta: "Current User",
-        time: new Date().toISOString(),
-        icon: <FaCheck />,
-      };
-      setTimeline((prev) => [newTimelineItem, ...prev]);
-      showToast("Document verified successfully", "success");
+        rejectionReason:
+          (updated?.rejectionReason ?? updated?.rejection_reason ?? rejectionReason) || null,
+        visaValidUntil:
+          (updated?.visaValidUntil ?? updated?.visa_valid_until ?? visaValidUntil) || null,
+        deliveredAt:
+          (updated?.deliveredAt ?? updated?.delivered_at ?? deliveredAt) || null,
+        createdAt: updated?.createdAt ?? updated?.created_at ?? prev?.createdAt ?? null,
+        updatedAt: updated?.updatedAt ?? updated?.updated_at ?? new Date().toISOString(),
+        daysToExpiry: updated?.daysToExpiry ?? prev?.daysToExpiry ?? null,
+        expiryStatus: updated?.expiryStatus ?? prev?.expiryStatus ?? null,
+      }));
+      showMessage(`Workflow updated to ${humanizeVisaStage(workflowStage)}`, "success");
     } catch (err) {
-      console.error("Failed to verify document:", err);
-      showToast(getApiErrorMessage(err, "Failed to verify document"), "error");
+      console.error("Failed to update visa workflow:", err);
+      showMessage(getApiErrorMessage(err, "Failed to update visa workflow."), "error");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDeleteClick = (docId: string) => {
-    setDocumentToDelete(docId);
-    setShowDeleteConfirm(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (documentToDelete) {
-      setDocuments((prev) => prev.filter((doc) => doc.id !== documentToDelete));
-
-      const newTimelineItem: TimelineItem = {
-        id: Date.now().toString(),
-        title: `Document deleted`,
-        meta: "Current User",
-        time: new Date().toISOString(),
-        icon: <FaTrash />,
-      };
-      setTimeline((prev) => [newTimelineItem, ...prev]);
-
-      showToast("Document deleted successfully", "success");
-      setShowDeleteConfirm(false);
-      setDocumentToDelete(null);
-    }
-  };
-
-  const handleUploadDocument = async () => {
-    if (!uploadFile || !id) return;
-
+  const handleVerifyDocument = async (documentId: string) => {
     try {
-      const fileUrl = URL.createObjectURL(uploadFile);
-      const payload = {
-        documentType: uploadName || uploadFile.name,
-        fileUrl,
-      };
-
-      const response = await visaApi.addDocument(id, payload);
-      const created =
-        (response as any)?.data?.data ??
-        (response as any)?.data ??
-        response;
-      const newDoc = mapApiDocument(created);
-
-      setDocuments((prev) => [newDoc, ...prev]);
-      setShowUploadModal(false);
-      setUploadFile(null);
-      setUploadName("");
-
-      const newTimelineItem: TimelineItem = {
-        id: Date.now().toString(),
-        title: `Document uploaded: ${newDoc.name}`,
-        meta: "Current User",
-        time: new Date().toISOString(),
-        icon: <FaUpload />,
-      };
-      setTimeline((prev) => [newTimelineItem, ...prev]);
-      showToast("Document uploaded successfully", "success");
+      await visaApi.verifyDocument(documentId, { isVerified: true });
+      setDocuments((prev) =>
+        prev.map((doc) => (doc.id === documentId ? { ...doc, isVerified: true } : doc)),
+      );
+      showMessage("Document verified successfully.", "success");
     } catch (err) {
-      console.error("Failed to upload document:", err);
-      showToast(getApiErrorMessage(err, "Failed to upload document"), "error");
+      console.error("Failed to verify visa document:", err);
+      showMessage(getApiErrorMessage(err, "Failed to verify document."), "error");
     }
-  };
-
-  const handleViewDocument = (doc: Document) => {
-    setPreviewDocument(doc);
-    setShowPreview(true);
   };
 
   const handleChecklistToggle = async (fieldId: ChecklistKey) => {
     if (!id) return;
     const currentItem = checklist.find((item) => item.id === fieldId);
     if (!currentItem) return;
-
     const nextValue = !currentItem.completed;
     setChecklist((prev) =>
-      prev.map((item) =>
-        item.id === fieldId ? { ...item, completed: nextValue } : item,
-      ),
+      prev.map((item) => (item.id === fieldId ? { ...item, completed: nextValue } : item)),
     );
-
     try {
       await visaApi.updateChecklist(id, { [fieldId]: nextValue });
     } catch (err) {
@@ -748,124 +186,72 @@ const VisaDetailPage = () => {
           item.id === fieldId ? { ...item, completed: currentItem.completed } : item,
         ),
       );
-      showToast(getApiErrorMessage(err, "Failed to update checklist"), "error");
+      showMessage(getApiErrorMessage(err, "Failed to update checklist."), "error");
     }
   };
 
-  const getDocumentIcon = (type: string) => {
-    switch (type) {
-      case "pdf":
-        return <FaFilePdf className="text-red-500" />;
-      case "image":
-        return <FaFileImage className="text-blue-500" />;
-      case "doc":
-        return <FaFileWord className="text-blue-700" />;
-      default:
-        return <FaFileImage className="text-gray-500" />;
+  const handleUploadDocument = async () => {
+    if (!id || !uploadFile) return;
+    try {
+      const formData = new FormData();
+      formData.append("documentType", uploadDocumentType);
+      formData.append("file", uploadFile);
+      const response = await visaApi.addDocument(id, formData);
+      const created = (response as any)?.data?.data ?? (response as any)?.data ?? response;
+      setDocuments((prev) => [mapDoc(created), ...prev]);
+      setShowUploadModal(false);
+      setUploadFile(null);
+      setUploadDocumentType("PASSPORT");
+      showMessage("Document uploaded successfully.", "success");
+    } catch (err) {
+      console.error("Failed to upload visa document:", err);
+      showMessage(getApiErrorMessage(err, "Failed to upload document."), "error");
     }
   };
-
-  const formatDateTime = (dateStr?: string | null) => {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatAuditDate = (dateStr?: string | null) => {
-    if (!dateStr) return undefined;
-    return new Date(dateStr).toLocaleString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const progressPercentage = useMemo(() => {
-    if (!checklist.length) return 0;
-    return (
-      (checklist.filter((item) => item.completed).length / checklist.length) *
-      100
-    );
-  }, [checklist]);
 
   return (
-    <div className="space-y-4 sm:space-y-6 px-4 sm:px-0 max-w-7xl mx-auto">
-      {/* Toast Notification */}
-      {toast.show && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() =>
-            setToast({ show: false, message: "", type: "success" })
-          }
-        />
-      )}
-
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        title="Delete Document"
-        message="Are you sure you want to delete this document? This action cannot be undone."
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => {
-          setShowDeleteConfirm(false);
-          setDocumentToDelete(null);
-        }}
-      />
-
-      {/* Document Preview Modal */}
-      <DocumentPreviewModal
-        isOpen={showPreview}
-        document={previewDocument}
-        onClose={() => {
-          setShowPreview(false);
-          setPreviewDocument(null);
-        }}
-      />
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="mx-auto max-w-7xl space-y-4 px-4 sm:space-y-6 sm:px-0">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <button
             onClick={() => navigate("/visa")}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            aria-label="Back to visa"
-            title="Back to Visa"
+            aria-label="Back to visa list"
           >
             <FaArrowLeft className="text-sm" />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Visa Case #{id}
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">
+              Visa Case {id ? `#${id.slice(0, 8)}` : ""}
             </h1>
-            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Manage visa status, documents, and readiness checklist
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+              Track documents, workflow stage, appointment date, validity, and delivery in one place.
             </p>
-            {pageError ? (
-              <p className="mt-2 text-xs sm:text-sm text-red-500">
-                {pageError}
-              </p>
-            ) : null}
+            {pageError ? <p className="mt-2 text-sm text-red-500">{pageError}</p> : null}
           </div>
         </div>
-        <StatusBadge status={status} />
+        <StatusBadge status={workflowStage} />
       </div>
 
+      {message ? (
+        <SurfaceCard
+          className={`border p-4 text-sm ${
+            messageType === "success"
+              ? "border-green-200 bg-green-50/70 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
+              : "border-red-200 bg-red-50/70 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"
+          }`}
+        >
+          {message}
+        </SurfaceCard>
+      ) : null}
       {loading ? (
-        <div className="p-8 flex justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="flex justify-center p-8">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
         </div>
       ) : null}
 
-      {/* Progress Bar */}
       <SurfaceCard className="p-4">
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Checklist Progress
           </span>
@@ -873,94 +259,140 @@ const VisaDetailPage = () => {
             {Math.round(progressPercentage)}%
           </span>
         </div>
-        <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
           <div
-            className="h-full bg-blue-600 rounded-full transition-all duration-300"
+            className="h-full rounded-full bg-blue-600 transition-all duration-300"
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
       </SurfaceCard>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Main Content (2/3 width) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Status Transition Card */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
           <SurfaceCard className="p-5">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Status Update
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="mb-4">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                Workflow Update
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                PRD-based visa stages with required dates for biometrics, approval, and delivery.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="field-label">Status</label>
+                <label className="field-label">Workflow Stage</label>
                 <select
                   className="field-input"
-                  value={status}
-                  onChange={(event) => setStatus(event.target.value as any)}
+                  value={workflowStage}
+                  onChange={(e) => setWorkflowStage(e.target.value as VisaWorkflowStage)}
                 >
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="SUBMITTED">SUBMITTED</option>
-                  <option value="APPROVED">APPROVED</option>
-                  <option value="REJECTED">REJECTED</option>
+                  {VISA_WORKFLOW_STAGES.map((stage) => (
+                    <option key={stage.value} value={stage.value}>
+                      {stage.label}
+                    </option>
+                  ))}
                 </select>
               </div>
-
-              {status === "APPROVED" && (
-                <DateInput
-                  label="Valid Until *"
+              <div>
+                <label className="field-label">Visa Number</label>
+                <input
+                  type="text"
+                  className="field-input"
+                  value={visaNumber}
+                  onChange={(e) => setVisaNumber(e.target.value)}
+                  placeholder="Enter visa number"
+                />
+              </div>
+              <div>
+                <label className="field-label">Appointment Date</label>
+                <input
+                  type="date"
+                  className="field-input"
+                  value={appointmentDate}
+                  onChange={(e) => setAppointmentDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Submission Date</label>
+                <input
+                  type="date"
+                  className="field-input"
+                  value={submissionDate}
+                  onChange={(e) => setSubmissionDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="field-label">Visa Valid Until</label>
+                <input
+                  type="date"
+                  className="field-input"
                   value={visaValidUntil}
-                  onChange={setVisaValidUntil}
-                  required
+                  onChange={(e) => setVisaValidUntil(e.target.value)}
                 />
-              )}
-
-              {status === "REJECTED" && (
-                <TextInput
-                  label="Rejection Reason *"
+              </div>
+              <div>
+                <label className="field-label">Delivered At</label>
+                <input
+                  type="date"
+                  className="field-input"
+                  value={deliveredAt}
+                  onChange={(e) => setDeliveredAt(e.target.value)}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="field-label">Rejection Reason</label>
+                <textarea
+                  rows={3}
+                  className="field-input"
                   value={rejectionReason}
-                  onChange={setRejectionReason}
-                  required
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Required only if case is rejected"
                 />
-              )}
+              </div>
             </div>
-
-            {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
-
-            <button
-              onClick={saveStatus}
-              disabled={savingStatus}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
-            >
-              {savingStatus ? "Saving..." : "Update Status"}
-            </button>
-            <button
-              onClick={handleSaveAndBack}
-              disabled={savingStatus}
-              className="mt-4 ml-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-60"
-            >
-              {savingStatus ? "Saving..." : "Save & Back"}
-            </button>
+            {validationError ? (
+              <p className="mt-3 text-sm text-amber-600 dark:text-amber-300">
+                {validationError}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={() => void saveWorkflow()}
+                disabled={saving}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {saving ? "Saving..." : "Update Workflow"}
+              </button>
+              <button
+                onClick={() => navigate("/visa")}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Save & Back
+              </button>
+            </div>
           </SurfaceCard>
 
-          {/* Documents Card */}
           <SurfaceCard className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                Documents
-              </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  Documents
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Real backend upload connected to visa document storage.
+                </p>
+              </div>
               <button
                 onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
               >
                 <FaUpload /> Upload
               </button>
             </div>
-
             {documents.length === 0 ? (
               <EmptyState
                 title="No documents"
-                description="Upload required documents for visa processing"
+                description="Upload required documents for visa processing."
                 icon={<FaUpload className="text-4xl" />}
               />
             ) : (
@@ -968,319 +400,66 @@ const VisaDetailPage = () => {
                 {documents.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700"
+                    className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="text-lg">{getDocumentIcon(doc.type)}</div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                            {doc.name}
-                          </p>
-                          {doc.verified && (
-                            <span className="text-xs text-green-600 flex items-center gap-1">
-                              <FaCheck /> Verified
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {doc.size} • {formatDateTime(doc.uploadedAt)}
-                        </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {humanizeVisaStage(doc.documentType)}
+                        </span>
+                        {doc.isVerified ? (
+                          <span className="text-xs text-green-600">Verified</span>
+                        ) : null}
                       </div>
+                      <p className="text-xs text-gray-500">{fmtDateTime(doc.uploadedAt)}</p>
                     </div>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleViewDocument(doc)}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="View"
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600"
                       >
                         <FaEye />
-                      </button>
-                      <button
-                        className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Download"
+                      </a>
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600"
                       >
                         <FaDownload />
-                      </button>
-                      {!doc.verified && (
+                      </a>
+                      {!doc.isVerified ? (
                         <button
-                          onClick={() => handleVerifyDocument(doc.id)}
-                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Verify"
+                          onClick={() => void handleVerifyDocument(doc.id)}
+                          className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600"
                         >
                           <FaCheck />
                         </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteClick(doc.id)}
-                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <FaTrash />
-                      </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </SurfaceCard>
-
-          {/* Timeline Card */}
           <SurfaceCard className="p-5">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Activity Timeline
-            </h2>
-            <Timeline
-              items={timeline.map((item) => ({
-                ...item,
-                time: formatDateTime(item.time),
-              }))}
-            />
+            <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-gray-100">Recent Activity</h2>
+            {activityItems.length === 0 ? <p className="text-sm text-gray-500">No activity yet.</p> : <div className="space-y-2">{activityItems.map((item, index) => <div key={`${item}-${index}`} className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300">{item}</div>)}</div>}
           </SurfaceCard>
         </div>
 
-        {/* Right Column - Sidebar (1/3 width) */}
         <div className="space-y-6">
-          {/* Case Summary Card */}
-          <SurfaceCard className="p-5">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-              Case Details
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <FaGlobe className="text-gray-400 text-sm" />
-                <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">
-                  Country
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {caseSummary.country}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <FaCircleInfo className="text-gray-400 text-sm" />
-                <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">
-                  Visa Type
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {caseSummary.visaType}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <FaCalendarCheck className="text-gray-400 text-sm" />
-                <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">
-                  Appointment
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {caseSummary.appointmentDate}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <FaListCheck className="text-gray-400 text-sm" />
-                <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">
-                  Fees
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {caseSummary.fees}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <FaClock className="text-gray-400 text-sm" />
-                <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">
-                  Processing
-                </span>
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {caseSummary.processingTime}
-                </span>
-              </div>
-              {status === "APPROVED" && visaValidUntil && (
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-800">
-                  <FaCheck className="text-green-600 text-sm" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">
-                    Valid Until
-                  </span>
-                  <span className="text-sm font-medium text-green-600">
-                    {visaValidUntil}
-                  </span>
-                </div>
-              )}
-            </div>
-          </SurfaceCard>
+          <SurfaceCard className="p-5"><h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Case Details</h3><div className="space-y-3 text-sm"><div className="flex justify-between gap-3"><span className="text-gray-500">Country</span><span className="font-medium text-gray-900 dark:text-gray-100">{visaCase?.country || "-"}</span></div><div className="flex justify-between gap-3"><span className="text-gray-500">Visa Type</span><span className="font-medium text-gray-900 dark:text-gray-100">{visaCase?.visaType || "-"}</span></div><div className="flex justify-between gap-3"><span className="text-gray-500">Booking</span><span className="text-right font-medium text-gray-900 dark:text-gray-100">{bookingLabel}</span></div><div className="flex justify-between gap-3"><span className="text-gray-500">Supplier</span><span className="text-right font-medium text-gray-900 dark:text-gray-100">{supplierLabel}</span></div><div className="flex justify-between gap-3"><span className="text-gray-500">Appointment</span><span className="font-medium text-gray-900 dark:text-gray-100">{fmtDate(appointmentDate)}</span></div><div className="flex justify-between gap-3"><span className="text-gray-500">Expiry</span><span className="font-medium text-gray-900 dark:text-gray-100">{fmtDate(visaValidUntil)}</span></div><div className="flex justify-between gap-3"><span className="text-gray-500">Fees</span><span className="font-medium text-gray-900 dark:text-gray-100">{fmtMoney(visaCase?.fees)}</span></div><div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/40"><p className="text-xs uppercase tracking-wide text-gray-500">Expiry Status</p><p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{humanizeVisaStage(visaCase?.expiryStatus || "not_set")}</p><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{visaCase?.daysToExpiry !== null && visaCase?.daysToExpiry !== undefined ? `${visaCase.daysToExpiry} day(s) remaining` : "Validity not captured yet."}</p></div><div className="pt-2 text-xs text-gray-500">Created: {fmtDateTime(visaCase?.createdAt)}<br />Updated: {fmtDateTime(visaCase?.updatedAt)}</div></div></SurfaceCard>
 
-          {/* Checklist Card */}
-          <SurfaceCard className="p-5">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-              Requirements
-            </h3>
-            <div className="space-y-2">
-              {checklist.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center gap-2 p-2 rounded-lg ${
-                    item.completed
-                      ? "bg-green-50 dark:bg-green-900/10"
-                      : "bg-gray-50 dark:bg-gray-800/50"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={item.completed}
-                    onChange={() => handleChecklistToggle(item.id as ChecklistKey)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span
-                    className={`text-xs flex-1 ${
-                      item.completed
-                        ? "text-green-700 dark:text-green-300"
-                        : "text-gray-700 dark:text-gray-300"
-                    }`}
-                  >
-                    {item.label}
-                    {item.required && (
-                      <span className="text-red-500 ml-1">*</span>
-                    )}
-                  </span>
-                  {item.completed && (
-                    <FaCheck className="text-green-600 text-xs" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </SurfaceCard>
+          <SurfaceCard className="p-5"><h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Required Checklist</h3><div className="space-y-2">{checklist.map((item) => <div key={item.id} className={`flex items-center gap-2 rounded-lg p-2 ${item.completed ? "bg-green-50 dark:bg-green-900/10" : "bg-gray-50 dark:bg-gray-800/50"}`}><input type="checkbox" checked={item.completed} onChange={() => void handleChecklistToggle(item.id)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /><span className={`flex-1 text-xs ${item.completed ? "text-green-700 dark:text-green-300" : "text-gray-700 dark:text-gray-300"}`}>{item.label}{item.required ? <span className="ml-1 text-red-500">*</span> : null}</span>{item.completed ? <FaCheck className="text-xs text-green-600" /> : null}</div>)}</div></SurfaceCard>
 
-          {/* Quick Stats */}
-          <SurfaceCard className="p-5">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-              Statistics
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <p className="text-xl font-bold text-blue-600">
-                  {documents.length}
-                </p>
-                <p className="text-xs text-gray-500">Documents</p>
-              </div>
-              <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <p className="text-xl font-bold text-green-600">
-                  {documents.filter((d) => d.verified).length}
-                </p>
-                <p className="text-xs text-gray-500">Verified</p>
-              </div>
-              <div className="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <p className="text-xl font-bold text-purple-600">
-                  {checklist.filter((i) => i.completed).length}/
-                  {checklist.length}
-                </p>
-                <p className="text-xs text-gray-500">Checklist</p>
-              </div>
-              <div className="text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                <p className="text-xl font-bold text-amber-600">
-                  {timeline.length}
-                </p>
-                <p className="text-xs text-gray-500">Activities</p>
-              </div>
-            </div>
-          </SurfaceCard>
-
-          {/* Audit Meta */}
-          <AuditMeta
-            createdBy="System"
-            createdAt={formatAuditDate(visaCase?.createdAt)}
-            updatedBy="System"
-            updatedAt={formatAuditDate(visaCase?.updatedAt)}
-          />
+          <SurfaceCard className="p-5"><h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Country Guide</h3><div className="space-y-2">{countryChecklist.map((item) => <div key={item} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300">{item}</div>)}</div></SurfaceCard>
         </div>
       </div>
 
-      {/* Upload Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Upload Document
-              </h3>
-              <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setUploadFile(null);
-                  setUploadName("");
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <FaXmark className="text-xl" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Select File
-                </label>
-                <input
-                  type="file"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setUploadFile(file);
-                      setUploadName(file.name);
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Document Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={uploadName}
-                  onChange={(e) => setUploadName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm"
-                  placeholder="Enter custom name"
-                />
-              </div>
-
-              <p className="text-xs text-gray-500">
-                Accepted: PDF, JPG, PNG, DOC (Max 10MB)
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setUploadFile(null);
-                  setUploadName("");
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUploadDocument}
-                disabled={!uploadFile}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                Upload
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translate(-50%, -20px); }
-          to { opacity: 1; transform: translate(-50%, 0); }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-      `}</style>
+      {showUploadModal ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900"><div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Upload Document</h3><button onClick={() => { setShowUploadModal(false); setUploadFile(null); setUploadDocumentType("PASSPORT"); }} className="text-gray-400 hover:text-gray-600"><FaXmark className="text-xl" /></button></div><div className="space-y-4"><div><label className="field-label">Document Type</label><select className="field-input" value={uploadDocumentType} onChange={(e) => setUploadDocumentType(e.target.value)}>{DOCUMENT_TYPE_OPTIONS.map((item) => <option key={item} value={item}>{humanizeVisaStage(item)}</option>)}</select></div><div><label className="field-label">Select File</label><input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /></div><p className="text-xs text-gray-500">Accepted: PDF, JPG, PNG, DOC, DOCX</p></div><div className="mt-6 flex justify-end gap-3"><button onClick={() => { setShowUploadModal(false); setUploadFile(null); setUploadDocumentType("PASSPORT"); }} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button><button onClick={() => void handleUploadDocument()} disabled={!uploadFile} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Upload</button></div></div></div> : null}
     </div>
   );
 };

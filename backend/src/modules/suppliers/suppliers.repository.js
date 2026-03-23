@@ -1,8 +1,31 @@
 function createSuppliersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
+  const tableExistsCache = new Map();
 
   function canUseRawQuery() {
     return typeof db.query === "function" && db.pool;
+  }
+
+  async function hasTable(tableName) {
+    if (!canUseRawQuery()) {
+      return true;
+    }
+    if (tableExistsCache.has(tableName)) {
+      return tableExistsCache.get(tableName);
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        [tableName],
+      );
+      const exists = result.rowCount > 0;
+      tableExistsCache.set(tableName, exists);
+      return exists;
+    } catch (_error) {
+      tableExistsCache.set(tableName, false);
+      return false;
+    }
   }
 
   async function getTableColumns(tableName) {
@@ -84,6 +107,44 @@ function createSuppliersRepository({ db, logger, schema }) {
     return db.findMany(schema.payablesTable, sanitized);
   }
 
+  async function findPayableDeadlineCandidates({
+    limit = 200,
+    includeStatuses = ["PENDING", "PARTIAL"],
+  } = {}) {
+    if (canUseRawQuery()) {
+      const params = [includeStatuses];
+      let sql = `
+        SELECT p.*, s.name AS supplier_name
+        FROM ${schema.payablesTable} p
+        INNER JOIN ${schema.tableName} s ON s.id = p.supplier_id
+        WHERE p.due_date IS NOT NULL
+          AND p.status::text = ANY($1::text[])
+        ORDER BY p.due_date ASC
+      `;
+      if (limit) {
+        params.push(limit);
+        sql += ` LIMIT $${params.length}`;
+      }
+      const result = await db.query(sql, params);
+      return result.rows || [];
+    }
+
+    const rows = await db.findMany(schema.payablesTable, {});
+    const filtered = rows
+      .filter((row) => Boolean(row.due_date ?? row.dueDate))
+      .filter((row) =>
+        includeStatuses.includes(
+          String(row.status || "PENDING").toUpperCase(),
+        ),
+      )
+      .sort((left, right) => {
+        const leftDate = Date.parse(left.due_date ?? left.dueDate ?? 0);
+        const rightDate = Date.parse(right.due_date ?? right.dueDate ?? 0);
+        return leftDate - rightDate;
+      });
+    return filtered.slice(0, limit);
+  }
+
   async function createPayable(payload) {
     logger.debug({ module: "suppliers", payload }, "Creating supplier payable");
     const sanitized = await sanitizeForTable(schema.payablesTable, payload);
@@ -99,6 +160,36 @@ function createSuppliersRepository({ db, logger, schema }) {
     return db.update(schema.payablesTable, id, sanitized);
   }
 
+  async function findPayableAlertLog({ payableId, alertType, alertDate } = {}) {
+    const tableExists = await hasTable(schema.payableAlertLogsTable);
+    if (!tableExists || !payableId || !alertType || !alertDate) {
+      return null;
+    }
+    return db.findOne(schema.payableAlertLogsTable, {
+      payable_id: payableId,
+      alert_type: alertType,
+      alert_date: alertDate,
+    });
+  }
+
+  async function createPayableAlertLog(payload = {}) {
+    const tableExists = await hasTable(schema.payableAlertLogsTable);
+    if (!tableExists) {
+      return null;
+    }
+    const sanitized = await sanitizeForTable(schema.payableAlertLogsTable, {
+      payable_id: payload.payableId,
+      alert_type: payload.alertType,
+      alert_date: payload.alertDate,
+      triggered_at: payload.triggeredAt || new Date().toISOString(),
+      metadata: payload.metadata || {},
+    });
+    if (!Object.keys(sanitized).length) {
+      return null;
+    }
+    return db.insert(schema.payableAlertLogsTable, sanitized);
+  }
+
   return Object.freeze({
     findAll,
     findById,
@@ -107,8 +198,11 @@ function createSuppliersRepository({ db, logger, schema }) {
     findBookingById,
     findPayableById,
     findPayablesBySupplierId,
+    findPayableDeadlineCandidates,
     createPayable,
     updatePayable,
+    findPayableAlertLog,
+    createPayableAlertLog,
   });
 }
 

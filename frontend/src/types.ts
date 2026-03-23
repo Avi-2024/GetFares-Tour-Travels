@@ -16,7 +16,15 @@ export type QuoteStatus =
   | "REJECTED"
   | "EXPIRED";
 export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
-export type VisaStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+export type VisaWorkflowStage =
+  | "DOCUMENT_COLLECTION"
+  | "APPLICATION_SUBMITTED"
+  | "BIOMETRICS_SCHEDULED"
+  | "UNDER_PROCESS"
+  | "APPROVED"
+  | "REJECTED"
+  | "DELIVERED";
+export type VisaStatus = VisaWorkflowStage;
 
 export interface ApiListResponse<T> {
   data: T[];

@@ -10,6 +10,71 @@ const dateTimeString = z
     message: "Invalid date-time",
   });
 
+const supplierDetailsSchema = z
+  .object({
+    supplierId: z.string().uuid().optional(),
+    supplierName: z.string().trim().min(2).max(200).optional(),
+    country: z.string().trim().min(2).max(100).optional(),
+    contractRef: z.string().trim().max(120).optional(),
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .optional();
+
+const dmcDetailsSchema = z
+  .object({
+    dmcId: z.string().uuid().optional(),
+    dmcName: z.string().trim().min(2).max(200).optional(),
+    contactPerson: z.string().trim().max(150).optional(),
+    contactPhone: z.string().trim().max(30).optional(),
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .optional();
+
+const hotelSegmentSchema = z.object({
+  hotelName: z.string().trim().min(2).max(200),
+  city: z.string().trim().max(120).optional(),
+  country: z.string().trim().max(120).optional(),
+  checkIn: z.string().date(),
+  checkOut: z.string().date(),
+  roomType: z.string().trim().max(120).optional(),
+  mealPlan: z.string().trim().max(120).optional(),
+  nights: z.coerce.number().int().nonnegative().optional(),
+  supplierRef: z.string().trim().max(120).optional(),
+});
+
+const flightSegmentSchema = z.object({
+  from: z.string().trim().min(2).max(20),
+  to: z.string().trim().min(2).max(20),
+  departureAt: dateTimeString,
+  arrivalAt: dateTimeString,
+  airline: z.string().trim().max(120).optional(),
+  flightNumber: z.string().trim().max(60).optional(),
+  pnr: z.string().trim().max(60).optional(),
+});
+
+const insuranceDetailsSchema = z
+  .object({
+    required: z.boolean().optional(),
+    provider: z.string().trim().max(150).optional(),
+    policyType: z.string().trim().max(120).optional(),
+    policyNumber: z.string().trim().max(120).optional(),
+    coverageAmount: z.coerce.number().nonnegative().optional(),
+    premiumAmount: z.coerce.number().nonnegative().optional(),
+    validFrom: z.string().date().optional(),
+    validTo: z.string().date().optional(),
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .optional();
+
+const otherServiceSchema = z.object({
+  serviceType: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(500).optional(),
+  supplierName: z.string().trim().max(200).optional(),
+  costAmount: z.coerce.number().nonnegative().optional(),
+  currency: currencyCode.optional(),
+  status: z.string().trim().max(40).optional(),
+});
+
 const createPayload = z
   .object({
     quotationId: z.string().uuid(),
@@ -24,6 +89,15 @@ const createPayload = z
     supplierCurrency: currencyCode.optional(),
     exchangeRate: z.coerce.number().positive().optional(),
     exchangeLocked: z.boolean().optional(),
+    supplierDetails: supplierDetailsSchema,
+    dmcDetails: dmcDetailsSchema,
+    hotelSegments: z.array(hotelSegmentSchema).max(50).optional(),
+    flightSegments: z.array(flightSegmentSchema).max(50).optional(),
+    insuranceDetails: insuranceDetailsSchema,
+    otherServices: z.array(otherServiceSchema).max(100).optional(),
+    blockingDeadlineAt: dateTimeString.optional(),
+    supplierPaymentDeadlineAt: dateTimeString.optional(),
+    cancellationDeadlineAt: dateTimeString.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.travelEndDate < value.travelStartDate) {
@@ -56,6 +130,15 @@ const updatePayload = z
     exchangeRate: z.coerce.number().positive().optional(),
     exchangeLocked: z.boolean().optional(),
     cancellationReason: z.string().trim().min(3).max(1000).optional(),
+    supplierDetails: supplierDetailsSchema,
+    dmcDetails: dmcDetailsSchema,
+    hotelSegments: z.array(hotelSegmentSchema).max(50).optional(),
+    flightSegments: z.array(flightSegmentSchema).max(50).optional(),
+    insuranceDetails: insuranceDetailsSchema,
+    otherServices: z.array(otherServiceSchema).max(100).optional(),
+    blockingDeadlineAt: dateTimeString.optional(),
+    supplierPaymentDeadlineAt: dateTimeString.optional(),
+    cancellationDeadlineAt: dateTimeString.optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,
@@ -89,6 +172,18 @@ const runReminders = z.object({
       referenceDate: z.string().date().optional(),
       preTravelDays: z.coerce.number().int().min(0).max(365).optional(),
       postTravelDays: z.coerce.number().int().min(0).max(365).optional(),
+    })
+    .optional(),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const processDeadlineAlerts = z.object({
+  body: z
+    .object({
+      referenceTime: dateTimeString.optional(),
+      lookaheadHours: z.coerce.number().int().min(1).max(240).optional(),
+      limit: z.coerce.number().int().min(1).max(1000).optional(),
     })
     .optional(),
   params: z.object({}).optional(),
@@ -148,6 +243,7 @@ const BookingsValidation = {
   list,
   stats,
   runReminders,
+  processDeadlineAlerts,
   create,
   update,
   byId,

@@ -134,8 +134,11 @@ function createVisaRepository({ db, logger, schema }) {
       appointmentDate: row.appointment_date ?? row.appointmentDate ?? null,
       submissionDate: row.submission_date ?? row.submissionDate ?? null,
       status: row.status ?? "DOCUMENT_PENDING",
+      workflowStage:
+        row.workflow_stage ?? row.workflowStage ?? "DOCUMENT_COLLECTION",
       rejectionReason: row.rejection_reason ?? row.rejectionReason ?? null,
       visaValidUntil: row.visa_valid_until ?? row.visaValidUntil ?? null,
+      deliveredAt: row.delivered_at ?? row.deliveredAt ?? null,
       createdAt: toDate(row.created_at ?? row.createdAt),
       updatedAt: toDate(row.updated_at ?? row.updatedAt),
     };
@@ -199,6 +202,9 @@ function createVisaRepository({ db, logger, schema }) {
     if (filters.status) {
       mapped.status = filters.status;
     }
+    if (filters.workflowStage) {
+      mapped.workflow_stage = filters.workflowStage;
+    }
     if (filters.country) {
       mapped.country = filters.country;
     }
@@ -256,6 +262,19 @@ function createVisaRepository({ db, logger, schema }) {
       return {
         id: row.id,
         status: row.status ?? "PENDING",
+        bookingNumber: row.booking_number ?? row.bookingNumber ?? null,
+      };
+    },
+
+    async findSupplierById(id) {
+      const row = await db.findById(schema.suppliersTable, id);
+      if (!row) {
+        return null;
+      }
+      return {
+        id: row.id,
+        name: row.name ?? null,
+        isActive: row.is_active ?? row.isActive ?? true,
       };
     },
 
@@ -343,15 +362,39 @@ function createVisaRepository({ db, logger, schema }) {
             APPROVED: 0,
             REJECTED: 0,
           },
+          byStage: {
+            DOCUMENT_COLLECTION: 0,
+            APPLICATION_SUBMITTED: 0,
+            BIOMETRICS_SCHEDULED: 0,
+            UNDER_PROCESS: 0,
+            APPROVED: 0,
+            REJECTED: 0,
+            DELIVERED: 0,
+          },
           approvalRatePercent: 0,
           rejectionRatePercent: 0,
           averageProcessingDays: 0,
           pendingDocumentCount: 0,
+          expiringSoonCount: 0,
         };
 
         for (const row of all) {
           const status = row.status || "DOCUMENT_PENDING";
+          const workflowStage =
+            row.workflow_stage || row.workflowStage || "DOCUMENT_COLLECTION";
           summary.byStatus[status] = (summary.byStatus[status] || 0) + 1;
+          summary.byStage[workflowStage] =
+            (summary.byStage[workflowStage] || 0) + 1;
+
+          if (row.visa_valid_until) {
+            const daysToExpiry = Math.ceil(
+              (new Date(row.visa_valid_until).getTime() - Date.now()) /
+                (1000 * 60 * 60 * 24),
+            );
+            if (daysToExpiry >= 0 && daysToExpiry <= 14) {
+              summary.expiringSoonCount += 1;
+            }
+          }
         }
 
         if (summary.totalCases > 0) {
@@ -387,6 +430,12 @@ function createVisaRepository({ db, logger, schema }) {
           SUM(CASE WHEN vc.status = 'SUBMITTED' THEN 1 ELSE 0 END)::int AS submitted,
           SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved,
           SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DOCUMENT_COLLECTION' THEN 1 ELSE 0 END)::int AS document_collection,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'APPLICATION_SUBMITTED' THEN 1 ELSE 0 END)::int AS application_submitted,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'BIOMETRICS_SCHEDULED' THEN 1 ELSE 0 END)::int AS biometrics_scheduled,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'UNDER_PROCESS' THEN 1 ELSE 0 END)::int AS under_process,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DELIVERED' THEN 1 ELSE 0 END)::int AS delivered,
+          SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' THEN 1 ELSE 0 END)::int AS expiring_soon_count,
           AVG(
             CASE
               WHEN vc.submission_date IS NOT NULL AND vc.visa_valid_until IS NOT NULL
@@ -423,6 +472,15 @@ function createVisaRepository({ db, logger, schema }) {
           APPROVED: approved,
           REJECTED: rejected,
         },
+        byStage: {
+          DOCUMENT_COLLECTION: toNumber(row.document_collection, 0),
+          APPLICATION_SUBMITTED: toNumber(row.application_submitted, 0),
+          BIOMETRICS_SCHEDULED: toNumber(row.biometrics_scheduled, 0),
+          UNDER_PROCESS: toNumber(row.under_process, 0),
+          APPROVED: approved,
+          REJECTED: rejected,
+          DELIVERED: toNumber(row.delivered, 0),
+        },
         approvalRatePercent:
           totalCases > 0
             ? Number(((approved / totalCases) * 100).toFixed(2))
@@ -436,6 +494,7 @@ function createVisaRepository({ db, logger, schema }) {
           pendingDocsResult.rows[0]?.pending_document_count,
           0,
         ),
+        expiringSoonCount: toNumber(row.expiring_soon_count, 0),
       };
     },
   });

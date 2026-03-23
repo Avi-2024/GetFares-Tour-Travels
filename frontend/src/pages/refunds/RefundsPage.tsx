@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FaCheck,
   FaCircleXmark,
@@ -42,6 +42,18 @@ type RefundRow = {
   processedAt?: string;
   processedBy?: string;
   gatewayRefundId?: string;
+};
+
+type BookingLookup = {
+  id: string;
+  bookingNumber: string;
+  customer?: string;
+};
+
+type PaymentLookup = {
+  id: string;
+  referenceId: string;
+  amount: number;
 };
 
 // Toast Component
@@ -327,10 +339,14 @@ const ProcessModal = ({
 const DetailsModal = ({
   isOpen,
   refund,
+  bookingDisplay,
+  paymentDisplay,
   onClose,
 }: {
   isOpen: boolean;
   refund: RefundRow | null;
+  bookingDisplay: string;
+  paymentDisplay: string;
   onClose: () => void;
 }) => {
   if (!isOpen || !refund) return null;
@@ -366,6 +382,24 @@ const DetailsModal = ({
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">Current Status</span>
             <StatusBadge status={refund.status} />
+          </div>
+
+          {/* Reference */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-gray-500">Booking</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {bookingDisplay}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Payment</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {paymentDisplay}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Amounts */}
@@ -559,10 +593,48 @@ const RefundsPage = () => {
     serviceCharge: "" as number | "",
   });
 
-  const [bookings, setBookings] = useState<Array<{ id: string; bookingNumber: string; customer?: string }>>([]);
-  const [payments, setPayments] = useState<Array<{ id: string; referenceId: string; amount: number }>>([]);
+  const [bookings, setBookings] = useState<BookingLookup[]>([]);
+  const [payments, setPayments] = useState<PaymentLookup[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [loadingPayments, setLoadingPayments] = useState(false);
+
+  const bookingById = useMemo(
+    () => new Map(bookings.map((booking) => [booking.id, booking])),
+    [bookings],
+  );
+  const paymentById = useMemo(
+    () => new Map(payments.map((payment) => [payment.id, payment])),
+    [payments],
+  );
+
+  const shortId = (value?: string) => {
+    const normalized = String(value || "").trim();
+    if (!normalized) return "N/A";
+    if (normalized.length <= 12) return normalized;
+    return `${normalized.slice(0, 8)}...`;
+  };
+
+  const getBookingDisplay = useCallback(
+    (bookingId?: string) => {
+      const normalized = String(bookingId || "").trim();
+      if (!normalized) return "N/A";
+      const booking = bookingById.get(normalized);
+      if (!booking) return `Booking ${shortId(normalized)}`;
+      return `${booking.bookingNumber}${booking.customer ? ` - ${booking.customer}` : ""}`;
+    },
+    [bookingById],
+  );
+
+  const getPaymentDisplay = useCallback(
+    (paymentId?: string) => {
+      const normalized = String(paymentId || "").trim();
+      if (!normalized) return "No payment linked";
+      const payment = paymentById.get(normalized);
+      if (!payment) return `Payment ${shortId(normalized)}`;
+      return `${payment.referenceId} - $${payment.amount.toFixed(2)}`;
+    },
+    [paymentById],
+  );
 
   const bookingOptions = useMemo(
     () =>
@@ -585,17 +657,21 @@ const RefundsPage = () => {
   // Filter and pagination
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
+      const bookingDisplay = getBookingDisplay(row.bookingId);
+      const paymentDisplay = getPaymentDisplay(row.paymentId);
       const matchesSearch =
         row.id.toLowerCase().includes(search.toLowerCase()) ||
         row.bookingId.toLowerCase().includes(search.toLowerCase()) ||
-        (row.paymentId?.toLowerCase() || "").includes(search.toLowerCase());
+        (row.paymentId?.toLowerCase() || "").includes(search.toLowerCase()) ||
+        bookingDisplay.toLowerCase().includes(search.toLowerCase()) ||
+        paymentDisplay.toLowerCase().includes(search.toLowerCase());
 
       const matchesStatus =
         statusFilter === "all" || row.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
-  }, [rows, search, statusFilter]);
+  }, [rows, search, statusFilter, getBookingDisplay, getPaymentDisplay]);
 
   const toTimestamp = (value?: string | null) => {
     if (!value) return 0;
@@ -660,58 +736,77 @@ const RefundsPage = () => {
     void loadRefunds();
   }, [token]);
 
-  // Load bookings and payments when form is shown
+  const loadLookupData = useCallback(async () => {
+    if (!token) {
+      setBookings([]);
+      setPayments([]);
+      return;
+    }
+
+    setLoadingBookings(true);
+    setLoadingPayments(true);
+    try {
+      const [bookingsRes, paymentsRes] = await Promise.all([
+        bookingsApi.list({ page: 1, limit: 300 }),
+        paymentsApi.list({ page: 1, limit: 300 }),
+      ]);
+
+      const bookingsPayload = bookingsRes as any;
+      const bookingsData =
+        bookingsPayload?.data?.data || bookingsPayload?.data || bookingsPayload || [];
+      const bookingsList = Array.isArray(bookingsData) ? bookingsData : [];
+
+      setBookings(
+        bookingsList.map((booking: any) => ({
+          id: String(booking.id || ""),
+          bookingNumber:
+            booking.bookingNumber ||
+            booking.booking_number ||
+            booking.code ||
+            `BK-${booking.id}`,
+          customer:
+            booking.customerName ||
+            booking.customer_name ||
+            booking.leadName ||
+            booking.lead_name ||
+            booking.customer ||
+            "",
+        })),
+      );
+
+      const paymentsPayload = paymentsRes as any;
+      const paymentsData =
+        paymentsPayload?.data?.data || paymentsPayload?.data || paymentsPayload || [];
+      const paymentsList = Array.isArray(paymentsData) ? paymentsData : [];
+
+      setPayments(
+        paymentsList.map((payment: any) => ({
+          id: String(payment.id || ""),
+          referenceId:
+            payment.paymentReference ||
+            payment.payment_reference ||
+            payment.gatewayPaymentId ||
+            payment.gateway_payment_id ||
+            payment.id,
+          amount: Number(payment.amount || 0),
+        })),
+      );
+    } catch (err) {
+      console.error("Failed to load booking/payment lookups:", err);
+    } finally {
+      setLoadingBookings(false);
+      setLoadingPayments(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadLookupData();
+  }, [loadLookupData]);
+
   useEffect(() => {
     if (!showForm) return;
-
-    const loadData = async () => {
-      // Load bookings
-      setLoadingBookings(true);
-      try {
-        const bookingsRes = await bookingsApi.list({ limit: 100 });
-        const bookingsPayload = bookingsRes as any;
-        const bookingsData =
-          bookingsPayload?.data?.data || bookingsPayload?.data || bookingsPayload || [];
-        const bookingsList = Array.isArray(bookingsData) ? bookingsData : [];
-        
-        setBookings(
-          bookingsList.map((booking: any) => ({
-            id: booking.id,
-            bookingNumber: booking.bookingNumber || booking.booking_number || booking.code || `BK-${booking.id}`,
-            customer: booking.customerName || booking.customer_name || booking.customer || "",
-          }))
-        );
-      } catch (err) {
-        console.error("Failed to load bookings:", err);
-      } finally {
-        setLoadingBookings(false);
-      }
-
-      // Load payments
-      setLoadingPayments(true);
-      try {
-        const paymentsRes = await paymentsApi.list();
-        const paymentsPayload = paymentsRes as any;
-        const paymentsData =
-          paymentsPayload?.data?.data || paymentsPayload?.data || paymentsPayload || [];
-        const paymentsList = Array.isArray(paymentsData) ? paymentsData : [];
-        
-        setPayments(
-          paymentsList.map((payment: any) => ({
-            id: payment.id,
-            referenceId: payment.paymentReference || payment.payment_reference || payment.gatewayPaymentId || payment.gateway_payment_id || payment.id,
-            amount: Number(payment.amount || 0),
-          }))
-        );
-      } catch (err) {
-        console.error("Failed to load payments:", err);
-      } finally {
-        setLoadingPayments(false);
-      }
-    };
-
-    void loadData();
-  }, [showForm]);
+    void loadLookupData();
+  }, [showForm, loadLookupData]);
 
   const createRefund = async () => {
     if (!form.bookingId || form.refundAmount === "") return;
@@ -909,6 +1004,8 @@ const RefundsPage = () => {
       <DetailsModal
         isOpen={showDetails}
         refund={selectedRefund}
+        bookingDisplay={getBookingDisplay(selectedRefund?.bookingId)}
+        paymentDisplay={getPaymentDisplay(selectedRefund?.paymentId)}
         onClose={() => {
           setShowDetails(false);
           setSelectedRefund(null);
@@ -947,7 +1044,7 @@ const RefundsPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Booking ID *
+                Booking *
               </label>
               <select
                 value={form.bookingId}
@@ -968,7 +1065,7 @@ const RefundsPage = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Payment ID
+                Payment Reference
               </label>
               <select
                 value={form.paymentId}
@@ -1037,7 +1134,7 @@ const RefundsPage = () => {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search by ID, booking, payment..."
+            placeholder="Search by refund ID, booking name/number, payment reference..."
             className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800"
           />
         </div>
@@ -1109,11 +1206,16 @@ const RefundsPage = () => {
                           {row.id}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {row.paymentId || "No payment"}
+                          {getPaymentDisplay(row.paymentId)}
                         </p>
                       </td>
-                      <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300">
-                        {row.bookingId}
+                      <td className="px-5 py-4">
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                          {getBookingDisplay(row.bookingId)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Ref: {shortId(row.bookingId)}
+                        </p>
                       </td>
                       <td className="px-5 py-4 text-right">
                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -1188,7 +1290,10 @@ const RefundsPage = () => {
                         {row.id}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Booking: {row.bookingId}
+                        Booking: {getBookingDisplay(row.bookingId)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Payment: {getPaymentDisplay(row.paymentId)}
                       </p>
                     </div>
                     <StatusBadge status={row.status} />

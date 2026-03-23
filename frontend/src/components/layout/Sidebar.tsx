@@ -83,6 +83,7 @@ const sections = [
         permission: "complaints:read",
       },
       { label: "Customers", to: "/customers", icon: FaUsers, permission: "customers:read" },
+      { label: "Suppliers", to: "/suppliers", icon: FaUsers, permission: "suppliers:read" },
       // { label: "Campaigns", to: "/campaigns", icon: FaChartPie, permission: "campaigns:read" },
       { label: "Notifications", to: "/notifications", icon: FaBell, permission: "notifications:read" },
     ],

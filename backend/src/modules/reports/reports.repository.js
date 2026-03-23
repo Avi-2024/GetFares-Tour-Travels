@@ -398,6 +398,161 @@ function createReportsRepository({ db, schema }) {
       };
     },
 
+    async getFinanceCostBreakup(filters = {}) {
+      const page = Math.max(toNumber(filters.page, 1), 1);
+      const limit = Math.min(Math.max(toNumber(filters.limit, 20), 1), 200);
+      const offset = (page - 1) * limit;
+      const params = [];
+      const where = [];
+
+      if (filters.from) {
+        params.push(filters.from);
+        where.push(`q.created_at >= $${params.length}`);
+      }
+      if (filters.to) {
+        params.push(filters.to);
+        where.push(`q.created_at <= $${params.length}`);
+      }
+      if (filters.currency) {
+        params.push(String(filters.currency).trim().toUpperCase());
+        where.push(`(
+          UPPER(COALESCE(NULLIF(q.cost_currency, ''), '')) = $${params.length}
+          OR UPPER(COALESCE(NULLIF(q.client_currency, ''), '')) = $${params.length}
+          OR UPPER(COALESCE(NULLIF(q.supplier_currency, ''), '')) = $${params.length}
+        )`);
+      }
+
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+      const summaryRows = await queryRows(
+        `
+          SELECT
+            COUNT(*)::int AS total_quotes,
+            SUM(COALESCE(q.supplier_cost, 0))::numeric(14,2) AS supplier_cost,
+            SUM(COALESCE(q.supplier_tax_amount, 0))::numeric(14,2) AS supplier_tax_amount,
+            SUM(COALESCE(q.markup_amount, 0))::numeric(14,2) AS markup_amount,
+            SUM(COALESCE(q.service_fee_amount, 0))::numeric(14,2) AS service_fee_amount,
+            SUM(COALESCE(q.gst_amount, 0))::numeric(14,2) AS gst_amount,
+            SUM(COALESCE(q.tcs_amount, 0))::numeric(14,2) AS tcs_amount,
+            SUM(COALESCE(q.total_sale_value, 0))::numeric(14,2) AS total_sale_value
+          FROM ${schema.quotationsTable} q
+          ${whereSql}
+        `,
+        params,
+      );
+
+      const breakdownRows = await queryRows(
+        `
+          SELECT
+            COALESCE(
+              NULLIF(q.client_currency, ''),
+              NULLIF(q.cost_currency, ''),
+              NULLIF(q.supplier_currency, ''),
+              'INR'
+            ) AS currency,
+            COUNT(*)::int AS total_quotes,
+            SUM(COALESCE(q.supplier_cost, 0))::numeric(14,2) AS supplier_cost,
+            SUM(COALESCE(q.supplier_tax_amount, 0))::numeric(14,2) AS supplier_tax_amount,
+            SUM(COALESCE(q.markup_amount, 0))::numeric(14,2) AS markup_amount,
+            SUM(COALESCE(q.service_fee_amount, 0))::numeric(14,2) AS service_fee_amount,
+            SUM(COALESCE(q.gst_amount, 0))::numeric(14,2) AS gst_amount,
+            SUM(COALESCE(q.tcs_amount, 0))::numeric(14,2) AS tcs_amount,
+            SUM(COALESCE(q.total_sale_value, 0))::numeric(14,2) AS total_sale_value
+          FROM ${schema.quotationsTable} q
+          ${whereSql}
+          GROUP BY 1
+          ORDER BY 1 ASC
+        `,
+        params,
+      );
+
+      const rowParams = [...params, limit, offset];
+      const rows = await queryRows(
+        `
+          SELECT
+            q.id,
+            q.quote_number,
+            q.lead_id,
+            l.full_name AS lead_name,
+            q.status,
+            q.supplier_cost,
+            q.supplier_tax_amount,
+            q.markup_amount,
+            q.service_fee_amount,
+            q.gst_amount,
+            q.tcs_amount,
+            q.total_sale_value,
+            q.cost_currency,
+            q.client_currency,
+            q.supplier_currency,
+            q.created_at
+          FROM ${schema.quotationsTable} q
+          LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
+          ${whereSql}
+          ORDER BY q.created_at DESC
+          LIMIT $${rowParams.length - 1}
+          OFFSET $${rowParams.length}
+        `,
+        rowParams,
+      );
+
+      const summary = summaryRows[0] || {};
+      const totalItems = toNumber(summary.total_quotes, 0);
+
+      return {
+        summary: {
+          totalQuotes: totalItems,
+          supplierCost: toNumber(summary.supplier_cost, 0),
+          supplierTaxAmount: toNumber(summary.supplier_tax_amount, 0),
+          markupAmount: toNumber(summary.markup_amount, 0),
+          serviceFeeAmount: toNumber(summary.service_fee_amount, 0),
+          gstAmount: toNumber(summary.gst_amount, 0),
+          tcsAmount: toNumber(summary.tcs_amount, 0),
+          totalSaleValue: toNumber(summary.total_sale_value, 0),
+        },
+        currencyBreakdown: breakdownRows.map((row) => ({
+          currency: row.currency || "INR",
+          totalQuotes: toNumber(row.total_quotes, 0),
+          supplierCost: toNumber(row.supplier_cost, 0),
+          supplierTaxAmount: toNumber(row.supplier_tax_amount, 0),
+          markupAmount: toNumber(row.markup_amount, 0),
+          serviceFeeAmount: toNumber(row.service_fee_amount, 0),
+          gstAmount: toNumber(row.gst_amount, 0),
+          tcsAmount: toNumber(row.tcs_amount, 0),
+          totalSaleValue: toNumber(row.total_sale_value, 0),
+        })),
+        rows: rows.map((row) => ({
+          id: row.id,
+          quoteNumber: row.quote_number,
+          leadId: row.lead_id,
+          leadName: row.lead_name || "Unknown Lead",
+          status: row.status || "DRAFT",
+          supplierCost: toNumber(row.supplier_cost, 0),
+          supplierTaxAmount: toNumber(row.supplier_tax_amount, 0),
+          markupAmount: toNumber(row.markup_amount, 0),
+          serviceFeeAmount: toNumber(row.service_fee_amount, 0),
+          gstAmount: toNumber(row.gst_amount, 0),
+          tcsAmount: toNumber(row.tcs_amount, 0),
+          totalSaleValue: toNumber(row.total_sale_value, 0),
+          costCurrency: row.cost_currency || "INR",
+          clientCurrency: row.client_currency || "INR",
+          supplierCurrency: row.supplier_currency || "INR",
+          effectiveCurrency:
+            row.client_currency ||
+            row.cost_currency ||
+            row.supplier_currency ||
+            "INR",
+          createdAt: row.created_at,
+        })),
+        pagination: {
+          page,
+          limit,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+        },
+      };
+    },
+
     async getVisaSummary(filters = {}) {
       const range = buildDateRangeClause("vc.created_at", filters);
       const rows = await queryRows(

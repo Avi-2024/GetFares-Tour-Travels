@@ -36,10 +36,16 @@ export const validateVisaTransition = (
   status: VisaStatus,
   rejectionReason?: string,
   visaValidUntil?: string,
+  appointmentDate?: string,
 ) => {
   if (status === "REJECTED" && !rejectionReason?.trim())
     return "rejectionReason is required for REJECTED visa cases.";
-  if (status === "APPROVED" && !visaValidUntil?.trim())
-    return "visaValidUntil is required for APPROVED visa cases.";
+  if (
+    (status === "APPROVED" || status === "DELIVERED") &&
+    !visaValidUntil?.trim()
+  )
+    return "visaValidUntil is required for approved or delivered visa cases.";
+  if (status === "BIOMETRICS_SCHEDULED" && !appointmentDate?.trim())
+    return "appointmentDate is required for biometrics scheduled stage.";
   return "";
 };

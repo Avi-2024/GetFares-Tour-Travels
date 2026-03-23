@@ -25,6 +25,37 @@ const STATUS_OPTIONS: Array<{ label: string; value: "" | NotificationStatus }> =
 ];
 
 const LIMIT_OPTIONS = [10, 20, 50];
+const EVENT_LABELS: Record<string, string> = {
+  "leads.created": "New lead captured",
+  "leads.updated": "Lead updated",
+  "leads.assigned": "Lead assigned",
+  "leads.reassigned": "Lead reassigned",
+  "leads.followup_created": "Follow-up scheduled",
+  "leads.followup_overdue": "Follow-up overdue",
+  "leads.sla_breached": "First response missed SLA",
+  "leads.escalated": "Lead escalated",
+  "quotations.created": "Quotation created",
+  "quotations.updated": "Quotation updated",
+  "quotations.sent": "Quotation sent",
+  "quotations.viewed": "Quotation viewed",
+  "quotations.status_changed": "Quotation status changed",
+  "quotations.reminder_triggered": "Quotation reminder triggered",
+  "bookings.created": "Booking created",
+  "bookings.updated": "Booking updated",
+  "bookings.deadline_alert": "Booking deadline alert",
+  "payments.created": "Payment recorded",
+  "payments.updated": "Payment updated",
+  "refunds.created": "Refund created",
+  "refunds.updated": "Refund updated",
+  "visa.created": "Visa case created",
+  "visa.updated": "Visa case updated",
+  "suppliers.created": "Supplier created",
+  "suppliers.updated": "Supplier updated",
+  "suppliers.payable_created": "Supplier payable created",
+  "suppliers.payable_updated": "Supplier payable updated",
+  "suppliers.payable_deadline_alert": "Supplier payment deadline alert",
+  "webhooks.lead_captured": "Website lead captured",
+};
 
 const toPlainText = (value: unknown, fallback = ""): string => {
   if (typeof value === "string") return value.trim() || fallback;
@@ -66,6 +97,12 @@ const toTitle = (notification: NotificationItem) => {
     .join(" ");
 };
 
+const shortId = (value?: string | null) => {
+  const normalized = toPlainText(value);
+  if (!normalized) return "";
+  return normalized.length > 10 ? `${normalized.slice(0, 8)}...` : normalized;
+};
+
 const toModule = (notification: NotificationItem) => {
   const eventName = toPlainText(notification.eventName);
   const source =
@@ -77,6 +114,85 @@ const toModule = (notification: NotificationItem) => {
     .join(" ");
 };
 
+const toEntityLabel = (notification: NotificationItem) => {
+  const payload = (notification.payload || {}) as Record<string, unknown>;
+  const candidates = [
+    payload.fullName,
+    payload.customerName,
+    payload.leadName,
+    payload.supplierName,
+    payload.consultantName,
+    payload.bookingNumber,
+    payload.quotationNumber,
+    payload.quoteNumber,
+    payload.paymentReference,
+    payload.refundReference,
+    payload.country,
+    payload.name,
+  ]
+    .map((item) => toPlainText(item))
+    .filter(Boolean);
+
+  if (candidates.length) {
+    return candidates[0];
+  }
+
+  const entityId = toPlainText(notification.entityId);
+  if (!entityId) return "";
+  return `${toModule(notification)} ${shortId(entityId)}`;
+};
+
+const toFriendlyTitle = (notification: NotificationItem) => {
+  const eventName = toPlainText(notification.eventName).toLowerCase();
+  return EVENT_LABELS[eventName] || toTitle(notification);
+};
+
+const toFriendlyMessage = (notification: NotificationItem) => {
+  const rawMessage = toPlainText(notification.message);
+  const eventName = toPlainText(notification.eventName).toLowerCase();
+  const entityLabel = toEntityLabel(notification);
+  const payload = (notification.payload || {}) as Record<string, unknown>;
+
+  if (rawMessage && !/event for/i.test(rawMessage)) {
+    return rawMessage;
+  }
+
+  switch (eventName) {
+    case "leads.followup_overdue":
+      return entityLabel
+        ? `${entityLabel} needs attention because a scheduled follow-up is overdue.`
+        : "A scheduled lead follow-up is overdue and needs attention.";
+    case "leads.sla_breached":
+      return entityLabel
+        ? `${entityLabel} did not receive first contact inside the 15-minute response target.`
+        : "A lead missed the 15-minute first-response target.";
+    case "leads.followup_created":
+      return entityLabel
+        ? `A new follow-up has been scheduled for ${entityLabel}.`
+        : "A new lead follow-up has been scheduled.";
+    case "bookings.deadline_alert":
+      return entityLabel
+        ? `${entityLabel} has a booking deadline that needs review.`
+        : "A booking deadline needs review.";
+    case "suppliers.payable_deadline_alert": {
+      const dueInDays = Number(payload.dueInDays);
+      if (Number.isFinite(dueInDays) && dueInDays < 0) {
+        return entityLabel
+          ? `${entityLabel} has a supplier payable that is already overdue.`
+          : "A supplier payable is already overdue.";
+      }
+      return entityLabel
+        ? `${entityLabel} has a supplier payment deadline coming up soon.`
+        : "A supplier payment deadline is coming up soon.";
+    }
+    default:
+      if (entityLabel) {
+        return `${toFriendlyTitle(notification)} for ${entityLabel}.`;
+      }
+      return rawMessage || "A new CRM event has been recorded.";
+  }
+};
+
 const formatDateTime = (value?: string | null) => {
   const text = toPlainText(value, "Unknown time");
   if (!text || text === "Unknown time") return "Unknown time";
@@ -86,6 +202,27 @@ const formatDateTime = (value?: string | null) => {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+};
+
+const formatRelativeTime = (value?: string | null) => {
+  const text = toPlainText(value);
+  if (!text) return "";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const diffMs = date.getTime() - Date.now();
+  const diffMinutes = Math.round(diffMs / (60 * 1000));
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+  if (Math.abs(diffMinutes) < 60) {
+    return rtf.format(diffMinutes, "minute");
+  }
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) {
+    return rtf.format(diffHours, "hour");
+  }
+  const diffDays = Math.round(diffHours / 24);
+  return rtf.format(diffDays, "day");
 };
 
 const getStatusTone = (status: NotificationStatus) => {
@@ -186,8 +323,9 @@ const NotificationsPage: React.FC = () => {
       if (!searchValue) return matchesModule;
 
       const haystack = [
-        toTitle(notification),
-        toPlainText(notification.message),
+        toFriendlyTitle(notification),
+        toFriendlyMessage(notification),
+        toEntityLabel(notification),
         toPlainText(notification.entityType),
         toPlainText(notification.entityId),
         toPlainText(notification.eventName),
@@ -200,6 +338,16 @@ const NotificationsPage: React.FC = () => {
       return matchesModule && haystack.includes(searchValue);
     });
   }, [moduleFilter, notifications, searchTerm]);
+
+  const statusBreakdown = useMemo(() => {
+    return notifications.reduce(
+      (accumulator, item) => {
+        accumulator[item.status] = (accumulator[item.status] || 0) + 1;
+        return accumulator;
+      },
+      { PENDING: 0, DELIVERED: 0, READ: 0, FAILED: 0 } as Record<NotificationStatus, number>,
+    );
+  }, [notifications]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -237,16 +385,16 @@ const NotificationsPage: React.FC = () => {
       <div className="mx-auto max-w-9xl px-0 py-4 sm:py-6 lg:py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <FaBell className="text-2xl text-blue-600 dark:text-blue-400" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">
-                Notifications
-              </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
-                Powered by `/api/notifications`, `/unread-count`, `/read`, and `/read-all`
-              </p>
+              <FaBell className="text-2xl text-blue-600 dark:text-blue-400" />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">
+                  Notifications
+                </h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+                  Action feed for CRM events, reminders, escalations, and operational alerts.
+                </p>
+              </div>
             </div>
-          </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <span className="flex items-center justify-center gap-2 rounded-lg bg-blue-100 px-3 py-2 text-sm font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
@@ -338,6 +486,10 @@ const NotificationsPage: React.FC = () => {
           </div>
         </div>
 
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+          Notifications are stored as history. Marking them as read removes them from unread count, but old rows are not deleted automatically. A very high count usually means scheduler events have been accumulating over time.
+        </div>
+
         <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -359,12 +511,15 @@ const NotificationsPage: React.FC = () => {
                   : "No notifications are available for the selected status yet."}
               </p>
             </div>
-          ) : (
+	          ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredNotifications.map((notification) => {
                 const isRead = notification.status === "READ";
                 const module = toModule(notification);
-                const title = toTitle(notification);
+                const title = toFriendlyTitle(notification);
+                const body = toFriendlyMessage(notification);
+                const entityLabel = toEntityLabel(notification);
+                const relativeTime = formatRelativeTime(notification.createdAt);
 
                 return (
                   <div
@@ -374,8 +529,8 @@ const NotificationsPage: React.FC = () => {
                     }`}
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+	                    <div className="min-w-0 flex-1">
+	                        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
                           <span className="rounded-full bg-gray-100 px-2 py-1 font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                             {module}
                           </span>
@@ -386,32 +541,55 @@ const NotificationsPage: React.FC = () => {
                           >
                             {notification.status}
                           </span>
-                          <span className="text-gray-500 dark:text-gray-400">
-                            {formatDateTime(notification.createdAt)}
-                          </span>
-                        </div>
+	                          <span className="text-gray-500 dark:text-gray-400">
+	                            {formatDateTime(notification.createdAt)}
+	                          </span>
+                            {relativeTime ? (
+                              <span className="text-gray-400 dark:text-gray-500">
+                                {relativeTime}
+                              </span>
+                            ) : null}
+	                        </div>
 
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {title}
-                        </h3>
+	                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+	                          {title}
+	                        </h3>
 
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                          {toPlainText(notification.message, "No message available.")}
-                        </p>
+	                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+	                          {body}
+	                        </p>
 
-                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
-                          <span>Event: {toPlainText(notification.eventName, "Unknown")}</span>
-                          <span>Channel: {toPlainText(notification.channel, "Unknown")}</span>
-                          {toPlainText(notification.entityId) ? (
-                            <span>Entity ID: {toPlainText(notification.entityId)}</span>
-                          ) : null}
-                          {notification.lastError ? (
-                            <span className="text-red-600 dark:text-red-300">
-                              Error: {toPlainText(notification.lastError)}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                            {entityLabel ? (
+                              <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                {entityLabel}
+                              </span>
+                            ) : null}
+                            {notification.recipientRole ? (
+                              <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                Role: {notification.recipientRole}
+                              </span>
+                            ) : null}
+                            {notification.lastError ? (
+                              <span className="rounded-full bg-red-100 px-2 py-1 text-red-700 dark:bg-red-900/30 dark:text-red-200">
+                                Error: {toPlainText(notification.lastError)}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <details className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                            <summary className="cursor-pointer select-none font-medium text-gray-600 dark:text-gray-300">
+                              Technical details
+                            </summary>
+                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                              <span>Event: {toPlainText(notification.eventName, "Unknown")}</span>
+                              <span>Channel: {toPlainText(notification.channel, "Unknown")}</span>
+                              {toPlainText(notification.entityId) ? (
+                                <span>Entity ID: {toPlainText(notification.entityId)}</span>
+                              ) : null}
+                            </div>
+                          </details>
+	                      </div>
 
                       {!isRead ? (
                         <button
@@ -433,9 +611,9 @@ const NotificationsPage: React.FC = () => {
 
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="grid grid-cols-2 gap-4 text-center md:grid-cols-4">
-              <div>
-                <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
+	            <div className="grid grid-cols-2 gap-4 text-center md:grid-cols-4">
+	              <div>
+	                <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
                   {total}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Total</div>
@@ -446,19 +624,19 @@ const NotificationsPage: React.FC = () => {
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Unread</div>
               </div>
-              <div>
-                <div className="text-xl font-bold text-green-600 dark:text-green-400">
-                  {Math.max(0, total - unreadCount)}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Processed</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
-                  {modules.length}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Modules</div>
-              </div>
-            </div>
+	              <div>
+	                <div className="text-xl font-bold text-green-600 dark:text-green-400">
+	                  {statusBreakdown.READ}
+	                </div>
+	                <div className="text-xs text-gray-500 dark:text-gray-400">Read</div>
+	              </div>
+	              <div>
+	                <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+	                  {statusBreakdown.PENDING + statusBreakdown.FAILED}
+	                </div>
+	                <div className="text-xs text-gray-500 dark:text-gray-400">Needs Attention</div>
+	              </div>
+	            </div>
 
             <div className="flex items-center justify-end gap-3">
               <button

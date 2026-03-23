@@ -19,6 +19,7 @@ import { createMetaWebhookModule } from "./metaWebhook/index.js";
 import { createWhatsappModule } from "./whatsapp/index.js";
 import { createDestinationsModule } from "./destinations/index.js";
 import { createPackagesModule } from "./packages/index.js";
+import { createSuppliersModule } from "./suppliers/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -65,6 +66,7 @@ function registerModules(app, dependencies) {
     ["campaigns", createCampaignsModule],
     ["destinations", createDestinationsModule],
     ["packages", createPackagesModule],
+    ["suppliers", createSuppliersModule],
     ["customers", createCustomersModule],
     ["complaints", createComplaintsModule],
     ["reports", createReportsModule],
@@ -76,6 +78,9 @@ function registerModules(app, dependencies) {
     const moduleInstance = factory({ dependencies: featureDependencies });
     mountedModules[name] = moduleInstance;
     app.use(`/api/${name}`, moduleInstance.router);
+    if (moduleInstance?.service) {
+      featureDependencies.services[name] = moduleInstance.service;
+    }
   });
 
   const webhooksModule = createWebhooksModule({
@@ -128,6 +133,7 @@ export {
   createCampaignsModule,
   createDestinationsModule,
   createPackagesModule,
+  createSuppliersModule,
   createCustomersModule,
   createComplaintsModule,
   createReportsModule,

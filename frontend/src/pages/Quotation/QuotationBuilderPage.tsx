@@ -38,13 +38,6 @@ interface Item {
   title: string;
   description: string;
 }
-interface Price {
-  id: string;
-  name: string;
-  cost: number;
-  markup: number;
-  price: number;
-}
 
 type LeadOption = {
   id: string;
@@ -59,6 +52,48 @@ type LeadOption = {
   childrenCount?: number | null;
   travelPurpose?: string | null;
 };
+
+type TemplateType = "READY_PACKAGE" | "VISA" | "CUSTOM_ITINERARY";
+
+type TemplateOption = {
+  id: string;
+  code: string;
+  name: string;
+  templateType: TemplateType;
+  isActive: boolean;
+  minMarginPercent: number;
+  headerBranding?: string;
+  inclusions?: string;
+  exclusions?: string;
+  paymentTerms?: string;
+  cancellationPolicy?: string;
+  footerDisclaimer?: string;
+};
+
+type ServiceKey = "hotel" | "flights" | "tours" | "visa" | "insurance";
+
+type ServiceDefinition = {
+  key: ServiceKey;
+  label: string;
+  itemType: "HOTEL" | "FLIGHT" | "TRANSFER" | "VISA" | "INSURANCE" | "OTHER";
+  weight: number;
+};
+
+type ServiceCostRow = ServiceDefinition & {
+  baseCost: number;
+  markupPercent: number;
+  markupAmount: number;
+  sellValue: number;
+};
+
+const SERVICE_DEFINITIONS: ServiceDefinition[] = [
+  { key: "hotel", label: "Accommodation", itemType: "HOTEL", weight: 45 },
+  { key: "flights", label: "Flights", itemType: "FLIGHT", weight: 25 },
+  { key: "tours", label: "Tours & Activities", itemType: "OTHER", weight: 15 },
+  { key: "visa", label: "Visa Services", itemType: "VISA", weight: 8 },
+  { key: "insurance", label: "Insurance", itemType: "INSURANCE", weight: 7 },
+];
+
 const initialItinerary: Item[] = [
   {
     id: "1",
@@ -73,11 +108,6 @@ const initialItinerary: Item[] = [
     description: "Guided reef and lagoon experience with lunch.",
   },
 ];
-const pricing: Price[] = [
-  { id: "1", name: "Accommodation", cost: 3200, markup: 15, price: 3680 },
-  { id: "2", name: "Transfers", cost: 400, markup: 10, price: 440 },
-  { id: "3", name: "Activities", cost: 120, markup: 8.3, price: 130 },
-];
 
 const QuotationBuilderPage: React.FC = () => {
   const navigate = useNavigate();
@@ -90,6 +120,10 @@ const QuotationBuilderPage: React.FC = () => {
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [leadsError, setLeadsError] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
@@ -107,6 +141,10 @@ const QuotationBuilderPage: React.FC = () => {
     validUntil: "",
     inclusions: "",
     exclusions: "",
+    headerBranding: "",
+    paymentTerms: "",
+    cancellationPolicy: "",
+    footerDisclaimer: "",
   });
   const [downloading, setDownloading] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
@@ -123,7 +161,7 @@ const QuotationBuilderPage: React.FC = () => {
     description: "",
   });
   const [packageType, setPackageType] = useState("Leisure");
-  const [services, setServices] = useState({
+  const [services, setServices] = useState<Record<ServiceKey, boolean>>({
     hotel: true,
     flights: true,
     tours: true,
@@ -143,6 +181,120 @@ const QuotationBuilderPage: React.FC = () => {
     () => leads.find((lead) => lead.id === selectedLeadId) || null,
     [leads, selectedLeadId],
   );
+
+  const unwrapTemplateList = (response: unknown): any[] => {
+    const payload = (response as { data?: unknown })?.data ?? response;
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray((payload as { data?: unknown[] })?.data)) {
+      return (payload as { data: unknown[] }).data;
+    }
+    if (Array.isArray((payload as { items?: unknown[] })?.items)) {
+      return (payload as { items: unknown[] }).items;
+    }
+    return [];
+  };
+
+  const mapTemplate = (raw: any): TemplateOption => ({
+    id: String(raw?.id ?? ""),
+    code: String(raw?.code ?? ""),
+    name: String(raw?.name ?? ""),
+    templateType: (raw?.templateType ?? raw?.template_type ?? "READY_PACKAGE") as TemplateType,
+    isActive: raw?.isActive ?? raw?.is_active ?? true,
+    minMarginPercent: Number(raw?.minMarginPercent ?? raw?.min_margin_percent ?? 0),
+    headerBranding: raw?.headerBranding ?? raw?.header_branding ?? "",
+    inclusions: raw?.inclusions ?? "",
+    exclusions: raw?.exclusions ?? "",
+    paymentTerms: raw?.paymentTerms ?? raw?.payment_terms ?? "",
+    cancellationPolicy: raw?.cancellationPolicy ?? raw?.cancellation_policy ?? "",
+    footerDisclaimer: raw?.footerDisclaimer ?? raw?.footer_disclaimer ?? "",
+  });
+
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId) || null,
+    [templates, selectedTemplateId],
+  );
+
+  const applyTemplateDefaults = (template: TemplateOption | null) => {
+    if (!template) return;
+    setForm((prev) => ({
+      ...prev,
+      headerBranding:
+        prev.headerBranding.trim() || !(template.headerBranding || "").trim()
+          ? prev.headerBranding
+          : String(template.headerBranding),
+      inclusions:
+        prev.inclusions.trim() || !(template.inclusions || "").trim()
+          ? prev.inclusions
+          : String(template.inclusions),
+      exclusions:
+        prev.exclusions.trim() || !(template.exclusions || "").trim()
+          ? prev.exclusions
+          : String(template.exclusions),
+      paymentTerms:
+        prev.paymentTerms.trim() || !(template.paymentTerms || "").trim()
+          ? prev.paymentTerms
+          : String(template.paymentTerms),
+      cancellationPolicy:
+        prev.cancellationPolicy.trim() || !(template.cancellationPolicy || "").trim()
+          ? prev.cancellationPolicy
+          : String(template.cancellationPolicy),
+      footerDisclaimer:
+        prev.footerDisclaimer.trim() || !(template.footerDisclaimer || "").trim()
+          ? prev.footerDisclaimer
+          : String(template.footerDisclaimer),
+    }));
+  };
+
+  const toBulletList = (value: string) =>
+    value
+      .split(/\r?\n|;/g)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+  const selectedServiceDefinitions = useMemo(
+    () => SERVICE_DEFINITIONS.filter((definition) => services[definition.key]),
+    [services],
+  );
+
+  const serviceCostRows = useMemo<ServiceCostRow[]>(() => {
+    const activeDefinitions = selectedServiceDefinitions;
+    if (!activeDefinitions.length) {
+      return [];
+    }
+    const totalWeight = activeDefinitions.reduce(
+      (sum, definition) => sum + definition.weight,
+      0,
+    );
+    const supplierCost = Number(costs.supplierCost) || 0;
+    const markupPercent = Number(costs.markupPercent) || 0;
+
+    let allocatedCost = 0;
+
+    return activeDefinitions.map((definition, index) => {
+      const isLast = index === activeDefinitions.length - 1;
+      const weightedCost = totalWeight
+        ? (supplierCost * definition.weight) / totalWeight
+        : 0;
+      const baseCost = Number(
+        (
+          isLast
+            ? supplierCost - allocatedCost
+            : weightedCost
+        ).toFixed(2),
+      );
+      allocatedCost = Number((allocatedCost + baseCost).toFixed(2));
+      const markupAmount = Number(((baseCost * markupPercent) / 100).toFixed(2));
+      const sellValue = Number((baseCost + markupAmount).toFixed(2));
+
+      return {
+        ...definition,
+        baseCost,
+        markupPercent,
+        markupAmount,
+        sellValue,
+      };
+    });
+  }, [costs.markupPercent, costs.supplierCost, selectedServiceDefinitions]);
 
   useEffect(() => {
     const loadDestinations = async () => {
@@ -187,6 +339,34 @@ const QuotationBuilderPage: React.FC = () => {
 
     void loadLeads();
   }, [leadsService, token]);
+
+  useEffect(() => {
+    const loadTemplates = async () => {
+      if (!token) {
+        setTemplates([]);
+        setTemplatesError("Login required to load templates.");
+        return;
+      }
+
+      setTemplatesLoading(true);
+      setTemplatesError("");
+      try {
+        const response = await quotationsApi.listTemplates();
+        const mapped = unwrapTemplateList(response).map(mapTemplate);
+        setTemplates(mapped);
+      } catch (error) {
+        console.error("Failed to load quotation templates:", error);
+        setTemplates([]);
+        setTemplatesError(
+          getApiErrorMessage(error, "Failed to load quotation templates."),
+        );
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
+
+    void loadTemplates();
+  }, [token]);
 
   useEffect(() => {
     if (!selectedLead) return;
@@ -236,6 +416,25 @@ const QuotationBuilderPage: React.FC = () => {
   const subtotal = computed.supplier + computed.markupVal + computed.serviceFee;
   const taxes = computed.taxVal;
   const total = computed.totalPrice;
+  const quoteDisplayNumber = form.quote.trim() || "AUTO-GENERATED";
+
+  const totalMarkupFromServices = useMemo(
+    () =>
+      Number(
+        serviceCostRows
+          .reduce((sum, row) => sum + row.markupAmount, 0)
+          .toFixed(2),
+      ),
+    [serviceCostRows],
+  );
+  const inclusionLines = useMemo(
+    () => toBulletList(form.inclusions),
+    [form.inclusions],
+  );
+  const exclusionLines = useMemo(
+    () => toBulletList(form.exclusions),
+    [form.exclusions],
+  );
 
   const money = (v: number) => {
     const locale = currency === "INR" ? "en-IN" : "en-US";
@@ -244,6 +443,20 @@ const QuotationBuilderPage: React.FC = () => {
       currency,
       minimumFractionDigits: 2,
     }).format(v);
+  };
+
+  const formatPreviewDateTime = (value?: string) => {
+    if (!value) return "N/A";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString();
+  };
+
+  const formatPreviewDate = (value?: string) => {
+    if (!value) return "N/A";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString();
   };
 
   const autofillCustomer = () => {
@@ -355,6 +568,42 @@ const QuotationBuilderPage: React.FC = () => {
     }
   };
 
+  const buildImportantNotes = () => {
+    const itinerarySummary = itineraryItems
+      .map(
+        (item) =>
+          `${item.day}: ${item.title}${item.description ? ` - ${item.description}` : ""}`,
+      )
+      .join("\n");
+
+    const enabledServices = selectedServiceDefinitions
+      .map((definition) => definition.label)
+      .join(", ");
+
+    const sections = [
+      `Trip Summary:\nDestination: ${form.destination || "N/A"}\nTravel Date: ${form.startDate || "N/A"}\nNights: ${form.nights}\nAdults: ${form.adults}\nPackage Type: ${packageType}`,
+      enabledServices ? `Enabled Services:\n${enabledServices}` : "",
+      itinerarySummary ? `Itinerary:\n${itinerarySummary}` : "",
+      form.headerBranding.trim()
+        ? `Header Branding:\n${form.headerBranding.trim()}`
+        : "",
+      form.inclusions.trim() ? `Inclusions:\n${form.inclusions.trim()}` : "",
+      form.exclusions.trim() ? `Exclusions:\n${form.exclusions.trim()}` : "",
+      form.paymentTerms.trim()
+        ? `Payment Terms:\n${form.paymentTerms.trim()}`
+        : "",
+      form.cancellationPolicy.trim()
+        ? `Cancellation Policy:\n${form.cancellationPolicy.trim()}`
+        : "",
+      form.footerDisclaimer.trim()
+        ? `Footer Disclaimer:\n${form.footerDisclaimer.trim()}`
+        : "",
+    ].filter(Boolean);
+
+    if (!sections.length) return undefined;
+    return sections.join("\n\n").slice(0, 3900);
+  };
+
   const handleSave = () => {
     setSaveError("");
 
@@ -394,20 +643,25 @@ const QuotationBuilderPage: React.FC = () => {
       return;
     }
 
+    if (!selectedServiceDefinitions.length) {
+      setSaveError("Select at least one service in Package Builder.");
+      return;
+    }
+
     const supplier = Number(costs.supplierCost) || 0;
     const serviceFee = Number(costs.serviceFee) || 0;
     const components = [
-      {
-        itemType: "OTHER",
-        description: "Package Cost",
-        cost: supplier,
-      },
+      ...serviceCostRows.map((row) => ({
+        itemType: row.itemType,
+        description: `${row.label}${form.destination ? ` - ${form.destination}` : ""}`,
+        cost: row.baseCost,
+      })),
       ...(serviceFee
         ? [
             {
               itemType: "OTHER",
               description: "Service Fee",
-              cost: serviceFee,
+              cost: Number(serviceFee.toFixed(2)),
             },
           ]
         : []),
@@ -428,6 +682,7 @@ const QuotationBuilderPage: React.FC = () => {
 
     const payload = {
       leadId: selectedLeadId,
+      ...(selectedTemplateId ? { templateId: selectedTemplateId } : {}),
       components,
       marginPercent: Number(costs.markupPercent) || 0,
       discount,
@@ -439,6 +694,7 @@ const QuotationBuilderPage: React.FC = () => {
       costCurrency: currency,
       clientCurrency: currency,
       supplierCurrency: currency,
+      importantNotes: buildImportantNotes(),
       ...(expiresInHours ? { expiresInHours } : {}),
     };
 
@@ -479,6 +735,13 @@ const QuotationBuilderPage: React.FC = () => {
             <p className="text-sm text-gray-500">
               Create and preview polished quotations quickly.
             </p>
+            <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              <p className="font-semibold">How Template Works</p>
+              <p className="mt-1">
+                1) Create template in Templates page. 2) Select template here.
+                3) Save quote to lock snapshot with quotation for audit-safe rendering.
+              </p>
+            </div>
             {saveError ? (
               <p className="mt-2 text-sm text-red-600">{saveError}</p>
             ) : null}
@@ -561,6 +824,53 @@ const QuotationBuilderPage: React.FC = () => {
                     <p className="mt-1 text-xs text-red-600">{leadsError}</p>
                   ) : null}
                 </div>
+                <div className="md:col-span-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                    <div>
+                      <label className="field-label">Quotation Template</label>
+                      <select
+                        className="field-input"
+                        value={selectedTemplateId}
+                        onChange={(event) => {
+                          const nextId = event.target.value;
+                          setSelectedTemplateId(nextId);
+                          const template =
+                            templates.find((item) => item.id === nextId) || null;
+                          applyTemplateDefaults(template);
+                        }}
+                        disabled={templatesLoading}
+                      >
+                        <option value="">No template (manual quotation)</option>
+                        {templates.map((template) => (
+                          <option key={template.id} value={template.id}>
+                            {template.code} - {template.name}
+                            {!template.isActive ? " (Inactive)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => applyTemplateDefaults(selectedTemplate)}
+                      disabled={!selectedTemplate}
+                      className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-900/30"
+                    >
+                      Apply Template Defaults
+                    </button>
+                  </div>
+                  {templatesLoading ? (
+                    <p className="mt-2 text-xs text-gray-500">Loading templates...</p>
+                  ) : null}
+                  {templatesError ? (
+                    <p className="mt-2 text-xs text-red-600">{templatesError}</p>
+                  ) : null}
+                  {selectedTemplate ? (
+                    <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                      Selected: {selectedTemplate.name} ({selectedTemplate.templateType}) -
+                      Min margin {selectedTemplate.minMarginPercent}%
+                    </p>
+                  ) : null}
+                </div>
                 <Field
                   label="Customer"
                   value={form.customer}
@@ -576,6 +886,11 @@ const QuotationBuilderPage: React.FC = () => {
                   value={form.destination}
                   onChange={(v) => setForm((p) => ({ ...p, destination: v }))}
                 />
+                <Field
+                  label="Quote Reference"
+                  value={form.quote}
+                  onChange={(v) => setForm((p) => ({ ...p, quote: v }))}
+                />
                 <div>
                   <label className="field-label">Start Date</label>
                   <input
@@ -584,6 +899,17 @@ const QuotationBuilderPage: React.FC = () => {
                     value={form.startDate}
                     onChange={(e) =>
                       setForm((p) => ({ ...p, startDate: e.target.value }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="field-label">Valid Until</label>
+                  <input
+                    type="datetime-local"
+                    className="field-input"
+                    value={form.validUntil}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, validUntil: e.target.value }))
                     }
                   />
                 </div>
@@ -647,45 +973,37 @@ const QuotationBuilderPage: React.FC = () => {
                   </select>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    { key: "hotel", label: "Hotel" },
-                    { key: "flights", label: "Flights" },
-                    { key: "tours", label: "Tours" },
-                    { key: "visa", label: "Visa" },
-                    { key: "insurance", label: "Insurance" },
-                  ].map((s) => (
+                  {SERVICE_DEFINITIONS.map((service) => (
                     <button
-                      key={s.key}
+                      key={service.key}
                       onClick={() =>
                         setServices((prev) => ({
                           ...prev,
-                          [s.key]: !prev[s.key as keyof typeof prev],
+                          [service.key]: !prev[service.key],
                         }))
                       }
                       className={`px-3 py-2 text-xs rounded-lg border ${
-                        services[s.key as keyof typeof services]
+                        services[service.key]
                           ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200"
                           : "bg-white border-gray-200 text-gray-600 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300"
                       }`}
                     >
-                      {s.label}
+                      {service.label}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
-                {Object.entries(services)
-                  .filter(([, v]) => v)
-                  .map(([key]) => (
+                {selectedServiceDefinitions.map((definition) => (
                     <div
-                      key={key}
+                      key={definition.key}
                       className="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
                     >
                       <p className="text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">
-                        {key}
+                        {definition.itemType}
                       </p>
                       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        Included
+                        {definition.label}
                       </p>
                     </div>
                   ))}
@@ -788,10 +1106,15 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
             <SurfaceCard>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  Pricing Breakdown
-                </h2>
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    Pricing Breakdown
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Auto generated from Supplier Cost, Markup, Service Fee, Tax, and Discount.
+                  </p>
+                </div>
                 <select
                   className="field-input w-28 py-1.5"
                   value={currency}
@@ -802,36 +1125,95 @@ const QuotationBuilderPage: React.FC = () => {
                   <option>EUR</option>
                 </select>
               </div>
+              <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                Formula: <strong>Total Sale Value</strong> = Supplier Cost + Markup + Service
+                Fee + Tax - Discount.
+              </div>
+              <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-gray-600 md:grid-cols-3">
+                <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+                  <p className="font-semibold text-gray-800 dark:text-gray-100">
+                    Step 1: Cost Split
+                  </p>
+                  <p className="mt-1">
+                    Supplier cost is distributed to selected services by weight.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+                  <p className="font-semibold text-gray-800 dark:text-gray-100">
+                    Step 2: Markup
+                  </p>
+                  <p className="mt-1">
+                    Markup percent is applied on each service allocated cost.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+                  <p className="font-semibold text-gray-800 dark:text-gray-100">
+                    Step 3: Final Amount
+                  </p>
+                  <p className="mt-1">
+                    Service Fee and Tax are added, Discount is subtracted.
+                  </p>
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 text-gray-500 dark:border-gray-700">
-                      <th className="py-2 text-left">Item</th>
-                      <th className="py-2 text-right">Cost</th>
+                      <th className="py-2 text-left">Service</th>
+                      <th className="py-2 text-right">Weight</th>
+                      <th className="py-2 text-right">Base Cost</th>
                       <th className="py-2 text-right">Markup</th>
-                      <th className="py-2 text-right">Price</th>
+                      <th className="py-2 text-right">Sell Value</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pricing.map((p) => (
+                    {serviceCostRows.map((row) => (
                       <tr
-                        key={p.id}
+                        key={row.key}
                         className="border-b border-gray-100 dark:border-gray-800"
                       >
-                        <td className="py-2">{p.name}</td>
-                        <td className="py-2 text-right">{money(p.cost)}</td>
+                        <td className="py-2">{row.label}</td>
+                        <td className="py-2 text-right text-gray-500">
+                          {row.weight}%
+                        </td>
+                        <td className="py-2 text-right">{money(row.baseCost)}</td>
                         <td className="py-2 text-right text-green-600">
-                          {p.markup}%
+                          {row.markupPercent.toFixed(1)}%
+                          <span className="ml-1 text-[11px] text-green-500">
+                            ({money(row.markupAmount)})
+                          </span>
                         </td>
                         <td className="py-2 text-right font-medium">
-                          {money(p.price)}
+                          {money(row.sellValue)}
                         </td>
                       </tr>
                     ))}
+                    {!serviceCostRows.length ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="py-3 text-center text-xs text-gray-500"
+                        >
+                          Select at least one service in Package Builder.
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
               <div className="mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800">
+                <div className="mb-1 flex justify-between text-xs text-gray-500">
+                  <span>Supplier Cost</span>
+                  <span>{money(computed.supplier)}</span>
+                </div>
+                <div className="mb-1 flex justify-between text-xs text-gray-500">
+                  <span>Total Markup</span>
+                  <span>{money(totalMarkupFromServices || computed.markupVal)}</span>
+                </div>
+                <div className="mb-1 flex justify-between text-xs text-gray-500">
+                  <span>Service Fee</span>
+                  <span>{money(computed.serviceFee)}</span>
+                </div>
                 <div className="mb-1 flex justify-between text-xs text-gray-500">
                   <span>Subtotal</span>
                   <span>{money(subtotal)}</span>
@@ -880,6 +1262,73 @@ const QuotationBuilderPage: React.FC = () => {
                 />
               </SurfaceCard>
             </div>
+            <SurfaceCard>
+              <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                Template Content Blocks
+              </h3>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="field-label">Header Branding</label>
+                  <textarea
+                    rows={2}
+                    className="field-input"
+                    value={form.headerBranding}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        headerBranding: event.target.value,
+                      }))
+                    }
+                    placeholder="Brand header line shown on quotation"
+                  />
+                </div>
+                <div>
+                  <label className="field-label">Payment Terms</label>
+                  <textarea
+                    rows={3}
+                    className="field-input"
+                    value={form.paymentTerms}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        paymentTerms: event.target.value,
+                      }))
+                    }
+                    placeholder="Payment plan and conditions"
+                  />
+                </div>
+                <div>
+                  <label className="field-label">Cancellation Policy</label>
+                  <textarea
+                    rows={3}
+                    className="field-input"
+                    value={form.cancellationPolicy}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        cancellationPolicy: event.target.value,
+                      }))
+                    }
+                    placeholder="Cancellation and refund terms"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="field-label">Footer Disclaimer</label>
+                  <textarea
+                    rows={2}
+                    className="field-input"
+                    value={form.footerDisclaimer}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        footerDisclaimer: event.target.value,
+                      }))
+                    }
+                    placeholder="Legal/compliance footer note"
+                  />
+                </div>
+              </div>
+            </SurfaceCard>
           </div>
 
           {/* Right Column - Fixed Preview */}
@@ -944,39 +1393,239 @@ const QuotationBuilderPage: React.FC = () => {
                         <p className="text-lg font-bold text-blue-600">
                           QUOTATION
                         </p>
-                        <p className="text-xs text-gray-500">#{form.quote}</p>
+                        <p className="text-xs text-gray-500">#{quoteDisplayNumber}</p>
                       </div>
                     </div>
-                    <div className="mb-5 flex items-center justify-between text-sm">
-                      <div>
-                        <p className="font-medium">{form.customer}</p>
-                        <p className="text-xs text-gray-500">{form.email}</p>
+                    <div className="mb-4 grid grid-cols-2 gap-2 text-[11px] text-gray-500">
+                      <p>
+                        Quote No:{" "}
+                        <span className="font-semibold text-gray-700">
+                          {quoteDisplayNumber}
+                        </span>
+                      </p>
+                      <p className="text-right">
+                        Generated:{" "}
+                        <span className="font-semibold text-gray-700">
+                          {new Date().toLocaleDateString()}
+                        </span>
+                      </p>
+                      <p>
+                        Package:{" "}
+                        <span className="font-semibold text-gray-700">
+                          {packageType}
+                        </span>
+                      </p>
+                      <p className="text-right">
+                        Services:{" "}
+                        <span className="font-semibold text-gray-700">
+                          {selectedServiceDefinitions.length}
+                        </span>
+                      </p>
+                    </div>
+
+                    {(selectedTemplate || form.headerBranding.trim()) ? (
+                      <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                        {selectedTemplate ? (
+                          <p>
+                            Template: {selectedTemplate.code} - {selectedTemplate.name}
+                          </p>
+                        ) : null}
+                        {form.headerBranding.trim() ? (
+                          <p className={selectedTemplate ? "mt-1" : ""}>
+                            {form.headerBranding.trim()}
+                          </p>
+                        ) : null}
                       </div>
-                      <div className="text-right text-xs text-gray-500">
-                        <p>{form.destination}</p>
+                    ) : null}
+
+                    <div className="mb-4 rounded-xl border border-gray-200 p-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <div>
+                          <p className="font-semibold text-gray-900">{form.customer || "Guest Name"}</p>
+                          <p className="text-xs text-gray-500">{form.email || "guest@email.com"}</p>
+                        </div>
+                        <div className="text-right text-xs text-gray-500">
+                          <p>{form.destination || "Destination"}</p>
+                          <p>
+                            {form.nights} nights - {form.adults} adults
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
                         <p>
-                          {form.nights} nights - {form.adults} adults
+                          Travel Date:{" "}
+                          <span className="text-gray-700">
+                            {formatPreviewDate(form.startDate)}
+                          </span>
+                        </p>
+                        <p className="text-right">
+                          Valid Until:{" "}
+                          <span className="text-gray-700">
+                            {formatPreviewDateTime(form.validUntil)}
+                          </span>
                         </p>
                       </div>
                     </div>
-                    <div className="mb-5 rounded-xl bg-gray-50 p-3 dark:bg-gray-800">
-                      <div className="mb-2 flex justify-between text-xs text-gray-500">
-                        <span>Travel Date</span>
-                        <span>{form.startDate}</span>
-                      </div>
-                      <div className="mb-2 flex justify-between text-xs text-gray-500">
-                        <span>Valid Until</span>
-                        <span>{form.validUntil}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold">
-                        <span>Total</span>
-                        <span className="text-blue-600">{money(total)}</span>
+
+                    <div className="mb-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Included Services
+                      </p>
+                      {selectedServiceDefinitions.length ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedServiceDefinitions.map((definition) => (
+                            <span
+                              key={definition.key}
+                              className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700"
+                            >
+                              {definition.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-amber-600">
+                          No services selected yet.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mb-4 rounded-xl border border-gray-200 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Financial Snapshot
+                      </p>
+                      <div className="space-y-1.5 text-xs">
+                        {serviceCostRows.length ? (
+                          serviceCostRows.map((row) => (
+                            <div
+                              key={`preview-${row.key}`}
+                              className="flex items-center justify-between text-gray-600"
+                            >
+                              <span>{row.label}</span>
+                              <span className="font-medium text-gray-800">
+                                {money(row.sellValue)}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-amber-600">
+                            Service-wise split appears after selecting services.
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between text-gray-600">
+                          <span>Service Fee</span>
+                          <span className="font-medium text-gray-800">
+                            {money(computed.serviceFee)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-gray-600">
+                          <span>Tax ({costs.taxPercent}%)</span>
+                          <span className="font-medium text-gray-800">{money(taxes)}</span>
+                        </div>
+                        {costs.discount ? (
+                          <div className="flex items-center justify-between text-gray-600">
+                            <span>Discount</span>
+                            <span className="font-medium text-gray-800">
+                              -{money(costs.discount)}
+                            </span>
+                          </div>
+                        ) : null}
+                        <div className="flex items-center justify-between border-t border-gray-200 pt-2 text-sm font-semibold">
+                          <span>Total Sale Value</span>
+                          <span className="text-blue-600">{money(total)}</span>
+                        </div>
                       </div>
                     </div>
+
+                    <div className="mb-4 rounded-xl border border-gray-200 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Itinerary Snapshot
+                      </p>
+                      <div className="space-y-2">
+                        {itineraryItems.map((item) => (
+                          <div key={`preview-itinerary-${item.id}`} className="text-xs">
+                            <p className="font-medium text-gray-800">
+                              {item.day}: {item.title}
+                            </p>
+                            <p className="text-gray-500">{item.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {(form.inclusions.trim() || form.exclusions.trim()) ? (
+                      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-green-700">
+                            Inclusions
+                          </p>
+                          {inclusionLines.length ? (
+                            <ul className="space-y-1 text-xs text-green-800">
+                              {inclusionLines.map((line, index) => (
+                                <li key={`inc-${index}`}>- {line}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-xs text-green-700">No inclusions added.</p>
+                          )}
+                        </div>
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-700">
+                            Exclusions
+                          </p>
+                          {exclusionLines.length ? (
+                            <ul className="space-y-1 text-xs text-red-800">
+                              {exclusionLines.map((line, index) => (
+                                <li key={`exc-${index}`}>- {line}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-xs text-red-700">No exclusions added.</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
                       <FaCheck className="mr-1 inline" /> Preview validated and
                       ready to share.
                     </div>
+
+                    {(form.paymentTerms.trim() ||
+                      form.cancellationPolicy.trim() ||
+                      form.footerDisclaimer.trim()) ? (
+                      <div className="mt-4 space-y-2 rounded-xl border border-gray-200 p-3 text-xs dark:border-gray-700">
+                        {form.paymentTerms.trim() ? (
+                          <div>
+                            <p className="font-semibold text-gray-700 dark:text-gray-200">
+                              Payment Terms
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              {form.paymentTerms.trim()}
+                            </p>
+                          </div>
+                        ) : null}
+                        {form.cancellationPolicy.trim() ? (
+                          <div>
+                            <p className="font-semibold text-gray-700 dark:text-gray-200">
+                              Cancellation Policy
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              {form.cancellationPolicy.trim()}
+                            </p>
+                          </div>
+                        ) : null}
+                        {form.footerDisclaimer.trim() ? (
+                          <div>
+                            <p className="font-semibold text-gray-700 dark:text-gray-200">
+                              Footer Disclaimer
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              {form.footerDisclaimer.trim()}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </SurfaceCard>
               </div>
@@ -1158,3 +1807,4 @@ const SummaryTile = ({
 };
 
 export default QuotationBuilderPage;
+

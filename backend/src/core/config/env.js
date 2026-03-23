@@ -51,6 +51,57 @@ const envSchema = z.object({
   WHATSAPP_TEMPLATE_VISA: z.string().optional(),
   WHATSAPP_TEMPLATE_PRE_TRAVEL: z.string().optional(),
   WHATSAPP_TEMPLATE_POST_TRAVEL: z.string().optional(),
+  AUTOMATION_ENABLED: z.coerce.boolean().default(true),
+  AUTOMATION_STARTUP_DELAY_MS: z.coerce.number().int().min(0).default(10000),
+  AUTOMATION_LOCK_TIMEOUT_SEC: z.coerce.number().int().positive().default(240),
+  AUTOMATION_LEAD_SLA_INTERVAL_MS: z
+    .coerce.number()
+    .int()
+    .positive()
+    .default(300000),
+  AUTOMATION_LEAD_FOLLOWUP_INTERVAL_MS: z
+    .coerce.number()
+    .int()
+    .positive()
+    .default(900000),
+  AUTOMATION_QUOTATION_REMINDERS_INTERVAL_MS: z
+    .coerce.number()
+    .int()
+    .positive()
+    .default(3600000),
+  AUTOMATION_BOOKING_TRAVEL_REMINDERS_INTERVAL_MS: z
+    .coerce.number()
+    .int()
+    .positive()
+    .default(3600000),
+  AUTOMATION_BOOKING_TRAVEL_BACKFILL_DAYS: z
+    .coerce.number()
+    .int()
+    .min(0)
+    .max(7)
+    .default(1),
+  AUTOMATION_BOOKING_DEADLINES_INTERVAL_MS: z
+    .coerce.number()
+    .int()
+    .positive()
+    .default(3600000),
+  AUTOMATION_SUPPLIER_PAYABLE_INTERVAL_MS: z
+    .coerce.number()
+    .int()
+    .positive()
+    .default(3600000),
+  AUTOMATION_DEADLINE_LOOKAHEAD_HOURS: z
+    .coerce.number()
+    .int()
+    .min(1)
+    .max(240)
+    .default(24),
+  AUTOMATION_SUPPLIER_LOOKAHEAD_DAYS: z
+    .coerce.number()
+    .int()
+    .min(1)
+    .max(60)
+    .default(2),
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().optional(),

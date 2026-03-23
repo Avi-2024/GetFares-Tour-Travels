@@ -21,6 +21,14 @@ function createBookingsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async processDeadlineAlerts(req, res) {
+      const result = await service.processDeadlineAlerts(
+        req.validated?.body || {},
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async getById(req, res) {
       const result = await service.getById(
         req.validated.params.id,

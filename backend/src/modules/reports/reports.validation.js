@@ -151,6 +151,18 @@ const pipelineForecast = z.object({
     .optional(),
 });
 
+const financeCostBreakup = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: baseDateRangeQuery
+    .extend({
+      currency: z.string().trim().min(3).max(10).optional(),
+      page: z.coerce.number().int().min(1).optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+    })
+    .optional(),
+});
+
 const ReportsValidation = {
   bySource,
   byConsultant,
@@ -173,6 +185,7 @@ const ReportsValidation = {
   marketingPerformance,
   supplierPerformance,
   pipelineForecast,
+  financeCostBreakup,
 };
 
 export { ReportsValidation };

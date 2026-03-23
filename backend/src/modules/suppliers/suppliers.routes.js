@@ -33,6 +33,14 @@ function createSuppliersRoutes({
     asyncHandler(controller.updatePayable),
   );
 
+  router.post(
+    "/payables/process-deadline-alerts",
+    requireAuth,
+    authorize("suppliers:update"),
+    validateRequest(validation.processPayableDeadlineAlerts),
+    asyncHandler(controller.processPayableDeadlineAlerts),
+  );
+
   router.get(
     "/:id",
     requireAuth,

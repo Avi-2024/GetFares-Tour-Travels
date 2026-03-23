@@ -14,6 +14,7 @@ function createLeadsRepository({ db, logger, schema }) {
     4: "FINAL_REMINDER",
   });
   const tableColumnsCache = new Map();
+  const tableExistsCache = new Map();
 
   function canIntrospect() {
     return typeof db.query === "function" && Boolean(db.pool);
@@ -77,6 +78,20 @@ function createLeadsRepository({ db, logger, schema }) {
     }
 
     return date;
+  }
+
+  function deriveSlaBreached(row) {
+    const storedValue = row.sla_breached ?? row.slaBreached ?? false;
+    const responseAt = toDate(row.response_at ?? row.responseAt ?? null);
+    const responseDeadline = toDate(
+      row.response_deadline ?? row.responseDeadline ?? null,
+    );
+
+    if (responseAt && responseDeadline) {
+      return responseAt.getTime() > responseDeadline.getTime();
+    }
+
+    return Boolean(storedValue);
   }
 
   function normalizeFollowupType(value) {
@@ -232,7 +247,7 @@ function createLeadsRepository({ db, logger, schema }) {
       assignedAt: row.assigned_at ?? row.assignedAt ?? null,
       responseDeadline: row.response_deadline ?? row.responseDeadline ?? null,
       responseAt: row.response_at ?? row.responseAt ?? null,
-      slaBreached: row.sla_breached ?? row.slaBreached ?? false,
+      slaBreached: deriveSlaBreached(row),
       reassignmentCount: row.reassignment_count ?? row.reassignmentCount ?? 0,
       qualificationCompleted:
         row.qualification_completed ?? row.qualificationCompleted ?? false,
@@ -307,6 +322,29 @@ function createLeadsRepository({ db, logger, schema }) {
     const columns = new Set(result.rows.map((row) => row.column_name));
     tableColumnsCache.set(tableName, columns);
     return columns;
+  }
+
+  async function hasTable(tableName) {
+    if (!canIntrospect()) {
+      return true;
+    }
+
+    if (tableExistsCache.has(tableName)) {
+      return tableExistsCache.get(tableName);
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        [tableName],
+      );
+      const exists = result.rowCount > 0;
+      tableExistsCache.set(tableName, exists);
+      return exists;
+    } catch (_error) {
+      tableExistsCache.set(tableName, false);
+      return false;
+    }
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
@@ -929,6 +967,24 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findSlaBreachCandidates({ limit = 100 } = {}) {
       const normalizedLimit = toPositiveInt(limit, 100);
+      if (db.adapter === "postgres") {
+        const result = await db.query(
+          `
+            SELECT *
+            FROM ${schema.tableName}
+            WHERE status NOT IN ('CONVERTED', 'LOST')
+              AND COALESCE(sla_breached, FALSE) = FALSE
+              AND response_at IS NULL
+              AND response_deadline IS NOT NULL
+              AND response_deadline < CURRENT_TIMESTAMP
+            ORDER BY response_deadline ASC
+            LIMIT $1
+          `,
+          [normalizedLimit],
+        );
+        return mapRowsToDomain(result.rows || []);
+      }
+
       const now = Date.now();
 
       const rows = await db.findMany(schema.tableName, {});
@@ -1081,6 +1137,36 @@ function createLeadsRepository({ db, logger, schema }) {
     async listFollowupsByLeadId(leadId) {
       const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
       return rows.map((row) => toFollowupDomain(row));
+    },
+
+    async findFollowupAlertLog({ followupId, alertType, alertDate } = {}) {
+      const tableExists = await hasTable(schema.followupAlertLogsTable);
+      if (!tableExists || !followupId || !alertType || !alertDate) {
+        return null;
+      }
+      return db.findOne(schema.followupAlertLogsTable, {
+        followup_id: followupId,
+        alert_type: alertType,
+        alert_date: alertDate,
+      });
+    },
+
+    async createFollowupAlertLog(payload = {}) {
+      const tableExists = await hasTable(schema.followupAlertLogsTable);
+      if (!tableExists) {
+        return null;
+      }
+      const sanitized = await sanitizeForTable(schema.followupAlertLogsTable, {
+        followup_id: payload.followupId,
+        alert_type: payload.alertType,
+        alert_date: payload.alertDate,
+        triggered_at: payload.triggeredAt || new Date().toISOString(),
+        metadata: payload.metadata || {},
+      });
+      if (!Object.keys(sanitized).length) {
+        return null;
+      }
+      return db.insert(schema.followupAlertLogsTable, sanitized);
     },
 
     async getFollowupComplianceStats(leadId) {

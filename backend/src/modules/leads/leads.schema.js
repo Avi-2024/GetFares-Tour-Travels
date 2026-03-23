@@ -3,6 +3,7 @@ const LeadsSchema = Object.freeze({
   customersTable: "customers",
   activitiesTable: "lead_activities",
   followupsTable: "followups",
+  followupAlertLogsTable: "lead_followup_alert_logs",
   usersTable: "users",
   rolesTable: "roles",
   destinationsTable: "destinations",

@@ -29,10 +29,12 @@ import { validateBookingTransition } from '../../utils/workflowValidation'
 import { useBookingsService } from '../../hooks/useBookingsService'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { quotationsApi } from '../../api/quotations'
+import { suppliersApi } from '../../api/suppliers'
 import { getApiErrorMessage } from '../../api/apiClient'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
+type DeadlineRiskLevel = 'SAFE' | 'D2_DUE' | 'DEADLINE_DUE' | 'OVERDUE'
 
 interface Booking {
   id: string
@@ -49,6 +51,10 @@ interface Booking {
   total: number
   documentsReady: number
   documentsTotal: number
+  deadlineRiskLevel?: DeadlineRiskLevel
+  balanceDueBy?: string | null
+  supplierPaymentDeadlineAt?: string | null
+  cancellationDeadlineAt?: string | null
 }
 
 interface NewBookingData {
@@ -62,6 +68,19 @@ interface NewBookingData {
   totalAmount: number
   costAmount: number
   advanceRequired: number
+  supplierId: string
+  supplierName: string
+  supplierReferenceCode: string
+  dmcName: string
+  dmcReferenceCode: string
+  hotelNotes: string
+  flightNotes: string
+  insuranceProvider: string
+  insurancePolicyNumber: string
+  otherServiceNotes: string
+  blockingDeadlineAt: string
+  supplierPaymentDeadlineAt: string
+  cancellationDeadlineAt: string
   notes?: string
 }
 
@@ -69,6 +88,12 @@ type QuoteOption = {
   id: string
   label: string
   value: string
+}
+
+type SupplierOption = {
+  id: string
+  name: string
+  label: string
 }
 
 interface PaymentData {
@@ -109,6 +134,17 @@ const paymentClasses: Record<PaymentStatus, string> = {
   paid: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900',
   refunded:
     'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+}
+
+const deadlineRiskClasses: Record<DeadlineRiskLevel, string> = {
+  SAFE:
+    'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900',
+  D2_DUE:
+    'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900',
+  DEADLINE_DUE:
+    'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900',
+  OVERDUE:
+    'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
 }
 
 const getDefaultInvoiceDueDate = () => {
@@ -180,6 +216,9 @@ const CreateBookingModal = ({
   const [quotationLoading, setQuotationLoading] = useState(false)
   const [quotationAutofillLoading, setQuotationAutofillLoading] =
     useState(false)
+  const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([])
+  const [supplierLoading, setSupplierLoading] = useState(false)
+  const [supplierError, setSupplierError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [quotationError, setQuotationError] = useState('')
   const [selectedQuotationId, setSelectedQuotationId] = useState('')
@@ -194,6 +233,19 @@ const CreateBookingModal = ({
     totalAmount: 0,
     costAmount: 0,
     advanceRequired: 0,
+    supplierId: '',
+    supplierName: '',
+    supplierReferenceCode: '',
+    dmcName: '',
+    dmcReferenceCode: '',
+    hotelNotes: '',
+    flightNotes: '',
+    insuranceProvider: '',
+    insurancePolicyNumber: '',
+    otherServiceNotes: '',
+    blockingDeadlineAt: '',
+    supplierPaymentDeadlineAt: '',
+    cancellationDeadlineAt: '',
     notes: ''
   })
   const [errors, setErrors] = useState<
@@ -254,6 +306,47 @@ const CreateBookingModal = ({
       setQuotationOptions([])
     } finally {
       setQuotationLoading(false)
+    }
+  }
+
+  const loadSuppliers = async () => {
+    setSupplierLoading(true)
+    setSupplierError('')
+    try {
+      const res = await suppliersApi.list({ page: 1, limit: 200, isActive: true })
+      const raw =
+        (res as any)?.data?.data ??
+        (res as any)?.data?.items ??
+        (res as any)?.data ??
+        res ??
+        []
+      const options: SupplierOption[] = (Array.isArray(raw) ? raw : [])
+        .map((item: any) => {
+          const id = String(item?.id ?? '')
+          const name = String(item?.name ?? item?.supplierName ?? '').trim()
+          if (!id || !name) return null
+          const country = String(item?.country ?? '').trim()
+          const currency = String(
+            item?.supplierCurrency ?? item?.supplier_currency ?? ''
+          ).trim()
+          const location = country ? ` | ${country}` : ''
+          const currencyLabel = currency ? ` | ${currency}` : ''
+          return {
+            id,
+            name,
+            label: `${name}${location}${currencyLabel}`
+          }
+        })
+        .filter(Boolean) as SupplierOption[]
+
+      options.sort((left, right) => left.name.localeCompare(right.name))
+      setSupplierOptions(options)
+    } catch (error) {
+      console.error('Failed to load suppliers:', error)
+      setSupplierError(getApiErrorMessage(error, 'Failed to load suppliers'))
+      setSupplierOptions([])
+    } finally {
+      setSupplierLoading(false)
     }
   }
 
@@ -362,7 +455,19 @@ const CreateBookingModal = ({
   useEffect(() => {
     if (!isOpen) return
     void loadQuotations()
+    void loadSuppliers()
   }, [isOpen])
+
+  const handleSupplierChange = (supplierId: string) => {
+    const selectedSupplier = supplierOptions.find(item => item.id === supplierId)
+    setFormData(prev => ({
+      ...prev,
+      supplierId,
+      supplierName:
+        selectedSupplier?.name ??
+        (supplierId ? prev.supplierName : '')
+    }))
+  }
 
   const handleQuotationChange = async (quotationId: string) => {
     setSelectedQuotationId(quotationId)
@@ -469,6 +574,16 @@ const CreateBookingModal = ({
       }
     }
 
+    if (
+      formData.blockingDeadlineAt &&
+      formData.supplierPaymentDeadlineAt &&
+      new Date(formData.blockingDeadlineAt).getTime() >
+        new Date(formData.supplierPaymentDeadlineAt).getTime()
+    ) {
+      newErrors.blockingDeadlineAt =
+        'Blocking deadline cannot be later than supplier payment deadline'
+    }
+
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format'
     }
@@ -489,6 +604,19 @@ const CreateBookingModal = ({
       totalAmount: 0,
       costAmount: 0,
       advanceRequired: 0,
+      supplierId: '',
+      supplierName: '',
+      supplierReferenceCode: '',
+      dmcName: '',
+      dmcReferenceCode: '',
+      hotelNotes: '',
+      flightNotes: '',
+      insuranceProvider: '',
+      insurancePolicyNumber: '',
+      otherServiceNotes: '',
+      blockingDeadlineAt: '',
+      supplierPaymentDeadlineAt: '',
+      cancellationDeadlineAt: '',
       notes: ''
     })
     setErrors({})
@@ -666,6 +794,218 @@ const CreateBookingModal = ({
               {errors.travelEnd && (
                 <p className='text-xs text-red-500 mt-1'>{errors.travelEnd}</p>
               )}
+            </div>
+          </div>
+
+          {/* Deadlines */}          
+          <div>
+            <p className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2'>
+              Booking Deadlines
+            </p>
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+              <div>
+                <label className='field-label'>Blocking Deadline</label>
+                <input
+                  type='datetime-local'
+                  value={formData.blockingDeadlineAt}
+                  onChange={e =>
+                    setFormData({
+                      ...formData,
+                      blockingDeadlineAt: e.target.value
+                    })
+                  }
+                  className={`field-input ${
+                    errors.blockingDeadlineAt ? 'border-red-500' : ''
+                  }`}
+                />
+                {errors.blockingDeadlineAt && (
+                  <p className='text-xs text-red-500 mt-1'>
+                    {errors.blockingDeadlineAt}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className='field-label'>Supplier Payment Deadline</label>
+                <input
+                  type='datetime-local'
+                  value={formData.supplierPaymentDeadlineAt}
+                  onChange={e =>
+                    setFormData({
+                      ...formData,
+                      supplierPaymentDeadlineAt: e.target.value
+                    })
+                  }
+                  className='field-input'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Cancellation Deadline</label>
+                <input
+                  type='datetime-local'
+                  value={formData.cancellationDeadlineAt}
+                  onChange={e =>
+                    setFormData({
+                      ...formData,
+                      cancellationDeadlineAt: e.target.value
+                    })
+                  }
+                  className='field-input'
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Structured Service Blocks */}
+          <div>
+            <p className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2'>
+              Structured Service Details
+            </p>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+              <div>
+                <label className='field-label'>Supplier (Directory)</label>
+                <select
+                  value={formData.supplierId}
+                  onChange={e => handleSupplierChange(e.target.value)}
+                  className='field-input'
+                  disabled={supplierLoading}
+                >
+                  <option value=''>
+                    {supplierLoading ? 'Loading suppliers...' : 'Select supplier'}
+                  </option>
+                  {supplierOptions.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {supplierError && (
+                  <p className='text-xs text-red-500 mt-1'>{supplierError}</p>
+                )}
+                <p className='text-xs text-gray-500 mt-1'>
+                  Select from supplier master, or keep manual name below.
+                </p>
+              </div>
+              <div>
+                <label className='field-label'>Supplier Name</label>
+                <input
+                  type='text'
+                  value={formData.supplierName}
+                  onChange={e =>
+                    setFormData({ ...formData, supplierName: e.target.value })
+                  }
+                  className='field-input'
+                  placeholder='Supplier/DMC Name'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Supplier Reference</label>
+                <input
+                  type='text'
+                  value={formData.supplierReferenceCode}
+                  onChange={e =>
+                    setFormData({
+                      ...formData,
+                      supplierReferenceCode: e.target.value
+                    })
+                  }
+                  className='field-input'
+                  placeholder='Contract/Ref Code'
+                />
+              </div>
+              <div>
+                <label className='field-label'>DMC Name</label>
+                <input
+                  type='text'
+                  value={formData.dmcName}
+                  onChange={e =>
+                    setFormData({ ...formData, dmcName: e.target.value })
+                  }
+                  className='field-input'
+                />
+              </div>
+              <div>
+                <label className='field-label'>DMC Reference</label>
+                <input
+                  type='text'
+                  value={formData.dmcReferenceCode}
+                  onChange={e =>
+                    setFormData({
+                      ...formData,
+                      dmcReferenceCode: e.target.value
+                    })
+                  }
+                  className='field-input'
+                />
+              </div>
+            </div>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mt-4'>
+              <div>
+                <label className='field-label'>Hotel Segment Notes</label>
+                <textarea
+                  rows={2}
+                  value={formData.hotelNotes}
+                  onChange={e =>
+                    setFormData({ ...formData, hotelNotes: e.target.value })
+                  }
+                  className='field-input'
+                  placeholder='e.g. Goa | ITC Grand | 2N | Deluxe | MAP'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Flight Segment Notes</label>
+                <textarea
+                  rows={2}
+                  value={formData.flightNotes}
+                  onChange={e =>
+                    setFormData({ ...formData, flightNotes: e.target.value })
+                  }
+                  className='field-input'
+                  placeholder='e.g. DEL-GOI 6E 123 | 2026-04-12T07:30'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Insurance Provider</label>
+                <input
+                  type='text'
+                  value={formData.insuranceProvider}
+                  onChange={e =>
+                    setFormData({
+                      ...formData,
+                      insuranceProvider: e.target.value
+                    })
+                  }
+                  className='field-input'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Insurance Policy Number</label>
+                <input
+                  type='text'
+                  value={formData.insurancePolicyNumber}
+                  onChange={e =>
+                    setFormData({
+                      ...formData,
+                      insurancePolicyNumber: e.target.value
+                    })
+                  }
+                  className='field-input'
+                />
+              </div>
+            </div>
+            <div className='mt-4'>
+              <label className='field-label'>Other Services Notes</label>
+              <textarea
+                rows={2}
+                value={formData.otherServiceNotes}
+                onChange={e =>
+                  setFormData({
+                    ...formData,
+                    otherServiceNotes: e.target.value
+                  })
+                }
+                className='field-input'
+                placeholder='Visa assist, cab, activities, insurance addons...'
+              />
             </div>
           </div>
 
@@ -1305,8 +1645,36 @@ const BookingsPage: React.FC = () => {
       paid: Number(b.paid ?? b.paidAmount ?? b.advanceReceived ?? 0),
       total: Number(b.total ?? b.totalAmount ?? 0),
       documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
-      documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0)
+      documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0),
+      deadlineRiskLevel: normalizeDeadlineRisk(
+        b.deadlineRiskLevel ?? b.deadline_risk_level ?? 'SAFE'
+      ),
+      balanceDueBy: b.balanceDueBy ?? b.balance_due_by ?? null,
+      supplierPaymentDeadlineAt:
+        b.supplierPaymentDeadlineAt ?? b.supplier_payment_deadline_at ?? null,
+      cancellationDeadlineAt:
+        b.cancellationDeadlineAt ?? b.cancellation_deadline_at ?? null
     }
+  }
+
+  const normalizeDeadlineRisk = (value?: string): DeadlineRiskLevel => {
+    const normalized = String(value ?? '').toUpperCase()
+    if (
+      normalized === 'D2_DUE' ||
+      normalized === 'DEADLINE_DUE' ||
+      normalized === 'OVERDUE'
+    ) {
+      return normalized
+    }
+    return 'SAFE'
+  }
+
+  const formatRiskLabel = (value?: DeadlineRiskLevel) => {
+    const risk = normalizeDeadlineRisk(value)
+    if (risk === 'SAFE') return 'Safe'
+    if (risk === 'D2_DUE') return 'D-2 Due'
+    if (risk === 'DEADLINE_DUE') return 'Deadline Due'
+    return 'Overdue'
   }
 
   const calculateStats = (items: Booking[]) => {
@@ -1557,12 +1925,64 @@ const BookingsPage: React.FC = () => {
   const handleCreateBooking = async (data: NewBookingData) => {
     setLoading(true)
     try {
+      const toIsoDateTime = (value?: string) => {
+        if (!value) return undefined
+        const parsed = new Date(value)
+        if (Number.isNaN(parsed.getTime())) return undefined
+        return parsed.toISOString()
+      }
+
       const payload: Record<string, unknown> = {
         quotationId: data.quotationId,
         travelStartDate: data.travelStart,
         travelEndDate: data.travelEnd,
         totalAmount: data.totalAmount,
-        costAmount: data.costAmount
+        costAmount: data.costAmount,
+        blockingDeadlineAt: toIsoDateTime(data.blockingDeadlineAt),
+        supplierPaymentDeadlineAt: toIsoDateTime(data.supplierPaymentDeadlineAt),
+        cancellationDeadlineAt: toIsoDateTime(data.cancellationDeadlineAt),
+        supplierDetails:
+          data.supplierId || data.supplierName || data.supplierReferenceCode
+            ? {
+                supplierId: data.supplierId || undefined,
+                supplierName: data.supplierName || undefined,
+                contractRef: data.supplierReferenceCode || undefined
+              }
+            : undefined,
+        dmcDetails:
+          data.dmcName || data.dmcReferenceCode
+            ? {
+                dmcName: data.dmcName || undefined,
+                notes: data.dmcReferenceCode || undefined
+              }
+            : undefined,
+        insuranceDetails:
+          data.insuranceProvider || data.insurancePolicyNumber
+            ? {
+                provider: data.insuranceProvider || undefined,
+                policyNumber: data.insurancePolicyNumber || undefined
+              }
+            : undefined,
+        otherServices: [
+          data.hotelNotes
+            ? {
+                serviceType: 'HOTEL_NOTE',
+                description: data.hotelNotes
+              }
+            : null,
+          data.flightNotes
+            ? {
+                serviceType: 'FLIGHT_NOTE',
+                description: data.flightNotes
+              }
+            : null,
+          data.otherServiceNotes
+            ? {
+                serviceType: 'OTHER_SERVICE',
+                description: data.otherServiceNotes
+              }
+            : null
+        ].filter(Boolean)
       }
 
       if (data.advanceRequired > 0) {
@@ -1945,6 +2365,20 @@ const BookingsPage: React.FC = () => {
                       {booking.destination}
                     </p>
                     <p className='text-xs text-gray-500'>{booking.dates}</p>
+                    <div className='flex flex-wrap gap-2'>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                          deadlineRiskClasses[booking.deadlineRiskLevel ?? 'SAFE']
+                        }`}
+                      >
+                        {formatRiskLabel(booking.deadlineRiskLevel)}
+                      </span>
+                      {booking.balanceDueBy && (
+                        <span className='rounded-full border border-gray-200 px-2 py-0.5 text-[11px] text-gray-600 dark:border-gray-700 dark:text-gray-300'>
+                          Balance by {new Date(booking.balanceDueBy).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Payment Info */}
@@ -2054,13 +2488,22 @@ const BookingsPage: React.FC = () => {
                         {booking.dates}
                       </td>
                       <td className='px-5 py-4'>
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
-                            statusClasses[booking.status]
-                          }`}
-                        >
-                          {booking.status}
-                        </span>
+                        <div className='flex flex-col gap-1'>
+                          <span
+                            className={`w-fit rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+                              statusClasses[booking.status]
+                            }`}
+                          >
+                            {booking.status}
+                          </span>
+                          <span
+                            className={`w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                              deadlineRiskClasses[booking.deadlineRiskLevel ?? 'SAFE']
+                            }`}
+                          >
+                            {formatRiskLabel(booking.deadlineRiskLevel)}
+                          </span>
+                        </div>
                       </td>
                       <td className='px-5 py-4'>
                         <div className='flex items-center gap-2'>

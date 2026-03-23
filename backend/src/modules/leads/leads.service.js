@@ -327,10 +327,32 @@ function createLeadsService({ repository, logger, events }) {
     return date;
   }
 
+  function toDateOnly(value) {
+    return new Date(value).toISOString().slice(0, 10);
+  }
+
   function toCadenceDate(baseDate, slot) {
     const date = addDays(baseDate, slot.dayOffset);
     date.setHours(slot.hour, slot.minute, 0, 0);
     return date;
+  }
+
+  function isAfterResponseDeadline(responseAt, responseDeadline) {
+    if (!responseAt || !responseDeadline) {
+      return false;
+    }
+
+    const responseTime = new Date(responseAt).getTime();
+    const deadlineTime = new Date(responseDeadline).getTime();
+
+    if (
+      Number.isNaN(responseTime) ||
+      Number.isNaN(deadlineTime)
+    ) {
+      return false;
+    }
+
+    return responseTime > deadlineTime;
   }
 
   function buildCadenceSlots(lead) {
@@ -521,8 +543,10 @@ function createLeadsService({ repository, logger, events }) {
     if (mapped.status && POSITIVE_RESPONSE_STATUSES.has(mapped.status) && !existing.responseAt) {
       mapped.response_at = now;
       if (existing.responseDeadline) {
-        mapped.sla_breached =
-          new Date(now) > new Date(existing.responseDeadline);
+        mapped.sla_breached = isAfterResponseDeadline(
+          now,
+          existing.responseDeadline,
+        );
       }
     }
 
@@ -536,6 +560,10 @@ function createLeadsService({ repository, logger, events }) {
       const nextTemperature = determineLeadTemperature(mergedLead);
       mapped.priority_level = mapTemperatureToPriority(nextTemperature);
       mapped.temperature = nextTemperature;
+    }
+
+    if (Object.keys(mapped).length) {
+      mapped.updated_at = now;
     }
 
     return mapped;
@@ -1072,16 +1100,53 @@ function createLeadsService({ repository, logger, events }) {
         payload.limit,
         AUTOMATION_DEFAULTS.overdueFollowupLimit,
       );
+      const referenceDate = payload.referenceDate
+        ? new Date(payload.referenceDate)
+        : new Date();
+      if (Number.isNaN(referenceDate.getTime())) {
+        throw new AppError(
+          400,
+          "referenceDate is invalid",
+          "LEAD_INVALID_REFERENCE_DATE",
+        );
+      }
       const overdue = await repository.findOverdueFollowups({ limit });
-
-      overdue.forEach((item) => {
-        events.emitFollowupOverdue(item);
-      });
-
-      return {
+      const alertDate = toDateOnly(referenceDate);
+      const summary = {
         processed: overdue.length,
-        followups: overdue,
+        triggered: 0,
+        skipped: 0,
+        followups: [],
       };
+
+      for (const item of overdue) {
+        const existing = await repository.findFollowupAlertLog({
+          followupId: item.id,
+          alertType: "FOLLOWUP_OVERDUE",
+          alertDate,
+        });
+        if (existing) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        await repository.createFollowupAlertLog({
+          followupId: item.id,
+          alertType: "FOLLOWUP_OVERDUE",
+          alertDate,
+          metadata: {
+            leadId: item.leadId,
+            followupType: item.followupType,
+            followupDate: item.followupDate,
+            cadenceCode: item.cadenceCode,
+          },
+        });
+        events.emitFollowupOverdue(item);
+        summary.triggered += 1;
+        summary.followups.push(item);
+      }
+
+      return summary;
     },
 
     async processNonResponsive(payload = {}, context = {}) {
@@ -1234,6 +1299,10 @@ function createLeadsService({ repository, logger, events }) {
       };
 
       for (const lead of candidates) {
+        if (!lead.responseDeadline || !isAfterResponseDeadline(new Date().toISOString(), lead.responseDeadline)) {
+          continue;
+        }
+
         const previousAssigneeId = lead.assignedTo || null;
         await repository.markSlaBreached(lead.id);
 
@@ -1241,7 +1310,7 @@ function createLeadsService({ repository, logger, events }) {
           leadId: lead.id,
           userId: context.user?.id || null,
           activityType: "SLA_BREACHED",
-          notes: "Lead was not responded within SLA deadline (agent accept timeout)",
+          notes: "Lead was not first-contacted within the 15-minute response SLA.",
         });
 
         const reassigned = await assignLead(
@@ -1264,7 +1333,7 @@ function createLeadsService({ repository, logger, events }) {
           escalatedTo: reassigned?.assignedTo || null,
           responseDeadline: lead.responseDeadline,
           message:
-            "Lead SLA breached: agent did not accept within 15 minutes. Escalating to manager.",
+            "Lead SLA breached: first contact was not completed within 15 minutes. Escalating to manager.",
           roles: ["manager"],
         });
 
@@ -1274,7 +1343,7 @@ function createLeadsService({ repository, logger, events }) {
           previousAssigneeId,
           escalatedTo: reassigned?.assignedTo || null,
           message:
-            "Agent did not accept lead within 15 minutes. Manager assigned.",
+            "Lead was not first-contacted within 15 minutes. Manager assigned for escalation.",
           roles: ["manager"],
         });
 

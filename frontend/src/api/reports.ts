@@ -15,6 +15,8 @@ export const reportsApi = {
     apiRequest(withQuery("/api/reports/leads/by-consultant", params)),
   outstandingPayments: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/reports/payments/outstanding", params)),
+  financeCostBreakup: (params?: Record<string, string | number | boolean>) =>
+    apiRequest(withQuery("/api/reports/finance/cost-breakup", params)),
   visaSummary: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/reports/visa/summary", params)),
   marketingPerformance: (params?: Record<string, string | number | boolean>) =>

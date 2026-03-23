@@ -56,6 +56,14 @@ function createSuppliersController({ service }) {
       );
       res.status(200).json({ data: result });
     },
+
+    async processPayableDeadlineAlerts(req, res) {
+      const result = await service.processPayableDeadlineAlerts(
+        req.validated?.body || {},
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
   });
 }
 

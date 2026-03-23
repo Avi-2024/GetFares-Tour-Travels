@@ -19,6 +19,7 @@ import PermissionRoute from "./components/ui/PermissionRoute";
 import RefundsPage from "./pages/refunds/RefundsPage";
 import VisaCasesPage from "./pages/visa/VisaCasesPage";
 import VisaDetailPage from "./pages/visa/VisaDetailPage";
+import VisaCreatePage from "./pages/visa/VisaCreatePage";
 import ComplaintsPage from "./pages/complaints/ComplaintsPage";
 import ReportsHubPage from "./pages/reports/ReportsHubPage";
 import QuotationTemplatesPage from "./pages/Quotation/QuotationTemplatesPage";
@@ -35,6 +36,7 @@ import FinanceSystem from "./pages/Finance/FinanceSystem";
 import ProfilePage from "./pages/profile/ProfilePage";
 import PackagesPage from "./pages/packages/PackagesPage";
 import DestinationsPage from "./pages/destinations/DestinationsPage";
+import SuppliersPage from "./pages/suppliers/SuppliersPage";
 
 function App() {
   return (
@@ -104,6 +106,9 @@ function App() {
               <Route path="/visa" element={<VisaCasesPage />} />
               <Route path="/visa/:id" element={<VisaDetailPage />} />
             </Route>
+            <Route element={<PermissionRoute permission="visa:create" />}>
+              <Route path="/visa/new" element={<VisaCreatePage />} />
+            </Route>
 
             <Route element={<PermissionRoute permission="complaints:read" />}>
               <Route path="/complaints" element={<ComplaintsPage />} />
@@ -123,6 +128,10 @@ function App() {
               <Route path="/customers" element={<CustomersPage />} />
               <Route path="/customers/new" element={<NewCustomerPage />} />
               <Route path="/customers/:id" element={<CustomerDetailPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute permission="suppliers:read" />}>
+              <Route path="/suppliers" element={<SuppliersPage />} />
             </Route>
 
             <Route element={<PermissionRoute permission="notifications:read" />}>
