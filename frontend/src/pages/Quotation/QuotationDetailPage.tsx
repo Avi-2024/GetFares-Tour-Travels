@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   FaArrowLeft,
@@ -58,7 +58,7 @@ const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'logs', label: 'Send Logs' }
 ]
 
-function unwrapData<T>(response: unknown): T | null {
+function unwrapData<T> (response: unknown): T | null {
   if (!response) return null
   if (typeof response === 'object' && response && 'data' in response) {
     return (response as { data: T }).data ?? null
@@ -148,6 +148,8 @@ const QuotationDetailPage: React.FC = () => {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [rejectError, setRejectError] = useState('')
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const pdfExportRef = useRef<HTMLDivElement | null>(null)
 
   const loadDetails = useCallback(async () => {
     if (!id) {
@@ -441,6 +443,112 @@ const QuotationDetailPage: React.FC = () => {
     }
   }
 
+  const handleDownloadPdf = async () => {
+    if (!pdfExportRef.current || downloadingPdf) return
+
+    const exportRoot = pdfExportRef.current
+    setDownloadingPdf(true)
+
+    const exportStyle = document.createElement('style')
+    exportStyle.setAttribute('data-quotation-detail-pdf', 'true')
+    exportStyle.innerHTML = `
+      .quotation-detail-pdf-export {
+        background: #ffffff !important;
+        color: #111827 !important;
+      }
+      .quotation-detail-pdf-export * {
+        color: inherit;
+      }
+      .quotation-detail-pdf-export .dark\\:text-gray-100,
+      .quotation-detail-pdf-export .dark\\:text-gray-200,
+      .quotation-detail-pdf-export .dark\\:text-gray-300,
+      .quotation-detail-pdf-export .dark\\:text-gray-400 {
+        color: #111827 !important;
+      }
+      .quotation-detail-pdf-export .dark\\:bg-gray-800,
+      .quotation-detail-pdf-export .dark\\:bg-gray-900,
+      .quotation-detail-pdf-export .dark\\:bg-gray-800\\/50 {
+        background: #ffffff !important;
+      }
+      .quotation-detail-pdf-export .dark\\:border-gray-700,
+      .quotation-detail-pdf-export .dark\\:border-gray-800 {
+        border-color: #e5e7eb !important;
+      }
+      .quotation-detail-pdf-export .border {
+        border-color: #e5e7eb !important;
+      }
+      .quotation-detail-pdf-export .rounded-lg,
+      .quotation-detail-pdf-export .rounded-xl,
+      .quotation-detail-pdf-export .rounded-2xl {
+        box-shadow: none !important;
+      }
+      .quotation-detail-pdf-export table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .quotation-detail-pdf-export th,
+      .quotation-detail-pdf-export td {
+        border-bottom: 1px solid #e5e7eb;
+      }
+    `
+
+    document.head.appendChild(exportStyle)
+
+    try {
+      exportRoot.classList.add('quotation-detail-pdf-export')
+      await new Promise<void>(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+
+      const html2canvasModule = (await import(
+        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
+      )) as any
+      const html2canvas = html2canvasModule.default || html2canvasModule
+
+      const jsPdfModule = (await import(
+        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
+      )) as any
+      const JsPDF = jsPdfModule.default || jsPdfModule
+
+      const canvas = await html2canvas(exportRoot, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: -window.scrollY
+      })
+
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new JsPDF('p', 'mm', 'a4')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const imgHeight = (canvas.height * pageWidth) / canvas.width
+
+      let heightLeft = imgHeight
+      let position = 0
+
+      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight, '', 'FAST')
+      heightLeft -= pageHeight
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight, '', 'FAST')
+        heightLeft -= pageHeight
+      }
+
+      const quoteRef = quotation?.quoteNumber ?? quotation?.id ?? 'quotation'
+      pdf.save(`quotation-${quoteRef}.pdf`)
+    } catch (err) {
+      console.error('Failed to download PDF:', err)
+      setError(getApiErrorMessage(err, 'Failed to download PDF'))
+    } finally {
+      exportRoot.classList.remove('quotation-detail-pdf-export')
+      exportStyle.remove()
+      setDownloadingPdf(false)
+    }
+  }
+
   const isApproved = status === 'APPROVED'
   const isRejected = status === 'REJECTED'
 
@@ -504,7 +612,11 @@ const QuotationDetailPage: React.FC = () => {
         </div>
 
         <div className='flex flex-nowrap items-center gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible'>
-          <button className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center whitespace-nowrap shrink-0'>
+          <button
+            onClick={() => void handleDownloadPdf()}
+            disabled={downloadingPdf}
+            className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center whitespace-nowrap shrink-0 disabled:opacity-60'
+          >
             <FaFilePdf className='mr-2' /> PDF
           </button>
 
@@ -602,6 +714,7 @@ const QuotationDetailPage: React.FC = () => {
         </SurfaceCard>
       </div>
 
+      <div ref={pdfExportRef} className='space-y-4 sm:space-y-6'>
       <SurfaceCard className='p-4 sm:p-5'>
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
           <div>
@@ -1043,6 +1156,7 @@ const QuotationDetailPage: React.FC = () => {
           )}
         </div>
       </SurfaceCard>
+      </div>
 
       {showRejectModal && (
         <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
