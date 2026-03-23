@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   FaFileInvoice,
@@ -507,6 +507,8 @@ const Toast = ({
 const InvoiceDetailsModal = ({
   isOpen,
   invoice,
+  booking,
+  contentRef,
   onClose,
   onDownload,
   onMarkAsPaid,
@@ -514,6 +516,8 @@ const InvoiceDetailsModal = ({
 }: {
   isOpen: boolean
   invoice: Invoice | null
+  booking?: Booking | null
+  contentRef?: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   onDownload: () => void
   onMarkAsPaid: () => void
@@ -523,7 +527,10 @@ const InvoiceDetailsModal = ({
 
   return (
     <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
-      <div className='bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto'>
+      <div
+        ref={contentRef}
+        className='bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto'
+      >
         <div className='sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between'>
           <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             Invoice Details
@@ -559,6 +566,88 @@ const InvoiceDetailsModal = ({
             </span>
           </div>
 
+          {booking && (
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+              <div className='p-4 bg-blue-50 rounded-lg border border-blue-100'>
+                <p className='text-xs text-blue-600 font-semibold uppercase tracking-wide'>
+                  Booking Context
+                </p>
+                <div className='mt-2 space-y-1.5 text-sm text-gray-800'>
+                  <p>
+                    <span className='text-gray-500'>Customer:</span>{' '}
+                    <span className='font-medium'>
+                      {booking.customerName || 'Unknown'}
+                    </span>
+                  </p>
+                  <p>
+                    <span className='text-gray-500'>Booking:</span>{' '}
+                    <span className='font-medium'>
+                      #{booking.bookingNumber}
+                    </span>
+                  </p>
+                  <p>
+                    <span className='text-gray-500'>Quotation:</span>{' '}
+                    <span className='font-medium'>
+                      {booking.quotationNumber ||
+                        `#${String(booking.quotationId || '').slice(0, 8)}`}
+                    </span>
+                  </p>
+                  <p>
+                    <span className='text-gray-500'>Travel:</span>{' '}
+                    <span className='font-medium'>
+                      {new Date(booking.travelStart).toLocaleDateString()} -{' '}
+                      {new Date(booking.travelEnd).toLocaleDateString()}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className='p-4 bg-emerald-50 rounded-lg border border-emerald-100'>
+                <p className='text-xs text-emerald-600 font-semibold uppercase tracking-wide'>
+                  Payment Snapshot
+                </p>
+                <div className='mt-2 space-y-1.5 text-sm text-gray-800'>
+                  <p>
+                    <span className='text-gray-500'>Advance Required:</span>{' '}
+                    <span className='font-medium'>
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: currency || booking.clientCurrency || 'USD'
+                      }).format(booking.advanceRequired)}
+                    </span>
+                  </p>
+                  <p>
+                    <span className='text-gray-500'>Advance Received:</span>{' '}
+                    <span className='font-medium'>
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: currency || booking.clientCurrency || 'USD'
+                      }).format(booking.advanceReceived)}
+                    </span>
+                  </p>
+                  <p>
+                    <span className='text-gray-500'>Remaining:</span>{' '}
+                    <span className='font-medium'>
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: currency || booking.clientCurrency || 'USD'
+                      }).format(
+                        Math.max(
+                          booking.advanceRequired - booking.advanceReceived,
+                          0
+                        )
+                      )}
+                    </span>
+                  </p>
+                  <p>
+                    <span className='text-gray-500'>Payment Status:</span>{' '}
+                    <span className='font-medium'>{booking.paymentStatus}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className='grid grid-cols-2 gap-4'>
             <div className='p-4 bg-gray-50 rounded-lg'>
               <p className='text-xs text-gray-500'>Amount</p>
@@ -580,6 +669,54 @@ const InvoiceDetailsModal = ({
           <div className='space-y-3'>
             <h4 className='text-sm font-medium text-gray-700'>Details</h4>
             <div className='space-y-2'>
+              {booking && (
+                <>
+                  <div className='flex justify-between py-2 border-b border-gray-100'>
+                    <span className='text-sm text-gray-500'>
+                      Blocking Deadline
+                    </span>
+                    <span className='text-sm font-medium text-gray-900'>
+                      {booking.blockingDeadlineAt
+                        ? new Date(booking.blockingDeadlineAt).toLocaleString()
+                        : '-'}
+                    </span>
+                  </div>
+                  <div className='flex justify-between py-2 border-b border-gray-100'>
+                    <span className='text-sm text-gray-500'>
+                      Supplier Deadline
+                    </span>
+                    <span className='text-sm font-medium text-gray-900'>
+                      {booking.supplierPaymentDeadlineAt
+                        ? new Date(
+                            booking.supplierPaymentDeadlineAt
+                          ).toLocaleString()
+                        : '-'}
+                    </span>
+                  </div>
+                  <div className='flex justify-between py-2 border-b border-gray-100'>
+                    <span className='text-sm text-gray-500'>
+                      Cancellation Deadline
+                    </span>
+                    <span className='text-sm font-medium text-gray-900'>
+                      {booking.cancellationDeadlineAt
+                        ? new Date(
+                            booking.cancellationDeadlineAt
+                          ).toLocaleString()
+                        : '-'}
+                    </span>
+                  </div>
+                  <div className='flex justify-between py-2 border-b border-gray-100'>
+                    <span className='text-sm text-gray-500'>
+                      Balance Due By
+                    </span>
+                    <span className='text-sm font-medium text-gray-900'>
+                      {booking.balanceDueBy
+                        ? new Date(booking.balanceDueBy).toLocaleString()
+                        : '-'}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className='flex justify-between py-2 border-b border-gray-100'>
                 <span className='text-sm text-gray-500'>Created At</span>
                 <span className='text-sm font-medium text-gray-900'>
@@ -756,6 +893,146 @@ const BookingDetailPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [history, setHistory] = useState<StatusHistory[]>([])
+  const invoiceModalContentRef = useRef<HTMLDivElement | null>(null)
+
+  const downloadInvoicePdf = (url?: string, invoiceNumber?: string) => {
+    if (!url) return false
+
+    const filenameBase = String(invoiceNumber || 'invoice')
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${filenameBase || 'invoice'}.pdf`
+    link.rel = 'noopener noreferrer'
+    link.target = '_blank'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    return true
+  }
+
+  const downloadInvoiceModalAsPdf = async (invoiceNumber?: string) => {
+    const exportRoot = invoiceModalContentRef.current
+    if (!exportRoot) {
+      showToast('Invoice details popup is not ready yet', 'info')
+      return
+    }
+
+    const exportStyle = document.createElement('style')
+    exportStyle.setAttribute('data-invoice-modal-pdf-style', 'true')
+    exportStyle.textContent = `
+      .invoice-modal-pdf-export {
+        color: #111827 !important;
+        background: #ffffff !important;
+      }
+      .invoice-modal-pdf-export * {
+        color: inherit;
+      }
+      .invoice-modal-pdf-export .dark\\:bg-gray-900,
+      .invoice-modal-pdf-export .dark\\:bg-gray-800,
+      .invoice-modal-pdf-export .dark\\:bg-gray-800\\/50,
+      .invoice-modal-pdf-export .dark\\:bg-blue-900\\/20,
+      .invoice-modal-pdf-export .dark\\:bg-green-900\\/20 {
+        background: #ffffff !important;
+      }
+      .invoice-modal-pdf-export .dark\\:text-gray-100,
+      .invoice-modal-pdf-export .dark\\:text-gray-200,
+      .invoice-modal-pdf-export .dark\\:text-gray-300,
+      .invoice-modal-pdf-export .dark\\:text-gray-400,
+      .invoice-modal-pdf-export .dark\\:text-blue-300,
+      .invoice-modal-pdf-export .dark\\:text-blue-400,
+      .invoice-modal-pdf-export .dark\\:text-green-300,
+      .invoice-modal-pdf-export .dark\\:text-green-400 {
+        color: #111827 !important;
+      }
+      .invoice-modal-pdf-export .dark\\:border-gray-700,
+      .invoice-modal-pdf-export .dark\\:border-gray-800,
+      .invoice-modal-pdf-export .dark\\:border-blue-800,
+      .invoice-modal-pdf-export .dark\\:border-green-800 {
+        border-color: #e5e7eb !important;
+      }
+      .invoice-modal-pdf-export .sticky {
+        position: static !important;
+      }
+    `
+
+    document.head.appendChild(exportStyle)
+
+    try {
+      exportRoot.classList.add('invoice-modal-pdf-export')
+      await new Promise<void>(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+
+      const html2canvasModule = (await import(
+        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
+      )) as any
+      const html2canvas = html2canvasModule.default || html2canvasModule
+
+      const jsPdfModule = (await import(
+        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
+      )) as any
+      const JsPDF = jsPdfModule.default || jsPdfModule
+
+      const canvas = await html2canvas(exportRoot, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: -window.scrollY
+      })
+
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new JsPDF('p', 'mm', 'a4')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const imgHeight = (canvas.height * pageWidth) / canvas.width
+
+      let heightLeft = imgHeight
+      let position = 0
+
+      pdf.addImage(
+        imgData,
+        'PNG',
+        0,
+        position,
+        pageWidth,
+        imgHeight,
+        '',
+        'FAST'
+      )
+      heightLeft -= pageHeight
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(
+          imgData,
+          'PNG',
+          0,
+          position,
+          pageWidth,
+          imgHeight,
+          '',
+          'FAST'
+        )
+        heightLeft -= pageHeight
+      }
+
+      const ref = String(invoiceNumber || 'invoice-details')
+        .trim()
+        .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      pdf.save(`${ref || 'invoice-details'}-popup.pdf`)
+    } catch (error) {
+      console.error('Failed to export invoice popup as PDF', error)
+      showToast('Failed to download invoice details PDF', 'error')
+    } finally {
+      exportRoot.classList.remove('invoice-modal-pdf-export')
+      exportStyle.remove()
+    }
+  }
 
   const fetchBookingData = async () => {
     if (!id) return
@@ -906,13 +1183,24 @@ const BookingDetailPage: React.FC = () => {
       if (!id) throw new Error('Missing booking id')
       const res = await bookingsApi.generateInvoice(id)
       const invoiceData = unwrapData<any>(res)
+      let initiatedDownload = false
       if (booking && invoiceData) {
         const mapped = mapInvoiceFromApi(invoiceData, booking)
         setSelectedInvoice(mapped)
         setShowInvoiceModal(true)
+
+        initiatedDownload = downloadInvoicePdf(
+          mapped.pdfUrl,
+          mapped.invoiceNumber
+        )
       }
       await fetchBookingData()
-      showToast('Invoice generated successfully', 'success')
+      showToast(
+        initiatedDownload
+          ? 'Invoice generated and PDF download started'
+          : 'Invoice generated successfully',
+        'success'
+      )
     } catch (err) {
       showToast(getApiErrorMessage(err, 'Failed to generate invoice'), 'error')
     } finally {
@@ -1349,16 +1637,14 @@ const BookingDetailPage: React.FC = () => {
       <InvoiceDetailsModal
         isOpen={showInvoiceModal}
         invoice={selectedInvoice}
+        booking={booking}
+        contentRef={invoiceModalContentRef}
         onClose={() => {
           setShowInvoiceModal(false)
           setSelectedInvoice(null)
         }}
         onDownload={() => {
-          if (selectedInvoice?.pdfUrl) {
-            window.open(selectedInvoice.pdfUrl, '_blank', 'noopener,noreferrer')
-            return
-          }
-          showToast('Invoice PDF not available', 'info')
+          void downloadInvoiceModalAsPdf(selectedInvoice?.invoiceNumber)
         }}
         onMarkAsPaid={() => {
           if (selectedInvoice) {
