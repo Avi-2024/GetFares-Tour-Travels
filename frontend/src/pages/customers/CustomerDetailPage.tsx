@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { customersApi } from "../../api/customers";
 import { isApiError } from "../../api/apiClient";
+import SearchableDropdown from "../../components/ui/SearchableDropdown";
 
 interface Customer {
   id: string;
@@ -492,22 +493,20 @@ const CustomerDetailPage: React.FC = () => {
                       Preferred Currency
                     </label>
                     {isEditing ? (
-                      <select
+                      <SearchableDropdown
                         value={formData.clientCurrency}
-                        onChange={(e) =>
+                        options={currencies.map((currency) => ({
+                          value: currency.value,
+                          label: currency.label,
+                        }))}
+                        onChange={(value) =>
                           setFormData({
                             ...formData,
-                            clientCurrency: e.target.value,
+                            clientCurrency: value,
                           })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                      >
-                        {currencies.map((c) => (
-                          <option key={c.value} value={c.value}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
+                        searchPlaceholder="Search currency..."
+                      />
                     ) : (
                       <p className="text-sm text-gray-900 dark:text-gray-100">
                         {customer.clientCurrency}
@@ -521,22 +520,20 @@ const CustomerDetailPage: React.FC = () => {
                       Segment
                     </label>
                     {isEditing ? (
-                      <select
+                      <SearchableDropdown
                         value={formData.segment}
-                        onChange={(e) =>
+                        options={segments.map((segment) => ({
+                          value: segment.value,
+                          label: segment.label,
+                        }))}
+                        onChange={(value) =>
                           setFormData({
                             ...formData,
-                            segment: e.target.value as any,
+                            segment: value as any,
                           })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                      >
-                        {segments.map((s) => (
-                          <option key={s.value} value={s.value}>
-                            {s.label}
-                          </option>
-                        ))}
-                      </select>
+                        searchPlaceholder="Search segment..."
+                      />
                     ) : (
                       <span
                         className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${getSegmentClass(

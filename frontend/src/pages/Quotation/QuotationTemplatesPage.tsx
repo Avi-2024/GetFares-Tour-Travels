@@ -1,181 +1,202 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   FaChevronLeft,
   FaChevronRight,
   FaMagnifyingGlass,
-  FaPlus,
-} from "react-icons/fa6";
-import SurfaceCard from "../../components/ui/SurfaceCard";
-import EmptyState from "../../components/ui/EmptyState";
-import StatusBadge from "../../components/ui/StatusBadge";
-import TextInput from "../../components/form/TextInput";
-import NumberInput from "../../components/form/NumberInput";
-import { quotationsApi } from "../../api/quotations";
-import { getApiErrorMessage } from "../../api/apiClient";
+  FaPlus
+} from 'react-icons/fa6'
+import SurfaceCard from '../../components/ui/SurfaceCard'
+import EmptyState from '../../components/ui/EmptyState'
+import StatusBadge from '../../components/ui/StatusBadge'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import TextInput from '../../components/form/TextInput'
+import NumberInput from '../../components/form/NumberInput'
+import { quotationsApi } from '../../api/quotations'
+import { getApiErrorMessage } from '../../api/apiClient'
 
-type TemplateType = "READY_PACKAGE" | "VISA" | "CUSTOM_ITINERARY";
+type TemplateType = 'READY_PACKAGE' | 'VISA' | 'CUSTOM_ITINERARY'
 
 type TemplateRow = {
-  id: string;
-  code: string;
-  name: string;
-  templateType: TemplateType;
-  minMarginPercent: number;
-  isActive: boolean;
-  updatedAt: string;
-  headerBranding?: string;
-  inclusions?: string;
-  exclusions?: string;
-  paymentTerms?: string;
-  cancellationPolicy?: string;
-  footerDisclaimer?: string;
-};
+  id: string
+  code: string
+  name: string
+  templateType: TemplateType
+  minMarginPercent: number
+  isActive: boolean
+  updatedAt: string
+  headerBranding?: string
+  inclusions?: string
+  exclusions?: string
+  paymentTerms?: string
+  cancellationPolicy?: string
+  footerDisclaimer?: string
+}
 
 const QuotationTemplatesPage: React.FC = () => {
-  const [rows, setRows] = useState<TemplateRow[]>([]);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [rows, setRows] = useState<TemplateRow[]>([])
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [form, setForm] = useState({
-    code: "",
-    name: "",
-    templateType: "READY_PACKAGE" as TemplateType,
+    code: '',
+    name: '',
+    templateType: 'READY_PACKAGE' as TemplateType,
     minMarginPercent: 0,
     isActive: true,
-    headerBranding: "",
-    inclusions: "",
-    exclusions: "",
-    paymentTerms: "",
-    cancellationPolicy: "",
-    footerDisclaimer: "",
-  });
-  const pageSize = 15;
+    headerBranding: '',
+    inclusions: '',
+    exclusions: '',
+    paymentTerms: '',
+    cancellationPolicy: '',
+    footerDisclaimer: ''
+  })
+  const pageSize = 15
 
   const unwrapList = (response: unknown): any[] => {
-    const payload = (response as { data?: unknown })?.data ?? response;
-    if (Array.isArray(payload)) return payload;
+    const payload = (response as { data?: unknown })?.data ?? response
+    if (Array.isArray(payload)) return payload
     if (Array.isArray((payload as { data?: unknown[] })?.data)) {
-      return (payload as { data: unknown[] }).data;
+      return (payload as { data: unknown[] }).data
     }
     if (Array.isArray((payload as { items?: unknown[] })?.items)) {
-      return (payload as { items: unknown[] }).items;
+      return (payload as { items: unknown[] }).items
     }
-    return [];
-  };
+    return []
+  }
 
   const mapTemplate = (raw: any): TemplateRow => ({
-    id: String(raw?.id ?? ""),
-    code: raw?.code ?? "",
-    name: raw?.name ?? "",
-    templateType: (raw?.templateType ?? raw?.template_type ?? "READY_PACKAGE") as TemplateType,
-    minMarginPercent: Number(raw?.minMarginPercent ?? raw?.min_margin_percent ?? 0),
+    id: String(raw?.id ?? ''),
+    code: raw?.code ?? '',
+    name: raw?.name ?? '',
+    templateType: (raw?.templateType ??
+      raw?.template_type ??
+      'READY_PACKAGE') as TemplateType,
+    minMarginPercent: Number(
+      raw?.minMarginPercent ?? raw?.min_margin_percent ?? 0
+    ),
     isActive: raw?.isActive ?? raw?.is_active ?? true,
-    updatedAt: String(raw?.updatedAt ?? raw?.updated_at ?? raw?.createdAt ?? raw?.created_at ?? ""),
-    headerBranding: raw?.headerBranding ?? raw?.header_branding ?? "",
-    inclusions: raw?.inclusions ?? "",
-    exclusions: raw?.exclusions ?? "",
-    paymentTerms: raw?.paymentTerms ?? raw?.payment_terms ?? "",
-    cancellationPolicy: raw?.cancellationPolicy ?? raw?.cancellation_policy ?? "",
-    footerDisclaimer: raw?.footerDisclaimer ?? raw?.footer_disclaimer ?? "",
-  });
+    updatedAt: String(
+      raw?.updatedAt ??
+        raw?.updated_at ??
+        raw?.createdAt ??
+        raw?.created_at ??
+        ''
+    ),
+    headerBranding: raw?.headerBranding ?? raw?.header_branding ?? '',
+    inclusions: raw?.inclusions ?? '',
+    exclusions: raw?.exclusions ?? '',
+    paymentTerms: raw?.paymentTerms ?? raw?.payment_terms ?? '',
+    cancellationPolicy:
+      raw?.cancellationPolicy ?? raw?.cancellation_policy ?? '',
+    footerDisclaimer: raw?.footerDisclaimer ?? raw?.footer_disclaimer ?? ''
+  })
 
   const loadTemplates = useCallback(async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
     try {
-      const response = await quotationsApi.listTemplates();
-      setRows(unwrapList(response).map(mapTemplate));
+      const response = await quotationsApi.listTemplates()
+      setRows(unwrapList(response).map(mapTemplate))
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load quotation templates"));
-      setRows([]);
+      setError(getApiErrorMessage(err, 'Failed to load quotation templates'))
+      setRows([])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    void loadTemplates();
-  }, [loadTemplates]);
+    void loadTemplates()
+  }, [loadTemplates])
 
   const filtered = useMemo(
     () =>
-      rows.filter((row) =>
+      rows.filter(row =>
         `${row.code} ${row.name} ${row.templateType}`
           .toLowerCase()
-          .includes(search.toLowerCase()),
+          .includes(search.toLowerCase())
       ),
-    [rows, search],
-  );
+    [rows, search]
+  )
 
   const toTimestamp = (value?: string | null) => {
-    if (!value) return 0;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
+    if (!value) return 0
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
 
   const ordered = useMemo(
     () =>
       [...filtered].sort((a, b) => {
-        const left = toTimestamp(a.updatedAt);
-        const right = toTimestamp(b.updatedAt);
-        return right - left;
+        const left = toTimestamp(a.updatedAt)
+        const right = toTimestamp(b.updatedAt)
+        return right - left
       }),
-    [filtered],
-  );
+    [filtered]
+  )
 
-  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
-  const pageRows = ordered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize))
+  const pageRows = ordered.slice((page - 1) * pageSize, page * pageSize)
+
+  const templateTypeOptions = useMemo(
+    () => [
+      { value: 'READY_PACKAGE', label: 'READY_PACKAGE' },
+      { value: 'VISA', label: 'VISA' },
+      { value: 'CUSTOM_ITINERARY', label: 'CUSTOM_ITINERARY' }
+    ],
+    []
+  )
 
   const openCreate = () => {
-    setEditingId(null);
+    setEditingId(null)
     setForm({
-      code: "",
-      name: "",
-      templateType: "READY_PACKAGE",
+      code: '',
+      name: '',
+      templateType: 'READY_PACKAGE',
       minMarginPercent: 0,
       isActive: true,
-      headerBranding: "",
-      inclusions: "",
-      exclusions: "",
-      paymentTerms: "",
-      cancellationPolicy: "",
-      footerDisclaimer: "",
-    });
-    setShowForm(true);
-  };
+      headerBranding: '',
+      inclusions: '',
+      exclusions: '',
+      paymentTerms: '',
+      cancellationPolicy: '',
+      footerDisclaimer: ''
+    })
+    setShowForm(true)
+  }
 
   const openEdit = (row: TemplateRow) => {
-    setEditingId(row.id);
+    setEditingId(row.id)
     setForm({
       code: row.code,
       name: row.name,
       templateType: row.templateType,
       minMarginPercent: row.minMarginPercent,
       isActive: row.isActive,
-      headerBranding: row.headerBranding || "",
-      inclusions: row.inclusions || "",
-      exclusions: row.exclusions || "",
-      paymentTerms: row.paymentTerms || "",
-      cancellationPolicy: row.cancellationPolicy || "",
-      footerDisclaimer: row.footerDisclaimer || "",
-    });
-    setShowForm(true);
-  };
+      headerBranding: row.headerBranding || '',
+      inclusions: row.inclusions || '',
+      exclusions: row.exclusions || '',
+      paymentTerms: row.paymentTerms || '',
+      cancellationPolicy: row.cancellationPolicy || '',
+      footerDisclaimer: row.footerDisclaimer || ''
+    })
+    setShowForm(true)
+  }
 
   const saveTemplate = async () => {
     if (!form.code.trim() || !form.name.trim()) {
-      setError("Template code and name are required");
-      return;
+      setError('Template code and name are required')
+      return
     }
 
-    setSaving(true);
-    setError("");
-    setNotice("");
+    setSaving(true)
+    setError('')
+    setNotice('')
     try {
       const payload = {
         code: form.code.trim().toUpperCase(),
@@ -188,100 +209,103 @@ const QuotationTemplatesPage: React.FC = () => {
         exclusions: form.exclusions.trim() || undefined,
         paymentTerms: form.paymentTerms.trim() || undefined,
         cancellationPolicy: form.cancellationPolicy.trim() || undefined,
-        footerDisclaimer: form.footerDisclaimer.trim() || undefined,
-      };
-
-      if (editingId) {
-        await quotationsApi.updateTemplate(editingId, payload);
-        setNotice("Template updated");
-      } else {
-        await quotationsApi.createTemplate(payload);
-        setNotice("Template created");
+        footerDisclaimer: form.footerDisclaimer.trim() || undefined
       }
 
-      setShowForm(false);
-      await loadTemplates();
+      if (editingId) {
+        await quotationsApi.updateTemplate(editingId, payload)
+        setNotice('Template updated')
+      } else {
+        await quotationsApi.createTemplate(payload)
+        setNotice('Template created')
+      }
+
+      setShowForm(false)
+      await loadTemplates()
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to save template"));
+      setError(getApiErrorMessage(err, 'Failed to save template'))
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+    <div className='space-y-6'>
+      <div className='flex flex-col justify-between gap-3 sm:flex-row sm:items-center'>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
             Quotation Templates
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className='text-sm text-gray-500'>
             Manage reusable quotation templates and default margin guardrails.
           </p>
         </div>
         <button
           onClick={openCreate}
           disabled={saving}
-          className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700'
         >
-          <FaPlus className="mr-2" /> New Template
+          <FaPlus className='mr-2' /> New Template
         </button>
       </div>
 
-      <SurfaceCard className="p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20">
-        <p className="text-sm text-blue-800 dark:text-blue-200">
-          How Template Works: Create/update template here, select it in Quotation
-          Builder, then save quote with `templateId`. A template snapshot is stored on
-          each quotation for audit-safe rendering.
+      <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>
+        <p className='text-sm text-blue-800 dark:text-blue-200'>
+          How Template Works: Create/update template here, select it in
+          Quotation Builder, then save quote with `templateId`. A template
+          snapshot is stored on each quotation for audit-safe rendering.
         </p>
       </SurfaceCard>
 
       {notice ? (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200">
+        <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200'>
           {notice}
         </div>
       ) : null}
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+        <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
           {error}
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4'>
         {[
           {
-            title: "Total Templates",
+            title: 'Total Templates',
             value: rows.length.toString(),
-            chip: "All",
+            chip: 'All'
           },
           {
-            title: "Active",
-            value: rows.filter((row) => row.isActive).length.toString(),
-            chip: "Live",
+            title: 'Active',
+            value: rows.filter(row => row.isActive).length.toString(),
+            chip: 'Live'
           },
           {
-            title: "Inactive",
-            value: rows.filter((row) => !row.isActive).length.toString(),
-            chip: "Disabled",
+            title: 'Inactive',
+            value: rows.filter(row => !row.isActive).length.toString(),
+            chip: 'Disabled'
           },
           {
-            title: "Avg Min Margin",
+            title: 'Avg Min Margin',
             value: rows.length
-              ? `${Math.round(rows.reduce((sum, row) => sum + row.minMarginPercent, 0) / rows.length)}%`
-              : "0%",
-            chip: "Policy",
-          },
-        ].map((card) => (
-          <SurfaceCard key={card.title} hoverable className="p-5">
-            <div className="mb-2 flex justify-between">
-              <p className="text-xs uppercase tracking-wide text-gray-500">
+              ? `${Math.round(
+                  rows.reduce((sum, row) => sum + row.minMarginPercent, 0) /
+                    rows.length
+                )}%`
+              : '0%',
+            chip: 'Policy'
+          }
+        ].map(card => (
+          <SurfaceCard key={card.title} hoverable className='p-5'>
+            <div className='mb-2 flex justify-between'>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
                 {card.title}
               </p>
-              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
+              <span className='rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700'>
                 {card.chip}
               </span>
             </div>
-            <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+            <p className='text-2xl font-semibold text-gray-900 dark:text-gray-100'>
               {card.value}
             </p>
           </SurfaceCard>
@@ -290,162 +314,159 @@ const QuotationTemplatesPage: React.FC = () => {
 
       {showForm ? (
         <SurfaceCard>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {editingId ? "Edit Template" : "Create Template"}
+          <div className='mb-4 flex items-center justify-between'>
+            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+              {editingId ? 'Edit Template' : 'Create Template'}
             </h2>
             <button
               onClick={() => setShowForm(false)}
-              className="rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-200"
+              className='rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-200'
             >
               Close
             </button>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
             <TextInput
-              label="Template Code"
+              label='Template Code'
               value={form.code}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, code: value }))
+              onChange={value =>
+                setForm(current => ({ ...current, code: value }))
               }
               required
             />
             <TextInput
-              label="Template Name"
+              label='Template Name'
               value={form.name}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, name: value }))
+              onChange={value =>
+                setForm(current => ({ ...current, name: value }))
               }
               required
             />
             <div>
-              <label className="field-label">Template Type</label>
-              <select
-                className="field-input"
+              <label className='field-label'>Template Type</label>
+              <SearchableDropdown
                 value={form.templateType}
-                onChange={(event) =>
-                  setForm((current) => ({
+                options={templateTypeOptions}
+                searchPlaceholder='Search template type...'
+                onChange={value =>
+                  setForm(current => ({
                     ...current,
-                    templateType: event.target.value as TemplateType,
+                    templateType: value as TemplateType
                   }))
                 }
-              >
-                <option value="READY_PACKAGE">READY_PACKAGE</option>
-                <option value="VISA">VISA</option>
-                <option value="CUSTOM_ITINERARY">CUSTOM_ITINERARY</option>
-              </select>
+              />
             </div>
             <NumberInput
-              label="Min Margin %"
+              label='Min Margin %'
               value={form.minMarginPercent}
-              onChange={(value) =>
-                setForm((current) => ({
+              onChange={value =>
+                setForm(current => ({
                   ...current,
-                  minMarginPercent: Number(value || 0),
+                  minMarginPercent: Number(value || 0)
                 }))
               }
               min={0}
               step={1}
             />
-            <div className="md:col-span-2">
-              <label className="field-label">Header Branding</label>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Header Branding</label>
               <textarea
                 rows={2}
-                className="field-input"
+                className='field-input'
                 value={form.headerBranding}
-                onChange={(event) =>
-                  setForm((current) => ({
+                onChange={event =>
+                  setForm(current => ({
                     ...current,
-                    headerBranding: event.target.value,
+                    headerBranding: event.target.value
                   }))
                 }
-                placeholder="Brand header text used in generated quotation"
+                placeholder='Brand header text used in generated quotation'
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="field-label">Inclusions</label>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Inclusions</label>
               <textarea
                 rows={3}
-                className="field-input"
+                className='field-input'
                 value={form.inclusions}
-                onChange={(event) =>
-                  setForm((current) => ({
+                onChange={event =>
+                  setForm(current => ({
                     ...current,
-                    inclusions: event.target.value,
+                    inclusions: event.target.value
                   }))
                 }
-                placeholder="Included services and terms"
+                placeholder='Included services and terms'
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="field-label">Exclusions</label>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Exclusions</label>
               <textarea
                 rows={3}
-                className="field-input"
+                className='field-input'
                 value={form.exclusions}
-                onChange={(event) =>
-                  setForm((current) => ({
+                onChange={event =>
+                  setForm(current => ({
                     ...current,
-                    exclusions: event.target.value,
+                    exclusions: event.target.value
                   }))
                 }
-                placeholder="Excluded services and terms"
+                placeholder='Excluded services and terms'
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="field-label">Payment Terms</label>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Payment Terms</label>
               <textarea
                 rows={2}
-                className="field-input"
+                className='field-input'
                 value={form.paymentTerms}
-                onChange={(event) =>
-                  setForm((current) => ({
+                onChange={event =>
+                  setForm(current => ({
                     ...current,
-                    paymentTerms: event.target.value,
+                    paymentTerms: event.target.value
                   }))
                 }
-                placeholder="Payment schedule and terms"
+                placeholder='Payment schedule and terms'
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="field-label">Cancellation Policy</label>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Cancellation Policy</label>
               <textarea
                 rows={2}
-                className="field-input"
+                className='field-input'
                 value={form.cancellationPolicy}
-                onChange={(event) =>
-                  setForm((current) => ({
+                onChange={event =>
+                  setForm(current => ({
                     ...current,
-                    cancellationPolicy: event.target.value,
+                    cancellationPolicy: event.target.value
                   }))
                 }
-                placeholder="Cancellation rules and charges"
+                placeholder='Cancellation rules and charges'
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="field-label">Footer Disclaimer</label>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Footer Disclaimer</label>
               <textarea
                 rows={2}
-                className="field-input"
+                className='field-input'
                 value={form.footerDisclaimer}
-                onChange={(event) =>
-                  setForm((current) => ({
+                onChange={event =>
+                  setForm(current => ({
                     ...current,
-                    footerDisclaimer: event.target.value,
+                    footerDisclaimer: event.target.value
                   }))
                 }
-                placeholder="Legal / compliance footer text"
+                placeholder='Legal / compliance footer text'
               />
             </div>
           </div>
-          <label className="mt-4 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <label className='mt-4 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300'>
             <input
-              type="checkbox"
+              type='checkbox'
               checked={form.isActive}
-              onChange={(event) =>
-                setForm((current) => ({
+              onChange={event =>
+                setForm(current => ({
                   ...current,
-                  isActive: event.target.checked,
+                  isActive: event.target.checked
                 }))
               }
             />
@@ -454,98 +475,98 @@ const QuotationTemplatesPage: React.FC = () => {
           <button
             onClick={() => void saveTemplate()}
             disabled={saving}
-            className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className='mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700'
           >
-            {saving ? "Saving..." : "Save Template"}
+            {saving ? 'Saving...' : 'Save Template'}
           </button>
         </SurfaceCard>
       ) : null}
 
-      <SurfaceCard className="p-0 overflow-hidden">
-        <div className="border-b border-gray-100 p-4 dark:border-gray-800">
-          <div className="relative w-full md:w-96">
-            <FaMagnifyingGlass className="pointer-events-none absolute left-3 top-3 text-xs text-gray-400" />
+      <SurfaceCard className='p-0 overflow-hidden'>
+        <div className='border-b border-gray-100 p-4 dark:border-gray-800'>
+          <div className='relative w-full md:w-96'>
+            <FaMagnifyingGlass className='pointer-events-none absolute left-3 top-3 text-xs text-gray-400' />
             <input
               value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
+              onChange={event => {
+                setSearch(event.target.value)
+                setPage(1)
               }}
-              className="field-input pl-9"
-              placeholder="Search code, template name, type"
+              className='field-input pl-9'
+              placeholder='Search code, template name, type'
             />
           </div>
         </div>
 
         {loading ? (
-          <div className="p-4 text-sm text-gray-500">Loading templates...</div>
+          <div className='p-4 text-sm text-gray-500'>Loading templates...</div>
         ) : pageRows.length === 0 ? (
-          <div className="p-4">
+          <div className='p-4'>
             <EmptyState
-              title="No templates found"
-              description="Try another search or create a new template."
+              title='No templates found'
+              description='Try another search or create a new template.'
             />
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-[960px] w-full divide-y divide-gray-200 dark:divide-gray-800">
-                <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95">
+            <div className='overflow-x-auto'>
+              <table className='min-w-[960px] w-full divide-y divide-gray-200 dark:divide-gray-800'>
+                <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
                   <tr>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Code
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Template Name
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Type
                     </th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Min Margin %
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Status
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Updated At
                     </th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {pageRows.map((row) => (
+                <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                  {pageRows.map(row => (
                     <tr
                       key={row.id}
-                      className="group hover:bg-blue-50/30 dark:hover:bg-gray-800/40"
+                      className='group hover:bg-blue-50/30 dark:hover:bg-gray-800/40'
                     >
-                      <td className="px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300">
+                      <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
                         {row.code}
                       </td>
-                      <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-100">
+                      <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-100'>
                         {row.name}
                       </td>
-                      <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">
+                      <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
                         {row.templateType}
                       </td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700 dark:text-gray-200">
+                      <td className='px-5 py-4 text-right text-sm text-gray-700 dark:text-gray-200'>
                         {row.minMarginPercent}%
                       </td>
-                      <td className="px-5 py-4">
+                      <td className='px-5 py-4'>
                         <StatusBadge
-                          status={row.isActive ? "Approved" : "Draft"}
+                          status={row.isActive ? 'Approved' : 'Draft'}
                         />
                       </td>
-                      <td className="px-5 py-4 text-xs text-gray-500">
+                      <td className='px-5 py-4 text-xs text-gray-500'>
                         {row.updatedAt}
                       </td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2 opacity-0 transition-all duration-200 group-hover:opacity-100">
+                      <td className='px-5 py-4'>
+                        <div className='flex justify-end gap-2 opacity-0 transition-all duration-200 group-hover:opacity-100'>
                           <button
                             onClick={() => openEdit(row)}
-                            className="rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-200"
+                            className='rounded-lg border border-gray-200 px-3 py-1 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-200'
                           >
                             Edit
                           </button>
@@ -557,29 +578,29 @@ const QuotationTemplatesPage: React.FC = () => {
               </table>
             </div>
 
-            <div className="flex items-center justify-between border-t border-gray-100 p-4 dark:border-gray-800">
-              <p className="text-sm text-gray-500">
+            <div className='flex items-center justify-between border-t border-gray-100 p-4 dark:border-gray-800'>
+              <p className='text-sm text-gray-500'>
                 Showing {Math.min(filtered.length, (page - 1) * pageSize + 1)}-
-                {Math.min(filtered.length, page * pageSize)} of{" "}
+                {Math.min(filtered.length, page * pageSize)} of{' '}
                 {filtered.length}
               </p>
-              <div className="flex gap-2">
+              <div className='flex gap-2'>
                 <button
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  onClick={() => setPage(current => Math.max(1, current - 1))}
                   disabled={page === 1}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 disabled:opacity-40 dark:border-gray-700"
+                  className='rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 disabled:opacity-40 dark:border-gray-700'
                 >
                   <FaChevronLeft />
                 </button>
-                <span className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                <span className='rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'>
                   {page}
                 </span>
                 <button
                   onClick={() =>
-                    setPage((current) => Math.min(totalPages, current + 1))
+                    setPage(current => Math.min(totalPages, current + 1))
                   }
                   disabled={page === totalPages}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 disabled:opacity-40 dark:border-gray-700"
+                  className='rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 disabled:opacity-40 dark:border-gray-700'
                 >
                   <FaChevronRight />
                 </button>
@@ -589,7 +610,7 @@ const QuotationTemplatesPage: React.FC = () => {
         )}
       </SurfaceCard>
     </div>
-  );
-};
+  )
+}
 
-export default QuotationTemplatesPage;
+export default QuotationTemplatesPage

@@ -8,6 +8,7 @@ import {
   FaWallet,
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
+import SearchableDropdown from "../../components/ui/SearchableDropdown";
 import { suppliersApi } from "../../api/suppliers";
 import { getApiErrorMessage } from "../../api/apiClient";
 
@@ -216,6 +217,12 @@ const SuppliersPage: React.FC = () => {
     if (payableStatusFilter === "ALL") return payables;
     return payables.filter((item) => item.status === payableStatusFilter);
   }, [payables, payableStatusFilter]);
+
+  const payableFormStatusOptions = [
+    { value: "PENDING", label: "PENDING" },
+    { value: "PARTIAL", label: "PARTIAL" },
+    { value: "PAID", label: "PAID" },
+  ];
 
   const supplierStats = useMemo(
     () => ({
@@ -683,20 +690,17 @@ const SuppliersPage: React.FC = () => {
                 }
                 className="field-input"
               />
-              <select
+              <SearchableDropdown
                 value={payableForm.status}
-                onChange={(event) =>
+                options={payableFormStatusOptions}
+                onChange={(value) =>
                   setPayableForm((prev) => ({
                     ...prev,
-                    status: event.target.value as PayableForm["status"],
+                    status: value as PayableForm["status"],
                   }))
                 }
-                className="field-input"
-              >
-                <option value="PENDING">PENDING</option>
-                <option value="PARTIAL">PARTIAL</option>
-                <option value="PAID">PAID</option>
-              </select>
+                searchPlaceholder="Search payable status..."
+              />
             </div>
 
             <button

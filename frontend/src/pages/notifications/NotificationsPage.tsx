@@ -15,6 +15,7 @@ import {
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useNotifications } from "../../context/NotificationsContext";
 import type { NotificationItem, NotificationStatus } from "../../types";
+import SearchableDropdown from "../../components/ui/SearchableDropdown";
 
 const STATUS_OPTIONS: Array<{ label: string; value: "" | NotificationStatus }> = [
   { label: "All Status", value: "" },
@@ -316,6 +317,19 @@ const NotificationsPage: React.FC = () => {
     [notifications],
   );
 
+  const statusFilterOptions = STATUS_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
+  const moduleFilterOptions = [
+    { value: "", label: "All Modules" },
+    ...modules.map((module) => ({ value: module, label: module })),
+  ];
+  const limitFilterOptions = LIMIT_OPTIONS.map((value) => ({
+    value: String(value),
+    label: `${value} / page`,
+  }));
+
   const filteredNotifications = useMemo(() => {
     return notifications.filter((notification) => {
       const matchesModule = !moduleFilter || toModule(notification) === moduleFilter;
@@ -440,48 +454,35 @@ const NotificationsPage: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <select
+              <SearchableDropdown
                 value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value as "" | NotificationStatus);
+                onChange={(value) => {
+                  setStatusFilter(value as "" | NotificationStatus);
                   setPage(1);
                 }}
-                className="min-w-[140px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.label} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                options={statusFilterOptions}
+                className="min-w-[140px]"
+                searchPlaceholder="Search status..."
+              />
 
-              <select
+              <SearchableDropdown
                 value={moduleFilter}
-                onChange={(e) => setModuleFilter(e.target.value)}
-                className="min-w-[150px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-              >
-                <option value="">All Modules</option>
-                {modules.map((module) => (
-                  <option key={module} value={module}>
-                    {module}
-                  </option>
-                ))}
-              </select>
+                onChange={setModuleFilter}
+                options={moduleFilterOptions}
+                className="min-w-[150px]"
+                searchPlaceholder="Search module..."
+              />
 
-              <select
+              <SearchableDropdown
                 value={String(limit)}
-                onChange={(e) => {
-                  setLimit(Number(e.target.value));
+                onChange={(value) => {
+                  setLimit(Number(value));
                   setPage(1);
                 }}
-                className="min-w-[120px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-              >
-                {LIMIT_OPTIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {value} / page
-                  </option>
-                ))}
-              </select>
+                options={limitFilterOptions}
+                className="min-w-[120px]"
+                searchPlaceholder="Search page size..."
+              />
             </div>
           </div>
         </div>

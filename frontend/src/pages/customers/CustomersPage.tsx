@@ -15,6 +15,7 @@ import {
 import { MdOutlineSegment } from "react-icons/md";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { customersApi } from "../../api/customers";
+import SearchableDropdown from "../../components/ui/SearchableDropdown";
 
 interface Customer {
   id: string;
@@ -83,6 +84,17 @@ const CustomersPage: React.FC = () => {
     { value: "AED", label: "AED - UAE Dirham" },
     { value: "CAD", label: "CAD - Canadian Dollar" },
     { value: "AUD", label: "AUD - Australian Dollar" },
+  ];
+
+  const segmentFilterOptions = [
+    { value: "all", label: "All Segments" },
+    ...segments.map((segment) => ({ value: segment.value, label: segment.label })),
+  ];
+
+  const sortByOptions = [
+    { value: "name", label: "Sort by Name" },
+    { value: "ltv", label: "Sort by LTV" },
+    { value: "bookings", label: "Sort by Bookings" },
   ];
 
   const getSegmentClass = (segment: string) => {
@@ -459,32 +471,25 @@ const CustomersPage: React.FC = () => {
               {/* Desktop Filters */}
               <div className="hidden sm:flex flex-col sm:flex-row gap-2 sm:gap-4">
                 {/* Segment Filter */}
-                <select
+                <SearchableDropdown
                   value={segmentFilter}
-                  onChange={(e) => {
-                    setSegmentFilter(e.target.value);
+                  options={segmentFilterOptions}
+                  onChange={(value) => {
+                    setSegmentFilter(value);
                     setPage(1);
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                >
-                  <option value="all">All Segments</option>
-                  {segments.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
+                  className="flex-1"
+                  searchPlaceholder="Search segment..."
+                />
 
                 {/* Sort By */}
-                <select
+                <SearchableDropdown
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                >
-                  <option value="name">Sort by Name</option>
-                  <option value="ltv">Sort by LTV</option>
-                  <option value="bookings">Sort by Bookings</option>
-                </select>
+                  options={sortByOptions}
+                  onChange={setSortBy}
+                  className="flex-1"
+                  searchPlaceholder="Search sort field..."
+                />
 
                 {/* Sort Order */}
                 <button
@@ -518,31 +523,22 @@ const CustomersPage: React.FC = () => {
               {/* Mobile Filters */}
               {showMobileFilters && (
                 <div className="sm:hidden space-y-3 mt-2">
-                  <select
+                  <SearchableDropdown
                     value={segmentFilter}
-                    onChange={(e) => {
-                      setSegmentFilter(e.target.value);
+                    options={segmentFilterOptions}
+                    onChange={(value) => {
+                      setSegmentFilter(value);
                       setPage(1);
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                  >
-                    <option value="all">All Segments</option>
-                    {segments.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
+                    searchPlaceholder="Search segment..."
+                  />
 
-                  <select
+                  <SearchableDropdown
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                  >
-                    <option value="name">Sort by Name</option>
-                    <option value="ltv">Sort by LTV</option>
-                    <option value="bookings">Sort by Bookings</option>
-                  </select>
+                    options={sortByOptions}
+                    onChange={setSortBy}
+                    searchPlaceholder="Search sort field..."
+                  />
 
                   <button
                     onClick={() =>
@@ -940,22 +936,20 @@ const CustomersPage: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Preferred Currency
                       </label>
-                      <select
+                      <SearchableDropdown
                         value={editFormData.clientCurrency}
-                        onChange={(e) =>
+                        options={currencies.map((currency) => ({
+                          value: currency.value,
+                          label: currency.label,
+                        }))}
+                        onChange={(value) =>
                           setEditFormData((prev) => ({
                             ...prev,
-                            clientCurrency: e.target.value,
+                            clientCurrency: value,
                           }))
                         }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                      >
-                        {currencies.map((currency) => (
-                          <option key={currency.value} value={currency.value}>
-                            {currency.label}
-                          </option>
-                        ))}
-                      </select>
+                        searchPlaceholder="Search currency..."
+                      />
                     </div>
 
                     {/* Address */}
@@ -999,22 +993,20 @@ const CustomersPage: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Customer Segment
                       </label>
-                      <select
+                      <SearchableDropdown
                         value={editFormData.segment}
-                        onChange={(e) =>
+                        options={segments.map((segment) => ({
+                          value: segment.value,
+                          label: segment.label,
+                        }))}
+                        onChange={(value) =>
                           setEditFormData((prev) => ({
                             ...prev,
-                            segment: e.target.value as Customer["segment"],
+                            segment: value as Customer["segment"],
                           }))
                         }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                      >
-                        {segments.map((segment) => (
-                          <option key={segment.value} value={segment.value}>
-                            {segment.label}
-                          </option>
-                        ))}
-                      </select>
+                        searchPlaceholder="Search segment..."
+                      />
                     </div>
 
                     {/* Travel Preferences */}

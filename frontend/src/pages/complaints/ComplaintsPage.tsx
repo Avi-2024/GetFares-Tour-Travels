@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaPlus } from "react-icons/fa6";
-import { TextInput, UUIDSelect } from "../../components/form";
+import { TextInput } from "../../components/form";
 import SurfaceCard from "../../components/ui/SurfaceCard";
+import SearchableDropdown from "../../components/ui/SearchableDropdown";
 import Timeline from "../../components/ui/Timeline";
 import { complaintsApi } from "../../api/complaints";
 import { bookingsApi } from "../../api/bookings";
@@ -123,6 +124,19 @@ const ComplaintsPage = () => {
       label: shortId(id),
     }));
   const mergedBookingOptions = [...bookingOptions, ...fallbackBookingOptions];
+  const bookingDropdownOptions = [
+    { value: "", label: loadingBookings ? "Loading bookings..." : "Select booking" },
+    ...mergedBookingOptions,
+  ];
+  const assigneeDropdownOptions = [
+    { value: "", label: loadingUsers ? "Loading assignees..." : "Select user" },
+    ...assigneeOptions,
+  ];
+  const complaintStatusOptions = [
+    { value: "OPEN", label: "OPEN" },
+    { value: "IN_PROGRESS", label: "IN_PROGRESS" },
+    { value: "RESOLVED", label: "RESOLVED" },
+  ];
 
   const formatBookingDisplay = (bookingId?: string) => {
     if (!bookingId) return "-";
@@ -392,24 +406,28 @@ const ComplaintsPage = () => {
           Raise Complaint
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <UUIDSelect
-            label="Booking ID"
+          <div>
+            <label className="field-label">Booking ID</label>
+            <SearchableDropdown
             value={form.bookingId}
+            options={bookingDropdownOptions}
             onChange={(value) =>
               setForm((current) => ({ ...current, bookingId: value }))
             }
-            options={mergedBookingOptions}
-            placeholder={loadingBookings ? "Loading bookings..." : "Select booking"}
+            searchPlaceholder="Search booking..."
           />
-          <UUIDSelect
-            label="Assigned To"
+          </div>
+          <div>
+            <label className="field-label">Assigned To</label>
+            <SearchableDropdown
             value={form.assignedTo}
+            options={assigneeDropdownOptions}
             onChange={(value) =>
               setForm((current) => ({ ...current, assignedTo: value }))
             }
-            options={assigneeOptions}
-            placeholder={loadingUsers ? "Loading assignees..." : "Select user"}
+            searchPlaceholder="Search assignee..."
           />
+          </div>
           <TextInput
             label="Issue Type"
             value={form.issueType}
@@ -421,20 +439,17 @@ const ComplaintsPage = () => {
           />
           <div>
             <label className="field-label">Status</label>
-            <select
-              className="field-input"
+            <SearchableDropdown
               value={form.status}
-              onChange={(event) =>
+              options={complaintStatusOptions}
+              onChange={(value) =>
                 setForm((current) => ({
                   ...current,
-                  status: event.target.value,
+                  status: value,
                 }))
               }
-            >
-              <option value="OPEN">OPEN</option>
-              <option value="IN_PROGRESS">IN_PROGRESS</option>
-              <option value="RESOLVED">RESOLVED</option>
-            </select>
+              searchPlaceholder="Search status..."
+            />
           </div>
           <div className="md:col-span-2">
             <label className="field-label">Description</label>

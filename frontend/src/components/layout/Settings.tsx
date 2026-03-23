@@ -20,6 +20,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useAuthService } from "../../hooks/useAuthService";
 import { useUsersService } from "../../hooks/useUsersService";
 import SurfaceCard from "../ui/SurfaceCard";
+import SearchableDropdown from "../ui/SearchableDropdown";
 import DestinationPricingManager from "../settings/DestinationPricingManager";
 
 type Tab =
@@ -798,18 +799,19 @@ const Settings: React.FC = () => {
                           ? `Role: ${selectedRole.name}`
                           : "Select a role to start editing permissions."}
                       </p>
-                      <select
-                        className="field-input"
+                      <SearchableDropdown
                         value={selectedRolePermissionsRoleId}
-                        onChange={(e) => setSelectedRolePermissionsRoleId(e.target.value)}
-                      >
-                        <option value="">Select role</option>
-                        {roles.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={setSelectedRolePermissionsRoleId}
+                        options={[
+                          { value: "", label: "Select role" },
+                          ...roles.map((role) => ({
+                            value: role.id,
+                            label: role.name,
+                          })),
+                        ]}
+                        placeholder="Select role"
+                        className="w-full"
+                      />
                     </div>
 
                     <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
@@ -925,10 +927,16 @@ const Settings: React.FC = () => {
               <input className="field-input" placeholder="Full Name" value={inviteForm.fullName} onChange={(e) => setInviteForm((f) => ({ ...f, fullName: e.target.value }))} />
               <input className="field-input" placeholder="Email" value={inviteForm.email} onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))} />
               <input className="field-input" placeholder="Temporary Password" type="password" value={inviteForm.password} onChange={(e) => setInviteForm((f) => ({ ...f, password: e.target.value }))} />
-              <select className="field-input" value={inviteForm.roleId} onChange={(e) => setInviteForm((f) => ({ ...f, roleId: e.target.value }))}>
-                <option value="">Select Role (optional)</option>
-                {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
+              <SearchableDropdown
+                value={inviteForm.roleId}
+                onChange={(value) => setInviteForm((f) => ({ ...f, roleId: value }))}
+                options={[
+                  { value: "", label: "Select Role (optional)" },
+                  ...roles.map((r) => ({ value: r.id, label: r.name })),
+                ]}
+                placeholder="Select Role (optional)"
+                className="w-full"
+              />
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setInviteOpen(false)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm">Cancel</button>
@@ -944,10 +952,19 @@ const Settings: React.FC = () => {
           <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold">Assign Role</h3>
             <div className="mt-4 space-y-3">
-              <select className="field-input" value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
-                <option value="">Select user</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.fullName} ({u.email})</option>)}
-              </select>
+              <SearchableDropdown
+                value={assignUserId}
+                onChange={setAssignUserId}
+                options={[
+                  { value: "", label: "Select user" },
+                  ...users.map((u) => ({
+                    value: u.id,
+                    label: `${u.fullName} (${u.email})`,
+                  })),
+                ]}
+                placeholder="Select user"
+                className="w-full"
+              />
               <div className="relative">
                 <input
                   className="field-input"

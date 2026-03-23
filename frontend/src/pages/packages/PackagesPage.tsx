@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { FaBoxOpen, FaGlobe, FaPlus, FaSave } from "react-icons/fa";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import StatusBadge from "../../components/ui/StatusBadge";
+import SearchableDropdown from "../../components/ui/SearchableDropdown";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { usePackagesService } from "../../hooks/usePackagesService";
 import type { PackageCategory, PackageRecord, PackageStatus } from "../../services/packagesService";
@@ -80,6 +81,35 @@ const PackagesPage: React.FC = () => {
   const selectedPackage = useMemo(
     () => items.find((item) => item.id === selectedId) || null,
     [items, selectedId],
+  );
+
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: "ALL", label: "All Status" },
+      ...PACKAGE_STATUSES.map((status) => ({ value: status, label: status })),
+    ],
+    [],
+  );
+
+  const categoryFilterOptions = useMemo(
+    () => [
+      { value: "ALL", label: "All Categories" },
+      ...PACKAGE_CATEGORIES.map((category) => ({ value: category, label: category })),
+    ],
+    [],
+  );
+
+  const formCategoryOptions = useMemo(
+    () => [
+      { value: "", label: "Category" },
+      ...PACKAGE_CATEGORIES.map((category) => ({ value: category, label: category })),
+    ],
+    [],
+  );
+
+  const formStatusOptions = useMemo(
+    () => PACKAGE_STATUSES.map((status) => ({ value: status, label: status })),
+    [],
   );
 
   const loadPackages = useCallback(async () => {
@@ -273,32 +303,18 @@ const PackagesPage: React.FC = () => {
             value={destinationFilter}
             onChange={(event) => setDestinationFilter(event.target.value)}
           />
-          <select
-            className="field-input"
+          <SearchableDropdown
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as PackageStatus | "ALL")}
-          >
-            <option value="ALL">All Status</option>
-            {PACKAGE_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-          <select
-            className="field-input"
+            options={statusFilterOptions}
+            onChange={(value) => setStatusFilter(value as PackageStatus | "ALL")}
+            searchPlaceholder="Search status..."
+          />
+          <SearchableDropdown
             value={categoryFilter}
-            onChange={(event) =>
-              setCategoryFilter(event.target.value as PackageCategory | "ALL")
-            }
-          >
-            <option value="ALL">All Categories</option>
-            {PACKAGE_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
+            options={categoryFilterOptions}
+            onChange={(value) => setCategoryFilter(value as PackageCategory | "ALL")}
+            searchPlaceholder="Search category..."
+          />
         </div>
         <div className="mt-3 flex gap-2">
           <button
@@ -423,39 +439,28 @@ const PackagesPage: React.FC = () => {
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <select
-                className="field-input"
+              <SearchableDropdown
                 value={form.packageCategory}
-                onChange={(event) =>
+                options={formCategoryOptions}
+                onChange={(value) =>
                   setForm((prev) => ({
                     ...prev,
-                    packageCategory: event.target.value as PackageCategory | "",
+                    packageCategory: value as PackageCategory | "",
                   }))
                 }
-              >
-                <option value="">Category</option>
-                {PACKAGE_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="field-input"
+                searchPlaceholder="Search category..."
+              />
+              <SearchableDropdown
                 value={form.status}
-                onChange={(event) =>
+                options={formStatusOptions}
+                onChange={(value) =>
                   setForm((prev) => ({
                     ...prev,
-                    status: event.target.value as PackageStatus,
+                    status: value as PackageStatus,
                   }))
                 }
-              >
-                {PACKAGE_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
+                searchPlaceholder="Search status..."
+              />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <input
