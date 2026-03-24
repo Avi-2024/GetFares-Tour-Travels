@@ -25,6 +25,7 @@ import {
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { validateBookingTransition } from '../../utils/workflowValidation'
 import { useBookingsService } from '../../hooks/useBookingsService'
 import { useLeadsService } from '../../hooks/useLeadsService'
@@ -52,6 +53,7 @@ interface Booking {
   documentsReady: number
   documentsTotal: number
   deadlineRiskLevel?: DeadlineRiskLevel
+  blockingDeadlineAt?: string | null
   balanceDueBy?: string | null
   supplierPaymentDeadlineAt?: string | null
   cancellationDeadlineAt?: string | null
@@ -88,6 +90,10 @@ type QuoteOption = {
   id: string
   label: string
   value: string
+  selectedLabel?: string
+  searchText?: string
+  leftLabel?: string
+  rightLabel?: string
 }
 
 type SupplierOption = {
@@ -137,8 +143,7 @@ const paymentClasses: Record<PaymentStatus, string> = {
 }
 
 const deadlineRiskClasses: Record<DeadlineRiskLevel, string> = {
-  SAFE:
-    'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900',
+  SAFE: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900',
   D2_DUE:
     'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900',
   DEADLINE_DUE:
@@ -204,6 +209,7 @@ const CreateBookingModal = ({
   onClose: () => void
   onSave: (data: NewBookingData) => Promise<boolean>
 }) => {
+  const bookingsService = useBookingsService()
   const leadsService = useLeadsService()
   const isUuid = (value?: string) =>
     Boolean(
@@ -259,6 +265,11 @@ const CreateBookingModal = ({
     return parsed.toISOString().split('T')[0]
   }
 
+  const normalizePhoneNumber = (value: unknown) =>
+    String(value ?? '')
+      .replace(/\D/g, '')
+      .slice(0, 10)
+
   const resolveLeadDestination = (record: any) => {
     if (!record) return ''
     if (typeof record.destination === 'string') return record.destination
@@ -272,31 +283,86 @@ const CreateBookingModal = ({
     setQuotationLoading(true)
     setQuotationError('')
     try {
-      const res = await quotationsApi.list({ page: 1, limit: 50 })
+      const [quotationsRes, leadsRows, bookingsRes] = await Promise.all([
+        quotationsApi.list({ page: 1, limit: 50 }),
+        leadsService.listLeadsRaw({ page: 1, limit: 500 }).catch(() => []),
+        bookingsService
+          .list({ page: 1, limit: 1000 })
+          .catch(() => ({ data: { data: [] } }))
+      ])
+
       const raw =
-        (res as any)?.data?.data ??
-        (res as any)?.data?.items ??
-        (res as any)?.data ??
-        res ??
+        (quotationsRes as any)?.data?.data ??
+        (quotationsRes as any)?.data?.items ??
+        (quotationsRes as any)?.data ??
+        quotationsRes ??
         []
+
+      const leadById: Record<string, any> = {}
+      ;(Array.isArray(leadsRows) ? leadsRows : []).forEach((lead: any) => {
+        const leadId = String(lead?.id ?? lead?.leadId ?? lead?.lead_id ?? '')
+        if (leadId) {
+          leadById[leadId] = lead
+        }
+      })
+
+      const bookedRows =
+        (bookingsRes as any)?.data?.data ??
+        (bookingsRes as any)?.data?.items ??
+        (bookingsRes as any)?.data ??
+        bookingsRes ??
+        []
+
+      const bookedQuotationIds = new Set(
+        (Array.isArray(bookedRows) ? bookedRows : [])
+          .map((row: any) =>
+            String(
+              row?.quotationId ??
+                row?.quotation_id ??
+                row?.quoteId ??
+                row?.quote_id ??
+                ''
+            )
+          )
+          .filter(Boolean)
+      )
+
       const options: QuoteOption[] = (Array.isArray(raw) ? raw : [])
         .map((q: any) => {
           const id = String(
             q.id ?? q.quotationId ?? q.quotation_id ?? q.code ?? ''
           )
           if (!id) return null
-          const quoteNumber =
-            q.quoteNumber ?? q.quotationNumber ?? q.code ?? `Quote ${id}`
+          if (bookedQuotationIds.has(id)) return null
+
+          const leadId = String(
+            q?.leadId ?? q?.lead_id ?? q?.lead?.id ?? q?.leadSnapshot?.id ?? ''
+          )
+          const lead = leadId ? leadById[leadId] : null
+
+          const quoteNumber = q.quoteNumber ?? q.quotationNumber ?? q.code ?? id
+
           const customer =
-            q.customerName ??
-            q.customer ??
-            q.clientName ??
-            q.lead?.name ??
-            ''
-          const label = customer
-            ? `${quoteNumber} - ${customer}`
-            : quoteNumber
-          return { id, value: id, label }
+            q.customerName ?? q.customer ?? q.clientName ?? q.lead?.name ?? ''
+
+          const resolvedCustomer =
+            customer ||
+            q.lead?.fullName ||
+            q.leadSnapshot?.name ||
+            lead?.fullName ||
+            lead?.name ||
+            'Unknown Customer'
+
+          const displayLabel = `${resolvedCustomer} - ${quoteNumber}`
+          return {
+            id,
+            value: id,
+            label: displayLabel,
+            selectedLabel: displayLabel,
+            searchText: `${resolvedCustomer} ${quoteNumber}`,
+            leftLabel: resolvedCustomer,
+            rightLabel: quoteNumber
+          }
         })
         .filter(Boolean) as QuoteOption[]
       setQuotationOptions(options)
@@ -313,7 +379,11 @@ const CreateBookingModal = ({
     setSupplierLoading(true)
     setSupplierError('')
     try {
-      const res = await suppliersApi.list({ page: 1, limit: 200, isActive: true })
+      const res = await suppliersApi.list({
+        page: 1,
+        limit: 200,
+        isActive: true
+      })
       const raw =
         (res as any)?.data?.data ??
         (res as any)?.data?.items ??
@@ -442,7 +512,7 @@ const CreateBookingModal = ({
       ...prev,
       customer: customer ?? prev.customer,
       email: email ?? prev.email,
-      phone: phone ?? prev.phone,
+      phone: normalizePhoneNumber(phone ?? prev.phone),
       destination: destination ?? prev.destination,
       travelStart: toInputDate(travelStart) || prev.travelStart,
       travelEnd: toInputDate(travelEnd) || prev.travelEnd,
@@ -458,14 +528,47 @@ const CreateBookingModal = ({
     void loadSuppliers()
   }, [isOpen])
 
+  const quotationDropdownOptions = useMemo(
+    () => [
+      {
+        value: '',
+        label: quotationLoading ? 'Loading quotations...' : 'Select quotation'
+      },
+      ...quotationOptions.map(option => ({
+        value: option.id,
+        label: option.label,
+        selectedLabel: option.selectedLabel,
+        searchText: option.searchText,
+        leftLabel: option.leftLabel,
+        rightLabel: option.rightLabel
+      }))
+    ],
+    [quotationLoading, quotationOptions]
+  )
+
+  const supplierDropdownOptions = useMemo(
+    () => [
+      {
+        value: '',
+        label: supplierLoading ? 'Loading suppliers...' : 'Select supplier'
+      },
+      ...supplierOptions.map(option => ({
+        value: option.id,
+        label: option.label
+      }))
+    ],
+    [supplierLoading, supplierOptions]
+  )
+
   const handleSupplierChange = (supplierId: string) => {
-    const selectedSupplier = supplierOptions.find(item => item.id === supplierId)
+    const selectedSupplier = supplierOptions.find(
+      item => item.id === supplierId
+    )
     setFormData(prev => ({
       ...prev,
       supplierId,
       supplierName:
-        selectedSupplier?.name ??
-        (supplierId ? prev.supplierName : '')
+        selectedSupplier?.name ?? (supplierId ? prev.supplierName : '')
     }))
   }
 
@@ -514,22 +617,20 @@ const CreateBookingModal = ({
           if (lead) {
             setFormData(prev => ({
               ...prev,
-              customer:
-                isBlank(prev.customer)
-                  ? lead.name ?? lead.fullName ?? prev.customer
-                  : prev.customer,
-              email:
-                isBlank(prev.email)
-                  ? lead.email ?? lead.primaryEmail ?? prev.email
-                  : prev.email,
-              phone:
-                isBlank(prev.phone)
-                  ? lead.phone ?? lead.mobile ?? lead.whatsapp ?? prev.phone
-                  : prev.phone,
-              destination:
-                isBlank(prev.destination)
-                  ? resolveLeadDestination(lead) || prev.destination
-                  : prev.destination
+              customer: isBlank(prev.customer)
+                ? lead.name ?? lead.fullName ?? prev.customer
+                : prev.customer,
+              email: isBlank(prev.email)
+                ? lead.email ?? lead.primaryEmail ?? prev.email
+                : prev.email,
+              phone: isBlank(prev.phone)
+                ? normalizePhoneNumber(
+                    lead.phone ?? lead.mobile ?? lead.whatsapp ?? prev.phone
+                  )
+                : prev.phone,
+              destination: isBlank(prev.destination)
+                ? resolveLeadDestination(lead) || prev.destination
+                : prev.destination
             }))
           }
         } catch (leadError) {
@@ -550,12 +651,16 @@ const CreateBookingModal = ({
 
   const validate = () => {
     const newErrors: Partial<Record<keyof NewBookingData, string>> = {}
-    if (!formData.quotationId)
-      newErrors.quotationId = 'Quotation is required'
+    if (!formData.quotationId) newErrors.quotationId = 'Quotation is required'
     if (formData.quotationId && !isUuid(formData.quotationId)) {
       newErrors.quotationId = 'Please select a valid quotation'
     }
     if (!formData.customer) newErrors.customer = 'Customer name is required'
+    if (!formData.phone) {
+      newErrors.phone = 'Phone number is required'
+    } else if (!/^\d{10}$/.test(formData.phone)) {
+      newErrors.phone = 'Phone number must be exactly 10 digits'
+    }
     if (!formData.destination) newErrors.destination = 'Destination is required'
     if (!formData.travelStart)
       newErrors.travelStart = 'Travel start date is required'
@@ -659,23 +764,14 @@ const CreateBookingModal = ({
           {/* Quotation Selector */}
           <div>
             <label className='field-label'>Quotation ID</label>
-            <select
+            <SearchableDropdown
               value={selectedQuotationId}
-              onChange={e => handleQuotationChange(e.target.value)}
-              className={`field-input ${
-                errors.quotationId ? 'border-red-500' : ''
-              }`}
+              onChange={value => handleQuotationChange(value)}
+              options={quotationDropdownOptions}
+              hasError={Boolean(errors.quotationId)}
+              searchPlaceholder='Search quotation...'
               disabled={quotationLoading}
-            >
-              <option value=''>
-                {quotationLoading ? 'Loading quotations...' : 'Select quotation'}
-              </option>
-              {quotationOptions.map(option => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            />
             {quotationError && (
               <p className='text-xs text-red-500 mt-1'>{quotationError}</p>
             )}
@@ -683,7 +779,9 @@ const CreateBookingModal = ({
               <p className='text-xs text-red-500 mt-1'>{errors.quotationId}</p>
             )}
             {quotationAutofillLoading && (
-              <p className='text-xs text-gray-500 mt-1'>Autofilling details...</p>
+              <p className='text-xs text-gray-500 mt-1'>
+                Autofilling details...
+              </p>
             )}
           </div>
 
@@ -700,7 +798,7 @@ const CreateBookingModal = ({
                 className={`field-input ${
                   errors.customer ? 'border-red-500' : ''
                 }`}
-                placeholder='John Doe'
+                placeholder='Your Name'
               />
               {errors.customer && (
                 <p className='text-xs text-red-500 mt-1'>{errors.customer}</p>
@@ -717,7 +815,7 @@ const CreateBookingModal = ({
                 className={`field-input ${
                   errors.email ? 'border-red-500' : ''
                 }`}
-                placeholder='john@example.com'
+                placeholder='name@example.com'
               />
               {errors.email && (
                 <p className='text-xs text-red-500 mt-1'>{errors.email}</p>
@@ -727,16 +825,25 @@ const CreateBookingModal = ({
 
           <div className='grid grid-cols-2 gap-4'>
             <div>
-              <label className='field-label'>Phone</label>
+              <label className='field-label'>Phone *</label>
               <input
                 type='tel'
                 value={formData.phone}
-                onChange={e =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-                className='field-input'
-                placeholder='+1 234 567 8900'
+                onChange={e => {
+                  const normalizedPhone = normalizePhoneNumber(e.target.value)
+                  setFormData({ ...formData, phone: normalizedPhone })
+                }}
+                className={`field-input ${
+                  errors.phone ? 'border-red-500' : ''
+                }`}
+                placeholder='Your Contact Number'
+                inputMode='numeric'
+                pattern='[0-9]*'
+                maxLength={10}
               />
+              {errors.phone && (
+                <p className='text-xs text-red-500 mt-1'>{errors.phone}</p>
+              )}
             </div>
             <div>
               <label className='field-label'>Destination *</label>
@@ -797,7 +904,7 @@ const CreateBookingModal = ({
             </div>
           </div>
 
-          {/* Deadlines */}          
+          {/* Deadlines */}
           <div>
             <p className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2'>
               Booking Deadlines
@@ -863,21 +970,13 @@ const CreateBookingModal = ({
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div>
                 <label className='field-label'>Supplier (Directory)</label>
-                <select
+                <SearchableDropdown
                   value={formData.supplierId}
-                  onChange={e => handleSupplierChange(e.target.value)}
-                  className='field-input'
+                  onChange={value => handleSupplierChange(value)}
+                  options={supplierDropdownOptions}
+                  searchPlaceholder='Search supplier...'
                   disabled={supplierLoading}
-                >
-                  <option value=''>
-                    {supplierLoading ? 'Loading suppliers...' : 'Select supplier'}
-                  </option>
-                  {supplierOptions.map(option => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                />
                 {supplierError && (
                   <p className='text-xs text-red-500 mt-1'>{supplierError}</p>
                 )}
@@ -1022,7 +1121,7 @@ const CreateBookingModal = ({
                     totalAmount: parseFloat(e.target.value) || 0
                   })
                 }
-                className={`field-input ${
+                className={`field-input no-spinner ${
                   errors.totalAmount ? 'border-red-500' : ''
                 }`}
                 placeholder='0.00'
@@ -1046,7 +1145,7 @@ const CreateBookingModal = ({
                     costAmount: parseFloat(e.target.value) || 0
                   })
                 }
-                className={`field-input ${
+                className={`field-input no-spinner ${
                   errors.costAmount ? 'border-red-500' : ''
                 }`}
                 placeholder='0.00'
@@ -1054,9 +1153,7 @@ const CreateBookingModal = ({
                 step='0.01'
               />
               {errors.costAmount && (
-                <p className='text-xs text-red-500 mt-1'>
-                  {errors.costAmount}
-                </p>
+                <p className='text-xs text-red-500 mt-1'>{errors.costAmount}</p>
               )}
             </div>
           </div>
@@ -1073,7 +1170,7 @@ const CreateBookingModal = ({
                     advanceRequired: parseFloat(e.target.value) || 0
                   })
                 }
-                className='field-input'
+                className='field-input no-spinner'
                 placeholder='0.00'
                 min='0'
                 step='0.01'
@@ -1140,6 +1237,16 @@ const RecordPaymentModal = ({
     date: new Date().toISOString().split('T')[0]
   })
   const [errors, setErrors] = useState<{ amount?: string }>({})
+
+  const paymentMethodOptions = useMemo(
+    () => [
+      { value: 'cash', label: 'Cash' },
+      { value: 'card', label: 'Card' },
+      { value: 'bank', label: 'Bank Transfer' },
+      { value: 'cheque', label: 'Cheque' }
+    ],
+    []
+  )
 
   if (!isOpen || !booking) return null
 
@@ -1225,21 +1332,17 @@ const RecordPaymentModal = ({
 
           <div>
             <label className='field-label'>Payment Method</label>
-            <select
+            <SearchableDropdown
               value={formData.method}
-              onChange={e =>
+              options={paymentMethodOptions}
+              searchPlaceholder='Search payment method...'
+              onChange={value =>
                 setFormData({
                   ...formData,
-                  method: e.target.value as PaymentData['method']
+                  method: value as PaymentData['method']
                 })
               }
-              className='field-input'
-            >
-              <option value='cash'>Cash</option>
-              <option value='card'>Card</option>
-              <option value='bank'>Bank Transfer</option>
-              <option value='cheque'>Cheque</option>
-            </select>
+            />
           </div>
 
           <div>
@@ -1552,6 +1655,16 @@ const BookingsPage: React.FC = () => {
 
   const pageSize = 15
 
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All Status' },
+      { value: 'confirmed', label: 'Confirmed' },
+      { value: 'pending', label: 'Pending' },
+      { value: 'cancelled', label: 'Cancelled' }
+    ],
+    []
+  )
+
   const normalizeStatus = (value?: string): BookingStatus => {
     switch ((value ?? '').toUpperCase()) {
       case 'CONFIRMED':
@@ -1579,6 +1692,39 @@ const BookingsPage: React.FC = () => {
     }
   }
 
+  const normalizeDateTime = (value: unknown): string | null => {
+    if (value === null || value === undefined || value === '') return null
+
+    const raw =
+      typeof value === 'string'
+        ? value.trim()
+        : typeof value === 'number'
+        ? String(value)
+        : String(value)
+    if (!raw) return null
+
+    const direct = new Date(raw)
+    if (!Number.isNaN(direct.getTime())) return direct.toISOString()
+
+    if (/^\d+$/.test(raw)) {
+      const asNumber = Number(raw)
+      if (Number.isFinite(asNumber)) {
+        const tsDate = new Date(asNumber)
+        if (!Number.isNaN(tsDate.getTime())) return tsDate.toISOString()
+      }
+    }
+
+    return null
+  }
+
+  const pickFirstDate = (...values: unknown[]): string | null => {
+    for (const value of values) {
+      const normalized = normalizeDateTime(value)
+      if (normalized) return normalized
+    }
+    return null
+  }
+
   const formatDateRange = (start?: string, end?: string, fallback?: string) => {
     if (!start && !end) return fallback ?? '—'
     const startLabel = start ? new Date(start).toLocaleDateString() : '—'
@@ -1586,12 +1732,75 @@ const BookingsPage: React.FC = () => {
     return `${startLabel} - ${endLabel}`
   }
 
-
   const mapBooking = (
     b: any,
     idx: number,
     lookups?: BookingLookups
   ): Booking => {
+    const deadlineInfo =
+      b?.deadlineTracking ??
+      b?.deadline_tracking ??
+      b?.deadlineInsights ??
+      b?.deadline_insights ??
+      b?.deadlines ??
+      {}
+
+    const blockingDeadlineAt = pickFirstDate(
+      b?.blockingDeadlineAt,
+      b?.blocking_deadline_at,
+      b?.blockingDeadline,
+      b?.blocking_deadline,
+      deadlineInfo?.blockingDeadlineAt,
+      deadlineInfo?.blocking_deadline_at,
+      deadlineInfo?.blockingDeadline,
+      deadlineInfo?.blocking_deadline
+    )
+
+    const supplierPaymentDeadlineAt = pickFirstDate(
+      b?.supplierPaymentDeadlineAt,
+      b?.supplier_payment_deadline_at,
+      b?.supplierDeadlineAt,
+      b?.supplier_deadline_at,
+      b?.supplierDeadline,
+      b?.supplier_deadline,
+      deadlineInfo?.supplierPaymentDeadlineAt,
+      deadlineInfo?.supplier_payment_deadline_at,
+      deadlineInfo?.supplierDeadlineAt,
+      deadlineInfo?.supplier_deadline_at,
+      deadlineInfo?.supplierDeadline,
+      deadlineInfo?.supplier_deadline
+    )
+
+    const cancellationDeadlineAt = pickFirstDate(
+      b?.cancellationDeadlineAt,
+      b?.cancellation_deadline_at,
+      b?.cancelDeadlineAt,
+      b?.cancel_deadline_at,
+      b?.cancellationDeadline,
+      b?.cancellation_deadline,
+      deadlineInfo?.cancellationDeadlineAt,
+      deadlineInfo?.cancellation_deadline_at,
+      deadlineInfo?.cancelDeadlineAt,
+      deadlineInfo?.cancel_deadline_at,
+      deadlineInfo?.cancellationDeadline,
+      deadlineInfo?.cancellation_deadline
+    )
+
+    const balanceDueBy = pickFirstDate(
+      b?.balanceDueBy,
+      b?.balance_due_by,
+      b?.balanceDueAt,
+      b?.balance_due_at,
+      b?.dueBy,
+      b?.due_by,
+      deadlineInfo?.balanceDueBy,
+      deadlineInfo?.balance_due_by,
+      deadlineInfo?.balanceDueAt,
+      deadlineInfo?.balance_due_at,
+      deadlineInfo?.dueBy,
+      deadlineInfo?.due_by
+    )
+
     const quotationId = String(
       b.quotationId ?? b.quotation_id ?? b.quoteId ?? b.quote_id ?? ''
     )
@@ -1649,11 +1858,10 @@ const BookingsPage: React.FC = () => {
       deadlineRiskLevel: normalizeDeadlineRisk(
         b.deadlineRiskLevel ?? b.deadline_risk_level ?? 'SAFE'
       ),
-      balanceDueBy: b.balanceDueBy ?? b.balance_due_by ?? null,
-      supplierPaymentDeadlineAt:
-        b.supplierPaymentDeadlineAt ?? b.supplier_payment_deadline_at ?? null,
-      cancellationDeadlineAt:
-        b.cancellationDeadlineAt ?? b.cancellation_deadline_at ?? null
+      blockingDeadlineAt,
+      balanceDueBy,
+      supplierPaymentDeadlineAt,
+      cancellationDeadlineAt
     }
   }
 
@@ -1679,9 +1887,15 @@ const BookingsPage: React.FC = () => {
 
   const calculateStats = (items: Booking[]) => {
     const totalBookings = items.length
-    const activeBookings = items.filter(item => item.status === 'confirmed').length
-    const pendingBookings = items.filter(item => item.status === 'pending').length
-    const cancelledBookings = items.filter(item => item.status === 'cancelled').length
+    const activeBookings = items.filter(
+      item => item.status === 'confirmed'
+    ).length
+    const pendingBookings = items.filter(
+      item => item.status === 'pending'
+    ).length
+    const cancelledBookings = items.filter(
+      item => item.status === 'cancelled'
+    ).length
     const nonCancelled = items.filter(item => item.status !== 'cancelled')
     const pendingPayments = nonCancelled.filter(item => item.paid < item.total)
     const pendingPaymentsAmount = pendingPayments.reduce(
@@ -1753,7 +1967,7 @@ const BookingsPage: React.FC = () => {
       const lookups: BookingLookups = {
         quotationById: {},
         leadById: {},
-        destinationById: {},
+        destinationById: {}
       }
 
       const quotationIds = Array.from(
@@ -1774,7 +1988,10 @@ const BookingsPage: React.FC = () => {
 
       if (quotationIds.length) {
         try {
-          const quotationsRes = await quotationsApi.list({ page: 1, limit: 500 })
+          const quotationsRes = await quotationsApi.list({
+            page: 1,
+            limit: 500
+          })
           const quotationRows = unwrapList(quotationsRes)
           quotationRows.forEach((quote: any) => {
             const quoteId = String(
@@ -1792,9 +2009,7 @@ const BookingsPage: React.FC = () => {
       const leadIds = Array.from(
         new Set(
           bookingRows
-            .map((row: any) =>
-              String(row?.leadId ?? row?.lead_id ?? '')
-            )
+            .map((row: any) => String(row?.leadId ?? row?.lead_id ?? ''))
             .concat(
               Object.values(lookups.quotationById).map((quote: any) =>
                 String(
@@ -1812,9 +2027,14 @@ const BookingsPage: React.FC = () => {
 
       if (leadIds.length) {
         try {
-          const leadRows = await leadsService.listLeadsRaw({ page: 1, limit: 500 })
+          const leadRows = await leadsService.listLeadsRaw({
+            page: 1,
+            limit: 500
+          })
           leadRows.forEach((lead: any) => {
-            const leadId = String(lead?.id ?? lead?.leadId ?? lead?.lead_id ?? '')
+            const leadId = String(
+              lead?.id ?? lead?.leadId ?? lead?.lead_id ?? ''
+            )
             if (leadId) {
               lookups.leadById[leadId] = lead
             }
@@ -1875,10 +2095,7 @@ const BookingsPage: React.FC = () => {
       showToast('Booking confirmed successfully', 'success')
     } catch (error) {
       console.error('Failed to send confirmation:', error)
-      showToast(
-        getApiErrorMessage(error, 'Failed to confirm booking'),
-        'error'
-      )
+      showToast(getApiErrorMessage(error, 'Failed to confirm booking'), 'error')
     } finally {
       setLoading(false)
     }
@@ -1939,7 +2156,9 @@ const BookingsPage: React.FC = () => {
         totalAmount: data.totalAmount,
         costAmount: data.costAmount,
         blockingDeadlineAt: toIsoDateTime(data.blockingDeadlineAt),
-        supplierPaymentDeadlineAt: toIsoDateTime(data.supplierPaymentDeadlineAt),
+        supplierPaymentDeadlineAt: toIsoDateTime(
+          data.supplierPaymentDeadlineAt
+        ),
         cancellationDeadlineAt: toIsoDateTime(data.cancellationDeadlineAt),
         supplierDetails:
           data.supplierId || data.supplierName || data.supplierReferenceCode
@@ -2195,7 +2414,9 @@ const BookingsPage: React.FC = () => {
                 )}
               </p>
               <p className='mt-1 text-xs text-gray-500'>
-                {statsLoading ? 'Loading...' : `${stats.pendingPaymentsCount} bookings`}
+                {statsLoading
+                  ? 'Loading...'
+                  : `${stats.pendingPaymentsCount} bookings`}
               </p>
               {statsError && (
                 <p className='mt-1 text-xs text-red-500'>{statsError}</p>
@@ -2263,37 +2484,31 @@ const BookingsPage: React.FC = () => {
                     }}
                   />
                 </div>
-                <select
-                  className='field-input w-full sm:w-44'
+                <SearchableDropdown
+                  className='w-full sm:w-44'
                   value={statusFilter}
-                  onChange={e => {
-                    setStatusFilter(e.target.value as 'all' | BookingStatus)
+                  options={statusFilterOptions}
+                  searchPlaceholder='Search status...'
+                  onChange={value => {
+                    setStatusFilter(value as 'all' | BookingStatus)
                     setPage(1)
                   }}
-                >
-                  <option value='all'>All Status</option>
-                  <option value='confirmed'>Confirmed</option>
-                  <option value='pending'>Pending</option>
-                  <option value='cancelled'>Cancelled</option>
-                </select>
+                />
               </div>
 
               {/* Mobile Status Filter */}
               <div className='lg:hidden w-full'>
-                <select
-                  className='w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500'
+                <SearchableDropdown
+                  className='w-full'
                   value={statusFilter}
-                  onChange={e => {
-                    setStatusFilter(e.target.value as 'all' | BookingStatus)
+                  options={statusFilterOptions}
+                  searchPlaceholder='Search status...'
+                  onChange={value => {
+                    setStatusFilter(value as 'all' | BookingStatus)
                     setPage(1)
                     setShowMobileFilters(false)
                   }}
-                >
-                  <option value='all'>All Statuses</option>
-                  <option value='confirmed'>Confirmed</option>
-                  <option value='pending'>Pending</option>
-                  <option value='cancelled'>Cancelled</option>
-                </select>
+                />
               </div>
 
               {/* Export Button */}
@@ -2351,7 +2566,7 @@ const BookingsPage: React.FC = () => {
                       </p>
                     </div>
                     <span
-                      className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${
+                      className={`inline-flex w-28 items-center justify-center whitespace-nowrap rounded-full border px-2 py-0.5 text-center text-xs font-medium capitalize ${
                         statusClasses[booking.status]
                       }`}
                     >
@@ -2367,15 +2582,18 @@ const BookingsPage: React.FC = () => {
                     <p className='text-xs text-gray-500'>{booking.dates}</p>
                     <div className='flex flex-wrap gap-2'>
                       <span
-                        className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                          deadlineRiskClasses[booking.deadlineRiskLevel ?? 'SAFE']
+                        className={`inline-flex w-28 items-center justify-center whitespace-nowrap rounded-full border px-2 py-0.5 text-center text-[11px] font-medium ${
+                          deadlineRiskClasses[
+                            booking.deadlineRiskLevel ?? 'SAFE'
+                          ]
                         }`}
                       >
                         {formatRiskLabel(booking.deadlineRiskLevel)}
                       </span>
                       {booking.balanceDueBy && (
                         <span className='rounded-full border border-gray-200 px-2 py-0.5 text-[11px] text-gray-600 dark:border-gray-700 dark:text-gray-300'>
-                          Balance by {new Date(booking.balanceDueBy).toLocaleDateString()}
+                          Balance by{' '}
+                          {new Date(booking.balanceDueBy).toLocaleDateString()}
                         </span>
                       )}
                     </div>
@@ -2385,7 +2603,12 @@ const BookingsPage: React.FC = () => {
                   <div className='flex items-center justify-between'>
                     <div>
                       <span
-                        className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${
+                        className={`${
+                          booking.payment === 'partial' ||
+                          booking.payment === 'unpaid'
+                            ? 'rounded-md'
+                            : 'rounded-full'
+                        } border px-2 py-0.5 text-xs font-medium capitalize ${
                           paymentClasses[booking.payment]
                         }`}
                       >
@@ -2405,7 +2628,19 @@ const BookingsPage: React.FC = () => {
                   <div className='flex justify-end gap-2 pt-2'>
                     <button
                       className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
-                      onClick={() => navigate(`/bookings/${booking.id}`)}
+                      onClick={() =>
+                        navigate(`/bookings/${booking.id}`, {
+                          state: {
+                            customerName: booking.customer,
+                            blockingDeadlineAt: booking.blockingDeadlineAt,
+                            supplierPaymentDeadlineAt:
+                              booking.supplierPaymentDeadlineAt,
+                            cancellationDeadlineAt:
+                              booking.cancellationDeadlineAt,
+                            balanceDueBy: booking.balanceDueBy
+                          }
+                        })
+                      }
                       title='View'
                     >
                       <FaEye className='text-sm' />
@@ -2490,15 +2725,17 @@ const BookingsPage: React.FC = () => {
                       <td className='px-5 py-4'>
                         <div className='flex flex-col gap-1'>
                           <span
-                            className={`w-fit rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+                            className={`inline-flex w-28 items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-1 text-center text-xs font-semibold capitalize ${
                               statusClasses[booking.status]
                             }`}
                           >
                             {booking.status}
                           </span>
                           <span
-                            className={`w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                              deadlineRiskClasses[booking.deadlineRiskLevel ?? 'SAFE']
+                            className={`inline-flex w-28 items-center justify-center whitespace-nowrap rounded-full border px-2 py-0.5 text-center text-[11px] font-medium ${
+                              deadlineRiskClasses[
+                                booking.deadlineRiskLevel ?? 'SAFE'
+                              ]
                             }`}
                           >
                             {formatRiskLabel(booking.deadlineRiskLevel)}
@@ -2508,7 +2745,12 @@ const BookingsPage: React.FC = () => {
                       <td className='px-5 py-4'>
                         <div className='flex items-center gap-2'>
                           <span
-                            className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+                            className={`${
+                              booking.payment === 'partial' ||
+                              booking.payment === 'unpaid'
+                                ? 'rounded-md'
+                                : 'rounded-full'
+                            } border px-2.5 py-1 text-xs font-semibold capitalize ${
                               paymentClasses[booking.payment]
                             }`}
                           >
@@ -2573,7 +2815,20 @@ const BookingsPage: React.FC = () => {
                         <div className='flex justify-end gap-1 transition-all duration-200'>
                           <button
                             className='rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                            onClick={() => navigate(`/bookings/${booking.id}`)}
+                            onClick={() =>
+                              navigate(`/bookings/${booking.id}`, {
+                                state: {
+                                  customerName: booking.customer,
+                                  blockingDeadlineAt:
+                                    booking.blockingDeadlineAt,
+                                  supplierPaymentDeadlineAt:
+                                    booking.supplierPaymentDeadlineAt,
+                                  cancellationDeadlineAt:
+                                    booking.cancellationDeadlineAt,
+                                  balanceDueBy: booking.balanceDueBy
+                                }
+                              })
+                            }
                             title='View Details'
                           >
                             <FaEye />
@@ -2652,6 +2907,15 @@ const BookingsPage: React.FC = () => {
         }
         .animate-fadeIn {
           animation: fadeIn 0.2s ease-out;
+        }
+        .no-spinner::-webkit-outer-spin-button,
+        .no-spinner::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .no-spinner[type='number'] {
+          -moz-appearance: textfield;
+          appearance: textfield;
         }
       `}</style>
     </div>

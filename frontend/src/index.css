@@ -29,4 +29,41 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  .status-dropdown-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .status-dropdown-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .status-dropdown-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .status-dropdown-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 9999px;
+  }
+
+  .status-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
+
+  /* PDF export only: keep Included Services chips aligned inside pills */
+  .pdf-export-mode .pdf-service-chip-wrap {
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pdf-export-mode .pdf-service-chip {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.2;
+    white-space: nowrap;
+    vertical-align: middle;
+    transform: translateZ(0);
+  }
 }
