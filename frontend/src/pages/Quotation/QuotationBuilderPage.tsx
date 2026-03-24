@@ -9,7 +9,6 @@ import {
   FaEnvelope,
   FaFloppyDisk,
   FaMobileScreen,
-  FaPlaneDeparture,
   FaPlus
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
@@ -151,6 +150,7 @@ const QuotationBuilderPage: React.FC = () => {
   const [showSaved, setShowSaved] = useState(false)
   const [itineraryItems, setItineraryItems] = useState<Item[]>(initialItinerary)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showAddOnModal, setShowAddOnModal] = useState(false)
   const [newItem, setNewItem] = useState<{
     day: string
     title: string
@@ -174,6 +174,23 @@ const QuotationBuilderPage: React.FC = () => {
     serviceFee: 120,
     taxPercent: 5,
     discount: 0
+  })
+  const [addOnServices, setAddOnServices] = useState<
+    {
+      id: string
+      name: string
+      weight: number
+      baseCost: number
+      markup: number
+      sellValue: number
+    }[]
+  >([])
+  const [addOnDraft, setAddOnDraft] = useState({
+    name: '',
+    weight: '',
+    baseCost: '',
+    markup: '',
+    sellValue: ''
   })
   const previewRef = useRef<HTMLDivElement | null>(null)
 
@@ -443,11 +460,61 @@ const QuotationBuilderPage: React.FC = () => {
     }))
   }, [selectedLead, destinationMap, form.destination])
 
+  const addOnTotal = useMemo(
+    () =>
+      addOnServices.reduce(
+        (sum, item) => sum + (Number(item.sellValue) || 0),
+        0
+      ),
+    [addOnServices]
+  )
+
+  const addAddOnService = () => {
+    const name = addOnDraft.name.trim()
+    const weight = Number(addOnDraft.weight)
+    const baseCost = Number(addOnDraft.baseCost)
+    const markup = Number(addOnDraft.markup)
+    const sellValue = Number(addOnDraft.sellValue)
+    if (
+      !name ||
+      !Number.isFinite(weight) ||
+      weight < 0 ||
+      !Number.isFinite(baseCost) ||
+      baseCost < 0 ||
+      !Number.isFinite(markup) ||
+      markup < 0 ||
+      !Number.isFinite(sellValue) ||
+      sellValue <= 0
+    ) {
+      alert('Please fill all add-on fields with valid values.')
+      return
+    }
+    setAddOnServices(prev => [
+      ...prev,
+      {
+        id: `addon-${Date.now()}`,
+        name,
+        weight,
+        baseCost,
+        markup,
+        sellValue
+      }
+    ])
+    setAddOnDraft({
+      name: '',
+      weight: '',
+      baseCost: '',
+      markup: '',
+      sellValue: ''
+    })
+    setShowAddOnModal(false)
+  }
+
   const computed = useMemo(() => {
     const supplier = Number(costs.supplierCost) || 0
     const markupVal = supplier * ((Number(costs.markupPercent) || 0) / 100)
     const serviceFee = Number(costs.serviceFee) || 0
-    const preTax = supplier + markupVal + serviceFee
+    const preTax = supplier + markupVal + serviceFee + addOnTotal
     const taxVal = preTax * ((Number(costs.taxPercent) || 0) / 100)
     const discount = Number(costs.discount) || 0
     const totalPrice = Math.max(preTax + taxVal - discount, 0)
@@ -457,15 +524,20 @@ const QuotationBuilderPage: React.FC = () => {
       supplier,
       markupVal,
       serviceFee,
+      addOnTotal,
       taxVal,
       discount,
       totalPrice,
       profit,
       margin
     }
-  }, [costs])
+  }, [addOnTotal, costs])
 
-  const subtotal = computed.supplier + computed.markupVal + computed.serviceFee
+  const subtotal =
+    computed.supplier +
+    computed.markupVal +
+    computed.serviceFee +
+    computed.addOnTotal
   const taxes = computed.taxVal
   const total = computed.totalPrice
   const quoteDisplayNumber = form.quote.trim() || 'AUTO-GENERATED'
@@ -478,6 +550,16 @@ const QuotationBuilderPage: React.FC = () => {
           .toFixed(2)
       ),
     [serviceCostRows]
+  )
+  const serviceChargesTotal = useMemo(
+    () =>
+      Number(
+        (
+          serviceCostRows.reduce((sum, row) => sum + row.sellValue, 0) +
+          addOnTotal
+        ).toFixed(2)
+      ),
+    [serviceCostRows, addOnTotal]
   )
   const inclusionLines = useMemo(
     () => toBulletList(form.inclusions),
@@ -1279,6 +1361,66 @@ const QuotationBuilderPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              <div className='mt-4 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900'>
+                <div className='mb-2 flex items-center justify-between'>
+                  <h3 className='text-sm font-semibold text-gray-800 dark:text-gray-100'>
+                    Add-on Services
+                  </h3>
+                  <button
+                    onClick={() => setShowAddOnModal(true)}
+                    className='rounded-lg border border-gray-200 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                  >
+                    <FaPlus className='mr-1 inline' /> Add Service
+                  </button>
+                </div>
+                {addOnServices.length ? (
+                  <div className='space-y-2 text-xs text-gray-600 dark:text-gray-300'>
+                    <div className='grid grid-cols-5 gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                      <span>Service</span>
+                      <span className='text-right'>Weight</span>
+                      <span className='text-right'>Base Cost</span>
+                      <span className='text-right'>Markup</span>
+                      <span className='text-right'>Sell Value</span>
+                    </div>
+                    {addOnServices.map(service => (
+                      <div
+                        key={service.id}
+                        className='grid grid-cols-5 items-center gap-2'
+                      >
+                        <span>{service.name}</span>
+                        <span className='text-right'>
+                          {Number(service.weight || 0).toFixed(1)}%
+                        </span>
+                        <span className='text-right'>
+                          {money(Number(service.baseCost) || 0)}
+                        </span>
+                        <span className='text-right'>
+                          {money(Number(service.markup) || 0)}
+                        </span>
+                        <span className='text-right font-medium text-gray-800 dark:text-gray-100'>
+                          {money(Number(service.sellValue) || 0)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200'>
+                      <span>Add-on Total</span>
+                      <span>{money(addOnTotal)}</span>
+                    </div>
+                    <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
+                      <span>Services Total</span>
+                      <span>{money(serviceChargesTotal)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className='space-y-2 text-xs text-gray-500'>
+                    <p>No add-on services added yet.</p>
+                    <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
+                      <span>Services Total</span>
+                      <span>{money(serviceChargesTotal)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className='mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800'>
                 <div className='mb-1 flex justify-between text-xs text-gray-500'>
                   <span>Supplier Cost</span>
@@ -1294,6 +1436,12 @@ const QuotationBuilderPage: React.FC = () => {
                   <span>Service Fee</span>
                   <span>{money(computed.serviceFee)}</span>
                 </div>
+                {addOnTotal ? (
+                  <div className='mb-1 flex justify-between text-xs text-gray-500'>
+                    <span>Add-on Services</span>
+                    <span>{money(addOnTotal)}</span>
+                  </div>
+                ) : null}
                 <div className='mb-1 flex justify-between text-xs text-gray-500'>
                   <span>Subtotal</span>
                   <span>{money(subtotal)}</span>
@@ -1458,8 +1606,12 @@ const QuotationBuilderPage: React.FC = () => {
                 >
                   <div className='mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800'>
                     <div className='flex items-center gap-2'>
-                      <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white'>
-                        <FaPlaneDeparture />
+                      <div className='flex h-8 w-8 items-center justify-center rounded-lg'>
+                        <img
+                          src='/logo1.png'
+                          alt='Get2Vacation'
+                          className='h-8 w-6'
+                        />
                       </div>
                       <div>
                         <p className='font-semibold'>Get2Vacation Travel CRM</p>
@@ -1580,43 +1732,12 @@ const QuotationBuilderPage: React.FC = () => {
                       Financial Snapshot
                     </p>
                     <div className='space-y-1.5 text-xs'>
-                      {serviceCostRows.length ? (
-                        serviceCostRows.map(row => (
-                          <div
-                            key={`preview-${row.key}`}
-                            className='flex items-center justify-between text-gray-600'
-                          >
-                            <span>{row.label}</span>
-                            <span className='font-medium text-gray-800'>
-                              {money(row.sellValue)}
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className='text-xs text-amber-600'>
-                          Service-wise split appears after selecting services.
-                        </p>
-                      )}
                       <div className='flex items-center justify-between text-gray-600'>
-                        <span>Service Fee</span>
+                        <span>Service Charges</span>
                         <span className='font-medium text-gray-800'>
-                          {money(computed.serviceFee)}
+                          {money(total)}
                         </span>
                       </div>
-                      <div className='flex items-center justify-between text-gray-600'>
-                        <span>Tax ({costs.taxPercent}%)</span>
-                        <span className='font-medium text-gray-800'>
-                          {money(taxes)}
-                        </span>
-                      </div>
-                      {costs.discount ? (
-                        <div className='flex items-center justify-between text-gray-600'>
-                          <span>Discount</span>
-                          <span className='font-medium text-gray-800'>
-                            -{money(costs.discount)}
-                          </span>
-                        </div>
-                      ) : null}
                       <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
                         <span>Total Sale Value</span>
                         <span className='text-blue-600'>{money(total)}</span>
@@ -1798,6 +1919,113 @@ const QuotationBuilderPage: React.FC = () => {
                   className='px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700'
                 >
                   Save Item
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showAddOnModal && (
+          <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur'>
+            <div className='w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700'>
+              <div className='mb-3 flex items-center justify-between'>
+                <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+                  Add Service
+                </h3>
+                <button
+                  onClick={() => setShowAddOnModal(false)}
+                  className='text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100'
+                >
+                  <i className='fa-solid fa-xmark'></i>
+                </button>
+              </div>
+              <div className='space-y-3'>
+                <div>
+                  <label className='field-label'>Service Name</label>
+                  <input
+                    className='field-input'
+                    value={addOnDraft.name}
+                    onChange={e =>
+                      setAddOnDraft(p => ({ ...p, name: e.target.value }))
+                    }
+                    placeholder='Airport pickup / Cruise / Extra nights'
+                  />
+                </div>
+                <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+                  <div>
+                    <label className='field-label'>Weight (%)</label>
+                    <input
+                      type='number'
+                      min='0'
+                      className='field-input'
+                      value={addOnDraft.weight}
+                      onChange={e =>
+                        setAddOnDraft(p => ({ ...p, weight: e.target.value }))
+                      }
+                      placeholder='0'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Base Cost</label>
+                    <input
+                      type='number'
+                      min='0'
+                      className='field-input'
+                      value={addOnDraft.baseCost}
+                      onChange={e =>
+                        setAddOnDraft(p => ({
+                          ...p,
+                          baseCost: e.target.value
+                        }))
+                      }
+                      placeholder='0.00'
+                    />
+                  </div>
+                </div>
+                <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+                  <div>
+                    <label className='field-label'>Markup</label>
+                    <input
+                      type='number'
+                      min='0'
+                      className='field-input'
+                      value={addOnDraft.markup}
+                      onChange={e =>
+                        setAddOnDraft(p => ({ ...p, markup: e.target.value }))
+                      }
+                      placeholder='0.00'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Sell Value</label>
+                    <input
+                      type='number'
+                      min='0'
+                      className='field-input'
+                      value={addOnDraft.sellValue}
+                      onChange={e =>
+                        setAddOnDraft(p => ({
+                          ...p,
+                          sellValue: e.target.value
+                        }))
+                      }
+                      placeholder='0.00'
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className='mt-4 flex items-center justify-end gap-2'>
+                <button
+                  onClick={() => setShowAddOnModal(false)}
+                  className='rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={addAddOnService}
+                  className='rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700'
+                >
+                  Add Service
                 </button>
               </div>
             </div>

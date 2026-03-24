@@ -58,6 +58,7 @@ const CreateLead: React.FC = () => {
   const [apiError, setApiError] = useState('')
   const [duplicateWarning, setDuplicateWarning] = useState('')
   const [showErrors, setShowErrors] = useState(false)
+  const [childAges, setChildAges] = useState<string[]>([])
 
   useEffect(() => {
     const loadData = async () => {
@@ -120,12 +121,15 @@ const CreateLead: React.FC = () => {
       travelDate: !form.travelDate,
       adultsChildren:
         form.adultsCount < 0 || form.childrenCount < 0 || form.adultsCount < 1,
+      childrenAges:
+        form.childrenCount > 0 &&
+        childAges.some(age => age.trim() === '' || Number(age) < 0),
       budget: !form.budget.trim() || Number(form.budget) <= 0,
       visaRequired: form.visaRequired === '',
       preferredHotelCategory: form.preferredHotelCategory === '',
       travelPurpose: !form.travelPurpose.trim()
     }
-  }, [form])
+  }, [form, childAges])
 
   const hasError = useMemo(
     () => Object.values(validation).some(Boolean),
@@ -219,6 +223,20 @@ const CreateLead: React.FC = () => {
       .map(value => value.trim())
       .filter(Boolean)
       .join(' ')
+    const cleanChildAges = childAges
+      .map(age => age.trim())
+      .filter(age => age !== '')
+      .map(age => Number(age))
+      .filter(age => Number.isFinite(age) && age >= 0)
+
+    const childAgesNote =
+      form.childrenCount > 0
+        ? `Child Ages: ${cleanChildAges.map(age => String(age)).join(', ')}`
+        : ''
+
+    const mergedNotes = [form.notes.trim(), childAgesNote]
+      .filter(Boolean)
+      .join('\n')
 
     try {
       await leadsService.createLead({
@@ -237,7 +255,7 @@ const CreateLead: React.FC = () => {
         travelPurpose: form.travelPurpose.trim(),
         source: form.leadSource.trim() || 'Website',
         campaignId: form.campaignId || undefined,
-        notes: form.notes.trim() || undefined,
+        notes: mergedNotes || undefined,
         leadType: 'HOLIDAY',
         status: 'OPEN',
         qualificationCompleted: true
@@ -383,15 +401,57 @@ const CreateLead: React.FC = () => {
                   fieldError('adultsChildren') ? 'border-red-500' : ''
                 }`}
                 value={form.childrenCount}
-                onChange={event =>
+                onChange={event => {
+                  const nextCount = Math.max(
+                    0,
+                    Math.floor(Number(event.target.value || 0))
+                  )
                   setForm(prev => ({
                     ...prev,
-                    childrenCount: Number(event.target.value || 0)
+                    childrenCount: nextCount
                   }))
-                }
+                  setChildAges(prev => {
+                    if (nextCount === prev.length) return prev
+                    if (nextCount < prev.length) return prev.slice(0, nextCount)
+                    return [
+                      ...prev,
+                      ...Array.from(
+                        { length: nextCount - prev.length },
+                        () => ''
+                      )
+                    ]
+                  })
+                }}
               />
             </div>
           </div>
+          {form.childrenCount > 0 ? (
+            <div className='md:col-span-2'>
+              <label className='field-label'>Children Ages *</label>
+              <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3'>
+                {Array.from({ length: form.childrenCount }).map((_, index) => (
+                  <input
+                    key={`child-age-${index}`}
+                    type='number'
+                    min={0}
+                    step='any'
+                    placeholder={`Child ${index + 1} age`}
+                    className={`field-input ${
+                      fieldError('childrenAges') ? 'border-red-500' : ''
+                    }`}
+                    value={childAges[index] ?? ''}
+                    onChange={event =>
+                      setChildAges(prev => {
+                        const next = [...prev]
+                        next[index] = event.target.value
+                        return next
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div>
             <label className='field-label'>Budget *</label>
             <input
