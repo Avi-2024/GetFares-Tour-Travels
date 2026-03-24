@@ -13,6 +13,7 @@ import {
 import EmptyState from '../../components/ui/EmptyState'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SurfaceCard from '../../components/ui/SurfaceCard'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import type { LeadListItem } from '../../services/leadsService'
@@ -100,6 +101,17 @@ const Leads: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All Statuses' },
+      ...SOP_STATUS_LABELS.map(status => ({
+        value: status,
+        label: toStatusLabelText(status)
+      }))
+    ],
+    []
+  )
 
   const leadStats = useMemo<LeadStats>(
     () => ({
@@ -212,21 +224,16 @@ const Leads: React.FC = () => {
                   className='w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                 />
               </div>
-              <select
+              <SearchableDropdown
+                className='w-full'
                 value={statusFilter}
-                onChange={event => {
-                  setStatusFilter(event.target.value as SopStatusLabel | 'ALL')
+                options={statusFilterOptions}
+                searchPlaceholder='Search status...'
+                onChange={value => {
+                  setStatusFilter(value as SopStatusLabel | 'ALL')
                   setPage(1)
                 }}
-                className='w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-              >
-                <option value='ALL'>All Statuses</option>
-                {SOP_STATUS_LABELS.map(status => (
-                  <option key={status} value={status}>
-                    {toStatusLabelText(status)}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           </div>
 
