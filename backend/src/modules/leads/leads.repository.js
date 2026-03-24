@@ -213,6 +213,9 @@ function createLeadsRepository({ db, logger, schema }) {
         row.clientCurrency ??
         null,
       nationality: row.nationality ?? null,
+      leadCountry:
+        row.lead_country ?? row.leadCountry ?? row.country ?? null,
+      country: row.lead_country ?? row.leadCountry ?? row.country ?? null,
       destinationId,
       destination: destination ? toDestinationDomain(destination) : null,
       destinationName: destination?.name ?? null,
@@ -259,6 +262,7 @@ function createLeadsRepository({ db, logger, schema }) {
       finalReminderAt: row.final_reminder_at ?? row.finalReminderAt ?? null,
       nonResponsiveMarkedAt:
         row.non_responsive_marked_at ?? row.nonResponsiveMarkedAt ?? null,
+      callsDisabled: row.calls_disabled ?? row.callsDisabled ?? false,
       isDeleted: row.is_deleted ?? row.isDeleted ?? false,
       createdAt: row.created_at ?? row.createdAt ?? null,
       updatedAt: row.updated_at ?? row.updatedAt ?? null,
@@ -294,6 +298,8 @@ function createLeadsRepository({ db, logger, schema }) {
       fullName: row.full_name ?? row.fullName ?? null,
       email: row.email ?? null,
       role: roleName ? String(roleName).toLowerCase() : null,
+      country: row.agent_country ?? row.agentCountry ?? null,
+      agentType: row.agent_type ?? row.agentType ?? null,
       expertiseDestinations: normalizeTextArray(
         row.expertise_destinations ?? row.expertiseDestinations,
       ),
@@ -392,6 +398,10 @@ function createLeadsRepository({ db, logger, schema }) {
 
     if (filters.destinationId) {
       mapped.destination_id = filters.destinationId;
+    }
+
+    if (filters.leadCountry || filters.country) {
+      mapped.lead_country = filters.leadCountry ?? filters.country;
     }
 
     if (filters.campaignId) {

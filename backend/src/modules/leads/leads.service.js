@@ -93,6 +93,38 @@ const ASSIGNMENT_ROLES = Object.freeze({
 });
 
 function createLeadsService({ repository, logger, events }) {
+  function normalizeCategory(value) {
+    if (!value) return null;
+    return String(value).trim().toLowerCase();
+  }
+
+  function normalizeAgentType(value) {
+    if (!value) return null;
+    const normalized = String(value).trim().toUpperCase();
+    if (normalized.includes("VISA")) return "VISA";
+    if (normalized.includes("HOLIDAY")) return "HOLIDAY";
+    if (normalized === "BOTH") return "BOTH";
+    return normalized;
+  }
+
+  function getFollowupPolicy(lead = {}) {
+    const callsDisabled = Boolean(lead.callsDisabled);
+    const requiredCalls = callsDisabled ? 0 : FOLLOWUP_COMPLIANCE_RULES.requiredCalls;
+    const requiredWhatsapp = FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp;
+    const requiredFinalReminders =
+      FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders;
+    const totalRequired = requiredCalls + requiredWhatsapp + requiredFinalReminders;
+
+    return {
+      callsDisabled,
+      requiredCalls,
+      requiredWhatsapp,
+      requiredFinalReminders,
+      totalRequired,
+      allowUnlimitedWhatsapp: callsDisabled,
+      maxFollowups: callsDisabled ? null : 12,
+    };
+  }
   function toPositiveInt(value, fallback, max = 500) {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -115,9 +147,9 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     const normalized = String(value).trim().toUpperCase();
-    if (["HOLIDAY", "VISA", "BOTH"].includes(normalized)) {
-      return normalized;
-    }
+    if (normalized.includes("VISA")) return "VISA";
+    if (normalized.includes("HOLIDAY")) return "HOLIDAY";
+    if (normalized === "BOTH") return "BOTH";
     return "HOLIDAY";
   }
 
@@ -297,24 +329,50 @@ function createLeadsService({ repository, logger, events }) {
     );
   }
 
-  function assertFollowupCompliance(stats) {
-    if (isFollowupComplianceSatisfied(stats)) {
+  function assertFollowupCompliance(stats, rules = {}) {
+    if (isFollowupComplianceSatisfied(stats, rules)) {
       return;
     }
 
+    const requiredCalls =
+      Number.isFinite(rules.requiredCalls) ?
+        rules.requiredCalls
+      : FOLLOWUP_COMPLIANCE_RULES.requiredCalls;
+    const requiredWhatsapp =
+      Number.isFinite(rules.requiredWhatsapp) ?
+        rules.requiredWhatsapp
+      : FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp;
+    const requiredFinalReminders =
+      Number.isFinite(rules.requiredFinalReminders) ?
+        rules.requiredFinalReminders
+      : FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders;
+
     throw new AppError(
       409,
-      `Follow-up compliance not met. Required: ${FOLLOWUP_COMPLIANCE_RULES.requiredCalls} calls, ${FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp} WhatsApp, ${FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders} final reminder.`,
+      `Follow-up compliance not met. Required: ${requiredCalls} calls, ${requiredWhatsapp} WhatsApp, ${requiredFinalReminders} final reminder.`,
       "LEAD_FOLLOWUP_COMPLIANCE_REQUIRED",
       stats,
     );
   }
 
-  function isFollowupComplianceSatisfied(stats) {
+  function isFollowupComplianceSatisfied(stats, rules = {}) {
+    const requiredCalls =
+      Number.isFinite(rules.requiredCalls) ?
+        rules.requiredCalls
+      : FOLLOWUP_COMPLIANCE_RULES.requiredCalls;
+    const requiredWhatsapp =
+      Number.isFinite(rules.requiredWhatsapp) ?
+        rules.requiredWhatsapp
+      : FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp;
+    const requiredFinalReminders =
+      Number.isFinite(rules.requiredFinalReminders) ?
+        rules.requiredFinalReminders
+      : FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders;
+
     if (
-      stats.calls >= FOLLOWUP_COMPLIANCE_RULES.requiredCalls &&
-      stats.whatsapp >= FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp &&
-      stats.finalReminders >= FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders
+      stats.calls >= requiredCalls &&
+      stats.whatsapp >= requiredWhatsapp &&
+      stats.finalReminders >= requiredFinalReminders
     ) {
       return true;
     }
@@ -357,8 +415,10 @@ function createLeadsService({ repository, logger, events }) {
 
   function buildCadenceSlots(lead) {
     const anchor = lead.createdAt ? new Date(lead.createdAt) : new Date();
+    const callsDisabled = Boolean(lead.callsDisabled);
     return CADENCE_TEMPLATE.map((slot) => ({
       ...slot,
+      type: callsDisabled && slot.type === "CALL" ? "WHATSAPP" : slot.type,
       followupDate: toCadenceDate(anchor, slot),
     }));
   }
@@ -374,6 +434,7 @@ function createLeadsService({ repository, logger, events }) {
 
     const assignedTo = payload.assignedTo || null;
     const temperature = determineLeadTemperature(payload);
+    const leadCountry = payload.leadCountry ?? payload.country ?? null;
 
     const mapped = {
       full_name: payload.fullName || null,
@@ -384,12 +445,13 @@ function createLeadsService({ repository, logger, events }) {
       client_currency: payload.clientCurrency || null,
       destination_id: payload.destinationId || null,
       nationality: payload.nationality || null,
+      lead_country: leadCountry,
       travel_date: payload.travelDate || null,
       budget: payload.budget ?? null,
       adults_count: payload.adultsCount ?? 1,
       children_count: payload.childrenCount ?? 0,
       visa_required: payload.visaRequired ?? false,
-      lead_type: normalizeLeadType(payload.leadType),
+      lead_type: normalizeLeadType(payload.leadType ?? payload.type),
       preferred_hotel_category: normalizeHotelCategory(
         payload.preferredHotelCategory,
       ),
@@ -415,6 +477,7 @@ function createLeadsService({ repository, logger, events }) {
       followup_attempts: 0,
       final_reminder_at: null,
       non_responsive_marked_at: null,
+      calls_disabled: payload.callsDisabled ?? false,
     };
 
     if (useCustomerLinking) {
@@ -450,6 +513,9 @@ function createLeadsService({ repository, logger, events }) {
 
     if (payload.destinationId !== undefined) {
       mapped.destination_id = payload.destinationId;
+    }
+    if (payload.leadCountry !== undefined || payload.country !== undefined) {
+      mapped.lead_country = payload.leadCountry ?? payload.country ?? null;
     }
     if (payload.nationality !== undefined) {
       mapped.nationality = payload.nationality;
@@ -487,8 +553,8 @@ function createLeadsService({ repository, logger, events }) {
     if (payload.visaRequired !== undefined) {
       mapped.visa_required = payload.visaRequired;
     }
-    if (payload.leadType !== undefined) {
-      mapped.lead_type = normalizeLeadType(payload.leadType);
+    if (payload.leadType !== undefined || payload.type !== undefined) {
+      mapped.lead_type = normalizeLeadType(payload.leadType ?? payload.type);
     }
     if (payload.preferredHotelCategory !== undefined) {
       mapped.preferred_hotel_category = normalizeHotelCategory(
@@ -538,6 +604,9 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.nextFollowupDate !== undefined) {
       mapped.next_followup_date = payload.nextFollowupDate;
+    }
+    if (payload.callsDisabled !== undefined) {
+      mapped.calls_disabled = payload.callsDisabled;
     }
 
     if (mapped.status && POSITIVE_RESPONSE_STATUSES.has(mapped.status) && !existing.responseAt) {
@@ -620,6 +689,37 @@ function createLeadsService({ repository, logger, events }) {
 
     if (!candidates.length) {
       return null;
+    }
+
+    if (roleName === ASSIGNMENT_ROLES.AGENT) {
+      const leadCountry = normalizeCategory(
+        lead.leadCountry ?? lead.country ?? null,
+      );
+      const leadType = normalizeAgentType(lead.leadType ?? lead.type ?? null);
+      const requiredLeadType = leadType === "BOTH" ? null : leadType;
+
+      if (leadCountry || requiredLeadType) {
+        const scoped = candidates.filter((candidate) => {
+          const agentCountry = normalizeCategory(candidate.country);
+          const agentType = normalizeAgentType(candidate.agentType);
+
+          if (leadCountry && (!agentCountry || agentCountry !== leadCountry)) {
+            return false;
+          }
+          if (
+            requiredLeadType &&
+            (!agentType || (agentType !== requiredLeadType && agentType !== "BOTH"))
+          ) {
+            return false;
+          }
+          return true;
+        });
+
+        if (!scoped.length) {
+          return null;
+        }
+        candidates = scoped;
+      }
     }
 
     let pool = candidates;
@@ -1016,26 +1116,50 @@ function createLeadsService({ repository, logger, events }) {
 
     async createFollowup(leadId, payload, context = {}) {
       const lead = await getById(leadId, context);
+      const policy = getFollowupPolicy(lead);
+      const requestedType = payload.followupType ?
+        String(payload.followupType).trim().toUpperCase()
+      : null;
+
+      if (policy.callsDisabled && requestedType === "CALL") {
+        throw new AppError(
+          409,
+          "Calls are disabled for this lead. Use WhatsApp instead.",
+          "LEAD_CALLS_DISABLED",
+        );
+      }
+
       const compliance = await repository.getFollowupComplianceStats(lead.id);
-      if (isFollowupComplianceSatisfied(compliance)) {
+      const nextAttempt = compliance.total + 1;
+      let normalizedType = requestedType;
+      if (!normalizedType) {
+        if (policy.totalRequired && nextAttempt === policy.totalRequired) {
+          normalizedType = "FINAL_REMINDER";
+        } else {
+          normalizedType = policy.callsDisabled ? "WHATSAPP" : "CALL";
+        }
+      }
+
+      if (policy.callsDisabled && normalizedType === "CALL") {
+        normalizedType = "WHATSAPP";
+      }
+
+      const allowUnlimitedWhatsapp =
+        policy.allowUnlimitedWhatsapp && normalizedType === "WHATSAPP";
+      if (!allowUnlimitedWhatsapp && isFollowupComplianceSatisfied(compliance, policy)) {
         throw new AppError(
           409,
           "Follow-up compliance already achieved for this lead. Use status update flow.",
           "LEAD_FOLLOWUP_LIMIT_REACHED",
         );
       }
-      if (compliance.total >= 12) {
+      if (!allowUnlimitedWhatsapp && policy.maxFollowups && compliance.total >= policy.maxFollowups) {
         throw new AppError(
           409,
           "Maximum follow-up attempts reached for this lead. Use status update flow.",
           "LEAD_FOLLOWUP_LIMIT_REACHED",
         );
       }
-
-      const nextAttempt = compliance.total + 1;
-      const normalizedType =
-        payload.followupType ||
-        (nextAttempt >= FOLLOWUP_TOTAL_REQUIRED ? "FINAL_REMINDER" : "CALL");
 
       const followup = await repository.createFollowup({
         leadId: lead.id,
@@ -1064,7 +1188,7 @@ function createLeadsService({ repository, logger, events }) {
 
       if (
         normalizedType === "FINAL_REMINDER" ||
-        nextAttempt >= FOLLOWUP_TOTAL_REQUIRED
+        (policy.totalRequired && nextAttempt === policy.totalRequired)
       ) {
         updatePayload.final_reminder_at = new Date().toISOString();
       }
@@ -1080,6 +1204,32 @@ function createLeadsService({ repository, logger, events }) {
 
       events.emitFollowupCreated(followup);
       return followup;
+    },
+
+    async disableCalls(leadId, payload = {}, context = {}) {
+      const lead = await getById(leadId, context);
+      const disabled = payload.disabled ?? true;
+
+      if (lead.callsDisabled === disabled) {
+        return lead;
+      }
+
+      const nowIso = new Date().toISOString();
+      const updated = await repository.update(lead.id, {
+        calls_disabled: disabled,
+        updated_at: nowIso,
+      });
+
+      await repository.createActivity({
+        leadId: lead.id,
+        userId: context.user?.id || null,
+        activityType: disabled ? "CALLS_DISABLED" : "CALLS_ENABLED",
+        notes: payload.notes || null,
+      });
+
+      const mapped = withTemperature(updated);
+      events.emitUpdated(mapped);
+      return mapped;
     },
 
     async listFollowups(leadId, context = {}) {
@@ -1168,13 +1318,14 @@ function createLeadsService({ repository, logger, events }) {
       };
 
       for (const lead of candidates) {
+        const policy = getFollowupPolicy(lead);
         const compliance = await repository.getFollowupComplianceStats(lead.id);
-        if (compliance.total < FOLLOWUP_TOTAL_REQUIRED) {
+        if (policy.totalRequired && compliance.total < policy.totalRequired) {
           summary.skipped += 1;
           continue;
         }
         try {
-          assertFollowupCompliance(compliance);
+          assertFollowupCompliance(compliance, policy);
         } catch (_error) {
           summary.skipped += 1;
           continue;
@@ -1265,9 +1416,10 @@ function createLeadsService({ repository, logger, events }) {
           continue;
         }
 
+        const policy = getFollowupPolicy(lead);
         const compliance = await repository.getFollowupComplianceStats(lead.id);
         try {
-          assertFollowupCompliance(compliance);
+          assertFollowupCompliance(compliance, policy);
         } catch (_error) {
           continue;
         }
@@ -1384,7 +1536,8 @@ function createLeadsService({ repository, logger, events }) {
 
       if (nextStatus === "LOST" || nextStatus === NON_RESPONSIVE_STATUS) {
         const compliance = await repository.getFollowupComplianceStats(id);
-        assertFollowupCompliance(compliance);
+        const policy = getFollowupPolicy(existing);
+        assertFollowupCompliance(compliance, policy);
       }
       const useCustomerLinking = await repository.hasLeadCustomerColumn();
       const customerPatch = {};

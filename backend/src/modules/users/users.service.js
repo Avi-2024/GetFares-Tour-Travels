@@ -12,6 +12,17 @@ function mapListFilters(filters = {}) {
   };
 }
 
+function normalizeAgentType(value) {
+  if (!value) {
+    return null;
+  }
+  const normalized = String(value).trim().toUpperCase();
+  if (normalized.includes("VISA")) return "VISA";
+  if (normalized.includes("HOLIDAY")) return "HOLIDAY";
+  if (normalized === "BOTH") return "BOTH";
+  return normalized;
+}
+
 function mapCreatePayload(payload) {
   return {
     role_id: payload.roleId,
@@ -21,6 +32,8 @@ function mapCreatePayload(payload) {
     password_hash: payload.passwordHash,
     is_active: payload.isActive,
     is_on_leave: payload.isOnLeave,
+    agent_country: payload.agentCountry ?? payload.country ?? null,
+    agent_type: normalizeAgentType(payload.agentType ?? payload.type),
     expertise_destinations: payload.expertiseDestinations,
     target_amount: payload.targetAmount,
     incentive_percent: payload.incentivePercent,
@@ -35,6 +48,8 @@ function mapUpdatePayload(payload) {
     phone: payload.phone,
     is_active: payload.isActive,
     is_on_leave: payload.isOnLeave,
+    agent_country: payload.agentCountry ?? payload.country ?? null,
+    agent_type: normalizeAgentType(payload.agentType ?? payload.type),
     expertise_destinations: payload.expertiseDestinations,
     target_amount: payload.targetAmount,
     incentive_percent: payload.incentivePercent,
@@ -56,6 +71,10 @@ function toUser(entity, roleLookup, permissions = []) {
     fullName: entity.full_name,
     email: entity.email,
     phone: entity.phone,
+    agentCountry: entity.agent_country ?? entity.agentCountry ?? null,
+    agentType: entity.agent_type ?? entity.agentType ?? null,
+    country: entity.agent_country ?? entity.agentCountry ?? null,
+    type: entity.agent_type ?? entity.agentType ?? null,
     isActive: entity.is_active,
     isOnLeave: entity.is_on_leave,
     expertiseDestinations: entity.expertise_destinations,

@@ -113,6 +113,14 @@ function createLeadsRoutes({
   );
 
   router.post(
+    "/:id/disable-calls",
+    requireAuth,
+    authorize("leads:update"),
+    validateRequest(validation.disableCalls),
+    asyncHandler(controller.disableCalls),
+  );
+
+  router.post(
     "/:id/followups",
     requireAuth,
     authorize("leads:update"),

@@ -51,6 +51,8 @@ CREATE TABLE users (
     account_locked_until TIMESTAMP,
 
     expertise_destinations TEXT[],
+    agent_country VARCHAR(100),
+    agent_type VARCHAR(40),
 
     target_amount NUMERIC(12,2) CHECK (target_amount >= 0),
     incentive_percent NUMERIC(5,2) CHECK (incentive_percent >= 0 AND incentive_percent <= 100),
@@ -242,6 +244,7 @@ CREATE TABLE leads (
     destination_id UUID REFERENCES destinations(id) ON DELETE SET NULL,
 
     nationality VARCHAR(80),
+    lead_country VARCHAR(100),
     travel_date DATE,
     budget NUMERIC(12,2) CHECK (budget >= 0),
     adults_count INT DEFAULT 1 CHECK (adults_count >= 0),
@@ -283,6 +286,7 @@ CREATE TABLE leads (
     followup_attempts INT DEFAULT 0 CHECK (followup_attempts >= 0),
     final_reminder_at TIMESTAMP,
     non_responsive_marked_at TIMESTAMP,
+    calls_disabled BOOLEAN DEFAULT FALSE,
     is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
