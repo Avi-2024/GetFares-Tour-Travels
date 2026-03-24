@@ -1406,11 +1406,19 @@ const QuotationBuilderPage: React.FC = () => {
                       <span>Add-on Total</span>
                       <span>{money(addOnTotal)}</span>
                     </div>
+                    <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
+                      <span>Services Total</span>
+                      <span>{money(serviceChargesTotal)}</span>
+                    </div>
                   </div>
                 ) : (
-                  <p className='text-xs text-gray-500'>
-                    No add-on services added yet.
-                  </p>
+                  <div className='space-y-2 text-xs text-gray-500'>
+                    <p>No add-on services added yet.</p>
+                    <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
+                      <span>Services Total</span>
+                      <span>{money(serviceChargesTotal)}</span>
+                    </div>
+                  </div>
                 )}
               </div>
               <div className='mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800'>
@@ -1723,13 +1731,13 @@ const QuotationBuilderPage: React.FC = () => {
                       <div className='flex items-center justify-between text-gray-600'>
                         <span>Service Charges</span>
                         <span className='font-medium text-gray-800'>
-                          {money(serviceChargesTotal)}
+                          {money(total)}
                         </span>
                       </div>
                       <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
                         <span>Total Sale Value</span>
                         <span className='text-blue-600'>
-                          {money(serviceChargesTotal)}
+                          {money(total)}
                         </span>
                       </div>
                     </div>
