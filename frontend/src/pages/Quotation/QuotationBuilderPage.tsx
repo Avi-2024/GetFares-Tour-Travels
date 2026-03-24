@@ -9,7 +9,6 @@ import {
   FaEnvelope,
   FaFloppyDisk,
   FaMobileScreen,
-  FaPlaneDeparture,
   FaPlus
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
@@ -555,7 +554,8 @@ const QuotationBuilderPage: React.FC = () => {
   const serviceChargesTotal = useMemo(
     () =>
       Number(
-        (serviceCostRows.reduce((sum, row) => sum + row.sellValue, 0) +
+        (
+          serviceCostRows.reduce((sum, row) => sum + row.sellValue, 0) +
           addOnTotal
         ).toFixed(2)
       ),
@@ -1606,8 +1606,12 @@ const QuotationBuilderPage: React.FC = () => {
                 >
                   <div className='mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800'>
                     <div className='flex items-center gap-2'>
-                      <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white'>
-                        <FaPlaneDeparture />
+                      <div className='flex h-8 w-8 items-center justify-center rounded-lg'>
+                        <img
+                          src='/logo1.png'
+                          alt='Get2Vacation'
+                          className='h-8 w-6'
+                        />
                       </div>
                       <div>
                         <p className='font-semibold'>Get2Vacation Travel CRM</p>
@@ -1736,9 +1740,7 @@ const QuotationBuilderPage: React.FC = () => {
                       </div>
                       <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
                         <span>Total Sale Value</span>
-                        <span className='text-blue-600'>
-                          {money(total)}
-                        </span>
+                        <span className='text-blue-600'>{money(total)}</span>
                       </div>
                     </div>
                   </div>
