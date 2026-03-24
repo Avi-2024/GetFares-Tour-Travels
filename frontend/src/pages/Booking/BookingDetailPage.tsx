@@ -745,7 +745,7 @@ const InvoiceDetailsModal = ({
           </div>
         </div>
 
-        <div className='sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3'>
+        <div className='sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3 invoice-pdf-hidden'>
           <button
             onClick={onDownload}
             className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2'
@@ -955,6 +955,9 @@ const BookingDetailPage: React.FC = () => {
       }
       .invoice-modal-pdf-export .sticky {
         position: static !important;
+      }
+      .invoice-modal-pdf-export .invoice-pdf-hidden {
+        display: none !important;
       }
     `
 
@@ -2315,32 +2318,22 @@ const BookingDetailPage: React.FC = () => {
                 </div>
                 <div className='flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800'>
                   <span className='text-sm text-gray-600 dark:text-gray-400'>
-                    Balance
+                    Total
                   </span>
                   <span className='text-sm font-bold text-gray-900 dark:text-gray-100'>
+                    {formatCurrency(booking.totalAmount, booking.clientCurrency)}
+                  </span>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <span className='text-sm text-gray-600 dark:text-gray-400'>
+                    Paid
+                  </span>
+                  <span className='text-sm font-semibold text-green-600 dark:text-green-400'>
                     {formatCurrency(
-                      booking.advanceRequired - booking.advanceReceived,
+                      booking.advanceReceived,
                       booking.clientCurrency
                     )}
                   </span>
-                </div>
-                <div className='mt-2'>
-                  <div className='flex justify-between items-center mb-1'>
-                    <span className='text-xs text-gray-500 dark:text-gray-400'>
-                      Progress
-                    </span>
-                    <span className='text-xs font-medium text-gray-700 dark:text-gray-300'>
-                      {Math.round(paymentProgress)}%
-                    </span>
-                  </div>
-                  <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
-                    <div
-                      className='bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all'
-                      style={{
-                        width: `${paymentProgress}%`
-                      }}
-                    />
-                  </div>
                 </div>
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${getPaymentStatusColor(
