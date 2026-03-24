@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { FaArrowLeft, FaCheckCircle, FaClock, FaPhone } from 'react-icons/fa'
+import { FaArrowLeft, FaCheckCircle, FaClock } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -45,8 +45,8 @@ const emptyQualification: QualificationForm = {
 }
 
 const REQUIRED_COMPLIANCE = {
-  calls: 4,
-  whatsapp: 2,
+  calls: 6,
+  whatsapp: 7,
   finalReminders: 1
 }
 
@@ -76,6 +76,34 @@ const LeadDetails: React.FC = () => {
   })
   const [followupSaving, setFollowupSaving] = useState(false)
   const [opsRunning, setOpsRunning] = useState(false)
+  const [callsButtonDisabled, setCallsButtonDisabled] = useState(false)
+  const [showDisablePopup, setShowDisablePopup] = useState(false)
+
+  const createdAtLabel = useMemo(() => {
+    const raw =
+      lead?.createdAt ??
+      lead?.created_at ??
+      lead?.createdOn ??
+      lead?.created_on ??
+      lead?.createdDate ??
+      null
+    if (!raw) return 'N/A'
+    const parsed = new Date(raw)
+    if (Number.isNaN(parsed.getTime())) return String(raw)
+    return parsed.toLocaleString()
+  }, [lead])
+
+  const firstFollowupLabel = useMemo(() => {
+    if (!followups.length) return 'N/A'
+    const dates = followups
+      .map(item => item?.followupDate || item?.followup_date || null)
+      .filter(Boolean)
+      .map(value => new Date(value as string))
+      .filter(value => !Number.isNaN(value.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime())
+    if (!dates.length) return 'N/A'
+    return dates[0].toLocaleString()
+  }, [followups])
 
   const hydrateQualification = useCallback((item: any) => {
     setQualification({
@@ -295,7 +323,7 @@ const LeadDetails: React.FC = () => {
     ) {
       setStatusSaving(false)
       setStatusError(
-        'Follow-up compliance is incomplete. Required: 4 calls + 2 WhatsApp + 1 final reminder.'
+        'Follow-up compliance is incomplete. Required: 6 calls + 7 WhatsApp + 1 final reminder.'
       )
       return
     }
@@ -392,6 +420,14 @@ const LeadDetails: React.FC = () => {
 
   const canRunOps = hasPermission('leads:update')
 
+  const handleDisableCalls = () => {
+    setCallsButtonDisabled(true)
+    setShowDisablePopup(true)
+    window.setTimeout(() => {
+      setShowDisablePopup(false)
+    }, 1800)
+  }
+
   return (
     <div className='space-y-6'>
       <div className='flex items-center gap-3'>
@@ -463,12 +499,18 @@ const LeadDetails: React.FC = () => {
                     ? 'First response was late (15-minute target missed)'
                     : 'Within 15-minute first-contact target'}
                 </p>
+                {lead.responseAt ? (
+                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                    {`First contact logged at ${new Date(
+                      lead.responseAt
+                    ).toLocaleString()}.`}
+                  </p>
+                ) : null}
                 <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                  {lead.responseAt
-                    ? `First contact logged at ${new Date(
-                        lead.responseAt
-                      ).toLocaleString()}.`
-                    : 'Scheduling a call does not close this SLA. After the first real conversation, move the lead to Contacted, Negotiation, Follow-up, or Quoted.'}
+                  Date of creation: {createdAtLabel}
+                </p>
+                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                  First follow-up: {firstFollowupLabel}
                 </p>
                 {lead.responseDeadline ? (
                   <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
@@ -513,139 +555,174 @@ const LeadDetails: React.FC = () => {
                   Qualification Capture
                 </p>
                 <div className='mt-3 grid grid-cols-1 gap-2 md:grid-cols-2'>
-                  <input
-                    className='field-input'
-                    placeholder='PAN Number (capture later if not available)'
-                    value={qualification.panNumber}
-                    onChange={event =>
-                      setQualification(prev => ({
-                        ...prev,
-                        panNumber: event.target.value.toUpperCase()
-                      }))
-                    }
-                  />
-                  <SearchableDropdown
-                    value={qualification.clientCurrency}
-                    options={currencyOptions}
-                    searchPlaceholder='Search currency...'
-                    onChange={value =>
-                      setQualification(prev => ({
-                        ...prev,
-                        clientCurrency: value
-                      }))
-                    }
-                  />
-                  <textarea
-                    className='field-input md:col-span-2'
-                    rows={2}
-                    placeholder='Address / Location'
-                    value={qualification.addressLine}
-                    onChange={event =>
-                      setQualification(prev => ({
-                        ...prev,
-                        addressLine: event.target.value
-                      }))
-                    }
-                  />
-                  <input
-                    className='field-input'
-                    placeholder='Destination'
-                    value={qualification.destinationName}
-                    onChange={event =>
-                      setQualification(prev => ({
-                        ...prev,
-                        destinationName: event.target.value
-                      }))
-                    }
-                  />
-                  <input
-                    type='date'
-                    className='field-input'
-                    value={qualification.travelDate}
-                    onChange={event =>
-                      setQualification(prev => ({
-                        ...prev,
-                        travelDate: event.target.value
-                      }))
-                    }
-                  />
-                  <input
-                    type='number'
-                    min={1}
-                    className='field-input'
-                    placeholder='Adults'
-                    value={qualification.adultsCount}
-                    onChange={event =>
-                      setQualification(prev => ({
-                        ...prev,
-                        adultsCount: event.target.value
-                      }))
-                    }
-                  />
-                  <input
-                    type='number'
-                    min={0}
-                    className='field-input'
-                    placeholder='Children'
-                    value={qualification.childrenCount}
-                    onChange={event =>
-                      setQualification(prev => ({
-                        ...prev,
-                        childrenCount: event.target.value
-                      }))
-                    }
-                  />
-                  <input
-                    type='number'
-                    min={0}
-                    className='field-input'
-                    placeholder='Budget'
-                    value={qualification.budget}
-                    onChange={event =>
-                      setQualification(prev => ({
-                        ...prev,
-                        budget: event.target.value
-                      }))
-                    }
-                  />
-                  <SearchableDropdown
-                    value={qualification.visaRequired}
-                    options={visaOptions}
-                    searchPlaceholder='Search visa requirement...'
-                    onChange={value =>
-                      setQualification(prev => ({
-                        ...prev,
-                        visaRequired: value as 'YES' | 'NO' | ''
-                      }))
-                    }
-                  />
-                  <SearchableDropdown
-                    value={qualification.preferredHotelCategory}
-                    options={hotelCategoryOptions}
-                    searchPlaceholder='Search hotel category...'
-                    onChange={value =>
-                      setQualification(prev => ({
-                        ...prev,
-                        preferredHotelCategory: value as
-                          | '3_STAR'
-                          | '4_STAR'
-                          | '5_STAR'
-                          | 'ANY'
-                          | ''
-                      }))
-                    }
-                  />
-                  <input
-                    className='field-input'
-                    placeholder='Travel purpose'
-                    value={qualification.travelPurpose}
-                    onChange={event =>
-                      setQualification(prev => ({
-                        ...prev,
-                        travelPurpose: event.target.value
-                      }))
-                    }
-                  />
+                  <div>
+                    <label className='field-label'>PAN Number (optional)</label>
+                    <input
+                      className='field-input'
+                      placeholder='Enter PAN number'
+                      value={qualification.panNumber}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          panNumber: event.target.value.toUpperCase()
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Client Currency</label>
+                    <SearchableDropdown
+                      value={qualification.clientCurrency}
+                      options={currencyOptions}
+                      searchPlaceholder='Search currency...'
+                      onChange={value =>
+                        setQualification(prev => ({
+                          ...prev,
+                          clientCurrency: value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className='md:col-span-2'>
+                    <label className='field-label'>Address / Location</label>
+                    <textarea
+                      className='field-input'
+                      rows={2}
+                      placeholder='Enter address or location'
+                      value={qualification.addressLine}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          addressLine: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Destination</label>
+                    <input
+                      className='field-input'
+                      placeholder='Enter destination'
+                      value={qualification.destinationName}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          destinationName: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Travel Date</label>
+                    <input
+                      type='date'
+                      className='field-input'
+                      value={qualification.travelDate}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          travelDate: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Adults</label>
+                    <input
+                      type='number'
+                      min={1}
+                      className='field-input no-spinner'
+                      placeholder='Adults'
+                      value={qualification.adultsCount}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          adultsCount: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Children</label>
+                    <input
+                      type='number'
+                      min={0}
+                      className='field-input no-spinner'
+                      placeholder='Children'
+                      value={qualification.childrenCount}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          childrenCount: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Budget</label>
+                    <input
+                      type='number'
+                      min={0}
+                      className='field-input no-spinner'
+                      placeholder='Budget'
+                      value={qualification.budget}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          budget: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Visa Requirement</label>
+                    <SearchableDropdown
+                      value={qualification.visaRequired}
+                      options={visaOptions}
+                      searchPlaceholder='Search visa requirement...'
+                      onChange={value =>
+                        setQualification(prev => ({
+                          ...prev,
+                          visaRequired: value as 'YES' | 'NO' | ''
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>
+                      Preferred Hotel Category
+                    </label>
+                    <SearchableDropdown
+                      value={qualification.preferredHotelCategory}
+                      options={hotelCategoryOptions}
+                      searchPlaceholder='Search hotel category...'
+                      onChange={value =>
+                        setQualification(prev => ({
+                          ...prev,
+                          preferredHotelCategory: value as
+                            | '3_STAR'
+                            | '4_STAR'
+                            | '5_STAR'
+                            | 'ANY'
+                            | ''
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Travel Purpose</label>
+                    <input
+                      className='field-input'
+                      placeholder='Travel purpose'
+                      value={qualification.travelPurpose}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          travelPurpose: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
                 <div className='mt-2 flex items-center justify-between'>
                   <p className='text-xs text-gray-500'>
@@ -705,8 +782,29 @@ const LeadDetails: React.FC = () => {
               Follow-up Compliance
             </p>
             <div className='mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300'>
-              <p>Calls: {compliance.calls} / 4</p>
-              <p>WhatsApp: {compliance.whatsapp} / 2</p>
+              <div className='flex items-center justify-between gap-2'>
+                <p>
+                  Calls: {compliance.calls} / {REQUIRED_COMPLIANCE.calls}
+                </p>
+                <div className='relative'>
+                  {showDisablePopup ? (
+                    <div className='pointer-events-none absolute bottom-full right-0 z-10 mb-1 min-w-[180px] rounded-md bg-gray-900 px-3 py-1.5 text-center text-[10px] font-medium whitespace-nowrap text-white shadow-lg dark:bg-gray-800'>
+                      Calls disabled successfully
+                    </div>
+                  ) : null}
+                  <button
+                    type='button'
+                    disabled={callsButtonDisabled}
+                    onClick={handleDisableCalls}
+                    className='rounded-md bg-red-800 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-700 dark:hover:bg-red-800'
+                  >
+                    {callsButtonDisabled ? 'Disabled' : 'Disable'}
+                  </button>
+                </div>
+              </div>
+              <p>
+                WhatsApp: {compliance.whatsapp} / {REQUIRED_COMPLIANCE.whatsapp}
+              </p>
               <p>Final Reminder: {compliance.finalReminders} / 1</p>
               <p
                 className={
@@ -775,10 +873,9 @@ const LeadDetails: React.FC = () => {
               <button
                 onClick={() => void scheduleFollowup()}
                 disabled={followupSaving}
-                className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60'
+                className='inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60'
               >
-                {followupSaving ? 'Scheduling...' : 'Schedule Follow-up'}
-                <FaPhone />
+                {followupSaving ? 'Submitting...' : 'Submit'}
               </button>
             </div>
           </div>
@@ -873,6 +970,18 @@ const LeadDetails: React.FC = () => {
           </div>
         )}
       </SurfaceCard>
+
+      <style>{`
+        .no-spinner::-webkit-outer-spin-button,
+        .no-spinner::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .no-spinner[type='number'] {
+          -moz-appearance: textfield;
+          appearance: textfield;
+        }
+      `}</style>
     </div>
   )
 }

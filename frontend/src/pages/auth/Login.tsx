@@ -6,8 +6,7 @@ import {
   FaEye,
   FaEyeSlash,
   FaGlobeAsia,
-  FaLock,
-  FaPlaneDeparture,
+  FaLock
 } from 'react-icons/fa'
 import { authApi, rbacApi } from '../../api'
 import { getApiErrorMessage } from '../../api/apiClient'
@@ -28,7 +27,7 @@ const hasPermission = (grantedPermissions: string[], required: string) => {
     .map(normalizePermissionKey)
     .filter(Boolean)
 
-  return normalized.some((permission) => {
+  return normalized.some(permission => {
     if (permission === '*' || permission === requiredKey) return true
     if (permission.endsWith(':*')) {
       const scope = permission.slice(0, -2)
@@ -136,11 +135,18 @@ const Login = () => {
         navigate('/dashboard')
         return
       }
-      const permissionsResponse = await rbacApi.myPermissions().catch(() => null)
+      const permissionsResponse = await rbacApi
+        .myPermissions()
+        .catch(() => null)
       const permissions = permissionsResponse?.data?.permissions ?? []
       navigate(resolveLandingRoute(permissions))
     } catch (err) {
-      setApiError(getApiErrorMessage(err, 'Unable to sign in right now. Please try again.'))
+      setApiError(
+        getApiErrorMessage(
+          err,
+          'Unable to sign in right now. Please try again.'
+        )
+      )
     } finally {
       setSubmitting(false)
     }
@@ -258,8 +264,12 @@ const Login = () => {
             <div className='relative z-10 h-full flex flex-col justify-between'>
               {/* TOP: BRANDING */}
               <div className='flex items-center gap-4 group cursor-default'>
-                <div className='p-3 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl transition-all duration-500 group-hover:scale-110 group-hover:bg-white/15'>
-                  <FaPlaneDeparture className='text-2xl text-blue-400 group-hover:rotate-12 transition-transform duration-500' />
+                <div className='p-0 rounded-2xl transition-all duration-500 group-hover:scale-110'>
+                  <img
+                    src='/logo1.png'
+                    alt='Get2Vacation'
+                    className='h-8 w-6 transition-transform duration-500 group-hover:rotate-12'
+                  />
                 </div>
                 <div className='flex flex-col'>
                   <span className='text-2xl font-black tracking-tighter text-white uppercase'>
@@ -336,8 +346,12 @@ const Login = () => {
             <div className='w-full max-w-md'>
               <div className='rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-2xl shadow-blue-500/10'>
                 <div className='flex items-center gap-3 mb-6'>
-                  <div className='h-12 w-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center'>
-                    <FaPlaneDeparture />
+                  <div className='h-11 w-11 rounded-xl flex items-center justify-center'>
+                    <img
+                      src='/logo1.png'
+                      alt='Get2Vacation'
+                      className='h-8 w-6'
+                    />
                   </div>
                   <div>
                     <p className='text-xs font-semibold uppercase tracking-[0.2em] text-blue-600'>
