@@ -120,27 +120,35 @@ const Leads: React.FC = () => {
     nav(`/leads/${lead.id}`, { state: { lead } })
   }
 
+  const getVisaHolidayLabel = (lead: LeadListItem) => {
+    const source = `${lead.packageName ?? ''} ${lead.statusLabel ?? ''}`
+      .trim()
+      .toLowerCase()
+    return source.includes('visa') ? 'Visa' : 'Holidays'
+  }
+
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-gray-950'>
-      <div className='max-w-9xl mx-auto space-y-6'>
-        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
-          <div>
-            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+    <div className='space-y-4 sm:space-y-6 overflow-x-hidden'>
+      <div className='max-w-9xl mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0'>
+        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
+          <div className='flex flex-col gap-1'>
+            <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
               Leads Management
             </h1>
-            <p className='mt-1 text-sm text-gray-500 dark:text-gray-400'>
+            <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400'>
               SOP-aligned lead pipeline with follow-up and SLA visibility.
             </p>
           </div>
           <button
             onClick={() => nav('/create-lead')}
-            className='inline-flex h-10 min-w-[140px] items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 text-sm font-semibold text-white transition-colors'
+            className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto'
           >
-            <FaPlus /> Create Lead
+            <FaPlus className='mr-2' />
+            <span>Create Lead</span>
           </button>
         </div>
 
-        <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4'>
           <KpiCard
             title='All Leads'
             value={String(leadStats.totalLeads)}
@@ -163,8 +171,8 @@ const Leads: React.FC = () => {
           />
         </div>
 
-        <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
-          <div className='p-4 border-b border-gray-200 dark:border-gray-800 space-y-3'>
+        <SurfaceCard className='p-0 overflow-hidden border border-gray-200 dark:border-gray-800'>
+          <div className='p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 space-y-3'>
             {error ? (
               <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
                 {error}
@@ -236,8 +244,8 @@ const Leads: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className='hidden lg:block overflow-x-auto leads-table-scroll'>
-                <table className='min-w-[1200px] w-full'>
+              <div className='hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll'>
+                <table className='min-w-[1320px] w-full'>
                   <thead className='bg-gray-50 dark:bg-gray-800/50'>
                     <tr>
                       <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
@@ -254,6 +262,9 @@ const Leads: React.FC = () => {
                       </th>
                       <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
                         Destination
+                      </th>
+                      <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                        Visa/Holidays
                       </th>
                       <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
                         Status
@@ -290,6 +301,9 @@ const Leads: React.FC = () => {
                         </td>
                         <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-200'>
                           {lead.destination}
+                        </td>
+                        <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-200'>
+                          {getVisaHolidayLabel(lead)}
                         </td>
                         <td className='px-5 py-4'>
                           <StatusBadge status={lead.statusLabel} />
@@ -328,15 +342,28 @@ const Leads: React.FC = () => {
                         <p className='font-semibold text-gray-900 dark:text-gray-100'>
                           {lead.name}
                         </p>
-                        <p className='text-xs text-gray-500'>{lead.leadId}</p>
+                        <p className='text-xs text-gray-500'>
+                          Lead ID: {lead.leadId}
+                        </p>
                       </div>
                       <StatusBadge status={lead.statusLabel} />
                     </div>
-                    <p className='text-xs text-gray-600 dark:text-gray-300'>
-                      {lead.email} | {lead.phone}
-                    </p>
+                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-1.5'>
+                      <p className='text-xs text-gray-600 dark:text-gray-300'>
+                        <span className='text-gray-500'>Email:</span>{' '}
+                        {lead.email}
+                      </p>
+                      <p className='text-xs text-gray-600 dark:text-gray-300'>
+                        <span className='text-gray-500'>Phone:</span>{' '}
+                        {lead.phone}
+                      </p>
+                    </div>
                     <p className='text-sm text-gray-700 dark:text-gray-200'>
                       {lead.destination}
+                    </p>
+                    <p className='text-xs text-gray-600 dark:text-gray-300'>
+                      <span className='text-gray-500'>Visa/Holidays:</span>{' '}
+                      {getVisaHolidayLabel(lead)}
                     </p>
                     <div className='flex items-center justify-between'>
                       <p
@@ -391,6 +418,11 @@ const Leads: React.FC = () => {
         </SurfaceCard>
 
         <style>{`
+          html,
+          body {
+            overflow-x: hidden;
+          }
+
           .leads-table-scroll {
             scrollbar-width: thin;
             scrollbar-color: rgba(107, 114, 128, 0.22) transparent;
@@ -427,15 +459,15 @@ const KpiCard = ({
   value: string
   icon: React.ReactNode
 }) => (
-  <SurfaceCard className='p-5 hover:shadow-md transition-shadow'>
-    <div className='flex items-center justify-between'>
-      <div>
-        <p className='text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+  <SurfaceCard hoverable className='p-3 sm:p-5'>
+    <div className='flex items-start justify-between'>
+      <div className='min-w-0'>
+        <p className='text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 truncate'>
           {title}
         </p>
-        <h3 className='mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100'>
+        <p className='text-base sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-0.5 sm:mt-1'>
           {value}
-        </h3>
+        </p>
       </div>
       <div className='text-2xl'>{icon}</div>
     </div>
