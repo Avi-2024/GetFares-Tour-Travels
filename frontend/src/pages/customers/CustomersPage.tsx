@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   FaPlus,
   FaSearch,
@@ -10,302 +10,310 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaPhone,
-  FaEnvelope,
-} from "react-icons/fa";
-import { MdOutlineSegment } from "react-icons/md";
-import { getApiErrorMessage } from "../../api/apiClient";
-import { customersApi } from "../../api/customers";
+  FaEnvelope
+} from 'react-icons/fa'
+import { MdOutlineSegment } from 'react-icons/md'
+import { getApiErrorMessage } from '../../api/apiClient'
+import { customersApi } from '../../api/customers'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
 
 interface Customer {
-  id: string;
-  fullName: string;
-  phone?: string;
-  email?: string;
-  preferences?: string;
-  lifetimeValue?: number;
-  segment?: "PLATINUM" | "GOLD" | "SILVER" | "NEW" | string;
-  panNumber?: string;
-  addressLine?: string;
-  clientCurrency?: string;
-  createdAt?: string;
-  totalBookings?: number;
-  lastBookingDate?: string;
+  id: string
+  fullName: string
+  phone?: string
+  email?: string
+  preferences?: string
+  lifetimeValue?: number
+  segment?: 'PLATINUM' | 'GOLD' | 'SILVER' | 'NEW' | string
+  panNumber?: string
+  addressLine?: string
+  clientCurrency?: string
+  createdAt?: string
+  totalBookings?: number
+  lastBookingDate?: string
 }
 
 const CustomersPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [segmentFilter, setSegmentFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("name");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [page, setPage] = useState(1);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const pageSize = 15;
+  const navigate = useNavigate()
+  const [search, setSearch] = useState('')
+  const [segmentFilter, setSegmentFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<string>('name')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [page, setPage] = useState(1)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const pageSize = 15
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([])
 
   // Edit form state
   const [editFormData, setEditFormData] = useState({
-    fullName: "",
-    phone: "",
-    email: "",
-    preferences: "",
-    panNumber: "",
-    addressLine: "",
-    clientCurrency: "USD",
-    segment: "NEW" as Customer["segment"],
-  });
+    fullName: '',
+    phone: '',
+    email: '',
+    preferences: '',
+    panNumber: '',
+    addressLine: '',
+    clientCurrency: 'USD',
+    segment: 'NEW' as Customer['segment']
+  })
 
   const [editFormErrors, setEditFormErrors] = useState({
-    fullName: "",
-    phone: "",
-    email: "",
-    panNumber: "",
-    addressLine: "",
-  });
+    fullName: '',
+    phone: '',
+    email: '',
+    panNumber: '',
+    addressLine: ''
+  })
 
   const segments = [
-    { value: "PLATINUM", label: "Platinum", color: "purple" },
-    { value: "GOLD", label: "Gold", color: "yellow" },
-    { value: "SILVER", label: "Silver", color: "gray" },
-    { value: "NEW", label: "New", color: "blue" },
-  ];
+    { value: 'PLATINUM', label: 'Platinum', color: 'purple' },
+    { value: 'GOLD', label: 'Gold', color: 'yellow' },
+    { value: 'SILVER', label: 'Silver', color: 'gray' },
+    { value: 'NEW', label: 'New', color: 'blue' }
+  ]
 
   const currencies = [
-    { value: "USD", label: "USD - US Dollar" },
-    { value: "EUR", label: "EUR - Euro" },
-    { value: "GBP", label: "GBP - British Pound" },
-    { value: "INR", label: "INR - Indian Rupee" },
-    { value: "AED", label: "AED - UAE Dirham" },
-    { value: "CAD", label: "CAD - Canadian Dollar" },
-    { value: "AUD", label: "AUD - Australian Dollar" },
-  ];
+    { value: 'USD', label: 'USD - US Dollar' },
+    { value: 'EUR', label: 'EUR - Euro' },
+    { value: 'GBP', label: 'GBP - British Pound' },
+    { value: 'INR', label: 'INR - Indian Rupee' },
+    { value: 'AED', label: 'AED - UAE Dirham' },
+    { value: 'CAD', label: 'CAD - Canadian Dollar' },
+    { value: 'AUD', label: 'AUD - Australian Dollar' }
+  ]
+
+  const segmentFilterOptions = [
+    { value: 'all', label: 'All Segments' },
+    ...segments.map(segment => ({ value: segment.value, label: segment.label }))
+  ]
+
+  const sortByOptions = [
+    { value: 'name', label: 'Sort by Name' },
+    { value: 'ltv', label: 'Sort by LTV' },
+    { value: 'bookings', label: 'Sort by Bookings' }
+  ]
 
   const getSegmentClass = (segment: string) => {
     switch (segment) {
-      case "VIP":
-      case "PLATINUM":
-        return "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-900";
-      case "HIGH_VALUE":
-      case "GOLD":
-        return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900";
-      case "REGULAR":
-      case "SILVER":
-        return "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
-      case "NEW":
-        return "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-900";
+      case 'VIP':
+      case 'PLATINUM':
+        return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-900'
+      case 'HIGH_VALUE':
+      case 'GOLD':
+        return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900'
+      case 'REGULAR':
+      case 'SILVER':
+        return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
+      case 'NEW':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-900'
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+        return 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
     }
-  };
+  }
 
   const getSegmentLabel = (segment?: string) => {
-    const match = segments.find((s) => s.value === segment);
-    if (match) return match.label;
-    if (!segment) return "New";
-    return segment.replace("_", " ");
-  };
+    const match = segments.find(s => s.value === segment)
+    if (match) return match.label
+    if (!segment) return 'New'
+    return segment.replace('_', ' ')
+  }
 
   // Filter and search customers
   const filteredCustomers = useMemo(() => {
-    return customers.filter((customer) => {
-      const searchValue = search.toLowerCase();
+    return customers.filter(customer => {
+      const searchValue = search.toLowerCase()
       const searchMatch =
-        (customer.fullName ?? "").toLowerCase().includes(searchValue) ||
-        (customer.email ?? "").toLowerCase().includes(searchValue) ||
-        (customer.phone ?? "").includes(search) ||
-        (customer.panNumber ?? "").toLowerCase().includes(searchValue);
+        (customer.fullName ?? '').toLowerCase().includes(searchValue) ||
+        (customer.email ?? '').toLowerCase().includes(searchValue) ||
+        (customer.phone ?? '').includes(search) ||
+        (customer.panNumber ?? '').toLowerCase().includes(searchValue)
 
       const segmentMatch =
-        segmentFilter === "all" || customer.segment === segmentFilter;
+        segmentFilter === 'all' || customer.segment === segmentFilter
 
-      return searchMatch && segmentMatch;
-    });
-  }, [customers, search, segmentFilter]);
+      return searchMatch && segmentMatch
+    })
+  }, [customers, search, segmentFilter])
 
   const toTimestamp = (value?: string | null) => {
-    if (!value) return 0;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
+    if (!value) return 0
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
 
   const orderedCustomers = useMemo(
     () =>
       [...filteredCustomers].sort((a, b) => {
-        const left = toTimestamp(a.createdAt);
-        const right = toTimestamp(b.createdAt);
+        const left = toTimestamp(a.createdAt)
+        const right = toTimestamp(b.createdAt)
         if (left !== right) {
-          return right - left;
+          return right - left
         }
-        let comparison = 0;
+        let comparison = 0
         switch (sortBy) {
-          case "name":
-            comparison = a.fullName.localeCompare(b.fullName);
-            break;
-          case "ltv":
-            comparison = (a.lifetimeValue ?? 0) - (b.lifetimeValue ?? 0);
-            break;
-          case "bookings":
-            comparison = (a.totalBookings ?? 0) - (b.totalBookings ?? 0);
-            break;
+          case 'name':
+            comparison = a.fullName.localeCompare(b.fullName)
+            break
+          case 'ltv':
+            comparison = (a.lifetimeValue ?? 0) - (b.lifetimeValue ?? 0)
+            break
+          case 'bookings':
+            comparison = (a.totalBookings ?? 0) - (b.totalBookings ?? 0)
+            break
           default:
-            comparison = 0;
+            comparison = 0
         }
-        return sortOrder === "asc" ? comparison : -comparison;
+        return sortOrder === 'asc' ? comparison : -comparison
       }),
-    [filteredCustomers, sortBy, sortOrder],
-  );
+    [filteredCustomers, sortBy, sortOrder]
+  )
 
   // Pagination
-  const totalPages = Math.max(
-    1,
-    Math.ceil(orderedCustomers.length / pageSize),
-  );
+  const totalPages = Math.max(1, Math.ceil(orderedCustomers.length / pageSize))
   const paginatedCustomers = orderedCustomers.slice(
     (page - 1) * pageSize,
-    page * pageSize,
-  );
+    page * pageSize
+  )
 
   const formatCurrency = (amount?: number) => {
-    const safeAmount = Number.isFinite(amount) ? (amount as number) : 0;
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
+    const safeAmount = Number.isFinite(amount) ? (amount as number) : 0
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(safeAmount);
-  };
+      maximumFractionDigits: 0
+    }).format(safeAmount)
+  }
 
   const normalizeCustomers = (response: unknown): Customer[] => {
-    const payload =
-      (response as { data?: unknown })?.data ?? response ?? [];
+    const payload = (response as { data?: unknown })?.data ?? response ?? []
     const data =
       (payload as { data?: unknown })?.data ??
       (payload as { items?: unknown })?.items ??
-      payload;
-    return Array.isArray(data) ? (data as Customer[]) : [];
-  };
+      payload
+    return Array.isArray(data) ? (data as Customer[]) : []
+  }
 
   const loadCustomers = useCallback(async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
     try {
-      const response = await customersApi.list();
-      setCustomers(normalizeCustomers(response));
+      const response = await customersApi.list()
+      setCustomers(normalizeCustomers(response))
     } catch (err) {
-      const message = getApiErrorMessage(err, "Unable to load customers");
-      setError(message);
+      const message = getApiErrorMessage(err, 'Unable to load customers')
+      setError(message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    void loadCustomers();
-  }, [loadCustomers]);
+    void loadCustomers()
+  }, [loadCustomers])
 
   const handleDeleteCustomer = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this customer?"))
-      return;
+    if (!window.confirm('Are you sure you want to delete this customer?'))
+      return
 
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
     try {
-      await customersApi.delete(id);
-      await loadCustomers();
+      await customersApi.delete(id)
+      await loadCustomers()
     } catch (err) {
-      const message = getApiErrorMessage(err, "Failed to delete customer");
-      setError(message);
+      const message = getApiErrorMessage(err, 'Failed to delete customer')
+      setError(message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleEditCustomer = (customer: Customer) => {
-    setEditingCustomer(customer);
+    setEditingCustomer(customer)
     setEditFormData({
       fullName: customer.fullName,
-      phone: customer.phone ?? "",
-      email: customer.email ?? "",
-      preferences: customer.preferences ?? "",
-      panNumber: customer.panNumber ?? "",
-      addressLine: customer.addressLine ?? "",
-      clientCurrency: customer.clientCurrency ?? "USD",
-      segment: (customer.segment ?? "NEW") as Customer["segment"],
-    });
+      phone: customer.phone ?? '',
+      email: customer.email ?? '',
+      preferences: customer.preferences ?? '',
+      panNumber: customer.panNumber ?? '',
+      addressLine: customer.addressLine ?? '',
+      clientCurrency: customer.clientCurrency ?? 'USD',
+      segment: (customer.segment ?? 'NEW') as Customer['segment']
+    })
     setEditFormErrors({
-      fullName: "",
-      phone: "",
-      email: "",
-      panNumber: "",
-      addressLine: "",
-    });
-    setShowEditModal(true);
-  };
+      fullName: '',
+      phone: '',
+      email: '',
+      panNumber: '',
+      addressLine: ''
+    })
+    setShowEditModal(true)
+  }
 
   const validateEditForm = (): boolean => {
     const errors = {
-      fullName: "",
-      phone: "",
-      email: "",
-      panNumber: "",
-      addressLine: "",
-    };
-    let isValid = true;
+      fullName: '',
+      phone: '',
+      email: '',
+      panNumber: '',
+      addressLine: ''
+    }
+    let isValid = true
 
     if (!editFormData.fullName.trim()) {
-      errors.fullName = "Full name is required";
-      isValid = false;
+      errors.fullName = 'Full name is required'
+      isValid = false
     }
 
     if (!editFormData.phone.trim()) {
-      errors.phone = "Phone number is required";
-      isValid = false;
+      errors.phone = 'Phone number is required'
+      isValid = false
     } else if (
       !/^[\+]?[1-9][\d]{0,15}$/.test(
-        editFormData.phone.replace(/[\s\-\(\)]/g, ""),
+        editFormData.phone.replace(/[\s\-\(\)]/g, '')
       )
     ) {
-      errors.phone = "Please enter a valid phone number";
-      isValid = false;
+      errors.phone = 'Please enter a valid phone number'
+      isValid = false
     }
 
     if (!editFormData.email.trim()) {
-      errors.email = "Email is required";
-      isValid = false;
+      errors.email = 'Email is required'
+      isValid = false
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editFormData.email)) {
-      errors.email = "Please enter a valid email address";
-      isValid = false;
+      errors.email = 'Please enter a valid email address'
+      isValid = false
     }
 
     if (!editFormData.panNumber.trim()) {
-      errors.panNumber = "PAN number is required";
-      isValid = false;
+      errors.panNumber = 'PAN number is required'
+      isValid = false
     } else if (
       !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(editFormData.panNumber.toUpperCase())
     ) {
-      errors.panNumber = "Please enter a valid PAN number";
-      isValid = false;
+      errors.panNumber = 'Please enter a valid PAN number'
+      isValid = false
     }
 
     if (!editFormData.addressLine.trim()) {
-      errors.addressLine = "Address is required";
-      isValid = false;
+      errors.addressLine = 'Address is required'
+      isValid = false
     }
 
-    setEditFormErrors(errors);
-    return isValid;
-  };
+    setEditFormErrors(errors)
+    return isValid
+  }
 
   const handleUpdateCustomer = async () => {
-    if (!validateEditForm() || !editingCustomer) return;
+    if (!validateEditForm() || !editingCustomer) return
 
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
 
     try {
       await customersApi.update(editingCustomer.id, {
@@ -316,89 +324,89 @@ const CustomersPage: React.FC = () => {
         panNumber: editFormData.panNumber || undefined,
         addressLine: editFormData.addressLine || undefined,
         clientCurrency: editFormData.clientCurrency || undefined,
-        segment: editFormData.segment,
-      });
+        segment: editFormData.segment
+      })
 
-      setShowEditModal(false);
-      setEditingCustomer(null);
-      await loadCustomers();
+      setShowEditModal(false)
+      setEditingCustomer(null)
+      await loadCustomers()
     } catch (error) {
-      setError(getApiErrorMessage(error, "Failed to update customer"));
+      setError(getApiErrorMessage(error, 'Failed to update customer'))
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleExport = async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
     try {
-      const blob = await customersApi.export();
-      const url = window.URL.createObjectURL(blob as Blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      const blob = await customersApi.export()
+      const url = window.URL.createObjectURL(blob as Blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
     } catch (err) {
-      const message = getApiErrorMessage(err, "Export failed");
-      setError(message);
+      const message = getApiErrorMessage(err, 'Export failed')
+      setError(message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <div className="max-w-8xl mx-auto ">
+    <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100'>
+      <div className='max-w-8xl mx-auto '>
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-0 sm:px-0">
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-0 sm:px-0'>
           <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <p className='text-sm text-gray-500 dark:text-gray-400 mb-1'>
               Customers
             </p>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
               Customer Directory
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
               Manage customer profiles and segmentation data
             </p>
           </div>
           <button
-            onClick={() => navigate("/customers/new")}
-            className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
+            onClick={() => navigate('/customers/new')}
+            className='inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto'
           >
-            <FaPlus className="mr-2" /> New Customer
+            <FaPlus className='mr-2' /> New Customer
           </button>
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 px-0 sm:px-0">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 px-0 sm:px-0'>
+          <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5'>
+            <p className='text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1'>
               Total Customers
             </p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <p className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
               {customers.length}
             </p>
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-              +{customers.filter((c) => c.segment === "NEW").length} new this
+            <p className='text-xs text-green-600 dark:text-green-400 mt-1'>
+              +{customers.filter(c => c.segment === 'NEW').length} new this
               month
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+          <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5'>
+            <p className='text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1'>
               Platinum Customers
             </p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {customers.filter((c) => c.segment === "PLATINUM").length}
+            <p className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+              {customers.filter(c => c.segment === 'PLATINUM').length}
             </p>
-            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+            <p className='text-xs text-purple-600 dark:text-purple-400 mt-1'>
               {(
-                (customers.filter((c) => c.segment === "PLATINUM").length /
+                (customers.filter(c => c.segment === 'PLATINUM').length /
                   (customers.length || 1)) *
                 100
               ).toFixed(1)}
@@ -406,156 +414,140 @@ const CustomersPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+          <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5'>
+            <p className='text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1'>
               Average LTV
             </p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <p className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
               {formatCurrency(
                 customers.length
                   ? customers.reduce(
                       (acc, c) => acc + (c.lifetimeValue ?? 0),
-                      0,
+                      0
                     ) / customers.length
-                  : 0,
+                  : 0
               )}
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+            <p className='text-xs text-blue-600 dark:text-blue-400 mt-1'>
               Per customer
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+          <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5'>
+            <p className='text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1'>
               Total Bookings
             </p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <p className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
               {customers.reduce((acc, c) => acc + (c.totalBookings ?? 0), 0)}
             </p>
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+            <p className='text-xs text-green-600 dark:text-green-400 mt-1'>
               Across all customers
             </p>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 mb-6 mx-0 sm:mx-0">
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-            <div className="flex flex-col gap-4">
+        <div className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 mb-6 mx-0 sm:mx-0'>
+          <div className='p-4 border-b border-gray-100 dark:border-gray-800'>
+            <div className='flex flex-col gap-4'>
               {/* Search */}
-              <div className="w-full relative">
-                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm" />
+              <div className='w-full relative'>
+                <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm' />
                 <input
-                  type="text"
-                  placeholder="Search by name, email, phone, or PAN..."
+                  type='text'
+                  placeholder='Search by name, email, phone, or PAN...'
                   value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
+                  onChange={e => {
+                    setSearch(e.target.value)
+                    setPage(1)
                   }}
-                  className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+                  className='w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500'
                 />
               </div>
 
               {/* Desktop Filters */}
-              <div className="hidden sm:flex flex-col sm:flex-row gap-2 sm:gap-4">
+              <div className='hidden sm:flex flex-col sm:flex-row gap-2 sm:gap-4'>
                 {/* Segment Filter */}
-                <select
+                <SearchableDropdown
                   value={segmentFilter}
-                  onChange={(e) => {
-                    setSegmentFilter(e.target.value);
-                    setPage(1);
+                  options={segmentFilterOptions}
+                  onChange={value => {
+                    setSegmentFilter(value)
+                    setPage(1)
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                >
-                  <option value="all">All Segments</option>
-                  {segments.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
+                  className='flex-1'
+                  searchPlaceholder='Search segment...'
+                />
 
                 {/* Sort By */}
-                <select
+                <SearchableDropdown
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                >
-                  <option value="name">Sort by Name</option>
-                  <option value="ltv">Sort by LTV</option>
-                  <option value="bookings">Sort by Bookings</option>
-                </select>
+                  options={sortByOptions}
+                  onChange={setSortBy}
+                  className='flex-1'
+                  searchPlaceholder='Search sort field...'
+                />
 
                 {/* Sort Order */}
                 <button
                   onClick={() =>
-                    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+                    setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))
                   }
-                  className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                  className='px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap'
                 >
-                  {sortOrder === "asc" ? "↑ Ascending" : "↓ Descending"}
+                  {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
                 </button>
 
                 {/* Export Button */}
                 <button
                   onClick={handleExport}
-                  className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 whitespace-nowrap"
+                  className='px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 whitespace-nowrap'
                 >
                   <FaDownload /> Export
                 </button>
               </div>
 
               {/* Mobile Filter Button */}
-              <div className="sm:hidden">
+              <div className='sm:hidden'>
                 <button
                   onClick={() => setShowMobileFilters(!showMobileFilters)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200"
+                  className='w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200'
                 >
-                  {showMobileFilters ? "Hide Filters" : "Show Filters"}
+                  {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
                 </button>
               </div>
 
               {/* Mobile Filters */}
               {showMobileFilters && (
-                <div className="sm:hidden space-y-3 mt-2">
-                  <select
+                <div className='sm:hidden space-y-3 mt-2'>
+                  <SearchableDropdown
                     value={segmentFilter}
-                    onChange={(e) => {
-                      setSegmentFilter(e.target.value);
-                      setPage(1);
+                    options={segmentFilterOptions}
+                    onChange={value => {
+                      setSegmentFilter(value)
+                      setPage(1)
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                  >
-                    <option value="all">All Segments</option>
-                    {segments.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
+                    searchPlaceholder='Search segment...'
+                  />
 
-                  <select
+                  <SearchableDropdown
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                  >
-                    <option value="name">Sort by Name</option>
-                    <option value="ltv">Sort by LTV</option>
-                    <option value="bookings">Sort by Bookings</option>
-                  </select>
+                    options={sortByOptions}
+                    onChange={setSortBy}
+                    searchPlaceholder='Search sort field...'
+                  />
 
                   <button
                     onClick={() =>
-                      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+                      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))
                     }
-                    className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200"
+                    className='w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200'
                   >
-                    {sortOrder === "asc" ? "↑ Ascending" : "↓ Descending"}
+                    {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
                   </button>
 
                   <button
                     onClick={handleExport}
-                    className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2"
+                    className='w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2'
                   >
                     <FaDownload /> Export
                   </button>
@@ -565,110 +557,110 @@ const CustomersPage: React.FC = () => {
           </div>
 
           {/* Customers Table - Desktop */}
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800/50">
+          <div className='hidden sm:block overflow-x-auto'>
+            <table className='w-full'>
+              <thead className='bg-gray-50 dark:bg-gray-800/50'>
                 <tr>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className='px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Customer
                   </th>
-                  <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className='hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Contact
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className='px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Segment
                   </th>
-                  <th className="hidden md:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className='hidden md:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Lifetime Value
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className='px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Bookings
                   </th>
-                  <th className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className='hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Last Booking
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className='px-3 sm:px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
                 {paginatedCustomers.map((customer: Customer) => (
                   <tr
                     key={customer.id}
-                    className="hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
+                    className='hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-colors cursor-pointer'
                     onClick={() => navigate(`/customers/${customer.id}`)}
                   >
-                    <td className="px-3 sm:px-6 py-4">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <td className='px-3 sm:px-6 py-4'>
+                      <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                         {customer.fullName}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className='text-xs text-gray-500 dark:text-gray-400'>
                         PAN: {customer.panNumber}
                       </p>
                     </td>
-                    <td className="hidden sm:table-cell px-3 sm:px-6 py-4">
-                      <div className="space-y-1">
-                        <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                          <FaPhone className="text-gray-400 dark:text-gray-500 text-xs" />{" "}
+                    <td className='hidden sm:table-cell px-3 sm:px-6 py-4'>
+                      <div className='space-y-1'>
+                        <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
+                          <FaPhone className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
                           {customer.phone}
                         </p>
-                        <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                          <FaEnvelope className="text-gray-400 dark:text-gray-500 text-xs" />{" "}
+                        <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
+                          <FaEnvelope className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
                           {customer.email}
                         </p>
                       </div>
                     </td>
-                    <td className="px-3 sm:px-6 py-4">
+                    <td className='px-3 sm:px-6 py-4'>
                       <span
                         className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium border ${getSegmentClass(
-                          customer.segment ?? "N/A",
+                          customer.segment ?? 'N/A'
                         )}`}
                       >
-                        <MdOutlineSegment className="mr-1" />
+                        <MdOutlineSegment className='mr-1' />
                         {getSegmentLabel(customer.segment)}
                       </span>
                     </td>
-                    <td className="hidden md:table-cell px-3 sm:px-6 py-4">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <td className='hidden md:table-cell px-3 sm:px-6 py-4'>
+                      <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                         {formatCurrency(customer.lifetimeValue)}
                       </p>
                     </td>
-                    <td className="px-3 sm:px-6 py-4">
-                      <p className="text-sm text-gray-900 dark:text-gray-100">
+                    <td className='px-3 sm:px-6 py-4'>
+                      <p className='text-sm text-gray-900 dark:text-gray-100'>
                         {customer.totalBookings ?? 0}
                       </p>
                     </td>
-                    <td className="hidden lg:table-cell px-3 sm:px-6 py-4">
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {customer.lastBookingDate ?? "N/A"}
+                    <td className='hidden lg:table-cell px-3 sm:px-6 py-4'>
+                      <p className='text-sm text-gray-700 dark:text-gray-300'>
+                        {customer.lastBookingDate ?? 'N/A'}
                       </p>
                     </td>
-                    <td className="px-3 sm:px-6 py-4">
+                    <td className='px-3 sm:px-6 py-4'>
                       <div
-                        className="flex justify-end gap-1 sm:gap-2"
-                        onClick={(e) => e.stopPropagation()}
+                        className='flex justify-end gap-1 sm:gap-2'
+                        onClick={e => e.stopPropagation()}
                       >
                         <button
                           onClick={() => navigate(`/customers/${customer.id}`)}
-                          className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                          title="View"
+                          className='p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors'
+                          title='View'
                         >
-                          <FaEye className="text-xs sm:text-sm" />
+                          <FaEye className='text-xs sm:text-sm' />
                         </button>
                         <button
                           onClick={() => handleEditCustomer(customer)}
-                          className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
-                          title="Edit"
+                          className='p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors'
+                          title='Edit'
                         >
-                          <FaEdit className="text-xs sm:text-sm" />
+                          <FaEdit className='text-xs sm:text-sm' />
                         </button>
                         <button
                           onClick={() => handleDeleteCustomer(customer.id)}
-                          className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                          title="Delete"
+                          className='p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors'
+                          title='Delete'
                         >
-                          <FaTrash className="text-xs sm:text-sm" />
+                          <FaTrash className='text-xs sm:text-sm' />
                         </button>
                       </div>
                     </td>
@@ -679,55 +671,55 @@ const CustomersPage: React.FC = () => {
           </div>
 
           {/* Customers Cards - Mobile */}
-          <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-800">
-            {paginatedCustomers.map((customer) => (
+          <div className='sm:hidden divide-y divide-gray-100 dark:divide-gray-800'>
+            {paginatedCustomers.map(customer => (
               <div
                 key={customer.id}
-                className="p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors"
+                className='p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors'
               >
                 {/* Header */}
-                <div className="flex items-start justify-between">
+                <div className='flex items-start justify-between'>
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                       {customer.fullName}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className='text-xs text-gray-500 dark:text-gray-400'>
                       PAN: {customer.panNumber}
                     </p>
                   </div>
                   <span
                     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getSegmentClass(
-                      customer.segment ?? "N/A",
+                      customer.segment ?? 'N/A'
                     )}`}
                   >
-                    <MdOutlineSegment className="mr-1" />
+                    <MdOutlineSegment className='mr-1' />
                     {getSegmentLabel(customer.segment)}
                   </span>
                 </div>
 
                 {/* Contact */}
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                    <FaPhone className="text-gray-400 dark:text-gray-500 text-xs" />{" "}
+                <div className='space-y-1'>
+                  <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
+                    <FaPhone className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
                     {customer.phone}
                   </p>
-                  <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                    <FaEnvelope className="text-gray-400 dark:text-gray-500 text-xs" />{" "}
+                  <p className='text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1'>
+                    <FaEnvelope className='text-gray-400 dark:text-gray-500 text-xs' />{' '}
                     {customer.email}
                   </p>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className='grid grid-cols-2 gap-2'>
                   <div>
-                    <p className="text-xs text-gray-500">Lifetime Value</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <p className='text-xs text-gray-500'>Lifetime Value</p>
+                    <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                       {formatCurrency(customer.lifetimeValue)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Bookings</p>
-                    <p className="text-sm text-gray-900 dark:text-gray-100">
+                    <p className='text-xs text-gray-500'>Bookings</p>
+                    <p className='text-sm text-gray-900 dark:text-gray-100'>
                       {customer.totalBookings ?? 0}
                     </p>
                   </div>
@@ -735,34 +727,34 @@ const CustomersPage: React.FC = () => {
 
                 {/* Last Booking */}
                 <div>
-                  <p className="text-xs text-gray-500">Last Booking</p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    {customer.lastBookingDate ?? "N/A"}
+                  <p className='text-xs text-gray-500'>Last Booking</p>
+                  <p className='text-sm text-gray-700 dark:text-gray-300'>
+                    {customer.lastBookingDate ?? 'N/A'}
                   </p>
                 </div>
 
                 {/* Actions */}
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <div className='flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-800'>
                   <button
                     onClick={() => navigate(`/customers/${customer.id}`)}
-                    className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                    title="View"
+                    className='p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors'
+                    title='View'
                   >
-                    <FaEye className="text-sm" />
+                    <FaEye className='text-sm' />
                   </button>
                   <button
                     onClick={() => handleEditCustomer(customer)}
-                    className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
-                    title="Edit"
+                    className='p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors'
+                    title='Edit'
                   >
-                    <FaEdit className="text-sm" />
+                    <FaEdit className='text-sm' />
                   </button>
                   <button
                     onClick={() => handleDeleteCustomer(customer.id)}
-                    className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                    title="Delete"
+                    className='p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors'
+                    title='Delete'
                   >
-                    <FaTrash className="text-sm" />
+                    <FaTrash className='text-sm' />
                   </button>
                 </div>
               </div>
@@ -770,28 +762,28 @@ const CustomersPage: React.FC = () => {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-800 px-6 py-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Showing{" "}
+          <div className='flex items-center justify-between border-t border-gray-100 dark:border-gray-800 px-6 py-4'>
+            <p className='text-sm text-gray-500 dark:text-gray-400'>
+              Showing{' '}
               {Math.min(filteredCustomers.length, (page - 1) * pageSize + 1)}-
-              {Math.min(filteredCustomers.length, page * pageSize)} of{" "}
+              {Math.min(filteredCustomers.length, page * pageSize)} of{' '}
               {filteredCustomers.length}
             </p>
-            <div className="flex gap-2">
+            <div className='flex gap-2'>
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1 border border-gray-300 dark:border-gray-700 rounded-lg text-sm disabled:opacity-50 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className='px-3 py-1 border border-gray-300 dark:border-gray-700 rounded-lg text-sm disabled:opacity-50 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors'
               >
                 <FaChevronLeft />
               </button>
-              <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium">
+              <span className='px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium'>
                 {page}
               </span>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-1 border border-gray-300 dark:border-gray-700 rounded-lg text-sm disabled:opacity-50 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className='px-3 py-1 border border-gray-300 dark:border-gray-700 rounded-lg text-sm disabled:opacity-50 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors'
               >
                 <FaChevronRight />
               </button>
@@ -801,50 +793,50 @@ const CustomersPage: React.FC = () => {
 
         {/* Edit Customer Modal */}
         {showEditModal && editingCustomer && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-              <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <div className='fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4'>
+            <div className='bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-4xl max-h-[90vh] overflow-y-auto'>
+              <div className='px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center'>
+                <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
                   Edit Customer - {editingCustomer.fullName}
                 </h2>
                 <button
                   onClick={() => setShowEditModal(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className='text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="p-6 space-y-6">
+              <div className='p-6 space-y-6'>
                 {/* Personal Information */}
                 <div>
-                  <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">
+                  <h3 className='text-md font-medium text-gray-900 dark:text-gray-100 mb-4'>
                     Personal Information
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                     {/* Full Name */}
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Full Name <span className="text-red-500">*</span>
+                    <div className='md:col-span-2'>
+                      <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                        Full Name <span className='text-red-500'>*</span>
                       </label>
                       <input
-                        type="text"
+                        type='text'
                         value={editFormData.fullName}
-                        onChange={(e) =>
-                          setEditFormData((prev) => ({
+                        onChange={e =>
+                          setEditFormData(prev => ({
                             ...prev,
-                            fullName: e.target.value,
+                            fullName: e.target.value
                           }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
                           editFormErrors.fullName
-                            ? "border-red-500"
-                            : "border-gray-300 dark:border-gray-700"
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        placeholder="Enter full name"
+                        placeholder='Enter full name'
                       />
                       {editFormErrors.fullName && (
-                        <p className="mt-1 text-xs text-red-500">
+                        <p className='mt-1 text-xs text-red-500'>
                           {editFormErrors.fullName}
                         </p>
                       )}
@@ -852,27 +844,27 @@ const CustomersPage: React.FC = () => {
 
                     {/* Phone */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Phone Number <span className="text-red-500">*</span>
+                      <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                        Phone Number <span className='text-red-500'>*</span>
                       </label>
                       <input
-                        type="tel"
+                        type='tel'
                         value={editFormData.phone}
-                        onChange={(e) =>
-                          setEditFormData((prev) => ({
+                        onChange={e =>
+                          setEditFormData(prev => ({
                             ...prev,
-                            phone: e.target.value,
+                            phone: e.target.value
                           }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
                           editFormErrors.phone
-                            ? "border-red-500"
-                            : "border-gray-300 dark:border-gray-700"
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        placeholder="+1 555 0123"
+                        placeholder='+1 555 0123'
                       />
                       {editFormErrors.phone && (
-                        <p className="mt-1 text-xs text-red-500">
+                        <p className='mt-1 text-xs text-red-500'>
                           {editFormErrors.phone}
                         </p>
                       )}
@@ -880,27 +872,27 @@ const CustomersPage: React.FC = () => {
 
                     {/* Email */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Email Address <span className="text-red-500">*</span>
+                      <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                        Email Address <span className='text-red-500'>*</span>
                       </label>
                       <input
-                        type="email"
+                        type='email'
                         value={editFormData.email}
-                        onChange={(e) =>
-                          setEditFormData((prev) => ({
+                        onChange={e =>
+                          setEditFormData(prev => ({
                             ...prev,
-                            email: e.target.value,
+                            email: e.target.value
                           }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
                           editFormErrors.email
-                            ? "border-red-500"
-                            : "border-gray-300 dark:border-gray-700"
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        placeholder="customer@example.com"
+                        placeholder='customer@example.com'
                       />
                       {editFormErrors.email && (
-                        <p className="mt-1 text-xs text-red-500">
+                        <p className='mt-1 text-xs text-red-500'>
                           {editFormErrors.email}
                         </p>
                       )}
@@ -908,28 +900,28 @@ const CustomersPage: React.FC = () => {
 
                     {/* PAN Number */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        PAN Number <span className="text-red-500">*</span>
+                      <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                        PAN Number <span className='text-red-500'>*</span>
                       </label>
                       <input
-                        type="text"
+                        type='text'
                         value={editFormData.panNumber}
-                        onChange={(e) =>
-                          setEditFormData((prev) => ({
+                        onChange={e =>
+                          setEditFormData(prev => ({
                             ...prev,
-                            panNumber: e.target.value.toUpperCase(),
+                            panNumber: e.target.value.toUpperCase()
                           }))
                         }
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
                           editFormErrors.panNumber
-                            ? "border-red-500"
-                            : "border-gray-300 dark:border-gray-700"
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        placeholder="ABCDE1234F"
+                        placeholder='ABCDE1234F'
                         maxLength={10}
                       />
                       {editFormErrors.panNumber && (
-                        <p className="mt-1 text-xs text-red-500">
+                        <p className='mt-1 text-xs text-red-500'>
                           {editFormErrors.panNumber}
                         </p>
                       )}
@@ -937,50 +929,48 @@ const CustomersPage: React.FC = () => {
 
                     {/* Currency */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                         Preferred Currency
                       </label>
-                      <select
+                      <SearchableDropdown
                         value={editFormData.clientCurrency}
-                        onChange={(e) =>
-                          setEditFormData((prev) => ({
+                        options={currencies.map(currency => ({
+                          value: currency.value,
+                          label: currency.label
+                        }))}
+                        onChange={value =>
+                          setEditFormData(prev => ({
                             ...prev,
-                            clientCurrency: e.target.value,
+                            clientCurrency: value
                           }))
                         }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                      >
-                        {currencies.map((currency) => (
-                          <option key={currency.value} value={currency.value}>
-                            {currency.label}
-                          </option>
-                        ))}
-                      </select>
+                        searchPlaceholder='Search currency...'
+                      />
                     </div>
 
                     {/* Address */}
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Address <span className="text-red-500">*</span>
+                    <div className='md:col-span-2'>
+                      <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                        Address <span className='text-red-500'>*</span>
                       </label>
                       <textarea
                         value={editFormData.addressLine}
-                        onChange={(e) =>
-                          setEditFormData((prev) => ({
+                        onChange={e =>
+                          setEditFormData(prev => ({
                             ...prev,
-                            addressLine: e.target.value,
+                            addressLine: e.target.value
                           }))
                         }
                         rows={3}
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 resize-none ${
                           editFormErrors.addressLine
-                            ? "border-red-500"
-                            : "border-gray-300 dark:border-gray-700"
+                            ? 'border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        placeholder="Enter complete address"
+                        placeholder='Enter complete address'
                       />
                       {editFormErrors.addressLine && (
-                        <p className="mt-1 text-xs text-red-500">
+                        <p className='mt-1 text-xs text-red-500'>
                           {editFormErrors.addressLine}
                         </p>
                       )}
@@ -990,49 +980,47 @@ const CustomersPage: React.FC = () => {
 
                 {/* Preferences & Segmentation */}
                 <div>
-                  <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">
+                  <h3 className='text-md font-medium text-gray-900 dark:text-gray-100 mb-4'>
                     Preferences & Segmentation
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                     {/* Customer Segment */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                         Customer Segment
                       </label>
-                      <select
+                      <SearchableDropdown
                         value={editFormData.segment}
-                        onChange={(e) =>
-                          setEditFormData((prev) => ({
+                        options={segments.map(segment => ({
+                          value: segment.value,
+                          label: segment.label
+                        }))}
+                        onChange={value =>
+                          setEditFormData(prev => ({
                             ...prev,
-                            segment: e.target.value as Customer["segment"],
+                            segment: value as Customer['segment']
                           }))
                         }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-                      >
-                        {segments.map((segment) => (
-                          <option key={segment.value} value={segment.value}>
-                            {segment.label}
-                          </option>
-                        ))}
-                      </select>
+                        searchPlaceholder='Search segment...'
+                      />
                     </div>
 
                     {/* Travel Preferences */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                         Travel Preferences
                       </label>
                       <textarea
                         value={editFormData.preferences}
-                        onChange={(e) =>
-                          setEditFormData((prev) => ({
+                        onChange={e =>
+                          setEditFormData(prev => ({
                             ...prev,
-                            preferences: e.target.value,
+                            preferences: e.target.value
                           }))
                         }
                         rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 resize-none"
-                        placeholder="e.g., Beach resorts, All-inclusive packages, etc."
+                        className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 resize-none'
+                        placeholder='e.g., Beach resorts, All-inclusive packages, etc.'
                       />
                     </div>
                   </div>
@@ -1040,33 +1028,33 @@ const CustomersPage: React.FC = () => {
 
                 {/* Error Message */}
                 {error && (
-                  <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                    <p className="text-sm text-red-700 dark:text-red-400">
+                  <div className='bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-3'>
+                    <p className='text-sm text-red-700 dark:text-red-400'>
                       {error}
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+              <div className='px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3'>
                 <button
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className='px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700'
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdateCustomer}
                   disabled={loading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-lg flex items-center gap-2"
+                  className='px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-lg flex items-center gap-2'
                 >
                   {loading ? (
                     <>
-                      <span className="animate-spin">⌛</span>
+                      <span className='animate-spin'>⌛</span>
                       Updating...
                     </>
                   ) : (
-                    "Update Customer"
+                    'Update Customer'
                   )}
                 </button>
               </div>
@@ -1075,11 +1063,7 @@ const CustomersPage: React.FC = () => {
         )}
       </div>
     </main>
-  );
-};
+  )
+}
 
-export default CustomersPage;
-
-
-
-
+export default CustomersPage
