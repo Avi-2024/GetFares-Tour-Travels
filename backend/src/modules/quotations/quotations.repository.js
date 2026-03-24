@@ -651,6 +651,113 @@ function createQuotationsRepository({ db, logger, schema }) {
 
   return Object.freeze({
     async findAll(filters = {}) {
+      if (filters.availableForBooking) {
+        const requestedStatus =
+          filters.status ? String(filters.status).trim().toUpperCase() : null;
+        if (requestedStatus && requestedStatus !== "APPROVED") {
+          return [];
+        }
+
+        const limit =
+          Number.isFinite(filters.limit) && Number(filters.limit) > 0 ?
+            Math.floor(Number(filters.limit))
+          : null;
+        const page =
+          Number.isFinite(filters.page) && Number(filters.page) > 0 ?
+            Math.floor(Number(filters.page))
+          : null;
+        const offset = limit && page ? (page - 1) * limit : null;
+
+        if (canUseRawQuery()) {
+          const values = ["APPROVED"];
+          const clauses = [
+            "q.status = $1",
+            "q.is_deleted = FALSE",
+            "b.id IS NULL",
+          ];
+
+          if (filters.leadId) {
+            values.push(filters.leadId);
+            clauses.push(`q.lead_id = $${values.length}`);
+          }
+          if (filters.createdBy) {
+            values.push(filters.createdBy);
+            clauses.push(`q.created_by = $${values.length}`);
+          }
+          if (filters.templateId) {
+            values.push(filters.templateId);
+            clauses.push(`q.template_id = $${values.length}`);
+          }
+          if (filters.requiresApproval !== undefined) {
+            values.push(toBoolean(filters.requiresApproval));
+            clauses.push(`q.requires_approval = $${values.length}`);
+          }
+
+          let query = `
+            SELECT q.*
+            FROM ${schema.tableName} q
+            LEFT JOIN ${schema.bookingsTable} b
+              ON b.quotation_id = q.id
+             AND b.is_deleted = FALSE
+            WHERE ${clauses.join(" AND ")}
+            ORDER BY q.created_at DESC
+          `;
+
+          if (limit) {
+            values.push(limit);
+            query += ` LIMIT $${values.length}`;
+          }
+          if (offset !== null) {
+            values.push(offset);
+            query += ` OFFSET $${values.length}`;
+          }
+
+          const result = await db.query(query, values);
+          return result.rows.map((row) => toQuotation(row));
+        }
+
+        const mappedFilters = {
+          status: "APPROVED",
+          is_deleted: false,
+        };
+        if (filters.leadId) {
+          mappedFilters.lead_id = filters.leadId;
+        }
+        if (filters.createdBy) {
+          mappedFilters.created_by = filters.createdBy;
+        }
+        if (filters.templateId) {
+          mappedFilters.template_id = filters.templateId;
+        }
+        if (filters.requiresApproval !== undefined) {
+          mappedFilters.requires_approval = toBoolean(filters.requiresApproval);
+        }
+        if (limit) {
+          mappedFilters.limit = limit;
+        }
+        if (offset !== null) {
+          mappedFilters.offset = offset;
+        }
+
+        const rows = await db.findMany(schema.tableName, mappedFilters);
+        const bookings = await db.findMany(schema.bookingsTable, {});
+        const bookedIds = new Set(
+          bookings
+            .filter((row) => !(row.is_deleted ?? row.isDeleted))
+            .map((row) => row.quotation_id ?? row.quotationId)
+            .filter(Boolean),
+        );
+        const list = rows
+          .filter((row) => !bookedIds.has(row.id))
+          .map((row) => toQuotation(row));
+
+        return list.sort((a, b) => {
+          const left = new Date(a.createdAt || 0).getTime();
+          const right = new Date(b.createdAt || 0).getTime();
+          return right - left;
+        });
+      }
+
       const mappedFilters = {};
 
       if (filters.status) {

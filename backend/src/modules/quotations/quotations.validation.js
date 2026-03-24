@@ -111,6 +111,7 @@ const list = z.object({
       leadId: z.string().uuid().optional(),
       createdBy: z.string().uuid().optional(),
       includeItems: z.coerce.boolean().optional(),
+      availableForBooking: z.coerce.boolean().optional(),
     })
     .optional(),
 });

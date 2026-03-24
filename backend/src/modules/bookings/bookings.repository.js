@@ -773,6 +773,7 @@ function createBookingsRepository({ db, logger, schema }) {
         id: row.id,
         status: row.status,
         leadId: row.lead_id ?? row.leadId ?? null,
+        isDeleted: row.is_deleted ?? row.isDeleted ?? false,
       };
     },
 
