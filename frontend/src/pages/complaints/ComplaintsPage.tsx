@@ -72,7 +72,7 @@ type BookingMeta = {
   bookingNumber?: string
 }
 
-const extractRows = <T>(response: unknown): T[] => {
+const extractRows = <T,>(response: unknown): T[] => {
   const payload = response as {
     data?: { data?: T[]; items?: T[] } | T[]
   }

@@ -989,11 +989,11 @@ const CustomersPage: React.FC = () => {
                       <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                         Customer Segment
                       </label>
-                      <SearchableDropdown
-                        value={editFormData.segment}
-                        options={segments.map(segment => ({
-                          value: segment.value,
-                          label: segment.label
+	                      <SearchableDropdown
+	                        value={editFormData.segment ?? 'NEW'}
+	                        options={segments.map(segment => ({
+	                          value: segment.value,
+	                          label: segment.label
                         }))}
                         onChange={value =>
                           setEditFormData(prev => ({

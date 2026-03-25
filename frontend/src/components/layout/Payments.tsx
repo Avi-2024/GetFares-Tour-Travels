@@ -81,7 +81,7 @@ const statusClasses: Record<TxStatus, string> = {
 
 const initialTransactions: Transaction[] = []
 
-const unwrapData = <T>(response: unknown): T | null => {
+const unwrapData = <T,>(response: unknown): T | null => {
   if (!response) return null
   if (typeof response === 'object' && response && 'data' in response) {
     return (response as { data: T }).data ?? null
