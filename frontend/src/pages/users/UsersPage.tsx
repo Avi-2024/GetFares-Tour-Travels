@@ -21,6 +21,7 @@ interface User {
   fullName: string
   email: string
   phone?: string
+  country?: string
   role?: string
   roleId?: string
   permissions?: string[]
@@ -179,6 +180,7 @@ const UserFormModal = ({
           fullName: user.fullName,
           email: user.email,
           phone: user.phone || '',
+          country: user.country || '',
           role: user.roleId || '',
           password: '',
           isActive: user.isActive
@@ -187,6 +189,7 @@ const UserFormModal = ({
           fullName: '',
           email: '',
           phone: '',
+          country: '',
           role: '',
           password: '',
           isActive: true
@@ -275,6 +278,23 @@ const UserFormModal = ({
             />
           </div>
 
+          <div>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+              Country <span className='text-red-500'>*</span>
+            </label>
+            <select
+              required
+              value={formData.country}
+              onChange={e =>
+                setFormData({ ...formData, country: e.target.value })
+              }
+              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
+            >
+              <option value=''>Select country</option>
+              <option value='India'>India</option>
+              <option value='Dubai'>Dubai</option>
+            </select>
+          </div>
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
               Role
@@ -700,6 +720,10 @@ const UsersPage: React.FC = () => {
       showToast('Password must be at least 8 characters.', 'error')
       return
     }
+    if (!formData.country?.trim()) {
+      showToast('Please select a country.', 'error')
+      return
+    }
     if (!isValidPhone(formData.phone)) {
       showToast('Phone number must be 6-20 digits.', 'error')
       return
@@ -712,6 +736,7 @@ const UsersPage: React.FC = () => {
         fullName: formData.fullName,
         email: formData.email,
         phone: normalizePhone(formData.phone),
+        country: formData.country,
         password: formData.password,
         roleId: roleId || undefined,
         roleName: roleName || undefined,
@@ -753,6 +778,7 @@ const UsersPage: React.FC = () => {
         fullName: formData.fullName,
         email: formData.email,
         phone: normalizePhone(formData.phone),
+        country: formData.country,
         roleId: roleId ?? null,
         roleName: roleName || undefined,
         isActive: formData.isActive
@@ -942,7 +968,7 @@ const UsersPage: React.FC = () => {
 
       <div className='max-w-8xl mx-auto px-0 sm:px-6 lg:px-0 py-4 sm:py-6 lg:py-8'>
         {/* Header */}
-        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6'>
+        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 -mt-2 sm:-mt-4 lg:-mt-8'>
           <div>
             <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
               User Management
@@ -1252,3 +1278,5 @@ const UsersPage: React.FC = () => {
 }
 
 export default UsersPage
+
+
