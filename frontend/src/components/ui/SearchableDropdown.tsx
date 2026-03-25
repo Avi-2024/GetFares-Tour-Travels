@@ -19,6 +19,7 @@ type SearchableDropdownProps = {
   disabled?: boolean
   hasError?: boolean
   searchPlaceholder?: string
+  dropdownPlacement?: 'down' | 'up'
 }
 
 const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
@@ -29,7 +30,8 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   className = '',
   disabled = false,
   hasError = false,
-  searchPlaceholder = 'Search...'
+  searchPlaceholder = 'Search...',
+  dropdownPlacement = 'down'
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -91,7 +93,11 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
       </button>
 
       {isOpen ? (
-        <div className='absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900'>
+        <div
+          className={`absolute z-20 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900 ${
+            dropdownPlacement === 'up' ? 'bottom-full mb-2' : 'mt-2'
+          }`}
+        >
           <div className='border-b border-gray-100 p-2 dark:border-gray-800'>
             <div className='relative'>
               <FaSearch className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />

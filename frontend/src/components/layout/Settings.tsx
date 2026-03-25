@@ -5,6 +5,7 @@ import {
   FaFilter,
   FaPlus,
   FaMagnifyingGlass,
+  FaEarthAmericas,
   FaShield,
   FaTrash,
   FaUserPlus,
@@ -83,6 +84,13 @@ type SettingsResponse = {
   integrations?: Partial<IntegrationSettingsForm>
 }
 
+type CountryCode = 'India' | 'UAE'
+
+const COUNTRY_OPTIONS: Array<{ value: CountryCode; label: string }> = [
+  { value: 'India', label: 'India' },
+  { value: 'UAE', label: 'UAE' }
+]
+
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'user-management', label: 'User Management' },
   { id: 'roles-permissions', label: 'Roles & Permissions' },
@@ -139,7 +147,7 @@ const getRoleLabel = (
   roleMap: Map<string, string>
 ) => roleName ?? roleMap.get(roleId ?? '') ?? '-'
 
-const extractRows = <T>(response: unknown): T[] => {
+function extractRows<T>(response: unknown): T[] {
   const payload = response as { data?: T[] | { data?: T[]; items?: T[] } }
   if (Array.isArray(payload?.data)) return payload.data
   const nested = payload?.data as { data?: T[]; items?: T[] } | undefined
@@ -148,7 +156,7 @@ const extractRows = <T>(response: unknown): T[] => {
   return Array.isArray(response) ? (response as T[]) : []
 }
 
-const extractObject = <T extends object>(response: unknown): T | null => {
+function extractObject<T extends object>(response: unknown): T | null {
   if (!response || typeof response !== 'object') return null
   const payload = response as { data?: unknown }
   if (payload.data && typeof payload.data === 'object') return payload.data as T
@@ -200,6 +208,13 @@ const Settings: React.FC = () => {
   const [rolePermissionCounts, setRolePermissionCounts] = useState<
     Record<string, number>
   >({})
+  const [roleCountryOverrides, setRoleCountryOverrides] = useState<
+    Record<string, CountryCode>
+  >({})
+  const [selectedRoleCountry, setSelectedRoleCountry] =
+    useState<CountryCode>('India')
+  const [adminCountryFilter, setAdminCountryFilter] =
+    useState<CountryCode>('India')
   const [loadingRolePermissions, setLoadingRolePermissions] = useState(false)
   const [savingRolePermissions, setSavingRolePermissions] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
@@ -444,10 +459,34 @@ const Settings: React.FC = () => {
     }))
   }, [users, roles, rolePermissionCounts])
 
+  const roleCountryMap = useMemo(
+    () =>
+      new Map<string, CountryCode>(
+        roleStats.map((role, index) => [
+          role.id,
+          (index % 2 === 0 ? 'India' : 'UAE') as CountryCode
+        ])
+      ),
+    [roleStats]
+  )
+
+  const getRoleCountry = useCallback(
+    (roleId?: string): CountryCode => {
+      if (!roleId) return 'India'
+      return roleCountryOverrides[roleId] || roleCountryMap.get(roleId) || 'India'
+    },
+    [roleCountryOverrides, roleCountryMap]
+  )
+
   const selectedRole = useMemo(
     () => roles.find(role => role.id === selectedRolePermissionsRoleId) ?? null,
     [roles, selectedRolePermissionsRoleId]
   )
+
+  useEffect(() => {
+    if (!selectedRolePermissionsRoleId) return
+    setSelectedRoleCountry(getRoleCountry(selectedRolePermissionsRoleId))
+  }, [selectedRolePermissionsRoleId, getRoleCountry])
 
   const loadRolePermissionCounts = useCallback(async () => {
     if (!canManageRbac || roles.length === 0) {
@@ -709,13 +748,13 @@ const Settings: React.FC = () => {
           <label className='text-xs font-semibold uppercase tracking-wider text-gray-500'>
             Country Filter
           </label>
-          <select
-            defaultValue='India'
-            className='mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
-          >
-            <option value='India'>India</option>
-            <option value='UAE'>UAE</option>
-          </select>
+          <SearchableDropdown
+            value={adminCountryFilter}
+            options={COUNTRY_OPTIONS}
+            onChange={value => setAdminCountryFilter(value as CountryCode)}
+            className='mt-2 w-full'
+            searchPlaceholder='Search country...'
+          />
         </div>
       </div>
 
@@ -902,8 +941,9 @@ const Settings: React.FC = () => {
               <>
                 <div className='mt-2 grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]'>
                   <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                    {roleStats.map((r, index) => {
-                      const isIndia = index % 2 === 0
+                    {roleStats.map(r => {
+                      const country = getRoleCountry(r.id)
+                      const isIndia = country === 'India'
                       const indiaFlag = '\uD83C\uDDEE\uD83C\uDDF3'
                       const uaeFlag = '\uD83C\uDDE6\uD83C\uDDEA'
                       return (
@@ -930,8 +970,8 @@ const Settings: React.FC = () => {
                                 }`}
                               >
                                 {isIndia
-                                  ? `${indiaFlag} India`
-                                  : `${uaeFlag} UAE`}
+                                  ? `${indiaFlag} ${country}`
+                                  : `${uaeFlag} ${country}`}
                               </span>
                               <FaChevronRight className='text-gray-400' />
                             </div>
@@ -964,7 +1004,7 @@ const Settings: React.FC = () => {
                           { value: '', label: 'Select role' },
                           ...roles.map(role => ({
                             value: role.id,
-                            label: role.name
+                            label: `${role.name} • ${getRoleCountry(role.id)}`
                           }))
                         ]}
                         placeholder='Select role'
@@ -1006,6 +1046,38 @@ const Settings: React.FC = () => {
                           </label>
                         ))
                       )}
+                    </div>
+
+                    <div className='mt-6 border-t border-gray-200 pt-4'>
+                      <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                        Country
+                      </p>
+                      <div className='mt-3 flex flex-col gap-3 sm:flex-row sm:items-center'>
+                        <SearchableDropdown
+                          value={selectedRoleCountry}
+                          options={COUNTRY_OPTIONS}
+                          onChange={value =>
+                            setSelectedRoleCountry(value as CountryCode)
+                          }
+                          className='w-full sm:w-48'
+                          dropdownPlacement='up'
+                          searchPlaceholder='Search country...'
+                        />
+                        <button
+                          onClick={() => {
+                            if (!selectedRolePermissionsRoleId) return
+                            setRoleCountryOverrides(prev => ({
+                              ...prev,
+                              [selectedRolePermissionsRoleId]: selectedRoleCountry
+                            }))
+                          }}
+                          disabled={!selectedRolePermissionsRoleId}
+                          className='inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-orange-100 px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:from-amber-100 hover:via-orange-100 hover:to-orange-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 disabled:translate-y-0 disabled:opacity-60 disabled:shadow-none dark:border-amber-500/40 dark:from-amber-500/20 dark:via-orange-500/20 dark:to-orange-500/20 dark:text-amber-100 sm:w-auto'
+                        >
+                          <FaEarthAmericas className='text-base' />
+                          Edit Country
+                        </button>
+                      </div>
                     </div>
 
                     <div className='mt-4 flex items-center justify-between gap-2'>
