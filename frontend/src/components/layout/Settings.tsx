@@ -691,18 +691,41 @@ const Settings: React.FC = () => {
     }
   }
 
-  return (
-    <div className='grid grid-cols-1 gap-6 md:grid-cols-[260px_1fr]'>
-      <SurfaceCard className='h-fit p-3'>
-        <p className='mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-gray-500'>
-          Administration
-        </p>
-        <div className='space-y-1'>
+    return (
+    <div className='space-y-6'>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
+        <div>
+          <p className='text-xs font-semibold uppercase tracking-wider text-gray-500'>
+            Administration
+          </p>
+          <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
+            Settings
+          </h1>
+          <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
+            Manage users, roles, permissions, system, and integrations.
+          </p>
+        </div>
+        <div className='w-full sm:w-60'>
+          <label className='text-xs font-semibold uppercase tracking-wider text-gray-500'>
+            Country Filter
+          </label>
+          <select
+            defaultValue='India'
+            className='mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+          >
+            <option value='India'>India</option>
+            <option value='UAE'>UAE</option>
+          </select>
+        </div>
+      </div>
+
+      <SurfaceCard className='p-4'>
+        <div className='flex flex-wrap gap-2'>
           {visibleTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full rounded-xl px-3 py-2 text-left text-sm font-medium ${
+              className={`rounded-xl px-3 py-2 text-left text-sm font-medium ${
                 activeTab === tab.id
                   ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
                   : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
@@ -879,31 +902,49 @@ const Settings: React.FC = () => {
               <>
                 <div className='mt-2 grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]'>
                   <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-                    {roleStats.map(r => (
-                      <button
-                        key={r.id}
-                        onClick={() => {
-                          setAssignRoleId(r.id)
-                          setSelectedRolePermissionsRoleId(r.id)
-                        }}
-                        className={`rounded-xl border p-4 text-left transition-colors ${
-                          selectedRolePermissionsRoleId === r.id
-                            ? 'border-blue-400 bg-blue-50'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className='flex items-center justify-between'>
-                          <p className='font-medium'>{r.name}</p>
-                          <FaChevronRight className='text-gray-400' />
-                        </div>
-                        <p className='mt-1 text-sm text-gray-500'>
-                          {r.users} users assigned
-                        </p>
-                        <p className='mt-1 text-xs text-gray-500'>
-                          {r.permissions} permissions enabled
-                        </p>
-                      </button>
-                    ))}
+                    {roleStats.map((r, index) => {
+                      const isIndia = index % 2 === 0
+                      const indiaFlag = '\uD83C\uDDEE\uD83C\uDDF3'
+                      const uaeFlag = '\uD83C\uDDE6\uD83C\uDDEA'
+                      return (
+                        <button
+                          key={r.id}
+                          onClick={() => {
+                            setAssignRoleId(r.id)
+                            setSelectedRolePermissionsRoleId(r.id)
+                          }}
+                          className={`rounded-xl border p-4 text-left transition-colors ${
+                            selectedRolePermissionsRoleId === r.id
+                              ? 'border-blue-400 bg-blue-50'
+                              : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className='flex items-center justify-between'>
+                            <p className='font-medium'>{r.name}</p>
+                            <div className='flex items-center gap-2'>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                  isIndia
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : 'bg-emerald-50 text-emerald-700'
+                                }`}
+                              >
+                                {isIndia
+                                  ? `${indiaFlag} India`
+                                  : `${uaeFlag} UAE`}
+                              </span>
+                              <FaChevronRight className='text-gray-400' />
+                            </div>
+                          </div>
+                          <p className='mt-1 text-sm text-gray-500'>
+                            {r.users} users assigned
+                          </p>
+                          <p className='mt-1 text-xs text-gray-500'>
+                            {r.permissions} permissions enabled
+                          </p>
+                        </button>
+                      )
+                    })}
                   </div>
 
                   <div className='rounded-xl border border-gray-200 p-4'>
@@ -1379,7 +1420,7 @@ const Settings: React.FC = () => {
                         <>
                           {filtered.map(role => (
                             <button
-                              key={role.id}
+                          key={role.id}
                               type='button'
                               className='w-full text-left px-3 py-2 text-sm hover:bg-gray-50'
                               onClick={() => {
@@ -1425,7 +1466,7 @@ const Settings: React.FC = () => {
                   setAssignCreateRoleName('')
                   setAssignRoleDropdownOpen(false)
                 }}
-                className='rounded-xl border border-gray-200 px-4 py-2 text-sm'
+                        className='rounded-xl border border-gray-200 px-4 py-2 text-sm'
               >
                 Cancel
               </button>
@@ -1499,3 +1540,13 @@ const StatCard = ({
 )
 
 export default Settings
+
+
+
+
+
+
+
+
+
+

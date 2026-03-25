@@ -1037,6 +1037,14 @@ const BookingDetailPage: React.FC = () => {
     }
   }
 
+  const openInvoiceAndDownload = (invoice: Invoice) => {
+    setSelectedInvoice(invoice)
+    setShowInvoiceModal(true)
+    setTimeout(() => {
+      void downloadInvoiceModalAsPdf(invoice.invoiceNumber)
+    }, 80)
+  }
+
   const fetchBookingData = async () => {
     if (!id) return
     setLoading(true)
@@ -2056,15 +2064,7 @@ const BookingDetailPage: React.FC = () => {
                             <button
                               onClick={event => {
                                 event.stopPropagation()
-                                if (invoice.pdfUrl) {
-                                  window.open(
-                                    invoice.pdfUrl,
-                                    '_blank',
-                                    'noopener,noreferrer'
-                                  )
-                                } else {
-                                  showToast('Invoice PDF not available', 'info')
-                                }
+                                openInvoiceAndDownload(invoice)
                               }}
                               className='p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-800'
                             >
