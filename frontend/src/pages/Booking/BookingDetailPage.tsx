@@ -16,6 +16,7 @@ import {
 } from 'react-icons/fa6'
 import { bookingsApi } from '../../api/bookings'
 import { paymentsApi } from '../../api/payments'
+import { quotationsApi } from '../../api/quotations'
 import { getApiErrorMessage } from '../../api/apiClient'
 
 // Types
@@ -893,6 +894,7 @@ const BookingDetailPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [history, setHistory] = useState<StatusHistory[]>([])
+  const [quotationComponents, setQuotationComponents] = useState<any[]>([])
   const invoiceModalContentRef = useRef<HTMLDivElement | null>(null)
 
   const downloadInvoicePdf = (url?: string, invoiceNumber?: string) => {
@@ -1123,6 +1125,17 @@ const BookingDetailPage: React.FC = () => {
       setInvoices(mappedInvoices)
       setPayments(mappedPayments)
       setHistory(mappedHistory)
+
+      if (resolvedBooking.quotationId) {
+        try {
+          const quotRes = await quotationsApi.getById(resolvedBooking.quotationId)
+          const quotData = (quotRes as any)?.data ?? quotRes
+          const components = quotData?.components ?? quotData?.data?.components ?? []
+          setQuotationComponents(Array.isArray(components) ? components : [])
+        } catch {
+          setQuotationComponents([])
+        }
+      }
     } catch (err) {
       console.error('Failed to load booking details:', err)
       const message = getApiErrorMessage(err, 'Failed to load booking details')
@@ -1881,7 +1894,30 @@ const BookingDetailPage: React.FC = () => {
                           <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Supplier Details
                           </p>
-                          {renderKeyValueBlock(booking.supplierDetails)}
+                          {(() => {
+                            const sd = booking.supplierDetails as Record<string, unknown> | undefined
+                            const supplierId = sd?.supplierId ?? sd?.supplier_id
+                            const supplierName = sd?.supplierName ?? sd?.supplier_name
+                            if (!supplierId && !supplierName) {
+                              return <p className='text-xs text-gray-500 dark:text-gray-400'>Not set</p>
+                            }
+                            return (
+                              <dl className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                                {supplierId ? (
+                                  <div className='rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/50'>
+                                    <dt className='text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400'>Supplier ID</dt>
+                                    <dd className='mt-1 text-sm text-gray-900 dark:text-gray-100 break-all'>{String(supplierId)}</dd>
+                                  </div>
+                                ) : null}
+                                {supplierName ? (
+                                  <div className='rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/50'>
+                                    <dt className='text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400'>Supplier Name</dt>
+                                    <dd className='mt-1 text-sm text-gray-900 dark:text-gray-100'>{String(supplierName)}</dd>
+                                  </div>
+                                ) : null}
+                              </dl>
+                            )
+                          })()}
                         </div>
                         <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
                           <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
@@ -1919,6 +1955,43 @@ const BookingDetailPage: React.FC = () => {
                           </p>
                           {renderOtherServices(booking.otherServices)}
                         </div>
+                        {quotationComponents.length > 0 ? (
+                          <div className='rounded-lg border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
+                            <p className='text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2'>
+                              Quotation Service Components
+                            </p>
+                            <div className='overflow-x-auto'>
+                              <table className='w-full text-xs'>
+                                <thead>
+                                  <tr className='border-b border-blue-200 dark:border-blue-800 text-left text-gray-500'>
+                                    <th className='py-1.5 pr-3'>Service</th>
+                                    <th className='py-1.5 pr-3'>Description</th>
+                                    <th className='py-1.5 text-right'>Cost</th>
+                                    <th className='py-1.5 text-right'>Sell Value</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {quotationComponents.map((comp: any, idx: number) => (
+                                    <tr key={comp.id ?? idx} className='border-b border-blue-100 dark:border-blue-900'>
+                                      <td className='py-1.5 pr-3 font-medium text-gray-800 dark:text-gray-200'>
+                                        {comp.itemType ?? comp.item_type ?? '—'}
+                                      </td>
+                                      <td className='py-1.5 pr-3 text-gray-600 dark:text-gray-400'>
+                                        {comp.description ?? '—'}
+                                      </td>
+                                      <td className='py-1.5 text-right text-gray-800 dark:text-gray-200'>
+                                        {comp.cost != null ? Number(comp.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                                      </td>
+                                      <td className='py-1.5 text-right font-semibold text-gray-900 dark:text-gray-100'>
+                                        {comp.sellValue != null ? Number(comp.sellValue ?? comp.sell_value ?? comp.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 

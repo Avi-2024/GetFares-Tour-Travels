@@ -99,6 +99,10 @@ const COUNTRY_OPTIONS: Array<{ value: CountryCode; label: string }> = [
   { value: 'UAE', label: 'UAE' }
 ]
 
+const ROLE_COUNTRY_OPTIONS = COUNTRY_OPTIONS.filter(
+  option => option.value !== 'All'
+)
+
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'user-management', label: 'User Management' },
   { id: 'roles-permissions', label: 'Roles & Permissions' },
@@ -543,6 +547,113 @@ const Settings: React.FC = () => {
   useEffect(() => {
     void loadRolePermissionCounts()
   }, [loadRolePermissionCounts])
+
+  const closeCreateRoleModal = useCallback(() => {
+    setCreateRoleOpen(false)
+    setCreateRoleName('')
+    setCreateRoleCountry('India')
+    setCreateRolePermissions([])
+  }, [])
+
+  const handleCreateRole = async () => {
+    if (!canManageRbac) {
+      setError('You do not have permission to create roles.')
+      return
+    }
+
+    const roleName = createRoleName.trim()
+    const permissionKeys = [
+      ...new Set(
+        createRolePermissions.map(permission => permission.trim()).filter(Boolean)
+      )
+    ]
+    const roleCountry = createRoleCountry === 'All' ? null : createRoleCountry
+
+    if (!roleName) {
+      setError('Role name is required.')
+      return
+    }
+
+    if (!permissionKeys.length) {
+      setError('Pick at least one permission.')
+      return
+    }
+
+    setCreateRoleLoading(true)
+    setError('')
+    setMessage('')
+
+    let createdRoleId = ''
+
+    try {
+      const created = await authService.createRole({
+        name: roleName,
+        country: roleCountry
+      })
+
+      createdRoleId = created?.id ?? ''
+      if (!createdRoleId) {
+        throw new Error('Role created without an id')
+      }
+
+      await authService.updateRolePermissions(createdRoleId, {
+        replace: true,
+        permissions: permissionKeys.map(key => ({
+          key,
+          enabled: true
+        }))
+      })
+
+      try {
+        await loadRoles()
+      } catch (_error) {
+        // Keep the create flow successful even if the follow-up refresh fails.
+      }
+
+      setRolePermissionCounts(previous => ({
+        ...previous,
+        [createdRoleId]: permissionKeys.length
+      }))
+      if (roleCountry) {
+        setRoleCountryOverrides(previous => ({
+          ...previous,
+          [createdRoleId]: roleCountry
+        }))
+      }
+      setSelectedRolePermissionsRoleId(createdRoleId)
+      setSelectedRolePermissions(permissionKeys)
+      closeCreateRoleModal()
+      setMessage('Role created successfully.')
+    } catch (e) {
+      if (createdRoleId) {
+        try {
+          await loadRoles()
+        } catch (_error) {
+          // Keep the partially completed role visible even if reload fails.
+        }
+
+        if (roleCountry) {
+          setRoleCountryOverrides(previous => ({
+            ...previous,
+            [createdRoleId]: roleCountry
+          }))
+        }
+        setSelectedRolePermissionsRoleId(createdRoleId)
+        setSelectedRolePermissions([])
+        closeCreateRoleModal()
+        setError(
+          `Role created, but permissions could not be assigned. ${getApiErrorMessage(
+            e,
+            'Open the role and save permissions again.'
+          )}`
+        )
+      } else {
+        setError(getApiErrorMessage(e, 'Unable to create role'))
+      }
+    } finally {
+      setCreateRoleLoading(false)
+    }
+  }
 
   const onInvite = async () => {
     if (!canCreateUsers) {
@@ -1097,7 +1208,7 @@ const Settings: React.FC = () => {
                       <div className='mt-3 flex flex-col gap-3 sm:flex-row sm:items-center'>
                         <SearchableDropdown
                           value={selectedRoleCountry}
-                          options={COUNTRY_OPTIONS}
+                          options={ROLE_COUNTRY_OPTIONS}
                           onChange={value =>
                             setSelectedRoleCountry(value as CountryCode)
                           }
@@ -1515,7 +1626,7 @@ const Settings: React.FC = () => {
                 <label className='field-label'>Country</label>
                 <SearchableDropdown
                   value={createRoleCountry}
-                  options={COUNTRY_OPTIONS}
+                  options={ROLE_COUNTRY_OPTIONS}
                   onChange={value => setCreateRoleCountry(value as CountryCode)}
                   className='mt-1 w-full'
                   searchPlaceholder='Search country...'

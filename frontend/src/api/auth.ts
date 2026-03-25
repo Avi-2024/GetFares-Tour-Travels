@@ -38,6 +38,11 @@ export const authApi = {
     }),
   profile: () =>
     apiRequest<ProfileResponse>(`/api/auth/me?ts=${Date.now()}`),
+  toggleActive: (active: boolean) =>
+    apiRequest<{ data: { active: boolean } }>("/api/auth/toggle-active", {
+      method: "POST",
+      body: { active },
+    }),
   forgotPassword: (payload: { email: string }) =>
     apiRequest<{ message: string }>("/api/auth/forgot-password", {
       method: "POST",

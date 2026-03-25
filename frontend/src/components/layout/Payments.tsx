@@ -734,21 +734,30 @@ const PaymentFormModal = ({
     ],
     [customers, loadingCustomers]
   )
-  const bookingDropdownOptions = useMemo(
-    () => [
+  const bookingDropdownOptions = useMemo(() => {
+    const selectedCustomer = formData.customer?.trim().toLowerCase()
+    const filtered = selectedCustomer
+      ? bookings.filter(b =>
+          b.customer?.trim().toLowerCase().includes(selectedCustomer)
+        )
+      : bookings
+    return [
       {
         value: '',
-        label: loadingBookings ? 'Loading bookings...' : 'Select booking...'
+        label: loadingBookings
+          ? 'Loading bookings...'
+          : filtered.length === 0 && selectedCustomer
+          ? 'No bookings for this customer'
+          : 'Select booking...'
       },
-      ...bookings.map(booking => ({
+      ...filtered.map(booking => ({
         value: booking.id,
         label: `${booking.bookingNumber}${
           booking.customer ? ` - ${booking.customer}` : ''
         }`
       }))
-    ],
-    [bookings, loadingBookings]
-  )
+    ]
+  }, [bookings, loadingBookings, formData.customer])
   const paymentModeOptions = useMemo(
     () => [
       { value: 'bank', label: 'Bank Transfer' },
@@ -1002,7 +1011,7 @@ const PaymentFormModal = ({
                 <SearchableDropdown
                   value={formData.customer}
                   onChange={value =>
-                    setFormData({ ...formData, customer: value })
+                    setFormData({ ...formData, customer: value, bookingId: '' })
                   }
                   options={customerDropdownOptions}
                   hasError={Boolean(errors.customer)}

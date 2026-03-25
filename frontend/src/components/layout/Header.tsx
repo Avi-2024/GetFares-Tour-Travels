@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fa6'
 import { useAuth } from '../../context/AuthContext'
 import { useNotifications } from '../../context/NotificationsContext'
+import { authApi } from '../../api/auth'
 
 const getDisplayName = (name?: string, email?: string) => {
   const value = name?.trim() || email?.split('@')[0] || 'User'
@@ -83,6 +84,12 @@ const Header: React.FC<{
     }
     return 0
   })
+  const [isActive, setIsActive] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const stored = localStorage.getItem('user_active_status')
+    return stored !== null ? stored === 'true' : true
+  })
+  const [togglingActive, setTogglingActive] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
   const navigate = useNavigate()
   const { hasPermission, logout, user } = useAuth()
@@ -144,6 +151,22 @@ const Header: React.FC<{
     setBreakElapsed(0)
   }
 
+  const handleToggleActive = async () => {
+    if (togglingActive || breakState.isBreak) return
+    const next = !isActive
+    setIsActive(next)
+    localStorage.setItem('user_active_status', String(next))
+    setTogglingActive(true)
+    try {
+      await authApi.toggleActive(next)
+    } catch {
+      setIsActive(!next)
+      localStorage.setItem('user_active_status', String(!next))
+    } finally {
+      setTogglingActive(false)
+    }
+  }
+
   const breakTimerLabel = useMemo(() => {
     if (!breakState.isBreak) return 'Start Break'
     return `On Break • ${formatDuration(breakElapsed)}`
@@ -186,19 +209,31 @@ const Header: React.FC<{
         </button>
         <button
           type='button'
-          disabled={breakState.isBreak}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+          onClick={() => void handleToggleActive()}
+          disabled={breakState.isBreak || togglingActive}
+          title={
             breakState.isBreak
-              ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
+              ? 'End break to change active status'
+              : isActive
+              ? 'Click to go inactive'
+              : 'Click to go active'
+          }
+          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+            breakState.isBreak || !isActive
+              ? 'border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
               : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200'
           }`}
         >
           <span
             className={`h-2 w-2 rounded-full ${
-              breakState.isBreak ? 'bg-gray-400' : 'bg-green-500'
+              breakState.isBreak || !isActive
+                ? 'bg-gray-400'
+                : togglingActive
+                ? 'bg-green-400 animate-pulse'
+                : 'bg-green-500'
             }`}
           />
-          {breakState.isBreak ? 'Away' : 'Active'}
+          {breakState.isBreak ? 'Away' : isActive ? 'Active' : 'Inactive'}
         </button>
         <button
           onClick={toggle}
