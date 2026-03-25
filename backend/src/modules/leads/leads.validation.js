@@ -18,6 +18,8 @@ const dateTimeString = z
 const basePayload = z.object({
   fullName: z.string().min(2),
   nationality: z.string().min(2).max(80).optional(),
+  leadCountry: z.string().min(2).max(100).optional(),
+  country: z.string().min(2).max(100).optional(),
   phone: z.string().min(6).max(20).optional(),
   email: z.string().email().optional(),
   panNumber: z.string().min(8).max(20).optional(),
@@ -37,12 +39,14 @@ const basePayload = z.object({
   childrenCount: z.coerce.number().int().min(0).optional(),
   visaRequired: z.boolean().optional(),
   leadType: leadType.optional(),
+  type: z.string().min(2).max(40).optional(),
   preferredHotelCategory: hotelCategory,
   travelPurpose: z.string().max(50).optional(),
   subStatus: z.string().max(60).optional(),
   respondedPositively: z.boolean().optional(),
   priorityLevel: z.coerce.number().int().nonnegative().optional(),
   isVip: z.boolean().optional(),
+  callsDisabled: z.boolean().optional(),
   status: leadStatus.optional(),
   assignedTo: z.string().uuid().optional(),
   qualificationCompleted: z.boolean().optional(),
@@ -97,6 +101,9 @@ const list = z.object({
       temperature: z.enum(["HOT", "WARM", "COLD"]).optional(),
       subStatus: z.string().max(60).optional(),
       leadType: leadType.optional(),
+      type: z.string().min(2).max(40).optional(),
+      leadCountry: z.string().min(2).max(100).optional(),
+      country: z.string().min(2).max(100).optional(),
       assignedTo: z.string().uuid().optional(),
       email: z.string().email().optional(),
       phone: z.string().optional(),
@@ -221,6 +228,16 @@ const processCadenceAutomation = z.object({
   query: z.object({}).optional(),
 });
 
+const disableCalls = z.object({
+  body: z
+    .object({
+      disabled: z.boolean().optional(),
+    })
+    .optional(),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
 const LeadsValidation = {
   create,
   update,
@@ -236,6 +253,7 @@ const LeadsValidation = {
   processSlaBreaches,
   processNonResponsive,
   processCadenceAutomation,
+  disableCalls,
 };
 
 export { LeadsValidation };

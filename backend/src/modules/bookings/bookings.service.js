@@ -226,6 +226,23 @@ function createBookingsService({ repository, logger, events, config }) {
       );
     }
 
+    if (quotation.isDeleted) {
+      throw new AppError(
+        404,
+        "Quotation not found",
+        "BOOKING_QUOTATION_NOT_FOUND",
+      );
+    }
+
+    const status = String(quotation.status || "").toUpperCase();
+    if (status !== "APPROVED") {
+      throw new AppError(
+        409,
+        "Only APPROVED quotations can be used to create a booking.",
+        "BOOKING_QUOTATION_NOT_APPROVED",
+      );
+    }
+
     return quotation;
   }
 

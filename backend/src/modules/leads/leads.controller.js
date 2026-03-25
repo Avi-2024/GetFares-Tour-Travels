@@ -74,6 +74,15 @@ function createLeadsController({ service }) {
       res.status(201).json({ data: result });
     },
 
+    async disableCalls(req, res) {
+      const result = await service.disableCalls(
+        req.validated.params.id,
+        req.validated.body || {},
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async listFollowups(req, res) {
       const result = await service.listFollowups(
         req.validated.params.id,

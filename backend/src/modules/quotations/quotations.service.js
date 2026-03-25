@@ -1222,16 +1222,9 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         updated_at: new Date().toISOString(),
       });
 
-      let booking = null;
-      if (payload.status === QUOTATION_STATUS.APPROVED) {
-        booking = await ensureBookingForApprovedQuote(
-          updated,
-          payload,
-          context,
-        );
-        if (updated.leadId) {
-          await repository.updateLeadStatus(updated.leadId, "CONVERTED");
-        }
+      const booking = null;
+      if (payload.status === QUOTATION_STATUS.APPROVED && updated.leadId) {
+        await repository.updateLeadStatus(updated.leadId, "CONVERTED");
       }
 
       if (payload.status === QUOTATION_STATUS.REJECTED && updated.leadId) {

@@ -129,7 +129,7 @@ const toTrimmedOrUndefined = (value: string | number | undefined) => {
   return trimmed ? trimmed : undefined
 }
 
-const compactObject = <T extends Record<string, unknown>>(payload: T) =>
+const compactObject = <T extends Record<string, unknown>,>(payload: T) =>
   Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined)
   ) as Partial<T>
@@ -147,7 +147,7 @@ const getRoleLabel = (
   roleMap: Map<string, string>
 ) => roleName ?? roleMap.get(roleId ?? '') ?? '-'
 
-function extractRows<T>(response: unknown): T[] {
+const extractRows = <T,>(response: unknown): T[] => {
   const payload = response as { data?: T[] | { data?: T[]; items?: T[] } }
   if (Array.isArray(payload?.data)) return payload.data
   const nested = payload?.data as { data?: T[]; items?: T[] } | undefined
@@ -156,7 +156,7 @@ function extractRows<T>(response: unknown): T[] {
   return Array.isArray(response) ? (response as T[]) : []
 }
 
-function extractObject<T extends object>(response: unknown): T | null {
+const extractObject = <T extends object,>(response: unknown): T | null => {
   if (!response || typeof response !== 'object') return null
   const payload = response as { data?: unknown }
   if (payload.data && typeof payload.data === 'object') return payload.data as T

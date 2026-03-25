@@ -164,6 +164,39 @@ const paymentModeLabel = (mode: Payment['mode']) => {
   return 'Bank Transfer'
 }
 
+const createClientFormData = (client?: Client | null) => ({
+  name: client?.name || '',
+  pan: client?.pan || '',
+  email: client?.email || '',
+  phone: client?.phone || '',
+  address: client?.address || '',
+  currency: client?.currency || 'USD'
+})
+
+const createSupplierFormData = (supplier?: Supplier | null) => ({
+  name: supplier?.name || '',
+  pan: supplier?.pan || '',
+  gst: supplier?.gst || '',
+  email: supplier?.email || '',
+  phone: supplier?.phone || '',
+  address: supplier?.address || '',
+  invoiceBeneficiaryName: supplier?.invoiceBeneficiaryName || '',
+  invoiceBankName: supplier?.invoiceBankName || '',
+  invoiceAccountNumber: supplier?.invoiceAccountNumber || '',
+  invoiceIfscSwift: supplier?.invoiceIfscSwift || '',
+  invoiceUpiId: supplier?.invoiceUpiId || '',
+  currency: supplier?.currency || 'USD'
+})
+
+const createPaymentFormData = () => ({
+  bookingId: '',
+  mode: 'BANK_TRANSFER' as Payment['mode'],
+  amount: '',
+  date: new Date().toISOString().split('T')[0],
+  reference: '',
+  currency: 'USD'
+})
+
 // Modal Components
 const ClientModal = ({
   isOpen,
@@ -176,26 +209,7 @@ const ClientModal = ({
   onSave: (data: any) => void
   client?: Client | null
 }) => {
-  const [formData, setFormData] = useState({
-    name: client?.name || '',
-    pan: client?.pan || '',
-    email: client?.email || '',
-    phone: client?.phone || '',
-    address: client?.address || '',
-    currency: client?.currency || 'USD'
-  })
-
-  useEffect(() => {
-    if (!isOpen) return
-    setFormData({
-      name: client?.name || '',
-      pan: client?.pan || '',
-      email: client?.email || '',
-      phone: client?.phone || '',
-      address: client?.address || '',
-      currency: client?.currency || 'USD'
-    })
-  }, [client, isOpen])
+  const [formData, setFormData] = useState(() => createClientFormData(client))
 
   const currencies = ['USD', 'EUR', 'GBP', 'INR', 'AED', 'CAD', 'AUD']
 
@@ -337,38 +351,9 @@ const SupplierModal = ({
   onSave: (data: any) => void
   supplier?: Supplier | null
 }) => {
-  const [formData, setFormData] = useState({
-    name: supplier?.name || '',
-    pan: supplier?.pan || '',
-    gst: supplier?.gst || '',
-    email: supplier?.email || '',
-    phone: supplier?.phone || '',
-    address: supplier?.address || '',
-    invoiceBeneficiaryName: supplier?.invoiceBeneficiaryName || '',
-    invoiceBankName: supplier?.invoiceBankName || '',
-    invoiceAccountNumber: supplier?.invoiceAccountNumber || '',
-    invoiceIfscSwift: supplier?.invoiceIfscSwift || '',
-    invoiceUpiId: supplier?.invoiceUpiId || '',
-    currency: supplier?.currency || 'USD'
-  })
-
-  useEffect(() => {
-    if (!isOpen) return
-    setFormData({
-      name: supplier?.name || '',
-      pan: supplier?.pan || '',
-      gst: supplier?.gst || '',
-      email: supplier?.email || '',
-      phone: supplier?.phone || '',
-      address: supplier?.address || '',
-      invoiceBeneficiaryName: supplier?.invoiceBeneficiaryName || '',
-      invoiceBankName: supplier?.invoiceBankName || '',
-      invoiceAccountNumber: supplier?.invoiceAccountNumber || '',
-      invoiceIfscSwift: supplier?.invoiceIfscSwift || '',
-      invoiceUpiId: supplier?.invoiceUpiId || '',
-      currency: supplier?.currency || 'USD'
-    })
-  }, [isOpen, supplier])
+  const [formData, setFormData] = useState(() =>
+    createSupplierFormData(supplier)
+  )
 
   const currencies = ['USD', 'EUR', 'GBP', 'INR', 'AED', 'CAD', 'AUD']
 
@@ -600,26 +585,7 @@ const PaymentModal = ({
   onClose: () => void
   onSave: (data: any) => void
 }) => {
-  const [formData, setFormData] = useState({
-    bookingId: '',
-    mode: 'BANK_TRANSFER' as Payment['mode'],
-    amount: '',
-    date: new Date().toISOString().split('T')[0],
-    reference: '',
-    currency: 'USD'
-  })
-
-  useEffect(() => {
-    if (!isOpen) return
-    setFormData({
-      bookingId: '',
-      mode: 'BANK_TRANSFER',
-      amount: '',
-      date: new Date().toISOString().split('T')[0],
-      reference: '',
-      currency: 'USD'
-    })
-  }, [isOpen])
+  const [formData, setFormData] = useState(createPaymentFormData)
 
   if (!isOpen) return null
 
@@ -2658,6 +2624,7 @@ const FinanceSystem: React.FC = () => {
 
       {/* Modals */}
       <ClientModal
+        key={`client-${showClientModal ? editingClient?.id ?? 'new' : 'closed'}`}
         isOpen={showClientModal}
         onClose={() => {
           setShowClientModal(false)
@@ -2668,6 +2635,7 @@ const FinanceSystem: React.FC = () => {
       />
 
       <SupplierModal
+        key={`supplier-${showSupplierModal ? editingSupplier?.id ?? 'new' : 'closed'}`}
         isOpen={showSupplierModal}
         onClose={() => {
           setShowSupplierModal(false)
@@ -2678,6 +2646,7 @@ const FinanceSystem: React.FC = () => {
       />
 
       <PaymentModal
+        key={`payment-${showPaymentModal ? 'open' : 'closed'}`}
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         onSave={handleAddPayment}

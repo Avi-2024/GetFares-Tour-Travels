@@ -40,6 +40,7 @@ const envSchema = z.object({
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_API_BASE_URL: z.string().url().optional(),
   WHATSAPP_API_VERSION: z.string().default("v20.0"),
+  WHATSAPP_ALLOW_INSECURE_WEBHOOKS: z.coerce.boolean().default(false),
   WHATSAPP_PRE_TRAVEL_DAYS: z.coerce.number().int().min(0).default(2),
   WHATSAPP_POST_TRAVEL_DAYS: z.coerce.number().int().min(0).default(1),
   WHATSAPP_TEMPLATE_LEAD_WELCOME: z.string().optional(),

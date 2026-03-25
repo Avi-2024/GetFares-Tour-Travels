@@ -6,12 +6,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ??
-  (import.meta.env.DEV
-    ? "http://localhost:3000"
-    : "https://get-fares-tour-travels-575u.vercel.app");
-
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL 
 export type ApiError = Error & {
   status: number;
   details?: unknown;
