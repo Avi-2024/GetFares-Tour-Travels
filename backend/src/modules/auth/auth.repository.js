@@ -13,6 +13,7 @@ function createAuthRepository({ db, logger, schema }) {
       role: roleMeta.roleName || row.role || null,
       roleId: roleMeta.roleId || row.role_id || row.roleId || null,
       isActive: row.is_active ?? row.isActive ?? true,
+      active: row.active ?? null,
       createdAt: row.created_at ?? row.createdAt,
       updatedAt: row.updated_at ?? row.updatedAt,
     };
@@ -103,6 +104,15 @@ function createAuthRepository({ db, logger, schema }) {
         ip_address: payload.ipAddress || null,
         device_info: payload.deviceInfo || null,
         login_time: payload.loginTime || new Date().toISOString(),
+      });
+    },
+
+    async markLogin(userId) {
+      if (!userId) {
+        return null;
+      }
+      return db.update(schema.usersTable, userId, {
+        last_login: new Date().toISOString(),
       });
     },
   });

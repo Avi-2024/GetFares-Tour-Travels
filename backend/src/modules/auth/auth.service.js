@@ -20,6 +20,7 @@ function createAuthService({
       role: user.role,
       roleId: user.roleId,
       isActive: user.isActive,
+      active: user.active,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -127,6 +128,7 @@ function createAuthService({
           ipAddress: sessionContext.ipAddress,
           deviceInfo: sessionContext.deviceInfo,
         });
+        await repository.markLogin(user.id);
       } catch (error) {
         logger.warn(
           { err: error, userId: user.id },

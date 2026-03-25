@@ -72,6 +72,7 @@ const config = Object.freeze({
     intervalsMs: {
       leadSla: env.AUTOMATION_LEAD_SLA_INTERVAL_MS,
       leadFollowup: env.AUTOMATION_LEAD_FOLLOWUP_INTERVAL_MS,
+      leadQueue: env.AUTOMATION_LEAD_QUEUE_INTERVAL_MS,
       quotationReminders: env.AUTOMATION_QUOTATION_REMINDERS_INTERVAL_MS,
       bookingTravelReminders: env.AUTOMATION_BOOKING_TRAVEL_REMINDERS_INTERVAL_MS,
       bookingDeadlines: env.AUTOMATION_BOOKING_DEADLINES_INTERVAL_MS,

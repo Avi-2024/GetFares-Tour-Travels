@@ -895,6 +895,16 @@ function createLeadsService({ repository, logger, events }) {
     return lead;
   }
 
+  async function queueLeadIfNeeded(lead, reason = "NO_ACTIVE_AGENT") {
+    if (!lead?.id) {
+      return null;
+    }
+    return repository.enqueueLead({
+      leadId: lead.id,
+      reason,
+    });
+  }
+
   async function create(payload, context = {}) {
     const normalizedStatus = normalizeLeadStatus(payload.status);
     payload.status = normalizedStatus;
@@ -970,6 +980,9 @@ function createLeadsService({ repository, logger, events }) {
         },
         context,
       );
+      if (!lead.assignedTo) {
+        await queueLeadIfNeeded(lead, "NO_ACTIVE_AGENT");
+      }
     }
 
     return lead;
@@ -1058,6 +1071,67 @@ function createLeadsService({ repository, logger, events }) {
       }
 
       events.emitDistributionRun(summary);
+      return summary;
+    },
+
+    async processQueuedLeads(payload = {}, context = {}) {
+      const limit = toPositiveInt(
+        payload.limit,
+        AUTOMATION_DEFAULTS.distributionLimit,
+      );
+      const queuedLeads = await repository.listQueuedLeads({ limit });
+
+      if (!queuedLeads.length) {
+        return { processed: 0, assigned: 0, skipped: 0 };
+      }
+
+      const summary = {
+        processed: 0,
+        assigned: 0,
+        skipped: 0,
+      };
+
+      for (const entry of queuedLeads) {
+        const leadId = entry.lead_id ?? entry.leadId ?? null;
+        if (!leadId) {
+          await repository.markQueuedLeadProcessed(entry.id);
+          summary.processed += 1;
+          continue;
+        }
+
+        const lead = await repository.findById(leadId);
+        if (!lead) {
+          await repository.markQueuedLeadProcessed(entry.id);
+          summary.processed += 1;
+          continue;
+        }
+
+        if (lead.assignedTo) {
+          await repository.markQueuedLeadProcessed(entry.id);
+          summary.processed += 1;
+          continue;
+        }
+
+        const assigned = await assignLead(
+          leadId,
+          {
+            force: true,
+            mode: "QUEUE_ASSIGN",
+            reason: payload.reason || "QUEUE_ASSIGN",
+            roleName: ASSIGNMENT_ROLES.AGENT,
+          },
+          context,
+        );
+
+        if (assigned.assignedTo) {
+          await repository.markQueuedLeadProcessed(entry.id);
+          summary.processed += 1;
+          summary.assigned += 1;
+        } else {
+          summary.skipped += 1;
+        }
+      }
+
       return summary;
     },
 

@@ -305,6 +305,7 @@ function createLeadsRepository({ db, logger, schema }) {
       ),
       isActive: row.is_active ?? row.isActive ?? true,
       isOnLeave: row.is_on_leave ?? row.isOnLeave ?? false,
+      active: row.active ?? null,
       lastLogin: row.last_login ?? row.lastLogin ?? null,
       incentivePercent:
         Number(row.incentive_percent ?? row.incentivePercent ?? 0) || 0,
@@ -627,7 +628,12 @@ function createLeadsRepository({ db, logger, schema }) {
     normalizeFollowupType,
 
     async findAll(filters = {}) {
-      const rows = await db.findMany(schema.tableName, mapListFilters(filters));
+      const mappedFilters = mapListFilters({
+        ...filters,
+        page: undefined,
+        limit: undefined,
+      });
+      const rows = await db.findMany(schema.tableName, mappedFilters);
       let filteredRows = rows;
 
       if (filters.email || filters.phone) {
@@ -655,7 +661,18 @@ function createLeadsRepository({ db, logger, schema }) {
         });
       }
 
-      return mapRowsToDomain(filteredRows);
+      const sortedRows = [...filteredRows].sort((left, right) => {
+        const leftTime = new Date(left.created_at ?? left.createdAt ?? 0).getTime();
+        const rightTime = new Date(right.created_at ?? right.createdAt ?? 0).getTime();
+        return rightTime - leftTime;
+      });
+
+      const limit = toPositiveInt(filters.limit, null);
+      const page = toPositiveInt(filters.page, null);
+      const offset = limit && page ? (page - 1) * limit : 0;
+      const pagedRows = limit ? sortedRows.slice(offset, offset + limit) : sortedRows.slice(offset);
+
+      return mapRowsToDomain(pagedRows);
     },
 
     async findById(id) {
@@ -823,7 +840,17 @@ function createLeadsRepository({ db, logger, schema }) {
         .filter((row) => {
           const isActive = row.is_active ?? row.isActive ?? true;
           const isOnLeave = row.is_on_leave ?? row.isOnLeave ?? false;
-          return Boolean(isActive) && !Boolean(isOnLeave);
+          const activeToggle = row.active ?? row.active_status ?? undefined;
+          const isPresenceActive =
+            activeToggle === undefined ? true : Boolean(activeToggle);
+          const lastLogin = row.last_login ?? row.lastLogin ?? null;
+          const hasToken = Boolean(lastLogin);
+          return (
+            Boolean(isActive) &&
+            !Boolean(isOnLeave) &&
+            isPresenceActive &&
+            hasToken
+          );
         })
         .map((row) => {
           const roleId = row.role_id ?? row.roleId ?? null;
@@ -908,6 +935,91 @@ function createLeadsRepository({ db, logger, schema }) {
         .slice(0, normalizedLimit);
 
       return mapRowsToDomain(list);
+    },
+
+    async enqueueLead({ leadId, reason } = {}) {
+      if (!leadId) {
+        return null;
+      }
+      const tableName = schema.queuedLeadsTable;
+      const tableExists = await hasTable(tableName);
+      if (!tableExists) {
+        return null;
+      }
+
+      const payload = {
+        lead_id: leadId,
+        reason: reason || null,
+        queued_at: new Date().toISOString(),
+      };
+
+      try {
+        return await db.insert(tableName, payload);
+      } catch (error) {
+        if (error?.code === "23505") {
+          return db.findOne(tableName, { lead_id: leadId });
+        }
+        throw error;
+      }
+    },
+
+    async listQueuedLeads({ limit = 50 } = {}) {
+      const tableName = schema.queuedLeadsTable;
+      const tableExists = await hasTable(tableName);
+      if (!tableExists) {
+        return [];
+      }
+      const normalizedLimit = toPositiveInt(limit, 50);
+
+      if (db.adapter === "postgres") {
+        const result = await db.query(
+          `SELECT * FROM ${tableName} WHERE processed_at IS NULL ORDER BY queued_at ASC LIMIT $1`,
+          [normalizedLimit],
+        );
+        return result.rows || [];
+      }
+
+      const rows = await db.findMany(tableName, {});
+      return rows
+        .filter((row) => !(row.processed_at ?? row.processedAt))
+        .sort((left, right) => {
+          const leftTime = toDate(left.queued_at ?? left.queuedAt)?.getTime() || 0;
+          const rightTime = toDate(right.queued_at ?? right.queuedAt)?.getTime() || 0;
+          return leftTime - rightTime;
+        })
+        .slice(0, normalizedLimit);
+    },
+
+    async markQueuedLeadProcessed(id) {
+      if (!id) {
+        return null;
+      }
+      const tableName = schema.queuedLeadsTable;
+      const tableExists = await hasTable(tableName);
+      if (!tableExists) {
+        return null;
+      }
+      return db.update(tableName, id, {
+        processed_at: new Date().toISOString(),
+      });
+    },
+
+    async markQueuedLeadProcessedByLeadId(leadId) {
+      if (!leadId) {
+        return null;
+      }
+      const tableName = schema.queuedLeadsTable;
+      const tableExists = await hasTable(tableName);
+      if (!tableExists) {
+        return null;
+      }
+      const existing = await db.findOne(tableName, { lead_id: leadId });
+      if (!existing) {
+        return null;
+      }
+      return db.update(tableName, existing.id, {
+        processed_at: new Date().toISOString(),
+      });
     },
 
     async findOverdueAssignedLeads({ inactiveMinutes = 15, limit = 50 } = {}) {

@@ -15,6 +15,7 @@ const createPayload = z
     passwordHash: z.string().trim().min(8).max(400).optional(),
     isActive: z.boolean().optional(),
     isOnLeave: z.boolean().optional(),
+    active: z.boolean().optional(),
     expertiseDestinations: z
       .array(z.string().trim().min(2).max(100))
       .max(50)
@@ -45,6 +46,7 @@ const updatePayload = z
     role_id: z.string().trim().min(1).nullable().optional(),
     isActive: z.boolean().optional(),
     isOnLeave: z.boolean().optional(),
+    active: z.boolean().optional(),
     expertiseDestinations: z
       .array(z.string().trim().min(2).max(100))
       .max(50)
@@ -86,6 +88,7 @@ const list = z.object({
       email: z.string().email().optional(),
       isActive: z.coerce.boolean().optional(),
       isOnLeave: z.coerce.boolean().optional(),
+      active: z.coerce.boolean().optional(),
     })
     .optional(),
 });

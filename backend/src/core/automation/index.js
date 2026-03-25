@@ -72,6 +72,14 @@ function createAutomationRuntime({ container, modules }) {
     });
   }
 
+  if (typeof leadsService?.processQueuedLeads === "function") {
+    jobs.push({
+      name: "lead_queue_distribution",
+      intervalMs: intervals.leadQueue,
+      run: async () => leadsService.processQueuedLeads({}, {}),
+    });
+  }
+
   if (typeof quotationsService?.runReminderAutomation === "function") {
     jobs.push({
       name: "quotation_reminders",

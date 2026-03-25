@@ -30,7 +30,7 @@
 --     is_active
 -- )
 -- VALUES (
---     (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'),
+--     (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'), 
 --     'Super Admin',
 --     'admin@travel-crm.com',
 --     '$2b$10$sobkJsADDL.z5fSKtHmMVOsw28OmXODgHMlJ9G/xIa5VCsXK.H00e',
@@ -83,6 +83,7 @@ CREATE TABLE users (
 
     is_active BOOLEAN DEFAULT TRUE,
     is_on_leave BOOLEAN DEFAULT FALSE,
+    active BOOLEAN DEFAULT TRUE,
 
     failed_login_attempts INT DEFAULT 0 CHECK (failed_login_attempts >= 0),
     account_locked_until TIMESTAMP,
@@ -327,6 +328,17 @@ CREATE TABLE leads (
     is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE queued_leads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    reason VARCHAR(100),
+    queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (lead_id)
 );
 
 CREATE TABLE lead_activities (

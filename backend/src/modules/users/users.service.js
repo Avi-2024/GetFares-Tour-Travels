@@ -9,6 +9,7 @@ function mapListFilters(filters = {}) {
     email: filters.email,
     is_active: filters.isActive,
     is_on_leave: filters.isOnLeave,
+    active: filters.active,
   };
 }
 
@@ -32,6 +33,7 @@ function mapCreatePayload(payload) {
     password_hash: payload.passwordHash,
     is_active: payload.isActive,
     is_on_leave: payload.isOnLeave,
+    active: payload.active,
     agent_country: payload.agentCountry ?? payload.country ?? null,
     agent_type: normalizeAgentType(payload.agentType ?? payload.type),
     expertise_destinations: payload.expertiseDestinations,
@@ -48,6 +50,7 @@ function mapUpdatePayload(payload) {
     phone: payload.phone,
     is_active: payload.isActive,
     is_on_leave: payload.isOnLeave,
+    active: payload.active,
     agent_country: payload.agentCountry ?? payload.country ?? null,
     agent_type: normalizeAgentType(payload.agentType ?? payload.type),
     expertise_destinations: payload.expertiseDestinations,
@@ -77,6 +80,7 @@ function toUser(entity, roleLookup, permissions = []) {
     type: entity.agent_type ?? entity.agentType ?? null,
     isActive: entity.is_active,
     isOnLeave: entity.is_on_leave,
+    active: entity.active ?? null,
     expertiseDestinations: entity.expertise_destinations,
     targetAmount: entity.target_amount,
     incentivePercent: entity.incentive_percent,
