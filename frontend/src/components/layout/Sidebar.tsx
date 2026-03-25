@@ -77,12 +77,12 @@ const sections = [
         icon: FaPassport,
         permission: 'visa:read'
       },
-      {
-        label: 'Destinations',
-        to: '/destinations',
-        icon: FaGlobe,
-        permission: 'settings:read'
-      },
+      // {
+      //   label: 'Destinations',
+      //   to: '/destinations',
+      //   icon: FaGlobe,
+      //   permission: 'settings:read'
+      // },
       {
         label: 'Packages',
         to: '/packages',

@@ -9,6 +9,7 @@ CREATE TABLE roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) UNIQUE NOT NULL,
     description TEXT,
+    country VARCHAR(100),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -250,6 +251,7 @@ CREATE TABLE leads (
     budget NUMERIC(12,2) CHECK (budget >= 0),
     adults_count INT DEFAULT 1 CHECK (adults_count >= 0),
     children_count INT DEFAULT 0 CHECK (children_count >= 0),
+    child_ages INTEGER[],
     visa_required BOOLEAN DEFAULT FALSE,
     lead_type VARCHAR(20) DEFAULT 'HOLIDAY',
     travel_purpose VARCHAR(50),
@@ -993,3 +995,22 @@ CREATE INDEX idx_campaigns_start_date ON campaigns(start_date);
 -- =============================
 
 CREATE INDEX idx_customers_pan_number ON customers(pan_number);
+
+-- =============================
+-- USERS INDEXES (active status)
+-- =============================
+
+CREATE INDEX idx_users_active ON users(active) WHERE is_active = TRUE;
+
+-- =============================
+-- ROLES INDEXES (country)
+-- =============================
+
+CREATE INDEX idx_roles_country ON roles(country) WHERE country IS NOT NULL;
+
+-- =============================
+-- QUEUED LEADS INDEXES
+-- =============================
+
+CREATE INDEX idx_queued_leads_pending ON queued_leads(queued_at ASC) WHERE processed_at IS NULL;
+CREATE INDEX idx_queued_leads_lead_id ON queued_leads(lead_id);

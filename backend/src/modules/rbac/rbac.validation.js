@@ -77,6 +77,7 @@ const createRole = z.object({
   body: z.object({
     name: z.string().trim().min(1).max(120),
     description: z.string().trim().max(500).nullable().optional(),
+    country: z.string().trim().max(100).nullable().optional(),
     isActive: z.boolean().optional(),
   }),
   params: z.object({}).optional(),
@@ -88,6 +89,7 @@ const updateRole = z.object({
     .object({
       name: z.string().trim().min(1).max(120).optional(),
       description: z.string().trim().max(500).nullable().optional(),
+      country: z.string().trim().max(100).nullable().optional(),
       isActive: z.boolean().optional(),
     })
     .refine(

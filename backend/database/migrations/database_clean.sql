@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS
   campaigns,
   customers,
   leads,
+  queued_leads,
   lead_activities,
   followups,
   customer_leads,

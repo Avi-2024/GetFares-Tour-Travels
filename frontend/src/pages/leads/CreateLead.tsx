@@ -12,6 +12,7 @@ type FormState = {
   lastName: string
   email: string
   phone: string
+  leadCountry: string
   clientCurrency: string
   location: string
   destinationName: string
@@ -32,6 +33,7 @@ const initialForm: FormState = {
   lastName: '',
   email: '',
   phone: '',
+  leadCountry: '',
   clientCurrency: 'INR',
   location: '',
   destinationName: '',
@@ -116,6 +118,7 @@ const CreateLead: React.FC = () => {
       lastName: !form.lastName.trim(),
       email: !form.email.trim(),
       phone: !form.phone.trim(),
+      leadCountry: !form.leadCountry,
       clientCurrency: !form.clientCurrency.trim(),
       destinationName: !form.destinationName.trim(),
       travelDate: !form.travelDate,
@@ -243,12 +246,14 @@ const CreateLead: React.FC = () => {
         fullName,
         email: form.email.trim(),
         phone: form.phone.trim(),
+        leadCountry: form.leadCountry,
         addressLine: form.location.trim() || undefined,
         clientCurrency: form.clientCurrency.trim().toUpperCase(),
         destinationName: form.destinationName.trim(),
         travelDate: form.travelDate,
         adultsCount: form.adultsCount,
         childrenCount: form.childrenCount,
+        childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
         budget: Number(form.budget),
         visaRequired: form.visaRequired === 'YES',
         preferredHotelCategory: form.preferredHotelCategory,
@@ -332,6 +337,22 @@ const CreateLead: React.FC = () => {
             onChange={value => setForm(prev => ({ ...prev, phone: value }))}
             error={fieldError('phone')}
           />
+          <div>
+            <label className='field-label'>Lead Country *</label>
+            <SearchableDropdown
+              value={form.leadCountry}
+              options={[
+                { value: '', label: 'Select country' },
+                { value: 'India', label: 'India' },
+                { value: 'UAE', label: 'UAE' }
+              ]}
+              hasError={fieldError('leadCountry')}
+              searchPlaceholder='Search country...'
+              onChange={value =>
+                setForm(prev => ({ ...prev, leadCountry: value }))
+              }
+            />
+          </div>
           <div>
             <label className='field-label'>Client Currency *</label>
             <SearchableDropdown

@@ -35,6 +35,9 @@ export type LeadApiRecord = {
   destinationId?: string | null;
   destinationName?: string | null;
   country?: string | null;
+  leadCountry?: string | null;
+  childAges?: number[] | null;
+  callsDisabled?: boolean | null;
   packageName?: string | null;
   package?: string | null;
   status?: string | null;
@@ -121,6 +124,8 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     client.post("/api/leads/followups/process-non-responsive", payload),
   processCadenceAutomation: (payload?: { staleDays?: number; limit?: number }) =>
     client.post("/api/leads/followups/process-cadence-automation", payload),
+  disableCalls: (id: string, disabled: boolean) =>
+    client.post(`/api/leads/${id}/disable-calls`, { disabled }),
   publicCapture: (payload: unknown) =>
     client.post("/api/webhooks/website-enquiry", payload, { skipAuth: true }),
 });

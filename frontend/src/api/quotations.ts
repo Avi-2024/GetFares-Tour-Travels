@@ -60,6 +60,8 @@ export const quotationsApi = {
       method: "POST",
       body: changes,
     }),
+  listPackages: (params?: Record<string, string | number | boolean>) =>
+    apiRequest(withQuery("/api/packages", params)),
   // Debug function
   testWithToken: testApiCall,
 };

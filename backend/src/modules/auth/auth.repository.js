@@ -12,6 +12,9 @@ function createAuthRepository({ db, logger, schema }) {
       passwordHash: row.password_hash ?? row.passwordHash,
       role: roleMeta.roleName || row.role || null,
       roleId: roleMeta.roleId || row.role_id || row.roleId || null,
+      roleCountry: roleMeta.roleCountry ?? null,
+      agentCountry: row.agent_country ?? row.agentCountry ?? null,
+      agentType: row.agent_type ?? row.agentType ?? null,
       isActive: row.is_active ?? row.isActive ?? true,
       active: row.active ?? null,
       createdAt: row.created_at ?? row.createdAt,
@@ -45,10 +48,12 @@ function createAuthRepository({ db, logger, schema }) {
 
     let roleId = userRow.role_id || userRow.roleId || null;
     let roleName = userRow.role || null;
+    let roleCountry = null;
 
     if (!roleName && roleId) {
       const roleRecord = await db.findById(schema.rolesTable, roleId);
       roleName = roleRecord?.name || null;
+      roleCountry = roleRecord?.country ?? null;
     }
 
     if (!roleId && roleName) {
@@ -56,9 +61,10 @@ function createAuthRepository({ db, logger, schema }) {
         name: roleName,
       });
       roleId = roleRecord?.id || null;
+      roleCountry = roleRecord?.country ?? null;
     }
 
-    return toDomainUser(userRow, { roleName, roleId });
+    return toDomainUser(userRow, { roleName, roleId, roleCountry });
   }
 
   return Object.freeze({
@@ -113,6 +119,28 @@ function createAuthRepository({ db, logger, schema }) {
       }
       return db.update(schema.usersTable, userId, {
         last_login: new Date().toISOString(),
+        active: true,
+      });
+    },
+
+    async setActiveStatus(userId, active) {
+      if (!userId) {
+        return null;
+      }
+      const row = await db.update(schema.usersTable, userId, {
+        active: Boolean(active),
+        updated_at: new Date().toISOString(),
+      });
+      return attachRole(row);
+    },
+
+    async clearLoginPresence(userId) {
+      if (!userId) {
+        return null;
+      }
+      return db.update(schema.usersTable, userId, {
+        active: false,
+        updated_at: new Date().toISOString(),
       });
     },
   });
