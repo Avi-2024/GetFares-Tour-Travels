@@ -35,6 +35,12 @@ interface Role {
   description?: string
 }
 
+const COUNTRY_OPTIONS = [
+  { value: '', label: 'Select country' },
+  { value: 'India', label: 'India' },
+  { value: 'Dubai', label: 'Dubai' }
+]
+
 const getRoleLabel = (
   roleName?: string,
   roleId?: string,
@@ -282,8 +288,7 @@ const UserFormModal = ({
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
               Country <span className='text-red-500'>*</span>
             </label>
-            <select
-              required
+            <SearchableDropdown
               value={formData.country}
               onChange={e =>
                 setFormData({ ...formData, country: e.target.value })
@@ -1278,5 +1283,3 @@ const UsersPage: React.FC = () => {
 }
 
 export default UsersPage
-
-

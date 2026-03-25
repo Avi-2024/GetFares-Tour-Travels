@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaBuildingColumns,
@@ -41,6 +41,10 @@ interface Transaction {
   referenceId: string
   date: string
   customer: string
+  customerEmail?: string
+  customerPhone?: string
+  customerId?: string
+  leadId?: string
   bookingId: string
   bookingLabel?: string
   amount: number
@@ -49,6 +53,8 @@ interface Transaction {
   paidAt?: string
   verifiedAt?: string
   verifiedBy?: string
+  verifiedByName?: string
+  invoiceUrl?: string
   paymentReference?: string
   gatewayOrderId?: string
   gatewayPaymentId?: string
@@ -81,7 +87,37 @@ const statusClasses: Record<TxStatus, string> = {
 
 const initialTransactions: Transaction[] = []
 
-const unwrapData = <T,>(response: unknown): T | null => {
+const MAX_INVOICE_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+
+const formatFileSize = (bytes: number) => {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const power = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  )
+  const value = bytes / Math.pow(1024, power)
+  return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[power]}`
+}
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result === 'string') {
+        const commaIndex = result.indexOf(',')
+        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result)
+      } else {
+        reject(new Error('Unable to read file'))
+      }
+    }
+    reader.onerror = () =>
+      reject(reader.error ?? new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+
+function unwrapData<T> (response: unknown): T | null {
   if (!response) return null
   if (typeof response === 'object' && response && 'data' in response) {
     return (response as { data: T }).data ?? null
@@ -118,6 +154,52 @@ const pickCustomerName = (...sources: any[]) => {
       source?.fullName ??
       source?.full_name ??
       source?.name
+
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim()
+    }
+  }
+
+  return ''
+}
+
+const pickCustomerEmail = (...sources: any[]) => {
+  for (const source of sources) {
+    const candidate =
+      source?.customerEmail ??
+      source?.customer_email ??
+      source?.email ??
+      source?.primaryEmail ??
+      source?.contactEmail ??
+      source?.customer?.email ??
+      source?.customerSnapshot?.email ??
+      source?.lead?.email ??
+      source?.leadSnapshot?.email
+
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim()
+    }
+  }
+
+  return ''
+}
+
+const pickCustomerPhone = (...sources: any[]) => {
+  for (const source of sources) {
+    const candidate =
+      source?.customerPhone ??
+      source?.customer_phone ??
+      source?.phone ??
+      source?.mobile ??
+      source?.contactNumber ??
+      source?.contact_number ??
+      source?.customer?.phone ??
+      source?.customer?.mobile ??
+      source?.customerSnapshot?.phone ??
+      source?.lead?.phone ??
+      source?.lead?.mobile ??
+      source?.leadSnapshot?.phone ??
+      source?.leadSnapshot?.mobile
 
     if (typeof candidate === 'string' && candidate.trim()) {
       return candidate.trim()
@@ -215,6 +297,20 @@ const mapPaymentToTransaction = (row: any): Transaction => {
   const bookingId = String(row?.bookingId ?? row?.booking_id ?? 'N/A')
   const paidAt =
     row?.paidAt ?? row?.paid_at ?? row?.createdAt ?? row?.created_at ?? null
+  const customerId =
+    row?.customerId ??
+    row?.customer_id ??
+    row?.customer?.id ??
+    row?.customer?.customerId ??
+    row?.customer?.customer_id ??
+    null
+  const leadId =
+    row?.leadId ??
+    row?.lead_id ??
+    row?.lead?.id ??
+    row?.lead?.leadId ??
+    row?.lead?.lead_id ??
+    null
   return {
     id: String(row?.id ?? ''),
     referenceId:
@@ -231,6 +327,12 @@ const mapPaymentToTransaction = (row: any): Transaction => {
       pickCustomerName(row, row?.customer, row?.lead) ||
       row?.customer ||
       'Unknown',
+    customerEmail:
+      pickCustomerEmail(row, row?.customer, row?.lead) || undefined,
+    customerPhone:
+      pickCustomerPhone(row, row?.customer, row?.lead) || undefined,
+    customerId: customerId ? String(customerId) : undefined,
+    leadId: leadId ? String(leadId) : undefined,
     bookingId,
     bookingLabel: bookingId,
     amount: toNumber(row?.amount, 0),
@@ -239,11 +341,28 @@ const mapPaymentToTransaction = (row: any): Transaction => {
     paidAt: paidAt ?? undefined,
     verifiedAt: row?.verifiedAt ?? row?.verified_at ?? undefined,
     verifiedBy: row?.verifiedBy ?? row?.verified_by ?? undefined,
+    verifiedByName:
+      pickCustomerName(
+        row?.verifiedByUser,
+        row?.verified_by_user,
+        row?.verifiedByCustomer,
+        row?.verified_by_customer
+      ) ||
+      row?.verifiedByName ||
+      row?.verified_by_name ||
+      undefined,
     paymentReference: row?.paymentReference ?? row?.payment_reference,
     gatewayOrderId: row?.gatewayOrderId ?? row?.gateway_order_id,
     gatewayPaymentId: row?.gatewayPaymentId ?? row?.gateway_payment_id,
     gatewaySignature: row?.gatewaySignature ?? row?.gateway_signature,
     proofUrl: row?.proofUrl ?? row?.proof_url,
+    invoiceUrl:
+      row?.invoiceUrl ??
+      row?.invoice_url ??
+      row?.invoiceDocument ??
+      row?.invoice_document ??
+      row?.proofUrl ??
+      row?.proof_url,
     notes: row?.notes,
     createdAt: row?.createdAt ?? row?.created_at,
     updatedAt: row?.updatedAt ?? row?.updated_at
@@ -599,6 +718,9 @@ const PaymentFormModal = ({
   >([])
   const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [loadingBookings, setLoadingBookings] = useState(false)
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
+  const [invoiceUploadError, setInvoiceUploadError] = useState('')
+  const invoiceInputRef = useRef<HTMLInputElement | null>(null)
   const customerDropdownOptions = useMemo(
     () => [
       {
@@ -646,6 +768,46 @@ const PaymentFormModal = ({
     ],
     []
   )
+
+  const clearInvoiceSelection = useCallback(() => {
+    setInvoiceFile(null)
+    setInvoiceUploadError('')
+    if (invoiceInputRef.current) {
+      invoiceInputRef.current.value = ''
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) {
+      clearInvoiceSelection()
+    }
+  }, [isOpen, clearInvoiceSelection])
+
+  useEffect(() => {
+    clearInvoiceSelection()
+  }, [transaction, clearInvoiceSelection])
+
+  const handleInvoiceFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (file.type !== 'application/pdf') {
+      setInvoiceUploadError('Only PDF invoices are supported')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > MAX_INVOICE_FILE_SIZE) {
+      setInvoiceUploadError('Invoice must be 5 MB or smaller')
+      event.target.value = ''
+      return
+    }
+
+    setInvoiceUploadError('')
+    setInvoiceFile(file)
+  }
 
   // Load customers and bookings when modal opens
   useEffect(() => {
@@ -748,6 +910,8 @@ const PaymentFormModal = ({
 
   if (!isOpen) return null
 
+  const currentInvoiceLink = transaction?.invoiceUrl ?? transaction?.proofUrl
+
   const validate = () => {
     const newErrors: Record<string, string> = {}
     if (!formData.customer) newErrors.customer = 'Customer is required'
@@ -759,8 +923,35 @@ const PaymentFormModal = ({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return
+
+    let invoiceAttachment:
+      | {
+          name: string
+          type: string
+          size: number
+          data: string
+        }
+      | undefined
+
+    if (invoiceFile) {
+      try {
+        const base64 = await fileToBase64(invoiceFile)
+        invoiceAttachment = {
+          name: invoiceFile.name,
+          type: invoiceFile.type,
+          size: invoiceFile.size,
+          data: base64
+        }
+      } catch (error) {
+        console.error('Failed to process invoice PDF', error)
+        setInvoiceUploadError(
+          'Unable to read the invoice PDF. Please try again.'
+        )
+        return
+      }
+    }
 
     const now = new Date().toISOString()
     onSave({
@@ -770,7 +961,8 @@ const PaymentFormModal = ({
         (transaction?.amount && transaction.amount < 0 ? -1 : 1),
       id: transaction?.id || `tx-${Date.now()}`,
       createdAt: transaction?.createdAt || now,
-      updatedAt: now
+      updatedAt: now,
+      invoiceAttachment
     })
   }
 
@@ -919,102 +1111,81 @@ const PaymentFormModal = ({
             </div>
           </div>
 
-          {/* Payment Details */}
           <div className='pt-4 border-t border-gray-200 dark:border-gray-800'>
             <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
-              Payment Details
+              Invoice Attachment
             </h4>
-            <div className='space-y-4'>
-              <div>
-                <label className='field-label'>Payment Reference</label>
+            <div className='space-y-3'>
+              {invoiceFile ? (
+                <div className='flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2'>
+                  <div>
+                    <p className='text-sm font-medium text-gray-800'>
+                      {invoiceFile.name}
+                    </p>
+                    <p className='text-xs text-gray-500'>
+                      PDF · {formatFileSize(invoiceFile.size)}
+                    </p>
+                  </div>
+                  <button
+                    type='button'
+                    className='text-xs font-semibold text-red-600 hover:underline'
+                    onClick={clearInvoiceSelection}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <p className='text-sm text-gray-500'>
+                  Upload the finalized invoice PDF (max 5 MB) that should be
+                  linked with this payment.
+                </p>
+              )}
+
+              <div className='flex flex-wrap items-center gap-3'>
+                <label
+                  htmlFor='invoice-upload'
+                  className='inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600'
+                >
+                  Upload PDF
+                </label>
                 <input
-                  type='text'
-                  value={formData.paymentReference}
-                  onChange={e =>
-                    setFormData({
-                      ...formData,
-                      paymentReference: e.target.value
-                    })
-                  }
-                  className='field-input'
-                  placeholder='e.g., NEFT-12345'
+                  id='invoice-upload'
+                  ref={invoiceInputRef}
+                  type='file'
+                  accept='application/pdf'
+                  className='hidden'
+                  onChange={handleInvoiceFileChange}
                 />
+                {currentInvoiceLink && !invoiceFile && (
+                  <a
+                    href={currentInvoiceLink}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='text-sm font-semibold text-blue-600 hover:underline'
+                  >
+                    View current invoice
+                  </a>
+                )}
               </div>
 
-              <div className='grid grid-cols-2 gap-4'>
+              {invoiceUploadError && (
+                <p className='text-xs text-red-500'>{invoiceUploadError}</p>
+              )}
+
+              {formData.notes !== undefined && (
                 <div>
-                  <label className='field-label'>Gateway Order ID</label>
-                  <input
-                    type='text'
-                    value={formData.gatewayOrderId}
+                  <label className='field-label'>Notes</label>
+                  <textarea
+                    value={formData.notes}
                     onChange={e =>
-                      setFormData({
-                        ...formData,
-                        gatewayOrderId: e.target.value
-                      })
+                      setFormData({ ...formData, notes: e.target.value })
                     }
+                    rows={3}
                     className='field-input'
-                    placeholder='ORD-123456'
+                    placeholder='Additional notes...'
                   />
                 </div>
-                <div>
-                  <label className='field-label'>Gateway Payment ID</label>
-                  <input
-                    type='text'
-                    value={formData.gatewayPaymentId}
-                    onChange={e =>
-                      setFormData({
-                        ...formData,
-                        gatewayPaymentId: e.target.value
-                      })
-                    }
-                    className='field-input'
-                    placeholder='PAY-789012'
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className='field-label'>Gateway Signature</label>
-                <input
-                  type='text'
-                  value={formData.gatewaySignature}
-                  onChange={e =>
-                    setFormData({
-                      ...formData,
-                      gatewaySignature: e.target.value
-                    })
-                  }
-                  className='field-input'
-                  placeholder='Signature for verification'
-                />
-              </div>
-
-              <div>
-                <label className='field-label'>Proof URL</label>
-                <input
-                  type='url'
-                  value={formData.proofUrl}
-                  onChange={e =>
-                    setFormData({ ...formData, proofUrl: e.target.value })
-                  }
-                  className='field-input'
-                  placeholder='https://example.com/receipt.pdf'
-                />
-              </div>
-
-              <div>
-                <label className='field-label'>Notes</label>
-                <textarea
-                  value={formData.notes}
-                  onChange={e =>
-                    setFormData({ ...formData, notes: e.target.value })
-                  }
-                  rows={3}
-                  className='field-input'
-                  placeholder='Additional notes...'
-                />
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -1027,7 +1198,9 @@ const PaymentFormModal = ({
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
+            onClick={() => {
+              void handleSubmit()
+            }}
             className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
           >
             {transaction ? 'Update Payment' : 'Add Payment'}
@@ -1210,6 +1383,39 @@ const DetailsModal = ({
             </div>
           </div>
 
+          {/* Contact Details */}
+          {(transaction.customerEmail || transaction.customerPhone) && (
+            <div className='space-y-3'>
+              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                Contact Details
+              </h4>
+              <div className='space-y-2'>
+                {transaction.customerEmail && (
+                  <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
+                    <span className='text-sm text-gray-500'>Email</span>
+                    <a
+                      href={`mailto:${transaction.customerEmail}`}
+                      className='text-sm font-medium text-blue-600 hover:underline'
+                    >
+                      {transaction.customerEmail}
+                    </a>
+                  </div>
+                )}
+                {transaction.customerPhone && (
+                  <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
+                    <span className='text-sm text-gray-500'>Phone</span>
+                    <a
+                      href={`tel:${transaction.customerPhone}`}
+                      className='text-sm font-medium text-gray-900'
+                    >
+                      {transaction.customerPhone}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Verification Info */}
           {transaction.verifiedAt && (
             <div className='space-y-3'>
@@ -1226,7 +1432,10 @@ const DetailsModal = ({
                 <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
                   <span className='text-sm text-gray-500'>Verified By</span>
                   <span className='text-sm font-medium text-gray-900'>
-                    {transaction.verifiedBy}
+                    {transaction.verifiedByName ||
+                      transaction.customer ||
+                      transaction.verifiedBy ||
+                      'N/A'}
                   </span>
                 </div>
               </div>
@@ -1485,6 +1694,57 @@ const Payments: React.FC = () => {
         }
       }
 
+      const customerIds = Array.from(
+        new Set(
+          paymentRows
+            .map(row => String(row?.customerId ?? row?.customer_id ?? ''))
+            .concat(
+              Object.values(bookingById).map((booking: any) =>
+                String(
+                  booking?.customerId ??
+                    booking?.customer_id ??
+                    booking?.customer?.id ??
+                    ''
+                )
+              )
+            )
+            .concat(
+              Object.values(quotationById).map((quote: any) =>
+                String(
+                  quote?.customerId ??
+                    quote?.customer_id ??
+                    quote?.customer?.id ??
+                    ''
+                )
+              )
+            )
+            .filter(Boolean)
+        )
+      )
+
+      let customerById: Record<string, any> = {}
+      if (customerIds.length) {
+        try {
+          const customersRes = await customersApi.list({ page: 1, limit: 500 })
+          const customersData = unwrapList(customersRes)
+          customerById = customersData.reduce(
+            (acc: Record<string, any>, customer: any) => {
+              const key = String(
+                customer?.id ??
+                  customer?.customerId ??
+                  customer?.customer_id ??
+                  ''
+              )
+              if (key) acc[key] = customer
+              return acc
+            },
+            {} as Record<string, any>
+          )
+        } catch (_error) {
+          customerById = {}
+        }
+      }
+
       const rows = paymentRows.map(row => {
         const tx = mapPaymentToTransaction(row)
         const bookingKey = String(row?.bookingId ?? row?.booking_id ?? '')
@@ -1509,6 +1769,19 @@ const Payments: React.FC = () => {
             ''
         )
         const lead = leadById[leadKey]
+        const customerKey = String(
+          tx.customerId ??
+            row?.customerId ??
+            row?.customer_id ??
+            booking?.customerId ??
+            booking?.customer_id ??
+            quotation?.customerId ??
+            quotation?.customer_id ??
+            ''
+        )
+        const customerRecord = customerKey
+          ? customerById[customerKey]
+          : undefined
 
         const bookingNumber =
           booking?.bookingNumber ??
@@ -1517,6 +1790,41 @@ const Payments: React.FC = () => {
           tx.bookingId
         const bookingCustomer =
           pickCustomerName(booking, quotation, lead) || tx.customer
+        const customerEmail =
+          tx.customerEmail ||
+          pickCustomerEmail(
+            row,
+            row?.customer,
+            booking,
+            booking?.customer,
+            quotation,
+            quotation?.customer,
+            lead,
+            customerRecord
+          )
+        const customerPhone =
+          tx.customerPhone ||
+          pickCustomerPhone(
+            row,
+            row?.customer,
+            booking,
+            booking?.customer,
+            quotation,
+            quotation?.customer,
+            lead,
+            customerRecord
+          )
+        const derivedVerifiedByName =
+          tx.verifiedByName ||
+          (tx.verifiedBy &&
+            pickCustomerName(
+              customerById[tx.verifiedBy],
+              leadById[tx.verifiedBy]
+            )) ||
+          (tx.verifiedBy && tx.customerId && tx.verifiedBy === tx.customerId
+            ? bookingCustomer
+            : undefined)
+        const normalizedCustomerId = customerKey || tx.customerId
 
         return {
           ...tx,
@@ -1524,7 +1832,11 @@ const Payments: React.FC = () => {
           customer:
             tx.customer === 'Unknown'
               ? String(bookingCustomer || tx.customer)
-              : tx.customer
+              : tx.customer,
+          customerId: normalizedCustomerId,
+          customerEmail: customerEmail || undefined,
+          customerPhone: customerPhone || undefined,
+          verifiedByName: derivedVerifiedByName || undefined
         }
       })
       setTransactions(rows)
@@ -1625,6 +1937,7 @@ const Payments: React.FC = () => {
         gatewayPaymentId: data.gatewayPaymentId || undefined,
         gatewaySignature: data.gatewaySignature || undefined,
         proofUrl: data.proofUrl || undefined,
+        invoiceAttachment: data.invoiceAttachment || undefined,
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.paidAt ?? data.date) || undefined
       })
@@ -1648,6 +1961,7 @@ const Payments: React.FC = () => {
                 gatewayPaymentId: data.gatewayPaymentId || tx.gatewayPaymentId,
                 gatewaySignature: data.gatewaySignature || tx.gatewaySignature,
                 proofUrl: data.proofUrl || tx.proofUrl,
+                invoiceUrl: tx.invoiceUrl,
                 status: data.status as TxStatus,
                 notes: data.notes || tx.notes,
                 updatedAt: data.updatedAt
@@ -1676,6 +1990,7 @@ const Payments: React.FC = () => {
         gatewayPaymentId: data.gatewayPaymentId || undefined,
         gatewaySignature: data.gatewaySignature || undefined,
         proofUrl: data.proofUrl || undefined,
+        invoiceAttachment: data.invoiceAttachment || undefined,
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.date) || undefined,
         isVerified: data.status === 'completed'
@@ -2044,9 +2359,6 @@ const Payments: React.FC = () => {
                       Reference
                     </th>
                     <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                      Date
-                    </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Customer
                     </th>
                     <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
@@ -2057,6 +2369,9 @@ const Payments: React.FC = () => {
                     </th>
                     <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Status
+                    </th>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Date
                     </th>
                     <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Actions
@@ -2071,9 +2386,6 @@ const Payments: React.FC = () => {
                     >
                       <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
                         #{tx.referenceId}
-                      </td>
-                      <td className='px-5 py-4 text-sm text-gray-600 dark:text-gray-300'>
-                        {tx.date}
                       </td>
                       <td className='px-5 py-4'>
                         <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
@@ -2106,6 +2418,9 @@ const Payments: React.FC = () => {
                         >
                           {tx.status}
                         </span>
+                      </td>
+                      <td className='px-5 py-4 text-sm text-gray-600 dark:text-gray-300'>
+                        {tx.date}
                       </td>
                       <td className='px-5 py-4'>
                         <div className='flex justify-end gap-2'>
