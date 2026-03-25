@@ -171,7 +171,7 @@ const Header: React.FC<{
         <button
           type='button'
           onClick={handleToggleBreak}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-2 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:gap-2 sm:px-3 sm:text-sm ${
             breakState.isBreak
               ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-400 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/40'
               : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
@@ -182,12 +182,15 @@ const Header: React.FC<{
               breakState.isBreak ? 'bg-amber-500 animate-pulse' : 'bg-gray-400'
             }`}
           />
-          {breakTimerLabel}
+          <span className='hidden sm:inline'>{breakTimerLabel}</span>
+          <span className='sm:hidden'>
+            {breakState.isBreak ? 'Break' : 'Start'}
+          </span>
         </button>
         <button
           type='button'
           disabled={breakState.isBreak}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-2 py-2 text-xs font-semibold transition sm:gap-2 sm:px-3 sm:text-sm ${
             breakState.isBreak
               ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
               : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200'
@@ -198,7 +201,12 @@ const Header: React.FC<{
               breakState.isBreak ? 'bg-gray-400' : 'bg-green-500'
             }`}
           />
-          {breakState.isBreak ? 'Away' : 'Active'}
+          <span className='hidden sm:inline'>
+            {breakState.isBreak ? 'Away' : 'Active'}
+          </span>
+          <span className='sm:hidden'>
+            {breakState.isBreak ? 'Away' : 'Active'}
+          </span>
         </button>
         <button
           onClick={toggle}
