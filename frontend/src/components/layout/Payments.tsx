@@ -41,6 +41,10 @@ interface Transaction {
   referenceId: string
   date: string
   customer: string
+  customerEmail?: string
+  customerPhone?: string
+  customerId?: string
+  leadId?: string
   bookingId: string
   bookingLabel?: string
   amount: number
@@ -49,6 +53,7 @@ interface Transaction {
   paidAt?: string
   verifiedAt?: string
   verifiedBy?: string
+  verifiedByName?: string
   paymentReference?: string
   gatewayOrderId?: string
   gatewayPaymentId?: string
@@ -81,7 +86,7 @@ const statusClasses: Record<TxStatus, string> = {
 
 const initialTransactions: Transaction[] = []
 
-const unwrapData = <T,>(response: unknown): T | null => {
+const unwrapData = <T>(response: unknown): T | null => {
   if (!response) return null
   if (typeof response === 'object' && response && 'data' in response) {
     return (response as { data: T }).data ?? null
@@ -118,6 +123,52 @@ const pickCustomerName = (...sources: any[]) => {
       source?.fullName ??
       source?.full_name ??
       source?.name
+
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim()
+    }
+  }
+
+  return ''
+}
+
+const pickCustomerEmail = (...sources: any[]) => {
+  for (const source of sources) {
+    const candidate =
+      source?.customerEmail ??
+      source?.customer_email ??
+      source?.email ??
+      source?.primaryEmail ??
+      source?.contactEmail ??
+      source?.customer?.email ??
+      source?.customerSnapshot?.email ??
+      source?.lead?.email ??
+      source?.leadSnapshot?.email
+
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim()
+    }
+  }
+
+  return ''
+}
+
+const pickCustomerPhone = (...sources: any[]) => {
+  for (const source of sources) {
+    const candidate =
+      source?.customerPhone ??
+      source?.customer_phone ??
+      source?.phone ??
+      source?.mobile ??
+      source?.contactNumber ??
+      source?.contact_number ??
+      source?.customer?.phone ??
+      source?.customer?.mobile ??
+      source?.customerSnapshot?.phone ??
+      source?.lead?.phone ??
+      source?.lead?.mobile ??
+      source?.leadSnapshot?.phone ??
+      source?.leadSnapshot?.mobile
 
     if (typeof candidate === 'string' && candidate.trim()) {
       return candidate.trim()
@@ -215,6 +266,20 @@ const mapPaymentToTransaction = (row: any): Transaction => {
   const bookingId = String(row?.bookingId ?? row?.booking_id ?? 'N/A')
   const paidAt =
     row?.paidAt ?? row?.paid_at ?? row?.createdAt ?? row?.created_at ?? null
+  const customerId =
+    row?.customerId ??
+    row?.customer_id ??
+    row?.customer?.id ??
+    row?.customer?.customerId ??
+    row?.customer?.customer_id ??
+    null
+  const leadId =
+    row?.leadId ??
+    row?.lead_id ??
+    row?.lead?.id ??
+    row?.lead?.leadId ??
+    row?.lead?.lead_id ??
+    null
   return {
     id: String(row?.id ?? ''),
     referenceId:
@@ -231,6 +296,12 @@ const mapPaymentToTransaction = (row: any): Transaction => {
       pickCustomerName(row, row?.customer, row?.lead) ||
       row?.customer ||
       'Unknown',
+    customerEmail:
+      pickCustomerEmail(row, row?.customer, row?.lead) || undefined,
+    customerPhone:
+      pickCustomerPhone(row, row?.customer, row?.lead) || undefined,
+    customerId: customerId ? String(customerId) : undefined,
+    leadId: leadId ? String(leadId) : undefined,
     bookingId,
     bookingLabel: bookingId,
     amount: toNumber(row?.amount, 0),
@@ -239,6 +310,16 @@ const mapPaymentToTransaction = (row: any): Transaction => {
     paidAt: paidAt ?? undefined,
     verifiedAt: row?.verifiedAt ?? row?.verified_at ?? undefined,
     verifiedBy: row?.verifiedBy ?? row?.verified_by ?? undefined,
+    verifiedByName:
+      pickCustomerName(
+        row?.verifiedByUser,
+        row?.verified_by_user,
+        row?.verifiedByCustomer,
+        row?.verified_by_customer
+      ) ||
+      row?.verifiedByName ||
+      row?.verified_by_name ||
+      undefined,
     paymentReference: row?.paymentReference ?? row?.payment_reference,
     gatewayOrderId: row?.gatewayOrderId ?? row?.gateway_order_id,
     gatewayPaymentId: row?.gatewayPaymentId ?? row?.gateway_payment_id,
@@ -1210,6 +1291,39 @@ const DetailsModal = ({
             </div>
           </div>
 
+          {/* Contact Details */}
+          {(transaction.customerEmail || transaction.customerPhone) && (
+            <div className='space-y-3'>
+              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                Contact Details
+              </h4>
+              <div className='space-y-2'>
+                {transaction.customerEmail && (
+                  <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
+                    <span className='text-sm text-gray-500'>Email</span>
+                    <a
+                      href={`mailto:${transaction.customerEmail}`}
+                      className='text-sm font-medium text-blue-600 hover:underline'
+                    >
+                      {transaction.customerEmail}
+                    </a>
+                  </div>
+                )}
+                {transaction.customerPhone && (
+                  <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
+                    <span className='text-sm text-gray-500'>Phone</span>
+                    <a
+                      href={`tel:${transaction.customerPhone}`}
+                      className='text-sm font-medium text-gray-900'
+                    >
+                      {transaction.customerPhone}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Verification Info */}
           {transaction.verifiedAt && (
             <div className='space-y-3'>
@@ -1226,7 +1340,10 @@ const DetailsModal = ({
                 <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
                   <span className='text-sm text-gray-500'>Verified By</span>
                   <span className='text-sm font-medium text-gray-900'>
-                    {transaction.verifiedBy}
+                    {transaction.verifiedByName ||
+                      transaction.customer ||
+                      transaction.verifiedBy ||
+                      'N/A'}
                   </span>
                 </div>
               </div>
@@ -1485,6 +1602,57 @@ const Payments: React.FC = () => {
         }
       }
 
+      const customerIds = Array.from(
+        new Set(
+          paymentRows
+            .map(row => String(row?.customerId ?? row?.customer_id ?? ''))
+            .concat(
+              Object.values(bookingById).map((booking: any) =>
+                String(
+                  booking?.customerId ??
+                    booking?.customer_id ??
+                    booking?.customer?.id ??
+                    ''
+                )
+              )
+            )
+            .concat(
+              Object.values(quotationById).map((quote: any) =>
+                String(
+                  quote?.customerId ??
+                    quote?.customer_id ??
+                    quote?.customer?.id ??
+                    ''
+                )
+              )
+            )
+            .filter(Boolean)
+        )
+      )
+
+      let customerById: Record<string, any> = {}
+      if (customerIds.length) {
+        try {
+          const customersRes = await customersApi.list({ page: 1, limit: 500 })
+          const customersData = unwrapList(customersRes)
+          customerById = customersData.reduce(
+            (acc: Record<string, any>, customer: any) => {
+              const key = String(
+                customer?.id ??
+                  customer?.customerId ??
+                  customer?.customer_id ??
+                  ''
+              )
+              if (key) acc[key] = customer
+              return acc
+            },
+            {} as Record<string, any>
+          )
+        } catch (_error) {
+          customerById = {}
+        }
+      }
+
       const rows = paymentRows.map(row => {
         const tx = mapPaymentToTransaction(row)
         const bookingKey = String(row?.bookingId ?? row?.booking_id ?? '')
@@ -1509,6 +1677,17 @@ const Payments: React.FC = () => {
             ''
         )
         const lead = leadById[leadKey]
+        const customerKey = String(
+          tx.customerId ??
+            row?.customerId ??
+            row?.customer_id ??
+            booking?.customerId ??
+            booking?.customer_id ??
+            quotation?.customerId ??
+            quotation?.customer_id ??
+            ''
+        )
+        const customerRecord = customerKey ? customerById[customerKey] : undefined
 
         const bookingNumber =
           booking?.bookingNumber ??
@@ -1517,6 +1696,41 @@ const Payments: React.FC = () => {
           tx.bookingId
         const bookingCustomer =
           pickCustomerName(booking, quotation, lead) || tx.customer
+        const customerEmail =
+          tx.customerEmail ||
+          pickCustomerEmail(
+            row,
+            row?.customer,
+            booking,
+            booking?.customer,
+            quotation,
+            quotation?.customer,
+            lead,
+            customerRecord
+          )
+        const customerPhone =
+          tx.customerPhone ||
+          pickCustomerPhone(
+            row,
+            row?.customer,
+            booking,
+            booking?.customer,
+            quotation,
+            quotation?.customer,
+            lead,
+            customerRecord
+          )
+        const derivedVerifiedByName =
+          tx.verifiedByName ||
+          (tx.verifiedBy &&
+            pickCustomerName(
+              customerById[tx.verifiedBy],
+              leadById[tx.verifiedBy]
+            )) ||
+          (tx.verifiedBy && tx.customerId && tx.verifiedBy === tx.customerId
+            ? bookingCustomer
+            : undefined)
+        const normalizedCustomerId = customerKey || tx.customerId
 
         return {
           ...tx,
@@ -1524,7 +1738,11 @@ const Payments: React.FC = () => {
           customer:
             tx.customer === 'Unknown'
               ? String(bookingCustomer || tx.customer)
-              : tx.customer
+              : tx.customer,
+          customerId: normalizedCustomerId,
+          customerEmail: customerEmail || undefined,
+          customerPhone: customerPhone || undefined,
+          verifiedByName: derivedVerifiedByName || undefined
         }
       })
       setTransactions(rows)
@@ -2044,9 +2262,6 @@ const Payments: React.FC = () => {
                       Reference
                     </th>
                     <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                      Date
-                    </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Customer
                     </th>
                     <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
@@ -2057,6 +2272,9 @@ const Payments: React.FC = () => {
                     </th>
                     <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Status
+                    </th>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Date
                     </th>
                     <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Actions
@@ -2071,9 +2289,6 @@ const Payments: React.FC = () => {
                     >
                       <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
                         #{tx.referenceId}
-                      </td>
-                      <td className='px-5 py-4 text-sm text-gray-600 dark:text-gray-300'>
-                        {tx.date}
                       </td>
                       <td className='px-5 py-4'>
                         <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
@@ -2106,6 +2321,9 @@ const Payments: React.FC = () => {
                         >
                           {tx.status}
                         </span>
+                      </td>
+                      <td className='px-5 py-4 text-sm text-gray-600 dark:text-gray-300'>
+                        {tx.date}
                       </td>
                       <td className='px-5 py-4'>
                         <div className='flex justify-end gap-2'>
