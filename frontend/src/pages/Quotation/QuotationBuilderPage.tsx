@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { suppliersApi } from '../../api/suppliers'
 import { quotationsApi } from '../../api/quotations'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
@@ -124,6 +125,9 @@ const QuotationBuilderPage: React.FC = () => {
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [templatesError, setTemplatesError] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([])
+  const [suppliersLoading, setSuppliersLoading] = useState(false)
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
@@ -259,6 +263,17 @@ const QuotationBuilderPage: React.FC = () => {
       }))
     ],
     [templates]
+  )
+
+  const supplierDropdownOptions = useMemo(
+    () => [
+      { value: '', label: 'Select a supplier' },
+      ...suppliers.map(supplier => ({
+        value: supplier.id,
+        label: supplier.name
+      }))
+    ],
+    [suppliers]
   )
 
   const packageTypeOptions = useMemo(
@@ -433,6 +448,37 @@ const QuotationBuilderPage: React.FC = () => {
     }
 
     void loadTemplates()
+  }, [token])
+
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      if (!token) {
+        setSuppliers([])
+        return
+      }
+
+      setSuppliersLoading(true)
+      try {
+        const response = await suppliersApi.list({ page: 1, limit: 100 })
+        const payload = (response as any)?.data ?? response
+        const data = (payload as any)?.data || (payload as any)?.items || payload
+        if (Array.isArray(data)) {
+          setSuppliers(data.map((s: any) => ({
+            id: s.id || s._id,
+            name: s.name || s.companyName || 'Unnamed Supplier'
+          })))
+        } else {
+          setSuppliers([])
+        }
+      } catch (error) {
+        console.error('Failed to load suppliers:', error)
+        setSuppliers([])
+      } finally {
+        setSuppliersLoading(false)
+      }
+    }
+
+    void loadSuppliers()
   }, [token])
 
   useEffect(() => {
@@ -1040,6 +1086,23 @@ const QuotationBuilderPage: React.FC = () => {
                       {selectedTemplate.minMarginPercent}%
                     </p>
                   ) : null}
+
+                  <div>
+                    <label className='field-label'>Supplier</label>
+                    <SearchableDropdown
+                      value={selectedSupplierId}
+                      options={supplierDropdownOptions}
+                      onChange={setSelectedSupplierId}
+                      disabled={suppliersLoading}
+                      searchPlaceholder='Search supplier...'
+                    />
+                    {suppliersLoading ? (
+                      <p className='mt-1 text-xs text-gray-500'>
+                        Loading suppliers...
+                      </p>
+                    ) : null}
+                  </div>
+
                 </div>
                 <Field
                   label='Customer'
