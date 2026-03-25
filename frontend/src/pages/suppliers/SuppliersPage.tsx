@@ -542,8 +542,8 @@ const SuppliersPage: React.FC = () => {
         />
       </div>
 
-      <div className='grid grid-cols-1 gap-5 xl:grid-cols-[340px_1fr]'>
-        <SurfaceCard className='overflow-hidden p-0'>
+      <div className='grid grid-cols-1 gap-5 xl:grid-cols-[340px_1fr] xl:gap-6 xl:overflow-hidden'>
+        <SurfaceCard className='flex flex-col overflow-hidden p-0 xl:h-[calc(100vh-320px)]'>
           <div className='border-b border-gray-200 p-4 dark:border-gray-800'>
             <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
               Supplier Directory
@@ -570,441 +570,389 @@ const SuppliersPage: React.FC = () => {
               ))}
             </div>
           </div>
-
-          {loadingSuppliers ? (
-            <div className='p-4 text-sm text-gray-500'>
-              Loading suppliers...
-            </div>
-          ) : filteredSuppliers.length ? (
-            <div className='max-h-[760px] divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800'>
-              {filteredSuppliers.map(supplier => (
-                <button
-                  key={supplier.id}
-                  onClick={() => setSelectedSupplierId(supplier.id)}
-                  className={`w-full px-4 py-3 text-left transition-colors ${
-                    supplier.id === selectedSupplierId
-                      ? 'bg-blue-50 dark:bg-blue-900/20'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                  }`}
-                >
-                  <div className='flex items-start justify-between gap-2'>
-                    <div>
-                      <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                        {supplier.name}
-                      </p>
-                      <p className='text-xs text-gray-500 dark:text-gray-400'>
-                        {supplier.country || 'No country'} |{' '}
-                        {supplier.supplierCurrency || 'INR'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={event => {
-                        event.stopPropagation()
-                        handleEditSupplier(supplier)
-                      }}
-                      className='inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                    >
-                      <FaPenToSquare /> Edit
-                    </button>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className='p-4 text-sm text-gray-500'>No suppliers found.</div>
-          )}
-        </SurfaceCard>
-
-        <div className='space-y-5'>
-          <SurfaceCard className='p-4'>
-            <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              Selected Supplier
-            </h2>
-            {!selectedSupplier ? (
-              <p className='mt-3 text-sm text-gray-500'>
-                Select a supplier from the left list.
-              </p>
-            ) : (
-              <div className='mt-3 space-y-3'>
-                <div>
-                  <p className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-                    {selectedSupplier.name}
-                  </p>
-                  <p className='text-xs text-gray-500 dark:text-gray-400'>
-                    Contact:{' '}
-                    {selectedSupplier.contactPerson ||
-                      selectedSupplier.email ||
-                      selectedSupplier.phone ||
-                      'Not set'}
-                  </p>
-                </div>
-                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3'>
-                  <Info
-                    label='Country'
-                    value={selectedSupplier.country || 'Not set'}
-                  />
-                  <Info
-                    label='Currency'
-                    value={selectedSupplier.supplierCurrency || 'INR'}
-                  />
-                  <Info
-                    label='Rate Valid'
-                    value={formatDate(selectedSupplier.rateValidUntil)}
-                  />
-                  <Info
-                    label='Pay Deadline'
-                    value={formatDate(selectedSupplier.paymentDeadlineDate)}
-                  />
-                  <Info
-                    label='Email'
-                    value={selectedSupplier.email || 'Not set'}
-                  />
-                  <Info
-                    label='Phone'
-                    value={selectedSupplier.phone || 'Not set'}
-                  />
-                </div>
-                <Info
-                  label='Contract URL'
-                  value={selectedSupplier.contractUrl || 'Not set'}
-                />
-                <Info
-                  label='Production Commitment'
-                  value={selectedSupplier.productionCommitment || 'Not set'}
-                />
+          <div className='flex-1 overflow-y-auto scrollbar-hide'>
+            {loadingSuppliers ? (
+              <div className='p-4 text-sm text-gray-500'>
+                Loading suppliers...
               </div>
-            )}
-          </SurfaceCard>
-
-          <SurfaceCard className='p-4'>
-            <div className='flex items-center justify-between gap-3'>
-              <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                Supplier Payables
-              </h2>
-              <button
-                onClick={() => void handleRunDeadlineAlerts()}
-                disabled={runningAlerts}
-                className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-              >
-                <FaBell /> {runningAlerts ? 'Running...' : 'Run Alerts'}
-              </button>
-            </div>
-
-            <div className='mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3'>
-              <Info
-                label='Total Payable'
-                value={payableStats.totalPayable.toLocaleString()}
-              />
-              <Info
-                label='Total Paid'
-                value={payableStats.totalPaid.toLocaleString()}
-              />
-              <Info
-                label='Pending'
-                value={payableStats.pending.toLocaleString()}
-              />
-            </div>
-
-            <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-2'>
-              <input
-                value={payableForm.bookingId}
-                onChange={event =>
-                  setPayableForm(prev => ({
-                    ...prev,
-                    bookingId: event.target.value
-                  }))
-                }
-                className='field-input'
-                placeholder='Booking ID (UUID) *'
-              />
-              <input
-                value={payableForm.paymentReference}
-                onChange={event =>
-                  setPayableForm(prev => ({
-                    ...prev,
-                    paymentReference: event.target.value
-                  }))
-                }
-                className='field-input'
-                placeholder='Payment reference'
-              />
-              <input
-                type='number'
-                min='0'
-                value={payableForm.payableAmount}
-                onChange={event =>
-                  setPayableForm(prev => ({
-                    ...prev,
-                    payableAmount: event.target.value
-                  }))
-                }
-                className='field-input'
-                placeholder='Payable amount *'
-              />
-              <input
-                type='number'
-                min='0'
-                value={payableForm.paidAmount}
-                onChange={event =>
-                  setPayableForm(prev => ({
-                    ...prev,
-                    paidAmount: event.target.value
-                  }))
-                }
-                className='field-input'
-                placeholder='Paid amount'
-              />
-              <input
-                type='date'
-                value={payableForm.dueDate}
-                onChange={event =>
-                  setPayableForm(prev => ({
-                    ...prev,
-                    dueDate: event.target.value
-                  }))
-                }
-                className='field-input'
-              />
-              <SearchableDropdown
-                value={payableForm.status}
-                options={payableFormStatusOptions}
-                onChange={value =>
-                  setPayableForm(prev => ({
-                    ...prev,
-                    status: value as PayableForm['status']
-                  }))
-                }
-                searchPlaceholder='Search payable status...'
-              />
-            </div>
-
-            <button
-              onClick={() => void handleCreatePayable()}
-              disabled={savingPayable || !selectedSupplier}
-              className='mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60'
-            >
-              <FaPlus /> Add Payable
-            </button>
-
-            <div className='mt-3 flex flex-wrap gap-2'>
-              {(['ALL', 'PENDING', 'PARTIAL', 'PAID'] as const).map(status => (
-                <button
-                  key={status}
-                  onClick={() => setPayableStatusFilter(status)}
-                  className={`rounded-full border px-3 py-1 text-xs ${
-                    payableStatusFilter === status
-                      ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-
-            <div className='mt-3 space-y-2'>
-              {loadingPayables ? (
-                <p className='text-sm text-gray-500'>Loading payables...</p>
-              ) : filteredPayables.length ? (
-                filteredPayables.map(payable => (
-                  <div
-                    key={payable.id}
-                    className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'
+            ) : filteredSuppliers.length ? (
+              <div className='divide-y divide-gray-100 dark:divide-gray-800'>
+                {filteredSuppliers.map(supplier => (
+                  <button
+                    key={supplier.id}
+                    onClick={() => setSelectedSupplierId(supplier.id)}
+                    className={`w-full px-4 py-3 text-left transition-colors ${
+                      supplier.id === selectedSupplierId
+                        ? 'bg-blue-50 dark:bg-blue-900/20'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                    }`}
                   >
-                    <div className='flex items-start justify-between gap-3'>
+                    <div className='flex items-start justify-between gap-2'>
                       <div>
                         <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                          Booking {payable.bookingId}
+                          {supplier.name}
                         </p>
                         <p className='text-xs text-gray-500 dark:text-gray-400'>
-                          Due: {formatDate(payable.dueDate)} | Ref:{' '}
-                          {payable.paymentReference || 'N/A'}
+                          {supplier.country || 'No country'} |{' '}
+                          {supplier.supplierCurrency || 'INR'}
                         </p>
                       </div>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${dueBadgeClass(
-                          payable
-                        )}`}
-                      >
-                        {dueLabel(payable)}
-                      </span>
-                    </div>
-                    <div className='mt-2 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300'>
-                      <span>
-                        Payable: {payable.payableAmount.toLocaleString()}
-                      </span>
-                      <span>Paid: {payable.paidAmount.toLocaleString()}</span>
-                    </div>
-                    {payable.status !== 'PAID' ? (
                       <button
-                        onClick={() => void handleMarkPayablePaid(payable)}
-                        className='mt-2 inline-flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                        onClick={event => {
+                          event.stopPropagation()
+                          handleEditSupplier(supplier)
+                        }}
+                        className='inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
                       >
-                        <FaWallet /> Mark Paid
+                        <FaPenToSquare /> Edit
                       </button>
-                    ) : null}
-                  </div>
-                ))
-              ) : (
-                <p className='text-sm text-gray-500'>No payables found.</p>
-              )}
-            </div>
-          </SurfaceCard>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className='p-4 text-sm text-gray-500'>
+                No suppliers found.
+              </div>
+            )}
+          </div>
+        </SurfaceCard>
 
-          <SurfaceCard className='p-4'>
-            <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              {editingSupplierId ? 'Edit Supplier' : 'Create Supplier'}
-            </h2>
-            <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-2'>
-              <input
-                value={supplierForm.name}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    name: event.target.value
-                  }))
-                }
-                className='field-input md:col-span-2'
-                placeholder='Supplier name *'
-              />
-              <input
-                value={supplierForm.contactPerson}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    contactPerson: event.target.value
-                  }))
-                }
-                className='field-input'
-                placeholder='Contact person'
-              />
-              <input
-                value={supplierForm.phone}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    phone: event.target.value
-                  }))
-                }
-                className='field-input'
-                placeholder='Phone'
-              />
-              <input
-                value={supplierForm.email}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    email: event.target.value
-                  }))
-                }
-                className='field-input'
-                placeholder='Email'
-              />
-              <input
-                value={supplierForm.country}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    country: event.target.value
-                  }))
-                }
-                className='field-input'
-                placeholder='Country'
-              />
-              <input
-                value={supplierForm.supplierCurrency}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    supplierCurrency: event.target.value.toUpperCase()
-                  }))
-                }
-                className='field-input'
-                placeholder='Currency'
-              />
-              <input
-                type='date'
-                value={supplierForm.rateValidUntil}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    rateValidUntil: event.target.value
-                  }))
-                }
-                className='field-input'
-              />
-              <input
-                type='date'
-                value={supplierForm.paymentDeadlineDate}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    paymentDeadlineDate: event.target.value
-                  }))
-                }
-                className='field-input'
-              />
-              <input
-                value={supplierForm.contractUrl}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    contractUrl: event.target.value
-                  }))
-                }
-                className='field-input md:col-span-2'
-                placeholder='Contract URL'
-              />
-              <textarea
-                rows={3}
-                value={supplierForm.productionCommitment}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    productionCommitment: event.target.value
-                  }))
-                }
-                className='field-input md:col-span-2'
-                placeholder='Production commitment'
-              />
-            </div>
+        <div className='xl:flex xl:h-[calc(100vh-320px)] xl:flex-col xl:overflow-hidden'>
+          <div className='space-y-5 xl:flex-1 xl:overflow-y-auto xl:pr-1 scrollbar-thin-muted'>
+            <SurfaceCard className='p-4'>
+              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  {editingSupplierId ? 'Edit Supplier' : 'Create Supplier'}
+                </h2>
+                <div className='flex gap-2'>
+                  <button
+                    onClick={() => void handleSaveSupplier()}
+                    disabled={savingSupplier}
+                    className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60'
+                  >
+                    <FaCircleCheck /> {editingSupplierId ? 'Update' : 'Create'}
+                  </button>
+                  <button
+                    onClick={resetSupplierForm}
+                    className='rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+              <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
+                <input
+                  value={supplierForm.name}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      name: event.target.value
+                    }))
+                  }
+                  className='field-input md:col-span-2'
+                  placeholder='Supplier name *'
+                />
+                <input
+                  value={supplierForm.contactPerson}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      contactPerson: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Contact person'
+                />
+                <input
+                  value={supplierForm.phone}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      phone: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Phone'
+                />
+                <input
+                  value={supplierForm.email}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      email: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Email'
+                />
+                <input
+                  value={supplierForm.country}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      country: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Country'
+                />
+                <input
+                  value={supplierForm.supplierCurrency}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      supplierCurrency: event.target.value.toUpperCase()
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Currency'
+                />
+                <input
+                  type='date'
+                  value={supplierForm.rateValidUntil}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      rateValidUntil: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                />
+                <input
+                  type='date'
+                  value={supplierForm.paymentDeadlineDate}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      paymentDeadlineDate: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                />
+                <input
+                  value={supplierForm.contractUrl}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      contractUrl: event.target.value
+                    }))
+                  }
+                  className='field-input md:col-span-2'
+                  placeholder='Contract URL'
+                />
+                <textarea
+                  rows={3}
+                  value={supplierForm.productionCommitment}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      productionCommitment: event.target.value
+                    }))
+                  }
+                  className='field-input md:col-span-2'
+                  placeholder='Production commitment'
+                />
+              </div>
 
-            <div className='mt-3 flex items-center gap-2'>
-              <input
-                id='supplier-active'
-                type='checkbox'
-                checked={supplierForm.isActive}
-                onChange={event =>
-                  setSupplierForm(prev => ({
-                    ...prev,
-                    isActive: event.target.checked
-                  }))
-                }
-              />
-              <label
-                htmlFor='supplier-active'
-                className='text-sm text-gray-700 dark:text-gray-300'
-              >
-                Supplier is active
-              </label>
-            </div>
+              <div className='mt-3 flex items-center gap-2'>
+                <input
+                  id='supplier-active'
+                  type='checkbox'
+                  checked={supplierForm.isActive}
+                  onChange={event =>
+                    setSupplierForm(prev => ({
+                      ...prev,
+                      isActive: event.target.checked
+                    }))
+                  }
+                />
+                <label
+                  htmlFor='supplier-active'
+                  className='text-sm text-gray-700 dark:text-gray-300'
+                >
+                  Supplier is active
+                </label>
+              </div>
+            </SurfaceCard>
 
-            <div className='mt-3 flex gap-2'>
+            <SurfaceCard className='p-4'>
+              <div className='flex items-center justify-between gap-3'>
+                <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  Supplier Payables
+                </h2>
+                <button
+                  onClick={() => void handleRunDeadlineAlerts()}
+                  disabled={runningAlerts}
+                  className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                >
+                  <FaBell /> {runningAlerts ? 'Running...' : 'Run Alerts'}
+                </button>
+              </div>
+
+              <div className='mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+                <Info
+                  label='Total Payable'
+                  value={payableStats.totalPayable.toLocaleString()}
+                />
+                <Info
+                  label='Total Paid'
+                  value={payableStats.totalPaid.toLocaleString()}
+                />
+                <Info
+                  label='Pending'
+                  value={payableStats.pending.toLocaleString()}
+                />
+              </div>
+
+              <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-2'>
+                <input
+                  value={payableForm.bookingId}
+                  onChange={event =>
+                    setPayableForm(prev => ({
+                      ...prev,
+                      bookingId: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Booking ID (UUID) *'
+                />
+                <input
+                  value={payableForm.paymentReference}
+                  onChange={event =>
+                    setPayableForm(prev => ({
+                      ...prev,
+                      paymentReference: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Payment reference'
+                />
+                <input
+                  type='number'
+                  min='0'
+                  value={payableForm.payableAmount}
+                  onChange={event =>
+                    setPayableForm(prev => ({
+                      ...prev,
+                      payableAmount: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Payable amount *'
+                />
+                <input
+                  type='number'
+                  min='0'
+                  value={payableForm.paidAmount}
+                  onChange={event =>
+                    setPayableForm(prev => ({
+                      ...prev,
+                      paidAmount: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                  placeholder='Paid amount'
+                />
+                <input
+                  type='date'
+                  value={payableForm.dueDate}
+                  onChange={event =>
+                    setPayableForm(prev => ({
+                      ...prev,
+                      dueDate: event.target.value
+                    }))
+                  }
+                  className='field-input'
+                />
+                <SearchableDropdown
+                  value={payableForm.status}
+                  options={payableFormStatusOptions}
+                  onChange={value =>
+                    setPayableForm(prev => ({
+                      ...prev,
+                      status: value as PayableForm['status']
+                    }))
+                  }
+                  searchPlaceholder='Search payable status...'
+                />
+              </div>
+
               <button
-                onClick={() => void handleSaveSupplier()}
-                disabled={savingSupplier}
-                className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60'
+                onClick={() => void handleCreatePayable()}
+                disabled={savingPayable || !selectedSupplier}
+                className='mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60'
               >
-                <FaCircleCheck /> {editingSupplierId ? 'Update' : 'Create'}
+                <FaPlus /> Add Payable
               </button>
-              <button
-                onClick={resetSupplierForm}
-                className='rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-              >
-                Reset
-              </button>
-            </div>
-          </SurfaceCard>
+
+              <div className='mt-3 flex flex-wrap gap-2'>
+                {(['ALL', 'PENDING', 'PARTIAL', 'PAID'] as const).map(
+                  status => (
+                    <button
+                      key={status}
+                      onClick={() => setPayableStatusFilter(status)}
+                      className={`rounded-full border px-3 py-1 text-xs ${
+                        payableStatusFilter === status
+                          ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-300'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <div className='mt-3 space-y-2'>
+                {loadingPayables ? (
+                  <p className='text-sm text-gray-500'>Loading payables...</p>
+                ) : filteredPayables.length ? (
+                  filteredPayables.map(payable => (
+                    <div
+                      key={payable.id}
+                      className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'
+                    >
+                      <div className='flex items-start justify-between gap-3'>
+                        <div>
+                          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            Booking {payable.bookingId}
+                          </p>
+                          <p className='text-xs text-gray-500 dark:text-gray-400'>
+                            Due: {formatDate(payable.dueDate)} | Ref:{' '}
+                            {payable.paymentReference || 'N/A'}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${dueBadgeClass(
+                            payable
+                          )}`}
+                        >
+                          {dueLabel(payable)}
+                        </span>
+                      </div>
+                      <div className='mt-2 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300'>
+                        <span>
+                          Payable: {payable.payableAmount.toLocaleString()}
+                        </span>
+                        <span>Paid: {payable.paidAmount.toLocaleString()}</span>
+                      </div>
+                      {payable.status !== 'PAID' ? (
+                        <button
+                          onClick={() => void handleMarkPayablePaid(payable)}
+                          className='mt-2 inline-flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                        >
+                          <FaWallet /> Mark Paid
+                        </button>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <p className='text-sm text-gray-500'>No payables found.</p>
+                )}
+              </div>
+            </SurfaceCard>
+          </div>
         </div>
       </div>
     </div>

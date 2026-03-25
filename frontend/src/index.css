@@ -30,6 +30,29 @@
     display: none;
   }
 
+  .scrollbar-thin-muted {
+    -ms-overflow-style: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+
+  .scrollbar-thin-muted::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin-muted::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin-muted::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 9999px;
+  }
+
+  .scrollbar-thin-muted::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
+
   .status-dropdown-scroll {
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.45) transparent;

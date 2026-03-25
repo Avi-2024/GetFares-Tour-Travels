@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaBuildingColumns,
@@ -54,6 +54,7 @@ interface Transaction {
   verifiedAt?: string
   verifiedBy?: string
   verifiedByName?: string
+  invoiceUrl?: string
   paymentReference?: string
   gatewayOrderId?: string
   gatewayPaymentId?: string
@@ -86,7 +87,37 @@ const statusClasses: Record<TxStatus, string> = {
 
 const initialTransactions: Transaction[] = []
 
-const unwrapData = <T>(response: unknown): T | null => {
+const MAX_INVOICE_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+
+const formatFileSize = (bytes: number) => {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const power = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  )
+  const value = bytes / Math.pow(1024, power)
+  return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[power]}`
+}
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result === 'string') {
+        const commaIndex = result.indexOf(',')
+        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result)
+      } else {
+        reject(new Error('Unable to read file'))
+      }
+    }
+    reader.onerror = () =>
+      reject(reader.error ?? new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+
+function unwrapData<T> (response: unknown): T | null {
   if (!response) return null
   if (typeof response === 'object' && response && 'data' in response) {
     return (response as { data: T }).data ?? null
@@ -325,6 +356,13 @@ const mapPaymentToTransaction = (row: any): Transaction => {
     gatewayPaymentId: row?.gatewayPaymentId ?? row?.gateway_payment_id,
     gatewaySignature: row?.gatewaySignature ?? row?.gateway_signature,
     proofUrl: row?.proofUrl ?? row?.proof_url,
+    invoiceUrl:
+      row?.invoiceUrl ??
+      row?.invoice_url ??
+      row?.invoiceDocument ??
+      row?.invoice_document ??
+      row?.proofUrl ??
+      row?.proof_url,
     notes: row?.notes,
     createdAt: row?.createdAt ?? row?.created_at,
     updatedAt: row?.updatedAt ?? row?.updated_at
@@ -680,6 +718,9 @@ const PaymentFormModal = ({
   >([])
   const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [loadingBookings, setLoadingBookings] = useState(false)
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
+  const [invoiceUploadError, setInvoiceUploadError] = useState('')
+  const invoiceInputRef = useRef<HTMLInputElement | null>(null)
   const customerDropdownOptions = useMemo(
     () => [
       {
@@ -727,6 +768,46 @@ const PaymentFormModal = ({
     ],
     []
   )
+
+  const clearInvoiceSelection = useCallback(() => {
+    setInvoiceFile(null)
+    setInvoiceUploadError('')
+    if (invoiceInputRef.current) {
+      invoiceInputRef.current.value = ''
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) {
+      clearInvoiceSelection()
+    }
+  }, [isOpen, clearInvoiceSelection])
+
+  useEffect(() => {
+    clearInvoiceSelection()
+  }, [transaction, clearInvoiceSelection])
+
+  const handleInvoiceFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (file.type !== 'application/pdf') {
+      setInvoiceUploadError('Only PDF invoices are supported')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > MAX_INVOICE_FILE_SIZE) {
+      setInvoiceUploadError('Invoice must be 5 MB or smaller')
+      event.target.value = ''
+      return
+    }
+
+    setInvoiceUploadError('')
+    setInvoiceFile(file)
+  }
 
   // Load customers and bookings when modal opens
   useEffect(() => {
@@ -829,6 +910,8 @@ const PaymentFormModal = ({
 
   if (!isOpen) return null
 
+  const currentInvoiceLink = transaction?.invoiceUrl ?? transaction?.proofUrl
+
   const validate = () => {
     const newErrors: Record<string, string> = {}
     if (!formData.customer) newErrors.customer = 'Customer is required'
@@ -840,8 +923,35 @@ const PaymentFormModal = ({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return
+
+    let invoiceAttachment:
+      | {
+          name: string
+          type: string
+          size: number
+          data: string
+        }
+      | undefined
+
+    if (invoiceFile) {
+      try {
+        const base64 = await fileToBase64(invoiceFile)
+        invoiceAttachment = {
+          name: invoiceFile.name,
+          type: invoiceFile.type,
+          size: invoiceFile.size,
+          data: base64
+        }
+      } catch (error) {
+        console.error('Failed to process invoice PDF', error)
+        setInvoiceUploadError(
+          'Unable to read the invoice PDF. Please try again.'
+        )
+        return
+      }
+    }
 
     const now = new Date().toISOString()
     onSave({
@@ -851,7 +961,8 @@ const PaymentFormModal = ({
         (transaction?.amount && transaction.amount < 0 ? -1 : 1),
       id: transaction?.id || `tx-${Date.now()}`,
       createdAt: transaction?.createdAt || now,
-      updatedAt: now
+      updatedAt: now,
+      invoiceAttachment
     })
   }
 
@@ -1000,102 +1111,81 @@ const PaymentFormModal = ({
             </div>
           </div>
 
-          {/* Payment Details */}
           <div className='pt-4 border-t border-gray-200 dark:border-gray-800'>
             <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
-              Payment Details
+              Invoice Attachment
             </h4>
-            <div className='space-y-4'>
-              <div>
-                <label className='field-label'>Payment Reference</label>
+            <div className='space-y-3'>
+              {invoiceFile ? (
+                <div className='flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2'>
+                  <div>
+                    <p className='text-sm font-medium text-gray-800'>
+                      {invoiceFile.name}
+                    </p>
+                    <p className='text-xs text-gray-500'>
+                      PDF · {formatFileSize(invoiceFile.size)}
+                    </p>
+                  </div>
+                  <button
+                    type='button'
+                    className='text-xs font-semibold text-red-600 hover:underline'
+                    onClick={clearInvoiceSelection}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <p className='text-sm text-gray-500'>
+                  Upload the finalized invoice PDF (max 5 MB) that should be
+                  linked with this payment.
+                </p>
+              )}
+
+              <div className='flex flex-wrap items-center gap-3'>
+                <label
+                  htmlFor='invoice-upload'
+                  className='inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600'
+                >
+                  Upload PDF
+                </label>
                 <input
-                  type='text'
-                  value={formData.paymentReference}
-                  onChange={e =>
-                    setFormData({
-                      ...formData,
-                      paymentReference: e.target.value
-                    })
-                  }
-                  className='field-input'
-                  placeholder='e.g., NEFT-12345'
+                  id='invoice-upload'
+                  ref={invoiceInputRef}
+                  type='file'
+                  accept='application/pdf'
+                  className='hidden'
+                  onChange={handleInvoiceFileChange}
                 />
+                {currentInvoiceLink && !invoiceFile && (
+                  <a
+                    href={currentInvoiceLink}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='text-sm font-semibold text-blue-600 hover:underline'
+                  >
+                    View current invoice
+                  </a>
+                )}
               </div>
 
-              <div className='grid grid-cols-2 gap-4'>
+              {invoiceUploadError && (
+                <p className='text-xs text-red-500'>{invoiceUploadError}</p>
+              )}
+
+              {formData.notes !== undefined && (
                 <div>
-                  <label className='field-label'>Gateway Order ID</label>
-                  <input
-                    type='text'
-                    value={formData.gatewayOrderId}
+                  <label className='field-label'>Notes</label>
+                  <textarea
+                    value={formData.notes}
                     onChange={e =>
-                      setFormData({
-                        ...formData,
-                        gatewayOrderId: e.target.value
-                      })
+                      setFormData({ ...formData, notes: e.target.value })
                     }
+                    rows={3}
                     className='field-input'
-                    placeholder='ORD-123456'
+                    placeholder='Additional notes...'
                   />
                 </div>
-                <div>
-                  <label className='field-label'>Gateway Payment ID</label>
-                  <input
-                    type='text'
-                    value={formData.gatewayPaymentId}
-                    onChange={e =>
-                      setFormData({
-                        ...formData,
-                        gatewayPaymentId: e.target.value
-                      })
-                    }
-                    className='field-input'
-                    placeholder='PAY-789012'
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className='field-label'>Gateway Signature</label>
-                <input
-                  type='text'
-                  value={formData.gatewaySignature}
-                  onChange={e =>
-                    setFormData({
-                      ...formData,
-                      gatewaySignature: e.target.value
-                    })
-                  }
-                  className='field-input'
-                  placeholder='Signature for verification'
-                />
-              </div>
-
-              <div>
-                <label className='field-label'>Proof URL</label>
-                <input
-                  type='url'
-                  value={formData.proofUrl}
-                  onChange={e =>
-                    setFormData({ ...formData, proofUrl: e.target.value })
-                  }
-                  className='field-input'
-                  placeholder='https://example.com/receipt.pdf'
-                />
-              </div>
-
-              <div>
-                <label className='field-label'>Notes</label>
-                <textarea
-                  value={formData.notes}
-                  onChange={e =>
-                    setFormData({ ...formData, notes: e.target.value })
-                  }
-                  rows={3}
-                  className='field-input'
-                  placeholder='Additional notes...'
-                />
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -1108,7 +1198,9 @@ const PaymentFormModal = ({
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
+            onClick={() => {
+              void handleSubmit()
+            }}
             className='px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700'
           >
             {transaction ? 'Update Payment' : 'Add Payment'}
@@ -1687,7 +1779,9 @@ const Payments: React.FC = () => {
             quotation?.customer_id ??
             ''
         )
-        const customerRecord = customerKey ? customerById[customerKey] : undefined
+        const customerRecord = customerKey
+          ? customerById[customerKey]
+          : undefined
 
         const bookingNumber =
           booking?.bookingNumber ??
@@ -1843,6 +1937,7 @@ const Payments: React.FC = () => {
         gatewayPaymentId: data.gatewayPaymentId || undefined,
         gatewaySignature: data.gatewaySignature || undefined,
         proofUrl: data.proofUrl || undefined,
+        invoiceAttachment: data.invoiceAttachment || undefined,
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.paidAt ?? data.date) || undefined
       })
@@ -1866,6 +1961,7 @@ const Payments: React.FC = () => {
                 gatewayPaymentId: data.gatewayPaymentId || tx.gatewayPaymentId,
                 gatewaySignature: data.gatewaySignature || tx.gatewaySignature,
                 proofUrl: data.proofUrl || tx.proofUrl,
+                invoiceUrl: tx.invoiceUrl,
                 status: data.status as TxStatus,
                 notes: data.notes || tx.notes,
                 updatedAt: data.updatedAt
@@ -1894,6 +1990,7 @@ const Payments: React.FC = () => {
         gatewayPaymentId: data.gatewayPaymentId || undefined,
         gatewaySignature: data.gatewaySignature || undefined,
         proofUrl: data.proofUrl || undefined,
+        invoiceAttachment: data.invoiceAttachment || undefined,
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.date) || undefined,
         isVerified: data.status === 'completed'

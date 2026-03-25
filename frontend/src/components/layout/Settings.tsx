@@ -148,7 +148,7 @@ const getRoleLabel = (
   roleMap: Map<string, string>
 ) => roleName ?? roleMap.get(roleId ?? '') ?? '-'
 
-const extractRows = <T>(response: unknown): T[] => {
+function extractRows<T> (response: unknown): T[] {
   const payload = response as { data?: T[] | { data?: T[]; items?: T[] } }
   if (Array.isArray(payload?.data)) return payload.data
   const nested = payload?.data as { data?: T[]; items?: T[] } | undefined
@@ -157,7 +157,7 @@ const extractRows = <T>(response: unknown): T[] => {
   return Array.isArray(response) ? (response as T[]) : []
 }
 
-const extractObject = <T extends object>(response: unknown): T | null => {
+function extractObject<T extends object> (response: unknown): T | null {
   if (!response || typeof response !== 'object') return null
   const payload = response as { data?: unknown }
   if (payload.data && typeof payload.data === 'object') return payload.data as T
@@ -1549,7 +1549,6 @@ const Settings: React.FC = () => {
                   options={COUNTRY_OPTIONS}
                   onChange={value => setCreateRoleCountry(value as CountryCode)}
                   className='mt-1 w-full'
-                  dropdownPlacement='up'
                   searchPlaceholder='Search country...'
                 />
               </div>
@@ -1593,7 +1592,7 @@ const Settings: React.FC = () => {
                 )}
               </div>
             </div>
-              <div className='mt-6 flex justify-end gap-2'>
+            <div className='mt-6 flex justify-end gap-2'>
               <button
                 onClick={closeCreateRoleModal}
                 className='rounded-xl border border-gray-200 px-4 py-2 text-sm'
@@ -1602,11 +1601,11 @@ const Settings: React.FC = () => {
               </button>
               <button
                 onClick={() => void handleCreateRole()}
-                  disabled={
-                    createRoleLoading ||
-                    !createRoleName.trim() ||
-                    !createRolePermissions.length
-                  }
+                disabled={
+                  createRoleLoading ||
+                  !createRoleName.trim() ||
+                  !createRolePermissions.length
+                }
                 className='rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
               >
                 {createRoleLoading ? 'Creating...' : 'Create Role'}
@@ -1813,21 +1812,30 @@ const PermissionsMultiSelect: React.FC<PermissionsMultiSelectProps> = ({
   const [query, setQuery] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
 
+  const closeDropdown = useCallback(() => {
+    setIsOpen(false)
+    setQuery('')
+  }, [])
+
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-        setQuery('')
+        closeDropdown()
       }
     }
 
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
+  }, [closeDropdown])
 
-  useEffect(() => {
-    if (!isOpen) setQuery('')
-  }, [isOpen])
+  const toggleDropdown = () => {
+    if (disabled) return
+    setIsOpen(prev => {
+      const next = !prev
+      if (!next) setQuery('')
+      return next
+    })
+  }
 
   const filteredOptions = useMemo(() => {
     const term = query.trim().toLowerCase()
@@ -1853,10 +1861,7 @@ const PermissionsMultiSelect: React.FC<PermissionsMultiSelectProps> = ({
       <button
         type='button'
         disabled={disabled}
-        onClick={() => {
-          if (disabled) return
-          setIsOpen(prev => !prev)
-        }}
+        onClick={toggleDropdown}
         className='flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-sm text-gray-800 shadow-sm transition hover:border-gray-300 hover:shadow-md focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60'
       >
         <span
@@ -1941,7 +1946,7 @@ const PermissionsMultiSelect: React.FC<PermissionsMultiSelectProps> = ({
                 <button
                   type='button'
                   className='rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50'
-                  onClick={() => setIsOpen(false)}
+                  onClick={closeDropdown}
                   disabled={!selected.length}
                 >
                   Confirm
