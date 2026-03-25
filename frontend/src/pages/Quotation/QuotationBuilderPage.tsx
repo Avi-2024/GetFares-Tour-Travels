@@ -1473,14 +1473,73 @@ const QuotationBuilderPage: React.FC = () => {
                         className='border-b border-gray-100 dark:border-gray-800'
                       >
                         <td className='py-2'>{row.label}</td>
-                        <td className='py-2 text-right text-gray-500'>
-                          {row.weight}%
+                        <td className='py-2 text-right'>
+                          <input
+                            type='number'
+                            min='0'
+                            step='0.1'
+                            value={row.weight}
+                            onChange={e => {
+                              const newWeight = Number(e.target.value) || 0
+                              setServices(prev => {
+                                const definitions = SERVICE_DEFINITIONS.filter(
+                                  def => prev[def.key]
+                                )
+                                const currentDef = definitions.find(
+                                  def => def.key === row.key
+                                )
+                                if (!currentDef) return prev
+                                
+                                // Update the weight in SERVICE_DEFINITIONS
+                                const defIndex = SERVICE_DEFINITIONS.findIndex(
+                                  def => def.key === row.key
+                                )
+                                if (defIndex !== -1) {
+                                  SERVICE_DEFINITIONS[defIndex].weight = newWeight
+                                }
+                                return { ...prev }
+                              })
+                            }}
+                            className='w-20 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                          />
+                          <span className='ml-1 text-gray-500'>%</span>
                         </td>
                         <td className='py-2 text-right'>
-                          {money(row.baseCost)}
+                          <input
+                            type='number'
+                            min='0'
+                            step='0.01'
+                            value={row.baseCost}
+                            onChange={e => {
+                              const newBaseCost = Number(e.target.value) || 0
+                              const totalBaseCost = serviceCostRows.reduce(
+                                (sum, r) => sum + (r.key === row.key ? newBaseCost : r.baseCost),
+                                0
+                              )
+                              setCosts(prev => ({
+                                ...prev,
+                                supplierCost: totalBaseCost
+                              }))
+                            }}
+                            className='w-24 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                          />
                         </td>
                         <td className='py-2 text-right text-green-600'>
-                          {row.markupPercent.toFixed(1)}%
+                          <input
+                            type='number'
+                            min='0'
+                            step='0.1'
+                            value={row.markupPercent.toFixed(1)}
+                            onChange={e => {
+                              const newMarkup = Number(e.target.value) || 0
+                              setCosts(prev => ({
+                                ...prev,
+                                markupPercent: newMarkup
+                              }))
+                            }}
+                            className='w-16 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-green-600'
+                          />
+                          <span className='ml-1'>%</span>
                           <span className='ml-1 text-[11px] text-green-500'>
                             ({money(row.markupAmount)})
                           </span>
