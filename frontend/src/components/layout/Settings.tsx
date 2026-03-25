@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  FaChevronDown,
   FaChevronRight,
   FaDownload,
   FaFilter,
@@ -129,7 +130,7 @@ const toTrimmedOrUndefined = (value: string | number | undefined) => {
   return trimmed ? trimmed : undefined
 }
 
-const compactObject = <T extends Record<string, unknown>,>(payload: T) =>
+const compactObject = <T extends Record<string, unknown>>(payload: T) =>
   Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined)
   ) as Partial<T>
@@ -147,7 +148,7 @@ const getRoleLabel = (
   roleMap: Map<string, string>
 ) => roleName ?? roleMap.get(roleId ?? '') ?? '-'
 
-const extractRows = <T,>(response: unknown): T[] => {
+function extractRows<T> (response: unknown): T[] {
   const payload = response as { data?: T[] | { data?: T[]; items?: T[] } }
   if (Array.isArray(payload?.data)) return payload.data
   const nested = payload?.data as { data?: T[]; items?: T[] } | undefined
@@ -156,7 +157,7 @@ const extractRows = <T,>(response: unknown): T[] => {
   return Array.isArray(response) ? (response as T[]) : []
 }
 
-const extractObject = <T extends object,>(response: unknown): T | null => {
+function extractObject<T extends object> (response: unknown): T | null {
   if (!response || typeof response !== 'object') return null
   const payload = response as { data?: unknown }
   if (payload.data && typeof payload.data === 'object') return payload.data as T
@@ -238,6 +239,14 @@ const Settings: React.FC = () => {
   const [assignRoleSearch, setAssignRoleSearch] = useState('')
   const [assignRoleDropdownOpen, setAssignRoleDropdownOpen] = useState(false)
   const [assignCreateRoleName, setAssignCreateRoleName] = useState('')
+  const [createRoleOpen, setCreateRoleOpen] = useState(false)
+  const [createRoleLoading, setCreateRoleLoading] = useState(false)
+  const [createRoleName, setCreateRoleName] = useState('')
+  const [createRoleCountry, setCreateRoleCountry] =
+    useState<CountryCode>('India')
+  const [createRolePermissions, setCreateRolePermissions] = useState<string[]>(
+    []
+  )
 
   const [systemSettings, setSystemSettings] =
     useState<SystemSettingsForm>(DEFAULT_SYSTEM)
@@ -473,7 +482,9 @@ const Settings: React.FC = () => {
   const getRoleCountry = useCallback(
     (roleId?: string): CountryCode => {
       if (!roleId) return 'India'
-      return roleCountryOverrides[roleId] || roleCountryMap.get(roleId) || 'India'
+      return (
+        roleCountryOverrides[roleId] || roleCountryMap.get(roleId) || 'India'
+      )
     },
     [roleCountryOverrides, roleCountryMap]
   )
@@ -576,6 +587,70 @@ const Settings: React.FC = () => {
   const onCreateAndAssignRole = async (roleName: string) => {
     await usersService.update(assignUserId, { roleName: roleName.trim() })
     return { id: '' }
+  }
+
+  const resetCreateRoleForm = () => {
+    setCreateRoleName('')
+    setCreateRoleCountry('India')
+    setCreateRolePermissions([])
+  }
+
+  const closeCreateRoleModal = () => {
+    setCreateRoleOpen(false)
+    resetCreateRoleForm()
+  }
+
+  const handleCreateRole = async () => {
+    if (!canManageRbac) {
+      setError('You do not have permission to manage roles.')
+      return
+    }
+
+    const trimmedName = createRoleName.trim()
+    if (!trimmedName) {
+      setError('Role name is required.')
+      return
+    }
+    if (!createRolePermissions.length) {
+      setError('Select at least one permission for the role.')
+      return
+    }
+
+    setCreateRoleLoading(true)
+    setError('')
+    setMessage('')
+    try {
+      const createdRole = await authService.createRole({ name: trimmedName })
+      if (!createdRole?.id) {
+        throw new Error('Role response missing identifier')
+      }
+
+      if (createRolePermissions.length) {
+        await authService.updateRolePermissions(createdRole.id, {
+          replace: true,
+          permissions: createRolePermissions.map(key => ({
+            key,
+            enabled: true
+          }))
+        })
+      }
+
+      setRoleCountryOverrides(prev => ({
+        ...prev,
+        [createdRole.id]: createRoleCountry
+      }))
+
+      await loadRoles()
+      setSelectedRolePermissionsRoleId(createdRole.id)
+      setSelectedRolePermissions([...createRolePermissions])
+      setSelectedRoleCountry(createRoleCountry)
+      setMessage('Role created successfully.')
+      closeCreateRoleModal()
+    } catch (e) {
+      setError(getApiErrorMessage(e, 'Unable to create role'))
+    } finally {
+      setCreateRoleLoading(false)
+    }
   }
 
   const toggleRolePermission = (permissionKey: string) => {
@@ -730,7 +805,7 @@ const Settings: React.FC = () => {
     }
   }
 
-    return (
+  return (
     <div className='space-y-6'>
       <div className='flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
         <div>
@@ -744,18 +819,20 @@ const Settings: React.FC = () => {
             Manage users, roles, permissions, system, and integrations.
           </p>
         </div>
-        <div className='w-full sm:w-60'>
-          <label className='text-xs font-semibold uppercase tracking-wider text-gray-500'>
-            Country Filter
-          </label>
-          <SearchableDropdown
-            value={adminCountryFilter}
-            options={COUNTRY_OPTIONS}
-            onChange={value => setAdminCountryFilter(value as CountryCode)}
-            className='mt-2 w-full'
-            searchPlaceholder='Search country...'
-          />
-        </div>
+        {activeTab === 'roles-permissions' ? (
+          <div className='w-full sm:w-60'>
+            <label className='text-xs font-semibold uppercase tracking-wider text-gray-500'>
+              Country Filter
+            </label>
+            <SearchableDropdown
+              value={adminCountryFilter}
+              options={COUNTRY_OPTIONS}
+              onChange={value => setAdminCountryFilter(value as CountryCode)}
+              className='mt-2 w-full'
+              searchPlaceholder='Search country...'
+            />
+          </div>
+        ) : null}
       </div>
 
       <SurfaceCard className='p-4'>
@@ -924,13 +1001,22 @@ const Settings: React.FC = () => {
             <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
               <h2 className='text-xl font-semibold'>Roles & Permissions</h2>
               {canManageRbac ? (
-                <button
-                  onClick={() => setAssignOpen(true)}
-                  className='rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700'
-                >
-                  <FaPlus className='mr-2 inline' />
-                  Assign Role to User
-                </button>
+                <div className='flex flex-wrap gap-2'>
+                  <button
+                    onClick={() => setCreateRoleOpen(true)}
+                    className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-500'
+                  >
+                    <FaPlus />
+                    Create Role
+                  </button>
+                  <button
+                    onClick={() => setAssignOpen(true)}
+                    className='inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700'
+                  >
+                    <FaPlus />
+                    Assign Role to User
+                  </button>
+                </div>
               ) : null}
             </div>
             {!canManageRbac ? (
@@ -1068,7 +1154,8 @@ const Settings: React.FC = () => {
                             if (!selectedRolePermissionsRoleId) return
                             setRoleCountryOverrides(prev => ({
                               ...prev,
-                              [selectedRolePermissionsRoleId]: selectedRoleCountry
+                              [selectedRolePermissionsRoleId]:
+                                selectedRoleCountry
                             }))
                           }}
                           disabled={!selectedRolePermissionsRoleId}
@@ -1437,6 +1524,97 @@ const Settings: React.FC = () => {
         </div>
       ) : null}
 
+      {createRoleOpen && canManageRbac ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>
+          <div
+            className='absolute inset-0 bg-black/40'
+            onClick={closeCreateRoleModal}
+          />
+          <div className='relative w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 shadow-xl'>
+            <h3 className='text-lg font-semibold'>Create Role</h3>
+            <div className='mt-4 space-y-4'>
+              <div>
+                <label className='field-label'>Role Name</label>
+                <input
+                  className='field-input'
+                  placeholder='e.g. Finance Manager'
+                  value={createRoleName}
+                  onChange={e => setCreateRoleName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className='field-label'>Country</label>
+                <SearchableDropdown
+                  value={createRoleCountry}
+                  options={COUNTRY_OPTIONS}
+                  onChange={value => setCreateRoleCountry(value as CountryCode)}
+                  className='mt-1 w-full'
+                  searchPlaceholder='Search country...'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Permissions</label>
+                <PermissionsMultiSelect
+                  selected={createRolePermissions}
+                  onChange={setCreateRolePermissions}
+                  options={permissionsCatalog}
+                  className='mt-1'
+                  disabled={permissionsLoading}
+                  isLoading={permissionsLoading}
+                  placeholder='Select permissions'
+                />
+                {createRolePermissions.length ? (
+                  <div className='mt-3 flex flex-wrap gap-2'>
+                    {createRolePermissions.map(permissionKey => (
+                      <span
+                        key={permissionKey}
+                        className='inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700'
+                      >
+                        {permissionKey}
+                        <button
+                          type='button'
+                          className='text-blue-500 hover:text-blue-700'
+                          onClick={() =>
+                            setCreateRolePermissions(prev =>
+                              prev.filter(item => item !== permissionKey)
+                            )
+                          }
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className='mt-2 text-xs text-gray-500'>
+                    Pick one or more permissions to pre-fill the role setup.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className='mt-6 flex justify-end gap-2'>
+              <button
+                onClick={closeCreateRoleModal}
+                className='rounded-xl border border-gray-200 px-4 py-2 text-sm'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleCreateRole()}
+                disabled={
+                  createRoleLoading ||
+                  !createRoleName.trim() ||
+                  !createRolePermissions.length
+                }
+                className='rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
+              >
+                {createRoleLoading ? 'Creating...' : 'Create Role'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {assignOpen && canManageRbac ? (
         <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>
           <div
@@ -1492,7 +1670,7 @@ const Settings: React.FC = () => {
                         <>
                           {filtered.map(role => (
                             <button
-                          key={role.id}
+                              key={role.id}
                               type='button'
                               className='w-full text-left px-3 py-2 text-sm hover:bg-gray-50'
                               onClick={() => {
@@ -1538,7 +1716,7 @@ const Settings: React.FC = () => {
                   setAssignCreateRoleName('')
                   setAssignRoleDropdownOpen(false)
                 }}
-                        className='rounded-xl border border-gray-200 px-4 py-2 text-sm'
+                className='rounded-xl border border-gray-200 px-4 py-2 text-sm'
               >
                 Cancel
               </button>
@@ -1611,14 +1789,175 @@ const StatCard = ({
   </SurfaceCard>
 )
 
+type PermissionsMultiSelectProps = {
+  selected: string[]
+  options: PermissionOption[]
+  onChange: (next: string[]) => void
+  placeholder?: string
+  className?: string
+  disabled?: boolean
+  isLoading?: boolean
+}
+
+const PermissionsMultiSelect: React.FC<PermissionsMultiSelectProps> = ({
+  selected,
+  options,
+  onChange,
+  placeholder = 'Select permissions',
+  className = '',
+  disabled = false,
+  isLoading = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const rootRef = useRef<HTMLDivElement | null>(null)
+
+  const closeDropdown = useCallback(() => {
+    setIsOpen(false)
+    setQuery('')
+  }, [])
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        closeDropdown()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [closeDropdown])
+
+  const toggleDropdown = () => {
+    if (disabled) return
+    setIsOpen(prev => {
+      const next = !prev
+      if (!next) setQuery('')
+      return next
+    })
+  }
+
+  const filteredOptions = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    if (!term) return options
+    return options.filter(option => {
+      const haystack = `${option.key} ${option.description ?? ''}`.toLowerCase()
+      return haystack.includes(term)
+    })
+  }, [options, query])
+
+  const toggleOption = (key: string) => {
+    if (selected.includes(key)) {
+      onChange(selected.filter(item => item !== key))
+      return
+    }
+    onChange(
+      [...selected, key].sort((left, right) => left.localeCompare(right))
+    )
+  }
+
+  return (
+    <div className={`relative ${className}`} ref={rootRef}>
+      <button
+        type='button'
+        disabled={disabled}
+        onClick={toggleDropdown}
+        className='flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-sm text-gray-800 shadow-sm transition hover:border-gray-300 hover:shadow-md focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60'
+      >
+        <span
+          className={`truncate ${
+            selected.length ? 'font-medium' : 'text-gray-400'
+          }`}
+        >
+          {selected.length ? `${selected.length} selected` : placeholder}
+        </span>
+        <FaChevronDown
+          className={`ml-2 text-xs text-gray-500 transition-transform ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+      {isOpen ? (
+        <div className='absolute z-30 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-xl'>
+          {isLoading ? (
+            <p className='px-3 py-4 text-sm text-gray-500'>
+              Loading permissions...
+            </p>
+          ) : options.length === 0 ? (
+            <p className='px-3 py-4 text-sm text-gray-500'>
+              No permissions available.
+            </p>
+          ) : (
+            <>
+              <div className='border-b border-gray-100 p-2'>
+                <div className='relative'>
+                  <FaMagnifyingGlass className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
+                  <input
+                    className='field-input !rounded-lg !py-2 !pl-9'
+                    placeholder='Search permissions'
+                    value={query}
+                    onChange={event => setQuery(event.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className='max-h-48 overflow-y-auto p-2'>
+                {filteredOptions.length ? (
+                  filteredOptions.map(option => (
+                    <label
+                      key={option.id ?? option.key}
+                      className='mb-1 flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm last:mb-0 hover:bg-gray-50'
+                    >
+                      <input
+                        type='checkbox'
+                        className='mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                        checked={selected.includes(option.key)}
+                        onChange={() => toggleOption(option.key)}
+                      />
+                      <div>
+                        <p className='font-semibold text-gray-800'>
+                          {option.key}
+                        </p>
+                        {option.description ? (
+                          <p className='text-xs text-gray-500'>
+                            {option.description}
+                          </p>
+                        ) : null}
+                      </div>
+                    </label>
+                  ))
+                ) : (
+                  <p className='px-2 py-2 text-sm text-gray-500'>
+                    No matching permissions.
+                  </p>
+                )}
+              </div>
+
+              <div className='border-t border-gray-100 bg-gray-50 px-3 py-2 flex items-center justify-between'>
+                <button
+                  type='button'
+                  className='text-xs font-semibold text-blue-600 disabled:opacity-40'
+                  onClick={() => onChange([])}
+                  disabled={!selected.length}
+                >
+                  Clear all permissions
+                </button>
+                <button
+                  type='button'
+                  className='rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50'
+                  onClick={closeDropdown}
+                  disabled={!selected.length}
+                >
+                  Confirm
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export default Settings
-
-
-
-
-
-
-
-
-
-
