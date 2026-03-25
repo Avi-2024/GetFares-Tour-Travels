@@ -292,7 +292,7 @@ const UserFormModal = ({
             >
               <option value=''>Select country</option>
               <option value='India'>India</option>
-              <option value='Dubai'>Dubai</option>
+              <option value='UAE'>UAE</option>
             </select>
           </div>
           <div>

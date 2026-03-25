@@ -435,6 +435,63 @@ const QuotationBuilderPage: React.FC = () => {
     void loadTemplates()
   }, [token])
 
+  const [packages, setPackages] = useState<any[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(false)
+
+  useEffect(() => {
+    if (!token) return
+    setPackagesLoading(true)
+    quotationsApi
+      .listPackages({ status: 'PUBLISHED', limit: 100 })
+      .then((res: any) => {
+        const list = res?.data?.data ?? res?.data ?? res ?? []
+        setPackages(Array.isArray(list) ? list : [])
+      })
+      .catch(() => setPackages([]))
+      .finally(() => setPackagesLoading(false))
+  }, [token])
+
+  const packageOptions = useMemo(
+    () => [
+      { value: '', label: 'Select a ready package...' },
+      ...packages.map((pkg: any) => ({
+        value: pkg.id,
+        label: `${pkg.name || pkg.title || 'Package'} — ${pkg.destination || ''}`
+      }))
+    ],
+    [packages]
+  )
+
+  const loadFromPackage = (packageId: string) => {
+    const pkg = packages.find((p: any) => p.id === packageId)
+    if (!pkg) return
+    setForm(prev => ({
+      ...prev,
+      destination: pkg.destination || pkg.destinationName || prev.destination,
+      nights: pkg.nights ?? pkg.duration ?? prev.nights,
+      inclusions: pkg.inclusions || prev.inclusions,
+      exclusions: pkg.exclusions || prev.exclusions,
+      termsAndConditions: pkg.terms || pkg.termsAndConditions || prev.termsAndConditions,
+      paymentTerms: pkg.paymentTerms || prev.paymentTerms,
+      cancellationPolicy: pkg.cancellationPolicy || prev.cancellationPolicy,
+      priceValidity: pkg.priceValidity || prev.priceValidity,
+    }))
+    if (Array.isArray(pkg.services) && pkg.services.length > 0) {
+      setServiceCostRows(
+        pkg.services.map((svc: any, idx: number) => ({
+          id: `pkg-${idx}`,
+          type: svc.type || svc.itemType || 'OTHER',
+          description: svc.description || svc.name || '',
+          nights: svc.nights ?? 1,
+          costPerUnit: Number(svc.cost ?? svc.costPerUnit ?? 0),
+          markupPercent: Number(svc.markup ?? svc.markupPercent ?? 0),
+          markupAmount: 0,
+          sellValue: 0,
+        }))
+      )
+    }
+  }
+
   useEffect(() => {
     if (!selectedLead) return
 
@@ -1041,6 +1098,28 @@ const QuotationBuilderPage: React.FC = () => {
                     </p>
                   ) : null}
                 </div>
+
+                <div className='md:col-span-2 rounded-xl border border-green-200 bg-green-50/30 p-3 dark:border-green-800 dark:bg-green-900/10'>
+                  <label className='field-label text-green-700 dark:text-green-300'>
+                    Load from Ready Package
+                  </label>
+                  <p className='mb-2 text-[11px] text-green-600 dark:text-green-400'>
+                    Pre-costed packages with fixed markup. Select to auto-fill destination, services, inclusions & exclusions.
+                  </p>
+                  <SearchableDropdown
+                    value=''
+                    options={packageOptions}
+                    disabled={packagesLoading}
+                    searchPlaceholder='Search ready packages...'
+                    onChange={pkgId => {
+                      if (pkgId) loadFromPackage(pkgId)
+                    }}
+                  />
+                  {packagesLoading ? (
+                    <p className='mt-1 text-xs text-gray-500'>Loading packages...</p>
+                  ) : null}
+                </div>
+
                 <Field
                   label='Customer'
                   value={form.customer}

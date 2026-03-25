@@ -37,6 +37,7 @@ function createRolesService({ db, logger }) {
       id: row.id,
       name: row.name,
       description: row.description ?? null,
+      country: row.country ?? null,
       isActive: row.is_active ?? row.isActive ?? true,
     };
   }
@@ -69,6 +70,10 @@ function createRolesService({ db, logger }) {
       name,
       description: payload.description ?? null,
     };
+
+    if (payload.country !== undefined) {
+      record.country = payload.country || null;
+    }
 
     if (includeIsActive && payload.isActive !== undefined) {
       record.is_active = payload.isActive;
@@ -106,6 +111,10 @@ function createRolesService({ db, logger }) {
 
     if (payload.description !== undefined) {
       updates.description = payload.description ?? null;
+    }
+
+    if (payload.country !== undefined) {
+      updates.country = payload.country || null;
     }
 
     const includeIsActive = await hasColumn("is_active");

@@ -38,6 +38,7 @@ export type RoleRecord = {
   id: string;
   name: string;
   description?: string | null;
+  country?: string | null;
   isActive?: boolean;
 };
 
@@ -56,6 +57,7 @@ export type RolesResponse = {
 export type CreateRolePayload = {
   name: string;
   description?: string;
+  country?: string | null;
 };
 
 export type CreateRoleResponse = {
@@ -77,7 +79,7 @@ export const createAuthDatasource = (client: HttpClient) => ({
     client.get<PermissionCatalogResponse>("/api/permissions"),
   listRoles: () => client.get<RolesResponse>("/api/roles"),
   createRole: (payload: CreateRolePayload) =>
-    client.post<CreateRoleResponse>("/api/users/roles", payload),
+    client.post<CreateRoleResponse>("/api/roles", payload),
   getRolePermissions: (role: string) =>
     client.get<StringListResponse>(`/api/rbac/roles/${role}/permissions`),
   getRolePermissionsById: (roleId: string) =>
@@ -92,6 +94,8 @@ export const createAuthDatasource = (client: HttpClient) => ({
   ) => client.patch(`/api/roles/${roleId}/permissions`, payload),
   setRolePermissions: (role: string, payload: { permissions: string[] }) =>
     client.put(`/api/rbac/roles/${role}/permissions`, payload),
+  updateRole: (roleId: string, payload: { country?: string | null }) =>
+    client.patch<{ data?: RoleRecord }>(`/api/roles/${roleId}`, payload),
 });
 
 export type AuthDatasource = ReturnType<typeof createAuthDatasource>;

@@ -15,3 +15,12 @@ CREATE TABLE IF NOT EXISTS queued_leads (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (lead_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_active
+  ON users(active) WHERE is_active = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_queued_leads_pending
+  ON queued_leads(queued_at ASC) WHERE processed_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_queued_leads_lead_id
+  ON queued_leads(lead_id);
