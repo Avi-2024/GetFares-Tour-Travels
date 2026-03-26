@@ -62,6 +62,252 @@ const EVENT_LABELS: Record<string, string> = {
   'webhooks.lead_captured': 'Website lead captured'
 }
 
+type LookupEntry = { key: string; label: string }
+type LookupBuilder = (
+  entity: Record<string, unknown>,
+  fallbackKey?: string
+) => LookupEntry[]
+
+const createLookupEntries = (
+  values: unknown[],
+  label: string
+): LookupEntry[] => {
+  const unique = new Map<string, LookupEntry>()
+  values.forEach(value => {
+    const key = toPlainText(value)
+    if (key && !unique.has(key)) {
+      unique.set(key, { key, label })
+    }
+  })
+  return Array.from(unique.values())
+}
+
+const addFallbackEntry = (
+  entries: LookupEntry[],
+  fallbackKey?: string,
+  label?: string
+) => {
+  const fallback = toPlainText(fallbackKey)
+  if (fallback && label && !entries.some(entry => entry.key === fallback)) {
+    entries.push({ key: fallback, label })
+  }
+}
+
+const pickNestedValue = (source: unknown, path: string[]): string => {
+  let current: unknown = source
+  for (const segment of path) {
+    if (!current || typeof current !== 'object') return ''
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return toPlainText(current)
+}
+
+const buildBookingLookupEntries: LookupBuilder = (booking, fallbackKey) => {
+  const bookingId = toPlainText(booking.id)
+  const bookingNumber =
+    toPlainText(booking.bookingNumber) ||
+    toPlainText(booking.booking_number) ||
+    toPlainText(booking.code) ||
+    (bookingId ? `BK-${bookingId}` : 'Booking')
+  const customerName =
+    toPlainText(booking.customerName) ||
+    toPlainText(booking.customer_name) ||
+    pickNestedValue(booking, ['customer', 'name']) ||
+    pickNestedValue(booking, ['customer', 'fullName']) ||
+    pickNestedValue(booking, ['customer', 'customerName']) ||
+    toPlainText(booking.leadName) ||
+    toPlainText(booking.lead_name) ||
+    pickNestedValue(booking, ['lead', 'name']) ||
+    pickNestedValue(booking, ['lead', 'fullName']) ||
+    toPlainText(booking.customer) ||
+    ''
+  const label = customerName ? `${customerName} · ${bookingNumber}` : bookingNumber
+  const entries = createLookupEntries(
+    [
+      booking.id,
+      bookingNumber,
+      booking.bookingNumber,
+      booking.booking_number,
+      booking.code
+    ],
+    label
+  )
+  addFallbackEntry(entries, fallbackKey, label)
+  return entries
+}
+
+const buildQuotationLookupEntries: LookupBuilder = (quotation, fallbackKey) => {
+  const quoteNumber =
+    toPlainText(quotation.quotationNumber) ||
+    toPlainText(quotation.quotation_number) ||
+    toPlainText(quotation.quoteNumber) ||
+    toPlainText(quotation.quote_number) ||
+    toPlainText(quotation.code) ||
+    (toPlainText(quotation.id) ? `QT-${toPlainText(quotation.id)}` : 'Quotation')
+  const customerName =
+    toPlainText(quotation.customerName) ||
+    toPlainText(quotation.customer_name) ||
+    pickNestedValue(quotation, ['customer', 'name']) ||
+    pickNestedValue(quotation, ['customer', 'fullName']) ||
+    toPlainText(quotation.leadName) ||
+    toPlainText(quotation.lead_name) ||
+    pickNestedValue(quotation, ['lead', 'name']) ||
+    pickNestedValue(quotation, ['lead', 'fullName']) ||
+    toPlainText(quotation.customer) ||
+    ''
+  const label = customerName ? `${customerName} · ${quoteNumber}` : quoteNumber
+  const entries = createLookupEntries(
+    [
+      quotation.id,
+      quoteNumber,
+      quotation.quotationNumber,
+      quotation.quotation_number,
+      quotation.quoteNumber,
+      quotation.quote_number,
+      quotation.code
+    ],
+    label
+  )
+  addFallbackEntry(entries, fallbackKey, label)
+  return entries
+}
+
+const buildPaymentLookupEntries: LookupBuilder = (payment, fallbackKey) => {
+  const referenceId =
+    toPlainText(payment.paymentReference) ||
+    toPlainText(payment.payment_reference) ||
+    toPlainText(payment.gatewayPaymentId) ||
+    toPlainText(payment.gateway_payment_id) ||
+    toPlainText(payment.id) ||
+    'Payment'
+  const customerName =
+    toPlainText(payment.customerName) ||
+    toPlainText(payment.customer_name) ||
+    pickNestedValue(payment, ['customer', 'name']) ||
+    pickNestedValue(payment, ['customer', 'fullName']) ||
+    pickNestedValue(payment, ['booking', 'customer', 'name']) ||
+    pickNestedValue(payment, ['booking', 'customer', 'fullName']) ||
+    pickNestedValue(payment, ['booking', 'customerName']) ||
+    ''
+  const label = customerName ? `${customerName} · ${referenceId}` : referenceId
+  const entries = createLookupEntries(
+    [
+      payment.id,
+      referenceId,
+      payment.paymentReference,
+      payment.payment_reference,
+      payment.gatewayPaymentId,
+      payment.gateway_payment_id
+    ],
+    label
+  )
+  addFallbackEntry(entries, fallbackKey, label)
+  return entries
+}
+
+const mergeLookupEntries = (
+  existing: LookupEntry[],
+  incoming: LookupEntry[]
+): LookupEntry[] => {
+  if (!incoming.length) return existing
+  const merged = new Map(existing.map(entry => [entry.key, entry.label]))
+  incoming.forEach(entry => {
+    if (entry.key) merged.set(entry.key, entry.label)
+  })
+  return Array.from(merged.entries()).map(([key, label]) => ({ key, label }))
+}
+
+const unwrapEntity = <T,>(response: unknown): T | null => {
+  if (!response) return null
+  if (typeof response === 'object' && response && 'data' in response) {
+    return ((response as { data?: T }).data ?? null) as T | null
+  }
+  return (response as T) ?? null
+}
+
+const collectEntityIds = (items: NotificationItem[]) => {
+  const bookingIds = new Set<string>()
+  const quotationIds = new Set<string>()
+  const paymentIds = new Set<string>()
+
+  items.forEach(notification => {
+    const payload = (notification.payload || {}) as Record<string, unknown>
+    const eventName = toPlainText(notification.eventName).toLowerCase()
+    const entityType = toPlainText(notification.entityType).toLowerCase()
+    const add = (set: Set<string>, value: unknown) => {
+      const key = toPlainText(value)
+      if (key) set.add(key)
+    }
+
+    const looksLikeBooking =
+      entityType.includes('booking') ||
+      eventName.startsWith('bookings.') ||
+      Boolean(payload.bookingId || payload.bookingNumber)
+    const looksLikeQuotation =
+      entityType.includes('quotation') ||
+      eventName.startsWith('quotations.') ||
+      Boolean(
+        payload.quotationId || payload.quotationNumber || payload.quoteNumber
+      )
+    const looksLikePayment =
+      entityType.includes('payment') ||
+      eventName.startsWith('payments.') ||
+      Boolean(payload.paymentId || payload.paymentReference)
+
+    if (looksLikeBooking) {
+      add(bookingIds, notification.entityId)
+      add(bookingIds, payload.bookingId)
+      add(bookingIds, payload.bookingNumber)
+      add(bookingIds, payload.booking_code)
+      add(bookingIds, payload.code)
+    }
+    if (looksLikeQuotation) {
+      add(quotationIds, notification.entityId)
+      add(quotationIds, payload.quotationId)
+      add(quotationIds, payload.quotationNumber)
+      add(quotationIds, payload.quoteNumber)
+      add(quotationIds, payload.code)
+    }
+    if (looksLikePayment) {
+      add(paymentIds, notification.entityId)
+      add(paymentIds, payload.paymentId)
+      add(paymentIds, payload.paymentReference)
+      add(paymentIds, payload.gatewayPaymentId)
+      add(paymentIds, payload.gateway_payment_id)
+    }
+  })
+
+  return { bookingIds, quotationIds, paymentIds }
+}
+
+const fetchLookupEntriesByIds = async (
+  ids: string[],
+  fetcher: (id: string) => Promise<unknown>,
+  builder: LookupBuilder
+): Promise<LookupEntry[]> => {
+  if (!ids.length) return []
+  const responses = await Promise.all(
+    ids.map(async id => {
+      try {
+        const response = await fetcher(id)
+        return { response, sourceId: id }
+      } catch (error) {
+        console.warn('Failed to fetch lookup entity', id, error)
+        return null
+      }
+    })
+  )
+
+  const entries: LookupEntry[] = []
+  responses.forEach(result => {
+    if (!result) return
+    const entity = unwrapEntity<Record<string, unknown>>(result.response)
+    if (!entity) return
+    entries.push(...builder(entity, result.sourceId))
+  })
+  return entries
+}
+
 const toPlainText = (value: unknown, fallback = ''): string => {
   if (typeof value === 'string') return value.trim() || fallback
   if (typeof value === 'number' || typeof value === 'boolean')
@@ -355,117 +601,32 @@ const NotificationsPage: React.FC = () => {
           quotationsApi.list({ page: 1, limit: 300 }),
           paymentsApi.list({ page: 1, limit: 300 })
         ])
-        const bookings = extractList(bookingsRes)
-        const quotations = extractList(quotationsRes)
-        const payments = extractList(paymentsRes)
+        const bookings = extractList(bookingsRes) as Record<string, unknown>[]
+        const quotations = extractList(quotationsRes) as Record<
+          string,
+          unknown
+        >[]
+        const payments = extractList(paymentsRes) as Record<string, unknown>[]
         if (cancelled) return
-        setBookingLookups(
-          bookings.flatMap((booking: any) => {
-            const bookingNumber =
-              booking.bookingNumber ||
-              booking.booking_number ||
-              booking.code ||
-              `BK-${booking.id}`
-            const customerName =
-              booking.customerName ||
-              booking.customer_name ||
-              booking.customer?.name ||
-              booking.customer?.fullName ||
-              booking.customer?.customerName ||
-              booking.leadName ||
-              booking.lead_name ||
-              booking.lead?.name ||
-              booking.lead?.fullName ||
-              booking.customer ||
-              ''
-            const label = customerName
-              ? `${customerName} · ${bookingNumber}`
-              : bookingNumber
-            const entries: { key: string; label: string }[] = []
-            const addEntry = (value: unknown) => {
-              const key = toPlainText(value)
-              if (key) entries.push({ key, label })
-            }
-            addEntry(booking.id)
-            addEntry(bookingNumber)
-            addEntry(booking.bookingNumber)
-            addEntry(booking.booking_number)
-            addEntry(booking.code)
-            return entries
-          })
+        setBookingLookups(prev =>
+          mergeLookupEntries(
+            prev,
+            bookings.flatMap(booking => buildBookingLookupEntries(booking))
+          )
         )
-        setQuotationLookups(
-          quotations.flatMap((quotation: any) => {
-            const quoteNumber =
-              quotation.quotationNumber ||
-              quotation.quotation_number ||
-              quotation.quoteNumber ||
-              quotation.quote_number ||
-              quotation.code ||
-              `QT-${quotation.id}`
-            const customerName =
-              quotation.customerName ||
-              quotation.customer_name ||
-              quotation.customer?.name ||
-              quotation.customer?.fullName ||
-              quotation.leadName ||
-              quotation.lead_name ||
-              quotation.lead?.name ||
-              quotation.lead?.fullName ||
-              quotation.customer ||
-              ''
-            const label = customerName
-              ? `${customerName} · ${quoteNumber}`
-              : quoteNumber
-            const entries: { key: string; label: string }[] = []
-            const addEntry = (value: unknown) => {
-              const key = toPlainText(value)
-              if (key) entries.push({ key, label })
-            }
-            addEntry(quotation.id)
-            addEntry(quoteNumber)
-            addEntry(quotation.quotationNumber)
-            addEntry(quotation.quotation_number)
-            addEntry(quotation.quoteNumber)
-            addEntry(quotation.quote_number)
-            addEntry(quotation.code)
-            return entries
-          })
+        setQuotationLookups(prev =>
+          mergeLookupEntries(
+            prev,
+            quotations.flatMap(quotation =>
+              buildQuotationLookupEntries(quotation)
+            )
+          )
         )
-        setPaymentLookups(
-          payments.flatMap((payment: any) => {
-            const referenceId =
-              payment.paymentReference ||
-              payment.payment_reference ||
-              payment.gatewayPaymentId ||
-              payment.gateway_payment_id ||
-              payment.id ||
-              'Payment'
-            const customerName =
-              payment.customerName ||
-              payment.customer_name ||
-              payment.customer?.name ||
-              payment.customer?.fullName ||
-              payment.booking?.customer?.name ||
-              payment.booking?.customer?.fullName ||
-              payment.booking?.customerName ||
-              ''
-            const label = customerName
-              ? `${customerName} · ${referenceId}`
-              : String(referenceId)
-            const entries: { key: string; label: string }[] = []
-            const addEntry = (value: unknown) => {
-              const key = toPlainText(value)
-              if (key) entries.push({ key, label })
-            }
-            addEntry(payment.id)
-            addEntry(referenceId)
-            addEntry(payment.paymentReference)
-            addEntry(payment.payment_reference)
-            addEntry(payment.gatewayPaymentId)
-            addEntry(payment.gateway_payment_id)
-            return entries
-          })
+        setPaymentLookups(prev =>
+          mergeLookupEntries(
+            prev,
+            payments.flatMap(payment => buildPaymentLookupEntries(payment))
+          )
         )
       } catch (err) {
         console.error('Failed to load notification lookups:', err)
@@ -477,6 +638,75 @@ const NotificationsPage: React.FC = () => {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!notifications.length) return
+    let cancelled = false
+
+    const resolveMissingEntities = async () => {
+      const { bookingIds, quotationIds, paymentIds } =
+        collectEntityIds(notifications)
+      const missingBookings = Array.from(bookingIds).filter(
+        id => id && !bookingById.has(id)
+      )
+      const missingQuotations = Array.from(quotationIds).filter(
+        id => id && !quotationById.has(id)
+      )
+      const missingPayments = Array.from(paymentIds).filter(
+        id => id && !paymentById.has(id)
+      )
+
+      if (
+        missingBookings.length === 0 &&
+        missingQuotations.length === 0 &&
+        missingPayments.length === 0
+      ) {
+        return
+      }
+
+      try {
+        const [bookingEntries, quotationEntries, paymentEntries] =
+          await Promise.all([
+            fetchLookupEntriesByIds(
+              missingBookings,
+              bookingsApi.getById,
+              buildBookingLookupEntries
+            ),
+            fetchLookupEntriesByIds(
+              missingQuotations,
+              quotationsApi.getById,
+              buildQuotationLookupEntries
+            ),
+            fetchLookupEntriesByIds(
+              missingPayments,
+              paymentsApi.getById,
+              buildPaymentLookupEntries
+            )
+          ])
+
+        if (cancelled) return
+
+        if (bookingEntries.length) {
+          setBookingLookups(prev => mergeLookupEntries(prev, bookingEntries))
+        }
+        if (quotationEntries.length) {
+          setQuotationLookups(prev =>
+            mergeLookupEntries(prev, quotationEntries)
+          )
+        }
+        if (paymentEntries.length) {
+          setPaymentLookups(prev => mergeLookupEntries(prev, paymentEntries))
+        }
+      } catch (err) {
+        console.error('Failed to resolve notification entities:', err)
+      }
+    }
+
+    void resolveMissingEntities()
+    return () => {
+      cancelled = true
+    }
+  }, [notifications, bookingById, paymentById, quotationById])
 
   const modules = useMemo(
     () => Array.from(new Set(notifications.map(item => toModule(item)))).sort(),
@@ -618,7 +848,13 @@ const NotificationsPage: React.FC = () => {
 
       return matchesModule && haystack.includes(searchValue)
     })
-  }, [moduleFilter, notifications, searchTerm])
+  }, [
+    moduleFilter,
+    notifications,
+    resolveEntityLabel,
+    searchTerm,
+    toFriendlyMessageLocal
+  ])
 
   const statusBreakdown = useMemo(() => {
     return notifications.reduce(
