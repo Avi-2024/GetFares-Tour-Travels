@@ -573,18 +573,28 @@ const ReportsHubPage = () => {
         </div>
 
         {kpiCards.length ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {kpiCards.map((item) => (
+          <div className="grid grid-flow-col auto-cols-fr gap-2">
+            {kpiCards.map((item, idx) => (
               <div
                 key={item.key}
-                className="rounded-2xl border border-white/70 bg-white/90 px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900/80"
+                className="group relative min-w-0 overflow-hidden rounded-2xl border border-white/80 bg-white/90 px-3 py-2 shadow-[0_10px_25px_-20px_rgba(15,23,42,0.7)] ring-1 ring-transparent transition hover:-translate-y-0.5 hover:ring-slate-200 dark:border-gray-800 dark:bg-gray-900/80 dark:hover:ring-slate-700"
               >
-                <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-                  {item.label}
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                  {formatMetricValue(item.value, item.key)}
-                </p>
+                <div className="pointer-events-none absolute -right-3 -top-3 h-10 w-10 rounded-full border border-slate-200/70 dark:border-slate-700/70" />
+                <div className="pointer-events-none absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-slate-700" />
+                <div className="relative">
+                  <div
+                    className="inline-flex w-full rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white"
+                    style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}
+                  >
+                    <span className="whitespace-normal leading-tight">{item.label}</span>
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    {formatMetricValue(item.value, item.key)}
+                  </p>
+                </div>
+                <div className="mt-2 h-1 w-full rounded-full bg-gray-100 dark:bg-gray-800">
+                  <div className="h-full w-2/3 rounded-full bg-slate-900/80 dark:bg-white/80" />
+                </div>
               </div>
             ))}
           </div>
