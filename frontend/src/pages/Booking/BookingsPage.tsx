@@ -72,14 +72,6 @@ interface NewBookingData {
   advanceRequired: number
   supplierId: string
   supplierName: string
-  supplierReferenceCode: string
-  dmcName: string
-  dmcReferenceCode: string
-  hotelNotes: string
-  flightNotes: string
-  insuranceProvider: string
-  insurancePolicyNumber: string
-  otherServiceNotes: string
   blockingDeadlineAt: string
   supplierPaymentDeadlineAt: string
   cancellationDeadlineAt: string
@@ -241,14 +233,6 @@ const CreateBookingModal = ({
     advanceRequired: 0,
     supplierId: '',
     supplierName: '',
-    supplierReferenceCode: '',
-    dmcName: '',
-    dmcReferenceCode: '',
-    hotelNotes: '',
-    flightNotes: '',
-    insuranceProvider: '',
-    insurancePolicyNumber: '',
-    otherServiceNotes: '',
     blockingDeadlineAt: '',
     supplierPaymentDeadlineAt: '',
     cancellationDeadlineAt: '',
@@ -507,7 +491,33 @@ const CreateBookingModal = ({
       advanceRequiredRaw !== undefined
         ? Number(advanceRequiredRaw) || 0
         : formData.advanceRequired
-
+    const supplierDetails =
+      quote.supplierDetails ??
+      quote.supplier_details ??
+      quote.supplier ??
+      quote.templateSnapshot?.supplierDetails ??
+      quote.templateSnapshot?.supplier ??
+      {}
+    const supplierId = String(
+      supplierDetails?.supplierId ??
+        supplierDetails?.supplier_id ??
+        quote.supplierId ??
+        quote.supplier_id ??
+        quote.templateSnapshot?.supplierId ??
+        quote.templateSnapshot?.supplier_id ??
+        ''
+    ).trim()
+    const supplierName =
+      String(
+        supplierDetails?.supplierName ??
+          supplierDetails?.supplier_name ??
+          quote.supplierName ??
+          quote.supplier_name ??
+          quote.templateSnapshot?.supplierName ??
+          quote.templateSnapshot?.supplier_name ??
+          supplierOptions.find(item => item.id === supplierId)?.name ??
+          ''
+      ).trim() || ''
     setFormData(prev => ({
       ...prev,
       customer: customer ?? prev.customer,
@@ -518,7 +528,9 @@ const CreateBookingModal = ({
       travelEnd: toInputDate(travelEnd) || prev.travelEnd,
       totalAmount,
       costAmount,
-      advanceRequired
+      advanceRequired,
+      supplierId,
+      supplierName
     }))
   }
 
@@ -711,14 +723,6 @@ const CreateBookingModal = ({
       advanceRequired: 0,
       supplierId: '',
       supplierName: '',
-      supplierReferenceCode: '',
-      dmcName: '',
-      dmcReferenceCode: '',
-      hotelNotes: '',
-      flightNotes: '',
-      insuranceProvider: '',
-      insurancePolicyNumber: '',
-      otherServiceNotes: '',
       blockingDeadlineAt: '',
       supplierPaymentDeadlineAt: '',
       cancellationDeadlineAt: '',
@@ -996,115 +1000,6 @@ const CreateBookingModal = ({
                   placeholder='Supplier/DMC Name'
                 />
               </div>
-              <div>
-                <label className='field-label'>Supplier Reference</label>
-                <input
-                  type='text'
-                  value={formData.supplierReferenceCode}
-                  onChange={e =>
-                    setFormData({
-                      ...formData,
-                      supplierReferenceCode: e.target.value
-                    })
-                  }
-                  className='field-input'
-                  placeholder='Contract/Ref Code'
-                />
-              </div>
-              <div>
-                <label className='field-label'>DMC Name</label>
-                <input
-                  type='text'
-                  value={formData.dmcName}
-                  onChange={e =>
-                    setFormData({ ...formData, dmcName: e.target.value })
-                  }
-                  className='field-input'
-                />
-              </div>
-              <div>
-                <label className='field-label'>DMC Reference</label>
-                <input
-                  type='text'
-                  value={formData.dmcReferenceCode}
-                  onChange={e =>
-                    setFormData({
-                      ...formData,
-                      dmcReferenceCode: e.target.value
-                    })
-                  }
-                  className='field-input'
-                />
-              </div>
-            </div>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mt-4'>
-              <div>
-                <label className='field-label'>Hotel Segment Notes</label>
-                <textarea
-                  rows={2}
-                  value={formData.hotelNotes}
-                  onChange={e =>
-                    setFormData({ ...formData, hotelNotes: e.target.value })
-                  }
-                  className='field-input'
-                  placeholder='e.g. Goa | ITC Grand | 2N | Deluxe | MAP'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Flight Segment Notes</label>
-                <textarea
-                  rows={2}
-                  value={formData.flightNotes}
-                  onChange={e =>
-                    setFormData({ ...formData, flightNotes: e.target.value })
-                  }
-                  className='field-input'
-                  placeholder='e.g. DEL-GOI 6E 123 | 2026-04-12T07:30'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Insurance Provider</label>
-                <input
-                  type='text'
-                  value={formData.insuranceProvider}
-                  onChange={e =>
-                    setFormData({
-                      ...formData,
-                      insuranceProvider: e.target.value
-                    })
-                  }
-                  className='field-input'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Insurance Policy Number</label>
-                <input
-                  type='text'
-                  value={formData.insurancePolicyNumber}
-                  onChange={e =>
-                    setFormData({
-                      ...formData,
-                      insurancePolicyNumber: e.target.value
-                    })
-                  }
-                  className='field-input'
-                />
-              </div>
-            </div>
-            <div className='mt-4'>
-              <label className='field-label'>Other Services Notes</label>
-              <textarea
-                rows={2}
-                value={formData.otherServiceNotes}
-                onChange={e =>
-                  setFormData({
-                    ...formData,
-                    otherServiceNotes: e.target.value
-                  })
-                }
-                className='field-input'
-                placeholder='Visa assist, cab, activities, insurance addons...'
-              />
             </div>
           </div>
 
@@ -2161,47 +2056,12 @@ const BookingsPage: React.FC = () => {
         ),
         cancellationDeadlineAt: toIsoDateTime(data.cancellationDeadlineAt),
         supplierDetails:
-          data.supplierId || data.supplierName || data.supplierReferenceCode
+          data.supplierId || data.supplierName
             ? {
                 supplierId: data.supplierId || undefined,
-                supplierName: data.supplierName || undefined,
-                contractRef: data.supplierReferenceCode || undefined
+                supplierName: data.supplierName || undefined
               }
-            : undefined,
-        dmcDetails:
-          data.dmcName || data.dmcReferenceCode
-            ? {
-                dmcName: data.dmcName || undefined,
-                notes: data.dmcReferenceCode || undefined
-              }
-            : undefined,
-        insuranceDetails:
-          data.insuranceProvider || data.insurancePolicyNumber
-            ? {
-                provider: data.insuranceProvider || undefined,
-                policyNumber: data.insurancePolicyNumber || undefined
-              }
-            : undefined,
-        otherServices: [
-          data.hotelNotes
-            ? {
-                serviceType: 'HOTEL_NOTE',
-                description: data.hotelNotes
-              }
-            : null,
-          data.flightNotes
-            ? {
-                serviceType: 'FLIGHT_NOTE',
-                description: data.flightNotes
-              }
-            : null,
-          data.otherServiceNotes
-            ? {
-                serviceType: 'OTHER_SERVICE',
-                description: data.otherServiceNotes
-              }
-            : null
-        ].filter(Boolean)
+            : undefined
       }
 
       if (data.advanceRequired > 0) {

@@ -49,6 +49,8 @@ const initialForm: FormState = {
   notes: ''
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 const CreateLead: React.FC = () => {
   const navigate = useNavigate()
   const leadsService = useLeadsService()
@@ -87,14 +89,16 @@ const CreateLead: React.FC = () => {
 
   useEffect(() => {
     const checkDuplicates = async () => {
-      if (!form.email && !form.phone) {
+      const email = form.email.trim()
+      const phone = form.phone.replace(/\D/g, '')
+      if (!email && !phone) {
         setDuplicateWarning('')
         return
       }
       try {
         const result = await leadsService.checkDuplicate(
-          form.email || undefined,
-          form.phone || undefined
+          email || undefined,
+          phone || undefined
         )
         setDuplicateWarning(
           (result as any).data.isDuplicate
@@ -113,11 +117,14 @@ const CreateLead: React.FC = () => {
   }, [form.email, form.phone, leadsService])
 
   const validation = useMemo(() => {
+    const email = form.email.trim()
+    const phoneDigits = form.phone.replace(/\D/g, '')
+
     return {
       firstName: !form.firstName.trim(),
       lastName: !form.lastName.trim(),
-      email: !form.email.trim(),
-      phone: !form.phone.trim(),
+      email: !email || !EMAIL_PATTERN.test(email),
+      phone: phoneDigits.length < 10,
       leadCountry: !form.leadCountry,
       clientCurrency: !form.clientCurrency.trim(),
       destinationName: !form.destinationName.trim(),
@@ -126,7 +133,16 @@ const CreateLead: React.FC = () => {
         form.adultsCount < 0 || form.childrenCount < 0 || form.adultsCount < 1,
       childrenAges:
         form.childrenCount > 0 &&
-        childAges.some(age => age.trim() === '' || Number(age) < 0),
+        (childAges.length !== form.childrenCount ||
+          childAges.some(age => {
+            const numericAge = Number(age)
+            return (
+              age.trim() === '' ||
+              !Number.isFinite(numericAge) ||
+              numericAge < 0 ||
+              numericAge > 18
+            )
+          })),
       budget: !form.budget.trim() || Number(form.budget) <= 0,
       visaRequired: form.visaRequired === '',
       preferredHotelCategory: form.preferredHotelCategory === '',
@@ -226,11 +242,12 @@ const CreateLead: React.FC = () => {
       .map(value => value.trim())
       .filter(Boolean)
       .join(' ')
+    const normalizedPhone = form.phone.replace(/\D/g, '')
     const cleanChildAges = childAges
       .map(age => age.trim())
       .filter(age => age !== '')
       .map(age => Number(age))
-      .filter(age => Number.isFinite(age) && age >= 0)
+      .filter(age => Number.isFinite(age) && age >= 0 && age <= 18)
 
     const childAgesNote =
       form.childrenCount > 0
@@ -245,7 +262,7 @@ const CreateLead: React.FC = () => {
       await leadsService.createLead({
         fullName,
         email: form.email.trim(),
-        phone: form.phone.trim(),
+        phone: normalizedPhone,
         leadCountry: form.leadCountry,
         addressLine: form.location.trim() || undefined,
         clientCurrency: form.clientCurrency.trim().toUpperCase(),
@@ -314,28 +331,30 @@ const CreateLead: React.FC = () => {
         </h2>
         <div className='mt-4 grid grid-cols-1 gap-4 md:grid-cols-2'>
           <Field
-            label='First Name'
+            label='First Name *'
             value={form.firstName}
             onChange={value => setForm(prev => ({ ...prev, firstName: value }))}
             error={fieldError('firstName')}
           />
           <Field
-            label='Last Name'
+            label='Last Name *'
             value={form.lastName}
             onChange={value => setForm(prev => ({ ...prev, lastName: value }))}
             error={fieldError('lastName')}
           />
           <Field
-            label='Email'
+            label='Email *'
             value={form.email}
             onChange={value => setForm(prev => ({ ...prev, email: value }))}
             error={fieldError('email')}
+            type='email'
           />
           <Field
-            label='Phone'
+            label='Phone *'
             value={form.phone}
             onChange={value => setForm(prev => ({ ...prev, phone: value }))}
             error={fieldError('phone')}
+            type='tel'
           />
           <div>
             <label className='field-label'>Lead Country *</label>
@@ -455,7 +474,8 @@ const CreateLead: React.FC = () => {
                     key={`child-age-${index}`}
                     type='number'
                     min={0}
-                    step='any'
+                    max={18}
+                    step='1'
                     placeholder={`Child ${index + 1} age`}
                     className={`field-input ${
                       fieldError('childrenAges') ? 'border-red-500' : ''
@@ -588,12 +608,14 @@ const Field = ({
   label,
   value,
   onChange,
-  error
+  error,
+  type = 'text'
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   error?: boolean
+  type?: 'text' | 'email' | 'tel'
 }) => (
   <div>
     <label className='field-label'>
@@ -601,6 +623,7 @@ const Field = ({
       {label.includes('*') ? '' : null}
     </label>
     <input
+      type={type}
       className={`field-input ${error ? 'border-red-500' : ''}`}
       value={value}
       onChange={event => onChange(event.target.value)}

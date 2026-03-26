@@ -267,6 +267,9 @@ const QuotationDetailPage: React.FC = () => {
   }, [loadDetails])
 
   const lead = quotation?.lead ?? quotation?.relations?.lead ?? null
+  const snapshot = quotation?.templateSnapshot ?? null
+  const snapshotLead =
+    snapshot?.lead ?? snapshot?.builderSnapshot?.lead ?? null
   const destination =
     quotation?.destination ??
     quotation?.relations?.destination ??
@@ -281,7 +284,23 @@ const QuotationDetailPage: React.FC = () => {
     quotation?.approvedByUser ?? quotation?.relations?.approvedByUser ?? null
   const sentByUser =
     quotation?.sentByUser ?? quotation?.relations?.sentByUser ?? null
-  const contentTemplate = template ?? quotation?.templateSnapshot ?? null
+  const contentTemplate = quotation?.templateSnapshot ?? template ?? null
+  const displayCustomerName =
+    snapshot?.customerName ??
+    snapshotLead?.fullName ??
+    snapshotLead?.name ??
+    lead?.fullName ??
+    'N/A'
+  const displayCustomerEmail =
+    snapshot?.customerEmail ?? snapshotLead?.email ?? lead?.email ?? 'N/A'
+  const displayCustomerPhone = snapshotLead?.phone ?? lead?.phone ?? 'N/A'
+  const displayDestinationName =
+    snapshot?.destination ??
+    destination?.name ??
+    snapshotLead?.destination ??
+    lead?.destinationName ??
+    'N/A'
+  const displayDestinationCountry = destination?.country || 'N/A'
 
   const noteSections = useMemo(() => {
     const raw = String(quotation?.importantNotes || '').trim()
@@ -411,8 +430,9 @@ const QuotationDetailPage: React.FC = () => {
   const handleSend = async (method: 'email' | 'whatsapp') => {
     if (!id) return
 
-    const recipientEmail = lead?.email || ''
-    const recipientPhone = lead?.phone || ''
+    const recipientEmail =
+      snapshot?.customerEmail ?? snapshotLead?.email ?? lead?.email ?? ''
+    const recipientPhone = snapshotLead?.phone ?? lead?.phone ?? ''
 
     if (method === 'email' && !recipientEmail) {
       setError('Lead email is missing. Cannot send quotation by email.')
@@ -613,7 +633,7 @@ const QuotationDetailPage: React.FC = () => {
                 <FaArrowLeft className='text-sm' />
               </button>
               <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
-                {(lead?.fullName?.trim() || 'Customer Quotation') +
+                {((displayCustomerName || '').trim() || 'Customer Quotation') +
                   ` (#${quotation.quoteNumber ?? quotation.id ?? 'N/A'})`}
               </h1>
             </div>
@@ -771,10 +791,10 @@ const QuotationDetailPage: React.FC = () => {
                 Customer
               </p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {lead?.fullName || 'N/A'}
+                {displayCustomerName}
               </p>
-              <p className='text-xs text-gray-500'>{lead?.email || 'N/A'}</p>
-              <p className='text-xs text-gray-500'>{lead?.phone || 'N/A'}</p>
+              <p className='text-xs text-gray-500'>{displayCustomerEmail}</p>
+              <p className='text-xs text-gray-500'>{displayCustomerPhone}</p>
             </div>
 
             <div>
@@ -782,10 +802,10 @@ const QuotationDetailPage: React.FC = () => {
                 Destination
               </p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {destination?.name || lead?.destinationName || 'N/A'}
+                {displayDestinationName}
               </p>
               <p className='text-xs text-gray-500'>
-                {destination?.country || 'N/A'}
+                {displayDestinationCountry}
               </p>
             </div>
 
@@ -794,10 +814,10 @@ const QuotationDetailPage: React.FC = () => {
                 Template
               </p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {template?.name || quotation.templateSnapshot?.name || 'N/A'}
+                {quotation.templateSnapshot?.name || template?.name || 'N/A'}
               </p>
               <p className='text-xs text-gray-500'>
-                {template?.code || quotation.templateSnapshot?.code || 'N/A'}
+                {quotation.templateSnapshot?.code || template?.code || 'N/A'}
               </p>
             </div>
 

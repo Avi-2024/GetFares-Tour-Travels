@@ -140,13 +140,18 @@ const LeadDetails: React.FC = () => {
     setError('')
     try {
       const response = await leadsService.getLeadById(id)
-      const data =
+      const raw =
         (response as any)?.data?.data ?? (response as any)?.data ?? response
+      const callsDisabled = Boolean(raw?.callsDisabled ?? raw?.calls_disabled)
+      const data = raw ? { ...raw, callsDisabled } : null
       setLead(data)
-      setSelectedStatusLabel(
-        deriveSopStatusLabel(data?.status, data?.subStatus, data?.statusLabel)
-      )
-      hydrateQualification(data)
+      setCallsButtonDisabled(false)
+      if (data) {
+        setSelectedStatusLabel(
+          deriveSopStatusLabel(data.status, data.subStatus, data.statusLabel)
+        )
+        hydrateQualification(data)
+      }
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load lead details.'))
       setLead(null)
@@ -430,10 +435,9 @@ const LeadDetails: React.FC = () => {
     const newState = !isCallsDisabled
     try {
       await leadsService.disableCalls(id, newState)
-      setCallsButtonDisabled(newState)
-      setLead((prev: any) => prev ? { ...prev, callsDisabled: newState } : prev)
       setShowDisablePopup(true)
       window.setTimeout(() => setShowDisablePopup(false), 2500)
+      await loadLead()
     } catch {
       setShowDisablePopup(false)
     }

@@ -57,9 +57,13 @@ const basePayload = z.object({
 });
 
 const create = z.object({
-  body: basePayload.extend({
-    autoAssign: z.boolean().optional(),
-  }),
+  body: basePayload
+    .extend({
+      fullName: z.string().trim().min(2),
+      phone: z.string().trim().min(6).max(20),
+      email: z.string().email(),
+      autoAssign: z.boolean().optional(),
+    }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
@@ -230,11 +234,9 @@ const processCadenceAutomation = z.object({
 });
 
 const disableCalls = z.object({
-  body: z
-    .object({
-      disabled: z.boolean().optional(),
-    })
-    .optional(),
+  body: z.object({
+    disabled: z.boolean(),
+  }),
   params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
 });

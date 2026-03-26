@@ -62,6 +62,7 @@ export const quotationsApi = {
     }),
   listPackages: (params?: Record<string, string | number | boolean>) =>
     apiRequest(withQuery("/api/packages", params)),
+  getPackage: (id: string) => apiRequest(`/api/packages/${id}`),
   // Debug function
   testWithToken: testApiCall,
 };
