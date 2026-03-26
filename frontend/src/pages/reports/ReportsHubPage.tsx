@@ -542,7 +542,7 @@ const ReportsHubPage = () => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-9xl space-y-6 px-0">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Reports Hub</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -551,12 +551,12 @@ const ReportsHubPage = () => {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-0 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
           {error}
         </div>
       ) : null}
 
-      <SurfaceCard className="overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/60 dark:from-gray-900 dark:via-gray-900 dark:to-blue-950/30">
+      <SurfaceCard className="mx-auto w-full max-w-[1360px] overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/60 dark:from-gray-900 dark:via-gray-900 dark:to-blue-950/30">
         <div className="mb-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -593,7 +593,7 @@ const ReportsHubPage = () => {
         )}
       </SurfaceCard>
 
-      <SurfaceCard className="space-y-5 overflow-hidden">
+      <SurfaceCard className="mx-auto w-full max-w-[1360px] space-y-5 overflow-hidden">
         <div className="rounded-2xl border border-gray-200 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-900 px-5 py-5 text-white dark:border-gray-800">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
@@ -781,7 +781,7 @@ const ReportsHubPage = () => {
         </div>
       </SurfaceCard>
 
-      <SurfaceCard className="overflow-hidden p-0">
+      <SurfaceCard className="mx-auto w-full max-w-[1360px] overflow-hidden p-0">
         <div className="border-b border-gray-100 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
             {activeTabLabel} Table
