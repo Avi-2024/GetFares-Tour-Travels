@@ -140,6 +140,20 @@ function toDateInputValue(value: string, fallbackNights: number): string | null 
   return parsed.toISOString().slice(0, 10)
 }
 
+function formatDurationLabel(duration: unknown, fallbackNights: number): string {
+  const raw = String(duration ?? '').trim()
+  if (raw) return raw
+
+  const nights = Math.max(0, Number(fallbackNights) || 0)
+  if (!nights) return ''
+
+  return `${nights}N/${nights + 1}D`
+}
+
+function pluralize(value: number, singular: string, plural = `${singular}s`): string {
+  return `${value} ${value === 1 ? singular : plural}`
+}
+
 const initialItinerary: Item[] = [
   {
     id: '1',
@@ -578,13 +592,53 @@ const QuotationBuilderPage: React.FC = () => {
   )
 
   const selectedPackage = useMemo(
-    () => packages.find((pkg: any) => pkg.id === selectedPackageId) || null,
+    () =>
+      packages.find((pkg: any) => String(pkg.id ?? '') === selectedPackageId) ||
+      null,
     [packages, selectedPackageId]
   )
 
+  const selectedPackageName = useMemo(
+    () => String(selectedPackage?.name ?? selectedPackage?.title ?? '').trim(),
+    [selectedPackage]
+  )
+
+  const selectedPackageDuration = useMemo(
+    () => formatDurationLabel(selectedPackage?.duration, form.nights),
+    [form.nights, selectedPackage]
+  )
+
+  const selectedPackageKindLabel = useMemo(() => {
+    const raw = String(
+      selectedPackage?.packageKind ?? selectedPackage?.package_kind ?? ''
+    )
+      .trim()
+      .toUpperCase()
+
+    if (raw === 'CUSTOMIZED') return 'Customized Package'
+    if (raw === 'READY') return 'Ready Package'
+    return raw ? raw.replace(/_/g, ' ') : ''
+  }, [selectedPackage])
+
+  const selectedPackageDestination = useMemo(
+    () =>
+      String(
+        selectedPackage?.destination ??
+          selectedPackage?.destinationName ??
+          form.destination
+      ).trim(),
+    [form.destination, selectedPackage]
+  )
+
+  const previewDurationLabel =
+    selectedPackageDuration || formatDurationLabel('', form.nights)
+  const travellerLabel = pluralize(Math.max(0, Number(form.adults) || 0), 'adult')
+
   const loadFromPackage = async (packageId: string) => {
     if (!packageId) return
-    const fromList = packages.find((p: any) => p.id === packageId) as
+    const fromList = packages.find(
+      (p: any) => String(p.id ?? '') === packageId
+    ) as
       | Record<string, unknown>
       | undefined
     let pkg: Record<string, unknown> | undefined = fromList
@@ -598,6 +652,21 @@ const QuotationBuilderPage: React.FC = () => {
       /* list row only */
     }
     if (!pkg) return
+
+    const packageRecordId = String(pkg.id ?? packageId).trim()
+    if (packageRecordId) {
+      setPackages(prev => {
+        const existingIndex = prev.findIndex(
+          (item: any) => String(item.id ?? '') === packageRecordId
+        )
+        if (existingIndex === -1) {
+          return [...prev, pkg]
+        }
+        return prev.map((item: any) =>
+          String(item.id ?? '') === packageRecordId ? { ...item, ...pkg } : item
+        )
+      })
+    }
 
     setServiceOverrides({})
 
@@ -1116,9 +1185,6 @@ const QuotationBuilderPage: React.FC = () => {
       .map(definition => definition.label)
       .join(', ')
 
-    const selectedPackageName = String(
-      selectedPackage?.name ?? selectedPackage?.title ?? ''
-    ).trim()
     const supplierName = selectedSupplier?.name?.trim() || ''
 
     const sections = [
@@ -1128,6 +1194,8 @@ const QuotationBuilderPage: React.FC = () => {
         form.destination || 'N/A'
       }\nTravel Date: ${form.startDate || 'N/A'}\nNights: ${
         form.nights
+      }${
+        selectedPackageDuration ? `\nDuration: ${selectedPackageDuration}` : ''
       }\nAdults: ${form.adults}\nPackage Type: ${packageType}${
         selectedPackageName ? `\nSelected Package: ${selectedPackageName}` : ''
       }${supplierName ? `\nSupplier: ${supplierName}` : ''}`,
@@ -1158,9 +1226,6 @@ const QuotationBuilderPage: React.FC = () => {
   }
 
   const buildBuilderSnapshot = () => {
-    const selectedPackageName = String(
-      selectedPackage?.name ?? selectedPackage?.title ?? ''
-    ).trim()
     const travelEndDate = toDateInputValue(form.startDate, form.nights)
 
     return {
@@ -1193,6 +1258,20 @@ const QuotationBuilderPage: React.FC = () => {
         ? {
             id: selectedPackageId,
             name: selectedPackageName || null,
+            duration: selectedPackageDuration || null,
+            destination: selectedPackageDestination || null,
+            validFrom:
+              String(
+                selectedPackage?.validFrom ?? selectedPackage?.valid_from ?? ''
+              ).trim() ||
+              form.startDate ||
+              null,
+            validTo:
+              String(
+                selectedPackage?.validTo ?? selectedPackage?.valid_to ?? ''
+              ).trim() ||
+              form.validUntil ||
+              null,
             kind:
               selectedPackage?.packageKind ??
               selectedPackage?.package_kind ??
@@ -1289,7 +1368,7 @@ const QuotationBuilderPage: React.FC = () => {
         customer: form.customer || 'Unnamed Customer',
         email: form.email || 'New Lead',
         destination: form.destination || 'Destination',
-        details: `${form.nights} nights - ${packageType}`,
+        details: `${previewDurationLabel || `${form.nights} nights`} - ${packageType}`,
         total: computed.totalPrice,
         margin: Number(computed.margin.toFixed(1)),
         status: 'pending',
@@ -2364,14 +2443,14 @@ const QuotationBuilderPage: React.FC = () => {
                       <div className='flex h-8 w-8 items-center justify-center rounded-lg'>
                         <img
                           src='/logo1.png'
-                          alt='Get2Vacation'
+                          alt='Get2Vacations'
                           className='h-8 w-6'
                         />
                       </div>
                       <div>
-                        <p className='font-semibold'>Get2Vacation Travel CRM</p>
+                        <p className='font-semibold'>Get2Vacations Travel CRM</p>
                         <p className='text-xs text-gray-500'>
-                          support@Get2Vacation.com
+                          support@Get2Vacations.com
                         </p>
                       </div>
                     </div>
@@ -2398,9 +2477,21 @@ const QuotationBuilderPage: React.FC = () => {
                       </span>
                     </p>
                     <p>
-                      Package:{' '}
+                      Package Type:{' '}
                       <span className='font-semibold text-gray-700'>
                         {packageType}
+                      </span>
+                    </p>
+                    <p className='text-right'>
+                      Duration:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {previewDurationLabel || 'N/A'}
+                      </span>
+                    </p>
+                    <p>
+                      Package:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {selectedPackageName || 'Manual Quotation'}
                       </span>
                     </p>
                     <p className='text-right'>
@@ -2438,9 +2529,10 @@ const QuotationBuilderPage: React.FC = () => {
                         </p>
                       </div>
                       <div className='text-right text-xs text-gray-500'>
-                        <p>{form.destination || 'Destination'}</p>
+                        <p>{selectedPackageDestination || 'Destination'}</p>
+                        <p>Duration: {previewDurationLabel || 'N/A'}</p>
                         <p>
-                          {form.nights} nights - {form.adults} adults
+                          Travellers: {travellerLabel}
                         </p>
                       </div>
                     </div>
@@ -2459,6 +2551,40 @@ const QuotationBuilderPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
+
+                  {selectedPackageName ||
+                  selectedPackageDuration ||
+                  selectedPackageKindLabel ? (
+                    <div className='mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3'>
+                      <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700'>
+                        Package Snapshot
+                      </p>
+                      <div className='grid grid-cols-1 gap-2 text-xs text-blue-900 sm:grid-cols-3'>
+                        <div>
+                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                            Package
+                          </p>
+                          <p className='mt-1'>
+                            {selectedPackageName || 'Manual Quotation'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                            Duration
+                          </p>
+                          <p className='mt-1'>{previewDurationLabel || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                            Type
+                          </p>
+                          <p className='mt-1'>
+                            {selectedPackageKindLabel || packageType}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className='mb-4'>
                     <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
@@ -2553,6 +2679,31 @@ const QuotationBuilderPage: React.FC = () => {
                           </p>
                         )}
                       </div>
+                    </div>
+                  ) : null}
+
+                  {form.hotelDetails.trim() || form.visaDetails.trim() ? (
+                    <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                      {form.hotelDetails.trim() ? (
+                        <div className='rounded-xl border border-sky-200 bg-sky-50 p-3'>
+                          <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-sky-700'>
+                            Hotel Details
+                          </p>
+                          <p className='text-xs whitespace-pre-wrap text-sky-900'>
+                            {form.hotelDetails.trim()}
+                          </p>
+                        </div>
+                      ) : null}
+                      {form.visaDetails.trim() ? (
+                        <div className='rounded-xl border border-violet-200 bg-violet-50 p-3'>
+                          <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-violet-700'>
+                            Visa Details
+                          </p>
+                          <p className='text-xs whitespace-pre-wrap text-violet-900'>
+                            {form.visaDetails.trim()}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
 

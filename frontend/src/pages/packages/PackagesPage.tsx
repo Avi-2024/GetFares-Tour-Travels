@@ -35,10 +35,17 @@ type CustomServiceRow = {
   sellValue: string
 }
 
+type ItineraryDayRow = {
+  id: string
+  title: string
+  description: string
+}
+
 type PackageFormState = {
   name: string
   destination: string
-  duration: string
+  durationNights: string
+  durationDays: string
   baseCost: string
   markupPercent: string
   startingPrice: string
@@ -50,7 +57,7 @@ type PackageFormState = {
   inclusions: string
   exclusions: string
   hotelDetails: string
-  itineraryText: string
+  itineraryItems: ItineraryDayRow[]
   cancellationPolicy: string
   visaDetails: string
   paymentTerms: string
@@ -70,7 +77,8 @@ const emptyCustomRow = (): CustomServiceRow => ({
 const emptyForm: PackageFormState = {
   name: '',
   destination: '',
-  duration: '',
+  durationNights: '',
+  durationDays: '',
   baseCost: '',
   markupPercent: '',
   startingPrice: '',
@@ -82,7 +90,7 @@ const emptyForm: PackageFormState = {
   inclusions: '',
   exclusions: '',
   hotelDetails: '',
-  itineraryText: '',
+  itineraryItems: [],
   cancellationPolicy: '',
   visaDetails: '',
   paymentTerms: '',
@@ -97,8 +105,126 @@ const toNumberOrUndefined = (value: string) => {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+const formatPriceInput = (value: number) => {
+  if (!Number.isFinite(value)) return ''
+  return String(Number(value.toFixed(2)))
+}
+
+const calculateStartingPrice = (baseCost: string, markupPercent: string) => {
+  const base = toNumberOrUndefined(baseCost)
+  if (base == null) return ''
+  const markup = toNumberOrUndefined(markupPercent) ?? 0
+  return formatPriceInput(base * (1 + markup / 100))
+}
+
+const hasManualStartingPrice = (
+  baseCost: string,
+  markupPercent: string,
+  startingPrice: string
+) => {
+  const trimmed = startingPrice.trim()
+  if (!trimmed) return false
+  return trimmed !== calculateStartingPrice(baseCost, markupPercent)
+}
+
+const getDayLabel = (index: number) => `Day ${index + 1}`
+
+const parseDayCount = (value: string) => {
+  const parsed = Number(value.trim())
+  if (!Number.isInteger(parsed) || parsed <= 0) return 0
+  return parsed
+}
+
+const parseDurationParts = (duration: string) => {
+  const trimmed = duration.trim()
+  if (!trimmed) {
+    return { nights: '', days: '' }
+  }
+  const nightsMatch = trimmed.match(/(\d+)\s*n(?:ights?)?\b/i)
+  const daysMatch =
+    trimmed.match(/(\d+)\s*d(?:ays?)?\b/i) ?? trimmed.match(/^(\d+)$/)
+  return {
+    nights: nightsMatch?.[1] ?? '',
+    days: daysMatch?.[1] ?? ''
+  }
+}
+
+const buildDurationValue = (nights: string, days: string) => {
+  const safeNights = nights.trim()
+  const safeDays = days.trim()
+  if (safeNights && safeDays) return `${safeNights}N/${safeDays}D`
+  if (safeNights) return `${safeNights}N`
+  if (safeDays) return `${safeDays}D`
+  return ''
+}
+
+const stripDayPrefix = (value: string) =>
+  value
+    .trim()
+    .replace(/^day\s*\d+\s*(?:[-—:]\s*)?/i, '')
+    .trim()
+
+const parsePlainItinerary = (value: string): ItineraryDayRow[] =>
+  value
+    .split(/\n\s*\n+/)
+    .map(chunk => chunk.trim())
+    .filter(Boolean)
+    .map((chunk, index) => {
+      const lines = chunk.split('\n')
+      return {
+        id: `day-${index + 1}`,
+        title: stripDayPrefix((lines[0] ?? '').trim()),
+        description: lines.slice(1).join('\n').trim()
+      }
+    })
+
+const parseItineraryItems = (itinerary: unknown): ItineraryDayRow[] => {
+  if (Array.isArray(itinerary)) {
+    return itinerary.map((row: Record<string, unknown>, index: number) => ({
+      id: String(row?.id ?? `day-${index + 1}`),
+      title: stripDayPrefix(
+        String(
+          row?.title ??
+            row?.heading ??
+            row?.name ??
+            row?.day ??
+            row?.dayLabel ??
+            ''
+        )
+      ),
+      description: String(row?.description ?? row?.details ?? '')
+    }))
+  }
+  if (typeof itinerary === 'string') {
+    return parsePlainItinerary(itinerary)
+  }
+  if (itinerary && typeof itinerary === 'object') {
+    const objectValue = itinerary as Record<string, unknown>
+    const plainText =
+      typeof objectValue.plain === 'string'
+        ? objectValue.plain
+        : typeof objectValue.text === 'string'
+          ? objectValue.text
+          : ''
+    if (plainText) {
+      return parsePlainItinerary(plainText)
+    }
+  }
+  return []
+}
+
+const buildItineraryRows = (
+  dayCount: number,
+  currentItems: ItineraryDayRow[] = []
+): ItineraryDayRow[] =>
+  Array.from({ length: dayCount }, (_, index) => ({
+    id: currentItems[index]?.id ?? `day-${index + 1}`,
+    title: currentItems[index]?.title ?? '',
+    description: currentItems[index]?.description ?? ''
+  }))
+
 /** Convert stored itinerary (JSONB) to editable plain text for the form. */
-function itineraryToPlainText(itinerary: unknown): string {
+export function itineraryToPlainText(itinerary: unknown): string {
   if (itinerary == null) return ''
   if (typeof itinerary === 'string') return itinerary
   if (typeof itinerary === 'object' && !Array.isArray(itinerary)) {
@@ -124,7 +250,7 @@ const PackageDetailView: React.FC<{
   pkg: PackageRecord
   onEdit: () => void
 }> = ({ pkg, onEdit }) => {
-  const itineraryText = itineraryToPlainText(pkg.itinerary)
+  const itineraryItems = parseItineraryItems(pkg.itinerary)
 
   return (
     <div className='space-y-6'>
@@ -205,11 +331,28 @@ const PackageDetailView: React.FC<{
         </SurfaceCard>
       </div>
 
-      {itineraryText ? (
+      {itineraryItems.length > 0 ? (
         <SurfaceCard className='p-4'>
           <h3 className='mb-2 font-semibold text-blue-600'>Itinerary</h3>
-          <div className='whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300'>
-            {itineraryText}
+          <div className='space-y-3'>
+            {itineraryItems.map((item, index) => (
+              <div
+                key={item.id}
+                className='rounded-xl border border-blue-100 bg-blue-50/40 p-3 dark:border-blue-900/40 dark:bg-blue-900/10'
+              >
+                <div className='flex items-center gap-2'>
+                  <span className='rounded-md bg-white px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200'>
+                    {getDayLabel(index)}
+                  </span>
+                  <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                    {item.title || getDayLabel(index)}
+                  </p>
+                </div>
+                <p className='mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300'>
+                  {item.description || 'Details will be updated.'}
+                </p>
+              </div>
+            ))}
           </div>
         </SurfaceCard>
       ) : null}
@@ -326,6 +469,7 @@ const PackagesPage: React.FC = () => {
   const [selectedId, setSelectedId] = useState('')
   const [viewMode, setViewMode] = useState<'VIEW' | 'EDIT'>('VIEW')
   const [form, setForm] = useState<PackageFormState>(emptyForm)
+  const [startingPriceManual, setStartingPriceManual] = useState(false)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<PackageStatus | 'ALL'>('ALL')
@@ -350,6 +494,20 @@ const PackagesPage: React.FC = () => {
     () => items.find(item => item.id === selectedId) || null,
     [items, selectedId]
   )
+
+  const pricingValidationMessage = useMemo(() => {
+    const baseCost = toNumberOrUndefined(form.baseCost)
+    const startingPrice = toNumberOrUndefined(form.startingPrice)
+    if (
+      baseCost != null &&
+      baseCost > 0 &&
+      startingPrice != null &&
+      startingPrice <= baseCost
+    ) {
+      return 'Starting price must be greater than base cost.'
+    }
+    return ''
+  }, [form.baseCost, form.startingPrice])
 
   const statusFilterOptions = useMemo(
     () => [
@@ -461,16 +619,31 @@ const PackagesPage: React.FC = () => {
   useEffect(() => {
     if (!selectedPackage) {
       setForm(emptyForm)
+      setStartingPriceManual(false)
       setEnquiries([])
       return
     }
+    const durationParts = parseDurationParts(selectedPackage.duration || '')
+    const baseCost = String(selectedPackage.baseCost ?? '')
+    const markupPercent = String(selectedPackage.markupPercent ?? '')
+    const startingPrice = String(selectedPackage.startingPrice ?? '')
+    const parsedItineraryItems = parseItineraryItems(selectedPackage.itinerary)
+    const derivedDayCount =
+      Math.max(
+        parseDayCount(durationParts.days),
+        parsedItineraryItems.length
+      ) || 0
+    setStartingPriceManual(
+      hasManualStartingPrice(baseCost, markupPercent, startingPrice)
+    )
     setForm({
       name: selectedPackage.name || '',
       destination: selectedPackage.destination || '',
-      duration: selectedPackage.duration || '',
-      baseCost: String(selectedPackage.baseCost ?? ''),
-      markupPercent: String(selectedPackage.markupPercent ?? ''),
-      startingPrice: String(selectedPackage.startingPrice ?? ''),
+      durationNights: durationParts.nights,
+      durationDays: derivedDayCount > 0 ? String(derivedDayCount) : durationParts.days,
+      baseCost,
+      markupPercent,
+      startingPrice,
       packageKind: selectedPackage.packageKind ?? 'READY',
       packageCategory: selectedPackage.packageCategory ?? '',
       status: selectedPackage.status ?? 'DRAFT',
@@ -479,7 +652,7 @@ const PackagesPage: React.FC = () => {
       inclusions: selectedPackage.inclusions || '',
       exclusions: selectedPackage.exclusions || '',
       hotelDetails: selectedPackage.hotelDetails || '',
-      itineraryText: itineraryToPlainText(selectedPackage.itinerary),
+      itineraryItems: buildItineraryRows(derivedDayCount, parsedItineraryItems),
       cancellationPolicy: selectedPackage.cancellationPolicy || '',
       visaDetails: selectedPackage.visaDetails || '',
       paymentTerms: selectedPackage.paymentTerms || '',
@@ -497,10 +670,34 @@ const PackagesPage: React.FC = () => {
     void loadEnquiries(selectedPackage.id)
   }, [loadEnquiries, selectedPackage])
 
+  useEffect(() => {
+    if (startingPriceManual) return
+    setForm(prev => {
+      const nextStartingPrice = calculateStartingPrice(
+        prev.baseCost,
+        prev.markupPercent
+      )
+      return prev.startingPrice === nextStartingPrice
+        ? prev
+        : { ...prev, startingPrice: nextStartingPrice }
+    })
+  }, [form.baseCost, form.markupPercent, startingPriceManual])
+
+  useEffect(() => {
+    const dayCount = parseDayCount(form.durationDays)
+    setForm(prev => {
+      const nextItems = buildItineraryRows(dayCount, prev.itineraryItems)
+      return prev.itineraryItems.length === nextItems.length
+        ? prev
+        : { ...prev, itineraryItems: nextItems }
+    })
+  }, [form.durationDays])
+
   const handleNew = () => {
     setSelectedId('')
     setViewMode('EDIT')
     setForm(emptyForm)
+    setStartingPriceManual(false)
     setEnquiries([])
     setEnquiryError('')
   }
@@ -510,11 +707,20 @@ const PackagesPage: React.FC = () => {
       setError('Package name and destination are required.')
       return
     }
+    if (pricingValidationMessage) {
+      setError(`${pricingValidationMessage} Increase markup or enter a higher starting price.`)
+      return
+    }
     setSaving(true)
     setError('')
-    const itinerary = form.itineraryText.trim()
-      ? { plain: form.itineraryText.trim() }
-      : null
+    const itinerary =
+      form.itineraryItems.length > 0
+        ? form.itineraryItems.map((item, index) => ({
+            day: getDayLabel(index),
+            title: item.title.trim() || getDayLabel(index),
+            description: item.description.trim()
+          }))
+        : null
 
     const customLines =
       form.packageKind === 'CUSTOMIZED'
@@ -538,7 +744,8 @@ const PackagesPage: React.FC = () => {
     const payload = {
       name: form.name.trim(),
       destination: form.destination.trim(),
-      duration: form.duration.trim() || undefined,
+      duration:
+        buildDurationValue(form.durationNights, form.durationDays) || undefined,
       baseCost: toNumberOrUndefined(form.baseCost),
       markupPercent: toNumberOrUndefined(form.markupPercent),
       startingPrice: toNumberOrUndefined(form.startingPrice),
@@ -766,14 +973,37 @@ const PackagesPage: React.FC = () => {
                 </div>
                 <div>
                   <label className='field-label'>Duration</label>
-                  <input
-                    className='field-input'
-                    placeholder='Duration (e.g. 4N/5D)'
-                    value={form.duration}
-                    onChange={event =>
-                      setForm(prev => ({ ...prev, duration: event.target.value }))
-                    }
-                  />
+                  <div className='grid grid-cols-2 gap-2'>
+                    <input
+                      type='number'
+                      min='0'
+                      className='field-input'
+                      placeholder='Nights'
+                      value={form.durationNights}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          durationNights: event.target.value
+                        }))
+                      }
+                    />
+                    <input
+                      type='number'
+                      min='1'
+                      className='field-input'
+                      placeholder='Days'
+                      value={form.durationDays}
+                      onChange={event =>
+                        setForm(prev => ({
+                          ...prev,
+                          durationDays: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                    Saved to backend in the same format, for example `4N/5D`.
+                  </p>
                 </div>
                 <div className='grid grid-cols-3 gap-2'>
                   <div>
@@ -810,13 +1040,31 @@ const PackagesPage: React.FC = () => {
                       className='field-input'
                       placeholder='Starting price'
                       value={form.startingPrice}
-                      onChange={event =>
+                      onChange={event => {
+                        const nextValue = event.target.value
                         setForm(prev => ({
                           ...prev,
-                          startingPrice: event.target.value
+                          startingPrice: nextValue
                         }))
-                      }
+                        setStartingPriceManual(
+                          hasManualStartingPrice(
+                            form.baseCost,
+                            form.markupPercent,
+                            nextValue
+                          )
+                        )
+                      }}
                     />
+                    <p
+                      className={`mt-1 text-xs ${
+                        pricingValidationMessage
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}
+                    >
+                      {pricingValidationMessage ||
+                        ''}
+                    </p>
                   </div>
                 </div>
                 <div>
@@ -948,23 +1196,80 @@ const PackagesPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className='field-label'>Itinerary (day-by-day)</label>
-                  <textarea
-                    className='field-input'
-                    rows={8}
-                    value={form.itineraryText}
-                    onChange={e =>
-                      setForm(prev => ({
-                        ...prev,
-                        itineraryText: e.target.value
-                      }))
-                    }
+                  <div className='flex flex-col gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3 dark:border-blue-900/40 dark:bg-blue-900/10'>
+                    <div>
+                      <label className='field-label mb-0'>Itinerary (day-wise)</label>
+                      <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                        Day fields are created automatically from the `Days`
+                        duration value.
+                      </p>
+                    </div>
+                    {parseDayCount(form.durationDays) <= 0 ? (
+                      <p className='rounded-lg border border-dashed border-blue-200 bg-white/80 px-3 py-4 text-sm text-gray-500 dark:border-blue-900/40 dark:bg-gray-950/20 dark:text-gray-400'>
+                        Enter the total `Days` in duration to generate itinerary
+                        fields.
+                      </p>
+                    ) : form.itineraryItems.length === 0 ? (
+                      <p className='rounded-lg border border-dashed border-blue-200 bg-white/80 px-3 py-4 text-sm text-gray-500 dark:border-blue-900/40 dark:bg-gray-950/20 dark:text-gray-400'>
+                        Itinerary day fields will appear here automatically.
+                      </p>
+                    ) : (
+                      <div className='space-y-3'>
+                        {form.itineraryItems.map((item, index) => (
+                          <div
+                            key={item.id}
+                            className='rounded-xl border border-blue-100 bg-white p-3 dark:border-blue-900/40 dark:bg-gray-950/20'
+                          >
+                            <div className='mb-3 flex items-center gap-2'>
+                              <span className='rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200'>
+                                {getDayLabel(index)}
+                              </span>
+                              <input
+                                className='field-input'
+                                placeholder='Title (Arrival, Sightseeing, Leisure...)'
+                                value={item.title}
+                                onChange={event => {
+                                  const nextValue = event.target.value
+                                  setForm(prev => ({
+                                    ...prev,
+                                    itineraryItems: prev.itineraryItems.map((row, rowIndex) =>
+                                      rowIndex === index
+                                        ? { ...row, title: nextValue }
+                                        : row
+                                    )
+                                  }))
+                                }}
+                              />
+                            </div>
+                            <textarea
+                              className='field-input'
+                              rows={4}
+                              placeholder='Add the plan for this day...'
+                              value={item.description}
+                              onChange={event => {
+                                const nextValue = event.target.value
+                                setForm(prev => ({
+                                  ...prev,
+                                  itineraryItems: prev.itineraryItems.map((row, rowIndex) =>
+                                    rowIndex === index
+                                      ? { ...row, description: nextValue }
+                                      : row
+                                  )
+                                }))
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/*
                     placeholder={`Day 1 — Arrival\nAirport meet & transfer to hotel.\n\nDay 2 — City tour\nMorning sightseeing…`}
                   />
                   <p className='mt-1 text-[11px] text-gray-500'>
                     Write in normal language; one day per block is easiest (blank
                     line between days).
-                  </p>
+                  </p> */}
                 </div>
                 <div className='grid grid-cols-1 gap-2 md:grid-cols-2'>
                   <div>
@@ -1173,7 +1478,7 @@ const PackagesPage: React.FC = () => {
         </SurfaceCard>
       </div>
 
-      <SurfaceCard>
+      {/* <SurfaceCard>
         <div className='flex items-center gap-2'>
           <FaBoxOpen />
           <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
@@ -1322,7 +1627,7 @@ const PackagesPage: React.FC = () => {
             </div>
           </>
         )}
-      </SurfaceCard>
+      </SurfaceCard> */}
     </div>
   )
 }

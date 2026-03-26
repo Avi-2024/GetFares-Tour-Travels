@@ -98,6 +98,33 @@ const formatMoney = (amount: number, currency = 'INR') => {
   }
 }
 
+const formatDurationLabel = (duration: unknown, fallbackNights: number) => {
+  const raw = String(duration ?? '').trim()
+  if (raw) return raw
+
+  const nights = Math.max(0, Number(fallbackNights) || 0)
+  if (!nights) return ''
+
+  return `${nights}N/${nights + 1}D`
+}
+
+const pluralize = (
+  value: number,
+  singular: string,
+  plural = `${singular}s`
+) => `${value} ${value === 1 ? singular : plural}`
+
+const formatDateOnly = (value?: string | null) => {
+  if (!value) return 'N/A'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return String(value)
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric'
+  })
+}
+
 const mapStatus = (value?: string): QuoteStatus => {
   switch (String(value || '').toUpperCase()) {
     case 'DRAFT':
@@ -270,6 +297,8 @@ const QuotationDetailPage: React.FC = () => {
   const snapshot = quotation?.templateSnapshot ?? null
   const snapshotLead =
     snapshot?.lead ?? snapshot?.builderSnapshot?.lead ?? null
+  const packageSnapshot =
+    snapshot?.package ?? snapshot?.builderSnapshot?.package ?? null
   const destination =
     quotation?.destination ??
     quotation?.relations?.destination ??
@@ -301,6 +330,24 @@ const QuotationDetailPage: React.FC = () => {
     lead?.destinationName ??
     'N/A'
   const displayDestinationCountry = destination?.country || 'N/A'
+  const displayPackageName =
+    packageSnapshot?.name ?? packageSnapshot?.title ?? 'N/A'
+  const displayPackageKind = String(
+    packageSnapshot?.kind ?? packageSnapshot?.packageKind ?? ''
+  )
+    .trim()
+    .replace(/_/g, ' ')
+  const displayDuration =
+    formatDurationLabel(packageSnapshot?.duration, toNumber(snapshot?.nights, 0)) ||
+    'N/A'
+  const displayTravellerSummary = pluralize(
+    Math.max(0, toNumber(snapshot?.adults, 0)),
+    'adult'
+  )
+  const displayTravelStartDate =
+    snapshot?.travelStartDate ?? lead?.travelDate ?? null
+  const displayTravelEndDate = snapshot?.travelEndDate ?? null
+  const displayValidUntil = snapshot?.validUntil ?? quotation?.expiresAt ?? null
 
   const noteSections = useMemo(() => {
     const raw = String(quotation?.importantNotes || '').trim()
@@ -811,6 +858,39 @@ const QuotationDetailPage: React.FC = () => {
 
             <div>
               <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Package
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {displayPackageName}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {displayPackageKind || 'Package details synced from quotation'}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
+                Travel Plan
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {displayDuration}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {displayTravellerSummary}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Travel Date {formatDateOnly(displayTravelStartDate)}
+                {displayTravelEndDate
+                  ? ` to ${formatDateOnly(displayTravelEndDate)}`
+                  : ''}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Valid Until {formatDate(displayValidUntil)}
+              </p>
+            </div>
+
+            <div>
+              <p className='text-xs uppercase tracking-wide text-gray-500'>
                 Template
               </p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
@@ -963,6 +1043,8 @@ const QuotationDetailPage: React.FC = () => {
 
         {noteSections.length ||
         contentTemplate?.headerBranding ||
+        contentTemplate?.hotelDetails ||
+        contentTemplate?.visaDetails ||
         contentTemplate?.inclusions ||
         contentTemplate?.exclusions ||
         contentTemplate?.paymentTerms ||
@@ -1010,6 +1092,26 @@ const QuotationDetailPage: React.FC = () => {
                   </p>
                   <p className='mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap'>
                     {contentTemplate.footerDisclaimer}
+                  </p>
+                </div>
+              ) : null}
+              {contentTemplate?.hotelDetails ? (
+                <div className='rounded-lg border border-sky-200 bg-sky-50 p-3'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-sky-700'>
+                    Hotel Details
+                  </p>
+                  <p className='mt-1 text-sm text-sky-900 whitespace-pre-wrap'>
+                    {contentTemplate.hotelDetails}
+                  </p>
+                </div>
+              ) : null}
+              {contentTemplate?.visaDetails ? (
+                <div className='rounded-lg border border-violet-200 bg-violet-50 p-3'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-violet-700'>
+                    Visa Details
+                  </p>
+                  <p className='mt-1 text-sm text-violet-900 whitespace-pre-wrap'>
+                    {contentTemplate.visaDetails}
                   </p>
                 </div>
               ) : null}

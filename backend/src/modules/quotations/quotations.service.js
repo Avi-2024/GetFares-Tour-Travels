@@ -47,6 +47,32 @@ function toDateOnly(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function formatDurationLabel(duration, fallbackNights) {
+  const raw = String(duration || "").trim();
+  if (raw) {
+    return raw;
+  }
+
+  const nights = Math.max(0, Number(fallbackNights) || 0);
+  if (!nights) {
+    return "";
+  }
+
+  return `${nights}N/${nights + 1}D`;
+}
+
+function addPdfTextSection(doc, title, value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return false;
+  }
+
+  doc.fontSize(13).text(title, { underline: true });
+  doc.fontSize(11).text(text);
+  doc.moveDown();
+  return true;
+}
+
 function addHours(date, hours) {
   const base = new Date(date);
   base.setHours(base.getHours() + Number(hours || 0));
@@ -518,6 +544,8 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       const templateSnapshot = quotation.templateSnapshot || quotation.template || {};
       const snapshotLead =
         templateSnapshot.lead || templateSnapshot.builderSnapshot?.lead || {};
+      const packageSnapshot =
+        templateSnapshot.package || templateSnapshot.builderSnapshot?.package || {};
       const customerName =
         templateSnapshot.customerName ||
         snapshotLead.fullName ||
@@ -532,6 +560,22 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         templateSnapshot.destination ||
         snapshotLead.destination ||
         "-";
+      const packageName = packageSnapshot.name || packageSnapshot.title || "-";
+      const packageKind = String(
+        packageSnapshot.kind ||
+          packageSnapshot.packageKind ||
+          templateSnapshot.packageType ||
+          "",
+      )
+        .trim()
+        .replace(/_/g, " ");
+      const packageDuration =
+        formatDurationLabel(packageSnapshot.duration, templateSnapshot.nights) || "-";
+      const travelStartDate =
+        templateSnapshot.travelStartDate || snapshotLead.travelDate || "-";
+      const travelEndDate = templateSnapshot.travelEndDate || "-";
+      const validUntil = templateSnapshot.validUntil || quotation.expiresAt || "-";
+      const adults = Math.max(0, Number(templateSnapshot.adults || 0));
       const companyName =
         String(templateSnapshot.headerBranding || "").trim() ||
         "GetFares Travel CRM";
@@ -556,6 +600,23 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       doc.text(`Destination: ${destinationName}`);
       doc.moveDown();
 
+      const packageLines = [
+        packageName !== "-" ? `Package: ${packageName}` : "",
+        packageKind ? `Package Type: ${packageKind}` : "",
+        packageDuration !== "-" ? `Duration: ${packageDuration}` : "",
+        adults > 0 ? `Travellers: ${adults} ${adults === 1 ? "adult" : "adults"}` : "",
+        travelStartDate !== "-" ? `Travel Date: ${travelStartDate}` : "",
+        travelEndDate !== "-" ? `Travel End Date: ${travelEndDate}` : "",
+        validUntil !== "-" ? `Valid Until: ${validUntil}` : "",
+      ].filter(Boolean);
+
+      if (packageLines.length) {
+        doc.fontSize(13).text("Package Details", { underline: true });
+        doc.fontSize(11);
+        packageLines.forEach((line) => doc.text(line));
+        doc.moveDown();
+      }
+
       doc.fontSize(13).text("Items", { underline: true });
       doc.fontSize(11);
       const items = Array.isArray(quotation.items) ? quotation.items : [];
@@ -579,23 +640,36 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       doc.text(`Final Price: INR ${Number(quotation.finalPrice || 0).toFixed(2)}`);
       doc.moveDown();
 
-      if (templateSnapshot.inclusions) {
-        doc.fontSize(13).text("Inclusions", { underline: true });
-        doc.fontSize(11).text(String(templateSnapshot.inclusions));
+      const itineraryItems = Array.isArray(templateSnapshot.itineraryItems)
+        ? templateSnapshot.itineraryItems
+        : [];
+      if (itineraryItems.length) {
+        doc.fontSize(13).text("Itinerary Snapshot", { underline: true });
+        doc.fontSize(11);
+        itineraryItems.forEach((item, index) => {
+          const day = String(item?.day || `Day ${index + 1}`);
+          const title = String(item?.title || "").trim();
+          const description = String(item?.description || "").trim();
+          doc.text(`${day}: ${title || day}`);
+          if (description) {
+            doc.text(description, {
+              indent: 14,
+            });
+          }
+        });
         doc.moveDown();
       }
 
-      if (templateSnapshot.exclusions) {
-        doc.fontSize(13).text("Exclusions", { underline: true });
-        doc.fontSize(11).text(String(templateSnapshot.exclusions));
-        doc.moveDown();
-      }
-
-      if (templateSnapshot.cancellationPolicy) {
-        doc.fontSize(13).text("Cancellation Policy", { underline: true });
-        doc.fontSize(11).text(String(templateSnapshot.cancellationPolicy));
-        doc.moveDown();
-      }
+      addPdfTextSection(doc, "Hotel Details", templateSnapshot.hotelDetails);
+      addPdfTextSection(doc, "Visa Details", templateSnapshot.visaDetails);
+      addPdfTextSection(doc, "Inclusions", templateSnapshot.inclusions);
+      addPdfTextSection(doc, "Exclusions", templateSnapshot.exclusions);
+      addPdfTextSection(doc, "Payment Terms", templateSnapshot.paymentTerms);
+      addPdfTextSection(
+        doc,
+        "Cancellation Policy",
+        templateSnapshot.cancellationPolicy,
+      );
 
       if (quotation.importantNotes) {
         doc.fontSize(13).text("Important Notes", { underline: true });

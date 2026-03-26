@@ -121,14 +121,26 @@ function createPackagesService({ repository, logger, events }) {
       payload.markupPercent,
       toNumber(existing?.markup_percent, 0),
     );
+    const assertStartingPrice = (startingPrice) => {
+      if (baseCost > 0 && startingPrice <= baseCost) {
+        throw new AppError(
+          400,
+          "Starting price must be greater than base cost",
+          "PACKAGE_INVALID_PRICING",
+        );
+      }
+    };
     if (payload.startingPrice !== undefined) {
+      const startingPrice = toNumber(payload.startingPrice, 0);
+      assertStartingPrice(startingPrice);
       return {
         baseCost,
         markupPercent,
-        startingPrice: toNumber(payload.startingPrice, 0),
+        startingPrice,
       };
     }
     const derived = Number((baseCost * (1 + markupPercent / 100)).toFixed(2));
+    assertStartingPrice(derived);
     return { baseCost, markupPercent, startingPrice: derived };
   }
 
