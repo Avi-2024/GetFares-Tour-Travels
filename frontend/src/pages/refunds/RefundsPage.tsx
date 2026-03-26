@@ -57,6 +57,10 @@ type PaymentLookup = {
   id: string
   referenceId: string
   amount: number
+  bookingId?: string
+  paidAt?: string
+  createdAt?: string
+  date?: string
 }
 
 // Toast Component
@@ -667,6 +671,24 @@ const RefundsPage = () => {
     [payments]
   )
 
+  const paymentsByBookingId = useMemo(() => {
+    const map = new Map<string, PaymentLookup[]>()
+    payments.forEach(payment => {
+      if (!payment.bookingId) return
+      const list = map.get(payment.bookingId) ?? []
+      list.push(payment)
+      map.set(payment.bookingId, list)
+    })
+    return map
+  }, [payments])
+
+  const toPaymentTimestamp = (payment: PaymentLookup) => {
+    const raw =
+      payment.paidAt || payment.createdAt || payment.date || ''
+    const parsed = Date.parse(raw)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
   const bookingDropdownOptions = useMemo(
     () => [
       {
@@ -894,13 +916,23 @@ const RefundsPage = () => {
       setPayments(
         paymentsList.map((payment: any) => ({
           id: String(payment.id || ''),
+          bookingId: String(
+            payment.bookingId ||
+              payment.booking_id ||
+              payment.booking?.id ||
+              payment.booking?.bookingId ||
+              ''
+          ),
           referenceId:
             payment.paymentReference ||
             payment.payment_reference ||
             payment.gatewayPaymentId ||
             payment.gateway_payment_id ||
             payment.id,
-          amount: Number(payment.amount || 0)
+          amount: Number(payment.amount || 0),
+          paidAt: payment.paidAt || payment.paid_at,
+          createdAt: payment.createdAt || payment.created_at,
+          date: payment.date
         }))
       )
     } catch (err) {
@@ -1158,9 +1190,18 @@ const RefundsPage = () => {
               </label>
               <SearchableDropdown
                 value={form.bookingId}
-                onChange={value =>
-                  setForm(current => ({ ...current, bookingId: value }))
-                }
+                onChange={value => {
+                  const selectedId = String(value || '')
+                  const relatedPayments = paymentsByBookingId.get(selectedId) ?? []
+                  const latestPayment = relatedPayments
+                    .slice()
+                    .sort((a, b) => toPaymentTimestamp(b) - toPaymentTimestamp(a))[0]
+                  setForm(current => ({
+                    ...current,
+                    bookingId: value,
+                    paymentId: latestPayment?.id || current.paymentId || ''
+                  }))
+                }}
                 options={bookingDropdownOptions}
                 searchPlaceholder='Search booking...'
                 disabled={loadingBookings}
