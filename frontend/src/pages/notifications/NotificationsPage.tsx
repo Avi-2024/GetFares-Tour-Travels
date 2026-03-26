@@ -12,6 +12,9 @@ import {
   notificationsApi,
   type NotificationsListQuery
 } from '../../api/notifications'
+import { bookingsApi } from '../../api/bookings'
+import { quotationsApi } from '../../api/quotations'
+import { paymentsApi } from '../../api/payments'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useNotifications } from '../../context/NotificationsContext'
 import type { NotificationItem, NotificationStatus } from '../../types'
@@ -115,6 +118,12 @@ const toModule = (notification: NotificationItem) => {
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
+}
+
+const extractList = (response: unknown) => {
+  const payload = response as any
+  const data = payload?.data?.data ?? payload?.data ?? payload ?? []
+  return Array.isArray(data) ? data : []
 }
 
 const toEntityLabel = (notification: NotificationItem) => {
@@ -256,6 +265,28 @@ const NotificationsPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
   const [total, setTotal] = useState(0)
+  const [bookingLookups, setBookingLookups] = useState<
+    { key: string; label: string }[]
+  >([])
+  const [quotationLookups, setQuotationLookups] = useState<
+    { key: string; label: string }[]
+  >([])
+  const [paymentLookups, setPaymentLookups] = useState<
+    { key: string; label: string }[]
+  >([])
+
+  const bookingById = useMemo(
+    () => new Map(bookingLookups.map(item => [item.key, item.label])),
+    [bookingLookups]
+  )
+  const quotationById = useMemo(
+    () => new Map(quotationLookups.map(item => [item.key, item.label])),
+    [quotationLookups]
+  )
+  const paymentById = useMemo(
+    () => new Map(paymentLookups.map(item => [item.key, item.label])),
+    [paymentLookups]
+  )
 
   const loadNotifications = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -315,6 +346,137 @@ const NotificationsPage: React.FC = () => {
     }, 30000)
     return () => clearInterval(interval)
   }, [loadNotifications])
+  useEffect(() => {
+    let cancelled = false
+    const loadLookups = async () => {
+      try {
+        const [bookingsRes, quotationsRes, paymentsRes] = await Promise.all([
+          bookingsApi.list({ page: 1, limit: 300 }),
+          quotationsApi.list({ page: 1, limit: 300 }),
+          paymentsApi.list({ page: 1, limit: 300 })
+        ])
+        const bookings = extractList(bookingsRes)
+        const quotations = extractList(quotationsRes)
+        const payments = extractList(paymentsRes)
+        if (cancelled) return
+        setBookingLookups(
+          bookings.flatMap((booking: any) => {
+            const bookingNumber =
+              booking.bookingNumber ||
+              booking.booking_number ||
+              booking.code ||
+              `BK-${booking.id}`
+            const customerName =
+              booking.customerName ||
+              booking.customer_name ||
+              booking.customer?.name ||
+              booking.customer?.fullName ||
+              booking.customer?.customerName ||
+              booking.leadName ||
+              booking.lead_name ||
+              booking.lead?.name ||
+              booking.lead?.fullName ||
+              booking.customer ||
+              ''
+            const label = customerName
+              ? `${customerName} · ${bookingNumber}`
+              : bookingNumber
+            const entries: { key: string; label: string }[] = []
+            const addEntry = (value: unknown) => {
+              const key = toPlainText(value)
+              if (key) entries.push({ key, label })
+            }
+            addEntry(booking.id)
+            addEntry(bookingNumber)
+            addEntry(booking.bookingNumber)
+            addEntry(booking.booking_number)
+            addEntry(booking.code)
+            return entries
+          })
+        )
+        setQuotationLookups(
+          quotations.flatMap((quotation: any) => {
+            const quoteNumber =
+              quotation.quotationNumber ||
+              quotation.quotation_number ||
+              quotation.quoteNumber ||
+              quotation.quote_number ||
+              quotation.code ||
+              `QT-${quotation.id}`
+            const customerName =
+              quotation.customerName ||
+              quotation.customer_name ||
+              quotation.customer?.name ||
+              quotation.customer?.fullName ||
+              quotation.leadName ||
+              quotation.lead_name ||
+              quotation.lead?.name ||
+              quotation.lead?.fullName ||
+              quotation.customer ||
+              ''
+            const label = customerName
+              ? `${customerName} · ${quoteNumber}`
+              : quoteNumber
+            const entries: { key: string; label: string }[] = []
+            const addEntry = (value: unknown) => {
+              const key = toPlainText(value)
+              if (key) entries.push({ key, label })
+            }
+            addEntry(quotation.id)
+            addEntry(quoteNumber)
+            addEntry(quotation.quotationNumber)
+            addEntry(quotation.quotation_number)
+            addEntry(quotation.quoteNumber)
+            addEntry(quotation.quote_number)
+            addEntry(quotation.code)
+            return entries
+          })
+        )
+        setPaymentLookups(
+          payments.flatMap((payment: any) => {
+            const referenceId =
+              payment.paymentReference ||
+              payment.payment_reference ||
+              payment.gatewayPaymentId ||
+              payment.gateway_payment_id ||
+              payment.id ||
+              'Payment'
+            const customerName =
+              payment.customerName ||
+              payment.customer_name ||
+              payment.customer?.name ||
+              payment.customer?.fullName ||
+              payment.booking?.customer?.name ||
+              payment.booking?.customer?.fullName ||
+              payment.booking?.customerName ||
+              ''
+            const label = customerName
+              ? `${customerName} · ${referenceId}`
+              : String(referenceId)
+            const entries: { key: string; label: string }[] = []
+            const addEntry = (value: unknown) => {
+              const key = toPlainText(value)
+              if (key) entries.push({ key, label })
+            }
+            addEntry(payment.id)
+            addEntry(referenceId)
+            addEntry(payment.paymentReference)
+            addEntry(payment.payment_reference)
+            addEntry(payment.gatewayPaymentId)
+            addEntry(payment.gateway_payment_id)
+            return entries
+          })
+        )
+      } catch (err) {
+        console.error('Failed to load notification lookups:', err)
+      }
+    }
+
+    void loadLookups()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const modules = useMemo(
     () => Array.from(new Set(notifications.map(item => toModule(item)))).sort(),
@@ -334,6 +496,106 @@ const NotificationsPage: React.FC = () => {
     label: `${value} / page`
   }))
 
+  const resolveEntityLabel = useCallback(
+    (notification: NotificationItem) => {
+      const payload = (notification.payload || {}) as Record<string, unknown>
+      const eventName = toPlainText(notification.eventName).toLowerCase()
+      const entityType = toPlainText(notification.entityType).toLowerCase()
+      const entityId =
+        toPlainText(notification.entityId) ||
+        toPlainText(payload.bookingId) ||
+        toPlainText(payload.bookingNumber) ||
+        toPlainText(payload.quotationId) ||
+        toPlainText(payload.quotationNumber) ||
+        toPlainText(payload.quoteNumber) ||
+        toPlainText(payload.paymentId) ||
+        toPlainText(payload.paymentReference)
+
+      if (entityId) {
+        if (
+          entityType.includes('booking') ||
+          eventName.startsWith('bookings.') ||
+          payload.bookingId ||
+          payload.bookingNumber
+        ) {
+          const label = bookingById.get(entityId)
+          if (label) return label
+        }
+        if (
+          entityType.includes('quotation') ||
+          eventName.startsWith('quotations.') ||
+          payload.quotationId ||
+          payload.quotationNumber ||
+          payload.quoteNumber
+        ) {
+          const label = quotationById.get(entityId)
+          if (label) return label
+        }
+        if (
+          entityType.includes('payment') ||
+          eventName.startsWith('payments.') ||
+          payload.paymentId ||
+          payload.paymentReference
+        ) {
+          const label = paymentById.get(entityId)
+          if (label) return label
+        }
+      }
+
+      return toEntityLabel(notification)
+    },
+    [bookingById, paymentById, quotationById]
+  )
+
+  const toFriendlyMessageLocal = useCallback(
+    (notification: NotificationItem) => {
+      const rawMessage = toPlainText(notification.message)
+      const eventName = toPlainText(notification.eventName).toLowerCase()
+      const entityLabel = resolveEntityLabel(notification)
+      const payload = (notification.payload || {}) as Record<string, unknown>
+
+      if (rawMessage && !/event for/i.test(rawMessage)) {
+        return rawMessage
+      }
+
+      switch (eventName) {
+        case 'leads.followup_overdue':
+          return entityLabel
+            ? `${entityLabel} needs attention because a scheduled follow-up is overdue.`
+            : 'A scheduled lead follow-up is overdue and needs attention.'
+        case 'leads.sla_breached':
+          return entityLabel
+            ? `${entityLabel} did not receive first contact inside the 15-minute response target.`
+            : 'A lead missed the 15-minute first-response target.'
+        case 'leads.followup_created':
+          return entityLabel
+            ? `A new follow-up has been scheduled for ${entityLabel}.`
+            : 'A new lead follow-up has been scheduled.'
+        case 'bookings.deadline_alert':
+          return entityLabel
+            ? `${entityLabel} has a booking deadline that needs review.`
+            : 'A booking deadline needs review.'
+        case 'suppliers.payable_deadline_alert': {
+          const dueInDays = Number(payload.dueInDays)
+          if (Number.isFinite(dueInDays) && dueInDays < 0) {
+            return entityLabel
+              ? `${entityLabel} has a supplier payable that is already overdue.`
+              : 'A supplier payable is already overdue.'
+          }
+          return entityLabel
+            ? `${entityLabel} has a supplier payment deadline coming up soon.`
+            : 'A supplier payment deadline is coming up soon.'
+        }
+        default:
+          if (entityLabel) {
+            return `${toFriendlyTitle(notification)} for ${entityLabel}.`
+          }
+          return toFriendlyTitle(notification)
+      }
+    },
+    [resolveEntityLabel]
+  )
+
   const filteredNotifications = useMemo(() => {
     return notifications.filter(notification => {
       const matchesModule =
@@ -343,8 +605,8 @@ const NotificationsPage: React.FC = () => {
 
       const haystack = [
         toFriendlyTitle(notification),
-        toFriendlyMessage(notification),
-        toEntityLabel(notification),
+        toFriendlyMessageLocal(notification),
+        resolveEntityLabel(notification),
         toPlainText(notification.entityType),
         toPlainText(notification.entityId),
         toPlainText(notification.eventName),
@@ -538,8 +800,8 @@ const NotificationsPage: React.FC = () => {
                 const isRead = notification.status === 'READ'
                 const module = toModule(notification)
                 const title = toFriendlyTitle(notification)
-                const body = toFriendlyMessage(notification)
-                const entityLabel = toEntityLabel(notification)
+                const body = toFriendlyMessageLocal(notification)
+                const entityLabel = resolveEntityLabel(notification)
                 const relativeTime = formatRelativeTime(notification.createdAt)
 
                 return (
@@ -710,3 +972,16 @@ const NotificationsPage: React.FC = () => {
 }
 
 export default NotificationsPage
+
+
+
+
+
+
+
+
+
+
+
+
+
