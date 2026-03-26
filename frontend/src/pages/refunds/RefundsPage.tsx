@@ -19,6 +19,8 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { refundsApi } from '../../api/refunds'
 import { bookingsApi } from '../../api/bookings'
 import { paymentsApi } from '../../api/payments'
+import { customersApi } from '../../api/customers'
+import { leadsApi } from '../../api/leads'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 
@@ -55,6 +57,10 @@ type PaymentLookup = {
   id: string
   referenceId: string
   amount: number
+  bookingId?: string
+  paidAt?: string
+  createdAt?: string
+  date?: string
 }
 
 // Toast Component
@@ -641,23 +647,61 @@ const RefundsPage = () => {
 
   const bookingOptions = useMemo(
     () =>
-      bookings.map(booking => ({
-        value: booking.id,
-        label: `${booking.bookingNumber}${
-          booking.customer ? ` - ${booking.customer}` : ''
-        }`
-      })),
+      bookings.map(booking => {
+        const customerName = booking.customer || 'Unknown Customer'
+        const bookingLabel = booking.bookingNumber || shortId(booking.id)
+        return {
+          value: booking.id,
+          label: `${customerName} ${bookingLabel}`,
+          leftLabel: customerName,
+          rightLabel: bookingLabel,
+          selectedLabel: `${customerName} · ${bookingLabel}`,
+          searchText: `${customerName} ${bookingLabel} ${booking.id}`
+        }
+      }),
     [bookings]
   )
 
   const paymentOptions = useMemo(
     () =>
-      payments.map(payment => ({
-        value: payment.id,
-        label: `${payment.referenceId} - $${payment.amount.toFixed(2)}`
-      })),
-    [payments]
+      payments.map(payment => {
+        const booking = payment.bookingId
+          ? bookingById.get(payment.bookingId)
+          : undefined
+        const customerName = booking?.customer || 'Unknown Customer'
+        const refLabel = payment.referenceId
+        const amountLabel = `$${payment.amount.toFixed(2)}`
+        return {
+          value: payment.id,
+          label: `${customerName} ${refLabel} ${amountLabel}`,
+          leftLabel: customerName,
+          rightLabel: refLabel,
+          rightSubLabel: amountLabel,
+          rightSubEmphasis: true,
+          selectedLabel: `${customerName} · ${refLabel} · ${amountLabel}`,
+          searchText: `${customerName} ${refLabel} ${amountLabel} ${payment.bookingId || ''}`
+        }
+      }),
+    [payments, bookingById]
   )
+
+  const paymentsByBookingId = useMemo(() => {
+    const map = new Map<string, PaymentLookup[]>()
+    payments.forEach(payment => {
+      if (!payment.bookingId) return
+      const list = map.get(payment.bookingId) ?? []
+      list.push(payment)
+      map.set(payment.bookingId, list)
+    })
+    return map
+  }, [payments])
+
+  const toPaymentTimestamp = (payment: PaymentLookup) => {
+    const raw =
+      payment.paidAt || payment.createdAt || payment.date || ''
+    const parsed = Date.parse(raw)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
 
   const bookingDropdownOptions = useMemo(
     () => [
@@ -781,9 +825,11 @@ const RefundsPage = () => {
     setLoadingBookings(true)
     setLoadingPayments(true)
     try {
-      const [bookingsRes, paymentsRes] = await Promise.all([
+      const [bookingsRes, paymentsRes, customersRes, leadsRes] = await Promise.all([
         bookingsApi.list({ page: 1, limit: 300 }),
-        paymentsApi.list({ page: 1, limit: 300 })
+        paymentsApi.list({ page: 1, limit: 300 }),
+        customersApi.list({ page: 1, limit: 500 }),
+        leadsApi.list({ page: 1, limit: 500 })
       ])
 
       const bookingsPayload = bookingsRes as any
@@ -794,22 +840,83 @@ const RefundsPage = () => {
         []
       const bookingsList = Array.isArray(bookingsData) ? bookingsData : []
 
+      const customersPayload = customersRes as any
+      const customersData =
+        customersPayload?.data?.data ||
+        customersPayload?.data ||
+        customersPayload ||
+        []
+      const customersList = Array.isArray(customersData) ? customersData : []
+      const customersById = new Map(
+        customersList.map((customer: any) => [
+          String(customer?.id || customer?.customerId || ''),
+          customer
+        ])
+      )
+      const leadsPayload = leadsRes as any
+      const leadsData =
+        leadsPayload?.data?.data ||
+        leadsPayload?.data ||
+        leadsPayload ||
+        []
+      const leadsList = Array.isArray(leadsData) ? leadsData : []
+      const leadsById = new Map(
+        leadsList.map((lead: any) => [
+          String(lead?.id || lead?.leadId || ''),
+          lead
+        ])
+      )
+
       setBookings(
-        bookingsList.map((booking: any) => ({
-          id: String(booking.id || ''),
-          bookingNumber:
-            booking.bookingNumber ||
-            booking.booking_number ||
-            booking.code ||
-            `BK-${booking.id}`,
-          customer:
+        bookingsList.map((booking: any) => {
+          const customerId =
+            booking.customerId ||
+            booking.customer_id ||
+            booking.customer?.id ||
+            booking.customer?.customerId ||
+            booking.customer?.customer_id ||
+            booking.leadId ||
+            booking.lead_id ||
+            ''
+          const customerRecord = customersById.get(String(customerId)) as any
+          const leadRecord = leadsById.get(String(customerId)) as any
+          const derivedCustomerName =
             booking.customerName ||
             booking.customer_name ||
+            booking.customer?.name ||
+            booking.customer?.fullName ||
+            booking.customer?.customerName ||
             booking.leadName ||
             booking.lead_name ||
+            booking.lead?.name ||
+            booking.lead?.fullName ||
+            customerRecord?.name ||
+            customerRecord?.fullName ||
+            customerRecord?.customerName ||
+            leadRecord?.name ||
+            leadRecord?.fullName ||
+            leadRecord?.leadName ||
+            (customerRecord?.firstName || customerRecord?.lastName
+              ? `${customerRecord?.firstName ?? ''} ${customerRecord?.lastName ?? ''}`.trim()
+              : '') ||
+            (leadRecord?.firstName || leadRecord?.lastName
+              ? `${leadRecord?.firstName ?? ''} ${leadRecord?.lastName ?? ''}`.trim()
+              : '') ||
+            booking.primaryContactName ||
+            booking.contactName ||
+            booking.travellerName ||
             booking.customer ||
             ''
-        }))
+          return {
+            id: String(booking.id || ''),
+            bookingNumber:
+              booking.bookingNumber ||
+              booking.booking_number ||
+              booking.code ||
+              `BK-${booking.id}`,
+            customer: derivedCustomerName
+          }
+        })
       )
 
       const paymentsPayload = paymentsRes as any
@@ -823,13 +930,23 @@ const RefundsPage = () => {
       setPayments(
         paymentsList.map((payment: any) => ({
           id: String(payment.id || ''),
+          bookingId: String(
+            payment.bookingId ||
+              payment.booking_id ||
+              payment.booking?.id ||
+              payment.booking?.bookingId ||
+              ''
+          ),
           referenceId:
             payment.paymentReference ||
             payment.payment_reference ||
             payment.gatewayPaymentId ||
             payment.gateway_payment_id ||
             payment.id,
-          amount: Number(payment.amount || 0)
+          amount: Number(payment.amount || 0),
+          paidAt: payment.paidAt || payment.paid_at,
+          createdAt: payment.createdAt || payment.created_at,
+          date: payment.date
         }))
       )
     } catch (err) {
@@ -1087,9 +1204,18 @@ const RefundsPage = () => {
               </label>
               <SearchableDropdown
                 value={form.bookingId}
-                onChange={value =>
-                  setForm(current => ({ ...current, bookingId: value }))
-                }
+                onChange={value => {
+                  const selectedId = String(value || '')
+                  const relatedPayments = paymentsByBookingId.get(selectedId) ?? []
+                  const latestPayment = relatedPayments
+                    .slice()
+                    .sort((a, b) => toPaymentTimestamp(b) - toPaymentTimestamp(a))[0]
+                  setForm(current => ({
+                    ...current,
+                    bookingId: value,
+                    paymentId: latestPayment?.id || current.paymentId || ''
+                  }))
+                }}
                 options={bookingDropdownOptions}
                 searchPlaceholder='Search booking...'
                 disabled={loadingBookings}
