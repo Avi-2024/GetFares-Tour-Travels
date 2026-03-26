@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FaBuilding,
   FaUser,
@@ -7,9 +7,10 @@ import {
   FaTrash,
   FaSearch,
   FaChevronLeft,
-  FaChevronRight
+  FaChevronRight,
+  FaBars
 } from 'react-icons/fa'
-import { FaXmark, FaPenToSquare, FaPercent } from 'react-icons/fa6'
+import { FaXmark, FaPenToSquare, FaPercent, FaRotate } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -748,6 +749,7 @@ const FinanceSystem: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
+  const [tabMenuOpen, setTabMenuOpen] = useState(false)
   const [costFilters, setCostFilters] = useState({
     from: '',
     to: '',
@@ -761,6 +763,26 @@ const FinanceSystem: React.FC = () => {
   const [notice, setNotice] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 5
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  const tabItems: Array<{
+    id: 'clients' | 'suppliers' | 'cost' | 'payments'
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+  }> = [
+    { id: 'clients', label: 'Client Onboarding', icon: FaUser },
+    { id: 'suppliers', label: 'Supplier Onboarding', icon: FaBuilding },
+    { id: 'cost', label: 'Cost Break-up', icon: FaPercent },
+    { id: 'payments', label: 'Payments', icon: FaCreditCard }
+  ]
+
+  const handleTabSelection = (
+    tabId: 'clients' | 'suppliers' | 'cost' | 'payments'
+  ) => {
+    setActiveTab(tabId)
+    setPage(1)
+    setTabMenuOpen(false)
+  }
 
   const bookingLookupById = useMemo(
     () => new Map(bookingLookups.map(booking => [booking.id, booking])),
@@ -1010,6 +1032,18 @@ const FinanceSystem: React.FC = () => {
     if (activeTab !== 'cost') return
     void fetchCostBreakup()
   }, [activeTab, fetchCostBreakup])
+
+  useEffect(() => {
+    if (!tabMenuOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return
+      if (!menuRef.current.contains(event.target as Node)) {
+        setTabMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [tabMenuOpen])
 
   const filteredClients = clients.filter(c =>
     `${c.name ?? ''} ${c.email ?? ''} ${c.pan ?? ''} ${c.phone ?? ''} ${
@@ -1281,40 +1315,76 @@ const FinanceSystem: React.FC = () => {
 
   return (
     <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
-      <div className='mx-auto w-full max-w-full overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8'>
+      <div className='mx-auto w-full max-w-9xl overflow-x-hidden px-0 py-4 sm:px-0 sm:py-6 lg:px-0 lg:py-8'>
         {/* Header */}
-        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 -mt-2 sm:-mt-8'>
-          <div>
-            <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
-              Finance System
-            </h1>
-            <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1'>
-              Manage clients, suppliers, cost breakdowns, and payments
-            </p>
+        <div className='mb-4 -mt-2 sm:-mt-8'>
+          <div className='flex flex-wrap items-start justify-between gap-3'>
+            <div className='min-w-0 flex-1'>
+              <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
+                Finance System
+              </h1>
+              <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1'>
+                Manage clients, suppliers, cost breakdowns, and payments
+              </p>
+            </div>
+            <div className='flex items-center gap-2'>
+              <button
+                onClick={() => {
+                  setError('')
+                  setNotice('')
+                  if (activeTab === 'clients') {
+                    void fetchClients()
+                    return
+                  }
+                  if (activeTab === 'suppliers') {
+                    void fetchSuppliers()
+                    return
+                  }
+                  if (activeTab === 'payments') {
+                    void fetchPayments()
+                    return
+                  }
+                  void fetchCostBreakup()
+                }}
+                disabled={loading || saving}
+                aria-label='Refresh data'
+                className='inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:h-auto sm:w-auto sm:px-3 sm:py-2 sm:text-sm sm:font-medium'
+              >
+                <FaRotate className='text-base' />
+                <span className='hidden sm:inline sm:ml-2'>Refresh Data</span>
+              </button>
+              <div className='relative sm:hidden' ref={menuRef}>
+                <button
+                  onClick={() => setTabMenuOpen(prev => !prev)}
+                  className='inline-flex items-center justify-center rounded-lg border border-gray-300 p-2 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                  aria-label='Toggle finance tabs'
+                >
+                  <FaBars />
+                </button>
+                {tabMenuOpen ? (
+                  <div className='absolute right-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900'>
+                    {tabItems.map(tab => {
+                      const Icon = tab.icon
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => handleTabSelection(tab.id)}
+                          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-left ${
+                            activeTab === tab.id
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+                              : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <Icon className='text-base' />
+                          {tab.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
-          <button
-            onClick={() => {
-              setError('')
-              setNotice('')
-              if (activeTab === 'clients') {
-                void fetchClients()
-                return
-              }
-              if (activeTab === 'suppliers') {
-                void fetchSuppliers()
-                return
-              }
-              if (activeTab === 'payments') {
-                void fetchPayments()
-                return
-              }
-              void fetchCostBreakup()
-            }}
-            disabled={loading || saving}
-            className='px-3 py-2 text-xs sm:text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
-          >
-            Refresh Data
-          </button>
         </div>
 
         {notice ? (
@@ -1334,33 +1404,21 @@ const FinanceSystem: React.FC = () => {
         ) : null}
 
         {/* Tabs */}
-        <div className='mb-6 overflow-x-auto'>
-          <div className='flex min-w-max gap-2 border-b border-gray-200 pb-2 dark:border-gray-800'>
-            {[
-              { id: 'clients', label: 'Client Onboarding', icon: FaUser },
-              {
-                id: 'suppliers',
-                label: 'Supplier Onboarding',
-                icon: FaBuilding
-              },
-              { id: 'cost', label: 'Cost Break-up', icon: FaPercent },
-              { id: 'payments', label: 'Payments', icon: FaCreditCard }
-            ].map(tab => {
+        <div className='mb-6 hidden sm:block'>
+          <div className='flex min-w-max gap-2 overflow-x-auto border-b border-gray-200 pb-2 dark:border-gray-800'>
+            {tabItems.map(tab => {
               const Icon = tab.icon
               return (
                 <button
                   key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id as any)
-                    setPage(1)
-                  }}
+                  onClick={() => handleTabSelection(tab.id)}
                   className={`flex items-center gap-2 whitespace-nowrap rounded-t-lg px-4 py-2 text-sm font-medium transition-colors ${
                     activeTab === tab.id
                       ? 'bg-blue-600 text-white'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 >
-                  <Icon className='text-sm' />
+                  <Icon className='text-base' />
                   {tab.label}
                 </button>
               )
@@ -1399,7 +1457,7 @@ const FinanceSystem: React.FC = () => {
                     setShowClientModal(true)
                   }}
                   disabled={saving}
-                  className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium'
+                  className='inline-flex w-full items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium sm:w-auto'
                 >
                   <FaPlus /> Add Client
                 </button>
@@ -1412,7 +1470,7 @@ const FinanceSystem: React.FC = () => {
                     setShowSupplierModal(true)
                   }}
                   disabled={saving}
-                  className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium'
+                  className='inline-flex w-full items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium sm:w-auto'
                 >
                   <FaPlus /> Add Supplier
                 </button>
@@ -1422,7 +1480,7 @@ const FinanceSystem: React.FC = () => {
                 <button
                   onClick={() => setShowPaymentModal(true)}
                   disabled={saving}
-                  className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium'
+                  className='inline-flex w-full items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium sm:w-auto'
                 >
                   <FaPlus /> Record Payment
                 </button>
@@ -2004,7 +2062,7 @@ const FinanceSystem: React.FC = () => {
                     <div className='divide-y divide-gray-100 dark:divide-gray-800 xl:hidden'>
                       {currencyBreakup.map(row => (
                         <div key={row.currency} className='space-y-3 p-4'>
-                          <div className='flex items-start justify-between'>
+                          <div className='flex flex-wrap items-start justify-between gap-2'>
                             <div>
                               <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                                 {row.currency}
@@ -2017,7 +2075,7 @@ const FinanceSystem: React.FC = () => {
                               {formatCurrency(row.totalSaleValue, row.currency)}
                             </span>
                           </div>
-                          <div className='grid grid-cols-2 gap-3'>
+                          <div className='grid grid-cols-1 gap-3 min-[420px]:grid-cols-2'>
                             {[
                               [
                                 'Supplier Cost',
@@ -2182,7 +2240,7 @@ const FinanceSystem: React.FC = () => {
                               )}
                             </span>
                           </div>
-                          <div className='grid grid-cols-2 gap-3'>
+                          <div className='grid grid-cols-1 gap-3 min-[420px]:grid-cols-2'>
                             {[
                               [
                                 'Supplier Cost',
@@ -2534,7 +2592,7 @@ const FinanceSystem: React.FC = () => {
                             {payment.status}
                           </span>
                         </div>
-                        <div className='flex justify-between'>
+                        <div className='flex flex-wrap items-center justify-between gap-2'>
                           <span className='text-sm'>
                             {paymentModeLabel(payment.mode)}
                           </span>
@@ -2624,7 +2682,9 @@ const FinanceSystem: React.FC = () => {
 
       {/* Modals */}
       <ClientModal
-        key={`client-${showClientModal ? editingClient?.id ?? 'new' : 'closed'}`}
+        key={`client-${
+          showClientModal ? editingClient?.id ?? 'new' : 'closed'
+        }`}
         isOpen={showClientModal}
         onClose={() => {
           setShowClientModal(false)
@@ -2635,7 +2695,9 @@ const FinanceSystem: React.FC = () => {
       />
 
       <SupplierModal
-        key={`supplier-${showSupplierModal ? editingSupplier?.id ?? 'new' : 'closed'}`}
+        key={`supplier-${
+          showSupplierModal ? editingSupplier?.id ?? 'new' : 'closed'
+        }`}
         isOpen={showSupplierModal}
         onClose={() => {
           setShowSupplierModal(false)

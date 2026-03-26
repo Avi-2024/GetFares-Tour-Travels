@@ -194,7 +194,7 @@ const Header: React.FC<{
         <button
           type='button'
           onClick={handleToggleBreak}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-2 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:gap-2 sm:px-3 sm:text-sm ${
             breakState.isBreak
               ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-400 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/40'
               : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
@@ -205,10 +205,15 @@ const Header: React.FC<{
               breakState.isBreak ? 'bg-amber-500 animate-pulse' : 'bg-gray-400'
             }`}
           />
-          {breakTimerLabel}
+          <span className='hidden sm:inline'>{breakTimerLabel}</span>
+          <span className='sm:hidden'>
+            {breakState.isBreak ? 'Break' : 'Start'}
+          </span>
         </button>
         <button
           type='button'
+         
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-2 py-2 text-xs font-semibold transition sm:gap-2 sm:px-3 sm:text-sm ${
           onClick={() => void handleToggleActive()}
           disabled={breakState.isBreak || togglingActive}
           title={
@@ -233,6 +238,12 @@ const Header: React.FC<{
                 : 'bg-green-500'
             }`}
           />
+          <span className='hidden sm:inline'>
+            {breakState.isBreak ? 'Away' : 'Active'}
+          </span>
+          <span className='sm:hidden'>
+            {breakState.isBreak ? 'Away' : 'Active'}
+          </span>
           {breakState.isBreak ? 'Away' : isActive ? 'Active' : 'Inactive'}
         </button>
         <button
