@@ -33,6 +33,7 @@ DROP TABLE IF EXISTS
     customer_leads,
     followups,
     lead_activities,
+    queued_leads,
     leads,
     customers,
     notification_events,

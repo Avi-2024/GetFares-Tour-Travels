@@ -202,6 +202,7 @@ function createRbacService({
         id: row.id,
         name: row.name,
         description: row.description ?? null,
+        country: row.country ?? null,
         isActive: row.is_active !== false,
       }));
     },

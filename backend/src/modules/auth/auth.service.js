@@ -19,6 +19,10 @@ function createAuthService({
       phone: user.phone,
       role: user.role,
       roleId: user.roleId,
+      roleCountry: user.roleCountry ?? null,
+      agentCountry: user.agentCountry ?? null,
+      country: user.agentCountry ?? user.roleCountry ?? null,
+      agentType: user.agentType ?? null,
       isActive: user.isActive,
       active: user.active,
       createdAt: user.createdAt,
@@ -147,6 +151,24 @@ function createAuthService({
       }
 
       return serializeUser(user);
+    },
+
+    async toggleActive(userId, active) {
+      const user = await repository.findUserById(userId);
+      if (!user) {
+        throw new AppError(404, "User not found", "AUTH_USER_NOT_FOUND");
+      }
+      const updated = await repository.setActiveStatus(userId, active);
+      return serializeUser(updated);
+    },
+
+    async logout(userId) {
+      const user = await repository.findUserById(userId);
+      if (!user) {
+        throw new AppError(404, "User not found", "AUTH_USER_NOT_FOUND");
+      }
+      await repository.clearLoginPresence(userId);
+      return { success: true };
     },
   });
 }

@@ -140,13 +140,18 @@ const LeadDetails: React.FC = () => {
     setError('')
     try {
       const response = await leadsService.getLeadById(id)
-      const data =
+      const raw =
         (response as any)?.data?.data ?? (response as any)?.data ?? response
+      const callsDisabled = Boolean(raw?.callsDisabled ?? raw?.calls_disabled)
+      const data = raw ? { ...raw, callsDisabled } : null
       setLead(data)
-      setSelectedStatusLabel(
-        deriveSopStatusLabel(data?.status, data?.subStatus, data?.statusLabel)
-      )
-      hydrateQualification(data)
+      setCallsButtonDisabled(false)
+      if (data) {
+        setSelectedStatusLabel(
+          deriveSopStatusLabel(data.status, data.subStatus, data.statusLabel)
+        )
+        hydrateQualification(data)
+      }
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load lead details.'))
       setLead(null)
@@ -229,15 +234,20 @@ const LeadDetails: React.FC = () => {
     []
   )
 
-  const followupTypeOptions = useMemo(
-    () => [
+  const isCallsDisabled = lead?.callsDisabled || lead?.calls_disabled || callsButtonDisabled
+
+  const followupTypeOptions = useMemo(() => {
+    const all = [
       { value: 'CALL', label: 'Call' },
       { value: 'WHATSAPP', label: 'WhatsApp' },
       { value: 'EMAIL', label: 'Email' },
       { value: 'FINAL_REMINDER', label: 'Final Reminder' }
-    ],
-    []
-  )
+    ]
+    if (isCallsDisabled) {
+      return all.filter(opt => opt.value !== 'CALL')
+    }
+    return all
+  }, [isCallsDisabled])
 
   const qualificationMissing = useMemo(() => {
     const missing: string[] = []
@@ -265,7 +275,7 @@ const LeadDetails: React.FC = () => {
   }, [qualification])
 
   const isComplianceComplete =
-    compliance.calls >= REQUIRED_COMPLIANCE.calls &&
+    (isCallsDisabled || compliance.calls >= REQUIRED_COMPLIANCE.calls) &&
     compliance.whatsapp >= REQUIRED_COMPLIANCE.whatsapp &&
     compliance.finalReminders >= REQUIRED_COMPLIANCE.finalReminders
 
@@ -420,12 +430,17 @@ const LeadDetails: React.FC = () => {
 
   const canRunOps = hasPermission('leads:update')
 
-  const handleDisableCalls = () => {
-    setCallsButtonDisabled(true)
-    setShowDisablePopup(true)
-    window.setTimeout(() => {
+  const handleDisableCalls = async () => {
+    if (!id) return
+    const newState = !isCallsDisabled
+    try {
+      await leadsService.disableCalls(id, newState)
+      setShowDisablePopup(true)
+      window.setTimeout(() => setShowDisablePopup(false), 2500)
+      await loadLead()
+    } catch {
       setShowDisablePopup(false)
-    }, 1800)
+    }
   }
 
   return (
@@ -474,6 +489,11 @@ const LeadDetails: React.FC = () => {
                   <p className='text-sm text-gray-500'>
                     {lead.email || 'N/A'} | {lead.phone || 'N/A'}
                   </p>
+                  {lead.leadCountry || lead.country ? (
+                    <p className='mt-0.5 text-xs font-medium text-blue-600 dark:text-blue-400'>
+                      {lead.leadCountry || lead.country}
+                    </p>
+                  ) : null}
                 </div>
                 <StatusBadge
                   status={deriveSopStatusLabel(
@@ -658,6 +678,21 @@ const LeadDetails: React.FC = () => {
                       }
                     />
                   </div>
+                  {(lead?.childAges?.length > 0 || lead?.child_ages?.length > 0) ? (
+                    <div className='md:col-span-2'>
+                      <label className='field-label'>Child Ages</label>
+                      <div className='flex flex-wrap gap-2'>
+                        {(lead.childAges || lead.child_ages || []).map((age: number, idx: number) => (
+                          <span
+                            key={`age-${idx}`}
+                            className='inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                          >
+                            Child {idx + 1}: {age} yrs
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <div>
                     <label className='field-label'>Budget</label>
                     <input
@@ -783,27 +818,30 @@ const LeadDetails: React.FC = () => {
             </p>
             <div className='mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300'>
               <div className='flex items-center justify-between gap-2'>
-                <p>
+                <p className={isCallsDisabled ? 'line-through text-gray-400 dark:text-gray-500' : ''}>
                   Calls: {compliance.calls} / {REQUIRED_COMPLIANCE.calls}
                 </p>
                 <div className='relative'>
                   {showDisablePopup ? (
                     <div className='pointer-events-none absolute bottom-full right-0 z-10 mb-1 min-w-[180px] rounded-md bg-gray-900 px-3 py-1.5 text-center text-[10px] font-medium whitespace-nowrap text-white shadow-lg dark:bg-gray-800'>
-                      Calls disabled successfully
+                      {isCallsDisabled ? 'Calls disabled — WhatsApp only' : 'Calls re-enabled'}
                     </div>
                   ) : null}
                   <button
                     type='button'
-                    disabled={callsButtonDisabled}
-                    onClick={handleDisableCalls}
-                    className='rounded-md bg-red-800 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-700 dark:hover:bg-red-800'
+                    onClick={() => void handleDisableCalls()}
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium text-white ${
+                      isCallsDisabled
+                        ? 'bg-green-700 hover:bg-green-800 dark:bg-green-600'
+                        : 'bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-800'
+                    }`}
                   >
-                    {callsButtonDisabled ? 'Disabled' : 'Disable'}
+                    {isCallsDisabled ? 'Re-enable Calls' : 'Disable Calls'}
                   </button>
                 </div>
               </div>
-              <p>
-                WhatsApp: {compliance.whatsapp} / {REQUIRED_COMPLIANCE.whatsapp}
+              <p className={isCallsDisabled ? 'font-medium text-green-700 dark:text-green-400' : ''}>
+                WhatsApp: {isCallsDisabled ? '∞' : `${compliance.whatsapp} / ${REQUIRED_COMPLIANCE.whatsapp}`}
               </p>
               <p>Final Reminder: {compliance.finalReminders} / 1</p>
               <p
@@ -817,6 +855,12 @@ const LeadDetails: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {isCallsDisabled ? (
+            <div className='mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200'>
+              Client has opted out of calls. Only WhatsApp messages are allowed.
+            </div>
+          ) : null}
 
           <div className='mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
             <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
@@ -889,28 +933,43 @@ const LeadDetails: React.FC = () => {
                 Scheduler automation is enabled. Use these buttons only for
                 manual replay/troubleshooting.
               </p>
-              <div className='mt-2 flex flex-wrap gap-2'>
-                <button
-                  disabled={opsRunning}
-                  onClick={() => void runAutomation('processSlaBreaches')}
-                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                >
-                  Run Late Response Check
-                </button>
-                <button
-                  disabled={opsRunning}
-                  onClick={() => void runAutomation('processCadenceAutomation')}
-                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                >
-                  Run Cadence Automation
-                </button>
-                <button
-                  disabled={opsRunning}
-                  onClick={() => void runAutomation('processNonResponsive')}
-                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                >
-                  Run Non-Responsive Check
-                </button>
+              <div className='mt-2 space-y-2'>
+                <div>
+                  <button
+                    disabled={opsRunning}
+                    onClick={() => void runAutomation('processSlaBreaches')}
+                    className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                  >
+                    Run Late Response Check
+                  </button>
+                  <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
+                    Flags leads where assigned agents have not responded within the SLA deadline.
+                  </p>
+                </div>
+                <div>
+                  <button
+                    disabled={opsRunning}
+                    onClick={() => void runAutomation('processCadenceAutomation')}
+                    className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                  >
+                    Run Cadence Automation
+                  </button>
+                  <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
+                    Triggers the next scheduled follow-up (call / WhatsApp) based on the SOP cadence timeline.
+                  </p>
+                </div>
+                <div>
+                  <button
+                    disabled={opsRunning}
+                    onClick={() => void runAutomation('processNonResponsive')}
+                    className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                  >
+                    Run Non-Responsive Check
+                  </button>
+                  <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
+                    Marks leads as NON_RESPONSIVE if all follow-up attempts (6 calls + 7 WhatsApp + 1 final reminder) are exhausted.
+                  </p>
+                </div>
               </div>
             </div>
           ) : null}

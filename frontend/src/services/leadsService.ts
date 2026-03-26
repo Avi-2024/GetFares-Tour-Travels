@@ -24,6 +24,9 @@ export type LeadListItem = {
   email: string;
   phone: string;
   destination: string;
+  adultsCount: number;
+  childrenCount: number;
+  childAges: number[];
   packageName: string;
   status: CanonicalLeadStatus;
   statusLabel: SopStatusLabel;
@@ -161,6 +164,24 @@ const normalizeDestination = (
   return "N/A";
 };
 
+const normalizeCount = (value: unknown, fallback: number) => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+const normalizeChildAges = (lead: LeadApiRecord) => {
+  const raw = (
+    lead.childAges ??
+    (lead as LeadApiRecord & { child_ages?: unknown }).child_ages
+  ) as unknown;
+
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((age) => (typeof age === "number" ? age : Number(age)))
+    .filter((age) => Number.isFinite(age) && age >= 0 && age <= 18);
+};
+
 const normalizeCanonicalStatus = (value: unknown): CanonicalLeadStatus => {
   const normalized = normalizeStatusToken(value);
   if (normalized === "CONTACTED") return "CONTACTED";
@@ -190,6 +211,18 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
       lead.destinationName,
       lead.country,
     ),
+    adultsCount: normalizeCount(
+      lead.adultsCount ??
+        (lead as LeadApiRecord & { adults_count?: number | null }).adults_count,
+      1,
+    ),
+    childrenCount: normalizeCount(
+      lead.childrenCount ??
+        (lead as LeadApiRecord & { children_count?: number | null })
+          .children_count,
+      0,
+    ),
+    childAges: normalizeChildAges(lead),
     packageName: lead.packageName ?? lead.package ?? "N/A",
     status,
     statusLabel,
@@ -255,6 +288,8 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     datasource.processNonResponsive(payload),
   processCadenceAutomation: (payload?: { staleDays?: number; limit?: number }) =>
     datasource.processCadenceAutomation(payload),
+  disableCalls: (id: string, disabled: boolean) =>
+    datasource.disableCalls(id, disabled),
   submitPublicLead: (payload: unknown) => datasource.publicCapture(payload),
 });
 

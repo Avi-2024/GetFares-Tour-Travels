@@ -27,8 +27,25 @@ function createPackagesService({ repository, logger, events }) {
     return Number.isFinite(parsed) ? parsed : fallback;
   }
 
+  function normalizeCustomServices(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === "string") {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
   function toPackage(row) {
     if (!row) return null;
+    const kindRaw = String(
+      row.package_kind ?? row.packageKind ?? "READY",
+    ).toUpperCase();
     return {
       id: row.id,
       name: row.name ?? null,
@@ -37,6 +54,12 @@ function createPackagesService({ repository, logger, events }) {
       baseCost: Number(row.base_cost ?? row.baseCost ?? 0),
       markupPercent: Number(row.markup_percent ?? row.markupPercent ?? 0),
       startingPrice: Number(row.starting_price ?? row.startingPrice ?? 0),
+      packageKind: kindRaw === "CUSTOMIZED" ? "CUSTOMIZED" : "READY",
+      customServices: normalizeCustomServices(
+        row.custom_services ?? row.customServices,
+      ),
+      visaDetails: row.visa_details ?? row.visaDetails ?? null,
+      paymentTerms: row.payment_terms ?? row.paymentTerms ?? null,
       inclusions: row.inclusions ?? null,
       exclusions: row.exclusions ?? null,
       itinerary: row.itinerary ?? null,
@@ -197,6 +220,10 @@ function createPackagesService({ repository, logger, events }) {
     async create(payload, context = {}) {
       const now = new Date().toISOString();
       const pricing = computeStartingPrice(payload);
+      const kind =
+        String(payload.packageKind || "READY").toUpperCase() === "CUSTOMIZED" ?
+          "CUSTOMIZED"
+        : "READY";
       const row = await repository.create({
         name: normalizeText(payload.name),
         destination: normalizeText(payload.destination),
@@ -204,6 +231,12 @@ function createPackagesService({ repository, logger, events }) {
         base_cost: pricing.baseCost,
         markup_percent: pricing.markupPercent,
         starting_price: pricing.startingPrice,
+        package_kind: kind,
+        custom_services: Array.isArray(payload.customServices) ?
+          payload.customServices
+        : [],
+        visa_details: payload.visaDetails || null,
+        payment_terms: payload.paymentTerms || null,
         inclusions: payload.inclusions || null,
         exclusions: payload.exclusions || null,
         itinerary: payload.itinerary ?? null,

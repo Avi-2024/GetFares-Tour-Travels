@@ -32,6 +32,10 @@ function roundCurrency(value) {
   return Number(parsed.toFixed(2));
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function toDateOnly(value) {
   if (!value) {
     return null;
@@ -137,13 +141,6 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       cost: roundCurrency(component.cost),
     }));
 
-    const totalCost = roundCurrency(
-      normalizedComponents.reduce(
-        (sum, item) => sum + roundCurrency(item.cost),
-        0,
-      ),
-    );
-
     const marginPercent = Number(payload.marginPercent ?? 0);
     if (
       !Number.isFinite(marginPercent) ||
@@ -157,7 +154,45 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       );
     }
 
-    const marginAmount = roundCurrency((totalCost * marginPercent) / 100);
+    const componentCost = roundCurrency(
+      normalizedComponents.reduce(
+        (sum, item) => sum + roundCurrency(item.cost),
+        0,
+      ),
+    );
+    const totalCost = roundCurrency(
+      payload.supplierCost !== undefined ? payload.supplierCost : componentCost,
+    );
+    if (totalCost < 0) {
+      throw new AppError(
+        400,
+        "supplierCost cannot be negative",
+        "QUOTATION_INVALID_SUPPLIER_COST",
+      );
+    }
+
+    const marginAmount = roundCurrency(
+      payload.markupAmount !== undefined
+        ? payload.markupAmount
+        : (totalCost * marginPercent) / 100,
+    );
+    if (marginAmount < 0) {
+      throw new AppError(
+        400,
+        "markupAmount cannot be negative",
+        "QUOTATION_INVALID_MARKUP_AMOUNT",
+      );
+    }
+
+    const serviceFeeAmount = roundCurrency(payload.serviceFeeAmount ?? 0);
+    if (serviceFeeAmount < 0) {
+      throw new AppError(
+        400,
+        "serviceFeeAmount cannot be negative",
+        "QUOTATION_INVALID_SERVICE_FEE",
+      );
+    }
+
     const discount = roundCurrency(payload.discount ?? 0);
     if (discount < 0) {
       throw new AppError(
@@ -167,7 +202,9 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       );
     }
 
-    const subTotal = roundCurrency(totalCost + marginAmount - discount);
+    const subTotal = roundCurrency(
+      totalCost + marginAmount + serviceFeeAmount - discount,
+    );
     if (subTotal < 0) {
       throw new AppError(
         400,
@@ -218,6 +255,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       totalCost,
       marginPercent: roundCurrency(marginPercent),
       marginAmount,
+      serviceFeeAmount,
       discount,
       discountAmount: discount,
       tax: taxAmount,
@@ -263,23 +301,96 @@ function createQuotationsService({ repository, logger, events, s3 }) {
   }
 
   function buildTemplateSnapshot(template) {
-    if (!template) {
-      return null;
-    }
+    return buildQuotationSnapshot(template, null);
+  }
 
-    return {
-      id: template.id,
-      code: template.code,
-      name: template.name,
-      templateType: template.templateType,
-      minMarginPercent: template.minMarginPercent,
-      headerBranding: template.headerBranding,
-      inclusions: template.inclusions,
-      exclusions: template.exclusions,
-      paymentTerms: template.paymentTerms,
-      cancellationPolicy: template.cancellationPolicy,
-      footerDisclaimer: template.footerDisclaimer,
+  function buildQuotationSnapshot(template, builderSnapshot = null) {
+    const source = isPlainObject(template) ? template : null;
+    const builder = isPlainObject(builderSnapshot) ? builderSnapshot : null;
+    const content = isPlainObject(builder?.content) ? builder.content : {};
+    const lead = isPlainObject(builder?.lead) ? builder.lead : {};
+    const supplierDetails = isPlainObject(builder?.supplierDetails)
+      ? builder.supplierDetails
+      : null;
+    const packageDetails = isPlainObject(builder?.package) ? builder.package : null;
+
+    const snapshot = {
+      id: source?.id ?? null,
+      code: source?.code ?? null,
+      name: source?.name ?? null,
+      templateType: source?.templateType ?? source?.template_type ?? null,
+      minMarginPercent:
+        source
+          ? source.minMarginPercent ?? source.min_margin_percent ?? 0
+          : null,
+      headerBranding:
+        content.headerBranding ??
+        source?.headerBranding ??
+        source?.header_branding ??
+        null,
+      inclusions: content.inclusions ?? source?.inclusions ?? null,
+      exclusions: content.exclusions ?? source?.exclusions ?? null,
+      paymentTerms:
+        content.paymentTerms ??
+        source?.paymentTerms ??
+        source?.payment_terms ??
+        null,
+      cancellationPolicy:
+        content.cancellationPolicy ??
+        source?.cancellationPolicy ??
+        source?.cancellation_policy ??
+        null,
+      footerDisclaimer:
+        content.footerDisclaimer ??
+        source?.footerDisclaimer ??
+        source?.footer_disclaimer ??
+        null,
+      quoteReference: builder?.quoteReference ?? null,
+      versionLabel: builder?.versionLabel ?? null,
+      customerName:
+        builder?.customerName ?? lead.fullName ?? lead.name ?? null,
+      customerEmail: builder?.customerEmail ?? lead.email ?? null,
+      destination:
+        builder?.destination ?? lead.destination ?? lead.destinationName ?? null,
+      travelStartDate: builder?.travelStartDate ?? null,
+      travelEndDate: builder?.travelEndDate ?? null,
+      nights: builder?.nights ?? null,
+      adults: builder?.adults ?? null,
+      validUntil: builder?.validUntil ?? null,
+      packageType: builder?.packageType ?? null,
+      currency: builder?.currency ?? null,
+      lead: builder ? lead : null,
+      supplierDetails,
+      supplier: supplierDetails,
+      package: packageDetails,
+      hotelDetails: content.hotelDetails ?? null,
+      visaDetails: content.visaDetails ?? null,
+      enabledServices: Array.isArray(builder?.enabledServices)
+        ? builder.enabledServices
+        : [],
+      serviceRows: Array.isArray(builder?.serviceRows) ? builder.serviceRows : [],
+      addOnServices: Array.isArray(builder?.addOnServices)
+        ? builder.addOnServices
+        : [],
+      itineraryItems: Array.isArray(builder?.itineraryItems)
+        ? builder.itineraryItems
+        : [],
+      pricing: isPlainObject(builder?.pricing) ? builder.pricing : null,
+      services: isPlainObject(builder?.services) ? builder.services : null,
+      builderSnapshot: builder,
     };
+
+    const hasValues = Object.values(snapshot).some((value) => {
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      if (isPlainObject(value)) {
+        return Object.keys(value).length > 0;
+      }
+      return value !== null && value !== undefined && value !== "";
+    });
+
+    return hasValues ? snapshot : null;
   }
 
   async function resolvePdfDocumentConstructor() {
@@ -405,6 +516,22 @@ function createQuotationsService({ repository, logger, events, s3 }) {
 
       const lead = quotation.lead || {};
       const templateSnapshot = quotation.templateSnapshot || quotation.template || {};
+      const snapshotLead =
+        templateSnapshot.lead || templateSnapshot.builderSnapshot?.lead || {};
+      const customerName =
+        templateSnapshot.customerName ||
+        snapshotLead.fullName ||
+        snapshotLead.name ||
+        lead.fullName ||
+        "-";
+      const customerPhone = snapshotLead.phone || lead.phone || "-";
+      const customerEmail =
+        templateSnapshot.customerEmail || snapshotLead.email || lead.email || "-";
+      const destinationName =
+        quotation.destination?.name ||
+        templateSnapshot.destination ||
+        snapshotLead.destination ||
+        "-";
       const companyName =
         String(templateSnapshot.headerBranding || "").trim() ||
         "GetFares Travel CRM";
@@ -423,10 +550,10 @@ function createQuotationsService({ repository, logger, events, s3 }) {
 
       doc.fontSize(13).text("Customer Details", { underline: true });
       doc.fontSize(11);
-      doc.text(`Name: ${lead.fullName || "-"}`);
-      doc.text(`Phone: ${lead.phone || "-"}`);
-      doc.text(`Email: ${lead.email || "-"}`);
-      doc.text(`Destination: ${quotation.destination?.name || "-"}`);
+      doc.text(`Name: ${customerName}`);
+      doc.text(`Phone: ${customerPhone}`);
+      doc.text(`Email: ${customerEmail}`);
+      doc.text(`Destination: ${destinationName}`);
       doc.moveDown();
 
       doc.fontSize(13).text("Items", { underline: true });
@@ -663,7 +790,10 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       created_by: context.user.id,
       pricing_id: payload.pricingId || null,
       template_id: template?.id || payload.templateId || null,
-      template_snapshot: buildTemplateSnapshot(template),
+      template_snapshot: buildQuotationSnapshot(
+        template,
+        payload.builderSnapshot,
+      ),
       quote_number: buildQuoteNumber(),
       total_cost: pricing.totalCost,
       margin_percent: pricing.marginPercent,
@@ -751,6 +881,9 @@ function createQuotationsService({ repository, logger, events, s3 }) {
     const pricing = calculatePricing({
       components: payload.components || current.items || [],
       marginPercent: payload.marginPercent ?? current.marginPercent,
+      supplierCost: payload.supplierCost ?? current.supplierCost,
+      markupAmount: payload.markupAmount ?? current.markupAmount,
+      serviceFeeAmount: payload.serviceFeeAmount ?? current.serviceFeeAmount,
       discount: payload.discount ?? current.discount,
       taxAmount: payload.taxAmount,
       taxPercent: payload.taxPercent,
@@ -785,9 +918,12 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       pricing_id:
         payload.pricingId !== undefined ? payload.pricingId : current.pricingId,
       template_id: nextTemplateId || null,
-      template_snapshot: template
-        ? buildTemplateSnapshot(template)
-        : current.templateSnapshot,
+      template_snapshot: buildQuotationSnapshot(
+        template || current.templateSnapshot,
+        payload.builderSnapshot ??
+          current.templateSnapshot?.builderSnapshot ??
+          null,
+      ),
       total_cost: pricing.totalCost,
       margin_percent: pricing.marginPercent,
       margin_amount: pricing.marginAmount,

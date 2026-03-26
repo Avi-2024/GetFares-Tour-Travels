@@ -9,10 +9,13 @@ import {
   FaEnvelope,
   FaFloppyDisk,
   FaMobileScreen,
-  FaPlus
+  FaPlus,
+  FaPencil,
+  FaTrash
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { suppliersApi } from '../../api/suppliers'
 import { quotationsApi } from '../../api/quotations'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
@@ -86,6 +89,15 @@ type ServiceCostRow = ServiceDefinition & {
   sellValue: number
 }
 
+type AddOnService = {
+  id: string
+  name: string
+  weight: number
+  baseCost: number
+  markup: number
+  sellValue: number
+}
+
 const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   { key: 'hotel', label: 'Accommodation', itemType: 'HOTEL', weight: 45 },
   { key: 'flights', label: 'Flights', itemType: 'FLIGHT', weight: 25 },
@@ -93,6 +105,40 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   { key: 'visa', label: 'Visa Services', itemType: 'VISA', weight: 8 },
   { key: 'insurance', label: 'Insurance', itemType: 'INSURANCE', weight: 7 }
 ]
+
+function parseNightsFromDuration(duration: unknown, fallback: number): number {
+  if (duration == null || duration === '') return fallback
+  const s = String(duration)
+  const m = s.match(/(\d+)\s*N/i)
+  if (m) return Math.max(1, Number(m[1]) || fallback)
+  const n = Number(s)
+  if (Number.isFinite(n) && n > 0) return Math.floor(n)
+  return fallback
+}
+
+function unwrapPackageResponse(res: unknown): Record<string, unknown> | null {
+  if (!res || typeof res !== 'object') return null
+  const r = res as { data?: unknown }
+  const d = r.data
+  if (d && typeof d === 'object' && 'data' in (d as object)) {
+    const nested = (d as { data?: unknown }).data
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      return nested as Record<string, unknown>
+    }
+  }
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    return d as Record<string, unknown>
+  }
+  return null
+}
+
+function toDateInputValue(value: string, fallbackNights: number): string | null {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return null
+  parsed.setDate(parsed.getDate() + Math.max(0, Number(fallbackNights) || 0))
+  return parsed.toISOString().slice(0, 10)
+}
 
 const initialItinerary: Item[] = [
   {
@@ -124,6 +170,9 @@ const QuotationBuilderPage: React.FC = () => {
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [templatesError, setTemplatesError] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([])
+  const [suppliersLoading, setSuppliersLoading] = useState(false)
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
@@ -144,7 +193,9 @@ const QuotationBuilderPage: React.FC = () => {
     headerBranding: '',
     paymentTerms: '',
     cancellationPolicy: '',
-    footerDisclaimer: ''
+    footerDisclaimer: '',
+    hotelDetails: '',
+    visaDetails: ''
   })
   const [downloading, setDownloading] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
@@ -160,8 +211,8 @@ const QuotationBuilderPage: React.FC = () => {
     title: '',
     description: ''
   })
-  const [packageType, setPackageType] = useState('Leisure')
-  const [services, setServices] = useState<Record<ServiceKey, boolean>>({
+  const [packageType] = useState('Leisure')
+  const [services] = useState<Record<ServiceKey, boolean>>({
     hotel: true,
     flights: true,
     tours: true,
@@ -175,16 +226,7 @@ const QuotationBuilderPage: React.FC = () => {
     taxPercent: 5,
     discount: 0
   })
-  const [addOnServices, setAddOnServices] = useState<
-    {
-      id: string
-      name: string
-      weight: number
-      baseCost: number
-      markup: number
-      sellValue: number
-    }[]
-  >([])
+  const [addOnServices, setAddOnServices] = useState<AddOnService[]>([])
   const [addOnDraft, setAddOnDraft] = useState({
     name: '',
     weight: '',
@@ -192,6 +234,15 @@ const QuotationBuilderPage: React.FC = () => {
     markup: '',
     sellValue: ''
   })
+  const [serviceOverrides, setServiceOverrides] = useState<
+    Record<string, {
+      weight?: string
+      baseCost?: string
+      markupPercent?: string
+      sellValue?: string
+      paymentTerms?: string
+    }>
+  >({})
   const previewRef = useRef<HTMLDivElement | null>(null)
 
   const selectedLead = useMemo(
@@ -261,15 +312,20 @@ const QuotationBuilderPage: React.FC = () => {
     [templates]
   )
 
-  const packageTypeOptions = useMemo(
-    () =>
-      ['Leisure', 'Corporate', 'Group', 'Visa Only', 'Insurance Only'].map(
-        item => ({
-          value: item,
-          label: item
-        })
-      ),
-    []
+  const supplierDropdownOptions = useMemo(
+    () => [
+      { value: '', label: 'Select a supplier' },
+      ...suppliers.map(supplier => ({
+        value: supplier.id,
+        label: supplier.name
+      }))
+    ],
+    [suppliers]
+  )
+
+  const selectedSupplier = useMemo(
+    () => suppliers.find(supplier => supplier.id === selectedSupplierId) || null,
+    [selectedSupplierId, suppliers]
   )
 
   const currencyOptions = useMemo(
@@ -327,39 +383,84 @@ const QuotationBuilderPage: React.FC = () => {
 
   const serviceCostRows = useMemo<ServiceCostRow[]>(() => {
     const activeDefinitions = selectedServiceDefinitions
-    if (!activeDefinitions.length) {
-      return []
-    }
-    const totalWeight = activeDefinitions.reduce(
-      (sum, definition) => sum + definition.weight,
-      0
-    )
-    const supplierCost = Number(costs.supplierCost) || 0
-    const markupPercent = Number(costs.markupPercent) || 0
+    if (!activeDefinitions.length) return []
 
-    let allocatedCost = 0
+    const globalSupplierCost = Number(costs.supplierCost) || 0
+    const globalMarkup = Number(costs.markupPercent) || 0
+
+    // Rows with a baseCost override bypass weight distribution entirely.
+    // Rows without use the weight-based distribution of the remaining supplierCost.
+    const overriddenKeys = new Set(
+      activeDefinitions
+        .filter(def => {
+          const val = serviceOverrides[def.key]?.baseCost
+          return val !== undefined && val !== '' && !isNaN(Number(val))
+        })
+        .map(def => def.key)
+    )
+    const overriddenTotal = activeDefinitions.reduce((sum, def) => {
+      if (!overriddenKeys.has(def.key)) return sum
+      return sum + (Number(serviceOverrides[def.key]?.baseCost) || 0)
+    }, 0)
+    const remainingCost = Math.max(0, globalSupplierCost - overriddenTotal)
+
+    // Effective weight per row (use override if present)
+    const effectiveWeights = activeDefinitions.map(def => {
+      if (overriddenKeys.has(def.key)) return 0
+      const overrideWeight = serviceOverrides[def.key]?.weight
+      if (overrideWeight !== undefined && overrideWeight !== '' && !isNaN(Number(overrideWeight))) {
+        return Number(overrideWeight)
+      }
+      return def.weight
+    })
+    const totalWeight = effectiveWeights.reduce((s, w) => s + w, 0)
+
+    let allocatedRemainder = 0
+    const freeRows = activeDefinitions.filter(def => !overriddenKeys.has(def.key))
 
     return activeDefinitions.map((definition, index) => {
-      const isLast = index === activeDefinitions.length - 1
-      const weightedCost = totalWeight
-        ? (supplierCost * definition.weight) / totalWeight
-        : 0
-      const baseCost = Number(
-        (isLast ? supplierCost - allocatedCost : weightedCost).toFixed(2)
-      )
-      allocatedCost = Number((allocatedCost + baseCost).toFixed(2))
-      const markupAmount = Number(((baseCost * markupPercent) / 100).toFixed(2))
-      const sellValue = Number((baseCost + markupAmount).toFixed(2))
+      const override = serviceOverrides[definition.key] ?? {}
+      const effectiveWeight = effectiveWeights[index]
+      
+      const overrideMarkup = override.markupPercent
+      const effectiveMarkup = (overrideMarkup !== undefined && overrideMarkup !== '' && !isNaN(Number(overrideMarkup)))
+        ? Number(overrideMarkup)
+        : globalMarkup
+
+      let baseCost: number
+      if (overriddenKeys.has(definition.key)) {
+        baseCost = Number(override.baseCost) || 0
+      } else {
+        const isLastFree =
+          freeRows.length > 0 &&
+          definition.key === freeRows[freeRows.length - 1].key
+        const weighted = totalWeight
+          ? (remainingCost * effectiveWeights[index]) / totalWeight
+          : 0
+        baseCost = Number(
+          (isLastFree ? remainingCost - allocatedRemainder : weighted).toFixed(2)
+        )
+        allocatedRemainder = Number((allocatedRemainder + baseCost).toFixed(2))
+      }
+
+      const markupAmount = Number(((baseCost * effectiveMarkup) / 100).toFixed(2))
+      const computedSell = Number((baseCost + markupAmount).toFixed(2))
+
+      const overrideSell = override.sellValue
+      const finalSell = (overrideSell !== undefined && overrideSell !== '' && !isNaN(Number(overrideSell)))
+        ? Number(overrideSell)
+        : computedSell
 
       return {
         ...definition,
+        weight: effectiveWeight,
         baseCost,
-        markupPercent,
+        markupPercent: effectiveMarkup,
         markupAmount,
-        sellValue
+        sellValue: finalSell
       }
     })
-  }, [costs.markupPercent, costs.supplierCost, selectedServiceDefinitions])
+  }, [costs.markupPercent, costs.supplierCost, selectedServiceDefinitions, serviceOverrides])
 
   useEffect(() => {
     const loadDestinations = async () => {
@@ -435,6 +536,214 @@ const QuotationBuilderPage: React.FC = () => {
     void loadTemplates()
   }, [token])
 
+  const [packages, setPackages] = useState<any[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(false)
+  const [selectedPackageId, setSelectedPackageId] = useState('')
+
+  useEffect(() => {
+    if (!token) return
+    setPackagesLoading(true)
+    quotationsApi
+      .listPackages({ limit: 200 })
+      .then((res: any) => {
+        const list = res?.data?.data ?? res?.data ?? res ?? []
+        setPackages(Array.isArray(list) ? list : [])
+      })
+      .catch(() => setPackages([]))
+      .finally(() => setPackagesLoading(false))
+  }, [token])
+
+  const packageOptions = useMemo(
+    () => [
+      {
+        value: '',
+        label: 'No package — fill quotation manually',
+        searchText: 'manual none'
+      },
+      ...packages.map((pkg: any) => {
+        const kind =
+          String(pkg.packageKind ?? pkg.package_kind ?? 'READY').toUpperCase() ===
+          'CUSTOMIZED'
+            ? 'Custom'
+            : 'Ready'
+        return {
+          value: pkg.id,
+          label: `${pkg.name || pkg.title || 'Package'} — ${pkg.destination || ''}`,
+          searchText: `${pkg.name} ${pkg.destination} ${kind}`,
+          rightLabel: kind
+        }
+      })
+    ],
+    [packages]
+  )
+
+  const selectedPackage = useMemo(
+    () => packages.find((pkg: any) => pkg.id === selectedPackageId) || null,
+    [packages, selectedPackageId]
+  )
+
+  const loadFromPackage = async (packageId: string) => {
+    if (!packageId) return
+    const fromList = packages.find((p: any) => p.id === packageId) as
+      | Record<string, unknown>
+      | undefined
+    let pkg: Record<string, unknown> | undefined = fromList
+      ? { ...fromList }
+      : undefined
+    try {
+      const res = await quotationsApi.getPackage(packageId)
+      const full = unwrapPackageResponse(res)
+      if (full) pkg = { ...pkg, ...full }
+    } catch {
+      /* list row only */
+    }
+    if (!pkg) return
+
+    setServiceOverrides({})
+
+    const kind =
+      String(pkg.packageKind ?? pkg.package_kind ?? 'READY').toUpperCase() ===
+      'CUSTOMIZED'
+        ? 'CUSTOMIZED'
+        : 'READY'
+    const customRaw = pkg.customServices ?? pkg.custom_services
+    const customArr = Array.isArray(customRaw) ? customRaw : []
+
+    if (kind === 'CUSTOMIZED' && customArr.length > 0) {
+      setAddOnServices(
+        customArr.map((s: any, i: number) => {
+          const cost = Number(s?.cost ?? 0) || 0
+          const mPct = Number(s?.markupPercent ?? s?.markup_percent ?? 0) || 0
+          const sell =
+            s?.sellValue != null || s?.sell_value != null
+              ? Number(s.sellValue ?? s.sell_value)
+              : Number((cost * (1 + mPct / 100)).toFixed(2))
+          const mk = Number(((cost * mPct) / 100).toFixed(2))
+          return {
+            id: String(s?.id ?? `pkg-line-${i}`),
+            name: String(s?.name ?? `Service ${i + 1}`),
+            weight: 0,
+            baseCost: cost,
+            markup: mk,
+            sellValue: sell
+          }
+        })
+      )
+    } else {
+      setAddOnServices([])
+    }
+
+    const itin = pkg.itinerary
+    if (
+      itin &&
+      typeof itin === 'object' &&
+      !Array.isArray(itin) &&
+      (typeof (itin as { plain?: unknown }).plain === 'string' ||
+        typeof (itin as { text?: unknown }).text === 'string')
+    ) {
+      const plain = String(
+        (itin as { plain?: string; text?: string }).plain ??
+          (itin as { text?: string }).text ??
+          ''
+      ).trim()
+      if (plain) {
+        const chunks = plain
+          .split(/\n\s*\n+/)
+          .map(s => s.trim())
+          .filter(Boolean)
+        setItineraryItems(
+          chunks.map((chunk, i) => {
+            const lines = chunk.split('\n')
+            const first = (lines[0] ?? '').trim()
+            const rest = lines.slice(1).join('\n').trim()
+            return {
+              id: `it-${i}`,
+              day: `Day ${i + 1}`,
+              title: first || `Day ${i + 1}`,
+              description: rest
+            }
+          })
+        )
+      }
+    } else if (Array.isArray(itin) && itin.length > 0) {
+      setItineraryItems(
+        itin.map((row: any, i: number) => ({
+          id: String(row?.id ?? `it-${i}`),
+          day: String(row?.day ?? row?.dayLabel ?? `Day ${i + 1}`),
+          title: String(row?.title ?? row?.heading ?? ''),
+          description: String(row?.description ?? row?.details ?? '')
+        }))
+      )
+    }
+
+    setForm(prev => {
+      const vf = pkg!.validTo ?? pkg!.valid_to
+      const vfStr =
+        vf != null && String(vf).length >= 10 ? String(vf).slice(0, 10) : ''
+      return {
+        ...prev,
+        destination: String(
+          pkg!.destination ?? pkg!.destinationName ?? prev.destination
+        ),
+        nights: parseNightsFromDuration(pkg!.duration, prev.nights),
+        inclusions: String(pkg!.inclusions ?? prev.inclusions),
+        exclusions: String(pkg!.exclusions ?? prev.exclusions),
+        paymentTerms: String(
+          pkg!.paymentTerms ?? pkg!.payment_terms ?? prev.paymentTerms
+        ),
+        cancellationPolicy: String(
+          pkg!.cancellationPolicy ?? pkg!.cancellation_policy ?? prev.cancellationPolicy
+        ),
+        hotelDetails: String(pkg!.hotelDetails ?? pkg!.hotel_details ?? prev.hotelDetails),
+        visaDetails: String(pkg!.visaDetails ?? pkg!.visa_details ?? prev.visaDetails),
+        validUntil: vfStr || prev.validUntil,
+        headerBranding: pkg!.name
+          ? `Package: ${String(pkg.name)}`
+          : prev.headerBranding
+      }
+    })
+
+    const base = Number(pkg.baseCost ?? pkg.base_cost ?? 0)
+    const mk = pkg.markupPercent ?? pkg.markup_percent
+    setCosts(prev => ({
+      ...prev,
+      supplierCost: base > 0 ? base : prev.supplierCost,
+      markupPercent:
+        mk != null && Number(mk) >= 0 ? Number(mk) : prev.markupPercent
+    }))
+  }
+
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      if (!token) {
+        setSuppliers([])
+        return
+      }
+
+      setSuppliersLoading(true)
+      try {
+        const response = await suppliersApi.list({ page: 1, limit: 100 })
+        const payload = (response as any)?.data ?? response
+        const data = (payload as any)?.data || (payload as any)?.items || payload
+        if (Array.isArray(data)) {
+          setSuppliers(data.map((s: any) => ({
+            id: s.id || s._id,
+            name: s.name || s.companyName || 'Unnamed Supplier'
+          })))
+        } else {
+          setSuppliers([])
+        }
+      } catch (error) {
+        console.error('Failed to load suppliers:', error)
+        setSuppliers([])
+      } finally {
+        setSuppliersLoading(false)
+      }
+    }
+
+    void loadSuppliers()
+  }, [token])
+
   useEffect(() => {
     if (!selectedLead) return
 
@@ -469,6 +778,33 @@ const QuotationBuilderPage: React.FC = () => {
     [addOnServices]
   )
 
+  const addOnBaseCostTotal = useMemo(
+    () =>
+      Number(
+        addOnServices
+          .reduce((sum, item) => sum + (Number(item.baseCost) || 0), 0)
+          .toFixed(2)
+      ),
+    [addOnServices]
+  )
+
+  const addOnMarkupTotal = useMemo(
+    () =>
+      Number(
+        addOnServices
+          .reduce(
+            (sum, item) =>
+              sum +
+              ((Number(item.sellValue) || 0) - (Number(item.baseCost) || 0)),
+            0
+          )
+          .toFixed(2)
+      ),
+    [addOnServices]
+  )
+
+  const [editingAddOnId, setEditingAddOnId] = useState<string | null>(null)
+
   const addAddOnService = () => {
     const name = addOnDraft.name.trim()
     const weight = Number(addOnDraft.weight)
@@ -489,17 +825,29 @@ const QuotationBuilderPage: React.FC = () => {
       alert('Please fill all add-on fields with valid values.')
       return
     }
-    setAddOnServices(prev => [
-      ...prev,
-      {
-        id: `addon-${Date.now()}`,
+    if (editingAddOnId) {
+      setAddOnServices(prev => prev.map(s => s.id === editingAddOnId ? {
+        id: s.id,
         name,
         weight,
         baseCost,
         markup,
         sellValue
-      }
-    ])
+      } : s))
+      setEditingAddOnId(null)
+    } else {
+      setAddOnServices(prev => [
+        ...prev,
+        {
+          id: `addon-${Date.now()}`,
+          name,
+          weight,
+          baseCost,
+          markup,
+          sellValue
+        }
+      ])
+    }
     setAddOnDraft({
       name: '',
       weight: '',
@@ -508,6 +856,24 @@ const QuotationBuilderPage: React.FC = () => {
       sellValue: ''
     })
     setShowAddOnModal(false)
+  }
+
+  const editAddOnService = (service: typeof addOnServices[0]) => {
+    setEditingAddOnId(service.id)
+    setAddOnDraft({
+      name: service.name,
+      weight: String(service.weight),
+      baseCost: String(service.baseCost),
+      markup: String(service.markup),
+      sellValue: String(service.sellValue)
+    })
+    setShowAddOnModal(true)
+  }
+
+  const removeAddOnService = (id: string) => {
+    if (confirm('Remove this service?')) {
+      setAddOnServices(prev => prev.filter(s => s.id !== id))
+    }
   }
 
   const computed = useMemo(() => {
@@ -750,12 +1116,21 @@ const QuotationBuilderPage: React.FC = () => {
       .map(definition => definition.label)
       .join(', ')
 
+    const selectedPackageName = String(
+      selectedPackage?.name ?? selectedPackage?.title ?? ''
+    ).trim()
+    const supplierName = selectedSupplier?.name?.trim() || ''
+
     const sections = [
-      `Trip Summary:\nDestination: ${form.destination || 'N/A'}\nTravel Date: ${
-        form.startDate || 'N/A'
-      }\nNights: ${form.nights}\nAdults: ${
-        form.adults
-      }\nPackage Type: ${packageType}`,
+      `Trip Summary:\nQuote Reference: ${
+        form.quote || 'N/A'
+      }\nVersion: ${form.version || 'N/A'}\nDestination: ${
+        form.destination || 'N/A'
+      }\nTravel Date: ${form.startDate || 'N/A'}\nNights: ${
+        form.nights
+      }\nAdults: ${form.adults}\nPackage Type: ${packageType}${
+        selectedPackageName ? `\nSelected Package: ${selectedPackageName}` : ''
+      }${supplierName ? `\nSupplier: ${supplierName}` : ''}`,
       enabledServices ? `Enabled Services:\n${enabledServices}` : '',
       itinerarySummary ? `Itinerary:\n${itinerarySummary}` : '',
       form.headerBranding.trim()
@@ -763,6 +1138,10 @@ const QuotationBuilderPage: React.FC = () => {
         : '',
       form.inclusions.trim() ? `Inclusions:\n${form.inclusions.trim()}` : '',
       form.exclusions.trim() ? `Exclusions:\n${form.exclusions.trim()}` : '',
+      form.hotelDetails.trim()
+        ? `Hotel Details:\n${form.hotelDetails.trim()}`
+        : '',
+      form.visaDetails.trim() ? `Visa Details:\n${form.visaDetails.trim()}` : '',
       form.paymentTerms.trim()
         ? `Payment Terms:\n${form.paymentTerms.trim()}`
         : '',
@@ -776,6 +1155,128 @@ const QuotationBuilderPage: React.FC = () => {
 
     if (!sections.length) return undefined
     return sections.join('\n\n').slice(0, 3900)
+  }
+
+  const buildBuilderSnapshot = () => {
+    const selectedPackageName = String(
+      selectedPackage?.name ?? selectedPackage?.title ?? ''
+    ).trim()
+    const travelEndDate = toDateInputValue(form.startDate, form.nights)
+
+    return {
+      quoteReference: form.quote.trim() || null,
+      versionLabel: form.version.trim() || null,
+      lead: {
+        id: selectedLeadId || null,
+        fullName: form.customer.trim() || selectedLead?.fullName || null,
+        email: form.email.trim() || selectedLead?.email || null,
+        phone: selectedLead?.phone || null,
+        destination:
+          form.destination.trim() ||
+          selectedLead?.destinationName ||
+          (selectedLead?.destinationId
+            ? destinationMap[selectedLead.destinationId]
+            : null) ||
+          null
+      },
+      customerName: form.customer.trim() || null,
+      customerEmail: form.email.trim() || null,
+      destination: form.destination.trim() || null,
+      travelStartDate: form.startDate || null,
+      travelEndDate,
+      nights: Number(form.nights) || 0,
+      adults: Number(form.adults) || 0,
+      validUntil: form.validUntil || null,
+      packageType,
+      currency,
+      package: selectedPackageId
+        ? {
+            id: selectedPackageId,
+            name: selectedPackageName || null,
+            kind:
+              selectedPackage?.packageKind ??
+              selectedPackage?.package_kind ??
+              null
+          }
+        : null,
+      supplierDetails: selectedSupplierId
+        ? {
+            supplierId: selectedSupplierId,
+            supplierName: selectedSupplier?.name || null
+          }
+        : null,
+      enabledServices: selectedServiceDefinitions.map(definition => ({
+        key: definition.key,
+        label: definition.label,
+        itemType: definition.itemType
+      })),
+      services,
+      serviceRows: serviceCostRows.map(row => {
+        const override = serviceOverrides[row.key] ?? {}
+        return {
+          key: row.key,
+          label: row.label,
+          itemType: row.itemType,
+          weight:
+            override.weight !== undefined && override.weight !== ''
+              ? Number(override.weight)
+              : row.weight,
+          baseCost:
+            override.baseCost !== undefined && override.baseCost !== ''
+              ? Number(override.baseCost)
+              : row.baseCost,
+          markupPercent:
+            override.markupPercent !== undefined && override.markupPercent !== ''
+              ? Number(override.markupPercent)
+              : row.markupPercent,
+          markupAmount: row.markupAmount,
+          sellValue:
+            override.sellValue !== undefined && override.sellValue !== ''
+              ? Number(override.sellValue)
+              : row.sellValue,
+          paymentTerms: override.paymentTerms?.trim() || null
+        }
+      }),
+      addOnServices: addOnServices.map(service => ({
+        id: service.id,
+        name: service.name,
+        weight: Number(service.weight) || 0,
+        baseCost: Number(service.baseCost) || 0,
+        markup: Number(service.markup) || 0,
+        sellValue: Number(service.sellValue) || 0
+      })),
+      itineraryItems: itineraryItems.map(item => ({
+        id: item.id,
+        day: item.day,
+        title: item.title,
+        description: item.description
+      })),
+      content: {
+        headerBranding: form.headerBranding,
+        inclusions: form.inclusions,
+        exclusions: form.exclusions,
+        paymentTerms: form.paymentTerms,
+        cancellationPolicy: form.cancellationPolicy,
+        footerDisclaimer: form.footerDisclaimer,
+        hotelDetails: form.hotelDetails,
+        visaDetails: form.visaDetails
+      },
+      pricing: {
+        supplierCost: Number(costs.supplierCost) || 0,
+        addOnBaseCost: addOnBaseCostTotal,
+        markupPercent: Number(costs.markupPercent) || 0,
+        addOnMarkup: addOnMarkupTotal,
+        serviceFee: Number(costs.serviceFee) || 0,
+        taxPercent: Number(costs.taxPercent) || 0,
+        discount: Number(costs.discount) || 0,
+        taxAmount: Number(computed.taxVal) || 0,
+        totalPrice: Number(computed.totalPrice) || 0,
+        profit: Number(computed.profit) || 0,
+        margin: Number(computed.margin) || 0,
+        serviceChargesTotal,
+        totalMarkupFromServices
+      }
+    }
   }
 
   const handleSave = () => {
@@ -817,36 +1318,41 @@ const QuotationBuilderPage: React.FC = () => {
       return
     }
 
-    if (!selectedServiceDefinitions.length) {
-      setSaveError('Select at least one service in Package Builder.')
-      return
-    }
-
     const supplier = Number(costs.supplierCost) || 0
     const serviceFee = Number(costs.serviceFee) || 0
+    const totalSupplierCost = Number((supplier + addOnBaseCostTotal).toFixed(2))
+    const markupAmount = Number(
+      (
+        supplier * ((Number(costs.markupPercent) || 0) / 100) +
+        addOnMarkupTotal
+      ).toFixed(2)
+    )
     const components = [
-      ...serviceCostRows.map(row => ({
-        itemType: row.itemType,
-        description: `${row.label}${
-          form.destination ? ` - ${form.destination}` : ''
-        }`,
-        cost: row.baseCost
-      })),
-      ...(serviceFee
-        ? [
-            {
-              itemType: 'OTHER',
-              description: 'Service Fee',
-              cost: Number(serviceFee.toFixed(2))
-            }
-          ]
-        : [])
+      ...serviceCostRows.map(row => {
+        const override = serviceOverrides[row.key] ?? {}
+        const effectiveSell =
+          override.sellValue !== undefined
+            ? Number(override.sellValue)
+            : row.sellValue
+        return {
+          itemType: row.itemType,
+          description: `${row.label}${
+            form.destination ? ` - ${form.destination}` : ''
+          }${override.paymentTerms ? ` (${override.paymentTerms})` : ''}`,
+          cost: row.baseCost,
+          sellValue: effectiveSell
+        }
+      }),
+      ...addOnServices.map(service => ({
+        itemType: 'OTHER',
+        description: `Add-on Service - ${service.name}`,
+        cost: Number((Number(service.baseCost) || 0).toFixed(2)),
+        sellValue: Number((Number(service.sellValue) || 0).toFixed(2))
+      }))
     ]
 
     const taxPercent = Number(costs.taxPercent) || 0
     const discount = Number(costs.discount) || 0
-    const markupAmount =
-      Number(costs.supplierCost || 0) * (Number(costs.markupPercent || 0) / 100)
 
     const expiresInHours = (() => {
       if (!form.validUntil) return undefined
@@ -863,7 +1369,7 @@ const QuotationBuilderPage: React.FC = () => {
       marginPercent: Number(costs.markupPercent) || 0,
       discount,
       taxPercent,
-      supplierCost: supplier,
+      supplierCost: totalSupplierCost,
       markupAmount,
       serviceFeeAmount: serviceFee,
       taxAmount: Number(computed.taxVal) || 0,
@@ -871,6 +1377,7 @@ const QuotationBuilderPage: React.FC = () => {
       clientCurrency: currency,
       supplierCurrency: currency,
       importantNotes: buildImportantNotes(),
+      builderSnapshot: buildBuilderSnapshot(),
       ...(expiresInHours ? { expiresInHours } : {})
     }
 
@@ -1040,7 +1547,47 @@ const QuotationBuilderPage: React.FC = () => {
                       {selectedTemplate.minMarginPercent}%
                     </p>
                   ) : null}
+
+                  <div>
+                    <label className='field-label'>Supplier</label>
+                    <SearchableDropdown
+                      value={selectedSupplierId}
+                      options={supplierDropdownOptions}
+                      onChange={setSelectedSupplierId}
+                      disabled={suppliersLoading}
+                      searchPlaceholder='Search supplier...'
+                    />
+                    {suppliersLoading ? (
+                      <p className='mt-1 text-xs text-gray-500'>
+                        Loading suppliers...
+                      </p>
+                    ) : null}
+                  </div>
+
                 </div>
+
+                <div className='md:col-span-2 rounded-xl border border-green-200 bg-green-50/30 p-3 dark:border-green-800 dark:bg-green-900/10'>
+                  <label className='field-label text-green-700 dark:text-green-300'>
+                    Load from package (Ready or Customized)
+                  </label>
+                  <p className='mb-2 text-[11px] text-green-600 dark:text-green-400'>
+                    Select a catalog package to prefill destination, validity, inclusions, exclusions, hotel & visa notes, payment terms, itinerary, and pricing. Customized packages also load editable service lines.
+                  </p>
+                  <SearchableDropdown
+                    value={selectedPackageId}
+                    options={packageOptions}
+                    disabled={packagesLoading}
+                    searchPlaceholder='Search packages...'
+                    onChange={pkgId => {
+                      setSelectedPackageId(pkgId)
+                      if (pkgId) void loadFromPackage(pkgId)
+                    }}
+                  />
+                  {packagesLoading ? (
+                    <p className='mt-1 text-xs text-gray-500'>Loading packages...</p>
+                  ) : null}
+                </div>
+
                 <Field
                   label='Customer'
                   value={form.customer}
@@ -1114,62 +1661,6 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
 
-            <SurfaceCard>
-              <div className='mb-4 flex items-center justify-between'>
-                <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-                  Package Builder
-                </h2>
-                <span className='text-xs text-gray-500 dark:text-gray-400'>
-                  Select scope & services
-                </span>
-              </div>
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                <div>
-                  <label className='field-label'>Package Type</label>
-                  <SearchableDropdown
-                    value={packageType}
-                    options={packageTypeOptions}
-                    searchPlaceholder='Search package type...'
-                    onChange={setPackageType}
-                  />
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  {SERVICE_DEFINITIONS.map(service => (
-                    <button
-                      key={service.key}
-                      onClick={() =>
-                        setServices(prev => ({
-                          ...prev,
-                          [service.key]: !prev[service.key]
-                        }))
-                      }
-                      className={`px-3 py-2 text-xs rounded-lg border ${
-                        services[service.key]
-                          ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200'
-                          : 'bg-white border-gray-200 text-gray-600 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      {service.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mt-3'>
-                {selectedServiceDefinitions.map(definition => (
-                  <div
-                    key={definition.key}
-                    className='rounded-lg border border-gray-200 dark:border-gray-700 p-3'
-                  >
-                    <p className='text-xs uppercase text-gray-500 dark:text-gray-400 mb-1'>
-                      {definition.itemType}
-                    </p>
-                    <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                      {definition.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </SurfaceCard>
 
             <SurfaceCard>
               <div className='mb-3 flex items-center justify-between'>
@@ -1271,8 +1762,7 @@ const QuotationBuilderPage: React.FC = () => {
                     Pricing Breakdown
                   </h2>
                   <p className='text-xs text-gray-500 dark:text-gray-400'>
-                    Auto generated from Supplier Cost, Markup, Service Fee, Tax,
-                    and Discount.
+                    Edit any field to recalculate all values automatically.
                   </p>
                 </div>
                 <SearchableDropdown
@@ -1318,50 +1808,226 @@ const QuotationBuilderPage: React.FC = () => {
                   <thead>
                     <tr className='border-b border-gray-200 text-gray-500 dark:border-gray-700'>
                       <th className='py-2 text-left'>Service</th>
-                      <th className='py-2 text-right'>Weight</th>
-                      <th className='py-2 text-right'>Base Cost</th>
-                      <th className='py-2 text-right'>Markup</th>
-                      <th className='py-2 text-right'>Sell Value</th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Weight %
+                      </th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Base Cost
+                      </th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Markup %
+                      </th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Sell Value
+                      </th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Payment Terms
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {serviceCostRows.map(row => (
-                      <tr
-                        key={row.key}
-                        className='border-b border-gray-100 dark:border-gray-800'
-                      >
-                        <td className='py-2'>{row.label}</td>
-                        <td className='py-2 text-right text-gray-500'>
-                          {row.weight}%
-                        </td>
-                        <td className='py-2 text-right'>
-                          {money(row.baseCost)}
-                        </td>
-                        <td className='py-2 text-right text-green-600'>
-                          {row.markupPercent.toFixed(1)}%
-                          <span className='ml-1 text-[11px] text-green-500'>
-                            ({money(row.markupAmount)})
-                          </span>
-                        </td>
-                        <td className='py-2 text-right font-medium'>
-                          {money(row.sellValue)}
-                        </td>
-                      </tr>
-                    ))}
+                    {serviceCostRows.map(row => {
+                      const override = serviceOverrides[row.key] ?? {}
+                      const hasWeightOverride = override.weight !== undefined
+                      const hasBaseCostOverride = override.baseCost !== undefined
+                      const hasMarkupOverride = override.markupPercent !== undefined
+                      const hasSellOverride = override.sellValue !== undefined
+                      const inputBase =
+                        'rounded border px-1.5 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100'
+                      const overrideCls = 'border-violet-300 bg-violet-50 dark:border-violet-600 dark:bg-violet-900/20'
+                      const normalCls = 'border-gray-200 bg-transparent dark:border-gray-700'
+                      
+                      // Use override values if they exist (even if empty string), otherwise use computed values
+                      const displayWeight = hasWeightOverride ? String(override.weight) : String(row.weight)
+                      const displayBaseCost = hasBaseCostOverride ? String(override.baseCost) : row.baseCost.toFixed(2)
+                      const displayMarkup = hasMarkupOverride ? String(override.markupPercent) : row.markupPercent.toFixed(1)
+                      const displaySell = hasSellOverride ? String(override.sellValue) : row.sellValue.toFixed(2)
+                      
+                      return (
+                        <tr
+                          key={row.key}
+                          className='border-b border-gray-100 dark:border-gray-800'
+                        >
+                          <td className='py-2 text-sm'>{row.label}</td>
+
+                          {/* Weight */}
+                          <td className='py-2 text-right'>
+                            <div className='flex items-center justify-end gap-0.5'>
+                              <input
+                                type='number'
+                                min='0'
+                                max='100'
+                                step='0.1'
+                                value={displayWeight}
+                                onChange={e =>
+                                  setServiceOverrides(prev => ({
+                                    ...prev,
+                                    [row.key]: { ...prev[row.key], weight: e.target.value }
+                                  }))
+                                }
+                                onBlur={e => {
+                                  // Clean up empty values on blur
+                                  if (e.target.value === '') {
+                                    setServiceOverrides(prev => {
+                                      const newOverrides = { ...prev }
+                                      if (newOverrides[row.key]) {
+                                        const { weight, ...rest } = newOverrides[row.key]
+                                        if (Object.keys(rest).length === 0) {
+                                          delete newOverrides[row.key]
+                                        } else {
+                                          newOverrides[row.key] = rest
+                                        }
+                                      }
+                                      return newOverrides
+                                    })
+                                  }
+                                }}
+                                className={`w-16 ${inputBase} ${hasWeightOverride ? overrideCls : normalCls}`}
+                              />
+                              <span className='text-xs text-gray-500'>%</span>
+                            </div>
+                          </td>
+
+                          {/* Base Cost */}
+                          <td className='py-2 text-right'>
+                            <input
+                              type='number'
+                              min='0'
+                              step='0.01'
+                              value={displayBaseCost}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], baseCost: e.target.value }
+                                }))
+                              }
+                              onBlur={e => {
+                                if (e.target.value === '') {
+                                  setServiceOverrides(prev => {
+                                    const newOverrides = { ...prev }
+                                    if (newOverrides[row.key]) {
+                                      const { baseCost, ...rest } = newOverrides[row.key]
+                                      if (Object.keys(rest).length === 0) {
+                                        delete newOverrides[row.key]
+                                      } else {
+                                        newOverrides[row.key] = rest
+                                      }
+                                    }
+                                    return newOverrides
+                                  })
+                                }
+                              }}
+                              className={`w-24 ${inputBase} ${hasBaseCostOverride ? overrideCls : normalCls}`}
+                            />
+                          </td>
+
+                          {/* Markup % */}
+                          <td className='py-2 text-right'>
+                            <div className='flex items-center justify-end gap-0.5'>
+                              <input
+                                type='number'
+                                min='0'
+                                max='100'
+                                step='0.1'
+                                value={displayMarkup}
+                                onChange={e =>
+                                  setServiceOverrides(prev => ({
+                                    ...prev,
+                                    [row.key]: { ...prev[row.key], markupPercent: e.target.value }
+                                  }))
+                                }
+                                onBlur={e => {
+                                  if (e.target.value === '') {
+                                    setServiceOverrides(prev => {
+                                      const newOverrides = { ...prev }
+                                      if (newOverrides[row.key]) {
+                                        const { markupPercent, ...rest } = newOverrides[row.key]
+                                        if (Object.keys(rest).length === 0) {
+                                          delete newOverrides[row.key]
+                                        } else {
+                                          newOverrides[row.key] = rest
+                                        }
+                                      }
+                                      return newOverrides
+                                    })
+                                  }
+                                }}
+                                className={`w-16 ${inputBase} text-green-700 dark:text-green-400 ${hasMarkupOverride ? overrideCls : normalCls}`}
+                              />
+                              <span className='text-xs text-gray-500'>%</span>
+                            </div>
+                            <span className='block text-right text-[10px] text-green-500 mt-0.5'>
+                              ({money(row.markupAmount)})
+                            </span>
+                          </td>
+
+                          {/* Sell Value */}
+                          <td className='py-2 text-right font-medium'>
+                            <input
+                              type='number'
+                              min='0'
+                              step='0.01'
+                              value={displaySell}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], sellValue: e.target.value }
+                                }))
+                              }
+                              onBlur={e => {
+                                if (e.target.value === '') {
+                                  setServiceOverrides(prev => {
+                                    const newOverrides = { ...prev }
+                                    if (newOverrides[row.key]) {
+                                      const { sellValue, ...rest } = newOverrides[row.key]
+                                      if (Object.keys(rest).length === 0) {
+                                        delete newOverrides[row.key]
+                                      } else {
+                                        newOverrides[row.key] = rest
+                                      }
+                                    }
+                                    return newOverrides
+                                  })
+                                }
+                              }}
+                              className={`w-24 ${inputBase} ${hasSellOverride ? overrideCls : normalCls}`}
+                            />
+                          </td>
+
+                          {/* Payment Terms */}
+                          <td className='py-2 text-right'>
+                            <input
+                              type='text'
+                              placeholder='e.g. 50% advance'
+                              value={override.paymentTerms ?? ''}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], paymentTerms: e.target.value }
+                                }))
+                              }
+                              className={`w-32 ${inputBase} ${
+                                override.paymentTerms ? overrideCls : normalCls
+                              }`}
+                            />
+                          </td>
+                        </tr>
+                      )
+                    })}
                     {!serviceCostRows.length ? (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className='py-3 text-center text-xs text-gray-500'
                         >
-                          Select at least one service in Package Builder.
+                          Enable services in the Cost &amp; Profit section to see the breakdown.
                         </td>
                       </tr>
                     ) : null}
                   </tbody>
                 </table>
               </div>
-              <div className='mt-4 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900'>
+              <div className='mt-4 rounded-xl border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
                 <div className='mb-2 flex items-center justify-between'>
                   <h3 className='text-sm font-semibold text-gray-800 dark:text-gray-100'>
                     Add-on Services
@@ -1375,31 +2041,48 @@ const QuotationBuilderPage: React.FC = () => {
                 </div>
                 {addOnServices.length ? (
                   <div className='space-y-2 text-xs text-gray-600 dark:text-gray-300'>
-                    <div className='grid grid-cols-5 gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                    <div className='grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
                       <span>Service</span>
-                      <span className='text-right'>Weight</span>
-                      <span className='text-right'>Base Cost</span>
-                      <span className='text-right'>Markup</span>
-                      <span className='text-right'>Sell Value</span>
+                      <span className='text-right w-16'>Weight</span>
+                      <span className='text-right w-20'>Base Cost</span>
+                      <span className='text-right w-20'>Markup</span>
+                      <span className='text-right w-20'>Sell Value</span>
+                      <span className='text-right w-16'>Actions</span>
                     </div>
                     {addOnServices.map(service => (
                       <div
                         key={service.id}
-                        className='grid grid-cols-5 items-center gap-2'
+                        className='grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-2'
                       >
                         <span>{service.name}</span>
-                        <span className='text-right'>
+                        <span className='text-right w-16'>
                           {Number(service.weight || 0).toFixed(1)}%
                         </span>
-                        <span className='text-right'>
+                        <span className='text-right w-20'>
                           {money(Number(service.baseCost) || 0)}
                         </span>
-                        <span className='text-right'>
+                        <span className='text-right w-20'>
                           {money(Number(service.markup) || 0)}
                         </span>
-                        <span className='text-right font-medium text-gray-800 dark:text-gray-100'>
+                        <span className='text-right w-20 font-medium text-gray-800 dark:text-gray-100'>
                           {money(Number(service.sellValue) || 0)}
                         </span>
+                        <div className='flex gap-1'>
+                          <button
+                            onClick={() => editAddOnService(service)}
+                            className='rounded p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                            title='Edit'
+                          >
+                            <FaPencil className='text-xs' />
+                          </button>
+                          <button
+                            onClick={() => removeAddOnService(service.id)}
+                            className='rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                            title='Remove'
+                          >
+                            <FaTrash className='text-xs' />
+                          </button>
+                        </div>
                       </div>
                     ))}
                     <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200'>
@@ -1421,44 +2104,86 @@ const QuotationBuilderPage: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className='mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800'>
-                <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                  <span>Supplier Cost</span>
-                  <span>{money(computed.supplier)}</span>
-                </div>
-                <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                  <span>Total Markup</span>
-                  <span>
-                    {money(totalMarkupFromServices || computed.markupVal)}
-                  </span>
-                </div>
-                <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                  <span>Service Fee</span>
-                  <span>{money(computed.serviceFee)}</span>
-                </div>
-                {addOnTotal ? (
-                  <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                    <span>Add-on Services</span>
-                    <span>{money(addOnTotal)}</span>
+                      <div className='rounded-xl bg-gray-50 p-3 dark:bg-gray-800'>
+                <div className='space-y-2'>
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Supplier Cost</span>
+                    <input
+                      type='number'
+                      min='0'
+                      step='0.01'
+                      value={costs.supplierCost}
+                      onChange={e => setCosts(p => ({ ...p, supplierCost: Number(e.target.value) || 0 }))}
+                      className='w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600'
+                    />
                   </div>
-                ) : null}
-                <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                  <span>Subtotal</span>
-                  <span>{money(subtotal)}</span>
-                </div>
-                <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                  <span>Taxes ({costs.taxPercent}%)</span>
-                  <span>{money(taxes)}</span>
-                </div>
-                {costs.discount ? (
-                  <div className='mb-1 flex justify-between text-xs text-gray-500'>
-                    <span>Discount</span>
-                    <span>-{money(costs.discount)}</span>
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Total Markup</span>
+                    <span className='font-medium'>{money(totalMarkupFromServices || computed.markupVal)}</span>
                   </div>
-                ) : null}
-                <div className='flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
-                  <span>Total</span>
-                  <span className='text-blue-600'>{money(total)}</span>
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Service Fee</span>
+                    <input
+                      type='number'
+                      min='0'
+                      step='0.01'
+                      value={costs.serviceFee}
+                      onChange={e => setCosts(p => ({ ...p, serviceFee: Number(e.target.value) || 0 }))}
+                      className='w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600'
+                    />
+                  </div>
+                  {addOnTotal ? (
+                    <div className='flex justify-between items-center text-xs'>
+                      <span className='text-gray-500'>Add-on Services</span>
+                      <span className='font-medium'>{money(addOnTotal)}</span>
+                    </div>
+                  ) : null}
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Subtotal</span>
+                    <span className='font-medium'>{money(subtotal)}</span>
+                  </div>
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Tax %</span>
+                    <div className='flex items-center gap-1'>
+                      <input
+                        type='number'
+                        min='0'
+                        max='100'
+                        step='0.1'
+                        value={costs.taxPercent}
+                        onChange={e => setCosts(p => ({ ...p, taxPercent: Number(e.target.value) || 0 }))}
+                        className='w-16 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600'
+                      />
+                      <span className='text-gray-500'>= {money(taxes)}</span>
+                    </div>
+                  </div>
+                  {costs.discount ? (
+                    <div className='flex justify-between items-center text-xs'>
+                      <span className='text-gray-500'>Discount</span>
+                      <input
+                        type='number'
+                        min='0'
+                        step='0.01'
+                        value={costs.discount}
+                        onChange={e => setCosts(p => ({ ...p, discount: Number(e.target.value) || 0 }))}
+                        className='w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600'
+                      />
+                    </div>
+                  ) : (
+                    <div className='flex justify-between items-center text-xs'>
+                      <span className='text-gray-500'>Discount</span>
+                      <button
+                        onClick={() => setCosts(p => ({ ...p, discount: 0 }))}
+                        className='text-blue-600 hover:text-blue-700 text-xs'
+                      >
+                        + Add Discount
+                      </button>
+                    </div>
+                  )}
+                  <div className='flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
+                    <span>Total</span>
+                    <span className='text-blue-600'>{money(total)}</span>
+                  </div>
                 </div>
               </div>
             </SurfaceCard>
@@ -1538,6 +2263,36 @@ const QuotationBuilderPage: React.FC = () => {
                       }))
                     }
                     placeholder='Cancellation and refund terms'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Hotel details</label>
+                  <textarea
+                    rows={3}
+                    className='field-input'
+                    value={form.hotelDetails}
+                    onChange={event =>
+                      setForm(prev => ({
+                        ...prev,
+                        hotelDetails: event.target.value
+                      }))
+                    }
+                    placeholder='Hotel name, star category, rooms, meal plan, check-in/out'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Visa details</label>
+                  <textarea
+                    rows={3}
+                    className='field-input'
+                    value={form.visaDetails}
+                    onChange={event =>
+                      setForm(prev => ({
+                        ...prev,
+                        visaDetails: event.target.value
+                      }))
+                    }
+                    placeholder='Visa type, fees, processing time, documents required'
                   />
                 </div>
                 <div className='md:col-span-2'>
@@ -1930,7 +2685,7 @@ const QuotationBuilderPage: React.FC = () => {
             <div className='w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700'>
               <div className='mb-3 flex items-center justify-between'>
                 <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-                  Add Service
+                  {editingAddOnId ? 'Edit Service' : 'Add Service'}
                 </h3>
                 <button
                   onClick={() => setShowAddOnModal(false)}
@@ -2025,7 +2780,7 @@ const QuotationBuilderPage: React.FC = () => {
                   onClick={addAddOnService}
                   className='rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700'
                 >
-                  Add Service
+                  {editingAddOnId ? 'Update Service' : 'Add Service'}
                 </button>
               </div>
             </div>

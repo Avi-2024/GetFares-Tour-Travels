@@ -22,6 +22,10 @@ type ProfileResponse = {
     name?: string;
     role?: string;
     roleId?: string;
+    roleCountry?: string | null;
+    agentCountry?: string | null;
+    country?: string | null;
+    agentType?: string | null;
   };
 };
 
@@ -34,6 +38,11 @@ export const authApi = {
     }),
   profile: () =>
     apiRequest<ProfileResponse>(`/api/auth/me?ts=${Date.now()}`),
+  toggleActive: (active: boolean) =>
+    apiRequest<{ data: { active: boolean } }>("/api/auth/toggle-active", {
+      method: "POST",
+      body: { active },
+    }),
   forgotPassword: (payload: { email: string }) =>
     apiRequest<{ message: string }>("/api/auth/forgot-password", {
       method: "POST",
@@ -59,8 +68,13 @@ export const rbacApi = {
     }>("/api/permissions"),
   listRoles: () =>
     apiRequest<{
-      data: { id: string; name: string; description?: string | null; isActive?: boolean }[];
+      data: { id: string; name: string; description?: string | null; country?: string | null; isActive?: boolean }[];
     }>("/api/roles"),
+  updateRole: (roleId: string, payload: { country?: string | null }) =>
+    apiRequest<{ data: { id: string; name: string; country?: string | null } }>(
+      `/api/roles/${roleId}`,
+      { method: "PATCH", body: payload },
+    ),
   getRolePermissionsById: (roleId: string) =>
     apiRequest<{ data: string[] }>(`/api/roles/${roleId}/permissions`),
   updateRolePermissions: (
