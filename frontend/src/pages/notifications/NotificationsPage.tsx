@@ -62,180 +62,6 @@ const EVENT_LABELS: Record<string, string> = {
   'webhooks.lead_captured': 'Website lead captured'
 }
 
-type LookupEntry = { key: string; label: string }
-
-const mergeLookupEntries = (
-  existing: LookupEntry[],
-  incoming: LookupEntry[]
-) => {
-  if (!incoming.length) return existing
-  const map = new Map(existing.map(entry => [entry.key, entry.label]))
-  incoming.forEach(entry => {
-    if (entry.key) {
-      map.set(entry.key, entry.label)
-    }
-  })
-  return Array.from(map.entries()).map(([key, label]) => ({ key, label }))
-}
-
-const collectKeys = (...values: unknown[]) => {
-  const unique = new Set<string>()
-  values.forEach(value => {
-    const key = toPlainText(value)
-    if (key) {
-      unique.add(key)
-    }
-  })
-  return Array.from(unique.values())
-}
-
-const readNested = (source: unknown, path: string[]): unknown => {
-  let current: unknown = source
-  for (const segment of path) {
-    if (!current || typeof current !== 'object') {
-      return undefined
-    }
-    current = (current as Record<string, unknown>)[segment]
-  }
-  return current
-}
-
-const unwrapEntity = (response: unknown): Record<string, unknown> | null => {
-  const payload = response as any
-  const entity = payload?.data?.data ?? payload?.data ?? payload ?? null
-  if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
-    return null
-  }
-  return entity as Record<string, unknown>
-}
-
-const pickCustomerName = (source?: Record<string, unknown> | null) => {
-  if (!source) return ''
-  return (
-    toPlainText(source.name) ||
-    toPlainText(source.fullName) ||
-    toPlainText(source.customerName) ||
-    toPlainText(source.displayName)
-  )
-}
-
-const buildBookingLookupEntries = (
-  booking: Record<string, unknown>,
-  extraKey?: string
-) => {
-  const bookingId = toPlainText(booking.id)
-  const bookingNumber =
-    toPlainText(booking.bookingNumber) ||
-    toPlainText(booking.booking_number) ||
-    toPlainText(booking.code) ||
-    (bookingId ? `BK-${bookingId}` : 'Booking')
-  const customerName =
-    toPlainText(booking.customerName) ||
-    toPlainText(booking.customer_name) ||
-    pickCustomerName(
-      readNested(booking, ['customer']) as Record<string, unknown>
-    ) ||
-    pickCustomerName(
-      readNested(booking, ['lead']) as Record<string, unknown>
-    ) ||
-    toPlainText(booking.customer) ||
-    ''
-  const label = customerName
-    ? `${customerName} · ${bookingNumber}`
-    : bookingNumber
-  const keys = collectKeys(
-    bookingId,
-    booking.bookingId,
-    booking.booking_id,
-    booking.bookingNumber,
-    booking.booking_number,
-    booking.code,
-    extraKey
-  )
-  return keys.map(key => ({ key, label }))
-}
-
-const buildQuotationLookupEntries = (
-  quotation: Record<string, unknown>,
-  extraKey?: string
-) => {
-  const quotationId = toPlainText(quotation.id)
-  const quoteNumber =
-    toPlainText(quotation.quotationNumber) ||
-    toPlainText(quotation.quotation_number) ||
-    toPlainText(quotation.quoteNumber) ||
-    toPlainText(quotation.quote_number) ||
-    toPlainText(quotation.code) ||
-    (quotationId ? `QT-${quotationId}` : 'Quotation')
-  const customerName =
-    toPlainText(quotation.customerName) ||
-    toPlainText(quotation.customer_name) ||
-    pickCustomerName(
-      readNested(quotation, ['customer']) as Record<string, unknown>
-    ) ||
-    toPlainText(quotation.leadName) ||
-    toPlainText(quotation.lead_name) ||
-    pickCustomerName(
-      readNested(quotation, ['lead']) as Record<string, unknown>
-    ) ||
-    toPlainText(quotation.customer) ||
-    ''
-  const label = customerName ? `${customerName} · ${quoteNumber}` : quoteNumber
-  const keys = collectKeys(
-    quotationId,
-    quotation.quotationId,
-    quotation.quotation_id,
-    quotation.quotationNumber,
-    quotation.quotation_number,
-    quotation.quoteNumber,
-    quotation.quote_number,
-    quotation.code,
-    extraKey
-  )
-  return keys.map(key => ({ key, label }))
-}
-
-const buildPaymentLookupEntries = (
-  payment: Record<string, unknown>,
-  extraKey?: string
-) => {
-  const paymentId = toPlainText(payment.id)
-  const referenceId =
-    toPlainText(payment.paymentReference) ||
-    toPlainText(payment.payment_reference) ||
-    toPlainText(payment.gatewayPaymentId) ||
-    toPlainText(payment.gateway_payment_id) ||
-    paymentId ||
-    'Payment'
-  const customerName =
-    toPlainText(payment.customerName) ||
-    toPlainText(payment.customer_name) ||
-    pickCustomerName(
-      readNested(payment, ['customer']) as Record<string, unknown>
-    ) ||
-    pickCustomerName(
-      readNested(payment, ['booking', 'customer']) as Record<string, unknown>
-    ) ||
-    toPlainText(readNested(payment, ['booking', 'customerName'])) ||
-    ''
-  const label = customerName ? `${customerName} · ${referenceId}` : referenceId
-  const keys = collectKeys(
-    paymentId,
-    payment.paymentId,
-    payment.payment_id,
-    payment.paymentReference,
-    payment.payment_reference,
-    payment.gatewayPaymentId,
-    payment.gateway_payment_id,
-    payment.gatewayReference,
-    payment.gateway_reference,
-    payment.invoiceId,
-    payment.invoice_id,
-    extraKey
-  )
-  return keys.map(key => ({ key, label }))
-}
-
 const toPlainText = (value: unknown, fallback = ''): string => {
   if (typeof value === 'string') return value.trim() || fallback
   if (typeof value === 'number' || typeof value === 'boolean')
@@ -529,32 +355,117 @@ const NotificationsPage: React.FC = () => {
           quotationsApi.list({ page: 1, limit: 300 }),
           paymentsApi.list({ page: 1, limit: 300 })
         ])
-        const bookings = extractList(bookingsRes) as Record<string, unknown>[]
-        const quotations = extractList(quotationsRes) as Record<
-          string,
-          unknown
-        >[]
-        const payments = extractList(paymentsRes) as Record<string, unknown>[]
+        const bookings = extractList(bookingsRes)
+        const quotations = extractList(quotationsRes)
+        const payments = extractList(paymentsRes)
         if (cancelled) return
-        setBookingLookups(prev =>
-          mergeLookupEntries(
-            prev,
-            bookings.flatMap(booking => buildBookingLookupEntries(booking))
-          )
+        setBookingLookups(
+          bookings.flatMap((booking: any) => {
+            const bookingNumber =
+              booking.bookingNumber ||
+              booking.booking_number ||
+              booking.code ||
+              `BK-${booking.id}`
+            const customerName =
+              booking.customerName ||
+              booking.customer_name ||
+              booking.customer?.name ||
+              booking.customer?.fullName ||
+              booking.customer?.customerName ||
+              booking.leadName ||
+              booking.lead_name ||
+              booking.lead?.name ||
+              booking.lead?.fullName ||
+              booking.customer ||
+              ''
+            const label = customerName
+              ? `${customerName} · ${bookingNumber}`
+              : bookingNumber
+            const entries: { key: string; label: string }[] = []
+            const addEntry = (value: unknown) => {
+              const key = toPlainText(value)
+              if (key) entries.push({ key, label })
+            }
+            addEntry(booking.id)
+            addEntry(bookingNumber)
+            addEntry(booking.bookingNumber)
+            addEntry(booking.booking_number)
+            addEntry(booking.code)
+            return entries
+          })
         )
-        setQuotationLookups(prev =>
-          mergeLookupEntries(
-            prev,
-            quotations.flatMap(quotation =>
-              buildQuotationLookupEntries(quotation)
-            )
-          )
+        setQuotationLookups(
+          quotations.flatMap((quotation: any) => {
+            const quoteNumber =
+              quotation.quotationNumber ||
+              quotation.quotation_number ||
+              quotation.quoteNumber ||
+              quotation.quote_number ||
+              quotation.code ||
+              `QT-${quotation.id}`
+            const customerName =
+              quotation.customerName ||
+              quotation.customer_name ||
+              quotation.customer?.name ||
+              quotation.customer?.fullName ||
+              quotation.leadName ||
+              quotation.lead_name ||
+              quotation.lead?.name ||
+              quotation.lead?.fullName ||
+              quotation.customer ||
+              ''
+            const label = customerName
+              ? `${customerName} · ${quoteNumber}`
+              : quoteNumber
+            const entries: { key: string; label: string }[] = []
+            const addEntry = (value: unknown) => {
+              const key = toPlainText(value)
+              if (key) entries.push({ key, label })
+            }
+            addEntry(quotation.id)
+            addEntry(quoteNumber)
+            addEntry(quotation.quotationNumber)
+            addEntry(quotation.quotation_number)
+            addEntry(quotation.quoteNumber)
+            addEntry(quotation.quote_number)
+            addEntry(quotation.code)
+            return entries
+          })
         )
-        setPaymentLookups(prev =>
-          mergeLookupEntries(
-            prev,
-            payments.flatMap(payment => buildPaymentLookupEntries(payment))
-          )
+        setPaymentLookups(
+          payments.flatMap((payment: any) => {
+            const referenceId =
+              payment.paymentReference ||
+              payment.payment_reference ||
+              payment.gatewayPaymentId ||
+              payment.gateway_payment_id ||
+              payment.id ||
+              'Payment'
+            const customerName =
+              payment.customerName ||
+              payment.customer_name ||
+              payment.customer?.name ||
+              payment.customer?.fullName ||
+              payment.booking?.customer?.name ||
+              payment.booking?.customer?.fullName ||
+              payment.booking?.customerName ||
+              ''
+            const label = customerName
+              ? `${customerName} · ${referenceId}`
+              : String(referenceId)
+            const entries: { key: string; label: string }[] = []
+            const addEntry = (value: unknown) => {
+              const key = toPlainText(value)
+              if (key) entries.push({ key, label })
+            }
+            addEntry(payment.id)
+            addEntry(referenceId)
+            addEntry(payment.paymentReference)
+            addEntry(payment.payment_reference)
+            addEntry(payment.gatewayPaymentId)
+            addEntry(payment.gateway_payment_id)
+            return entries
+          })
         )
       } catch (err) {
         console.error('Failed to load notification lookups:', err)
@@ -566,141 +477,6 @@ const NotificationsPage: React.FC = () => {
       cancelled = true
     }
   }, [])
-
-  useEffect(() => {
-    if (!notifications.length) return
-    let cancelled = false
-
-    const addCandidate = (
-      target: Set<string>,
-      map: Map<string, string>,
-      value: unknown
-    ) => {
-      const key = toPlainText(value)
-      if (key && !map.has(key)) {
-        target.add(key)
-      }
-    }
-
-    const fetchEntries = async (
-      ids: string[],
-      fetcher: (id: string) => Promise<unknown>,
-      builder: (
-        entity: Record<string, unknown>,
-        extraKey?: string
-      ) => LookupEntry[]
-    ) => {
-      if (!ids.length) return []
-      const responses = await Promise.allSettled(ids.map(id => fetcher(id)))
-      const entries: LookupEntry[] = []
-      responses.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          const entity = unwrapEntity(result.value)
-          if (entity) {
-            entries.push(...builder(entity, ids[index]))
-          }
-        } else {
-          console.warn(
-            'Failed to fetch lookup entity',
-            ids[index],
-            result.reason
-          )
-        }
-      })
-      return entries
-    }
-
-    const resolveLookups = async () => {
-      const bookingIds = new Set<string>()
-      const quotationIds = new Set<string>()
-      const paymentIds = new Set<string>()
-
-      notifications.forEach(notification => {
-        const payload = (notification.payload || {}) as Record<string, unknown>
-        const eventName = toPlainText(notification.eventName).toLowerCase()
-        const entityType = toPlainText(notification.entityType).toLowerCase()
-        const bookingContext =
-          entityType.includes('booking') ||
-          eventName.startsWith('bookings.') ||
-          Boolean(payload.bookingId || payload.bookingNumber)
-        const quotationContext =
-          entityType.includes('quotation') ||
-          eventName.startsWith('quotations.') ||
-          Boolean(
-            payload.quotationId ||
-              payload.quotationNumber ||
-              payload.quoteNumber
-          )
-        const paymentContext =
-          entityType.includes('payment') ||
-          eventName.startsWith('payments.') ||
-          Boolean(payload.paymentId || payload.paymentReference)
-
-        if (bookingContext) {
-          addCandidate(bookingIds, bookingById, notification.entityId)
-          addCandidate(bookingIds, bookingById, payload.bookingId)
-        }
-        if (quotationContext) {
-          addCandidate(quotationIds, quotationById, notification.entityId)
-          addCandidate(quotationIds, quotationById, payload.quotationId)
-        }
-        if (paymentContext) {
-          addCandidate(paymentIds, paymentById, notification.entityId)
-          addCandidate(paymentIds, paymentById, payload.paymentId)
-        }
-      })
-
-      if (
-        bookingIds.size === 0 &&
-        quotationIds.size === 0 &&
-        paymentIds.size === 0
-      ) {
-        return
-      }
-
-      try {
-        const [bookingEntries, quotationEntries, paymentEntries] =
-          await Promise.all([
-            fetchEntries(
-              Array.from(bookingIds),
-              id => bookingsApi.getById(id),
-              buildBookingLookupEntries
-            ),
-            fetchEntries(
-              Array.from(quotationIds),
-              id => quotationsApi.getById(id),
-              buildQuotationLookupEntries
-            ),
-            fetchEntries(
-              Array.from(paymentIds),
-              id => paymentsApi.getById(id),
-              buildPaymentLookupEntries
-            )
-          ])
-
-        if (cancelled) return
-
-        if (bookingEntries.length) {
-          setBookingLookups(prev => mergeLookupEntries(prev, bookingEntries))
-        }
-        if (quotationEntries.length) {
-          setQuotationLookups(prev =>
-            mergeLookupEntries(prev, quotationEntries)
-          )
-        }
-        if (paymentEntries.length) {
-          setPaymentLookups(prev => mergeLookupEntries(prev, paymentEntries))
-        }
-      } catch (err) {
-        console.error('Failed to resolve notification lookups:', err)
-      }
-    }
-
-    void resolveLookups()
-    return () => {
-      cancelled = true
-    }
-  }, [bookingById, notifications, paymentById, quotationById])
 
   const modules = useMemo(
     () => Array.from(new Set(notifications.map(item => toModule(item)))).sort(),
@@ -842,13 +618,7 @@ const NotificationsPage: React.FC = () => {
 
       return matchesModule && haystack.includes(searchValue)
     })
-  }, [
-    moduleFilter,
-    notifications,
-    resolveEntityLabel,
-    searchTerm,
-    toFriendlyMessageLocal
-  ])
+  }, [moduleFilter, notifications, searchTerm])
 
   const statusBreakdown = useMemo(() => {
     return notifications.reduce(
@@ -1202,3 +972,16 @@ const NotificationsPage: React.FC = () => {
 }
 
 export default NotificationsPage
+
+
+
+
+
+
+
+
+
+
+
+
+
