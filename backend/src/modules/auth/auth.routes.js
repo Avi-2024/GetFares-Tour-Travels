@@ -20,6 +20,8 @@ function createAuthRoutes({
     asyncHandler(controller.login),
   );
   router.get("/me", requireAuth, asyncHandler(controller.me));
+  router.post("/toggle-active", requireAuth, asyncHandler(controller.toggleActive));
+  router.post("/logout", requireAuth, asyncHandler(controller.logout));
 
   return router;
 }

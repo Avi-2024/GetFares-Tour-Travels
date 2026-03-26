@@ -111,6 +111,11 @@ function createUsersService({
     return new Map(roles.map((role) => [role.id, role.name]));
   }
 
+  async function getRoleCountryLookup() {
+    const roles = await repository.findRoles();
+    return new Map(roles.map((role) => [role.id, role.country ?? null]));
+  }
+
   async function list(filters = {}, context = {}) {
     const mappedFilters = mapListFilters(filters);
     logger.debug(
@@ -138,6 +143,7 @@ function createUsersService({
       name: role.name,
       value: role.name,
       description: role.description ?? null,
+      country: role.country ?? null,
     }));
   }
 
@@ -181,8 +187,16 @@ function createUsersService({
       }
 
       const roleId = getRoleIdFromPayload(payload);
+      const enriched = { ...payload, passwordHash, roleId };
+      if (roleId && !enriched.agentCountry && !enriched.country) {
+        const countryLookup = await getRoleCountryLookup();
+        const roleCountry = countryLookup.get(roleId);
+        if (roleCountry) {
+          enriched.agentCountry = roleCountry;
+        }
+      }
       const created = await repository.create(
-        mapCreatePayload({ ...payload, passwordHash, roleId }),
+        mapCreatePayload(enriched),
       );
 
       events.emitCreated(created);
@@ -215,9 +229,17 @@ function createUsersService({
 
     try {
       const roleId = getRoleIdFromPayload(payload);
+      const enriched = { ...payload, roleId };
+      if (roleId && !enriched.agentCountry && !enriched.country) {
+        const countryLookup = await getRoleCountryLookup();
+        const roleCountry = countryLookup.get(roleId);
+        if (roleCountry) {
+          enriched.agentCountry = roleCountry;
+        }
+      }
       const updated = await repository.update(
         id,
-        mapUpdatePayload({ ...payload, roleId }),
+        mapUpdatePayload(enriched),
       );
 
       events.emitUpdated(updated);

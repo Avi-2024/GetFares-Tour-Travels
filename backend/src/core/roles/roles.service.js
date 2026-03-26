@@ -37,6 +37,7 @@ function createRolesService({ db, logger }) {
       id: row.id,
       name: row.name,
       description: row.description ?? null,
+      country: row.country ?? null,
       isActive: row.is_active ?? row.isActive ?? true,
     };
   }
@@ -64,11 +65,23 @@ function createRolesService({ db, logger }) {
       throw new AppError(409, "Role already exists", "ROLE_ALREADY_EXISTS");
     }
 
+    const includeCountry = await hasColumn("country");
     const includeIsActive = await hasColumn("is_active");
     const record = {
       name,
       description: payload.description ?? null,
     };
+
+    if (payload.country !== undefined) {
+      if (includeCountry) {
+        record.country = payload.country || null;
+      } else {
+        logger?.warn?.(
+          { roleName: name },
+          "roles.country column missing; skipping country during role create",
+        );
+      }
+    }
 
     if (includeIsActive && payload.isActive !== undefined) {
       record.is_active = payload.isActive;
@@ -104,8 +117,20 @@ function createRolesService({ db, logger }) {
       updates.name = name;
     }
 
+    const includeCountry = await hasColumn("country");
     if (payload.description !== undefined) {
       updates.description = payload.description ?? null;
+    }
+
+    if (payload.country !== undefined) {
+      if (includeCountry) {
+        updates.country = payload.country || null;
+      } else {
+        logger?.warn?.(
+          { roleId },
+          "roles.country column missing; skipping country during role update",
+        );
+      }
     }
 
     const includeIsActive = await hasColumn("is_active");

@@ -223,6 +223,7 @@ function createLeadsRepository({ db, logger, schema }) {
       budget: row.budget ?? null,
       adultsCount: row.adults_count ?? row.adultsCount ?? 1,
       childrenCount: row.children_count ?? row.childrenCount ?? 0,
+      childAges: row.child_ages ?? row.childAges ?? [],
       visaRequired: row.visa_required ?? row.visaRequired ?? false,
       leadType: row.lead_type ?? row.leadType ?? "HOLIDAY",
       preferredHotelCategory:
@@ -824,6 +825,13 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async hasLeadCustomerColumn() {
       return hasColumn(schema.tableName, "customer_id");
+    },
+
+    async findUserAgentCountry(userId) {
+      if (!userId) return null;
+      const row = await db.findById(schema.usersTable, userId);
+      if (!row) return null;
+      return row.agent_country ?? row.agentCountry ?? null;
     },
 
     async findActiveAssignableUsers(roleName = null) {

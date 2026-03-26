@@ -41,6 +41,8 @@ type UserRecord = {
   email: string
   role?: string
   roleId?: string
+  country?: string
+  agentCountry?: string
   isActive: boolean
   lastActive: string
 }
@@ -54,6 +56,9 @@ type RawUser = {
   role?: string
   roleId?: string
   role_id?: string
+  country?: string
+  agentCountry?: string
+  agent_country?: string
   isActive?: boolean
   is_active?: boolean
   lastLogin?: string
@@ -66,6 +71,7 @@ type RoleOption = {
   id: string
   name: string
   description?: string | null
+  country?: string | null
 }
 
 type PermissionOption = {
@@ -85,18 +91,23 @@ type SettingsResponse = {
   integrations?: Partial<IntegrationSettingsForm>
 }
 
-type CountryCode = 'India' | 'UAE'
+type CountryCode = 'All' | 'India' | 'UAE'
 
 const COUNTRY_OPTIONS: Array<{ value: CountryCode; label: string }> = [
+  { value: 'All', label: 'All Countries' },
   { value: 'India', label: 'India' },
   { value: 'UAE', label: 'UAE' }
 ]
+
+const ROLE_COUNTRY_OPTIONS = COUNTRY_OPTIONS.filter(
+  option => option.value !== 'All'
+)
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'user-management', label: 'User Management' },
   { id: 'roles-permissions', label: 'Roles & Permissions' },
   { id: 'system-settings', label: 'System Settings' },
-  { id: 'destinations-pricing', label: 'Destinations & Pricing' },
+  // { id: 'destinations-pricing', label: 'Destinations & Pricing' },
   { id: 'pdf-templates', label: 'PDF Templates' }
   // { id: "integrations", label: "Integrations" },
 ]
@@ -182,6 +193,8 @@ const normalizeUsers = (rows: RawUser[]): UserRecord[] =>
         typeof row.isActive === 'boolean'
           ? row.isActive
           : row.is_active !== false,
+      country: row.country || row.agentCountry || row.agent_country || undefined,
+      agentCountry: row.agentCountry || row.agent_country || undefined,
       lastActive: parseDate(
         row.lastLogin || row.last_login || row.createdAt || row.created_at
       )
@@ -215,7 +228,7 @@ const Settings: React.FC = () => {
   const [selectedRoleCountry, setSelectedRoleCountry] =
     useState<CountryCode>('India')
   const [adminCountryFilter, setAdminCountryFilter] =
-    useState<CountryCode>('India')
+    useState<CountryCode>('All')
   const [loadingRolePermissions, setLoadingRolePermissions] = useState(false)
   const [savingRolePermissions, setSavingRolePermissions] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
@@ -306,7 +319,8 @@ const Settings: React.FC = () => {
         rows.map(row => ({
           id: row.id,
           name: row.name,
-          description: row.description ?? null
+          description: row.description ?? null,
+          country: row.country ?? null
         }))
       )
     } catch (e) {
@@ -448,9 +462,14 @@ const Settings: React.FC = () => {
           statusFilter === 'all' ||
           (statusFilter === 'active' && user.isActive) ||
           (statusFilter === 'inactive' && !user.isActive)
-        return matched && statusMatched
+        const countryMatched =
+          !adminCountryFilter ||
+          adminCountryFilter === 'All' ||
+          (user.country ?? user.agentCountry ?? '')
+            .toLowerCase() === adminCountryFilter.toLowerCase()
+        return matched && statusMatched && countryMatched
       }),
-    [users, search, statusFilter, roleLabelMap]
+    [users, search, statusFilter, roleLabelMap, adminCountryFilter]
   )
 
   const roleStats = useMemo(() => {
@@ -471,12 +490,11 @@ const Settings: React.FC = () => {
   const roleCountryMap = useMemo(
     () =>
       new Map<string, CountryCode>(
-        roleStats.map((role, index) => [
-          role.id,
-          (index % 2 === 0 ? 'India' : 'UAE') as CountryCode
-        ])
+        roles
+          .filter(r => r.country)
+          .map(r => [r.id, r.country as CountryCode])
       ),
-    [roleStats]
+    [roles]
   )
 
   const getRoleCountry = useCallback(
@@ -529,6 +547,113 @@ const Settings: React.FC = () => {
   useEffect(() => {
     void loadRolePermissionCounts()
   }, [loadRolePermissionCounts])
+
+  const closeCreateRoleModal = useCallback(() => {
+    setCreateRoleOpen(false)
+    setCreateRoleName('')
+    setCreateRoleCountry('India')
+    setCreateRolePermissions([])
+  }, [])
+
+  const handleCreateRole = async () => {
+    if (!canManageRbac) {
+      setError('You do not have permission to create roles.')
+      return
+    }
+
+    const roleName = createRoleName.trim()
+    const permissionKeys = [
+      ...new Set(
+        createRolePermissions.map(permission => permission.trim()).filter(Boolean)
+      )
+    ]
+    const roleCountry = createRoleCountry === 'All' ? null : createRoleCountry
+
+    if (!roleName) {
+      setError('Role name is required.')
+      return
+    }
+
+    if (!permissionKeys.length) {
+      setError('Pick at least one permission.')
+      return
+    }
+
+    setCreateRoleLoading(true)
+    setError('')
+    setMessage('')
+
+    let createdRoleId = ''
+
+    try {
+      const created = await authService.createRole({
+        name: roleName,
+        country: roleCountry
+      })
+
+      createdRoleId = created?.id ?? ''
+      if (!createdRoleId) {
+        throw new Error('Role created without an id')
+      }
+
+      await authService.updateRolePermissions(createdRoleId, {
+        replace: true,
+        permissions: permissionKeys.map(key => ({
+          key,
+          enabled: true
+        }))
+      })
+
+      try {
+        await loadRoles()
+      } catch (_error) {
+        // Keep the create flow successful even if the follow-up refresh fails.
+      }
+
+      setRolePermissionCounts(previous => ({
+        ...previous,
+        [createdRoleId]: permissionKeys.length
+      }))
+      if (roleCountry) {
+        setRoleCountryOverrides(previous => ({
+          ...previous,
+          [createdRoleId]: roleCountry
+        }))
+      }
+      setSelectedRolePermissionsRoleId(createdRoleId)
+      setSelectedRolePermissions(permissionKeys)
+      closeCreateRoleModal()
+      setMessage('Role created successfully.')
+    } catch (e) {
+      if (createdRoleId) {
+        try {
+          await loadRoles()
+        } catch (_error) {
+          // Keep the partially completed role visible even if reload fails.
+        }
+
+        if (roleCountry) {
+          setRoleCountryOverrides(previous => ({
+            ...previous,
+            [createdRoleId]: roleCountry
+          }))
+        }
+        setSelectedRolePermissionsRoleId(createdRoleId)
+        setSelectedRolePermissions([])
+        closeCreateRoleModal()
+        setError(
+          `Role created, but permissions could not be assigned. ${getApiErrorMessage(
+            e,
+            'Open the role and save permissions again.'
+          )}`
+        )
+      } else {
+        setError(getApiErrorMessage(e, 'Unable to create role'))
+      }
+    } finally {
+      setCreateRoleLoading(false)
+    }
+  }
 
   const onInvite = async () => {
     if (!canCreateUsers) {
@@ -585,72 +710,14 @@ const Settings: React.FC = () => {
   }
 
   const onCreateAndAssignRole = async (roleName: string) => {
-    await usersService.update(assignUserId, { roleName: roleName.trim() })
-    return { id: '' }
-  }
-
-  const resetCreateRoleForm = () => {
-    setCreateRoleName('')
-    setCreateRoleCountry('India')
-    setCreateRolePermissions([])
-  }
-
-  const closeCreateRoleModal = () => {
-    setCreateRoleOpen(false)
-    resetCreateRoleForm()
-  }
-
-  const handleCreateRole = async () => {
-    if (!canManageRbac) {
-      setError('You do not have permission to manage roles.')
-      return
+    const created = await authService.createRole({
+      name: roleName.trim()
+    })
+    const newRoleId = created?.id
+    if (newRoleId && assignUserId) {
+      await usersService.update(assignUserId, { roleId: newRoleId })
     }
-
-    const trimmedName = createRoleName.trim()
-    if (!trimmedName) {
-      setError('Role name is required.')
-      return
-    }
-    if (!createRolePermissions.length) {
-      setError('Select at least one permission for the role.')
-      return
-    }
-
-    setCreateRoleLoading(true)
-    setError('')
-    setMessage('')
-    try {
-      const createdRole = await authService.createRole({ name: trimmedName })
-      if (!createdRole?.id) {
-        throw new Error('Role response missing identifier')
-      }
-
-      if (createRolePermissions.length) {
-        await authService.updateRolePermissions(createdRole.id, {
-          replace: true,
-          permissions: createRolePermissions.map(key => ({
-            key,
-            enabled: true
-          }))
-        })
-      }
-
-      setRoleCountryOverrides(prev => ({
-        ...prev,
-        [createdRole.id]: createRoleCountry
-      }))
-
-      await loadRoles()
-      setSelectedRolePermissionsRoleId(createdRole.id)
-      setSelectedRolePermissions([...createRolePermissions])
-      setSelectedRoleCountry(createRoleCountry)
-      setMessage('Role created successfully.')
-      closeCreateRoleModal()
-    } catch (e) {
-      setError(getApiErrorMessage(e, 'Unable to create role'))
-    } finally {
-      setCreateRoleLoading(false)
-    }
+    return created
   }
 
   const toggleRolePermission = (permissionKey: string) => {
@@ -1141,7 +1208,7 @@ const Settings: React.FC = () => {
                       <div className='mt-3 flex flex-col gap-3 sm:flex-row sm:items-center'>
                         <SearchableDropdown
                           value={selectedRoleCountry}
-                          options={COUNTRY_OPTIONS}
+                          options={ROLE_COUNTRY_OPTIONS}
                           onChange={value =>
                             setSelectedRoleCountry(value as CountryCode)
                           }
@@ -1150,19 +1217,32 @@ const Settings: React.FC = () => {
                           searchPlaceholder='Search country...'
                         />
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             if (!selectedRolePermissionsRoleId) return
-                            setRoleCountryOverrides(prev => ({
-                              ...prev,
-                              [selectedRolePermissionsRoleId]:
-                                selectedRoleCountry
-                            }))
+                            try {
+                              await authService.updateRole(selectedRolePermissionsRoleId, {
+                                country: selectedRoleCountry
+                              })
+                              setRoleCountryOverrides(prev => ({
+                                ...prev,
+                                [selectedRolePermissionsRoleId]: selectedRoleCountry
+                              }))
+                              setRoles(prev =>
+                                prev.map(r =>
+                                  r.id === selectedRolePermissionsRoleId
+                                    ? { ...r, country: selectedRoleCountry }
+                                    : r
+                                )
+                              )
+                            } catch (err) {
+                              alert(getApiErrorMessage(err, 'Failed to save country'))
+                            }
                           }}
                           disabled={!selectedRolePermissionsRoleId}
                           className='inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-orange-100 px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:from-amber-100 hover:via-orange-100 hover:to-orange-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 disabled:translate-y-0 disabled:opacity-60 disabled:shadow-none dark:border-amber-500/40 dark:from-amber-500/20 dark:via-orange-500/20 dark:to-orange-500/20 dark:text-amber-100 sm:w-auto'
                         >
                           <FaEarthAmericas className='text-base' />
-                          Edit Country
+                          Save Country
                         </button>
                       </div>
                     </div>
@@ -1546,7 +1626,7 @@ const Settings: React.FC = () => {
                 <label className='field-label'>Country</label>
                 <SearchableDropdown
                   value={createRoleCountry}
-                  options={COUNTRY_OPTIONS}
+                  options={ROLE_COUNTRY_OPTIONS}
                   onChange={value => setCreateRoleCountry(value as CountryCode)}
                   className='mt-1 w-full'
                   searchPlaceholder='Search country...'

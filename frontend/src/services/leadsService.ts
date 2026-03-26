@@ -255,6 +255,8 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     datasource.processNonResponsive(payload),
   processCadenceAutomation: (payload?: { staleDays?: number; limit?: number }) =>
     datasource.processCadenceAutomation(payload),
+  disableCalls: (id: string, disabled: boolean) =>
+    datasource.disableCalls(id, disabled),
   submitPublicLead: (payload: unknown) => datasource.publicCapture(payload),
 });
 

@@ -38,6 +38,10 @@ interface Quotation {
   lastSent: string | null;
   sentDate: string | null;
   createdAt?: string | null;
+  responseCategory?: string | null;
+  responseSlaMinutes?: number | null;
+  responseSlaBreached?: boolean | null;
+  leadToQuoteSentMinutes?: number | null;
 }
 
 const tabs = [
@@ -193,7 +197,11 @@ const QuotationsPage: React.FC = () => {
                   templateCode,
                   lastSent,
                   sentDate,
-                  createdAt
+                  createdAt,
+                  responseCategory: q.responseCategory || q.response_category || null,
+                  responseSlaMinutes: q.responseSlaMinutes ?? q.response_sla_minutes ?? null,
+                  responseSlaBreached: q.responseSlaBreached ?? q.response_sla_breached ?? null,
+                  leadToQuoteSentMinutes: q.leadToQuoteSentMinutes ?? q.lead_to_quote_sent_minutes ?? null,
                 };
               })
             );
@@ -721,6 +729,9 @@ const QuotationsPage: React.FC = () => {
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Last Sent
                     </th>
+                    <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      SLA
+                    </th>
                     <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Actions
                     </th>
@@ -772,6 +783,26 @@ const QuotationsPage: React.FC = () => {
                       </td>
                       <td className="px-5 py-4 text-xs text-gray-500">
                         {q.lastSent ?? "Never Sent"}
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        {q.responseCategory ? (
+                          <div className="space-y-0.5">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              q.responseSlaBreached
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                            }`}>
+                              {q.responseCategory.replace(/_/g, ' ')}
+                            </span>
+                            {q.leadToQuoteSentMinutes != null ? (
+                              <p className="text-[10px] text-gray-400">
+                                {q.leadToQuoteSentMinutes}m to send
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-2 transition-all duration-200">

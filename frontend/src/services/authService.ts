@@ -56,7 +56,7 @@ export const createAuthService = (datasource: AuthDatasource) => ({
     const response = await datasource.listRoles();
     return Array.isArray(response.data) ? response.data : [];
   },
-  createRole: async (payload: { name: string; description?: string }) => {
+  createRole: async (payload: { name: string; description?: string; country?: string | null }) => {
     const response = await datasource.createRole(payload);
     return response.data ?? null;
   },
@@ -76,6 +76,8 @@ export const createAuthService = (datasource: AuthDatasource) => ({
       permissions?: { permissionId?: string; key?: string; enabled?: boolean }[];
     },
   ) => datasource.updateRolePermissions(roleId, payload),
+  updateRole: (roleId: string, payload: { country?: string | null }) =>
+    datasource.updateRole(roleId, payload),
   setRolePermissions: (role: string, permissions: string[]) =>
     datasource.setRolePermissions(role, { permissions }),
 });

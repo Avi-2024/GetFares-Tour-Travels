@@ -37,6 +37,7 @@ const basePayload = z.object({
   utmCampaign: z.string().max(100).optional(),
   adultsCount: z.coerce.number().int().min(0).optional(),
   childrenCount: z.coerce.number().int().min(0).optional(),
+  childAges: z.array(z.coerce.number().int().min(0).max(18)).optional(),
   visaRequired: z.boolean().optional(),
   leadType: leadType.optional(),
   type: z.string().min(2).max(40).optional(),

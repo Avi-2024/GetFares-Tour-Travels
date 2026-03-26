@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { suppliersApi } from '../../api/suppliers'
 import { quotationsApi } from '../../api/quotations'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
@@ -124,6 +125,9 @@ const QuotationBuilderPage: React.FC = () => {
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [templatesError, setTemplatesError] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([])
+  const [suppliersLoading, setSuppliersLoading] = useState(false)
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
@@ -192,6 +196,9 @@ const QuotationBuilderPage: React.FC = () => {
     markup: '',
     sellValue: ''
   })
+  const [serviceOverrides, setServiceOverrides] = useState<
+    Record<string, { sellValue?: string; paymentTerms?: string }>
+  >({})
   const previewRef = useRef<HTMLDivElement | null>(null)
 
   const selectedLead = useMemo(
@@ -259,6 +266,17 @@ const QuotationBuilderPage: React.FC = () => {
       }))
     ],
     [templates]
+  )
+
+  const supplierDropdownOptions = useMemo(
+    () => [
+      { value: '', label: 'Select a supplier' },
+      ...suppliers.map(supplier => ({
+        value: supplier.id,
+        label: supplier.name
+      }))
+    ],
+    [suppliers]
   )
 
   const packageTypeOptions = useMemo(
@@ -433,6 +451,88 @@ const QuotationBuilderPage: React.FC = () => {
     }
 
     void loadTemplates()
+  }, [token])
+
+  const [packages, setPackages] = useState<any[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(false)
+
+  useEffect(() => {
+    if (!token) return
+    setPackagesLoading(true)
+    quotationsApi
+      .listPackages({ status: 'ACTIVE', limit: 100 })
+      .then((res: any) => {
+        const list = res?.data?.data ?? res?.data ?? res ?? []
+        setPackages(Array.isArray(list) ? list : [])
+      })
+      .catch(() => setPackages([]))
+      .finally(() => setPackagesLoading(false))
+  }, [token])
+
+  const packageOptions = useMemo(
+    () => [
+      { value: '', label: 'Select a ready package...' },
+      ...packages.map((pkg: any) => ({
+        value: pkg.id,
+        label: `${pkg.name || pkg.title || 'Package'} — ${pkg.destination || ''}`
+      }))
+    ],
+    [packages]
+  )
+
+  const loadFromPackage = (packageId: string) => {
+    const pkg = packages.find((p: any) => p.id === packageId)
+    if (!pkg) return
+    setForm(prev => ({
+      ...prev,
+      destination: pkg.destination || pkg.destinationName || prev.destination,
+      nights: pkg.duration ?? pkg.nights ?? prev.nights,
+      inclusions: pkg.inclusions || prev.inclusions,
+      exclusions: pkg.exclusions || prev.exclusions,
+      termsAndConditions: pkg.cancellationPolicy || prev.termsAndConditions,
+      paymentTerms: prev.paymentTerms,
+      cancellationPolicy: pkg.cancellationPolicy || prev.cancellationPolicy,
+      priceValidity:
+        pkg.validTo ? pkg.validTo.slice(0, 10) : prev.priceValidity,
+    }))
+    if (pkg.baseCost) {
+      setCosts(prev => ({
+        ...prev,
+        supplierCost: String(pkg.baseCost),
+        markupPercent: pkg.markupPercent ?? prev.markupPercent,
+      }))
+    }
+  }
+
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      if (!token) {
+        setSuppliers([])
+        return
+      }
+
+      setSuppliersLoading(true)
+      try {
+        const response = await suppliersApi.list({ page: 1, limit: 100 })
+        const payload = (response as any)?.data ?? response
+        const data = (payload as any)?.data || (payload as any)?.items || payload
+        if (Array.isArray(data)) {
+          setSuppliers(data.map((s: any) => ({
+            id: s.id || s._id,
+            name: s.name || s.companyName || 'Unnamed Supplier'
+          })))
+        } else {
+          setSuppliers([])
+        }
+      } catch (error) {
+        console.error('Failed to load suppliers:', error)
+        setSuppliers([])
+      } finally {
+        setSuppliersLoading(false)
+      }
+    }
+
+    void loadSuppliers()
   }, [token])
 
   useEffect(() => {
@@ -817,21 +917,24 @@ const QuotationBuilderPage: React.FC = () => {
       return
     }
 
-    if (!selectedServiceDefinitions.length) {
-      setSaveError('Select at least one service in Package Builder.')
-      return
-    }
-
     const supplier = Number(costs.supplierCost) || 0
     const serviceFee = Number(costs.serviceFee) || 0
     const components = [
-      ...serviceCostRows.map(row => ({
-        itemType: row.itemType,
-        description: `${row.label}${
-          form.destination ? ` - ${form.destination}` : ''
-        }`,
-        cost: row.baseCost
-      })),
+      ...serviceCostRows.map(row => {
+        const override = serviceOverrides[row.key] ?? {}
+        const effectiveSell =
+          override.sellValue !== undefined
+            ? Number(override.sellValue)
+            : row.sellValue
+        return {
+          itemType: row.itemType,
+          description: `${row.label}${
+            form.destination ? ` - ${form.destination}` : ''
+          }${override.paymentTerms ? ` (${override.paymentTerms})` : ''}`,
+          cost: row.baseCost,
+          sellValue: effectiveSell
+        }
+      }),
       ...(serviceFee
         ? [
             {
@@ -1040,7 +1143,46 @@ const QuotationBuilderPage: React.FC = () => {
                       {selectedTemplate.minMarginPercent}%
                     </p>
                   ) : null}
+
+                  <div>
+                    <label className='field-label'>Supplier</label>
+                    <SearchableDropdown
+                      value={selectedSupplierId}
+                      options={supplierDropdownOptions}
+                      onChange={setSelectedSupplierId}
+                      disabled={suppliersLoading}
+                      searchPlaceholder='Search supplier...'
+                    />
+                    {suppliersLoading ? (
+                      <p className='mt-1 text-xs text-gray-500'>
+                        Loading suppliers...
+                      </p>
+                    ) : null}
+                  </div>
+
                 </div>
+
+                <div className='md:col-span-2 rounded-xl border border-green-200 bg-green-50/30 p-3 dark:border-green-800 dark:bg-green-900/10'>
+                  <label className='field-label text-green-700 dark:text-green-300'>
+                    Load from Ready Package
+                  </label>
+                  <p className='mb-2 text-[11px] text-green-600 dark:text-green-400'>
+                    Pre-costed packages with fixed markup. Select to auto-fill destination, services, inclusions & exclusions.
+                  </p>
+                  <SearchableDropdown
+                    value=''
+                    options={packageOptions}
+                    disabled={packagesLoading}
+                    searchPlaceholder='Search ready packages...'
+                    onChange={pkgId => {
+                      if (pkgId) loadFromPackage(pkgId)
+                    }}
+                  />
+                  {packagesLoading ? (
+                    <p className='mt-1 text-xs text-gray-500'>Loading packages...</p>
+                  ) : null}
+                </div>
+
                 <Field
                   label='Customer'
                   value={form.customer}
@@ -1114,62 +1256,6 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
 
-            <SurfaceCard>
-              <div className='mb-4 flex items-center justify-between'>
-                <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-                  Package Builder
-                </h2>
-                <span className='text-xs text-gray-500 dark:text-gray-400'>
-                  Select scope & services
-                </span>
-              </div>
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                <div>
-                  <label className='field-label'>Package Type</label>
-                  <SearchableDropdown
-                    value={packageType}
-                    options={packageTypeOptions}
-                    searchPlaceholder='Search package type...'
-                    onChange={setPackageType}
-                  />
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  {SERVICE_DEFINITIONS.map(service => (
-                    <button
-                      key={service.key}
-                      onClick={() =>
-                        setServices(prev => ({
-                          ...prev,
-                          [service.key]: !prev[service.key]
-                        }))
-                      }
-                      className={`px-3 py-2 text-xs rounded-lg border ${
-                        services[service.key]
-                          ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200'
-                          : 'bg-white border-gray-200 text-gray-600 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      {service.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mt-3'>
-                {selectedServiceDefinitions.map(definition => (
-                  <div
-                    key={definition.key}
-                    className='rounded-lg border border-gray-200 dark:border-gray-700 p-3'
-                  >
-                    <p className='text-xs uppercase text-gray-500 dark:text-gray-400 mb-1'>
-                      {definition.itemType}
-                    </p>
-                    <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                      {definition.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </SurfaceCard>
 
             <SurfaceCard>
               <div className='mb-3 flex items-center justify-between'>
@@ -1321,40 +1407,85 @@ const QuotationBuilderPage: React.FC = () => {
                       <th className='py-2 text-right'>Weight</th>
                       <th className='py-2 text-right'>Base Cost</th>
                       <th className='py-2 text-right'>Markup</th>
-                      <th className='py-2 text-right'>Sell Value</th>
+                      <th className='py-2 text-right'>
+                        Sell Value
+                        <span className='ml-1 text-[10px] font-normal text-violet-500'>(editable)</span>
+                      </th>
+                      <th className='py-2 text-right'>
+                        Payment Terms
+                        <span className='ml-1 text-[10px] font-normal text-violet-500'>(editable)</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {serviceCostRows.map(row => (
-                      <tr
-                        key={row.key}
-                        className='border-b border-gray-100 dark:border-gray-800'
-                      >
-                        <td className='py-2'>{row.label}</td>
-                        <td className='py-2 text-right text-gray-500'>
-                          {row.weight}%
-                        </td>
-                        <td className='py-2 text-right'>
-                          {money(row.baseCost)}
-                        </td>
-                        <td className='py-2 text-right text-green-600'>
-                          {row.markupPercent.toFixed(1)}%
-                          <span className='ml-1 text-[11px] text-green-500'>
-                            ({money(row.markupAmount)})
-                          </span>
-                        </td>
-                        <td className='py-2 text-right font-medium'>
-                          {money(row.sellValue)}
-                        </td>
-                      </tr>
-                    ))}
+                    {serviceCostRows.map(row => {
+                      const override = serviceOverrides[row.key] ?? {}
+                      const customSell = override.sellValue !== undefined
+                      return (
+                        <tr
+                          key={row.key}
+                          className='border-b border-gray-100 dark:border-gray-800'
+                        >
+                          <td className='py-2'>{row.label}</td>
+                          <td className='py-2 text-right text-gray-500'>
+                            {row.weight}%
+                          </td>
+                          <td className='py-2 text-right'>
+                            {money(row.baseCost)}
+                          </td>
+                          <td className='py-2 text-right text-green-600'>
+                            {row.markupPercent.toFixed(1)}%
+                            <span className='ml-1 text-[11px] text-green-500'>
+                              ({money(row.markupAmount)})
+                            </span>
+                          </td>
+                          <td className='py-2 text-right font-medium'>
+                            <input
+                              type='number'
+                              min='0'
+                              step='0.01'
+                              value={override.sellValue ?? String(row.sellValue)}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], sellValue: e.target.value }
+                                }))
+                              }
+                              className={`w-24 rounded border px-1.5 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100 ${
+                                customSell
+                                  ? 'border-violet-300 bg-violet-50 dark:border-violet-600 dark:bg-violet-900/20'
+                                  : 'border-gray-200 bg-transparent dark:border-gray-700'
+                              }`}
+                            />
+                          </td>
+                          <td className='py-2 text-right'>
+                            <input
+                              type='text'
+                              placeholder='e.g. 50% advance'
+                              value={override.paymentTerms ?? ''}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], paymentTerms: e.target.value }
+                                }))
+                              }
+                              className={`w-32 rounded border px-1.5 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100 ${
+                                override.paymentTerms
+                                  ? 'border-violet-300 bg-violet-50 dark:border-violet-600 dark:bg-violet-900/20'
+                                  : 'border-gray-200 bg-transparent dark:border-gray-700'
+                              }`}
+                            />
+                          </td>
+                        </tr>
+                      )
+                    })}
                     {!serviceCostRows.length ? (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className='py-3 text-center text-xs text-gray-500'
                         >
-                          Select at least one service in Package Builder.
+                          Enable services in the Cost &amp; Profit section to see the breakdown.
                         </td>
                       </tr>
                     ) : null}

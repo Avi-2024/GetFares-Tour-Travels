@@ -478,6 +478,7 @@ function createLeadsService({ repository, logger, events }) {
       final_reminder_at: null,
       non_responsive_marked_at: null,
       calls_disabled: payload.callsDisabled ?? false,
+      child_ages: Array.isArray(payload.childAges) ? payload.childAges : null,
     };
 
     if (useCustomerLinking) {
@@ -549,6 +550,9 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.childrenCount !== undefined) {
       mapped.children_count = payload.childrenCount;
+    }
+    if (payload.childAges !== undefined) {
+      mapped.child_ages = Array.isArray(payload.childAges) ? payload.childAges : null;
     }
     if (payload.visaRequired !== undefined) {
       mapped.visa_required = payload.visaRequired;
@@ -837,6 +841,11 @@ function createLeadsService({ repository, logger, events }) {
         role: roleName,
         roles: roleName === ASSIGNMENT_ROLES.MANAGER ? ["manager"] : undefined,
       });
+
+      if (roleName !== ASSIGNMENT_ROLES.MANAGER) {
+        await queueLeadIfNeeded(existing, reason);
+      }
+
       return existing;
     }
 
@@ -1003,7 +1012,46 @@ function createLeadsService({ repository, logger, events }) {
         status:
           filters.status ? normalizeLeadStatus(filters.status) : undefined,
       };
-      const leads = await repository.findAll(mappedFilters);
+
+      const userRole = String(context.user?.role || "").trim().toLowerCase();
+      const FULL_ACCESS_ROLES = new Set([
+        "admin", "super_admin", "super admin", "superadmin", "accounts",
+      ]);
+      const AGENT_ROLES = new Set([
+        "agent", "sales_consultant", "visa_executive", "holiday_consultant",
+      ]);
+      const MANAGER_ROLES = new Set([
+        "manager", "department_head", "team_lead",
+      ]);
+
+      if (AGENT_ROLES.has(userRole) && context.user?.id) {
+        mappedFilters.assignedTo = context.user.id;
+      }
+
+      let leads = await repository.findAll(mappedFilters);
+
+      if (MANAGER_ROLES.has(userRole) && context.user?.id) {
+        const agentCountry = await repository.findUserAgentCountry(context.user.id);
+        if (agentCountry) {
+          const normalized = normalizeCategory(agentCountry);
+          leads = leads.filter((lead) => {
+            const lc = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
+            return !lc || lc === normalized;
+          });
+        }
+      }
+
+      if (AGENT_ROLES.has(userRole) && context.user?.id) {
+        const agentCountry = await repository.findUserAgentCountry(context.user.id);
+        if (agentCountry) {
+          const normalized = normalizeCategory(agentCountry);
+          leads = leads.filter((lead) => {
+            const lc = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
+            return !lc || lc === normalized;
+          });
+        }
+      }
+
       return leads.map((lead) => withTemperature(lead));
     },
 

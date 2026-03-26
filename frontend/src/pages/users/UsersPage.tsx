@@ -292,9 +292,8 @@ const UserFormModal = ({
               value={formData.country}
               onChange={value => setFormData({ ...formData, country: value })}
               options={COUNTRY_OPTIONS}
+              placeholder='Select country'
               className='w-full'
-              hasError={!formData.country}
-              searchPlaceholder='Search country...'
             />
           </div>
           <div>

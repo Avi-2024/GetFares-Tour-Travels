@@ -24,6 +24,22 @@ function createAuthController({ service }) {
       const result = await service.getProfile(req.context.user.id);
       res.status(200).json({ data: result });
     },
+
+    async toggleActive(req, res) {
+      const active = req.body?.active;
+      if (typeof active !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "active must be a boolean value" });
+      }
+      const result = await service.toggleActive(req.context.user.id, active);
+      res.status(200).json({ data: result });
+    },
+
+    async logout(req, res) {
+      const result = await service.logout(req.context.user.id);
+      res.status(200).json({ data: result });
+    },
   });
 }
 
