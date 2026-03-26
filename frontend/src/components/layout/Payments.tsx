@@ -361,6 +361,12 @@ const mapPaymentToTransaction = (row: any): Transaction => {
       row?.invoice_url ??
       row?.invoiceDocument ??
       row?.invoice_document ??
+      row?.invoiceAttachment?.data ??
+      row?.invoiceAttachment?.content ??
+      row?.invoiceAttachment?.base64 ??
+      row?.invoice_attachment?.data ??
+      row?.invoice_attachment?.content ??
+      row?.invoice_attachment?.base64 ??
       row?.proofUrl ??
       row?.proof_url,
     notes: row?.notes,
@@ -1141,6 +1147,32 @@ const PaymentFormModal = ({
                 </p>
               )}
 
+              {currentInvoiceLink && !invoiceFile && (
+                <div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800'>
+                  <p className='font-medium'>Invoice PDF already uploaded.</p>
+                  <p className='text-xs text-amber-700'>
+                    Replace it with a new PDF?
+                  </p>
+                  <div className='mt-2 flex flex-wrap items-center gap-3'>
+                    <a
+                      href={currentInvoiceLink}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='text-xs font-semibold text-blue-600 hover:underline'
+                    >
+                      View current invoice
+                    </a>
+                    <button
+                      type='button'
+                      className='text-xs font-semibold text-amber-900 hover:underline'
+                      onClick={() => invoiceInputRef.current?.click()}
+                    >
+                      Upload new PDF
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className='flex flex-wrap items-center gap-3'>
                 <label
                   htmlFor='invoice-upload'
@@ -1156,16 +1188,6 @@ const PaymentFormModal = ({
                   className='hidden'
                   onChange={handleInvoiceFileChange}
                 />
-                {currentInvoiceLink && !invoiceFile && (
-                  <a
-                    href={currentInvoiceLink}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-sm font-semibold text-blue-600 hover:underline'
-                  >
-                    View current invoice
-                  </a>
-                )}
               </div>
 
               {invoiceUploadError && (
@@ -1237,6 +1259,20 @@ const DetailsModal = ({
       minute: '2-digit'
     })
   }
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false)
+  const invoiceLink = transaction.invoiceUrl ?? transaction.proofUrl
+  const invoicePreviewSrc = useMemo(() => {
+    if (!invoiceLink) return null
+    if (
+      invoiceLink.startsWith('http://') ||
+      invoiceLink.startsWith('https://') ||
+      invoiceLink.startsWith('data:') ||
+      invoiceLink.startsWith('blob:')
+    ) {
+      return invoiceLink
+    }
+    return `data:application/pdf;base64,${invoiceLink}`
+  }, [invoiceLink])
 
   return (
     <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
@@ -1370,6 +1406,18 @@ const DetailsModal = ({
                   </a>
                 </div>
               )}
+              {invoiceLink && (
+                <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
+                  <span className='text-sm text-gray-500'>Invoice PDF</span>
+                  <button
+                    type='button'
+                    onClick={() => setShowInvoicePreview(true)}
+                    className='text-sm text-blue-600 hover:underline'
+                  >
+                    View Invoice
+                  </button>
+                </div>
+              )}
               {transaction.notes && (
                 <div className='py-2'>
                   <span className='text-sm text-gray-500 block mb-1'>
@@ -1481,6 +1529,31 @@ const DetailsModal = ({
           </button>
         </div>
       </div>
+      {invoicePreviewSrc && showInvoicePreview && (
+        <div className='fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4'>
+          <div className='relative w-full max-w-3xl overflow-hidden rounded-xl bg-white shadow-xl'>
+            <div className='flex items-center justify-between border-b border-gray-200 px-4 py-3'>
+              <h4 className='text-sm font-semibold text-gray-900'>
+                Invoice Preview
+              </h4>
+              <button
+                type='button'
+                onClick={() => setShowInvoicePreview(false)}
+                className='text-gray-500 hover:text-gray-700'
+              >
+                <FaXmark />
+              </button>
+            </div>
+            <div className='h-[70vh] w-full'>
+              <iframe
+                title='Invoice PDF'
+                src={invoicePreviewSrc}
+                className='h-full w-full'
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1878,9 +1951,21 @@ const Payments: React.FC = () => {
     void fetchStats()
   }, [fetchStats, fetchTransactions])
 
-  const handleViewDetails = (tx: Transaction) => {
+  const handleViewDetails = async (tx: Transaction) => {
     setSelectedTransaction(tx)
     setShowDetails(true)
+    try {
+      const res = await paymentsApi.getById(tx.id)
+      const data = unwrapData<any>(res)
+      if (data) {
+        const fullTx = mapPaymentToTransaction(data)
+        setSelectedTransaction(current =>
+          current && current.id === tx.id ? { ...current, ...fullTx } : current
+        )
+      }
+    } catch (err) {
+      console.error('Failed to load payment details:', err)
+    }
   }
 
   const handleVerify = () => {
@@ -1941,6 +2026,16 @@ const Payments: React.FC = () => {
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.paidAt ?? data.date) || undefined
       })
+      let refreshedTx: Transaction | null = null
+      try {
+        const res = await paymentsApi.getById(data.id)
+        const payload = unwrapData<any>(res)
+        if (payload) {
+          refreshedTx = mapPaymentToTransaction(payload)
+        }
+      } catch (err) {
+        console.error('Failed to refresh payment after update:', err)
+      }
       setTransactions(prev =>
         prev.map(tx =>
           tx.id === data.id
@@ -1961,7 +2056,12 @@ const Payments: React.FC = () => {
                 gatewayPaymentId: data.gatewayPaymentId || tx.gatewayPaymentId,
                 gatewaySignature: data.gatewaySignature || tx.gatewaySignature,
                 proofUrl: data.proofUrl || tx.proofUrl,
-                invoiceUrl: tx.invoiceUrl,
+                invoiceUrl:
+                  refreshedTx?.invoiceUrl ||
+                  data?.invoiceAttachment?.data ||
+                  data?.invoiceAttachment?.content ||
+                  data?.invoiceAttachment?.base64 ||
+                  tx.invoiceUrl,
                 status: data.status as TxStatus,
                 notes: data.notes || tx.notes,
                 updatedAt: data.updatedAt
@@ -1969,9 +2069,15 @@ const Payments: React.FC = () => {
             : tx
         )
       )
+      if (refreshedTx) {
+        setSelectedTransaction(current =>
+          current && current.id === data.id ? { ...current, ...refreshedTx } : current
+        )
+      }
       setShowEditModal(false)
       setSelectedTransaction(null)
       showToast('Payment updated successfully', 'success')
+      await fetchTransactions()
       await fetchStats()
     } catch (err) {
       console.error('Failed to update payment:', err)
