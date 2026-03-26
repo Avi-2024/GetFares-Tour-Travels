@@ -15,6 +15,8 @@ type AuthUser = {
   email: string;
   role?: string;
   roleId?: string;
+  active?: boolean | null;
+  isActive?: boolean;
 };
 
 type AuthContextValue = {
@@ -41,6 +43,8 @@ type ProfileApiUser = {
   name?: string;
   role?: string;
   roleId?: string;
+  active?: boolean | null;
+  isActive?: boolean;
 };
 
 const normalizePermissionKey = (permission: string) =>
@@ -78,6 +82,8 @@ const normalizeAuthUser = (payload?: ProfileApiUser | null): AuthUser | null => 
     email: payload.email ?? "",
     role: payload.role,
     roleId: payload.roleId,
+    active: payload.active ?? null,
+    isActive: payload.isActive,
   };
 };
 

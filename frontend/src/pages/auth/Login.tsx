@@ -127,7 +127,9 @@ const Login = () => {
         name: userName,
         email: userEmail,
         role: userRole,
-        roleId: data.user.roleId
+        roleId: data.user.roleId,
+        active: data.user.active ?? null,
+        isActive: data.user.isActive
       })
       const isAdmin = String(userRole || '').toLowerCase() === 'admin'
       await refreshPermissions(data.accessToken)

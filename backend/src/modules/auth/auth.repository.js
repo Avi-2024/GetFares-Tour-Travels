@@ -1,4 +1,39 @@
 function createAuthRepository({ db, logger, schema }) {
+  const columnCache = new Map();
+
+  async function hasUsersColumn(columnName) {
+    if (typeof db?.query !== "function") {
+      return true;
+    }
+
+    const cacheKey = `${schema.usersTable}:${columnName}`;
+    if (columnCache.get(cacheKey) === true) {
+      return true;
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT 1
+           FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = $1
+            AND column_name = $2
+          LIMIT 1`,
+        [schema.usersTable, columnName],
+      );
+      const exists = result.rowCount > 0;
+      if (exists) {
+        columnCache.set(cacheKey, true);
+      } else {
+        columnCache.delete(cacheKey);
+      }
+      return exists;
+    } catch (_error) {
+      columnCache.delete(cacheKey);
+      return false;
+    }
+  }
+
   function toDomainUser(row, roleMeta = {}) {
     if (!row) {
       return null;
@@ -117,20 +152,31 @@ function createAuthRepository({ db, logger, schema }) {
       if (!userId) {
         return null;
       }
-      return db.update(schema.usersTable, userId, {
+      const payload = {
         last_login: new Date().toISOString(),
-        active: true,
-      });
+      };
+      if (await hasUsersColumn("active")) {
+        payload.active = true;
+      }
+      return db.update(schema.usersTable, userId, payload);
     },
 
     async setActiveStatus(userId, active) {
       if (!userId) {
         return null;
       }
-      const row = await db.update(schema.usersTable, userId, {
-        active: Boolean(active),
+      const payload = {
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (await hasUsersColumn("active")) {
+        payload.active = Boolean(active);
+      } else {
+        logger?.warn?.(
+          { userId, active },
+          "users.active column missing; skipping presence status update",
+        );
+      }
+      const row = await db.update(schema.usersTable, userId, payload);
       return attachRole(row);
     },
 
@@ -138,10 +184,13 @@ function createAuthRepository({ db, logger, schema }) {
       if (!userId) {
         return null;
       }
-      return db.update(schema.usersTable, userId, {
-        active: false,
+      const payload = {
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (await hasUsersColumn("active")) {
+        payload.active = false;
+      }
+      return db.update(schema.usersTable, userId, payload);
     },
   });
 }
