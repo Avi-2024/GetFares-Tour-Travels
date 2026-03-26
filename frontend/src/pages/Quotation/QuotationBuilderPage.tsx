@@ -196,6 +196,9 @@ const QuotationBuilderPage: React.FC = () => {
     markup: '',
     sellValue: ''
   })
+  const [serviceOverrides, setServiceOverrides] = useState<
+    Record<string, { sellValue?: string; paymentTerms?: string }>
+  >({})
   const previewRef = useRef<HTMLDivElement | null>(null)
 
   const selectedLead = useMemo(
@@ -457,7 +460,7 @@ const QuotationBuilderPage: React.FC = () => {
     if (!token) return
     setPackagesLoading(true)
     quotationsApi
-      .listPackages({ status: 'PUBLISHED', limit: 100 })
+      .listPackages({ status: 'ACTIVE', limit: 100 })
       .then((res: any) => {
         const list = res?.data?.data ?? res?.data ?? res ?? []
         setPackages(Array.isArray(list) ? list : [])
@@ -483,27 +486,21 @@ const QuotationBuilderPage: React.FC = () => {
     setForm(prev => ({
       ...prev,
       destination: pkg.destination || pkg.destinationName || prev.destination,
-      nights: pkg.nights ?? pkg.duration ?? prev.nights,
+      nights: pkg.duration ?? pkg.nights ?? prev.nights,
       inclusions: pkg.inclusions || prev.inclusions,
       exclusions: pkg.exclusions || prev.exclusions,
-      termsAndConditions: pkg.terms || pkg.termsAndConditions || prev.termsAndConditions,
-      paymentTerms: pkg.paymentTerms || prev.paymentTerms,
+      termsAndConditions: pkg.cancellationPolicy || prev.termsAndConditions,
+      paymentTerms: prev.paymentTerms,
       cancellationPolicy: pkg.cancellationPolicy || prev.cancellationPolicy,
-      priceValidity: pkg.priceValidity || prev.priceValidity,
+      priceValidity:
+        pkg.validTo ? pkg.validTo.slice(0, 10) : prev.priceValidity,
     }))
-    if (Array.isArray(pkg.services) && pkg.services.length > 0) {
-      setServiceCostRows(
-        pkg.services.map((svc: any, idx: number) => ({
-          id: `pkg-${idx}`,
-          type: svc.type || svc.itemType || 'OTHER',
-          description: svc.description || svc.name || '',
-          nights: svc.nights ?? 1,
-          costPerUnit: Number(svc.cost ?? svc.costPerUnit ?? 0),
-          markupPercent: Number(svc.markup ?? svc.markupPercent ?? 0),
-          markupAmount: 0,
-          sellValue: 0,
-        }))
-      )
+    if (pkg.baseCost) {
+      setCosts(prev => ({
+        ...prev,
+        supplierCost: String(pkg.baseCost),
+        markupPercent: pkg.markupPercent ?? prev.markupPercent,
+      }))
     }
   }
 
@@ -920,21 +917,24 @@ const QuotationBuilderPage: React.FC = () => {
       return
     }
 
-    if (!selectedServiceDefinitions.length) {
-      setSaveError('Select at least one service in Package Builder.')
-      return
-    }
-
     const supplier = Number(costs.supplierCost) || 0
     const serviceFee = Number(costs.serviceFee) || 0
     const components = [
-      ...serviceCostRows.map(row => ({
-        itemType: row.itemType,
-        description: `${row.label}${
-          form.destination ? ` - ${form.destination}` : ''
-        }`,
-        cost: row.baseCost
-      })),
+      ...serviceCostRows.map(row => {
+        const override = serviceOverrides[row.key] ?? {}
+        const effectiveSell =
+          override.sellValue !== undefined
+            ? Number(override.sellValue)
+            : row.sellValue
+        return {
+          itemType: row.itemType,
+          description: `${row.label}${
+            form.destination ? ` - ${form.destination}` : ''
+          }${override.paymentTerms ? ` (${override.paymentTerms})` : ''}`,
+          cost: row.baseCost,
+          sellValue: effectiveSell
+        }
+      }),
       ...(serviceFee
         ? [
             {
@@ -1256,62 +1256,6 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
 
-            <SurfaceCard>
-              <div className='mb-4 flex items-center justify-between'>
-                <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-                  Package Builder
-                </h2>
-                <span className='text-xs text-gray-500 dark:text-gray-400'>
-                  Select scope & services
-                </span>
-              </div>
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                <div>
-                  <label className='field-label'>Package Type</label>
-                  <SearchableDropdown
-                    value={packageType}
-                    options={packageTypeOptions}
-                    searchPlaceholder='Search package type...'
-                    onChange={setPackageType}
-                  />
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  {SERVICE_DEFINITIONS.map(service => (
-                    <button
-                      key={service.key}
-                      onClick={() =>
-                        setServices(prev => ({
-                          ...prev,
-                          [service.key]: !prev[service.key]
-                        }))
-                      }
-                      className={`px-3 py-2 text-xs rounded-lg border ${
-                        services[service.key]
-                          ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200'
-                          : 'bg-white border-gray-200 text-gray-600 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      {service.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mt-3'>
-                {selectedServiceDefinitions.map(definition => (
-                  <div
-                    key={definition.key}
-                    className='rounded-lg border border-gray-200 dark:border-gray-700 p-3'
-                  >
-                    <p className='text-xs uppercase text-gray-500 dark:text-gray-400 mb-1'>
-                      {definition.itemType}
-                    </p>
-                    <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                      {definition.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </SurfaceCard>
 
             <SurfaceCard>
               <div className='mb-3 flex items-center justify-between'>
@@ -1463,99 +1407,85 @@ const QuotationBuilderPage: React.FC = () => {
                       <th className='py-2 text-right'>Weight</th>
                       <th className='py-2 text-right'>Base Cost</th>
                       <th className='py-2 text-right'>Markup</th>
-                      <th className='py-2 text-right'>Sell Value</th>
+                      <th className='py-2 text-right'>
+                        Sell Value
+                        <span className='ml-1 text-[10px] font-normal text-violet-500'>(editable)</span>
+                      </th>
+                      <th className='py-2 text-right'>
+                        Payment Terms
+                        <span className='ml-1 text-[10px] font-normal text-violet-500'>(editable)</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {serviceCostRows.map(row => (
-                      <tr
-                        key={row.key}
-                        className='border-b border-gray-100 dark:border-gray-800'
-                      >
-                        <td className='py-2'>{row.label}</td>
-                        <td className='py-2 text-right'>
-                          <input
-                            type='number'
-                            min='0'
-                            step='0.1'
-                            value={row.weight}
-                            onChange={e => {
-                              const newWeight = Number(e.target.value) || 0
-                              setServices(prev => {
-                                const definitions = SERVICE_DEFINITIONS.filter(
-                                  def => prev[def.key]
-                                )
-                                const currentDef = definitions.find(
-                                  def => def.key === row.key
-                                )
-                                if (!currentDef) return prev
-                                
-                                // Update the weight in SERVICE_DEFINITIONS
-                                const defIndex = SERVICE_DEFINITIONS.findIndex(
-                                  def => def.key === row.key
-                                )
-                                if (defIndex !== -1) {
-                                  SERVICE_DEFINITIONS[defIndex].weight = newWeight
-                                }
-                                return { ...prev }
-                              })
-                            }}
-                            className='w-20 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                          />
-                          <span className='ml-1 text-gray-500'>%</span>
-                        </td>
-                        <td className='py-2 text-right'>
-                          <input
-                            type='number'
-                            min='0'
-                            step='0.01'
-                            value={row.baseCost}
-                            onChange={e => {
-                              const newBaseCost = Number(e.target.value) || 0
-                              const totalBaseCost = serviceCostRows.reduce(
-                                (sum, r) => sum + (r.key === row.key ? newBaseCost : r.baseCost),
-                                0
-                              )
-                              setCosts(prev => ({
-                                ...prev,
-                                supplierCost: totalBaseCost
-                              }))
-                            }}
-                            className='w-24 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                          />
-                        </td>
-                        <td className='py-2 text-right text-green-600'>
-                          <input
-                            type='number'
-                            min='0'
-                            step='0.1'
-                            value={row.markupPercent.toFixed(1)}
-                            onChange={e => {
-                              const newMarkup = Number(e.target.value) || 0
-                              setCosts(prev => ({
-                                ...prev,
-                                markupPercent: newMarkup
-                              }))
-                            }}
-                            className='w-16 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-green-600'
-                          />
-                          <span className='ml-1'>%</span>
-                          <span className='ml-1 text-[11px] text-green-500'>
-                            ({money(row.markupAmount)})
-                          </span>
-                        </td>
-                        <td className='py-2 text-right font-medium'>
-                          {money(row.sellValue)}
-                        </td>
-                      </tr>
-                    ))}
+                    {serviceCostRows.map(row => {
+                      const override = serviceOverrides[row.key] ?? {}
+                      const customSell = override.sellValue !== undefined
+                      return (
+                        <tr
+                          key={row.key}
+                          className='border-b border-gray-100 dark:border-gray-800'
+                        >
+                          <td className='py-2'>{row.label}</td>
+                          <td className='py-2 text-right text-gray-500'>
+                            {row.weight}%
+                          </td>
+                          <td className='py-2 text-right'>
+                            {money(row.baseCost)}
+                          </td>
+                          <td className='py-2 text-right text-green-600'>
+                            {row.markupPercent.toFixed(1)}%
+                            <span className='ml-1 text-[11px] text-green-500'>
+                              ({money(row.markupAmount)})
+                            </span>
+                          </td>
+                          <td className='py-2 text-right font-medium'>
+                            <input
+                              type='number'
+                              min='0'
+                              step='0.01'
+                              value={override.sellValue ?? String(row.sellValue)}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], sellValue: e.target.value }
+                                }))
+                              }
+                              className={`w-24 rounded border px-1.5 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100 ${
+                                customSell
+                                  ? 'border-violet-300 bg-violet-50 dark:border-violet-600 dark:bg-violet-900/20'
+                                  : 'border-gray-200 bg-transparent dark:border-gray-700'
+                              }`}
+                            />
+                          </td>
+                          <td className='py-2 text-right'>
+                            <input
+                              type='text'
+                              placeholder='e.g. 50% advance'
+                              value={override.paymentTerms ?? ''}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], paymentTerms: e.target.value }
+                                }))
+                              }
+                              className={`w-32 rounded border px-1.5 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100 ${
+                                override.paymentTerms
+                                  ? 'border-violet-300 bg-violet-50 dark:border-violet-600 dark:bg-violet-900/20'
+                                  : 'border-gray-200 bg-transparent dark:border-gray-700'
+                              }`}
+                            />
+                          </td>
+                        </tr>
+                      )
+                    })}
                     {!serviceCostRows.length ? (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className='py-3 text-center text-xs text-gray-500'
                         >
-                          Select at least one service in Package Builder.
+                          Enable services in the Cost &amp; Profit section to see the breakdown.
                         </td>
                       </tr>
                     ) : null}

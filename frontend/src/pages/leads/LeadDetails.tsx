@@ -270,7 +270,7 @@ const LeadDetails: React.FC = () => {
   }, [qualification])
 
   const isComplianceComplete =
-    compliance.calls >= REQUIRED_COMPLIANCE.calls &&
+    (isCallsDisabled || compliance.calls >= REQUIRED_COMPLIANCE.calls) &&
     compliance.whatsapp >= REQUIRED_COMPLIANCE.whatsapp &&
     compliance.finalReminders >= REQUIRED_COMPLIANCE.finalReminders
 
@@ -814,7 +814,7 @@ const LeadDetails: React.FC = () => {
             </p>
             <div className='mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300'>
               <div className='flex items-center justify-between gap-2'>
-                <p>
+                <p className={isCallsDisabled ? 'line-through text-gray-400 dark:text-gray-500' : ''}>
                   Calls: {compliance.calls} / {REQUIRED_COMPLIANCE.calls}
                 </p>
                 <div className='relative'>
@@ -832,12 +832,12 @@ const LeadDetails: React.FC = () => {
                         : 'bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-800'
                     }`}
                   >
-                    {isCallsDisabled ? 'Re-enable' : 'Disable'}
+                    {isCallsDisabled ? 'Re-enable Calls' : 'Disable Calls'}
                   </button>
                 </div>
               </div>
-              <p>
-                WhatsApp: {compliance.whatsapp} / {REQUIRED_COMPLIANCE.whatsapp}
+              <p className={isCallsDisabled ? 'font-medium text-green-700 dark:text-green-400' : ''}>
+                WhatsApp: {isCallsDisabled ? '∞' : `${compliance.whatsapp} / ${REQUIRED_COMPLIANCE.whatsapp}`}
               </p>
               <p>Final Reminder: {compliance.finalReminders} / 1</p>
               <p

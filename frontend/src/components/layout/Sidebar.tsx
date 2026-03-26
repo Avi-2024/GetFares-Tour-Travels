@@ -89,7 +89,7 @@ const sections = [
         icon: FaBoxOpen,
         permission: 'settings:read'
       },
-      { label: 'Documents', to: '#', icon: FaFolderOpen },
+      // { label: 'Documents', to: '#', icon: FaFolderOpen },
       {
         label: 'Complaints',
         to: '/complaints',
