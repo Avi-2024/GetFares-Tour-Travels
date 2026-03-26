@@ -664,11 +664,25 @@ const RefundsPage = () => {
 
   const paymentOptions = useMemo(
     () =>
-      payments.map(payment => ({
-        value: payment.id,
-        label: `${payment.referenceId} - $${payment.amount.toFixed(2)}`
-      })),
-    [payments]
+      payments.map(payment => {
+        const booking = payment.bookingId
+          ? bookingById.get(payment.bookingId)
+          : undefined
+        const customerName = booking?.customer || 'Unknown Customer'
+        const refLabel = payment.referenceId
+        const amountLabel = `$${payment.amount.toFixed(2)}`
+        return {
+          value: payment.id,
+          label: `${customerName} ${refLabel} ${amountLabel}`,
+          leftLabel: customerName,
+          rightLabel: refLabel,
+          rightSubLabel: amountLabel,
+          rightSubEmphasis: true,
+          selectedLabel: `${customerName} · ${refLabel} · ${amountLabel}`,
+          searchText: `${customerName} ${refLabel} ${amountLabel} ${payment.bookingId || ''}`
+        }
+      }),
+    [payments, bookingById]
   )
 
   const paymentsByBookingId = useMemo(() => {
