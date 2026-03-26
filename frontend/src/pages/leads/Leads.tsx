@@ -154,7 +154,7 @@ const Leads: React.FC = () => {
 
   return (
     <div className='space-y-4 sm:space-y-6 overflow-x-hidden'>
-      <div className='max-w-9xl mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0'>
+      <div className=' mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0'>
         <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
           <div className='flex flex-col gap-1'>
             <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
@@ -265,7 +265,7 @@ const Leads: React.FC = () => {
           ) : (
             <>
               <div className='hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll'>
-                <table className='min-w-[1320px] w-full'>
+                <table className='min-w-[920px] w-full'>
                   <thead className='bg-gray-50 dark:bg-gray-800/50'>
                     <tr>
                       <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
