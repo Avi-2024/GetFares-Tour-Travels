@@ -542,7 +542,7 @@ const ReportsHubPage = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Reports Hub</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -659,7 +659,7 @@ const ReportsHubPage = () => {
               </span>
             </div>
 
-            <div className="h-80">
+            <div className="h-64 sm:h-72 lg:h-80">
               {loading ? (
                 <div className="flex h-full items-center justify-center text-sm text-gray-500">
                   Loading {activeTabLabel}...
