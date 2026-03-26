@@ -212,8 +212,6 @@ const Header: React.FC<{
         </button>
         <button
           type='button'
-         
-          className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-2 py-2 text-xs font-semibold transition sm:gap-2 sm:px-3 sm:text-sm ${
           onClick={() => void handleToggleActive()}
           disabled={breakState.isBreak || togglingActive}
           title={
@@ -223,7 +221,7 @@ const Header: React.FC<{
               ? 'Click to go inactive'
               : 'Click to go active'
           }
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-2 py-2 text-xs font-semibold transition sm:gap-2 sm:px-3 sm:text-sm ${
             breakState.isBreak || !isActive
               ? 'border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
               : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200'
@@ -239,12 +237,11 @@ const Header: React.FC<{
             }`}
           />
           <span className='hidden sm:inline'>
-            {breakState.isBreak ? 'Away' : 'Active'}
+            {breakState.isBreak ? 'On break' : isActive ? 'Active' : 'Inactive'}
           </span>
           <span className='sm:hidden'>
-            {breakState.isBreak ? 'Away' : 'Active'}
+            {breakState.isBreak ? 'Away' : isActive ? 'On' : 'Off'}
           </span>
-          {breakState.isBreak ? 'Away' : isActive ? 'Active' : 'Inactive'}
         </button>
         <button
           onClick={toggle}

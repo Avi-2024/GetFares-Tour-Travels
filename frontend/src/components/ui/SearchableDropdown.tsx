@@ -8,6 +8,9 @@ export type DropdownOption = {
   searchText?: string
   leftLabel?: string
   rightLabel?: string
+  rightEmphasis?: boolean
+  rightSubLabel?: string
+  rightSubEmphasis?: boolean
 }
 
 type SearchableDropdownProps = {
@@ -144,15 +147,32 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                         <span className='truncate font-semibold'>
                           {item.leftLabel ?? item.label}
                         </span>
-                        <span
-                          className={`shrink-0 text-right text-xs font-normal ${
-                            isActive
-                              ? 'text-blue-600/80 dark:text-blue-300/80'
-                              : 'text-gray-500 dark:text-gray-400'
-                          }`}
-                        >
-                          {item.rightLabel}
-                        </span>
+                        <div className='shrink-0 text-right'>
+                          <span
+                            className={`block text-xs ${
+                              item.rightEmphasis
+                                ? 'font-semibold text-emerald-600 dark:text-emerald-400'
+                                : 'font-normal text-gray-700 dark:text-gray-300'
+                            } ${
+                              isActive
+                                ? 'text-blue-600/80 dark:text-blue-300/80'
+                                : ''
+                            }`}
+                          >
+                            {item.rightLabel}
+                          </span>
+                          {item.rightSubLabel ? (
+                            <span
+                              className={`block text-[12px] ${
+                                item.rightSubEmphasis
+                                  ? 'font-bold text-emerald-600 dark:text-emerald-400'
+                                  : 'font-normal text-gray-500 dark:text-gray-400'
+                              }`}
+                            >
+                              {item.rightSubLabel}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     ) : (
                       <span className={isActive ? 'font-semibold' : ''}>
