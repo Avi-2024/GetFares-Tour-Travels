@@ -1076,13 +1076,45 @@ function createBookingsService({ repository, logger, events, config }) {
         generatedAt: new Date().toISOString(),
       });
 
+      const outstandingAmount = Math.max(
+        Number(
+          (
+            toNumber(booking.totalAmount, 0) - toNumber(booking.advanceReceived, 0)
+          ).toFixed(2),
+        ),
+        0,
+      );
+
+      const linkedPayment =
+        outstandingAmount > 0
+          ? await repository.createPendingInvoicePayment({
+              bookingId: booking.id,
+              amount: outstandingAmount,
+              currency: booking.clientCurrency || "INR",
+              paymentMode: "BANK_TRANSFER",
+              paymentReference: created.invoiceNumber,
+              proofUrl: created.pdfUrl || null,
+            })
+          : null;
+
       events.emitInvoiceGenerated({
         bookingId: booking.id,
         invoiceId: created.id,
         invoiceNumber: created.invoiceNumber,
+        paymentId: linkedPayment?.id || null,
       });
 
-      return created;
+      return {
+        ...created,
+        linkedPayment: linkedPayment
+          ? {
+              id: linkedPayment.id,
+              amount: linkedPayment.amount,
+              status: linkedPayment.status,
+              isVerified: linkedPayment.isVerified,
+            }
+          : null,
+      };
     },
 
     async listInvoices(id, context = {}) {

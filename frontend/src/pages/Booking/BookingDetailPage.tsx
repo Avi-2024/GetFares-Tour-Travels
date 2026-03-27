@@ -2180,7 +2180,7 @@ const BookingDetailPage: React.FC = () => {
                                     <th className='py-1.5 pr-3'>Service</th>
                                     <th className='py-1.5 pr-3'>Description</th>
                                     <th className='py-1.5 text-right'>Cost</th>
-                                    <th className='py-1.5 text-right'>Sell Value</th>
+                                    {/* <th className='py-1.5 text-right'>Sell Value</th> */}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -2195,9 +2195,9 @@ const BookingDetailPage: React.FC = () => {
                                       <td className='py-1.5 text-right text-gray-800 dark:text-gray-200'>
                                         {comp.cost != null ? Number(comp.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
                                       </td>
-                                      <td className='py-1.5 text-right font-semibold text-gray-900 dark:text-gray-100'>
+                                      {/* <td className='py-1.5 text-right font-semibold text-gray-900 dark:text-gray-100'>
                                         {comp.sellValue != null ? Number(comp.sellValue ?? comp.sell_value ?? comp.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
-                                      </td>
+                                      </td> */}
                                     </tr>
                                   ))}
                                 </tbody>

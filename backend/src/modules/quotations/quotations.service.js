@@ -73,6 +73,101 @@ function addPdfTextSection(doc, title, value) {
   return true;
 }
 
+function normalizeText(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const text = String(value).trim();
+  return text || null;
+}
+
+function toWholeNumber(value, fallback = null) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.floor(parsed));
+}
+
+function buildDurationValue(nights, days) {
+  const safeNights = toWholeNumber(nights, null);
+  const safeDays = toWholeNumber(days, null);
+
+  if (safeNights !== null && safeDays !== null) {
+    return `${safeNights}N/${safeDays}D`;
+  }
+  if (safeNights !== null) {
+    return `${safeNights}N`;
+  }
+  if (safeDays !== null) {
+    return `${safeDays}D`;
+  }
+
+  return null;
+}
+
+function normalizeItineraryItems(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .map((item, index) => ({
+      id: normalizeText(item?.id) || `day-${index + 1}`,
+      day: normalizeText(item?.day) || `Day ${index + 1}`,
+      title: normalizeText(item?.title),
+      description: normalizeText(item?.description),
+    }))
+    .filter(
+      (item) => item.day || item.title || item.description,
+    );
+}
+
+function extractQuotationContentFields(builderSnapshot = null) {
+  const builder = isPlainObject(builderSnapshot) ? builderSnapshot : null;
+  const content = isPlainObject(builder?.content) ? builder.content : {};
+  const lead = isPlainObject(builder?.lead) ? builder.lead : {};
+  const packageDetails = isPlainObject(builder?.package) ? builder.package : {};
+  const itineraryItems = normalizeItineraryItems(builder?.itineraryItems);
+  const durationNights = toWholeNumber(
+    builder?.durationNights ?? builder?.nights,
+    null,
+  );
+  const durationDays = toWholeNumber(
+    builder?.durationDays,
+    itineraryItems.length || null,
+  );
+  const durationLabel =
+    normalizeText(builder?.durationLabel) ||
+    normalizeText(packageDetails?.duration) ||
+    buildDurationValue(durationNights, durationDays) ||
+    formatDurationLabel(null, durationNights);
+
+  return {
+    source_package_id: normalizeText(packageDetails?.id),
+    quotation_title:
+      normalizeText(builder?.quotationTitle) ||
+      normalizeText(packageDetails?.name ?? packageDetails?.title),
+    trip_destination:
+      normalizeText(builder?.destination) ||
+      normalizeText(lead.destination ?? lead.destinationName),
+    duration_nights: durationNights,
+    duration_days: durationDays,
+    duration_label: durationLabel || null,
+    travel_start_date:
+      toDateOnly(builder?.travelStartDate ?? lead.travelDate) || null,
+    itinerary: itineraryItems.length ? itineraryItems : null,
+    inclusions: normalizeText(content.inclusions),
+    exclusions: normalizeText(content.exclusions),
+    hotel_details: normalizeText(content.hotelDetails),
+    visa_details: normalizeText(content.visaDetails),
+    payment_terms: normalizeText(content.paymentTerms),
+    cancellation_policy: normalizeText(content.cancellationPolicy),
+  };
+}
+
 function addHours(date, hours) {
   const base = new Date(date);
   base.setHours(base.getHours() + Number(hours || 0));
@@ -339,6 +434,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       ? builder.supplierDetails
       : null;
     const packageDetails = isPlainObject(builder?.package) ? builder.package : null;
+    const quotationContent = extractQuotationContentFields(builderSnapshot);
 
     const snapshot = {
       id: source?.id ?? null,
@@ -354,8 +450,16 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         source?.headerBranding ??
         source?.header_branding ??
         null,
-      inclusions: content.inclusions ?? source?.inclusions ?? null,
-      exclusions: content.exclusions ?? source?.exclusions ?? null,
+      inclusions:
+        quotationContent.inclusions ??
+        content.inclusions ??
+        source?.inclusions ??
+        null,
+      exclusions:
+        quotationContent.exclusions ??
+        content.exclusions ??
+        source?.exclusions ??
+        null,
       paymentTerms:
         content.paymentTerms ??
         source?.paymentTerms ??
@@ -371,26 +475,50 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         source?.footerDisclaimer ??
         source?.footer_disclaimer ??
         null,
+      quotationTitle: quotationContent.quotation_title,
       quoteReference: builder?.quoteReference ?? null,
       versionLabel: builder?.versionLabel ?? null,
       customerName:
         builder?.customerName ?? lead.fullName ?? lead.name ?? null,
       customerEmail: builder?.customerEmail ?? lead.email ?? null,
       destination:
-        builder?.destination ?? lead.destination ?? lead.destinationName ?? null,
-      travelStartDate: builder?.travelStartDate ?? null,
+        quotationContent.trip_destination ??
+        builder?.destination ??
+        lead.destination ??
+        lead.destinationName ??
+        null,
+      travelStartDate:
+        quotationContent.travel_start_date ??
+        builder?.travelStartDate ??
+        null,
       travelEndDate: builder?.travelEndDate ?? null,
       nights: builder?.nights ?? null,
+      durationNights: quotationContent.duration_nights,
+      durationDays: quotationContent.duration_days,
+      durationLabel: quotationContent.duration_label,
       adults: builder?.adults ?? null,
       validUntil: builder?.validUntil ?? null,
       packageType: builder?.packageType ?? null,
       currency: builder?.currency ?? null,
       lead: builder ? lead : null,
+      sourcePackageId: quotationContent.source_package_id,
       supplierDetails,
       supplier: supplierDetails,
       package: packageDetails,
-      hotelDetails: content.hotelDetails ?? null,
-      visaDetails: content.visaDetails ?? null,
+      hotelDetails: quotationContent.hotel_details,
+      visaDetails: quotationContent.visa_details,
+      paymentTerms:
+        quotationContent.payment_terms ??
+        content.paymentTerms ??
+        source?.paymentTerms ??
+        source?.payment_terms ??
+        null,
+      cancellationPolicy:
+        quotationContent.cancellation_policy ??
+        content.cancellationPolicy ??
+        source?.cancellationPolicy ??
+        source?.cancellation_policy ??
+        null,
       enabledServices: Array.isArray(builder?.enabledServices)
         ? builder.enabledServices
         : [],
@@ -398,9 +526,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       addOnServices: Array.isArray(builder?.addOnServices)
         ? builder.addOnServices
         : [],
-      itineraryItems: Array.isArray(builder?.itineraryItems)
-        ? builder.itineraryItems
-        : [],
+      itineraryItems: quotationContent.itinerary || [],
       pricing: isPlainObject(builder?.pricing) ? builder.pricing : null,
       services: isPlainObject(builder?.services) ? builder.services : null,
       builderSnapshot: builder,
@@ -546,6 +672,12 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         templateSnapshot.lead || templateSnapshot.builderSnapshot?.lead || {};
       const packageSnapshot =
         templateSnapshot.package || templateSnapshot.builderSnapshot?.package || {};
+      const quotationTitle =
+        quotation.quotationTitle ||
+        templateSnapshot.quotationTitle ||
+        packageSnapshot.name ||
+        packageSnapshot.title ||
+        "-";
       const customerName =
         templateSnapshot.customerName ||
         snapshotLead.fullName ||
@@ -556,11 +688,13 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       const customerEmail =
         templateSnapshot.customerEmail || snapshotLead.email || lead.email || "-";
       const destinationName =
+        quotation.tripDestination ||
         quotation.destination?.name ||
         templateSnapshot.destination ||
         snapshotLead.destination ||
         "-";
-      const packageName = packageSnapshot.name || packageSnapshot.title || "-";
+      const packageName =
+        packageSnapshot.name || packageSnapshot.title || quotationTitle;
       const packageKind = String(
         packageSnapshot.kind ||
           packageSnapshot.packageKind ||
@@ -570,9 +704,18 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         .trim()
         .replace(/_/g, " ");
       const packageDuration =
-        formatDurationLabel(packageSnapshot.duration, templateSnapshot.nights) || "-";
+        quotation.durationLabel ||
+        templateSnapshot.durationLabel ||
+        formatDurationLabel(
+          packageSnapshot.duration,
+          quotation.durationNights ?? templateSnapshot.durationNights ?? templateSnapshot.nights,
+        ) ||
+        "-";
       const travelStartDate =
-        templateSnapshot.travelStartDate || snapshotLead.travelDate || "-";
+        quotation.travelStartDate ||
+        templateSnapshot.travelStartDate ||
+        snapshotLead.travelDate ||
+        "-";
       const travelEndDate = templateSnapshot.travelEndDate || "-";
       const validUntil = templateSnapshot.validUntil || quotation.expiresAt || "-";
       const adults = Math.max(0, Number(templateSnapshot.adults || 0));
@@ -601,7 +744,10 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       doc.moveDown();
 
       const packageLines = [
-        packageName !== "-" ? `Package: ${packageName}` : "",
+        quotationTitle !== "-" ? `Quotation Title: ${quotationTitle}` : "",
+        quotation.sourcePackageId && packageName && packageName !== quotationTitle
+          ? `Source Package: ${packageName}`
+          : "",
         packageKind ? `Package Type: ${packageKind}` : "",
         packageDuration !== "-" ? `Duration: ${packageDuration}` : "",
         adults > 0 ? `Travellers: ${adults} ${adults === 1 ? "adult" : "adults"}` : "",
@@ -611,7 +757,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       ].filter(Boolean);
 
       if (packageLines.length) {
-        doc.fontSize(13).text("Package Details", { underline: true });
+        doc.fontSize(13).text("Trip Details", { underline: true });
         doc.fontSize(11);
         packageLines.forEach((line) => doc.text(line));
         doc.moveDown();
@@ -640,8 +786,10 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       doc.text(`Final Price: INR ${Number(quotation.finalPrice || 0).toFixed(2)}`);
       doc.moveDown();
 
-      const itineraryItems = Array.isArray(templateSnapshot.itineraryItems)
-        ? templateSnapshot.itineraryItems
+      const itineraryItems = Array.isArray(quotation.itinerary)
+        ? quotation.itinerary
+        : Array.isArray(templateSnapshot.itineraryItems)
+          ? templateSnapshot.itineraryItems
         : [];
       if (itineraryItems.length) {
         doc.fontSize(13).text("Itinerary Snapshot", { underline: true });
@@ -660,15 +808,35 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         doc.moveDown();
       }
 
-      addPdfTextSection(doc, "Hotel Details", templateSnapshot.hotelDetails);
-      addPdfTextSection(doc, "Visa Details", templateSnapshot.visaDetails);
-      addPdfTextSection(doc, "Inclusions", templateSnapshot.inclusions);
-      addPdfTextSection(doc, "Exclusions", templateSnapshot.exclusions);
-      addPdfTextSection(doc, "Payment Terms", templateSnapshot.paymentTerms);
+      addPdfTextSection(
+        doc,
+        "Hotel Details",
+        quotation.hotelDetails ?? templateSnapshot.hotelDetails,
+      );
+      addPdfTextSection(
+        doc,
+        "Visa Details",
+        quotation.visaDetails ?? templateSnapshot.visaDetails,
+      );
+      addPdfTextSection(
+        doc,
+        "Inclusions",
+        quotation.inclusions ?? templateSnapshot.inclusions,
+      );
+      addPdfTextSection(
+        doc,
+        "Exclusions",
+        quotation.exclusions ?? templateSnapshot.exclusions,
+      );
+      addPdfTextSection(
+        doc,
+        "Payment Terms",
+        quotation.paymentTerms ?? templateSnapshot.paymentTerms,
+      );
       addPdfTextSection(
         doc,
         "Cancellation Policy",
-        templateSnapshot.cancellationPolicy,
+        quotation.cancellationPolicy ?? templateSnapshot.cancellationPolicy,
       );
 
       if (quotation.importantNotes) {
@@ -857,6 +1025,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
     const leadToQuoteMinutes = leadCreatedTs
       ? Math.max(0, Math.round((now.getTime() - leadCreatedTs) / (60 * 1000)))
       : null;
+    const quotationContent = extractQuotationContentFields(payload.builderSnapshot);
 
     const created = await repository.create({
       parent_quote_id: payload.parentQuoteId || null,
@@ -864,6 +1033,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       created_by: context.user.id,
       pricing_id: payload.pricingId || null,
       template_id: template?.id || payload.templateId || null,
+      ...quotationContent,
       template_snapshot: buildQuotationSnapshot(
         template,
         payload.builderSnapshot,
@@ -987,16 +1157,20 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         0,
     );
     const requiresApproval = pricing.marginPercent < minMarginPercent;
+    const nextBuilderSnapshot =
+      payload.builderSnapshot ??
+      current.templateSnapshot?.builderSnapshot ??
+      null;
+    const quotationContent = extractQuotationContentFields(nextBuilderSnapshot);
 
     const updated = await repository.update(id, {
       pricing_id:
         payload.pricingId !== undefined ? payload.pricingId : current.pricingId,
       template_id: nextTemplateId || null,
+      ...quotationContent,
       template_snapshot: buildQuotationSnapshot(
         template || current.templateSnapshot,
-        payload.builderSnapshot ??
-          current.templateSnapshot?.builderSnapshot ??
-          null,
+        nextBuilderSnapshot,
       ),
       total_cost: pricing.totalCost,
       margin_percent: pricing.marginPercent,

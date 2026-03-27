@@ -588,7 +588,7 @@ const ReportsHubPage = () => {
   }
 
   return (
-    <div className='mx-auto w-full max-w-9xl space-y-4 px-3 sm:space-y-6 sm:px-0'>
+    <div className='mx-auto w-full max-w-7xl space-y-4 px-4 sm:space-y-6 sm:px-6 lg:px-8'>
       {/* Mobile Header with Menu Toggle */}
       <div className='block sm:hidden'>
         <div className='flex items-center justify-between'>
@@ -671,7 +671,7 @@ const ReportsHubPage = () => {
       ) : null}
 
       {/* Executive KPI Section - Mobile Optimized */}
-      <SurfaceCard className='mx-auto w-full max-w-[1360px] overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/60 dark:from-gray-900 dark:via-gray-900 dark:to-blue-950/30'>
+      <SurfaceCard className='w-full overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/60 dark:from-gray-900 dark:via-gray-900 dark:to-blue-950/30'>
         <div className='flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-end lg:justify-between'>
           <div>
             <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100 sm:text-base'>
@@ -725,7 +725,7 @@ const ReportsHubPage = () => {
       </SurfaceCard>
 
       {/* Main Report Section */}
-      <SurfaceCard className='mx-auto w-full max-w-[1360px] space-y-3 overflow-hidden sm:space-y-5'>
+      <SurfaceCard className='w-full space-y-3 overflow-hidden sm:space-y-5'>
         <div className='rounded-xl border border-gray-200 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-900 p-3 text-white dark:border-gray-800 sm:rounded-2xl sm:p-4 md:p-5'>
           <div className='flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between'>
             <div className='max-w-3xl'>
@@ -809,7 +809,7 @@ const ReportsHubPage = () => {
         </div>
 
         {/* Chart and Guide Section */}
-        <div className='grid grid-cols-1 gap-3 p-2 sm:gap-4 md:gap-6 xl:grid-cols-[1.3fr_0.7fr]'>
+        <div className='grid grid-cols-1 gap-3 p-2 sm:gap-4 sm:p-4 md:gap-6 lg:grid-cols-[1.3fr_0.7fr]'>
           <div className='rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900 sm:rounded-2xl sm:p-3 md:p-4'>
             <div className='mb-2 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3'>
               <div>
@@ -1004,7 +1004,7 @@ const ReportsHubPage = () => {
       </SurfaceCard>
 
       {/* Data Table - Mobile Optimized */}
-      <SurfaceCard className='mx-auto w-full max-w-[1360px] overflow-hidden p-0'>
+      <SurfaceCard className='w-full overflow-hidden p-0'>
         <div className='border-b border-gray-100 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900 sm:px-4 sm:py-3 md:px-5 md:py-4'>
           <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100 sm:text-base'>
             {activeTabLabel} Table

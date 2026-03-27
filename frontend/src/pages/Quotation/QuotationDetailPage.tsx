@@ -313,7 +313,38 @@ const QuotationDetailPage: React.FC = () => {
     quotation?.approvedByUser ?? quotation?.relations?.approvedByUser ?? null
   const sentByUser =
     quotation?.sentByUser ?? quotation?.relations?.sentByUser ?? null
-  const contentTemplate = quotation?.templateSnapshot ?? template ?? null
+  const contentTemplate = {
+    ...(template ?? {}),
+    ...(quotation?.templateSnapshot ?? {}),
+    inclusions:
+      quotation?.inclusions ??
+      quotation?.templateSnapshot?.inclusions ??
+      template?.inclusions ??
+      null,
+    exclusions:
+      quotation?.exclusions ??
+      quotation?.templateSnapshot?.exclusions ??
+      template?.exclusions ??
+      null,
+    hotelDetails:
+      quotation?.hotelDetails ??
+      quotation?.templateSnapshot?.hotelDetails ??
+      null,
+    visaDetails:
+      quotation?.visaDetails ??
+      quotation?.templateSnapshot?.visaDetails ??
+      null,
+    paymentTerms:
+      quotation?.paymentTerms ??
+      quotation?.templateSnapshot?.paymentTerms ??
+      template?.paymentTerms ??
+      null,
+    cancellationPolicy:
+      quotation?.cancellationPolicy ??
+      quotation?.templateSnapshot?.cancellationPolicy ??
+      template?.cancellationPolicy ??
+      null
+  }
   const displayCustomerName =
     snapshot?.customerName ??
     snapshotLead?.fullName ??
@@ -323,7 +354,14 @@ const QuotationDetailPage: React.FC = () => {
   const displayCustomerEmail =
     snapshot?.customerEmail ?? snapshotLead?.email ?? lead?.email ?? 'N/A'
   const displayCustomerPhone = snapshotLead?.phone ?? lead?.phone ?? 'N/A'
+  const displayQuotationTitle =
+    quotation?.quotationTitle ??
+    snapshot?.quotationTitle ??
+    packageSnapshot?.name ??
+    packageSnapshot?.title ??
+    'N/A'
   const displayDestinationName =
+    quotation?.tripDestination ??
     snapshot?.destination ??
     destination?.name ??
     snapshotLead?.destination ??
@@ -331,23 +369,44 @@ const QuotationDetailPage: React.FC = () => {
     'N/A'
   const displayDestinationCountry = destination?.country || 'N/A'
   const displayPackageName =
-    packageSnapshot?.name ?? packageSnapshot?.title ?? 'N/A'
+    packageSnapshot?.name ?? packageSnapshot?.title ?? null
   const displayPackageKind = String(
-    packageSnapshot?.kind ?? packageSnapshot?.packageKind ?? ''
+    packageSnapshot?.kind ??
+      packageSnapshot?.packageKind ??
+      snapshot?.packageType ??
+      ''
   )
     .trim()
     .replace(/_/g, ' ')
   const displayDuration =
-    formatDurationLabel(packageSnapshot?.duration, toNumber(snapshot?.nights, 0)) ||
-    'N/A'
+    quotation?.durationLabel ??
+    snapshot?.durationLabel ??
+    (formatDurationLabel(
+      packageSnapshot?.duration,
+      toNumber(quotation?.durationNights ?? snapshot?.durationNights ?? snapshot?.nights, 0)
+    ) ||
+    'N/A')
   const displayTravellerSummary = pluralize(
     Math.max(0, toNumber(snapshot?.adults, 0)),
     'adult'
   )
   const displayTravelStartDate =
-    snapshot?.travelStartDate ?? lead?.travelDate ?? null
+    quotation?.travelStartDate ?? snapshot?.travelStartDate ?? lead?.travelDate ?? null
   const displayTravelEndDate = snapshot?.travelEndDate ?? null
   const displayValidUntil = snapshot?.validUntil ?? quotation?.expiresAt ?? null
+  const itineraryItems = useMemo(() => {
+    const raw = quotation?.itinerary ?? snapshot?.itineraryItems ?? []
+    if (!Array.isArray(raw)) return []
+
+    return raw
+      .map((item: any, index: number) => ({
+        id: String(item?.id ?? index),
+        day: String(item?.day ?? `Day ${index + 1}`),
+        title: String(item?.title ?? ''),
+        description: String(item?.description ?? '')
+      }))
+      .filter(item => item.day || item.title || item.description)
+  }, [quotation?.itinerary, snapshot?.itineraryItems])
 
   const noteSections = useMemo(() => {
     const raw = String(quotation?.importantNotes || '').trim()
@@ -858,13 +917,18 @@ const QuotationDetailPage: React.FC = () => {
 
             <div>
               <p className='text-xs uppercase tracking-wide text-gray-500'>
-                Package
+                Quotation Title
               </p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {displayPackageName}
+                {displayQuotationTitle}
               </p>
               <p className='text-xs text-gray-500'>
-                {displayPackageKind || 'Package details synced from quotation'}
+                {displayPackageName
+                  ? `Source Package: ${displayPackageName}`
+                  : 'Manually authored in quotation'}
+              </p>
+              <p className='text-xs text-gray-500'>
+                {displayPackageKind || 'Quotation-owned trip content'}
               </p>
             </div>
 
@@ -1041,7 +1105,8 @@ const QuotationDetailPage: React.FC = () => {
           </div>
         </SurfaceCard>
 
-        {noteSections.length ||
+        {itineraryItems.length ||
+        noteSections.length ||
         contentTemplate?.headerBranding ||
         contentTemplate?.hotelDetails ||
         contentTemplate?.visaDetails ||
@@ -1055,6 +1120,27 @@ const QuotationDetailPage: React.FC = () => {
               Quotation Content
             </h2>
             <div className='mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2'>
+              {itineraryItems.length ? (
+                <div className='rounded-lg border border-blue-200 bg-blue-50 p-3 lg:col-span-2'>
+                  <p className='text-xs font-semibold uppercase tracking-wide text-blue-700'>
+                    Itinerary Snapshot
+                  </p>
+                  <div className='mt-2 space-y-3'>
+                    {itineraryItems.map(item => (
+                      <div key={item.id} className='text-sm text-blue-900'>
+                        <p className='font-semibold'>
+                          {item.day}: {item.title || item.day}
+                        </p>
+                        {item.description ? (
+                          <p className='mt-1 whitespace-pre-wrap text-blue-900/90'>
+                            {item.description}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {contentTemplate?.headerBranding ? (
                 <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
                   <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
@@ -1392,3 +1478,4 @@ const QuotationDetailPage: React.FC = () => {
 }
 
 export default QuotationDetailPage
+

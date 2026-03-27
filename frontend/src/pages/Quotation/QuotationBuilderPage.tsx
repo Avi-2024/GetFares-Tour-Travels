@@ -154,6 +154,57 @@ function pluralize(value: number, singular: string, plural = `${singular}s`): st
   return `${value} ${value === 1 ? singular : plural}`
 }
 
+function parseDurationParts(duration: unknown): { nights: string; days: string } {
+  const text = String(duration ?? '')
+  const nights = text.match(/(\d+)\s*N/i)?.[1] ?? ''
+  const days = text.match(/(\d+)\s*D/i)?.[1] ?? ''
+  return { nights, days }
+}
+
+function parseDayCount(value: unknown): number {
+  const count = Number(value)
+  return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
+}
+
+function buildDurationValue(nights: unknown, days: unknown): string {
+  const safeNights = String(nights ?? '').trim()
+  const safeDays = String(days ?? '').trim()
+
+  if (safeNights && safeDays) return `${safeNights}N/${safeDays}D`
+  if (safeNights) return `${safeNights}N`
+  if (safeDays) return `${safeDays}D`
+  return ''
+}
+
+function getDayLabel(index: number): string {
+  return `Day ${index + 1}`
+}
+
+function buildItineraryRows(dayCount: number, existing: Item[] = []): Item[] {
+  return Array.from({ length: Math.max(0, dayCount) }, (_, index) => {
+    const current = existing[index]
+    return {
+      id: current?.id ?? `day-${index + 1}`,
+      day: getDayLabel(index),
+      title: current?.title ?? '',
+      description: current?.description ?? ''
+    }
+  })
+}
+
+function areItineraryRowsEqual(left: Item[], right: Item[]): boolean {
+  if (left.length !== right.length) return false
+  return left.every((item, index) => {
+    const next = right[index]
+    return (
+      item.id === next?.id &&
+      item.day === next?.day &&
+      item.title === next?.title &&
+      item.description === next?.description
+    )
+  })
+}
+
 const initialItinerary: Item[] = [
   {
     id: '1',
@@ -195,11 +246,13 @@ const QuotationBuilderPage: React.FC = () => {
   const [form, setForm] = useState({
     quote: '',
     version: 'Draft',
+    quotationTitle: '',
     customer: '',
     email: '',
     destination: '',
     startDate: '',
     nights: 1,
+    durationDays: '2',
     adults: 1,
     validUntil: '',
     inclusions: '',
@@ -213,7 +266,9 @@ const QuotationBuilderPage: React.FC = () => {
   })
   const [downloading, setDownloading] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
-  const [itineraryItems, setItineraryItems] = useState<Item[]>(initialItinerary)
+  const [itineraryItems, setItineraryItems] = useState<Item[]>(
+    buildItineraryRows(2, initialItinerary)
+  )
   const [showAddModal, setShowAddModal] = useState(false)
   const [showAddOnModal, setShowAddOnModal] = useState(false)
   const [newItem, setNewItem] = useState<{
@@ -598,14 +653,9 @@ const QuotationBuilderPage: React.FC = () => {
     [packages, selectedPackageId]
   )
 
-  const selectedPackageName = useMemo(
+  const sourcePackageName = useMemo(
     () => String(selectedPackage?.name ?? selectedPackage?.title ?? '').trim(),
     [selectedPackage]
-  )
-
-  const selectedPackageDuration = useMemo(
-    () => formatDurationLabel(selectedPackage?.duration, form.nights),
-    [form.nights, selectedPackage]
   )
 
   const selectedPackageKindLabel = useMemo(() => {
@@ -620,18 +670,11 @@ const QuotationBuilderPage: React.FC = () => {
     return raw ? raw.replace(/_/g, ' ') : ''
   }, [selectedPackage])
 
-  const selectedPackageDestination = useMemo(
-    () =>
-      String(
-        selectedPackage?.destination ??
-          selectedPackage?.destinationName ??
-          form.destination
-      ).trim(),
-    [form.destination, selectedPackage]
-  )
-
+  const quotationTitleDisplay =
+    form.quotationTitle.trim() || sourcePackageName || 'Manual Quotation'
   const previewDurationLabel =
-    selectedPackageDuration || formatDurationLabel('', form.nights)
+    buildDurationValue(form.nights, form.durationDays) ||
+    formatDurationLabel('', form.nights)
   const travellerLabel = pluralize(Math.max(0, Number(form.adults) || 0), 'adult')
 
   const loadFromPackage = async (packageId: string) => {
@@ -703,6 +746,7 @@ const QuotationBuilderPage: React.FC = () => {
     }
 
     const itin = pkg.itinerary
+    let parsedItineraryItems: Item[] = []
     if (
       itin &&
       typeof itin === 'object' &&
@@ -720,30 +764,37 @@ const QuotationBuilderPage: React.FC = () => {
           .split(/\n\s*\n+/)
           .map(s => s.trim())
           .filter(Boolean)
-        setItineraryItems(
-          chunks.map((chunk, i) => {
-            const lines = chunk.split('\n')
-            const first = (lines[0] ?? '').trim()
-            const rest = lines.slice(1).join('\n').trim()
-            return {
-              id: `it-${i}`,
-              day: `Day ${i + 1}`,
-              title: first || `Day ${i + 1}`,
-              description: rest
-            }
-          })
-        )
+        parsedItineraryItems = chunks.map((chunk, i) => {
+          const lines = chunk.split('\n')
+          const first = (lines[0] ?? '').trim()
+          const rest = lines.slice(1).join('\n').trim()
+          return {
+            id: `it-${i}`,
+            day: getDayLabel(i),
+            title: first || getDayLabel(i),
+            description: rest
+          }
+        })
       }
     } else if (Array.isArray(itin) && itin.length > 0) {
-      setItineraryItems(
-        itin.map((row: any, i: number) => ({
-          id: String(row?.id ?? `it-${i}`),
-          day: String(row?.day ?? row?.dayLabel ?? `Day ${i + 1}`),
-          title: String(row?.title ?? row?.heading ?? ''),
-          description: String(row?.description ?? row?.details ?? '')
-        }))
-      )
+      parsedItineraryItems = itin.map((row: any, i: number) => ({
+        id: String(row?.id ?? `it-${i}`),
+        day: getDayLabel(i),
+        title: String(row?.title ?? row?.heading ?? ''),
+        description: String(row?.description ?? row?.details ?? '')
+      }))
     }
+
+    const durationParts = parseDurationParts(pkg.duration)
+    const derivedNights =
+      durationParts.nights || String(parseNightsFromDuration(pkg.duration, form.nights))
+    const derivedDays =
+      durationParts.days ||
+      (parsedItineraryItems.length > 0 ? String(parsedItineraryItems.length) : '')
+    const itineraryDayCount =
+      parseDayCount(derivedDays) ||
+      (parsedItineraryItems.length > 0 ? parsedItineraryItems.length : 0)
+    setItineraryItems(buildItineraryRows(itineraryDayCount, parsedItineraryItems))
 
     setForm(prev => {
       const vf = pkg!.validTo ?? pkg!.valid_to
@@ -751,10 +802,13 @@ const QuotationBuilderPage: React.FC = () => {
         vf != null && String(vf).length >= 10 ? String(vf).slice(0, 10) : ''
       return {
         ...prev,
+        quotationTitle: String(pkg!.name ?? pkg!.title ?? prev.quotationTitle),
         destination: String(
           pkg!.destination ?? pkg!.destinationName ?? prev.destination
         ),
-        nights: parseNightsFromDuration(pkg!.duration, prev.nights),
+        nights: Number(derivedNights || prev.nights || 1),
+        durationDays:
+          derivedDays || prev.durationDays || String(parsedItineraryItems.length || 0),
         inclusions: String(pkg!.inclusions ?? prev.inclusions),
         exclusions: String(pkg!.exclusions ?? prev.exclusions),
         paymentTerms: String(
@@ -837,6 +891,14 @@ const QuotationBuilderPage: React.FC = () => {
       adults: Number(selectedLead.adultsCount || prev.adults || 1)
     }))
   }, [selectedLead, destinationMap, form.destination])
+
+  useEffect(() => {
+    const dayCount = parseDayCount(form.durationDays)
+    setItineraryItems(prev => {
+      const next = buildItineraryRows(dayCount, prev)
+      return areItineraryRowsEqual(prev, next) ? prev : next
+    })
+  }, [form.durationDays])
 
   const addOnTotal = useMemo(
     () =>
@@ -1190,14 +1252,16 @@ const QuotationBuilderPage: React.FC = () => {
     const sections = [
       `Trip Summary:\nQuote Reference: ${
         form.quote || 'N/A'
+      }\nQuotation Title: ${
+        quotationTitleDisplay || 'N/A'
       }\nVersion: ${form.version || 'N/A'}\nDestination: ${
         form.destination || 'N/A'
       }\nTravel Date: ${form.startDate || 'N/A'}\nNights: ${
         form.nights
-      }${
-        selectedPackageDuration ? `\nDuration: ${selectedPackageDuration}` : ''
+      }\nDays: ${form.durationDays || 'N/A'}\nDuration: ${
+        previewDurationLabel || 'N/A'
       }\nAdults: ${form.adults}\nPackage Type: ${packageType}${
-        selectedPackageName ? `\nSelected Package: ${selectedPackageName}` : ''
+        sourcePackageName ? `\nSelected Package: ${sourcePackageName}` : ''
       }${supplierName ? `\nSupplier: ${supplierName}` : ''}`,
       enabledServices ? `Enabled Services:\n${enabledServices}` : '',
       itinerarySummary ? `Itinerary:\n${itinerarySummary}` : '',
@@ -1231,6 +1295,7 @@ const QuotationBuilderPage: React.FC = () => {
     return {
       quoteReference: form.quote.trim() || null,
       versionLabel: form.version.trim() || null,
+      quotationTitle: form.quotationTitle.trim() || null,
       lead: {
         id: selectedLeadId || null,
         fullName: form.customer.trim() || selectedLead?.fullName || null,
@@ -1250,6 +1315,9 @@ const QuotationBuilderPage: React.FC = () => {
       travelStartDate: form.startDate || null,
       travelEndDate,
       nights: Number(form.nights) || 0,
+      durationNights: Number(form.nights) || 0,
+      durationDays: parseDayCount(form.durationDays) || 0,
+      durationLabel: previewDurationLabel || null,
       adults: Number(form.adults) || 0,
       validUntil: form.validUntil || null,
       packageType,
@@ -1257,9 +1325,9 @@ const QuotationBuilderPage: React.FC = () => {
       package: selectedPackageId
         ? {
             id: selectedPackageId,
-            name: selectedPackageName || null,
-            duration: selectedPackageDuration || null,
-            destination: selectedPackageDestination || null,
+            name: sourcePackageName || null,
+            duration: previewDurationLabel || null,
+            destination: form.destination.trim() || null,
             validFrom:
               String(
                 selectedPackage?.validFrom ?? selectedPackage?.valid_from ?? ''
@@ -1368,7 +1436,9 @@ const QuotationBuilderPage: React.FC = () => {
         customer: form.customer || 'Unnamed Customer',
         email: form.email || 'New Lead',
         destination: form.destination || 'Destination',
-        details: `${previewDurationLabel || `${form.nights} nights`} - ${packageType}`,
+        details: [quotationTitleDisplay, previewDurationLabel || `${form.nights} nights`]
+          .filter(Boolean)
+          .join(' • '),
         total: computed.totalPrice,
         margin: Number(computed.margin.toFixed(1)),
         status: 'pending',
@@ -1650,7 +1720,10 @@ const QuotationBuilderPage: React.FC = () => {
                     Load from package (Ready or Customized)
                   </label>
                   <p className='mb-2 text-[11px] text-green-600 dark:text-green-400'>
-                    Select a catalog package to prefill destination, validity, inclusions, exclusions, hotel & visa notes, payment terms, itinerary, and pricing. Customized packages also load editable service lines.
+                    Select a catalog package to prefill the quotation. After
+                    loading, you can edit the title, duration, itinerary, and
+                    content here without changing the source package. Customized
+                    packages also load editable service lines.
                   </p>
                   <SearchableDropdown
                     value={selectedPackageId}
@@ -1667,6 +1740,11 @@ const QuotationBuilderPage: React.FC = () => {
                   ) : null}
                 </div>
 
+                <Field
+                  label='Quotation / Package Title'
+                  value={form.quotationTitle}
+                  onChange={v => setForm(p => ({ ...p, quotationTitle: v }))}
+                />
                 <Field
                   label='Customer'
                   value={form.customer}
@@ -1710,18 +1788,39 @@ const QuotationBuilderPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className='field-label'>Nights</label>
-                  <input
-                    type='number'
-                    className='field-input'
-                    value={form.nights}
-                    onChange={e =>
-                      setForm(p => ({
-                        ...p,
-                        nights: Number(e.target.value || 1)
-                      }))
-                    }
-                  />
+                  <label className='field-label'>Duration</label>
+                  <div className='grid grid-cols-2 gap-2'>
+                    <input
+                      type='number'
+                      min='0'
+                      className='field-input'
+                      placeholder='Nights'
+                      value={form.nights}
+                      onChange={e =>
+                        setForm(p => ({
+                          ...p,
+                          nights: Number(e.target.value || 0)
+                        }))
+                      }
+                    />
+                    <input
+                      type='number'
+                      min='1'
+                      className='field-input'
+                      placeholder='Days'
+                      value={form.durationDays}
+                      onChange={e =>
+                        setForm(p => ({
+                          ...p,
+                          durationDays: e.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <p className='mt-1 text-xs text-gray-500'>
+                    Duration saves with the quotation itself as{' '}
+                    {previewDurationLabel || '0N/0D'}.
+                  </p>
                 </div>
                 <div>
                   <label className='field-label'>Adults</label>
@@ -1804,35 +1903,67 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
             <SurfaceCard>
-              <div className='mb-4 flex items-center justify-between'>
+              <div className='mb-4'>
                 <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
                   Itinerary Items
                 </h2>
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className='rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300'
-                >
-                  <FaPlus className='mr-1 inline' /> Add Item
-                </button>
+                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                  Day fields are created automatically from the quotation
+                  `Days` value.
+                </p>
               </div>
-              <div className='space-y-3'>
-                {itineraryItems.map(i => (
-                  <div
-                    key={i.id}
-                    className='rounded-xl border border-gray-200 p-3 dark:border-gray-700'
-                  >
-                    <div className='mb-1 flex items-center gap-2'>
-                      <span className='rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700'>
-                        {i.day}
-                      </span>
-                      <h3 className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                        {i.title}
-                      </h3>
+              {parseDayCount(form.durationDays) <= 0 ? (
+                <div className='rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-3 py-4 text-sm text-gray-500 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-gray-400'>
+                  Enter the total `Days` in duration to generate itinerary
+                  fields.
+                </div>
+              ) : (
+                <div className='space-y-3'>
+                  {itineraryItems.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className='rounded-xl border border-blue-100 bg-blue-50/30 p-3 dark:border-blue-900/40 dark:bg-blue-900/10'
+                    >
+                      <div className='mb-3 flex items-center gap-2'>
+                        <span className='rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200'>
+                          {getDayLabel(index)}
+                        </span>
+                        <input
+                          className='field-input'
+                          placeholder='Title (Arrival, Sightseeing, Leisure...)'
+                          value={item.title}
+                          onChange={event => {
+                            const nextValue = event.target.value
+                            setItineraryItems(prev =>
+                              prev.map((row, rowIndex) =>
+                                rowIndex === index
+                                  ? { ...row, title: nextValue }
+                                  : row
+                              )
+                            )
+                          }}
+                        />
+                      </div>
+                      <textarea
+                        className='field-input'
+                        rows={4}
+                        placeholder='Add the plan for this day...'
+                        value={item.description}
+                        onChange={event => {
+                          const nextValue = event.target.value
+                          setItineraryItems(prev =>
+                            prev.map((row, rowIndex) =>
+                              rowIndex === index
+                                ? { ...row, description: nextValue }
+                                : row
+                            )
+                          )
+                        }}
+                      />
                     </div>
-                    <p className='text-xs text-gray-500'>{i.description}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </SurfaceCard>
             <SurfaceCard>
               <div className='mb-3 flex items-start justify-between gap-3'>
@@ -2489,9 +2620,9 @@ const QuotationBuilderPage: React.FC = () => {
                       </span>
                     </p>
                     <p>
-                      Package:{' '}
+                      Title:{' '}
                       <span className='font-semibold text-gray-700'>
-                        {selectedPackageName || 'Manual Quotation'}
+                        {quotationTitleDisplay}
                       </span>
                     </p>
                     <p className='text-right'>
@@ -2529,7 +2660,7 @@ const QuotationBuilderPage: React.FC = () => {
                         </p>
                       </div>
                       <div className='text-right text-xs text-gray-500'>
-                        <p>{selectedPackageDestination || 'Destination'}</p>
+                        <p>{form.destination || 'Destination'}</p>
                         <p>Duration: {previewDurationLabel || 'N/A'}</p>
                         <p>
                           Travellers: {travellerLabel}
@@ -2552,21 +2683,18 @@ const QuotationBuilderPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {selectedPackageName ||
-                  selectedPackageDuration ||
+                  {quotationTitleDisplay ||
                   selectedPackageKindLabel ? (
                     <div className='mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3'>
                       <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700'>
-                        Package Snapshot
+                        Trip Snapshot
                       </p>
                       <div className='grid grid-cols-1 gap-2 text-xs text-blue-900 sm:grid-cols-3'>
                         <div>
                           <p className='font-semibold uppercase tracking-wide text-blue-600'>
-                            Package
+                            Title
                           </p>
-                          <p className='mt-1'>
-                            {selectedPackageName || 'Manual Quotation'}
-                          </p>
+                          <p className='mt-1'>{quotationTitleDisplay}</p>
                         </div>
                         <div>
                           <p className='font-semibold uppercase tracking-wide text-blue-600'>
@@ -2579,10 +2707,16 @@ const QuotationBuilderPage: React.FC = () => {
                             Type
                           </p>
                           <p className='mt-1'>
-                            {selectedPackageKindLabel || packageType}
+                            {selectedPackageKindLabel ||
+                              (sourcePackageName ? 'Package Copy' : packageType)}
                           </p>
                         </div>
                       </div>
+                      {sourcePackageName ? (
+                        <p className='mt-2 text-[11px] text-blue-700'>
+                          Source package: {sourcePackageName}
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
 

@@ -24,10 +24,13 @@ type Status = "pending" | "accepted" | "expired" | "rejected" | "draft";
 interface Quotation {
   id: string;
   leadId?: string | null;
+  sourcePackageId?: string | null;
   quoteNumber: string;
   customer: string;
   email: string;
   phone?: string | null;
+  quotationTitle?: string | null;
+  durationLabel?: string | null;
   destination: string;
   details: string;
   total: number;
@@ -166,6 +169,18 @@ const QuotationsPage: React.FC = () => {
                   "Unknown Destination";
                 const templateData = q.template || q.relations?.template || null;
                 const templateSnapshot = q.templateSnapshot || q.template_snapshot || null;
+                const quotationTitle =
+                  q.quotationTitle ||
+                  q.quotation_title ||
+                  templateSnapshot?.quotationTitle ||
+                  templateSnapshot?.package?.name ||
+                  null;
+                const durationLabel =
+                  q.durationLabel ||
+                  q.duration_label ||
+                  templateSnapshot?.durationLabel ||
+                  templateSnapshot?.package?.duration ||
+                  null;
                 const templateName =
                   templateData?.name || templateSnapshot?.name || null;
                 const templateCode =
@@ -183,13 +198,29 @@ const QuotationsPage: React.FC = () => {
                 return {
                   id: q.id || Math.random().toString(),
                   leadId,
+                  sourcePackageId: q.sourcePackageId || q.source_package_id || null,
                   quoteNumber: q.quoteNumber || q.quote_number || 'N/A',
                   customer: customerName,
                   email: customerEmail,
                   phone: customerPhone,
-                  destination: destinationName,
-                  details: q.details || q.description || templateSnapshot?.description || 
-                          (leadData ? `${leadData.adultsCount || 0} Adults${leadData.childrenCount ? `, ${leadData.childrenCount} Children` : ''} - ${leadData.travelPurpose || 'Travel'}` : 'No details'),
+                  quotationTitle,
+                  durationLabel,
+                  destination:
+                    q.tripDestination ||
+                    q.trip_destination ||
+                    destinationName,
+                  details:
+                    [quotationTitle, durationLabel].filter(Boolean).join(' • ') ||
+                    q.details ||
+                    q.description ||
+                    templateSnapshot?.description ||
+                    (leadData
+                      ? `${leadData.adultsCount || 0} Adults${
+                          leadData.childrenCount
+                            ? `, ${leadData.childrenCount} Children`
+                            : ''
+                        } - ${leadData.travelPurpose || 'Travel'}`
+                      : 'No details'),
                   total: Number(q.totalSaleValue || q.finalPrice || q.total || q.amount || 0),
                   margin: Number(q.marginPercent || q.margin || 0),
                   status: mapApiStatusToUi(q.status),

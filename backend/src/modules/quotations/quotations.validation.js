@@ -114,6 +114,12 @@ const list = z.object({
       status: quotationStatus.optional(),
       leadId: z.string().uuid().optional(),
       createdBy: z.string().uuid().optional(),
+      sourcePackageId: z.string().uuid().optional(),
+      quotationTitle: z.string().max(200).optional(),
+      tripDestination: z.string().max(200).optional(),
+      durationNights: z.coerce.number().int().min(0).optional(),
+      durationDays: z.coerce.number().int().min(1).optional(),
+      travelStartDate: z.string().date().optional(),
       includeItems: z.coerce.boolean().optional(),
       availableForBooking: z.coerce.boolean().optional(),
     })
@@ -238,6 +244,12 @@ const leadToQuoteReport = z.object({
       from: z.string().optional(),
       to: z.string().optional(),
       createdBy: z.string().uuid().optional(),
+      sourcePackageId: z.string().uuid().optional(),
+      quotationTitle: z.string().max(200).optional(),
+      tripDestination: z.string().max(200).optional(),
+      durationNights: z.coerce.number().int().min(0).optional(),
+      durationDays: z.coerce.number().int().min(1).optional(),
+      travelStartDate: z.string().date().optional(),
     })
     .optional(),
 });
