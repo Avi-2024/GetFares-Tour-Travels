@@ -122,12 +122,32 @@ const QuotationTemplatesPage: React.FC = () => {
   }, [notice])
 
   const filtered = useMemo(
-    () =>
-      rows.filter(row =>
-        `${row.code} ${row.name} ${row.templateType}`
+    () => {
+      const query = search.trim().toLowerCase()
+      if (!query) return rows
+      return rows.filter(row => {
+        const updatedAtText = row.updatedAt
+          ? new Date(row.updatedAt).toLocaleDateString()
+          : ''
+        const updatedAtIso = row.updatedAt
+          ? new Date(row.updatedAt).toISOString().split('T')[0]
+          : ''
+        const haystack = [
+          row.code,
+          row.name,
+          row.templateType,
+          row.isActive ? 'active' : 'inactive',
+          row.isActive ? 'approved' : 'draft',
+          String(row.minMarginPercent ?? ''),
+          updatedAtText,
+          updatedAtIso
+        ]
+          .filter(Boolean)
+          .join(' ')
           .toLowerCase()
-          .includes(search.toLowerCase())
-      ),
+        return haystack.includes(query)
+      })
+    },
     [rows, search]
   )
 

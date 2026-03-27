@@ -860,14 +860,48 @@ const UsersPage: React.FC = () => {
     setShowDeleteModal(true)
   }
 
-  const filteredUsers = users.filter(
-    user =>
-      user.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      user.email.toLowerCase().includes(search.toLowerCase()) ||
-      getRoleLabel(user.role, user.roleId, roleLabelMap)
-        .toLowerCase()
-        .includes(search.toLowerCase())
-  )
+
+  const filteredUsers = users.filter(user => {
+    const query = search.trim().toLowerCase()
+    const roleLabel = getRoleLabel(
+      user.role,
+      user.roleId,
+      roleLabelMap
+    ).toLowerCase()
+    const statusLabel = user.isActive ? 'active' : 'inactive'
+    const fullName = user.fullName?.toLowerCase() || ''
+    const email = user.email?.toLowerCase() || ''
+    const phone = user.phone?.toLowerCase() || ''
+    const id = user.id?.toLowerCase() || ''
+
+    const isStatusQuery = query === 'active' || query === 'inactive'
+    const matchesStatusQuery =
+      !query ||
+      (query === 'active' && user.isActive) ||
+      (query === 'inactive' && !user.isActive)
+
+    const matchesSearch = !query
+      ? true
+      : isStatusQuery
+      ? matchesStatusQuery
+      : fullName.includes(query) ||
+        email.includes(query) ||
+        phone.includes(query) ||
+        roleLabel.includes(query) ||
+        statusLabel.includes(query) ||
+        id.includes(query)
+
+    const matchesRole =
+      mobileRoleFilter === 'all' ||
+      user.roleId === mobileRoleFilter ||
+      user.role === mobileRoleFilter
+    const matchesStatus =
+      mobileStatusFilter === 'all' ||
+      (mobileStatusFilter === 'active' && user.isActive) ||
+      (mobileStatusFilter === 'inactive' && !user.isActive)
+
+    return matchesSearch && matchesRole && matchesStatus
+  })
 
   const exportCurrentTable = () => {
     if (!filteredUsers.length) return
@@ -1039,7 +1073,7 @@ const UsersPage: React.FC = () => {
         {/* Search and Filter - Mobile */}
         <div className='flex flex-col gap-3 sm:hidden mb-4'>
           <div className='flex items-center gap-2'>
-            <div className='flex-1 relative'>
+<div className='flex-1 relative'>
               <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm' />
               <input
                 type='text'
@@ -1060,7 +1094,6 @@ const UsersPage: React.FC = () => {
               <FaFilter />
             </button>
           </div>
-
           {/* Mobile Filter Panel */}
           {showMobileFilters && (
             <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4'>
@@ -1107,18 +1140,19 @@ const UsersPage: React.FC = () => {
 
         {/* Search - Desktop */}
         <div className='hidden sm:block mb-6'>
-          <div className='relative max-w-md'>
-            <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm' />
-            <input
-              type='text'
-              placeholder='Search users by name, email, or role...'
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className='w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500'
-            />
+          <div className='flex items-center gap-3 max-w-2xl'>
+            <div className='relative flex-1'>
+              <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm' />
+              <input
+                type='text'
+                placeholder='Search users...'
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className='w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500'
+              />
+            </div>
           </div>
         </div>
-
         {/* Users Table - Desktop */}
         <div className='hidden sm:block bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden'>
           <div className='overflow-x-auto'>

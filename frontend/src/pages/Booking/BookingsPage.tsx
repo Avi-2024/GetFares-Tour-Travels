@@ -41,6 +41,9 @@ interface Booking {
   id: string
   bookingId: string
   customer: string
+  email?: string
+  phone?: string
+  consultant?: string
   destination: string
   dates: string
   startDate?: string
@@ -1720,6 +1723,16 @@ const BookingsPage: React.FC = () => {
       ? lookups?.destinationById?.[destinationId]
       : undefined
 
+    const leadEmail =
+      lead?.email ?? lead?.primaryEmail ?? lead?.contactEmail ?? ''
+    const leadPhone =
+      lead?.phone ?? lead?.mobile ?? lead?.whatsapp ?? ''
+    const consultantName =
+      lead?.assignedUser?.fullName ??
+      lead?.consultantName ??
+      lead?.consultant ??
+      ''
+
     return {
       id: String(b.id ?? idx),
       bookingId: b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
@@ -1730,6 +1743,19 @@ const BookingsPage: React.FC = () => {
         lead?.fullName ??
         lead?.name ??
         'Unknown',
+      email:
+        b.email ??
+        b.customerEmail ??
+        b.clientEmail ??
+        leadEmail ??
+        '',
+      phone:
+        b.phone ??
+        b.customerPhone ??
+        b.clientPhone ??
+        leadPhone ??
+        '',
+      consultant: consultantName,
       destination:
         b.destination ??
         b.tripDestination ??
@@ -2117,10 +2143,29 @@ const BookingsPage: React.FC = () => {
     return bookingItems.filter(booking => {
       const statusMatch =
         statusFilter === 'all' || booking.status === statusFilter
-      const searchMatch =
-        booking.bookingId.toLowerCase().includes(search.toLowerCase()) ||
-        booking.customer.toLowerCase().includes(search.toLowerCase()) ||
-        booking.destination.toLowerCase().includes(search.toLowerCase())
+      const query = search.toLowerCase().trim()
+      if (!query) return statusMatch
+      const createdAtText = booking.createdAt
+        ? new Date(booking.createdAt).toLocaleDateString()
+        : ''
+      const createdAtIso = booking.createdAt
+        ? new Date(booking.createdAt).toISOString().split('T')[0]
+        : ''
+      const haystack = [
+        booking.bookingId,
+        booking.customer,
+        booking.email ?? '',
+        booking.phone ?? '',
+        booking.consultant ?? '',
+        booking.destination,
+        booking.status,
+        createdAtText,
+        createdAtIso
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      const searchMatch = haystack.includes(query)
       return statusMatch && searchMatch
     })
   }, [search, statusFilter, bookingItems])

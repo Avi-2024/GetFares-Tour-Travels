@@ -333,15 +333,45 @@ const QuotationsPage: React.FC = () => {
   const filtered = useMemo(
     () =>
       allItems
-        .filter(q => q && typeof q === 'object') // Ensure valid objects
-        .filter(
-          q =>
-            (tab === 'All' || q.status === tab) &&
-            `${q.quoteNumber || ''} ${q.customer || ''} ${q.destination || ''}`
-              .toLowerCase()
-              .includes(search.toLowerCase()) &&
-            (!selectedDate || q.sentDate === selectedDate)
-        ),
+        .filter(q => q && typeof q === 'object')
+        .filter(q => {
+          if (tab !== 'All' && q.status !== tab) return false
+          if (selectedDate && q.sentDate !== selectedDate) return false
+          const query = search.toLowerCase().trim()
+          if (!query) return true
+          const createdAtText = q.createdAt
+            ? new Date(q.createdAt).toLocaleDateString()
+            : ''
+          const createdAtIso = q.createdAt
+            ? new Date(q.createdAt).toISOString().split('T')[0]
+            : ''
+          const sentAtText = q.sentDate
+            ? new Date(q.sentDate).toLocaleDateString()
+            : ''
+          const sentAtIso = q.sentDate
+            ? new Date(q.sentDate).toISOString().split('T')[0]
+            : ''
+          const haystack = [
+            q.quoteNumber,
+            q.id,
+            q.customer,
+            q.email,
+            q.phone,
+            q.destination,
+            q.status,
+            q.quotationTitle,
+            q.templateName,
+            q.templateCode,
+            createdAtText,
+            createdAtIso,
+            sentAtText,
+            sentAtIso
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+          return haystack.includes(query)
+        }),
     [tab, search, selectedDate, allItems]
   )
 

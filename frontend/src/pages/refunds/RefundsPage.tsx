@@ -52,6 +52,8 @@ type BookingLookup = {
   id: string
   bookingNumber: string
   customer?: string
+  customerEmail?: string
+  customerPhone?: string
 }
 
 type PaymentLookup = {
@@ -742,19 +744,46 @@ const RefundsPage = () => {
     return rows.filter(row => {
       const bookingDisplay = getBookingDisplay(row.bookingId)
       const paymentDisplay = getPaymentDisplay(row.paymentId)
-      const matchesSearch =
-        row.id.toLowerCase().includes(search.toLowerCase()) ||
-        row.bookingId.toLowerCase().includes(search.toLowerCase()) ||
-        (row.paymentId?.toLowerCase() || '').includes(search.toLowerCase()) ||
-        bookingDisplay.toLowerCase().includes(search.toLowerCase()) ||
-        paymentDisplay.toLowerCase().includes(search.toLowerCase())
-
+      const query = search.toLowerCase().trim()
       const matchesStatus =
         statusFilter === 'all' || row.status === statusFilter
+      if (!query) return matchesStatus
+
+      const bookingMeta = bookingById.get(String(row.bookingId || ''))
+      const createdAtText = row.createdAt
+        ? new Date(row.createdAt).toLocaleDateString()
+        : ''
+      const createdAtIso = row.createdAt
+        ? new Date(row.createdAt).toISOString().split('T')[0]
+        : ''
+      const haystack = [
+        row.id,
+        row.bookingId,
+        row.paymentId ?? '',
+        bookingDisplay,
+        paymentDisplay,
+        bookingMeta?.customer ?? '',
+        bookingMeta?.customerEmail ?? '',
+        bookingMeta?.customerPhone ?? '',
+        row.status,
+        createdAtText,
+        createdAtIso
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      const matchesSearch = haystack.includes(query)
 
       return matchesSearch && matchesStatus
     })
-  }, [rows, search, statusFilter, getBookingDisplay, getPaymentDisplay])
+  }, [
+    rows,
+    search,
+    statusFilter,
+    getBookingDisplay,
+    getPaymentDisplay,
+    bookingById
+  ])
 
   const toTimestamp = (value?: string | null) => {
     if (!value) return 0
@@ -959,7 +988,22 @@ const RefundsPage = () => {
               booking.booking_number ||
               booking.code ||
               `BK-${booking.id}`,
-            customer: derivedCustomerName
+            customer: derivedCustomerName,
+            customerEmail:
+              booking.customerEmail ||
+              booking.customer_email ||
+              booking.customer?.email ||
+              booking.customer?.primaryEmail ||
+              leadRecord?.email ||
+              '',
+            customerPhone:
+              booking.customerPhone ||
+              booking.customer_phone ||
+              booking.customer?.phone ||
+              booking.customer?.mobile ||
+              leadRecord?.phone ||
+              leadRecord?.mobile ||
+              ''
           }
         })
       )

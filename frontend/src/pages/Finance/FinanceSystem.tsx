@@ -1046,21 +1046,51 @@ const FinanceSystem: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [tabMenuOpen])
 
-  const filteredClients = clients.filter(c =>
-    `${c.name ?? ''} ${c.email ?? ''} ${c.pan ?? ''} ${c.phone ?? ''} ${
-      c.address ?? ''
-    }`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+  const toDateTokens = (value?: string | null) => {
+    if (!value) return [] as string[]
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return [value]
+    return [parsed.toLocaleDateString(), parsed.toISOString().split('T')[0], value]
+  }
 
-  const filteredSuppliers = suppliers.filter(s =>
-    `${s.name ?? ''} ${s.email ?? ''} ${s.phone ?? ''} ${s.pan ?? ''} ${
-      s.gst ?? ''
-    } ${s.invoiceDetails ?? ''}`
+  const filteredClients = clients.filter(c => {
+    const searchValue = search.trim().toLowerCase()
+    if (!searchValue) return true
+    const haystack = [
+      c.id,
+      c.name,
+      c.email,
+      c.phone,
+      c.pan,
+      c.address,
+      c.currency
+    ]
+      .filter(Boolean)
+      .join(' ')
       .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+    return haystack.includes(searchValue)
+  })
+
+  const filteredSuppliers = suppliers.filter(s => {
+    const searchValue = search.trim().toLowerCase()
+    if (!searchValue) return true
+    const haystack = [
+      s.id,
+      s.name,
+      s.email,
+      s.phone,
+      s.pan,
+      s.gst,
+      s.address,
+      s.invoiceDetails,
+      s.currency,
+      s.isActive ? 'active' : 'inactive'
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(searchValue)
+  })
 
   const getBookingDisplay = (bookingId: string) => {
     const normalized = String(bookingId || '').trim()
@@ -1075,13 +1105,31 @@ const FinanceSystem: React.FC = () => {
       : booking.bookingNumber
   }
 
-  const filteredPayments = payments.filter(p =>
-    `${p.id} ${p.bookingId} ${getBookingDisplay(p.bookingId)} ${
-      p.reference ?? ''
-    } ${p.mode} ${paymentModeLabel(p.mode)}`
+  const filteredPayments = payments.filter(p => {
+    const searchValue = search.trim().toLowerCase()
+    if (!searchValue) return true
+    const bookingDisplay = getBookingDisplay(p.bookingId)
+    const bookingLookup = bookingLookupById.get(String(p.bookingId || ''))
+    const dateTokens = toDateTokens(p.date)
+    const haystack = [
+      p.id,
+      p.bookingId,
+      bookingDisplay,
+      bookingLookup?.bookingNumber,
+      bookingLookup?.customer,
+      p.reference,
+      p.mode,
+      paymentModeLabel(p.mode),
+      p.status,
+      p.amount?.toString(),
+      p.currency,
+      ...dateTokens
+    ]
+      .filter(Boolean)
+      .join(' ')
       .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+    return haystack.includes(searchValue)
+  })
 
   // Pagination
   const totalPages = Math.max(

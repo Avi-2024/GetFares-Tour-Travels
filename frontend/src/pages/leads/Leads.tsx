@@ -106,8 +106,14 @@ const Leads: React.FC = () => {
           (quickFilter === 'LATE_RESPONSE' && lead.slaBreached)
         const statusMatch =
           statusFilter === 'ALL' || lead.statusLabel === statusFilter
+        const createdAtText = lead.createdAt
+          ? new Date(lead.createdAt).toLocaleDateString()
+          : ''
+        const createdAtIso = lead.createdAt
+          ? new Date(lead.createdAt).toISOString().split('T')[0]
+          : ''
         const text =
-          `${lead.name} ${lead.email} ${lead.destination} ${lead.phone} ${formatPaxSummary(lead)} ${lead.childAges.join(' ')}`.toLowerCase()
+          `${lead.name} ${lead.leadId} ${lead.email} ${lead.destination} ${lead.phone} ${lead.consultant} ${createdAtText} ${createdAtIso} ${formatPaxSummary(lead)} ${lead.childAges.join(' ')}`.toLowerCase()
         return quickMatch && statusMatch && text.includes(search.toLowerCase())
       }),
     [fetchedLeads, quickFilter, search, statusFilter]

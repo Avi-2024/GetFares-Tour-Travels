@@ -70,6 +70,8 @@ type BookingOption = {
 type BookingMeta = {
   customerName?: string
   bookingNumber?: string
+  customerEmail?: string
+  customerPhone?: string
 }
 
 const extractRows = <T,>(response: unknown): T[] => {
@@ -106,6 +108,7 @@ const ComplaintsPage = () => {
   })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [assigneeUsers, setAssigneeUsers] = useState<AssignableUser[]>([])
   const [bookingOptions, setBookingOptions] = useState<BookingOption[]>([])
   const [bookingMetaById, setBookingMetaById] = useState<
@@ -143,6 +146,16 @@ const ComplaintsPage = () => {
     { value: 'RESOLVED', label: 'RESOLVED' }
   ]
 
+  const formatBookingDisplay = (bookingId?: string) => {
+    if (!bookingId) return '-'
+    const meta = bookingMetaById[bookingId]
+    if (!meta) return bookingId
+    const bookingLabel = meta.bookingNumber || shortId(bookingId)
+    return meta.customerName
+      ? `${meta.customerName} - ${bookingLabel}`
+      : bookingLabel
+  }
+
   const exportAllRows = () => {
     if (!rows.length) return
 
@@ -169,26 +182,49 @@ const ComplaintsPage = () => {
     URL.revokeObjectURL(url)
   }
 
+  const filteredRows = rows.filter(row => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!query) return true
+    const bookingDisplay = formatBookingDisplay(row.bookingId)
+    const bookingMeta = bookingMetaById[row.bookingId || '']
+    const createdAtText = (row as any)?.createdAt
+      ? new Date((row as any).createdAt).toLocaleDateString()
+      : ''
+    const createdAtIso = (row as any)?.createdAt
+      ? new Date((row as any).createdAt).toISOString().split('T')[0]
+      : ''
+    const haystack = [
+      row.id,
+      row.bookingId,
+      bookingDisplay,
+      row.issueType,
+      row.status,
+      (row as any)?.description ?? '',
+      bookingMeta?.customerName ?? '',
+      bookingMeta?.customerEmail ?? '',
+      bookingMeta?.customerPhone ?? '',
+      createdAtText,
+      createdAtIso
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(query)
+  })
+
   const pageSize = 10
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
-  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize)
-  const displayRows = showAllRows ? paginatedRows : rows.slice(0, 3)
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const paginatedRows = filteredRows.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  )
+  const displayRows = showAllRows ? paginatedRows : filteredRows.slice(0, 3)
 
   useEffect(() => {
     if (!showAllRows) {
       setPage(1)
     }
   }, [showAllRows, rows.length])
-
-  const formatBookingDisplay = (bookingId?: string) => {
-    if (!bookingId) return '-'
-    const meta = bookingMetaById[bookingId]
-    if (!meta) return bookingId
-    const bookingLabel = meta.bookingNumber || shortId(bookingId)
-    return meta.customerName
-      ? `${meta.customerName} - ${bookingLabel}`
-      : bookingLabel
-  }
 
   // Fetch complaints on mount
   useEffect(() => {
@@ -259,12 +295,21 @@ const ComplaintsPage = () => {
         })
 
         const leadNameById = new Map<string, string>()
+        const leadEmailById = new Map<string, string>()
+        const leadPhoneById = new Map<string, string>()
         leadRows.forEach(lead => {
           const leadId = lead.id
           const leadName =
             lead.fullName || lead.customerName || lead.name || lead.email
           if (leadId && leadName) {
             leadNameById.set(leadId, leadName)
+          }
+          if (leadId && lead.email) {
+            leadEmailById.set(leadId, lead.email)
+          }
+          const phone = (lead as any)?.phone || (lead as any)?.mobile
+          if (leadId && phone) {
+            leadPhoneById.set(leadId, String(phone))
           }
         })
 
@@ -291,7 +336,21 @@ const ComplaintsPage = () => {
 
           bookingMeta[bookingId] = {
             customerName,
-            bookingNumber
+            bookingNumber,
+            customerEmail:
+              booking.email ||
+              booking.customerEmail ||
+              booking.customer_email ||
+              booking.customer?.email ||
+              (leadId ? leadEmailById.get(leadId) : '') ||
+              '',
+            customerPhone:
+              booking.phone ||
+              booking.customerPhone ||
+              booking.customer_phone ||
+              booking.customer?.phone ||
+              (leadId ? leadPhoneById.get(leadId) : '') ||
+              ''
           }
         })
 
@@ -551,18 +610,31 @@ const ComplaintsPage = () => {
 
       <div className='grid grid-cols-1 gap-6 xl:grid-cols-2'>
         <SurfaceCard className='p-0 overflow-hidden'>
-          <div className='flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-800'>
-            <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              Complaints
-            </h3>
-            {rows.length > 3 ? (
-              <button
-                onClick={() => setShowAllRows(value => !value)}
-                className='text-xs font-medium text-blue-600 hover:text-blue-700'
-              >
-                {showAllRows ? 'Show Less' : 'View All'}
-              </button>
-            ) : null}
+          <div className='flex flex-col gap-3 border-b border-gray-100 px-5 py-3 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between'>
+            <div className='flex items-center justify-between sm:justify-start sm:gap-3'>
+              <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                Complaints
+              </h3>
+              {filteredRows.length > 3 ? (
+                <button
+                  onClick={() => setShowAllRows(value => !value)}
+                  className='text-xs font-medium text-blue-600 hover:text-blue-700'
+                >
+                  {showAllRows ? 'Show Less' : 'View All'}
+                </button>
+              ) : null}
+            </div>
+            <div className='relative w-full sm:max-w-xs'>
+              <input
+                value={searchTerm}
+                onChange={event => {
+                  setSearchTerm(event.target.value)
+                  setPage(1)
+                }}
+                placeholder='Search complaints...'
+                className='w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+              />
+            </div>
           </div>
           {loading && rows.length === 0 ? (
             <div className='flex items-center justify-center py-12'>
@@ -612,7 +684,7 @@ const ComplaintsPage = () => {
                     <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       ID
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
                       Booking
                     </th>
                     <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
@@ -624,26 +696,42 @@ const ComplaintsPage = () => {
                   </tr>
                 </thead>
                 <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                  {displayRows.map(row => (
+                  {displayRows.map(row => {
+                    const bookingMeta = bookingMetaById[row.bookingId || '']
+                    const bookingLabel =
+                      bookingMeta?.bookingNumber || row.bookingId || '-'
+                    return (
                     <tr
                       key={row.id}
                       onClick={() => navigate(`/complaints/${row.id}`)}
                       className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors'
                     >
-                      <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
+                      <td className='px-5 py-4 text-xs font-medium text-blue-600 dark:text-blue-300'>
                         {row.id}
                       </td>
-                      <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
-                        {formatBookingDisplay(row.bookingId)}
+                      <td className='px-3 py-4 text-xs text-gray-700 dark:text-gray-200'>
+                        {bookingMeta?.customerName ? (
+                          <div className='leading-tight'>
+                            <p className='font-medium text-gray-900 dark:text-gray-100'>
+                              {bookingMeta.customerName}
+                            </p>
+                            <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+                              {bookingLabel}
+                            </p>
+                          </div>
+                        ) : (
+                          <span>{formatBookingDisplay(row.bookingId)}</span>
+                        )}
                       </td>
-                      <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
+                      <td className='px-5 py-4 text-xs text-gray-700 dark:text-gray-200'>
                         {row.issueType}
                       </td>
-                      <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
+                      <td className='px-5 py-4 text-xs text-gray-700 dark:text-gray-200'>
                         {row.status}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
               {showAllRows ? (

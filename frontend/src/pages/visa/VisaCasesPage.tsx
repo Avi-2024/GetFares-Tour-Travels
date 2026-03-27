@@ -214,14 +214,44 @@ const VisaCasesPage = () => {
     return rows.filter((row) => {
       const matchesTab = tab === "ALL" || row.workflowStage === tab;
       if (!query) return matchesTab;
-      return (
-        row.id.toLowerCase().includes(query) ||
-        row.country.toLowerCase().includes(query) ||
-        row.visaType.toLowerCase().includes(query) ||
-        getBookingLabel(row.bookingId).toLowerCase().includes(query) ||
-        getSupplierName(row.supplierId).toLowerCase().includes(query) ||
-        humanizeVisaStage(row.workflowStage).toLowerCase().includes(query)
-      ) && matchesTab;
+      const appointmentText = row.appointmentDate
+        ? new Date(row.appointmentDate).toLocaleDateString()
+        : "";
+      const appointmentIso = row.appointmentDate
+        ? new Date(row.appointmentDate).toISOString().split("T")[0]
+        : "";
+      const submissionText = row.submissionDate
+        ? new Date(row.submissionDate).toLocaleDateString()
+        : "";
+      const submissionIso = row.submissionDate
+        ? new Date(row.submissionDate).toISOString().split("T")[0]
+        : "";
+      const validUntilText = row.visaValidUntil
+        ? new Date(row.visaValidUntil).toLocaleDateString()
+        : "";
+      const validUntilIso = row.visaValidUntil
+        ? new Date(row.visaValidUntil).toISOString().split("T")[0]
+        : "";
+      const haystack = [
+        row.id,
+        row.bookingId,
+        getBookingLabel(row.bookingId),
+        row.country,
+        row.visaType,
+        humanizeVisaStage(row.workflowStage),
+        getSupplierName(row.supplierId),
+        appointmentText,
+        appointmentIso,
+        submissionText,
+        submissionIso,
+        validUntilText,
+        validUntilIso,
+        row.fees != null ? String(row.fees) : ""
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query) && matchesTab;
     });
   }, [getBookingLabel, getSupplierName, rows, search, tab]);
 

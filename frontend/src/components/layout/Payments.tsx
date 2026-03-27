@@ -1623,11 +1623,33 @@ const Payments: React.FC = () => {
   const filtered = useMemo(() => {
     return transactions.filter(tx => {
       const statusMatch = statusFilter === 'all' || tx.status === statusFilter
-      const searchMatch =
-        tx.referenceId.toLowerCase().includes(search.toLowerCase()) ||
-        tx.customer.toLowerCase().includes(search.toLowerCase()) ||
-        tx.bookingId.toLowerCase().includes(search.toLowerCase()) ||
-        (tx.bookingLabel || '').toLowerCase().includes(search.toLowerCase())
+      const query = search.toLowerCase().trim()
+      if (!query) return statusMatch
+      const createdAtText = (tx.createdAt ?? tx.paidAt)
+        ? new Date(tx.createdAt ?? tx.paidAt ?? '').toLocaleDateString()
+        : ''
+      const createdAtIso = (tx.createdAt ?? tx.paidAt)
+        ? new Date(tx.createdAt ?? tx.paidAt ?? '')
+            .toISOString()
+            .split('T')[0]
+        : ''
+      const haystack = [
+        tx.referenceId,
+        tx.id,
+        tx.customer,
+        tx.customerEmail ?? '',
+        tx.customerPhone ?? '',
+        tx.bookingId,
+        tx.bookingLabel ?? '',
+        tx.status,
+        tx.mode,
+        createdAtText,
+        createdAtIso
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      const searchMatch = haystack.includes(query)
       return statusMatch && searchMatch
     })
   }, [transactions, search, statusFilter])

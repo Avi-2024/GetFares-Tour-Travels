@@ -125,12 +125,47 @@ const CustomersPage: React.FC = () => {
   // Filter and search customers
   const filteredCustomers = useMemo(() => {
     return customers.filter(customer => {
-      const searchValue = search.toLowerCase()
-      const searchMatch =
-        (customer.fullName ?? '').toLowerCase().includes(searchValue) ||
-        (customer.email ?? '').toLowerCase().includes(searchValue) ||
-        (customer.phone ?? '').includes(search) ||
-        (customer.panNumber ?? '').toLowerCase().includes(searchValue)
+      const searchValue = search.trim().toLowerCase()
+      const createdAtDate = customer.createdAt
+        ? new Date(customer.createdAt)
+        : null
+      const createdAtLocal = createdAtDate
+        ? createdAtDate.toLocaleDateString()
+        : ''
+      const createdAtIso = createdAtDate
+        ? createdAtDate.toISOString().split('T')[0]
+        : ''
+      const lastBookingDate = customer.lastBookingDate
+        ? new Date(customer.lastBookingDate)
+        : null
+      const lastBookingLocal = lastBookingDate
+        ? lastBookingDate.toLocaleDateString()
+        : ''
+      const lastBookingIso = lastBookingDate
+        ? lastBookingDate.toISOString().split('T')[0]
+        : ''
+      const haystack = [
+        customer.id,
+        customer.fullName,
+        customer.email,
+        customer.phone,
+        customer.panNumber,
+        customer.preferences,
+        customer.addressLine,
+        customer.clientCurrency,
+        customer.segment,
+        getSegmentLabel(customer.segment),
+        customer.totalBookings?.toString(),
+        customer.lifetimeValue?.toString(),
+        createdAtLocal,
+        createdAtIso,
+        lastBookingLocal,
+        lastBookingIso
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      const searchMatch = !searchValue || haystack.includes(searchValue)
 
       const segmentMatch =
         segmentFilter === 'all' || customer.segment === segmentFilter
