@@ -255,7 +255,7 @@ const PackageDetailView: React.FC<{
   return (
     <div className='space-y-6'>
       <div className='flex items-start justify-between'>
-        <div>
+        <div className='md:max-w-[50%]'>
           <h2 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
             {pkg.name}
           </h2>
@@ -819,7 +819,7 @@ const PackagesPage: React.FC = () => {
           <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
             Package Management
           </h1>
-          <p className='text-sm text-gray-500'>
+          <p className='text-sm text-gray-500 md:max-w-[80%]'>
             Create Ready (static) or Customized packages per Holidays SOP — full
             inclusions, itinerary, hotel, visa, and payment terms for quotation
             prefill. Website/CMS publishing is handled elsewhere.
@@ -827,7 +827,7 @@ const PackagesPage: React.FC = () => {
         </div>
         <button
           onClick={handleNew}
-          className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700'
+          className='inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700 md:whitespace-nowrap'
         >
           <FaPlus />
           New Package

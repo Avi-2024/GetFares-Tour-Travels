@@ -577,7 +577,36 @@ const ComplaintsPage = () => {
             </div>
           ) : (
             <>
-              <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
+              {/* Mobile cards */}
+              <div className='divide-y divide-gray-100 dark:divide-gray-800 sm:hidden'>
+                {displayRows.map(row => (
+                  <button
+                    key={row.id}
+                    onClick={() => navigate(`/complaints/${row.id}`)}
+                    className='w-full text-left px-5 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                  >
+                    <div className='flex items-start justify-between gap-3'>
+                      <div className='min-w-0'>
+                        <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                          {row.issueType}
+                        </p>
+                        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                          {formatBookingDisplay(row.bookingId)}
+                        </p>
+                        <p className='mt-1 text-[11px] text-blue-600 dark:text-blue-300'>
+                          {row.id}
+                        </p>
+                      </div>
+                      <span className='inline-flex rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                        {row.status}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <table className='hidden w-full divide-y divide-gray-200 dark:divide-gray-800 sm:table'>
                 <thead className='bg-gray-50 dark:bg-gray-800/95'>
                   <tr>
                     <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
