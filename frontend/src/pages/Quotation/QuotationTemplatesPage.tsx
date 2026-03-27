@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   FaChevronLeft,
   FaChevronRight,
+  FaDownload,
   FaMagnifyingGlass,
   FaPlus
 } from 'react-icons/fa6'
@@ -149,6 +150,42 @@ const QuotationTemplatesPage: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize))
   const pageRows = ordered.slice((page - 1) * pageSize, page * pageSize)
 
+  const exportCurrentTable = () => {
+    if (!pageRows.length) return
+
+    const headers = [
+      'Code',
+      'Template Name',
+      'Type',
+      'Min Margin %',
+      'Status',
+      'Updated At'
+    ]
+
+    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`
+
+    const dataRows = pageRows.map(row => [
+      row.code ?? '',
+      row.name ?? '',
+      row.templateType ?? '',
+      row.minMarginPercent ?? 0,
+      row.isActive ? 'Active' : 'Inactive',
+      row.updatedAt ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `quotation-templates-page-${page}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   const templateTypeOptions = useMemo(
     () => [
       { value: 'READY_PACKAGE', label: 'READY_PACKAGE' },
@@ -246,13 +283,22 @@ const QuotationTemplatesPage: React.FC = () => {
             Manage reusable quotation templates and default margin guardrails.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          disabled={saving}
-          className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700'
-        >
-          <FaPlus className='mr-2' /> New Template
-        </button>
+        <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+          <button
+            onClick={exportCurrentTable}
+            disabled={!pageRows.length}
+            className='inline-flex items-center justify-center rounded-xl border border-green-500 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
+          >
+            <FaDownload className='mr-2' /> Export
+          </button>
+          <button
+            onClick={openCreate}
+            disabled={saving}
+            className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700'
+          >
+            <FaPlus className='mr-2' /> New Template
+          </button>
+        </div>
       </div>
 
       <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>

@@ -1651,6 +1651,52 @@ const Payments: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize))
   const rows = ordered.slice((page - 1) * pageSize, page * pageSize)
 
+  const exportCurrentTable = () => {
+    if (!rows.length) return
+
+    const headers = [
+      'Reference ID',
+      'Customer',
+      'Email',
+      'Phone',
+      'Booking ID',
+      'Booking',
+      'Amount',
+      'Mode',
+      'Status',
+      'Paid At',
+      'Created At'
+    ]
+
+    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`
+
+    const dataRows = rows.map(tx => [
+      tx.referenceId ?? '',
+      tx.customer ?? '',
+      tx.customerEmail ?? '',
+      tx.customerPhone ?? '',
+      tx.bookingId ?? '',
+      tx.bookingLabel ?? '',
+      tx.amount ?? 0,
+      tx.mode ?? '',
+      tx.status ?? '',
+      tx.paidAt ?? '',
+      tx.createdAt ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `payments-page-${page}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   const modeIcon = (mode: Transaction['mode']) => {
     if (mode === 'bank') return <FaBuildingColumns className='text-gray-500' />
     if (mode === 'card') return <FaCreditCard className='text-blue-600' />
@@ -2212,16 +2258,23 @@ const Payments: React.FC = () => {
         </div>
         <div className='flex flex-wrap sm:flex-nowrap items-center gap-2'>
           <button
-            onClick={() => setShowAddPanel(true)}
-            className='inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700'
+            onClick={exportCurrentTable}
+            disabled={!rows.length}
+            className='inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl border border-green-500 dark:border-green-400 bg-white dark:bg-gray-900 px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
           >
-            <FaPlus className='mr-2' /> Add Payment
+            <FaDownload className='mr-2' /> Export
           </button>
           <button
             onClick={() => navigate('/refunds')}
             className='inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
           >
             Create Refund
+          </button>
+          <button
+            onClick={() => setShowAddPanel(true)}
+            className='inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700'
+          >
+            <FaPlus className='mr-2' /> Add Payment
           </button>
         </div>
       </div>
@@ -2348,11 +2401,6 @@ const Payments: React.FC = () => {
                   }}
                 />
               </div>
-
-              {/* Export Button */}
-              <button className='inline-flex items-center rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'>
-                <FaDownload className='mr-2' /> Export CSV
-              </button>
 
               {/* Close filter button on mobile */}
               {showMobileFilters && (
