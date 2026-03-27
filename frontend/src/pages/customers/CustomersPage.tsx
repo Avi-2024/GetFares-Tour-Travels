@@ -337,25 +337,42 @@ const CustomersPage: React.FC = () => {
     }
   }
 
-  const handleExport = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const blob = await customersApi.export()
-      const url = window.URL.createObjectURL(blob as Blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (err) {
-      const message = getApiErrorMessage(err, 'Export failed')
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
+  const handleExport = () => {
+    if (!paginatedCustomers.length) return
+
+    const headers = [
+      'Full Name',
+      'Email',
+      'Phone',
+      'Segment',
+      'Total Bookings',
+      'Lifetime Value',
+      'Created At'
+    ]
+
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`
+
+    const dataRows = paginatedCustomers.map(customer => [
+      customer.fullName ?? '',
+      customer.email ?? '',
+      customer.phone ?? '',
+      getSegmentLabel(customer.segment),
+      customer.totalBookings ?? 0,
+      customer.lifetimeValue ?? 0,
+      customer.createdAt ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `customers-page-${page}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -374,12 +391,20 @@ const CustomersPage: React.FC = () => {
               Manage customer profiles and segmentation data
             </p>
           </div>
-          <button
-            onClick={() => navigate('/customers/new')}
-            className='inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto'
-          >
-            <FaPlus className='mr-2' /> New Customer
-          </button>
+          <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+            <button
+              onClick={handleExport}
+              className='inline-flex items-center justify-center px-4 py-2 rounded-lg border border-green-500 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
+            >
+              <FaDownload className='mr-2' /> Export
+            </button>
+            <button
+              onClick={() => navigate('/customers/new')}
+              className='inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto'
+            >
+              <FaPlus className='mr-2' /> New Customer
+            </button>
+          </div>
         </div>
 
         {/* KPI Cards */}
@@ -497,13 +522,6 @@ const CustomersPage: React.FC = () => {
                   {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
                 </button>
 
-                {/* Export Button */}
-                <button
-                  onClick={handleExport}
-                  className='px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 whitespace-nowrap'
-                >
-                  <FaDownload /> Export
-                </button>
               </div>
 
               {/* Mobile Filter Button */}
@@ -545,12 +563,6 @@ const CustomersPage: React.FC = () => {
                     {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
                   </button>
 
-                  <button
-                    onClick={handleExport}
-                    className='w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2'
-                  >
-                    <FaDownload /> Export
-                  </button>
                 </div>
               )}
             </div>

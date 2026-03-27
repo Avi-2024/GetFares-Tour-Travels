@@ -8,7 +8,8 @@ import {
   FaCheck,
   FaInfo,
   FaExclamationTriangle,
-  FaCheckCircle
+  FaCheckCircle,
+  FaDownload
 } from 'react-icons/fa'
 import { FaXmark, FaFilter } from 'react-icons/fa6'
 import { getApiErrorMessage } from '../../api/apiClient'
@@ -868,6 +869,44 @@ const UsersPage: React.FC = () => {
         .includes(search.toLowerCase())
   )
 
+  const exportCurrentTable = () => {
+    if (!filteredUsers.length) return
+
+    const headers = [
+      'Full Name',
+      'Email',
+      'Phone',
+      'Country',
+      'Role',
+      'Status',
+      'Created At'
+    ]
+
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`
+
+    const dataRows = filteredUsers.map(user => [
+      user.fullName ?? '',
+      user.email ?? '',
+      user.phone ?? '',
+      user.country ?? '',
+      getRoleLabel(user.role, user.roleId, roleLabelMap),
+      user.isActive ? 'Active' : 'Inactive',
+      user.createdAt ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `users-${new Date().toISOString().slice(0, 10)}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) {
     return (
       <div className='flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950'>
@@ -978,14 +1017,23 @@ const UsersPage: React.FC = () => {
               Manage users and assign roles • {users.length} total users
             </p>
           </div>
-          {canCreateUsers ? (
+          <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
             <button
-              onClick={() => setShowCreateModal(true)}
-              className='inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto'
+              onClick={exportCurrentTable}
+              disabled={!filteredUsers.length}
+              className='inline-flex items-center justify-center px-4 py-2 rounded-lg border border-green-500 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
             >
-              <FaPlus className='mr-2' /> New User
+              <FaDownload className='mr-2' /> Export
             </button>
-          ) : null}
+            {canCreateUsers ? (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className='inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto'
+              >
+                <FaPlus className='mr-2' /> New User
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {/* Search and Filter - Mobile */}

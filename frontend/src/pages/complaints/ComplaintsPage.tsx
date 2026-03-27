@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FaPlus } from 'react-icons/fa6'
+import { FaPlus, FaDownload } from 'react-icons/fa6'
 import { TextInput } from '../../components/form'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -95,6 +95,8 @@ const ComplaintsPage = () => {
   const [loading, setLoading] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [loadingBookings, setLoadingBookings] = useState(false)
+  const [showAllRows, setShowAllRows] = useState(false)
+  const [page, setPage] = useState(1)
   const [form, setForm] = useState({
     bookingId: '',
     assignedTo: '',
@@ -140,6 +142,43 @@ const ComplaintsPage = () => {
     { value: 'IN_PROGRESS', label: 'IN_PROGRESS' },
     { value: 'RESOLVED', label: 'RESOLVED' }
   ]
+
+  const exportAllRows = () => {
+    if (!rows.length) return
+
+    const headers = ['ID', 'Booking', 'Issue', 'Status']
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`
+
+    const dataRows = rows.map(row => [
+      row.id ?? '',
+      formatBookingDisplay(row.bookingId),
+      row.issueType ?? '',
+      row.status ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `complaints-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize)
+  const displayRows = showAllRows ? paginatedRows : rows.slice(0, 3)
+
+  useEffect(() => {
+    if (!showAllRows) {
+      setPage(1)
+    }
+  }, [showAllRows, rows.length])
 
   const formatBookingDisplay = (bookingId?: string) => {
     if (!bookingId) return '-'
@@ -384,13 +423,22 @@ const ComplaintsPage = () => {
 
   return (
     <div className='space-y-6'>
-      <div>
-        <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-          Complaints
-        </h1>
-        <p className='text-sm text-gray-500'>
-          Track post-sales complaints and activity trail.
-        </p>
+      <div className='flex items-start justify-between gap-3'>
+        <div>
+          <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+            Complaints
+          </h1>
+          <p className='text-sm text-gray-500'>
+            Track post-sales complaints and activity trail.
+          </p>
+        </div>
+        <button
+          onClick={exportAllRows}
+          disabled={!rows.length}
+          className='inline-flex items-center justify-center rounded-xl border border-green-500 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
+        >
+          <FaDownload className='mr-2' /> Export
+        </button>
       </div>
 
       {!localStorage.getItem('auth_token') && (
@@ -503,6 +551,19 @@ const ComplaintsPage = () => {
 
       <div className='grid grid-cols-1 gap-6 xl:grid-cols-2'>
         <SurfaceCard className='p-0 overflow-hidden'>
+          <div className='flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-800'>
+            <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+              Complaints
+            </h3>
+            {rows.length > 3 ? (
+              <button
+                onClick={() => setShowAllRows(value => !value)}
+                className='text-xs font-medium text-blue-600 hover:text-blue-700'
+              >
+                {showAllRows ? 'Show Less' : 'View All'}
+              </button>
+            ) : null}
+          </div>
           {loading && rows.length === 0 ? (
             <div className='flex items-center justify-center py-12'>
               <div className='text-center'>
@@ -515,46 +576,75 @@ const ComplaintsPage = () => {
               <p className='text-sm text-gray-500'>No complaints found</p>
             </div>
           ) : (
-            <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
-              <thead className='bg-gray-50 dark:bg-gray-800/95'>
-                <tr>
-                  <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    ID
-                  </th>
-                  <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    Booking
-                  </th>
-                  <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    Issue
-                  </th>
-                  <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                {rows.map(row => (
-                  <tr
-                    key={row.id}
-                    onClick={() => navigate(`/complaints/${row.id}`)}
-                    className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors'
-                  >
-                    <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
-                      {row.id}
-                    </td>
-                    <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
-                      {formatBookingDisplay(row.bookingId)}
-                    </td>
-                    <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
-                      {row.issueType}
-                    </td>
-                    <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
-                      {row.status}
-                    </td>
+            <>
+              <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
+                <thead className='bg-gray-50 dark:bg-gray-800/95'>
+                  <tr>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      ID
+                    </th>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Booking
+                    </th>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Issue
+                    </th>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Status
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                  {displayRows.map(row => (
+                    <tr
+                      key={row.id}
+                      onClick={() => navigate(`/complaints/${row.id}`)}
+                      className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors'
+                    >
+                      <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
+                        {row.id}
+                      </td>
+                      <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
+                        {formatBookingDisplay(row.bookingId)}
+                      </td>
+                      <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
+                        {row.issueType}
+                      </td>
+                      <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
+                        {row.status}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {showAllRows ? (
+                <div className='flex items-center justify-between px-5 py-4 border-t border-gray-200 dark:border-gray-800'>
+                  <p className='text-xs text-gray-500'>
+                    Showing {Math.min(rows.length, (page - 1) * pageSize + 1)}-
+                    {Math.min(rows.length, page * pageSize)} of {rows.length}
+                  </p>
+                  <div className='flex items-center gap-2'>
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className='p-2 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40'
+                    >
+                      &lt;
+                    </button>
+                    <span className='px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-sm font-medium'>
+                      {page}
+                    </span>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className='p-2 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40'
+                    >
+                      &gt;
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
           )}
         </SurfaceCard>
 
