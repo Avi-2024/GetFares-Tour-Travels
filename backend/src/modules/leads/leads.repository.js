@@ -433,6 +433,40 @@ function createLeadsRepository({ db, logger, schema }) {
     return mapped;
   }
 
+  function buildSortClause(sortBy) {
+    const normalized = String(sortBy || "NEWEST_FIRST")
+      .trim()
+      .toUpperCase();
+    if (normalized === "OLDEST_FIRST") {
+      return "ORDER BY l.created_at ASC";
+    }
+    if (normalized === "NAME_A_Z") {
+      return "ORDER BY LOWER(COALESCE(NULLIF(c.full_name, ''), NULLIF(l.full_name, ''), '')) ASC, l.created_at DESC";
+    }
+    if (normalized === "STATUS") {
+      return `
+        ORDER BY CASE l.status
+          WHEN 'OPEN' THEN 1
+          WHEN 'CONTACTED' THEN 2
+          WHEN 'WIP' THEN 3
+          WHEN 'QUOTED' THEN 4
+          WHEN 'FOLLOW_UP' THEN 5
+          WHEN 'CONVERTED' THEN 6
+          WHEN 'LOST' THEN 7
+          WHEN 'NON_RESPONSIVE' THEN 8
+          ELSE 99
+        END ASC, l.created_at DESC
+      `;
+    }
+    return "ORDER BY l.created_at DESC";
+  }
+
+  function isUuidLike(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      String(value || "").trim(),
+    );
+  }
+
   async function loadRoleLookup() {
     const roleRows = await db.findMany(schema.rolesTable, {});
     const lookup = new Map();
@@ -641,51 +675,399 @@ function createLeadsRepository({ db, logger, schema }) {
     normalizeFollowupType,
 
     async findAll(filters = {}) {
+      const limit = toPositiveInt(filters.limit, 15, 500);
+      const page = toPositiveInt(filters.page, 1, 1000000);
+      const offset = (Math.max(page, 1) - 1) * limit;
+      const quickFilter = String(filters.quickFilter || "")
+        .trim()
+        .toUpperCase();
+
+      if (db.adapter === "postgres" && typeof db.query === "function") {
+        const where = ["COALESCE(l.is_deleted, FALSE) = FALSE"];
+        const params = [];
+
+        if (filters.status) {
+          params.push(filters.status);
+          where.push(`l.status = $${params.length}`);
+        }
+
+        if (filters.source) {
+          params.push(filters.source);
+          where.push(`l.source = $${params.length}`);
+        }
+
+        if (filters.temperature) {
+          params.push(filters.temperature);
+          where.push(`l.temperature = $${params.length}`);
+        }
+
+        if (filters.subStatus) {
+          params.push(filters.subStatus);
+          where.push(`l.sub_status = $${params.length}`);
+        }
+
+        if (filters.leadType) {
+          params.push(filters.leadType);
+          where.push(`l.lead_type = $${params.length}`);
+        } else if (filters.type) {
+          params.push(filters.type);
+          where.push(`l.lead_type = $${params.length}`);
+        }
+
+        if (filters.assignedTo) {
+          params.push(filters.assignedTo);
+          where.push(`l.assigned_to = $${params.length}`);
+        }
+
+        if (Array.isArray(filters.visibleAssigneeIds)) {
+          const visibleAssigneeIds = [
+            ...new Set(
+              filters.visibleAssigneeIds
+                .map((value) => String(value || "").trim())
+                .filter(Boolean),
+            ),
+          ];
+          if (visibleAssigneeIds.length > 0) {
+            params.push(visibleAssigneeIds);
+            if (filters.includeUnassigned === false) {
+              where.push(`l.assigned_to = ANY($${params.length}::uuid[])`);
+            } else {
+              where.push(
+                `(l.assigned_to IS NULL OR l.assigned_to = ANY($${params.length}::uuid[]))`,
+              );
+            }
+          }
+        }
+
+        if (filters.destinationId) {
+          params.push(filters.destinationId);
+          where.push(`l.destination_id = $${params.length}`);
+        }
+
+        if (filters.destination) {
+          const destination = String(filters.destination).trim();
+          if (destination) {
+            if (isUuidLike(destination)) {
+              params.push(destination);
+              where.push(`l.destination_id = $${params.length}`);
+            } else {
+              params.push(destination);
+              where.push(`LOWER(COALESCE(d.name, '')) = LOWER($${params.length})`);
+            }
+          }
+        }
+
+        if (filters.leadCountry || filters.country) {
+          params.push(filters.leadCountry ?? filters.country);
+          where.push(
+            `LOWER(COALESCE(l.lead_country, '')) = LOWER($${params.length})`,
+          );
+        }
+
+        if (Array.isArray(filters.allowedCountries)) {
+          const allowedCountries = [
+            ...new Set(
+              filters.allowedCountries
+                .map((value) => String(value || "").trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          ];
+          if (allowedCountries.length > 0) {
+            params.push(allowedCountries);
+            where.push(
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) = ANY($${params.length}::text[]))`,
+            );
+          }
+        }
+
+        if (filters.countryId) {
+          params.push(filters.countryId);
+          where.push(`l.country_id = $${params.length}`);
+        }
+
+        if (filters.campaignId) {
+          params.push(filters.campaignId);
+          where.push(`l.campaign_id = $${params.length}`);
+        }
+
+        if (filters.email) {
+          const normalizedEmail = String(filters.email).trim().toLowerCase();
+          if (normalizedEmail) {
+            params.push(`%${normalizedEmail}%`);
+            where.push(
+              `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${params.length} OR LOWER(COALESCE(c.email, '')) LIKE $${params.length})`,
+            );
+          }
+        }
+
+        if (filters.phone) {
+          const normalizedPhone = String(filters.phone).replace(/\D/g, "");
+          if (normalizedPhone) {
+            params.push(`%${normalizedPhone}%`);
+            where.push(
+              `(regexp_replace(COALESCE(NULLIF(l.phone, ''), ''), '\\D', '', 'g') LIKE $${params.length} OR regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g') LIKE $${params.length})`,
+            );
+          }
+        }
+
+        if (filters.leadId) {
+          const leadId = String(filters.leadId).trim();
+          if (leadId) {
+            params.push(leadId);
+            where.push(
+              `(LOWER(l.id::text) = LOWER($${params.length}) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER($${params.length}))`,
+            );
+          }
+        }
+
+        if (filters.search) {
+          const rawSearch = String(filters.search).trim().toLowerCase();
+          if (rawSearch) {
+            params.push(`%${rawSearch}%`);
+            const textParamIndex = params.length;
+            const searchWhere = [
+              `LOWER(COALESCE(c.full_name, '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(c.email, '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(d.name, '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(l.source, '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(l.id::text, '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(l.meta_lead_id, '')) LIKE $${textParamIndex}`,
+            ];
+            const phoneSearch = rawSearch.replace(/\D/g, "");
+            if (phoneSearch) {
+              params.push(`%${phoneSearch}%`);
+              searchWhere.push(
+                `(regexp_replace(COALESCE(NULLIF(l.phone, ''), ''), '\\D', '', 'g') LIKE $${params.length} OR regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g') LIKE $${params.length})`,
+              );
+            }
+            where.push(`(${searchWhere.join(" OR ")})`);
+          }
+        }
+
+        if (filters.fromDate) {
+          params.push(filters.fromDate);
+          where.push(`l.created_at >= $${params.length}::date`);
+        }
+
+        if (filters.toDate) {
+          params.push(filters.toDate);
+          where.push(`l.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+        }
+
+        if (filters.sla === "OVERDUE" || quickFilter === "LATE_RESPONSE") {
+          where.push(
+            `(COALESCE(l.sla_breached, FALSE) = TRUE OR (l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline < NOW()))`,
+          );
+        } else if (filters.sla === "PENDING") {
+          where.push(
+            `(l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline >= NOW() AND COALESCE(l.sla_breached, FALSE) = FALSE)`,
+          );
+        } else if (filters.sla === "WITHIN_SLA") {
+          where.push(
+            `(l.response_at IS NOT NULL AND l.response_deadline IS NOT NULL AND l.response_at <= l.response_deadline AND COALESCE(l.sla_breached, FALSE) = FALSE)`,
+          );
+        }
+
+        if (quickFilter === "ACTIVE") {
+          where.push(`l.status IN ('OPEN', 'CONTACTED', 'WIP', 'QUOTED')`);
+        } else if (quickFilter === "FOLLOW_UP") {
+          where.push(`l.status = 'FOLLOW_UP'`);
+        } else if (quickFilter === "CLOSED") {
+          where.push(`l.status IN ('CONVERTED', 'LOST', 'NON_RESPONSIVE')`);
+        }
+
+        const baseSql = [
+          `FROM ${schema.tableName} l`,
+          `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id`,
+          `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
+          `WHERE ${where.join(" AND ")}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const countSql = [`SELECT COUNT(*)::int AS total`, baseSql].join("\n");
+        const countResult = await db.query(countSql, params);
+        const total = Number(countResult.rows?.[0]?.total || 0);
+
+        const dataSql = [
+          `SELECT l.*`,
+          baseSql,
+          buildSortClause(filters.sortBy),
+          `LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+        const dataResult = await db.query(dataSql, [...params, limit, offset]);
+
+        return {
+          items: await mapRowsToDomain(dataResult.rows),
+          total,
+          page,
+          limit,
+        };
+      }
+
       const mappedFilters = mapListFilters({
         ...filters,
         page: undefined,
         limit: undefined,
       });
       const rows = await db.findMany(schema.tableName, mappedFilters);
-      let filteredRows = rows;
+      const [customerMap, assigneeMap, destinationMap] = await Promise.all([
+        loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId)),
+        loadUsersByIds(rows.map((row) => row.assigned_to ?? row.assignedTo)),
+        loadDestinationsByIds(
+          rows.map((row) => row.destination_id ?? row.destinationId),
+        ),
+      ]);
 
-      if (filters.email || filters.phone) {
-        const customerMap = await loadCustomersByIds(
-          rows.map((row) => row.customer_id ?? row.customerId),
+      let items = rows
+        .map((row) => toDomain(row, customerMap, assigneeMap, destinationMap))
+        .filter(Boolean);
+
+      if (filters.email) {
+        const normalizedEmail = String(filters.email).trim().toLowerCase();
+        items = items.filter((item) =>
+          String(item.email || "").toLowerCase().includes(normalizedEmail),
         );
-        const normalizedEmail = normalizeEmail(filters.email);
-        const normalizedPhone = normalizePhone(filters.phone);
+      }
 
-        filteredRows = rows.filter((row) => {
-          const customer = customerMap.get(row.customer_id ?? row.customerId);
-          if (!customer) {
-            return false;
-          }
+      if (filters.phone) {
+        const normalizedPhone = String(filters.phone).replace(/\D/g, "");
+        items = items.filter((item) =>
+          String(item.phone || "").replace(/\D/g, "").includes(normalizedPhone),
+        );
+      }
 
-          if (normalizedEmail && customer.email === normalizedEmail) {
-            return true;
-          }
-
-          if (normalizedPhone && customer.phone === normalizedPhone) {
-            return true;
-          }
-
-          return false;
+      if (filters.leadId) {
+        const leadId = String(filters.leadId).trim().toLowerCase();
+        items = items.filter((item) => {
+          const id = String(item.id || "").toLowerCase();
+          const metaLeadId = String(item.metaLeadId || "").toLowerCase();
+          return id === leadId || metaLeadId === leadId;
         });
       }
 
-      const sortedRows = [...filteredRows].sort((left, right) => {
-        const leftTime = new Date(left.created_at ?? left.createdAt ?? 0).getTime();
-        const rightTime = new Date(right.created_at ?? right.createdAt ?? 0).getTime();
+      if (filters.search) {
+        const search = String(filters.search).trim().toLowerCase();
+        if (search) {
+          const phoneSearch = search.replace(/\D/g, "");
+          items = items.filter((item) => {
+            const haystack = [
+              item.fullName,
+              item.email,
+              item.destinationName,
+              item.source,
+              item.id,
+              item.metaLeadId,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
+            if (haystack.includes(search)) return true;
+            if (!phoneSearch) return false;
+            return String(item.phone || "")
+              .replace(/\D/g, "")
+              .includes(phoneSearch);
+          });
+        }
+      }
+
+      if (Array.isArray(filters.visibleAssigneeIds)) {
+        const visibleAssigneeSet = new Set(
+          filters.visibleAssigneeIds
+            .map((value) => String(value || "").trim())
+            .filter(Boolean),
+        );
+        if (visibleAssigneeSet.size > 0) {
+          items = items.filter((item) => {
+            if (!item.assignedTo) {
+              return filters.includeUnassigned !== false;
+            }
+            return visibleAssigneeSet.has(String(item.assignedTo));
+          });
+        }
+      }
+
+      if (Array.isArray(filters.allowedCountries)) {
+        const allowedCountrySet = new Set(
+          filters.allowedCountries
+            .map((value) => String(value || "").trim().toLowerCase())
+            .filter(Boolean),
+        );
+        if (allowedCountrySet.size > 0) {
+          items = items.filter((item) => {
+            const country = String(item.leadCountry || item.country || "")
+              .trim()
+              .toLowerCase();
+            return !country || allowedCountrySet.has(country);
+          });
+        }
+      }
+
+      if (quickFilter === "ACTIVE") {
+        items = items.filter((item) =>
+          ["OPEN", "CONTACTED", "WIP", "QUOTED"].includes(
+            String(item.status || "").toUpperCase(),
+          ),
+        );
+      } else if (quickFilter === "FOLLOW_UP") {
+        items = items.filter(
+          (item) => String(item.status || "").toUpperCase() === "FOLLOW_UP",
+        );
+      } else if (quickFilter === "CLOSED") {
+        items = items.filter((item) =>
+          ["CONVERTED", "LOST", "NON_RESPONSIVE"].includes(
+            String(item.status || "").toUpperCase(),
+          ),
+        );
+      } else if (quickFilter === "LATE_RESPONSE") {
+        items = items.filter((item) => Boolean(item.slaBreached));
+      }
+
+      if (filters.sla === "OVERDUE") {
+        items = items.filter((item) => Boolean(item.slaBreached));
+      } else if (filters.sla === "WITHIN_SLA") {
+        items = items.filter((item) => !item.slaBreached && Boolean(item.responseAt));
+      } else if (filters.sla === "PENDING") {
+        items = items.filter(
+          (item) => !item.slaBreached && !item.responseAt && Boolean(item.responseDeadline),
+        );
+      }
+
+      const sortedItems = [...items].sort((left, right) => {
+        const leftTime = new Date(left.createdAt ?? 0).getTime();
+        const rightTime = new Date(right.createdAt ?? 0).getTime();
+        const mode = String(filters.sortBy || "NEWEST_FIRST")
+          .trim()
+          .toUpperCase();
+        if (mode === "OLDEST_FIRST") {
+          return leftTime - rightTime;
+        }
+        if (mode === "NAME_A_Z") {
+          return String(left.fullName || "")
+            .toLowerCase()
+            .localeCompare(String(right.fullName || "").toLowerCase());
+        }
+        if (mode === "STATUS") {
+          return String(left.status || "")
+            .toLowerCase()
+            .localeCompare(String(right.status || "").toLowerCase());
+        }
         return rightTime - leftTime;
       });
 
-      const limit = toPositiveInt(filters.limit, null);
-      const page = toPositiveInt(filters.page, null);
-      const offset = limit && page ? (page - 1) * limit : 0;
-      const pagedRows = limit ? sortedRows.slice(offset, offset + limit) : sortedRows.slice(offset);
+      const total = sortedItems.length;
+      const pagedItems = sortedItems.slice(offset, offset + limit);
 
-      return mapRowsToDomain(pagedRows);
+      return {
+        items: pagedItems,
+        total,
+        page,
+        limit,
+      };
     },
 
     async findById(id) {

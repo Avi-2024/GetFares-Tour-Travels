@@ -28,6 +28,7 @@ const FOLLOWUP_TOTAL_REQUIRED =
 const DOC_STATUS_TO_CANONICAL = Object.freeze({
   NEW: "OPEN",
   OPEN: "OPEN",
+  CANCELLED: "LOST",
   CONTACTED: "CONTACTED",
   NEGOTIATION: "WIP",
   WIP: "WIP",
@@ -324,6 +325,61 @@ function createLeadsService({ repository, logger, events }) {
       .replace(/[^A-Z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "");
     return DOC_STATUS_TO_CANONICAL[normalized] || "OPEN";
+  }
+
+  function normalizeSlaFilter(value) {
+    if (!value) {
+      return undefined;
+    }
+    const normalized = String(value)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, "_");
+    if (normalized === "WITHIN_SLA" || normalized === "WITHIN") {
+      return "WITHIN_SLA";
+    }
+    if (normalized === "OVERDUE") {
+      return "OVERDUE";
+    }
+    if (normalized === "PENDING") {
+      return "PENDING";
+    }
+    return undefined;
+  }
+
+  function normalizeSortBy(value) {
+    if (!value) {
+      return "NEWEST_FIRST";
+    }
+    const normalized = String(value)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, "_");
+    if (normalized === "OLDEST_FIRST" || normalized === "OLDEST") {
+      return "OLDEST_FIRST";
+    }
+    if (normalized === "NAME_A_Z" || normalized === "NAME") {
+      return "NAME_A_Z";
+    }
+    if (normalized === "STATUS") {
+      return "STATUS";
+    }
+    return "NEWEST_FIRST";
+  }
+
+  function normalizeQuickFilter(value) {
+    if (!value) {
+      return undefined;
+    }
+    const normalized = String(value)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, "_");
+    if (normalized === "ACTIVE") return "ACTIVE";
+    if (normalized === "FOLLOW_UP") return "FOLLOW_UP";
+    if (normalized === "CLOSED") return "CLOSED";
+    if (normalized === "LATE_RESPONSE") return "LATE_RESPONSE";
+    return undefined;
   }
 
   function deriveDocStatus(canonicalStatus, subStatus) {
@@ -1330,59 +1386,77 @@ function createLeadsService({ repository, logger, events }) {
         { module: "leads", requestId: context.requestId, filters },
         "Listing leads",
       );
+      const page = toPositiveInt(filters.page, 1, 1000000);
+      const limit = toPositiveInt(filters.limit, 15, 500);
       const mappedFilters = {
         ...filters,
+        page,
+        limit,
+        search: filters.search ? String(filters.search).trim() : undefined,
+        quickFilter: normalizeQuickFilter(filters.quickFilter),
         status:
           filters.status ? normalizeLeadStatus(filters.status) : undefined,
+        email: filters.email ? String(filters.email).trim() : undefined,
+        phone: filters.phone ? String(filters.phone).trim() : undefined,
+        leadId: filters.leadId ? String(filters.leadId).trim() : undefined,
+        destination:
+          filters.destination ? String(filters.destination).trim() : undefined,
+        fromDate: filters.fromDate || undefined,
+        toDate: filters.toDate || undefined,
+        sla: normalizeSlaFilter(filters.sla),
+        sortBy: normalizeSortBy(filters.sortBy),
       };
 
+      const userId = context.user?.id || null;
       const userRole = normalizeRoleToken(context.user?.role);
       const isAgent = isAgentRole(userRole);
       const isManager = isManagerRole(userRole);
 
-      if (isAgent && context.user?.id) {
-        mappedFilters.assignedTo = context.user.id;
-      }
-
-      let leads = await repository.findAll(mappedFilters);
-
-      if (isManager && context.user?.id) {
-        const [managerCountrySet, managedAgentIds] = await Promise.all([
-          getUserCountrySet(context.user.id),
-          repository.findManagedAgentIds(context.user.id),
-        ]);
-        const managedAgentSet = new Set(managedAgentIds);
-
-        leads = leads.filter((lead) => {
-          const lc = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
-          const countryAllowed =
-            !lc || managerCountrySet.size === 0 || managerCountrySet.has(lc);
-          if (!countryAllowed) return false;
-
-          if (lead.assignedTo === context.user.id) {
-            return true;
-          }
-          if (lead.assignedTo && managedAgentSet.has(lead.assignedTo)) {
-            return true;
-          }
-          if (!lead.assignedTo) {
-            return true;
-          }
-          return false;
-        });
-      }
-
-      if (isAgent && context.user?.id) {
-        const agentCountrySet = await getUserCountrySet(context.user.id);
+      if (isAgent && userId) {
+        mappedFilters.assignedTo = userId;
+        const agentCountrySet = await getUserCountrySet(userId);
         if (agentCountrySet.size > 0) {
-          leads = leads.filter((lead) => {
-            const lc = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
-            return !lc || agentCountrySet.has(lc);
-          });
+          mappedFilters.allowedCountries = [...agentCountrySet];
         }
       }
 
-      return leads.map((lead) => withTemperature(lead));
+      if (isManager && userId) {
+        const [managerCountrySet, managedAgentIds] = await Promise.all([
+          getUserCountrySet(userId),
+          repository.findManagedAgentIds(userId),
+        ]);
+        const visibleAssigneeIds = [userId, ...managedAgentIds].filter(Boolean);
+        if (visibleAssigneeIds.length > 0) {
+          mappedFilters.visibleAssigneeIds = [...new Set(visibleAssigneeIds)];
+          mappedFilters.includeUnassigned = true;
+        }
+        if (managerCountrySet.size > 0) {
+          mappedFilters.allowedCountries = [...managerCountrySet];
+        }
+      }
+
+      const result = await repository.findAll(mappedFilters);
+      const rows = Array.isArray(result?.items) ? result.items : [];
+      const total = Number.isFinite(Number(result?.total)) ?
+        Math.max(0, Number(result.total))
+      : rows.length;
+      const normalizedRows = rows.map((lead) => withTemperature(lead));
+      const safeLimit = Number.isFinite(Number(result?.limit)) ?
+        Math.max(1, Number(result.limit))
+      : limit;
+      const safePage = Number.isFinite(Number(result?.page)) ?
+        Math.max(1, Number(result.page))
+      : page;
+
+      return {
+        data: normalizedRows,
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+        },
+      };
     },
 
     getById,

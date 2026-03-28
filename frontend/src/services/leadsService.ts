@@ -37,6 +37,13 @@ export type LeadListItem = {
   consultant: string;
 };
 
+export type LeadsPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
 const toPlainText = (value: unknown, fallback = "N/A"): string => {
   if (typeof value === "string") {
     const text = value.trim();
@@ -80,16 +87,95 @@ const toPlainText = (value: unknown, fallback = "N/A"): string => {
   return fallback;
 };
 
-const extractList = (response: LeadsListResponse) => {
-  const data =
-    (response as { data?: { data?: LeadApiRecord[]; items?: LeadApiRecord[] } })
-      ?.data?.data ??
-    (response as { data?: { data?: LeadApiRecord[]; items?: LeadApiRecord[] } })
-      ?.data?.items ??
-    (response as { data?: LeadApiRecord[] })?.data ??
-    response;
+const normalizePagination = (value: unknown): LeadsPagination | null => {
+  if (!value || typeof value !== "object") return null;
+  const payload = value as {
+    page?: number | string;
+    limit?: number | string;
+    total?: number | string;
+    totalPages?: number | string;
+  };
 
-  return Array.isArray(data) ? data : [];
+  const page = Number(payload.page);
+  const limit = Number(payload.limit);
+  const total = Number(payload.total);
+  const totalPages = Number(payload.totalPages);
+
+  if (
+    !Number.isFinite(page) ||
+    !Number.isFinite(limit) ||
+    !Number.isFinite(total)
+  ) {
+    return null;
+  }
+
+  return {
+    page: Math.max(1, Math.trunc(page)),
+    limit: Math.max(1, Math.trunc(limit)),
+    total: Math.max(0, Math.trunc(total)),
+    totalPages:
+      Number.isFinite(totalPages) && totalPages > 0 ?
+        Math.trunc(totalPages)
+      : Math.max(1, Math.ceil(total / Math.max(1, Math.trunc(limit)))),
+  };
+};
+
+const extractListPayload = (response: LeadsListResponse) => {
+  const root = response as {
+    data?:
+      | LeadApiRecord[]
+      | {
+          data?: LeadApiRecord[] | { data?: LeadApiRecord[]; items?: LeadApiRecord[] };
+          items?: LeadApiRecord[];
+          pagination?: unknown;
+        };
+    pagination?: unknown;
+  };
+
+  const level1 = root?.data;
+  const level2 =
+    level1 && typeof level1 === "object" && !Array.isArray(level1) ?
+      level1.data
+    : undefined;
+
+  const items =
+    Array.isArray(level2) ? level2
+    : Array.isArray(
+        level2 && typeof level2 === "object" ?
+          (level2 as { data?: LeadApiRecord[]; items?: LeadApiRecord[] }).data
+        : undefined,
+      ) ?
+      (level2 as { data?: LeadApiRecord[]; items?: LeadApiRecord[] }).data || []
+    : Array.isArray(
+        level2 && typeof level2 === "object" ?
+          (level2 as { data?: LeadApiRecord[]; items?: LeadApiRecord[] }).items
+        : undefined,
+      ) ?
+      (level2 as { data?: LeadApiRecord[]; items?: LeadApiRecord[] }).items || []
+    : Array.isArray(
+        level1 && typeof level1 === "object" && !Array.isArray(level1) ?
+          (level1 as { items?: LeadApiRecord[] }).items
+        : undefined,
+      ) ?
+      (level1 as { items?: LeadApiRecord[] }).items || []
+    : Array.isArray(level1) ? level1
+    : Array.isArray(response) ? response
+    : [];
+
+  const pagination =
+    normalizePagination(
+      level1 && typeof level1 === "object" && !Array.isArray(level1) ?
+        (level1 as { pagination?: unknown }).pagination
+      : undefined,
+    ) ??
+    normalizePagination(
+      level2 && typeof level2 === "object" ?
+        (level2 as { pagination?: unknown }).pagination
+      : undefined,
+    ) ??
+    normalizePagination(root?.pagination);
+
+  return { items, pagination };
 };
 
 const extractFollowups = (response: LeadFollowupsResponse) => {
@@ -255,12 +341,22 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
 export const createLeadsService = (datasource: LeadsDatasource) => ({
   listLeads: async (params?: LeadsQuery): Promise<LeadListItem[]> => {
     const response = await datasource.list(params);
-    const items = extractList(response);
+    const { items } = extractListPayload(response);
     return items.map((lead, index) => toListItem(lead, index));
+  },
+  listLeadsPage: async (
+    params?: LeadsQuery,
+  ): Promise<{ items: LeadListItem[]; pagination: LeadsPagination | null }> => {
+    const response = await datasource.list(params);
+    const { items, pagination } = extractListPayload(response);
+    return {
+      items: items.map((lead, index) => toListItem(lead, index)),
+      pagination,
+    };
   },
   listLeadsRaw: async (params?: LeadsQuery): Promise<LeadApiRecord[]> => {
     const response = await datasource.list(params);
-    return extractList(response);
+    return extractListPayload(response).items;
   },
   createLead: (payload: unknown) => datasource.create(payload),
   getLeadById: (id: string) => datasource.getById(id),
@@ -275,7 +371,7 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     datasource.markAsLost(id, reason, notes),
   checkDuplicate: async (email?: string, phone?: string) => {
     const response = await datasource.checkDuplicate(email, phone);
-    const matches = extractList(response);
+    const matches = extractListPayload(response).items;
     return {
       data: {
         isDuplicate: matches.length > 0,

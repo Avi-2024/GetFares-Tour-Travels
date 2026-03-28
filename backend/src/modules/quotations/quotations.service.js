@@ -186,7 +186,7 @@ function buildQuoteNumber() {
   return `QT-${stamp}-${randomPart}`;
 }
 
-function createQuotationsService({ repository, logger, events, s3 }) {
+function createQuotationsService({ repository, logger, events, s3, mailService }) {
   function assertAuthenticatedUser(user) {
     if (!user?.id) {
       throw new AppError(401, "Authentication required", "AUTH_REQUIRED");
@@ -578,42 +578,14 @@ function createQuotationsService({ repository, logger, events, s3 }) {
   }
 
   async function sendQuotationEmail({
-    smtpSettings,
     toEmail,
     quotation,
     lead,
   }) {
-    const smtpHost = String(smtpSettings?.smtpHost || "").trim();
-    const smtpPort = Number(smtpSettings?.smtpPort || 587);
-    const smtpUser = String(smtpSettings?.smtpUser || "").trim();
-    const smtpPassword = String(smtpSettings?.smtpPassword || "").trim();
-    const smtpFromEmail = String(smtpSettings?.smtpFromEmail || "").trim();
-
-    if (!smtpHost || !smtpPort || !smtpFromEmail) {
-      throw new AppError(
-        500,
-        "SMTP is not configured in Settings > Integrations",
-        "QUOTATION_SMTP_NOT_CONFIGURED",
-      );
-    }
-
-    const nodemailer = await resolveMailerLibrary();
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth:
-        smtpUser && smtpPassword
-          ? {
-              user: smtpUser,
-              pass: smtpPassword,
-            }
-          : undefined,
-    });
-
     const customerName = lead?.full_name || lead?.fullName || "Customer";
-    const subject = `Quotation ${quotation.quoteNumber || quotation.id} from GetFares`;
+    const subject = `Quotation ${quotation.quoteNumber || quotation.id} from Get2Vacations`;
     const quotationUrl = quotation.pdfUrl || "";
+    
     const text = [
       `Hi ${customerName},`,
       "",
@@ -624,10 +596,11 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       `Final Amount: INR ${Number(quotation.finalPrice || 0).toFixed(2)}`,
       "",
       "Thanks,",
-      "GetFares Team",
+      "Get2Vacations Team",
     ]
       .filter(Boolean)
       .join("\n");
+      
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5;">
         <p>Hi ${customerName},</p>
@@ -639,12 +612,11 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         }
         <p><strong>Quote Number:</strong> ${quotation.quoteNumber || quotation.id}</p>
         <p><strong>Final Amount:</strong> INR ${Number(quotation.finalPrice || 0).toFixed(2)}</p>
-        <p>Thanks,<br/>GetFares Team</p>
+        <p>Thanks,<br/>Get2Vacations Team</p>
       </div>
     `;
 
-    const info = await transporter.sendMail({
-      from: smtpFromEmail,
+    const result = await mailService.sendMail({
       to: toEmail,
       subject,
       text,
@@ -652,9 +624,9 @@ function createQuotationsService({ repository, logger, events, s3 }) {
     });
 
     return {
-      messageId: info?.messageId || null,
-      accepted: Array.isArray(info?.accepted) ? info.accepted : [],
-      rejected: Array.isArray(info?.rejected) ? info.rejected : [],
+      messageId: result?.messageId || null,
+      accepted: [toEmail],
+      rejected: [],
     };
   }
 
@@ -1267,20 +1239,6 @@ function createQuotationsService({ repository, logger, events, s3 }) {
     let quotation = await getById(id, context, { includeItems: true });
     const deliveryChannel = String(payload.channel || "MANUAL").toUpperCase();
 
-    if (
-      [
-        QUOTATION_STATUS.APPROVED,
-        QUOTATION_STATUS.REJECTED,
-        QUOTATION_STATUS.EXPIRED,
-      ].includes(quotation.status)
-    ) {
-      throw new AppError(
-        409,
-        "Finalized quotation cannot be sent",
-        "QUOTATION_FINALIZED",
-      );
-    }
-
     if (quotation.requiresApproval) {
       throw new AppError(
         409,
@@ -1341,9 +1299,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
 
     let emailDelivery = null;
     if (deliveryChannel === "EMAIL") {
-      const integrationSettings = await repository.findIntegrationSettings();
       emailDelivery = await sendQuotationEmail({
-        smtpSettings: integrationSettings,
         toEmail: recipientEmail,
         quotation: {
           ...quotation,

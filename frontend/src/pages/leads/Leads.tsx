@@ -1,5 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+﻿import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaCalendarPlus,
   FaChevronLeft,
@@ -9,275 +9,465 @@ import {
   FaFire,
   FaPlus,
   FaSearch,
-  FaUsers
-} from 'react-icons/fa'
-import EmptyState from '../../components/ui/EmptyState'
-import StatusBadge from '../../components/ui/StatusBadge'
-import SurfaceCard from '../../components/ui/SurfaceCard'
-import SearchableDropdown from '../../components/ui/SearchableDropdown'
-import { getApiErrorMessage } from '../../api/apiClient'
-import { useLeadsService } from '../../hooks/useLeadsService'
-import type { LeadListItem } from '../../services/leadsService'
-import {
-  SOP_STATUS_LABELS,
-  type SopStatusLabel,
-  toStatusLabelText
-} from '../../utils/leadStatus'
+  FaUsers,
+} from "react-icons/fa";
+import { Country } from "country-state-city";
+import EmptyState from "../../components/ui/EmptyState";
+import StatusBadge from "../../components/ui/StatusBadge";
+import SurfaceCard from "../../components/ui/SurfaceCard";
+import SearchableDropdown from "../../components/ui/SearchableDropdown";
+import { getApiErrorMessage } from "../../api/apiClient";
+import { useLeadsService } from "../../hooks/useLeadsService";
+import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
+import { toStatusLabelText } from "../../utils/leadStatus";
 
 interface LeadStats {
-  totalLeads: number
-  newToday: number
-  followupActive: number
-  slaBreached: number
+  totalLeads: number;
+  newToday: number;
+  followupActive: number;
+  slaBreached: number;
 }
 
 const quickFilters = [
-  { key: 'ALL', label: 'All' },
-  { key: 'ACTIVE', label: 'Active' },
-  { key: 'FOLLOW_UP', label: 'Follow-up' },
-  { key: 'CLOSED', label: 'Closed' },
-  { key: 'LATE_RESPONSE', label: 'Late Response' }
-] as const
-type QuickFilter = typeof quickFilters[number]['key']
+  { key: "ALL", label: "All" },
+  { key: "ACTIVE", label: "Active" },
+  { key: "FOLLOW_UP", label: "Follow-up" },
+  { key: "CLOSED", label: "Closed" },
+  { key: "LATE_RESPONSE", label: "Late Response" },
+] as const;
+type QuickFilter = (typeof quickFilters)[number]["key"];
+
+type LeadFilterState = {
+  fromDate: string;
+  toDate: string;
+  country: string;
+  destination: string;
+  email: string;
+  phone: string;
+  leadId: string;
+  status: "ALL" | "NEW" | "CONTACTED" | "CONVERTED" | "CANCELLED";
+  sla: "ALL" | "WITHIN_SLA" | "OVERDUE" | "PENDING";
+  sortBy: "NEWEST_FIRST" | "OLDEST_FIRST" | "NAME_A_Z" | "STATUS";
+};
+
+const defaultFilters: LeadFilterState = {
+  fromDate: "",
+  toDate: "",
+  country: "",
+  destination: "",
+  email: "",
+  phone: "",
+  leadId: "",
+  status: "ALL",
+  sla: "ALL",
+  sortBy: "NEWEST_FIRST",
+};
 
 const formatPaxSummary = (lead: LeadListItem) => {
-  const adults = Math.max(lead.adultsCount ?? 0, 0)
-  const children = Math.max(lead.childrenCount ?? 0, 0)
-  const adultLabel = `${adults} Adult${adults === 1 ? '' : 's'}`
+  const adults = Math.max(lead.adultsCount ?? 0, 0);
+  const children = Math.max(lead.childrenCount ?? 0, 0);
+  const adultLabel = `${adults} Adult${adults === 1 ? "" : "s"}`;
 
-  if (children <= 0) return adultLabel
+  if (children <= 0) return adultLabel;
 
-  return `${adultLabel}, ${children} ${children === 1 ? 'Child' : 'Children'}`
-}
+  return `${adultLabel}, ${children} ${children === 1 ? "Child" : "Children"}`;
+};
 
 const formatChildAges = (lead: LeadListItem) =>
-  lead.childAges.length > 0 ? `Child Ages: ${lead.childAges.join(', ')}` : ''
+  lead.childAges.length > 0 ? `Child Ages: ${lead.childAges.join(", ")}` : "";
 
 const truncateEmail = (value: string, maxLength = 26) => {
-  const safe = (value || '').trim()
-  if (!safe) return 'N/A'
-  if (safe.length <= maxLength) return safe
-  return `${safe.slice(0, Math.max(3, maxLength - 3))}...`
-}
+  const safe = (value || "").trim();
+  if (!safe) return "N/A";
+  if (safe.length <= maxLength) return safe;
+  return `${safe.slice(0, Math.max(3, maxLength - 3))}...`;
+};
 
 const Leads: React.FC = () => {
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
-  const [statusFilter, setStatusFilter] = useState<SopStatusLabel | 'ALL'>(
-    'ALL'
-  )
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [fetchedLeads, setFetchedLeads] = useState<LeadListItem[]>([])
-  const pageSize = 15
-  const nav = useNavigate()
-  const leadsService = useLeadsService()
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+  const [fetchedLeads, setFetchedLeads] = useState<LeadListItem[]>([]);
+  const [pagination, setPagination] = useState<LeadsPagination | null>(null);
+  const [destinationNames, setDestinationNames] = useState<string[]>([]);
+  const [draftFilters, setDraftFilters] =
+    useState<LeadFilterState>(defaultFilters);
+  const [appliedFilters, setAppliedFilters] =
+    useState<LeadFilterState>(defaultFilters);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const pageSize = 15;
+  const nav = useNavigate();
+  const leadsService = useLeadsService();
+
+  const countryOptions = useMemo(
+    () => [
+      { value: "", label: "All Countries" },
+      ...Country.getAllCountries()
+        .map((country) => country.name)
+        .sort((a, b) => a.localeCompare(b))
+        .map((name) => ({ value: name, label: name })),
+    ],
+    [],
+  );
+
+  const destinationOptions = useMemo(
+    () => [
+      { value: "", label: "All Destinations" },
+      ...destinationNames.map((name) => ({ value: name, label: name })),
+    ],
+    [destinationNames],
+  );
+
+  const statusOptions = useMemo(
+    () => [
+      { value: "ALL", label: "All Statuses" },
+      { value: "NEW", label: "New" },
+      { value: "CONTACTED", label: "Contacted" },
+      { value: "CONVERTED", label: "Converted" },
+      { value: "CANCELLED", label: "Cancelled" },
+    ],
+    [],
+  );
+
+  const slaOptions = useMemo(
+    () => [
+      { value: "ALL", label: "All SLA" },
+      { value: "WITHIN_SLA", label: "Within SLA" },
+      { value: "OVERDUE", label: "Overdue" },
+      { value: "PENDING", label: "Pending" },
+    ],
+    [],
+  );
+
+  const sortOptions = useMemo(
+    () => [
+      { value: "NEWEST_FIRST", label: "Newest First" },
+      { value: "OLDEST_FIRST", label: "Oldest First" },
+      { value: "NAME_A_Z", label: "Name A-Z" },
+      { value: "STATUS", label: "Status" },
+    ],
+    [],
+  );
+
+  const buildLeadQuery = (queryPage: number, queryLimit: number) => ({
+    page: queryPage,
+    limit: queryLimit,
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+    ...(quickFilter !== "ALL" ? { quickFilter } : {}),
+    ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
+    ...(appliedFilters.status !== "ALL"
+      ? { status: appliedFilters.status }
+      : {}),
+    ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
+    ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
+    ...(appliedFilters.leadId.trim() ? { leadId: appliedFilters.leadId.trim() } : {}),
+    ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
+    ...(appliedFilters.toDate ? { toDate: appliedFilters.toDate } : {}),
+    ...(appliedFilters.destination
+      ? { destination: appliedFilters.destination }
+      : {}),
+    ...(appliedFilters.sla !== "ALL" ? { sla: appliedFilters.sla } : {}),
+    ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
+  });
+
+  useEffect(() => {
+    const loadDestinations = async () => {
+      try {
+        const rows = await leadsService.getDestinations();
+        const names = rows
+          .map((item) => {
+            if (typeof item === "string") return item.trim();
+            if (!item || typeof item !== "object") return "";
+            return String(
+              item.name ?? item.destinationName ?? item.country ?? "",
+            ).trim();
+          })
+          .filter(Boolean);
+        const unique = Array.from(new Set(names)).sort((a, b) =>
+          a.localeCompare(b),
+        );
+        setDestinationNames(unique);
+      } catch {
+        setDestinationNames([]);
+      }
+    };
+    void loadDestinations();
+  }, [leadsService]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     const fetchLeads = async () => {
-      setLoading(true)
-      setError('')
+      setLoading(true);
+      setError("");
       try {
-        const mapped = await leadsService.listLeads({
-          page: 1,
-          limit: 500
-        })
-        setFetchedLeads(mapped)
+        const query = buildLeadQuery(page, pageSize);
+        const result = await leadsService.listLeadsPage(query);
+        setFetchedLeads(result.items);
+        setPagination(
+          result.pagination || {
+            page,
+            limit: pageSize,
+            total: result.items.length,
+            totalPages: 1,
+          },
+        );
       } catch (err) {
-        setError(getApiErrorMessage(err, 'Failed to load leads'))
-        setFetchedLeads([])
+        setError(getApiErrorMessage(err, "Failed to load leads"));
+        setFetchedLeads([]);
+        setPagination({
+          page: 1,
+          limit: pageSize,
+          total: 0,
+          totalPages: 1,
+        });
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
+    };
+    void fetchLeads();
+  }, [
+    appliedFilters,
+    debouncedSearch,
+    leadsService,
+    page,
+    pageSize,
+    quickFilter,
+  ]);
+
+  useEffect(() => {
+    if (pagination && page > pagination.totalPages) {
+      setPage(pagination.totalPages);
     }
-    void fetchLeads()
-  }, [leadsService])
+  }, [page, pagination]);
 
-  const filtered = useMemo(
-    () =>
-      fetchedLeads.filter(lead => {
-        const quickMatch =
-          quickFilter === 'ALL' ||
-          (quickFilter === 'ACTIVE' &&
-            ['NEW', 'CONTACTED', 'NEGOTIATION', 'QUOTED'].includes(
-              lead.statusLabel
-            )) ||
-          (quickFilter === 'FOLLOW_UP' &&
-            (lead.statusLabel.startsWith('FOLLOW_UP') ||
-              lead.statusLabel === 'FINAL_REMINDER')) ||
-          (quickFilter === 'CLOSED' &&
-            ['CONVERTED', 'LOST', 'NON_RESPONSIVE'].includes(
-              lead.statusLabel
-            )) ||
-          (quickFilter === 'LATE_RESPONSE' && lead.slaBreached)
-        const statusMatch =
-          statusFilter === 'ALL' || lead.statusLabel === statusFilter
-        const createdAtText = lead.createdAt
-          ? new Date(lead.createdAt).toLocaleDateString()
-          : ''
-        const createdAtIso = lead.createdAt
-          ? new Date(lead.createdAt).toISOString().split('T')[0]
-          : ''
-        const text =
-          `${lead.name} ${lead.leadId} ${lead.email} • {lead.phone} ${lead.consultant} ${createdAtText} ${createdAtIso} ${formatPaxSummary(lead)} ${lead.childAges.join(' ')}`.toLowerCase()
-        return quickMatch && statusMatch && text.includes(search.toLowerCase())
-      }),
-    [fetchedLeads, quickFilter, search, statusFilter]
-  )
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const rows = filtered.slice((page - 1) * pageSize, page * pageSize)
-
-  const statusFilterOptions = useMemo(
-    () => [
-      { value: 'ALL', label: 'All Statuses' },
-      ...SOP_STATUS_LABELS.map(status => ({
-        value: status,
-        label: toStatusLabelText(status)
-      }))
-    ],
-    []
-  )
+  const totalPages = Math.max(1, pagination?.totalPages ?? 1);
+  const rows = fetchedLeads;
 
   const leadStats = useMemo<LeadStats>(
     () => ({
-      totalLeads: fetchedLeads.length,
-      newToday: fetchedLeads.filter(lead => lead.statusLabel === 'NEW').length,
+      totalLeads: pagination?.total ?? fetchedLeads.length,
+      newToday: fetchedLeads.filter((lead) => lead.statusLabel === "NEW")
+        .length,
       followupActive: fetchedLeads.filter(
-        lead =>
-          lead.statusLabel.startsWith('FOLLOW_UP') ||
-          lead.statusLabel === 'FINAL_REMINDER'
+        (lead) =>
+          lead.statusLabel.startsWith("FOLLOW_UP") ||
+          lead.statusLabel === "FINAL_REMINDER",
       ).length,
-      slaBreached: fetchedLeads.filter(lead => lead.slaBreached).length
+      slaBreached: fetchedLeads.filter((lead) => lead.slaBreached).length,
     }),
-    [fetchedLeads]
-  )
+    [fetchedLeads, pagination?.total],
+  );
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (appliedFilters.fromDate) count += 1;
+    if (appliedFilters.toDate) count += 1;
+    if (appliedFilters.country) count += 1;
+    if (appliedFilters.destination) count += 1;
+    if (appliedFilters.email) count += 1;
+    if (appliedFilters.phone) count += 1;
+    if (appliedFilters.leadId) count += 1;
+    if (appliedFilters.status !== "ALL") count += 1;
+    if (appliedFilters.sla !== "ALL") count += 1;
+    if (appliedFilters.sortBy !== "NEWEST_FIRST") count += 1;
+    return count;
+  }, [appliedFilters]);
+
+  const updateDraftFilter = <K extends keyof LeadFilterState>(
+    key: K,
+    value: LeadFilterState[K],
+  ) => {
+    setDraftFilters((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  };
+
+  useEffect(() => {
+    if (
+      draftFilters.fromDate &&
+      draftFilters.toDate &&
+      draftFilters.fromDate > draftFilters.toDate
+    ) {
+      setError("From Date cannot be later than To Date.");
+      return;
+    }
+
+    setError("");
+    const timer = window.setTimeout(() => {
+      setAppliedFilters({
+        ...draftFilters,
+        email: draftFilters.email.trim(),
+        phone: draftFilters.phone.trim(),
+        leadId: draftFilters.leadId.trim(),
+      });
+      setPage(1);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [draftFilters]);
+
+  const handleResetFilters = () => {
+    setError("");
+    setDraftFilters(defaultFilters);
+    setAppliedFilters(defaultFilters);
+    setQuickFilter("ALL");
+    setSearch("");
+    setPage(1);
+  };
 
   const handleViewLead = (lead: LeadListItem) => {
-    sessionStorage.setItem(`lead:${lead.id}`, JSON.stringify(lead))
-    nav(`/leads/${lead.id}`, { state: { lead } })
-  }
+    sessionStorage.setItem(`lead:${lead.id}`, JSON.stringify(lead));
+    nav(`/leads/${lead.id}`, { state: { lead } });
+  };
 
-  const exportCurrentTable = () => {
-    if (!rows.length) return
+  const exportCurrentTable = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setError("");
 
     const headers = [
-      'Lead',
-      'Lead ID',
-      'Contact',
-      'Destination',
-      'Visa/Holidays',
-      'Status',
-      'SLA'
-    ]
+      "Lead",
+      "Lead ID",
+      "Contact",
+      "Destination",
+      "Visa/Holidays",
+      "Status",
+      "SLA",
+    ];
 
-    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`
+    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`;
+    try {
+      const exportLimit = 500;
+      const firstPage = await leadsService.listLeadsPage(
+        buildLeadQuery(1, exportLimit),
+      );
+      const totalPages = Math.max(1, firstPage.pagination?.totalPages ?? 1);
+      const exportRows = [...firstPage.items];
 
-    const dataRows = rows.map(lead => [
-      lead.name ?? '',
-      lead.leadId ?? '',
-      `${lead.email ?? ''} ${lead.phone ? `| ${lead.phone}` : ''}`.trim(),
-      lead.destination ?? '',
-      getVisaHolidayLabel(lead),
-      toStatusLabelText(lead.statusLabel),
-      lead.slaBreached ? 'Breached' : lead.sla ?? ''
-    ])
+      for (let currentPage = 2; currentPage <= totalPages; currentPage += 1) {
+        const nextPage = await leadsService.listLeadsPage(
+          buildLeadQuery(currentPage, exportLimit),
+        );
+        exportRows.push(...nextPage.items);
+      }
 
-    const csv = [headers, ...dataRows]
-      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
-      .join('\n')
+      if (!exportRows.length) return;
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `leads-page-${page}.csv`
-    anchor.click()
-    URL.revokeObjectURL(url)
-  }
+      const dataRows = exportRows.map((lead) => [
+        lead.name ?? "",
+        lead.leadId ?? "",
+        `${lead.email ?? ""} ${lead.phone ? `| ${lead.phone}` : ""}`.trim(),
+        lead.destination ?? "",
+        getVisaHolidayLabel(lead),
+        toStatusLabelText(lead.statusLabel),
+        lead.slaBreached ? "Breached" : (lead.sla ?? ""),
+      ]);
+
+      const csv = [headers, ...dataRows]
+        .map((row) => row.map((cell) => escapeCsv(String(cell))).join(","))
+        .join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filterSuffix =
+        activeFilterCount > 0 ? `-filtered-${activeFilterCount}` : "-all";
+      anchor.download = `leads${filterSuffix}-${timestamp}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to export leads"));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const getVisaHolidayLabel = (lead: LeadListItem) => {
-    const source = `${lead.packageName ?? ''} ${lead.statusLabel ?? ''}`
+    const source = `${lead.packageName ?? ""} ${lead.statusLabel ?? ""}`
       .trim()
-      .toLowerCase()
-    return source.includes('visa') ? 'Visa' : 'Holidays'
-  }
+      .toLowerCase();
+    return source.includes("visa") ? "Visa" : "Holidays";
+  };
 
   return (
-    <div className='space-y-4 sm:space-y-6 overflow-x-hidden'>
-      <div className=' mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0'>
-        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
-          <div className='flex flex-col gap-1'>
-            <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
+    <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
+      <div className=" mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
               Leads Management
             </h1>
-            <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400'>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
               SOP-aligned lead pipeline with follow-up and SLA visibility.
             </p>
           </div>
-          <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <button
-              onClick={exportCurrentTable}
-              disabled={!rows.length}
-              className='inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+              onClick={() => nav("/create-lead")}
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto"
             >
-              <FaDownload className='mr-2' />
-              <span>Export</span>
-            </button>
-            <button
-              onClick={() => nav('/create-lead')}
-              className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto'
-            >
-              <FaPlus className='mr-2' />
+              <FaPlus className="mr-2" />
               <span>Create Lead</span>
             </button>
           </div>
         </div>
 
-        <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4'>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <KpiCard
-            title='All Leads'
+            title="All Leads"
             value={String(leadStats.totalLeads)}
-            icon={<FaUsers className='text-blue-600 text-xl' />}
+            icon={<FaUsers className="text-blue-600 text-xl" />}
           />
           <KpiCard
-            title='New Today'
+            title="New Today"
             value={String(leadStats.newToday)}
-            icon={<FaCalendarPlus className='text-green-500 text-xl' />}
+            icon={<FaCalendarPlus className="text-green-500 text-xl" />}
           />
           <KpiCard
-            title='Follow-up Active'
+            title="Follow-up Active"
             value={String(leadStats.followupActive)}
-            icon={<FaCalendarPlus className='text-amber-500 text-xl' />}
+            icon={<FaCalendarPlus className="text-amber-500 text-xl" />}
           />
           <KpiCard
-            title='Late Responses'
+            title="Late Responses"
             value={String(leadStats.slaBreached)}
-            icon={<FaFire className='text-red-500 text-xl' />}
+            icon={<FaFire className="text-red-500 text-xl" />}
           />
         </div>
 
-        <SurfaceCard className='p-0 overflow-hidden border border-gray-200 dark:border-gray-800'>
-          <div className='p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 space-y-3'>
+        <SurfaceCard className="p-0 overflow-hidden border border-gray-200 dark:border-gray-800">
+          <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 space-y-3">
             {error ? (
-              <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
                 {error}
               </div>
             ) : null}
-            <div className='w-full overflow-x-auto pb-1 scrollbar-hide'>
-              <div className='inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1'>
-                {quickFilters.map(item => (
+            <div className="w-full overflow-x-auto pb-1 scrollbar-hide">
+              <div className="inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1">
+                {quickFilters.map((item) => (
                   <button
                     key={item.key}
                     onClick={() => {
-                      setQuickFilter(item.key)
-                      setPage(1)
+                      setQuickFilter(item.key);
+                      setPage(1);
                     }}
                     className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
                       quickFilter === item.key
-                        ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                     }`}
                   >
                     {item.label}
@@ -285,146 +475,334 @@ const Leads: React.FC = () => {
                 ))}
               </div>
             </div>
-            <div className='grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px]'>
-              <div className='relative w-full'>
-                <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400' />
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+              <div className="relative w-full">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400" />
                 <input
-                  type='text'
+                  type="text"
                   value={search}
-                  onChange={event => {
-                    setSearch(event.target.value)
-                    setPage(1)
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
                   }}
-                  placeholder='Search leads...'
-                  className='w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                  placeholder="Search leads..."
+                  className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
-              <SearchableDropdown
-                className='w-full'
-                value={statusFilter}
-                options={statusFilterOptions}
-                searchPlaceholder='Search status...'
-                onChange={value => {
-                  setStatusFilter(value as SopStatusLabel | 'ALL')
-                  setPage(1)
-                }}
-              />
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {activeFilterCount > 0
+                  ? `${activeFilterCount} filter(s) applied`
+                  : "No filter applied"}
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Lead ID
+                  </label>
+                  <input
+                    type="text"
+                    value={draftFilters.leadId}
+                    onChange={(event) =>
+                      updateDraftFilter("leadId", event.target.value)
+                    }
+                    placeholder="Exact lead ID"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Email
+                  </label>
+                  <input
+                    type="text"
+                    value={draftFilters.email}
+                    onChange={(event) =>
+                      updateDraftFilter("email", event.target.value)
+                    }
+                    placeholder="Partial email"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={draftFilters.phone}
+                    onChange={(event) =>
+                      updateDraftFilter("phone", event.target.value)
+                    }
+                    placeholder="Partial phone"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    From Date
+                  </label>
+                  <input
+                    type="date"
+                    value={draftFilters.fromDate}
+                    onChange={(event) =>
+                      updateDraftFilter("fromDate", event.target.value)
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    To Date
+                  </label>
+                  <input
+                    type="date"
+                    value={draftFilters.toDate}
+                    onChange={(event) =>
+                      updateDraftFilter("toDate", event.target.value)
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Country
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.country}
+                    options={countryOptions}
+                    placeholder="All Countries"
+                    searchPlaceholder="Search country..."
+                    onChange={(value) => updateDraftFilter("country", value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Destination
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.destination}
+                    options={destinationOptions}
+                    placeholder="All Destinations"
+                    searchPlaceholder="Search destination..."
+                    onChange={(value) =>
+                      updateDraftFilter("destination", value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Status
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.status}
+                    options={statusOptions}
+                    placeholder="All Statuses"
+                    searchPlaceholder="Search status..."
+                    onChange={(value) =>
+                      updateDraftFilter(
+                        "status",
+                        value as LeadFilterState["status"],
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    SLA
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.sla}
+                    options={slaOptions}
+                    placeholder="All SLA"
+                    searchPlaceholder="Search SLA..."
+                    onChange={(value) =>
+                      updateDraftFilter("sla", value as LeadFilterState["sla"])
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Sort By
+                  </label>
+                  <SearchableDropdown
+                    className="w-full"
+                    value={draftFilters.sortBy}
+                    options={sortOptions}
+                    placeholder="Newest First"
+                    searchPlaceholder="Search sort option..."
+                    onChange={(value) =>
+                      updateDraftFilter(
+                        "sortBy",
+                        value as LeadFilterState["sortBy"],
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  Reset Filters
+                </button>
+                <button
+                  type="button"
+                  onClick={exportCurrentTable}
+                  disabled={exporting || (pagination?.total ?? 0) === 0}
+                  className="inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  <FaDownload className="mr-2" />
+                  <span>{exporting ? "Exporting..." : "Export Filtered"}</span>
+                </button>
+              </div>
             </div>
           </div>
 
           {loading ? (
-            <div className='p-8 text-center text-sm text-gray-500 dark:text-gray-400'>
+            <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Loading leads...
             </div>
           ) : rows.length === 0 ? (
-            <div className='p-8'>
+            <div className="p-8">
               <EmptyState
-                title='No leads found'
-                description='Try adjusting your search or status filters.'
-                icon={<FaUsers className='text-4xl' />}
+                title="No leads found"
+                description="Try adjusting your filter combination and search query."
+                icon={<FaUsers className="text-4xl" />}
               />
             </div>
           ) : (
             <>
-              <div className='hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll'>
-                <table className='min-w-[1080px] w-full table-fixed'>
+              <div className="hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll">
+                <table className="min-w-[1080px] w-full table-fixed">
                   <colgroup>
-                    <col className='w-[19%]' />
-                    <col className='w-[10%]' />
-                    <col className='w-[26%]' />
-                    <col className='w-[12%]' />
-                    <col className='w-[11%]' />
-                    <col className='w-[10%]' />
-                    <col className='w-[6%]' />
-                    <col className='w-[6%]' />
+                    <col className="w-[10%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[19%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[7%]" />
+                    <col className="w-[7%]" />
+                    <col className="w-[8%]" />
                   </colgroup>
-                  <thead className='bg-gray-50 dark:bg-gray-800/50'>
+                  <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
-                      <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Date
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Lead
                       </th>
-                      <th className='pl-1 pr-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Lead ID
                       </th>
-                      <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Contact
                       </th>
-                      <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Destination
                       </th>
-                      <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Visa/Holidays
                       </th>
-                      <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Status
                       </th>
-                      <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         SLA
                       </th>
-                      <th className='px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                        Actions
+                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        View
                       </th>
                     </tr>
                   </thead>
-                  <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                    {rows.map(lead => (
+                  <tbody>
+                    {rows.map((lead) => (
                       <tr
                         key={lead.id}
-                        className='hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors'
+                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors dark:border-gray-800 dark:hover:bg-gray-800/40"
                       >
-                        <td className='px-5 py-4'>
-                          <p className='font-medium text-gray-900 dark:text-gray-100'>
+                        <td className="px-3 py-2.5 text-center leading-tight whitespace-nowrap">
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                            {lead.createdAt
+                              ? new Intl.DateTimeFormat("en-GB").format(
+                                  new Date(lead.createdAt),
+                                )
+                              : "-"}
+                          </p>
+                        </td>
+                        <td className="px-3 py-2.5 leading-tight">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                             {lead.name}
                           </p>
-                          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
                             {formatPaxSummary(lead)}
                           </p>
                           {formatChildAges(lead) ? (
-                            <p className='mt-1 text-xs text-blue-600 dark:text-blue-300'>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
                               {formatChildAges(lead)}
                             </p>
                           ) : null}
                         </td>
-                        <td className='pl-1 pr-5 py-4 text-xs text-gray-500'>
-                          {lead.leadId}
+                        <td className="px-3 py-2.5 text-left leading-tight whitespace-nowrap">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                            {lead.leadId}
+                          </span>
                         </td>
-                        <td className='px-5 py-4'>
+                        <td className="px-3 py-2.5 text-left leading-tight">
                           <p
-                            className='max-w-full truncate text-sm text-gray-800 dark:text-gray-200'
+                            className="max-w-full truncate text-sm font-medium text-gray-800 dark:text-gray-200"
                             title={lead.email}
                           >
                             {truncateEmail(lead.email)}
                           </p>
-                          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
                             {lead.phone}
                           </p>
                         </td>
                         <td
-                          className='px-5 py-4 truncate text-sm text-gray-800 dark:text-gray-200'
+                          className="px-3 py-2.5 text-left leading-tight"
                           title={lead.destination}
                         >
-                          {lead.destination}
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {lead.destination}
+                          </span>
                         </td>
-                        <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-200'>
-                          {getVisaHolidayLabel(lead)}
+                        <td className="px-3 py-2.5 text-left leading-tight">
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {getVisaHolidayLabel(lead)}
+                          </span>
                         </td>
-                        <td className='px-5 py-4'>
+                        <td className="px-3 py-2.5 text-center leading-tight">
                           <StatusBadge status={lead.statusLabel} />
                         </td>
-                        <td className='px-5 py-4'>
-                          <p
-                            className={`text-xs ${
+                        <td className="px-3 py-2.5 text-center leading-tight whitespace-nowrap">
+                          <span
+                            className={`text-sm font-medium ${
                               lead.slaBreached
-                                ? 'text-red-600'
-                                : 'text-gray-500'
+                                ? "text-red-600"
+                                : "text-gray-700 dark:text-gray-200"
                             }`}
                           >
-                            {lead.slaBreached ? 'Breached' : lead.sla}
-                          </p>
+                            {lead.slaBreached ? "Breached" : lead.sla}
+                          </span>
                         </td>
-                        <td className='px-5 py-4 text-right'>
+                        <td className="px-3 py-2.5 text-right leading-tight whitespace-nowrap">
                           <button
-                            className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                             onClick={() => handleViewLead(lead)}
                           >
                             <FaEye />
@@ -437,51 +815,51 @@ const Leads: React.FC = () => {
                 </table>
               </div>
 
-              <div className='block lg:hidden divide-y divide-gray-100 dark:divide-gray-800'>
-                {rows.map(lead => (
-                  <div key={lead.id} className='p-4 space-y-2'>
-                    <div className='flex items-start justify-between'>
+              <div className="block lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                {rows.map((lead) => (
+                  <div key={lead.id} className="p-4 space-y-2">
+                    <div className="flex items-start justify-between">
                       <div>
-                        <p className='font-semibold text-gray-900 dark:text-gray-100'>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
                           {lead.name}
                         </p>
-                        <p className='text-xs text-gray-500'>
+                        <p className="text-xs text-gray-500">
                           Lead ID: {lead.leadId}
                         </p>
-                        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {formatPaxSummary(lead)}
                         </p>
                         {formatChildAges(lead) ? (
-                          <p className='mt-1 text-xs text-blue-600 dark:text-blue-300'>
+                          <p className="mt-1 text-xs text-blue-600 dark:text-blue-300">
                             {formatChildAges(lead)}
                           </p>
                         ) : null}
                       </div>
                       <StatusBadge status={lead.statusLabel} />
                     </div>
-                    <div className='grid grid-cols-1 gap-1.5'>
-                      <p className='text-xs text-gray-600 dark:text-gray-300'>
-                        <span className='text-gray-500'>Contact:</span>{' '}
+                    <div className="grid grid-cols-1 gap-1.5">
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        <span className="text-gray-500">Contact:</span>{" "}
                         {truncateEmail(lead.email, 22)} • {lead.phone}
                       </p>
                     </div>
-                    <p className='text-sm text-gray-700 dark:text-gray-200'>
+                    <p className="text-sm text-gray-700 dark:text-gray-200">
                       {lead.destination}
                     </p>
-                    <p className='text-xs text-gray-600 dark:text-gray-300'>
-                      <span className='text-gray-500'>Visa/Holidays:</span>{' '}
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                      <span className="text-gray-500">Visa/Holidays:</span>{" "}
                       {getVisaHolidayLabel(lead)}
                     </p>
-                    <div className='flex items-center justify-between'>
+                    <div className="flex items-center justify-between">
                       <p
                         className={`text-xs ${
-                          lead.slaBreached ? 'text-red-600' : 'text-gray-500'
+                          lead.slaBreached ? "text-red-600" : "text-gray-500"
                         }`}
                       >
-                        SLA: {lead.slaBreached ? 'Breached' : lead.sla}
+                        SLA: {lead.slaBreached ? "Breached" : lead.sla}
                       </p>
                       <button
-                        className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                         onClick={() => handleViewLead(lead)}
                       >
                         <FaEye />
@@ -492,30 +870,40 @@ const Leads: React.FC = () => {
                 ))}
               </div>
 
-              <div className='flex items-center justify-between px-4 py-4 border-t border-gray-200 dark:border-gray-800'>
-                <p className='text-sm text-gray-500 dark:text-gray-400'>
-                  Showing {Math.min(filtered.length, (page - 1) * pageSize + 1)}
-                  -{Math.min(filtered.length, page * pageSize)} of{' '}
-                  {filtered.length}
-                </p>
-                <div className='flex items-center gap-2'>
-                  <button
-                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                    disabled={page === 1}
-                    className='p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40'
-                  >
+	              <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 dark:border-gray-800">
+	                <p className="text-sm text-gray-500 dark:text-gray-400">
+	                  Showing{" "}
+	                  {pagination?.total
+	                    ? (page - 1) * (pagination.limit || pageSize) + 1
+	                    : 0}
+	                  -
+	                  {pagination?.total
+	                    ? Math.min(
+	                        pagination.total,
+	                        (page - 1) * (pagination.limit || pageSize) +
+	                          rows.length,
+	                      )
+	                    : 0}{" "}
+	                  of {pagination?.total ?? rows.length}
+	                </p>
+	                <div className="flex items-center gap-2">
+	                  <button
+	                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+	                    disabled={page === 1 || loading}
+	                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
+	                  >
                     <FaChevronLeft />
                   </button>
-                  <span className='px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium'>
+                  <span className="px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium">
                     {page}
                   </span>
-                  <button
-                    onClick={() =>
-                      setPage(prev => Math.min(totalPages, prev + 1))
-                    }
-                    disabled={page === totalPages}
-                    className='p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40'
-                  >
+	                  <button
+	                    onClick={() =>
+	                      setPage((prev) => Math.min(totalPages, prev + 1))
+	                    }
+	                    disabled={page === totalPages || loading}
+	                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
+	                  >
                     <FaChevronRight />
                   </button>
                 </div>
@@ -554,32 +942,31 @@ const Leads: React.FC = () => {
         `}</style>
       </div>
     </div>
-  )
-}
+  );
+};
 
 const KpiCard = ({
   title,
   value,
-  icon
+  icon,
 }: {
-  title: string
-  value: string
-  icon: React.ReactNode
+  title: string;
+  value: string;
+  icon: React.ReactNode;
 }) => (
-  <SurfaceCard hoverable className='p-3 sm:p-5'>
-    <div className='flex items-start justify-between'>
-      <div className='min-w-0'>
-        <p className='text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 truncate'>
+  <SurfaceCard hoverable className="p-3 sm:p-5">
+    <div className="flex items-start justify-between">
+      <div className="min-w-0">
+        <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 truncate">
           {title}
         </p>
-        <p className='text-base sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-0.5 sm:mt-1'>
+        <p className="text-base sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-0.5 sm:mt-1">
           {value}
         </p>
       </div>
-      <div className='text-2xl'>{icon}</div>
+      <div className="text-2xl">{icon}</div>
     </div>
   </SurfaceCard>
-)
+);
 
-export default Leads
-
+export default Leads;

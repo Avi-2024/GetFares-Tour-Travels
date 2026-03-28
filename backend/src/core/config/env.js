@@ -116,6 +116,13 @@ const envSchema = z.object({
   AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
   AWS_S3_UPLOAD_PREFIX: z.string().optional(),
   UPLOAD_MAX_SIZE_MB: z.coerce.number().int().positive().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_FROM_EMAIL: z.string().email().optional(),
+  SMTP_FROM_NAME: z.string().default("Get2Vacations"),
 });
 
 const parsed = envSchema.safeParse(process.env);
