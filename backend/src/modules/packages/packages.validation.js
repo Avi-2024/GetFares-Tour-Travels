@@ -8,6 +8,16 @@ const packageCategory = z.enum([
   "HONEYMOON",
   "FAMILY",
 ]);
+const packageKind = z.enum(["READY", "CUSTOMIZED"]);
+
+const customServiceLine = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  cost: z.coerce.number().nonnegative(),
+  markupPercent: z.coerce.number().min(0).max(100).optional(),
+  sellValue: z.coerce.number().nonnegative().optional(),
+});
 
 const emptyToUndefined = (value) => {
   if (typeof value === "string" && value.trim() === "") {
@@ -29,6 +39,10 @@ const create = z.object({
     baseCost: z.coerce.number().nonnegative().optional(),
     markupPercent: z.coerce.number().min(0).max(100).optional(),
     startingPrice: z.coerce.number().nonnegative().optional(),
+    packageKind: packageKind.optional(),
+    customServices: z.array(customServiceLine).max(80).optional(),
+    visaDetails: z.string().max(8000).optional(),
+    paymentTerms: z.string().max(4000).optional(),
     inclusions: z.string().max(10000).optional(),
     exclusions: z.string().max(10000).optional(),
     itinerary: z.any().optional(),
@@ -60,6 +74,10 @@ const update = z.object({
       baseCost: z.coerce.number().nonnegative().optional(),
       markupPercent: z.coerce.number().min(0).max(100).optional(),
       startingPrice: z.coerce.number().nonnegative().optional(),
+      packageKind: packageKind.optional(),
+      customServices: z.array(customServiceLine).max(80).optional(),
+      visaDetails: z.string().max(8000).optional(),
+      paymentTerms: z.string().max(4000).optional(),
       inclusions: z.string().max(10000).optional(),
       exclusions: z.string().max(10000).optional(),
       itinerary: z.any().optional(),

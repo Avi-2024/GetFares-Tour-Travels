@@ -20,6 +20,7 @@ import { createWhatsappModule } from "./whatsapp/index.js";
 import { createDestinationsModule } from "./destinations/index.js";
 import { createPackagesModule } from "./packages/index.js";
 import { createSuppliersModule } from "./suppliers/index.js";
+import { createCountriesModule } from "./countries/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -67,6 +68,7 @@ function registerModules(app, dependencies) {
     ["destinations", createDestinationsModule],
     ["packages", createPackagesModule],
     ["suppliers", createSuppliersModule],
+    ["countries", createCountriesModule],
     ["customers", createCustomersModule],
     ["complaints", createComplaintsModule],
     ["reports", createReportsModule],
@@ -134,6 +136,7 @@ export {
   createDestinationsModule,
   createPackagesModule,
   createSuppliersModule,
+  createCountriesModule,
   createCustomersModule,
   createComplaintsModule,
   createReportsModule,

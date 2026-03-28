@@ -1,6 +1,5 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { FaGlobe } from 'react-icons/fa'
 import {
   FaChartPie,
   FaChevronLeft,
@@ -89,7 +88,7 @@ const sections = [
         icon: FaBoxOpen,
         permission: 'settings:read'
       },
-      { label: 'Documents', to: '#', icon: FaFolderOpen },
+      // { label: 'Documents', to: '#', icon: FaFolderOpen },
       {
         label: 'Complaints',
         to: '/complaints',
@@ -163,11 +162,11 @@ const Sidebar: React.FC<{
     >
       <div className='flex h-16 items-center border-b border-gray-100 px-4 dark:border-gray-800'>
         <div className='mr-3 flex h-8 w-8 items-center justify-center rounded-lg'>
-          <img src='/logo1.png' alt='Get2Vacation' className='h-8 w-6' />
+          <img src='/logo1.png' alt='Get2Vacations' className='h-8 w-6' />
         </div>
         {!collapsed ? (
           <span className='text-lg font-bold text-gray-900 dark:text-gray-100'>
-            Get2Vacation CRM
+            Get2Vacations CRM
           </span>
         ) : null}
         <button

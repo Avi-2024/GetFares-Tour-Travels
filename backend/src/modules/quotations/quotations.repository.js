@@ -69,6 +69,14 @@ function createQuotationsRepository({ db, logger, schema }) {
     return fallback;
   }
 
+  function toJsonString(value, fallback = null) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+
+    return typeof value === "string" ? value : JSON.stringify(value);
+  }
+
   function canUseRawQuery() {
     return typeof db.query === "function" && db.pool;
   }
@@ -124,6 +132,36 @@ function createQuotationsRepository({ db, logger, schema }) {
         row.template_snapshot ?? row.templateSnapshot,
         null,
       ),
+      sourcePackageId:
+        row.source_package_id ?? row.sourcePackageId ?? null,
+      quotationTitle:
+        row.quotation_title ?? row.quotationTitle ?? null,
+      tripDestination:
+        row.trip_destination ?? row.tripDestination ?? null,
+      durationNights: toNumber(
+        row.duration_nights ?? row.durationNights,
+        null,
+      ),
+      durationDays: toNumber(
+        row.duration_days ?? row.durationDays,
+        null,
+      ),
+      durationLabel:
+        row.duration_label ?? row.durationLabel ?? null,
+      travelStartDate: toDate(
+        row.travel_start_date ?? row.travelStartDate,
+      ),
+      itinerary: toJson(row.itinerary, null),
+      inclusions: row.inclusions ?? null,
+      exclusions: row.exclusions ?? null,
+      hotelDetails:
+        row.hotel_details ?? row.hotelDetails ?? null,
+      visaDetails:
+        row.visa_details ?? row.visaDetails ?? null,
+      paymentTerms:
+        row.payment_terms ?? row.paymentTerms ?? null,
+      cancellationPolicy:
+        row.cancellation_policy ?? row.cancellationPolicy ?? null,
       quoteNumber: row.quote_number ?? row.quoteNumber ?? null,
       totalCost: toNumber(row.total_cost ?? row.totalCost, 0),
       marginPercent: toNumber(row.margin_percent ?? row.marginPercent, 0),
@@ -688,6 +726,30 @@ function createQuotationsRepository({ db, logger, schema }) {
             values.push(filters.templateId);
             clauses.push(`q.template_id = $${values.length}`);
           }
+          if (filters.sourcePackageId) {
+            values.push(filters.sourcePackageId);
+            clauses.push(`q.source_package_id = $${values.length}`);
+          }
+          if (filters.quotationTitle) {
+            values.push(`%${String(filters.quotationTitle).trim()}%`);
+            clauses.push(`q.quotation_title ILIKE $${values.length}`);
+          }
+          if (filters.tripDestination) {
+            values.push(`%${String(filters.tripDestination).trim()}%`);
+            clauses.push(`q.trip_destination ILIKE $${values.length}`);
+          }
+          if (filters.durationNights !== undefined) {
+            values.push(Number(filters.durationNights));
+            clauses.push(`q.duration_nights = $${values.length}`);
+          }
+          if (filters.durationDays !== undefined) {
+            values.push(Number(filters.durationDays));
+            clauses.push(`q.duration_days = $${values.length}`);
+          }
+          if (filters.travelStartDate) {
+            values.push(filters.travelStartDate);
+            clauses.push(`q.travel_start_date = $${values.length}`);
+          }
           if (filters.requiresApproval !== undefined) {
             values.push(toBoolean(filters.requiresApproval));
             clauses.push(`q.requires_approval = $${values.length}`);
@@ -729,6 +791,24 @@ function createQuotationsRepository({ db, logger, schema }) {
         if (filters.templateId) {
           mappedFilters.template_id = filters.templateId;
         }
+        if (filters.sourcePackageId) {
+          mappedFilters.source_package_id = filters.sourcePackageId;
+        }
+        if (filters.quotationTitle) {
+          mappedFilters.quotation_title = filters.quotationTitle;
+        }
+        if (filters.tripDestination) {
+          mappedFilters.trip_destination = filters.tripDestination;
+        }
+        if (filters.durationNights !== undefined) {
+          mappedFilters.duration_nights = Number(filters.durationNights);
+        }
+        if (filters.durationDays !== undefined) {
+          mappedFilters.duration_days = Number(filters.durationDays);
+        }
+        if (filters.travelStartDate) {
+          mappedFilters.travel_start_date = filters.travelStartDate;
+        }
         if (filters.requiresApproval !== undefined) {
           mappedFilters.requires_approval = toBoolean(filters.requiresApproval);
         }
@@ -769,6 +849,24 @@ function createQuotationsRepository({ db, logger, schema }) {
       if (filters.createdBy) {
         mappedFilters.created_by = filters.createdBy;
       }
+      if (filters.sourcePackageId) {
+        mappedFilters.source_package_id = filters.sourcePackageId;
+      }
+      if (filters.quotationTitle) {
+        mappedFilters.quotation_title = filters.quotationTitle;
+      }
+      if (filters.tripDestination) {
+        mappedFilters.trip_destination = filters.tripDestination;
+      }
+      if (filters.durationNights !== undefined) {
+        mappedFilters.duration_nights = Number(filters.durationNights);
+      }
+      if (filters.durationDays !== undefined) {
+        mappedFilters.duration_days = Number(filters.durationDays);
+      }
+      if (filters.travelStartDate) {
+        mappedFilters.travel_start_date = filters.travelStartDate;
+      }
       if (filters.templateId) {
         mappedFilters.template_id = filters.templateId;
       }
@@ -803,14 +901,28 @@ function createQuotationsRepository({ db, logger, schema }) {
 
     async create(payload) {
       logger.debug({ module: "quotations", payload }, "Creating quotation");
-      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      const sanitized = await sanitizeForTable(schema.tableName, {
+        ...payload,
+        template_snapshot: toJsonString(payload.template_snapshot),
+        itinerary: toJsonString(payload.itinerary),
+      });
       const row = await db.insert(schema.tableName, sanitized);
       return toQuotation(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: "quotations", id, payload }, "Updating quotation");
-      const sanitized = await sanitizeForTable(schema.tableName, payload);
+      const sanitized = await sanitizeForTable(schema.tableName, {
+        ...payload,
+        template_snapshot:
+          payload.template_snapshot !== undefined
+            ? toJsonString(payload.template_snapshot)
+            : undefined,
+        itinerary:
+          payload.itinerary !== undefined
+            ? toJsonString(payload.itinerary)
+            : undefined,
+      });
       const row = await db.update(schema.tableName, id, sanitized);
       return toQuotation(row);
     },
@@ -1059,6 +1171,30 @@ function createQuotationsRepository({ db, logger, schema }) {
       if (filters.createdBy) {
         params.push(filters.createdBy);
         where.push(`q.created_by = $${params.length}`);
+      }
+      if (filters.sourcePackageId) {
+        params.push(filters.sourcePackageId);
+        where.push(`q.source_package_id = $${params.length}`);
+      }
+      if (filters.quotationTitle) {
+        params.push(`%${String(filters.quotationTitle).trim()}%`);
+        where.push(`q.quotation_title ILIKE $${params.length}`);
+      }
+      if (filters.tripDestination) {
+        params.push(`%${String(filters.tripDestination).trim()}%`);
+        where.push(`q.trip_destination ILIKE $${params.length}`);
+      }
+      if (filters.durationNights !== undefined) {
+        params.push(Number(filters.durationNights));
+        where.push(`q.duration_nights = $${params.length}`);
+      }
+      if (filters.durationDays !== undefined) {
+        params.push(Number(filters.durationDays));
+        where.push(`q.duration_days = $${params.length}`);
+      }
+      if (filters.travelStartDate) {
+        params.push(filters.travelStartDate);
+        where.push(`q.travel_start_date = $${params.length}`);
       }
 
       const whereSql = where.join(" AND ");

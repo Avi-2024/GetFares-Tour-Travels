@@ -50,6 +50,7 @@ function createRbacRepository({ db, logger, schema }) {
                 "is_active",
               ),
               hasRoleIsActive: hasColumn(schema.rolesTable, "is_active"),
+              hasRoleCountry: hasColumn(schema.rolesTable, "country"),
               hasRolePermissionIsActive: hasColumn(
                 schema.rolePermissionsTable,
                 "is_active",
@@ -62,6 +63,7 @@ function createRbacRepository({ db, logger, schema }) {
           hasPermissionDescription: false,
           hasPermissionIsActive: false,
           hasRoleIsActive: false,
+          hasRoleCountry: false,
           hasRolePermissionIsActive: false,
         });
 
@@ -74,13 +76,16 @@ function createRbacRepository({ db, logger, schema }) {
     if (db.adapter === "postgres") {
       const capabilities = await getCapabilities();
       const roleIsActiveSql =
-        capabilities.hasRoleIsActive ? "is_active" : "TRUE";
+        capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
+      const roleCountrySql =
+        capabilities.hasRoleCountry ? "r.country" : "NULL::text";
       const result = await db.query(
         `
           SELECT
             r.id,
             r.name,
             r.description,
+            ${roleCountrySql} AS country,
             ${roleIsActiveSql} AS is_active
           FROM ${schema.rolesTable} r
           WHERE r.id = $1
@@ -109,12 +114,15 @@ function createRbacRepository({ db, logger, schema }) {
       const capabilities = await getCapabilities();
       const roleIsActiveSql =
         capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
+      const roleCountrySql =
+        capabilities.hasRoleCountry ? "r.country" : "NULL::text";
       const result = await db.query(
         `
           SELECT
             r.id,
             r.name,
             r.description,
+            ${roleCountrySql} AS country,
             ${roleIsActiveSql} AS is_active
           FROM ${schema.rolesTable} r
           WHERE r.name = $1
@@ -156,7 +164,9 @@ function createRbacRepository({ db, logger, schema }) {
       }
 
       const roleIsActiveSql =
-        capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
+        capabilities.hasRoleIsActive ? "is_active" : "TRUE";
+      const roleCountrySql =
+        capabilities.hasRoleCountry ? "country" : "NULL::text";
       const result = await db.query(
         `
           INSERT INTO ${schema.rolesTable} (${columns.join(", ")})
@@ -167,6 +177,7 @@ function createRbacRepository({ db, logger, schema }) {
             id,
             name,
             description,
+            ${roleCountrySql} AS country,
             ${roleIsActiveSql} AS is_active
         `,
         values,
@@ -187,6 +198,8 @@ function createRbacRepository({ db, logger, schema }) {
       const capabilities = await getCapabilities();
       const roleIsActiveSql =
         capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
+      const roleCountrySql =
+        capabilities.hasRoleCountry ? "r.country" : "NULL::text";
 
       const values = [];
       let whereClause = "";
@@ -201,6 +214,7 @@ function createRbacRepository({ db, logger, schema }) {
             r.id,
             r.name,
             r.description,
+            ${roleCountrySql} AS country,
             ${roleIsActiveSql} AS is_active
           FROM ${schema.rolesTable} r
           ${whereClause}
@@ -817,6 +831,34 @@ function createRbacRepository({ db, logger, schema }) {
     return assignRoleById(userId, role.id);
   }
 
+  async function countActiveUsersByRoleId(roleId, { excludeUserId = null } = {}) {
+    if (!roleId) return 0;
+
+    if (db.adapter === "postgres") {
+      const values = [roleId];
+      const filters = ["u.role_id = $1", "u.is_active = TRUE"];
+      if (excludeUserId) {
+        values.push(excludeUserId);
+        filters.push(`u.id <> $${values.length}`);
+      }
+      const result = await db.query(
+        `
+          SELECT COUNT(*)::int AS count
+          FROM ${schema.usersTable} u
+          WHERE ${filters.join(" AND ")}
+        `,
+        values,
+      );
+      return Number(result.rows[0]?.count || 0);
+    }
+
+    const rows = await db.findMany(schema.usersTable, {
+      role_id: roleId,
+      is_active: true,
+    });
+    return rows.filter((row) => row.id !== excludeUserId).length;
+  }
+
   async function resolvePermissionIdsByKeys(
     permissionKeys = [],
     { createMissing = false } = {},
@@ -1023,6 +1065,7 @@ function createRbacRepository({ db, logger, schema }) {
     getPermissionsByRoles,
     assignRoleById,
     assignRole,
+    countActiveUsersByRoleId,
     resolvePermissionIdsByKeys,
     setRolePermissionsByRoleId,
     replaceRolePermissionsByRoleId,

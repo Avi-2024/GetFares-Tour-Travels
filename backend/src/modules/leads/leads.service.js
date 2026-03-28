@@ -1,4 +1,5 @@
 import { AppError } from "../../core/errors/index.js";
+import { isSuperAdminRole } from "../../core/constants/index.js";
 
 const LEAD_TEMPERATURE = Object.freeze({
   HOT: "HOT",
@@ -92,7 +93,83 @@ const ASSIGNMENT_ROLES = Object.freeze({
   MANAGER: "manager",
 });
 
+// In-memory cache for agents by country
+class AgentCache {
+  constructor(ttlMinutes = 5) {
+    this.cache = new Map();
+    this.ttl = ttlMinutes * 60 * 1000;
+  }
+
+  getCacheKey(country, agentType) {
+    const countryKey = country ? String(country).toLowerCase() : 'all';
+    const typeKey = agentType ? String(agentType).toUpperCase() : 'all';
+    return `${countryKey}:${typeKey}`;
+  }
+
+  get(country, agentType) {
+    const key = this.getCacheKey(country, agentType);
+    const cached = this.cache.get(key);
+    
+    if (!cached) return null;
+    
+    // Check if expired
+    if (Date.now() - cached.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return cached.data;
+  }
+
+  set(country, agentType, data) {
+    const key = this.getCacheKey(country, agentType);
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+  }
+
+  invalidate(country = null) {
+    if (country) {
+      const pattern = `${String(country).toLowerCase()}:`;
+      for (const key of this.cache.keys()) {
+        if (key.startsWith(pattern)) {
+          this.cache.delete(key);
+        }
+      }
+    } else {
+      this.cache.clear();
+    }
+  }
+}
+
+// Round-robin state management per country
+class RoundRobinState {
+  constructor() {
+    this.lastAssigned = new Map();
+  }
+
+  getKey(country, agentType) {
+    const countryKey = country ? String(country).toLowerCase() : 'all';
+    const typeKey = agentType ? String(agentType).toUpperCase() : 'all';
+    return `${countryKey}:${typeKey}`;
+  }
+
+  getLastAssigned(country, agentType) {
+    const key = this.getKey(country, agentType);
+    return this.lastAssigned.get(key) || null;
+  }
+
+  setLastAssigned(country, agentType, agentId) {
+    const key = this.getKey(country, agentType);
+    this.lastAssigned.set(key, agentId);
+  }
+}
+
 function createLeadsService({ repository, logger, events }) {
+  // Initialize cache and round-robin state
+  const agentCache = new AgentCache(5); // 5 minutes TTL
+  const roundRobinState = new RoundRobinState();
   function normalizeCategory(value) {
     if (!value) return null;
     return String(value).trim().toLowerCase();
@@ -105,6 +182,90 @@ function createLeadsService({ repository, logger, events }) {
     if (normalized.includes("HOLIDAY")) return "HOLIDAY";
     if (normalized === "BOTH") return "BOTH";
     return normalized;
+  }
+
+  function normalizeRoleToken(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+  }
+
+  function isManagerRole(value) {
+    const role = normalizeRoleToken(value);
+    return role === "manager" || role === "department_head" || role === "team_lead";
+  }
+
+  function isAgentRole(value) {
+    const role = normalizeRoleToken(value);
+    return (
+      role === "agent" ||
+      role === "sales_consultant" ||
+      role === "visa_executive" ||
+      role === "holiday_consultant"
+    );
+  }
+
+  function isFullAccessRole(value) {
+    const role = normalizeRoleToken(value);
+    return isSuperAdminRole(role) || role === "admin" || role === "accounts";
+  }
+
+  async function getUserCountrySet(userId) {
+    if (!userId) return new Set();
+    const names = await repository.findUserCountryNames(userId);
+    return new Set(
+      names
+        .map((name) => normalizeCategory(name))
+        .filter(Boolean),
+    );
+  }
+
+  async function canUserAccessLead(lead, context = {}) {
+    const userId = context.user?.id || null;
+    const userRole = normalizeRoleToken(context.user?.role);
+    if (!userId) {
+      return true;
+    }
+
+    if (isFullAccessRole(userRole)) {
+      return true;
+    }
+
+    if (isAgentRole(userRole)) {
+      return lead.assignedTo === userId;
+    }
+
+    if (isManagerRole(userRole)) {
+      const [managedAgentIds, managerCountries] = await Promise.all([
+        repository.findManagedAgentIds(userId),
+        getUserCountrySet(userId),
+      ]);
+      const managedAgentSet = new Set(managedAgentIds);
+      const leadCountry = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
+      const isCountryAllowed =
+        !leadCountry || managerCountries.size === 0 || managerCountries.has(leadCountry);
+
+      if (!isCountryAllowed) {
+        return false;
+      }
+
+      if (lead.assignedTo === userId) {
+        return true;
+      }
+
+      if (lead.assignedTo && managedAgentSet.has(lead.assignedTo)) {
+        return true;
+      }
+
+      if (!lead.assignedTo) {
+        return true;
+      }
+
+      return false;
+    }
+
+    return false;
   }
 
   function getFollowupPolicy(lead = {}) {
@@ -446,6 +607,7 @@ function createLeadsService({ repository, logger, events }) {
       destination_id: payload.destinationId || null,
       nationality: payload.nationality || null,
       lead_country: leadCountry,
+      country_id: payload.countryId || null,
       travel_date: payload.travelDate || null,
       budget: payload.budget ?? null,
       adults_count: payload.adultsCount ?? 1,
@@ -517,6 +679,9 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.leadCountry !== undefined || payload.country !== undefined) {
       mapped.lead_country = payload.leadCountry ?? payload.country ?? null;
+    }
+    if (payload.countryId !== undefined) {
+      mapped.country_id = payload.countryId || null;
     }
     if (payload.nationality !== undefined) {
       mapped.nationality = payload.nationality;
@@ -669,7 +834,17 @@ function createLeadsService({ repository, logger, events }) {
       throw new AppError(404, "Lead not found", "LEAD_NOT_FOUND");
     }
 
-    return withTemperature(item);
+    const mapped = withTemperature(item);
+    const allowed = await canUserAccessLead(mapped, context);
+    if (!allowed) {
+      throw new AppError(
+        403,
+        "You do not have access to this lead",
+        "LEAD_ACCESS_FORBIDDEN",
+      );
+    }
+
+    return mapped;
   }
 
   async function selectAssigneeForLead(lead, options = {}) {
@@ -680,29 +855,31 @@ function createLeadsService({ repository, logger, events }) {
       options.roundRobinOnly === true ||
       roleName === ASSIGNMENT_ROLES.AGENT ||
       roleName === ASSIGNMENT_ROLES.MANAGER;
-    let candidates = await repository.findActiveAssignableUsers(roleName);
+    
+    const leadCountry = normalizeCategory(
+      lead.leadCountry ?? lead.country ?? null,
+    );
+    const leadType = normalizeAgentType(lead.leadType ?? lead.type ?? null);
+    const requiredLeadType = leadType === "BOTH" ? null : leadType;
 
-    if (options.excludeUserId && candidates.length > 1) {
-      const filtered = candidates.filter(
-        (candidate) => candidate.id !== options.excludeUserId,
-      );
-      if (filtered.length) {
-        candidates = filtered;
+    // Try to get from cache first (country-specific)
+    let candidates = null;
+    if (roleName === ASSIGNMENT_ROLES.AGENT && leadCountry) {
+      candidates = agentCache.get(leadCountry, requiredLeadType);
+      if (candidates) {
+        logger.debug(
+          { leadCountry, leadType: requiredLeadType },
+          'Agent cache hit for country'
+        );
       }
     }
 
-    if (!candidates.length) {
-      return null;
-    }
-
-    if (roleName === ASSIGNMENT_ROLES.AGENT) {
-      const leadCountry = normalizeCategory(
-        lead.leadCountry ?? lead.country ?? null,
-      );
-      const leadType = normalizeAgentType(lead.leadType ?? lead.type ?? null);
-      const requiredLeadType = leadType === "BOTH" ? null : leadType;
-
-      if (leadCountry || requiredLeadType) {
+    // Cache miss - query database
+    if (!candidates) {
+      candidates = await repository.findActiveAssignableUsers(roleName);
+      
+      // Filter by country and agent type
+      if (roleName === ASSIGNMENT_ROLES.AGENT && (leadCountry || requiredLeadType)) {
         const scoped = candidates.filter((candidate) => {
           const agentCountry = normalizeCategory(candidate.country);
           const agentType = normalizeAgentType(candidate.agentType);
@@ -719,11 +896,66 @@ function createLeadsService({ repository, logger, events }) {
           return true;
         });
 
-        if (!scoped.length) {
-          return null;
+        // Cache the filtered result
+        if (scoped.length && leadCountry) {
+          agentCache.set(leadCountry, requiredLeadType, scoped);
+          logger.debug(
+            { leadCountry, leadType: requiredLeadType, count: scoped.length },
+            'Cached agents for country'
+          );
         }
+        
         candidates = scoped;
       }
+    }
+
+    if (options.excludeUserId && candidates.length > 1) {
+      const filtered = candidates.filter(
+        (candidate) => candidate.id !== options.excludeUserId,
+      );
+      if (filtered.length) {
+        candidates = filtered;
+      }
+    }
+
+    if (!candidates.length) {
+      // Fallback: Try without country filter
+      if (leadCountry && roleName === ASSIGNMENT_ROLES.AGENT) {
+        logger.info(
+          { leadCountry },
+          'No agents found for country, trying fallback to all countries'
+        );
+        
+        candidates = agentCache.get(null, requiredLeadType);
+        if (!candidates) {
+          candidates = await repository.findActiveAssignableUsers(roleName);
+          
+          if (requiredLeadType) {
+            candidates = candidates.filter((candidate) => {
+              const agentType = normalizeAgentType(candidate.agentType);
+              return agentType === requiredLeadType || agentType === "BOTH";
+            });
+          }
+          
+          if (candidates.length) {
+            agentCache.set(null, requiredLeadType, candidates);
+          }
+        }
+      }
+      
+      if (!candidates.length) {
+        return null;
+      }
+    }
+
+    if (options.managerId && roleName === ASSIGNMENT_ROLES.AGENT) {
+      const managedOnly = candidates.filter(
+        (candidate) => candidate.managerId === options.managerId,
+      );
+      if (!managedOnly.length) {
+        return null;
+      }
+      candidates = managedOnly;
     }
 
     let pool = candidates;
@@ -790,24 +1022,55 @@ function createLeadsService({ repository, logger, events }) {
       }
     }
 
+    // Country-based round-robin selection
     const roundRobinPool = [...pool].sort((left, right) =>
       String(left.id).localeCompare(String(right.id)),
     );
-    const lastAssignedUserId =
-      await repository.findLatestAssignedUserId(poolIds);
-
-    if (!lastAssignedUserId) {
-      return roundRobinPool[0];
-    }
-
-    const lastIndex = roundRobinPool.findIndex(
-      (candidate) => candidate.id === lastAssignedUserId,
+    
+    // Get last assigned from in-memory state (per country)
+    const lastAssignedUserId = roundRobinState.getLastAssigned(
+      leadCountry,
+      requiredLeadType
     );
-    if (lastIndex === -1 || lastIndex === roundRobinPool.length - 1) {
-      return roundRobinPool[0];
+
+    let selectedAgent;
+    if (!lastAssignedUserId) {
+      // First assignment for this country
+      selectedAgent = roundRobinPool[0];
+    } else {
+      // Find next agent in rotation
+      const lastIndex = roundRobinPool.findIndex(
+        (candidate) => candidate.id === lastAssignedUserId,
+      );
+      
+      if (lastIndex === -1 || lastIndex === roundRobinPool.length - 1) {
+        // Wrap around to first agent
+        selectedAgent = roundRobinPool[0];
+      } else {
+        // Next agent in rotation
+        selectedAgent = roundRobinPool[lastIndex + 1];
+      }
     }
 
-    return roundRobinPool[lastIndex + 1];
+    // Update round-robin state
+    if (selectedAgent) {
+      roundRobinState.setLastAssigned(
+        leadCountry,
+        requiredLeadType,
+        selectedAgent.id
+      );
+      logger.debug(
+        { 
+          leadCountry, 
+          leadType: requiredLeadType,
+          selectedAgentId: selectedAgent.id,
+          agentName: selectedAgent.fullName
+        },
+        'Round-robin assignment completed'
+      );
+    }
+
+    return selectedAgent;
   }
 
   async function assignLead(leadId, payload = {}, context = {}) {
@@ -824,17 +1087,68 @@ function createLeadsService({ repository, logger, events }) {
     const roleName = payload.roleName ?
       String(payload.roleName).trim().toLowerCase()
     : ASSIGNMENT_ROLES.AGENT;
+    const requestRole = normalizeRoleToken(context.user?.role);
+    const managerId =
+      roleName === ASSIGNMENT_ROLES.AGENT && isManagerRole(requestRole)
+        ? context.user?.id || null
+        : null;
 
-    const assignee = await selectAssigneeForLead(existing, {
-      excludeUserId: payload.excludeUserId,
-      roleName,
-    });
+    let assignee = null;
+    if (payload.assignedTo) {
+      assignee = await repository.findAssignableUserById(payload.assignedTo);
+      if (!assignee) {
+        throw new AppError(404, "Assignee not found", "ASSIGNEE_NOT_FOUND");
+      }
+      const leadCountry = normalizeCategory(
+        existing.leadCountry ?? existing.country ?? null,
+      );
+      const [assigneeCountries, assigneePrimaryCountry] = await Promise.all([
+        repository.findUserCountryNames(assignee.id),
+        Promise.resolve(normalizeCategory(assignee.country)),
+      ]);
+      const normalizedAssigneeCountries = new Set(
+        assigneeCountries.map((country) => normalizeCategory(country)).filter(Boolean),
+      );
+      if (assigneePrimaryCountry) {
+        normalizedAssigneeCountries.add(assigneePrimaryCountry);
+      }
+
+      if (
+        leadCountry &&
+        normalizedAssigneeCountries.size > 0 &&
+        !normalizedAssigneeCountries.has(leadCountry)
+      ) {
+        throw new AppError(
+          400,
+          "Assignee country does not match lead country",
+          "ASSIGNEE_COUNTRY_MISMATCH",
+        );
+      }
+      if (
+        managerId &&
+        !isSuperAdminRole(requestRole) &&
+        assignee.managerId !== managerId
+      ) {
+        throw new AppError(
+          403,
+          "Manager can assign only to own team members",
+          "ASSIGNEE_OUTSIDE_MANAGER_TEAM",
+        );
+      }
+    } else {
+      assignee = await selectAssigneeForLead(existing, {
+        excludeUserId: payload.excludeUserId,
+        roleName,
+        managerId,
+      });
+    }
 
     if (!assignee) {
-      const reason =
-        roleName === ASSIGNMENT_ROLES.MANAGER ?
-          "NO_ASSIGNABLE_MANAGER"
-        : "NO_ASSIGNABLE_AGENT";
+      const reason = roleName === ASSIGNMENT_ROLES.MANAGER
+        ? "NO_ASSIGNABLE_MANAGER"
+        : managerId
+          ? "NO_ASSIGNABLE_AGENT_FOR_MANAGER_TEAM_OR_COUNTRY"
+          : "NO_ASSIGNABLE_AGENT";
       events.emitEscalated({
         leadId: existing.id,
         reason,
@@ -877,6 +1191,15 @@ function createLeadsService({ repository, logger, events }) {
       userId: context.user?.id || null,
       activityType: isReassign ? "LEAD_REASSIGNED" : "LEAD_ASSIGNED",
       notes: payload.reason || null,
+    });
+
+    await repository.createAssignmentHistory({
+      leadId: existing.id,
+      previousAssigneeId,
+      newAssigneeId: assignee.id,
+      assignedBy: context.user?.id || null,
+      mode: payload.mode || "AUTO",
+      reason: payload.reason || null,
     });
 
     const lead = withTemperature(updated);
@@ -1013,41 +1336,48 @@ function createLeadsService({ repository, logger, events }) {
           filters.status ? normalizeLeadStatus(filters.status) : undefined,
       };
 
-      const userRole = String(context.user?.role || "").trim().toLowerCase();
-      const FULL_ACCESS_ROLES = new Set([
-        "admin", "super_admin", "super admin", "superadmin", "accounts",
-      ]);
-      const AGENT_ROLES = new Set([
-        "agent", "sales_consultant", "visa_executive", "holiday_consultant",
-      ]);
-      const MANAGER_ROLES = new Set([
-        "manager", "department_head", "team_lead",
-      ]);
+      const userRole = normalizeRoleToken(context.user?.role);
+      const isAgent = isAgentRole(userRole);
+      const isManager = isManagerRole(userRole);
 
-      if (AGENT_ROLES.has(userRole) && context.user?.id) {
+      if (isAgent && context.user?.id) {
         mappedFilters.assignedTo = context.user.id;
       }
 
       let leads = await repository.findAll(mappedFilters);
 
-      if (MANAGER_ROLES.has(userRole) && context.user?.id) {
-        const agentCountry = await repository.findUserAgentCountry(context.user.id);
-        if (agentCountry) {
-          const normalized = normalizeCategory(agentCountry);
-          leads = leads.filter((lead) => {
-            const lc = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
-            return !lc || lc === normalized;
-          });
-        }
+      if (isManager && context.user?.id) {
+        const [managerCountrySet, managedAgentIds] = await Promise.all([
+          getUserCountrySet(context.user.id),
+          repository.findManagedAgentIds(context.user.id),
+        ]);
+        const managedAgentSet = new Set(managedAgentIds);
+
+        leads = leads.filter((lead) => {
+          const lc = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
+          const countryAllowed =
+            !lc || managerCountrySet.size === 0 || managerCountrySet.has(lc);
+          if (!countryAllowed) return false;
+
+          if (lead.assignedTo === context.user.id) {
+            return true;
+          }
+          if (lead.assignedTo && managedAgentSet.has(lead.assignedTo)) {
+            return true;
+          }
+          if (!lead.assignedTo) {
+            return true;
+          }
+          return false;
+        });
       }
 
-      if (AGENT_ROLES.has(userRole) && context.user?.id) {
-        const agentCountry = await repository.findUserAgentCountry(context.user.id);
-        if (agentCountry) {
-          const normalized = normalizeCategory(agentCountry);
+      if (isAgent && context.user?.id) {
+        const agentCountrySet = await getUserCountrySet(context.user.id);
+        if (agentCountrySet.size > 0) {
           leads = leads.filter((lead) => {
             const lc = normalizeCategory(lead.leadCountry ?? lead.country ?? null);
-            return !lc || lc === normalized;
+            return !lc || agentCountrySet.has(lc);
           });
         }
       }

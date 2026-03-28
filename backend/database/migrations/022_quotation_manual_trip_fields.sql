@@ -1,0 +1,15 @@
+ALTER TABLE quotations
+  ADD COLUMN IF NOT EXISTS source_package_id UUID REFERENCES packages(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS quotation_title VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS trip_destination VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS duration_nights INT CHECK (duration_nights >= 0),
+  ADD COLUMN IF NOT EXISTS duration_days INT CHECK (duration_days >= 0),
+  ADD COLUMN IF NOT EXISTS duration_label VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS travel_start_date DATE,
+  ADD COLUMN IF NOT EXISTS itinerary JSONB,
+  ADD COLUMN IF NOT EXISTS inclusions TEXT,
+  ADD COLUMN IF NOT EXISTS exclusions TEXT,
+  ADD COLUMN IF NOT EXISTS hotel_details TEXT,
+  ADD COLUMN IF NOT EXISTS visa_details TEXT,
+  ADD COLUMN IF NOT EXISTS payment_terms TEXT,
+  ADD COLUMN IF NOT EXISTS cancellation_policy TEXT;

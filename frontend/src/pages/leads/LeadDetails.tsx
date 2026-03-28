@@ -5,7 +5,14 @@ import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
+import { bookingsApi } from '../../api/bookings'
+import { quotationsApi } from '../../api/quotations'
+import { usersApi } from '../../api/users'
 import { useLeadsService } from '../../hooks/useLeadsService'
+import {
+  buildBookingCreatePayloadFromQuotation,
+  quotationWasSentToLead
+} from '../../utils/bookingFromQuotation'
 import { useAuth } from '../../context/AuthContext'
 import {
   SOP_STATUS_LABELS,
@@ -50,6 +57,23 @@ const REQUIRED_COMPLIANCE = {
   finalReminders: 1
 }
 
+type LeadQuotationOption = {
+  id: string
+  quoteNumber: string
+  status: string
+  tripDestination: string | null
+  totalSaleValue: number
+  clientCurrency: string
+  requiresApproval: boolean
+  sentAt: string | null
+}
+
+function unwrapApiArray(response: unknown): unknown[] {
+  if (!response || typeof response !== 'object') return []
+  const data = (response as { data?: unknown }).data
+  return Array.isArray(data) ? data : []
+}
+
 const LeadDetails: React.FC = () => {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -78,6 +102,19 @@ const LeadDetails: React.FC = () => {
   const [opsRunning, setOpsRunning] = useState(false)
   const [callsButtonDisabled, setCallsButtonDisabled] = useState(false)
   const [showDisablePopup, setShowDisablePopup] = useState(false)
+  const [sentQuotations, setSentQuotations] = useState<LeadQuotationOption[]>(
+    []
+  )
+  const [loadingSentQuotations, setLoadingSentQuotations] = useState(false)
+  const [selectedConversionQuotationId, setSelectedConversionQuotationId] =
+    useState('')
+  const [conversionFollowUpMessage, setConversionFollowUpMessage] =
+    useState('')
+  const [assigneeOptions, setAssigneeOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([{ value: '', label: 'Select assignee' }])
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   const createdAtLabel = useMemo(() => {
     const raw =
@@ -140,13 +177,18 @@ const LeadDetails: React.FC = () => {
     setError('')
     try {
       const response = await leadsService.getLeadById(id)
-      const data =
+      const raw =
         (response as any)?.data?.data ?? (response as any)?.data ?? response
+      const callsDisabled = Boolean(raw?.callsDisabled ?? raw?.calls_disabled)
+      const data = raw ? { ...raw, callsDisabled } : null
       setLead(data)
-      setSelectedStatusLabel(
-        deriveSopStatusLabel(data?.status, data?.subStatus, data?.statusLabel)
-      )
-      hydrateQualification(data)
+      setCallsButtonDisabled(false)
+      if (data) {
+        setSelectedStatusLabel(
+          deriveSopStatusLabel(data.status, data.subStatus, data.statusLabel)
+        )
+        hydrateQualification(data)
+      }
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load lead details.'))
       setLead(null)
@@ -168,10 +210,95 @@ const LeadDetails: React.FC = () => {
     }
   }, [id, leadsService])
 
+  const loadSentQuotationsForLead = useCallback(async () => {
+    if (!id) return
+    setLoadingSentQuotations(true)
+    try {
+      const response = await quotationsApi.list({
+        leadId: id,
+        includeItems: false,
+        limit: 100
+      })
+      const rows = unwrapApiArray(response) as Record<string, unknown>[]
+      const mapped: LeadQuotationOption[] = rows
+        .map(q => ({
+          id: String(q.id ?? ''),
+          quoteNumber: String(q.quoteNumber ?? q.quote_number ?? q.id ?? ''),
+          status: String(q.status ?? '').toUpperCase(),
+          tripDestination:
+            (q.tripDestination ?? q.trip_destination ?? null) as string | null,
+          totalSaleValue: Number(
+            q.totalSaleValue ?? q.finalPrice ?? q.total ?? 0
+          ),
+          clientCurrency: String(
+            q.clientCurrency ?? q.client_currency ?? 'INR'
+          ).toUpperCase(),
+          requiresApproval: Boolean(
+            q.requiresApproval ?? q.requires_approval ?? false
+          ),
+          sentAt: (q.sentAt ?? q.sent_at ?? null) as string | null
+        }))
+        .filter(q => quotationWasSentToLead(q))
+
+      setSentQuotations(mapped)
+
+      const eligible = mapped.filter(
+        item =>
+          ['SENT', 'VIEWED', 'APPROVED'].includes(item.status) &&
+          !(
+            item.requiresApproval &&
+            ['SENT', 'VIEWED'].includes(item.status)
+          )
+      )
+      setSelectedConversionQuotationId(prev => {
+        if (prev && eligible.some(q => q.id === prev)) return prev
+        if (eligible.length === 1) return eligible[0].id
+        return ''
+      })
+    } catch {
+      setSentQuotations([])
+    } finally {
+      setLoadingSentQuotations(false)
+    }
+  }, [id])
+
+  const loadAssigneeOptions = useCallback(async () => {
+    if (!lead) return
+    try {
+      const res = await usersApi.list({ isActive: true, limit: 500 })
+      const rows = unwrapApiArray(res) as Array<Record<string, unknown>>
+
+      setAssigneeOptions([
+        { value: '', label: 'Select assignee' },
+        ...rows.map(row => ({
+          value: String(row.id ?? ''),
+          label: `${String(row.fullName ?? row.full_name ?? 'User')} (${String(
+            row.role ?? 'user'
+          )})`
+        }))
+      ])
+    } catch {
+      setAssigneeOptions([{ value: '', label: 'Select assignee' }])
+    }
+  }, [lead])
+
   React.useEffect(() => {
     void loadLead()
     void loadFollowups()
   }, [loadFollowups, loadLead])
+
+  React.useEffect(() => {
+    setConversionFollowUpMessage('')
+    if (selectedStatusLabel !== 'CONVERTED') {
+      setSelectedConversionQuotationId('')
+      return
+    }
+    void loadSentQuotationsForLead()
+  }, [selectedStatusLabel, loadSentQuotationsForLead])
+
+  React.useEffect(() => {
+    void loadAssigneeOptions()
+  }, [loadAssigneeOptions])
 
   const compliance = useMemo(() => {
     const summary = {
@@ -197,6 +324,57 @@ const LeadDetails: React.FC = () => {
       })),
     []
   )
+
+  const eligibleConversionQuotations = useMemo(
+    () =>
+      sentQuotations.filter(
+        q =>
+          ['SENT', 'VIEWED', 'APPROVED'].includes(q.status) &&
+          !(q.requiresApproval && ['SENT', 'VIEWED'].includes(q.status))
+      ),
+    [sentQuotations]
+  )
+
+  const conversionQuotationDropdownOptions = useMemo(() => {
+    const placeholder = {
+      value: '',
+      label: 'Select quotation',
+      searchText:
+        'select quotation quote search pick choose sent viewed approved'
+    }
+    const rows = eligibleConversionQuotations.map(q => {
+      const sentLabel = q.sentAt
+        ? new Date(q.sentAt).toLocaleDateString()
+        : ''
+      const amountLabel =
+        q.totalSaleValue > 0
+          ? new Intl.NumberFormat(undefined, {
+              style: 'currency',
+              currency: /^[A-Z]{3}$/.test(q.clientCurrency)
+                ? q.clientCurrency
+                : 'INR',
+              maximumFractionDigits: 0
+            }).format(q.totalSaleValue)
+          : '—'
+      const num = q.quoteNumber || q.id.slice(0, 8)
+      const subParts = [
+        q.status,
+        sentLabel ? `Sent ${sentLabel}` : null,
+        q.tripDestination
+      ].filter(Boolean)
+      return {
+        value: q.id,
+        label: `${num} · ${q.status} · ${amountLabel}`,
+        selectedLabel: `${num} — ${amountLabel}`,
+        searchText:
+          `${num} ${q.status} ${q.tripDestination ?? ''} ${sentLabel} ${amountLabel} ${q.id}`.trim(),
+        leftLabel: num,
+        rightLabel: amountLabel,
+        rightSubLabel: subParts.join(' · ')
+      }
+    })
+    return [placeholder, ...rows]
+  }, [eligibleConversionQuotations])
 
   const currencyOptions = useMemo(
     () => [
@@ -270,7 +448,7 @@ const LeadDetails: React.FC = () => {
   }, [qualification])
 
   const isComplianceComplete =
-    compliance.calls >= REQUIRED_COMPLIANCE.calls &&
+    (isCallsDisabled || compliance.calls >= REQUIRED_COMPLIANCE.calls) &&
     compliance.whatsapp >= REQUIRED_COMPLIANCE.whatsapp &&
     compliance.finalReminders >= REQUIRED_COMPLIANCE.finalReminders
 
@@ -309,6 +487,7 @@ const LeadDetails: React.FC = () => {
     if (!id || !lead) return
     setStatusSaving(true)
     setStatusError('')
+    setConversionFollowUpMessage('')
     const conversion = sopLabelToCanonical(selectedStatusLabel)
 
     if (
@@ -338,6 +517,33 @@ const LeadDetails: React.FC = () => {
       return
     }
 
+    if (conversion.canonical === 'CONVERTED') {
+      if (loadingSentQuotations) {
+        setStatusSaving(false)
+        setStatusError('Loading sent quotations… please wait.')
+        return
+      }
+      if (!eligibleConversionQuotations.length) {
+        setStatusSaving(false)
+        setStatusError(
+          sentQuotations.length > 0
+            ? 'Sent quotations need margin approval before conversion. Open the quotation and approve margin, then try again.'
+            : 'No quotations have been sent to this lead yet. Send a quotation first, then convert.'
+        )
+        return
+      }
+      const picked = eligibleConversionQuotations.find(
+        q => q.id === selectedConversionQuotationId
+      )
+      if (!selectedConversionQuotationId || !picked) {
+        setStatusSaving(false)
+        setStatusError(
+          'Choose the accepted quotation from the dropdown before converting.'
+        )
+        return
+      }
+    }
+
     try {
       await leadsService.updateLead(id, {
         status: conversion.canonical,
@@ -360,7 +566,114 @@ const LeadDetails: React.FC = () => {
           ? true
           : undefined
       })
+
+      if (
+        conversion.canonical === 'CONVERTED' &&
+        selectedConversionQuotationId
+      ) {
+        let followUp = ''
+
+        const quoteRes = await quotationsApi.getById(
+          selectedConversionQuotationId
+        )
+        const fullQuote = (
+          quoteRes && typeof quoteRes === 'object'
+            ? (quoteRes as { data?: unknown }).data ?? quoteRes
+            : null
+        ) as Record<string, unknown> | null
+
+        const picked = eligibleConversionQuotations.find(
+          q => q.id === selectedConversionQuotationId
+        )
+        const quoteStatus = String(
+          fullQuote?.status ?? picked?.status ?? ''
+        ).toUpperCase()
+
+        if (fullQuote && ['SENT', 'VIEWED'].includes(quoteStatus)) {
+          try {
+            await quotationsApi.changeStatus(selectedConversionQuotationId, {
+              status: 'APPROVED'
+            })
+          } catch (err) {
+            setStatusError(
+              getApiErrorMessage(
+                err,
+                'Lead was updated but the quotation could not be approved.'
+              )
+            )
+            await loadLead()
+            await loadSentQuotationsForLead()
+            return
+          }
+        }
+
+        const bookListRes = await bookingsApi.list({
+          quotationId: selectedConversionQuotationId,
+          limit: 25
+        })
+        const bookings = unwrapApiArray(bookListRes) as Record<
+          string,
+          unknown
+        >[]
+        const activeBooking = bookings.find(
+          b => !Boolean(b.isDeleted ?? b.is_deleted ?? false)
+        )
+
+        if (activeBooking?.id) {
+          followUp = `A booking already exists for this quotation (${String(activeBooking.bookingNumber ?? activeBooking.booking_number ?? activeBooking.id)}).`
+        } else {
+          if (!fullQuote || typeof fullQuote !== 'object') {
+            followUp =
+              'Could not load quotation details to create a booking. Create the booking manually from Bookings.'
+          } else {
+            const { payload, error } = buildBookingCreatePayloadFromQuotation(
+              fullQuote,
+              qualification.travelDate
+            )
+            if (error || !payload) {
+              followUp =
+                error ??
+                'Could not build booking from quotation. Create it manually from Bookings.'
+            } else {
+              try {
+                const createdRes = await bookingsApi.create(payload)
+                const createdRow =
+                  createdRes &&
+                  typeof createdRes === 'object' &&
+                  'data' in createdRes
+                    ? (createdRes as { data: Record<string, unknown> }).data
+                    : (createdRes as Record<string, unknown> | null)
+                const bn =
+                  (createdRow?.bookingNumber ??
+                    createdRow?.booking_number) as string | undefined
+                const bid = createdRow?.id as string | undefined
+                followUp = bn
+                  ? `Booking ${bn} was created from this quotation.`
+                  : bid
+                    ? `Booking was created (reference ${String(bid).slice(0, 8)}…).`
+                    : 'Booking was created from this quotation.'
+              } catch (cErr) {
+                setStatusError(
+                  getApiErrorMessage(
+                    cErr,
+                    'Lead converted but booking could not be created.'
+                  )
+                )
+                await loadLead()
+                await loadSentQuotationsForLead()
+                return
+              }
+            }
+          }
+        }
+
+        setConversionFollowUpMessage(followUp)
+      }
+
       await loadLead()
+      if (conversion.canonical === 'CONVERTED') {
+        await loadSentQuotationsForLead()
+      }
     } catch (err) {
       setStatusError(getApiErrorMessage(err, 'Could not update lead status.'))
     } finally {
@@ -424,18 +737,33 @@ const LeadDetails: React.FC = () => {
   }
 
   const canRunOps = hasPermission('leads:update')
+  const canAssignLead = hasPermission('leads:update')
 
   const handleDisableCalls = async () => {
     if (!id) return
     const newState = !isCallsDisabled
     try {
       await leadsService.disableCalls(id, newState)
-      setCallsButtonDisabled(newState)
-      setLead((prev: any) => prev ? { ...prev, callsDisabled: newState } : prev)
       setShowDisablePopup(true)
       window.setTimeout(() => setShowDisablePopup(false), 2500)
+      await loadLead()
     } catch {
       setShowDisablePopup(false)
+    }
+  }
+
+  const assignLeadNow = async () => {
+    if (!id || !selectedAssigneeId) return
+    setAssigning(true)
+    setStatusError('')
+    try {
+      await leadsService.assignLead(id, { assignedTo: selectedAssigneeId, force: true })
+      await loadLead()
+      setSelectedAssigneeId('')
+    } catch (err) {
+      setStatusError(getApiErrorMessage(err, 'Unable to assign lead.'))
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -466,6 +794,11 @@ const LeadDetails: React.FC = () => {
       {statusError ? (
         <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
           {statusError}
+        </div>
+      ) : null}
+      {conversionFollowUpMessage ? (
+        <div className='rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/25 dark:text-emerald-100'>
+          {conversionFollowUpMessage}
         </div>
       ) : null}
 
@@ -791,6 +1124,69 @@ const LeadDetails: React.FC = () => {
                 setSelectedStatusLabel(value as SopStatusLabel)
               }
             />
+            {selectedStatusLabel === 'CONVERTED' ? (
+              <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-sm dark:border-gray-600 dark:bg-gray-800/40'>
+                <p className='font-medium text-gray-900 dark:text-gray-100'>
+                  Sent quotation for this lead
+                </p>
+                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                  Searchable list of quotations that were sent to this lead and
+                  are ready to convert. Updating status creates a booking when
+                  one does not exist yet.
+                </p>
+                {loadingSentQuotations ? (
+                  <p className='mt-2 text-xs text-gray-500'>Loading…</p>
+                ) : sentQuotations.length === 0 ? (
+                  <p className='mt-2 text-xs text-amber-700 dark:text-amber-300'>
+                    No sent quotations yet. Send a quotation to this lead
+                    first.
+                  </p>
+                ) : eligibleConversionQuotations.length === 0 ? (
+                  <p className='mt-2 text-xs text-amber-700 dark:text-amber-300'>
+                    {sentQuotations.length} sent quotation
+                    {sentQuotations.length === 1 ? '' : 's'} — complete margin
+                    approval on each quotation first, then they will appear
+                    here.
+                  </p>
+                ) : (
+                  <>
+                    <label className='mt-3 block text-xs font-medium text-gray-700 dark:text-gray-300'>
+                      Select quotation
+                    </label>
+                    <SearchableDropdown
+                      className='mt-1'
+                      value={selectedConversionQuotationId}
+                      onChange={setSelectedConversionQuotationId}
+                      options={conversionQuotationDropdownOptions}
+                      placeholder='Select quotation'
+                      searchPlaceholder='Search quote #, status, destination, amount…'
+                      disabled={
+                        loadingSentQuotations ||
+                        eligibleConversionQuotations.length === 0
+                      }
+                    />
+                    <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+                      {eligibleConversionQuotations.length} quote
+                      {eligibleConversionQuotations.length === 1 ? '' : 's'}{' '}
+                      ready · use the search box when there are many.
+                    </p>
+                    {selectedConversionQuotationId ? (
+                      <button
+                        type='button'
+                        onClick={() =>
+                          navigate(
+                            `/quotations/${selectedConversionQuotationId}`
+                          )
+                        }
+                        className='mt-2 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400'
+                      >
+                        Open selected quotation →
+                      </button>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            ) : null}
             <textarea
               className='field-input mt-2'
               rows={2}
@@ -800,7 +1196,11 @@ const LeadDetails: React.FC = () => {
             />
             <button
               onClick={() => void updateStatus()}
-              disabled={statusSaving}
+              disabled={
+                statusSaving ||
+                (selectedStatusLabel === 'CONVERTED' &&
+                  loadingSentQuotations)
+              }
               className='mt-2 inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60'
             >
               {statusSaving ? 'Updating...' : 'Update Status'}
@@ -808,13 +1208,40 @@ const LeadDetails: React.FC = () => {
             </button>
           </div>
 
+          {canAssignLead ? (
+            <div className='mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
+              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                Assign Lead
+              </p>
+              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                Assignee options are scoped by your role, team, and lead country.
+              </p>
+              <div className='mt-2 grid grid-cols-1 gap-2'>
+                <SearchableDropdown
+                  value={selectedAssigneeId}
+                  onChange={setSelectedAssigneeId}
+                  options={assigneeOptions}
+                  placeholder='Select assignee'
+                  searchPlaceholder='Search assignee...'
+                />
+                <button
+                  onClick={() => void assignLeadNow()}
+                  disabled={assigning || !selectedAssigneeId}
+                  className='inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60'
+                >
+                  {assigning ? 'Assigning...' : 'Assign Lead'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div className='mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
             <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
               Follow-up Compliance
             </p>
             <div className='mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300'>
               <div className='flex items-center justify-between gap-2'>
-                <p>
+                <p className={isCallsDisabled ? 'line-through text-gray-400 dark:text-gray-500' : ''}>
                   Calls: {compliance.calls} / {REQUIRED_COMPLIANCE.calls}
                 </p>
                 <div className='relative'>
@@ -832,12 +1259,12 @@ const LeadDetails: React.FC = () => {
                         : 'bg-red-800 hover:bg-red-900 dark:bg-red-700 dark:hover:bg-red-800'
                     }`}
                   >
-                    {isCallsDisabled ? 'Re-enable' : 'Disable'}
+                    {isCallsDisabled ? 'Re-enable Calls' : 'Disable Calls'}
                   </button>
                 </div>
               </div>
-              <p>
-                WhatsApp: {compliance.whatsapp} / {REQUIRED_COMPLIANCE.whatsapp}
+              <p className={isCallsDisabled ? 'font-medium text-green-700 dark:text-green-400' : ''}>
+                WhatsApp: {isCallsDisabled ? '∞' : `${compliance.whatsapp} / ${REQUIRED_COMPLIANCE.whatsapp}`}
               </p>
               <p>Final Reminder: {compliance.finalReminders} / 1</p>
               <p

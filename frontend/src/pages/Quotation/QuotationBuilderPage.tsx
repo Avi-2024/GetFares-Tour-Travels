@@ -16,6 +16,7 @@ import {
   FaFloppyDisk,
   FaMobileScreen,
   FaPlus,
+<<<<<<< HEAD
 } from "react-icons/fa6";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
@@ -23,6 +24,18 @@ import { quotationsApi } from "../../api/quotations";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useAuth } from "../../context/AuthContext";
 import { useLeadsService } from "../../hooks/useLeadsService";
+=======
+  FaPencil,
+  FaTrash
+} from 'react-icons/fa6'
+import SurfaceCard from '../../components/ui/SurfaceCard'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { suppliersApi } from '../../api/suppliers'
+import { quotationsApi } from '../../api/quotations'
+import { getApiErrorMessage } from '../../api/apiClient'
+import { useAuth } from '../../context/AuthContext'
+import { useLeadsService } from '../../hooks/useLeadsService'
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
 type Currency = "USD" | "EUR" | "INR";
 type SavedQuote = {
@@ -92,6 +105,15 @@ type ServiceCostRow = ServiceDefinition & {
   sellValue: number;
 };
 
+type AddOnService = {
+  id: string
+  name: string
+  weight: number
+  baseCost: number
+  markup: number
+  sellValue: number
+}
+
 const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   { key: "hotel", label: "Accommodation", itemType: "HOTEL", weight: 45 },
   { key: "flights", label: "Flights", itemType: "FLIGHT", weight: 25 },
@@ -99,6 +121,105 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   { key: "visa", label: "Visa Services", itemType: "VISA", weight: 8 },
   { key: "insurance", label: "Insurance", itemType: "INSURANCE", weight: 7 },
 ];
+
+function parseNightsFromDuration(duration: unknown, fallback: number): number {
+  if (duration == null || duration === '') return fallback
+  const s = String(duration)
+  const m = s.match(/(\d+)\s*N/i)
+  if (m) return Math.max(1, Number(m[1]) || fallback)
+  const n = Number(s)
+  if (Number.isFinite(n) && n > 0) return Math.floor(n)
+  return fallback
+}
+
+function unwrapPackageResponse(res: unknown): Record<string, unknown> | null {
+  if (!res || typeof res !== 'object') return null
+  const r = res as { data?: unknown }
+  const d = r.data
+  if (d && typeof d === 'object' && 'data' in (d as object)) {
+    const nested = (d as { data?: unknown }).data
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      return nested as Record<string, unknown>
+    }
+  }
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    return d as Record<string, unknown>
+  }
+  return null
+}
+
+function toDateInputValue(value: string, fallbackNights: number): string | null {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return null
+  parsed.setDate(parsed.getDate() + Math.max(0, Number(fallbackNights) || 0))
+  return parsed.toISOString().slice(0, 10)
+}
+
+function formatDurationLabel(duration: unknown, fallbackNights: number): string {
+  const raw = String(duration ?? '').trim()
+  if (raw) return raw
+
+  const nights = Math.max(0, Number(fallbackNights) || 0)
+  if (!nights) return ''
+
+  return `${nights}N/${nights + 1}D`
+}
+
+function pluralize(value: number, singular: string, plural = `${singular}s`): string {
+  return `${value} ${value === 1 ? singular : plural}`
+}
+
+function parseDurationParts(duration: unknown): { nights: string; days: string } {
+  const text = String(duration ?? '')
+  const nights = text.match(/(\d+)\s*N/i)?.[1] ?? ''
+  const days = text.match(/(\d+)\s*D/i)?.[1] ?? ''
+  return { nights, days }
+}
+
+function parseDayCount(value: unknown): number {
+  const count = Number(value)
+  return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
+}
+
+function buildDurationValue(nights: unknown, days: unknown): string {
+  const safeNights = String(nights ?? '').trim()
+  const safeDays = String(days ?? '').trim()
+
+  if (safeNights && safeDays) return `${safeNights}N/${safeDays}D`
+  if (safeNights) return `${safeNights}N`
+  if (safeDays) return `${safeDays}D`
+  return ''
+}
+
+function getDayLabel(index: number): string {
+  return `Day ${index + 1}`
+}
+
+function buildItineraryRows(dayCount: number, existing: Item[] = []): Item[] {
+  return Array.from({ length: Math.max(0, dayCount) }, (_, index) => {
+    const current = existing[index]
+    return {
+      id: current?.id ?? `day-${index + 1}`,
+      day: getDayLabel(index),
+      title: current?.title ?? '',
+      description: current?.description ?? ''
+    }
+  })
+}
+
+function areItineraryRowsEqual(left: Item[], right: Item[]): boolean {
+  if (left.length !== right.length) return false
+  return left.every((item, index) => {
+    const next = right[index]
+    return (
+      item.id === next?.id &&
+      item.day === next?.day &&
+      item.title === next?.title &&
+      item.description === next?.description
+    )
+  })
+}
 
 const initialItinerary: Item[] = [
   {
@@ -116,6 +237,7 @@ const initialItinerary: Item[] = [
 ];
 
 const QuotationBuilderPage: React.FC = () => {
+<<<<<<< HEAD
   const navigate = useNavigate();
   const { token } = useAuth();
   const leadsService = useLeadsService();
@@ -141,20 +263,53 @@ const QuotationBuilderPage: React.FC = () => {
   });
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
+=======
+  const navigate = useNavigate()
+  const { token } = useAuth()
+  const leadsService = useLeadsService()
+  const [showPreview, setShowPreview] = useState(true)
+  const [mobile, setMobile] = useState(false)
+  const [currency, setCurrency] = useState<Currency>('INR')
+  const [leads, setLeads] = useState<LeadOption[]>([])
+  const [leadsLoading, setLeadsLoading] = useState(false)
+  const [leadsError, setLeadsError] = useState('')
+  const [selectedLeadId, setSelectedLeadId] = useState('')
+  const [templates, setTemplates] = useState<TemplateOption[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [templatesError, setTemplatesError] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([])
+  const [suppliersLoading, setSuppliersLoading] = useState(false)
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
+  const [saveError, setSaveError] = useState('')
+  const [saving, setSaving] = useState(false)
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
     {},
   );
   const [createQuotationFlag, setCreateQuotationFlag] = useState(true);
   const [quotationPayload, setQuotationPayload] = useState({});
   const [form, setForm] = useState({
+<<<<<<< HEAD
     quote: "",
     version: "Draft",
     customer: "",
     email: "",
     destination: "",
     startDate: "",
+=======
+    quote: '',
+    version: 'Draft',
+    quotationTitle: '',
+    customer: '',
+    email: '',
+    destination: '',
+    startDate: '',
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     nights: 1,
+    durationDays: '2',
     adults: 1,
+<<<<<<< HEAD
     validUntil: "",
     inclusions: "",
     exclusions: "",
@@ -170,17 +325,45 @@ const QuotationBuilderPage: React.FC = () => {
     useState<Item[]>(initialItinerary);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddOnModal, setShowAddOnModal] = useState(false);
+=======
+    validUntil: '',
+    inclusions: '',
+    exclusions: '',
+    headerBranding: '',
+    paymentTerms: '',
+    cancellationPolicy: '',
+    footerDisclaimer: '',
+    hotelDetails: '',
+    visaDetails: ''
+  })
+  const [downloading, setDownloading] = useState(false)
+  const [showSaved, setShowSaved] = useState(false)
+  const [itineraryItems, setItineraryItems] = useState<Item[]>(
+    buildItineraryRows(2, initialItinerary)
+  )
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showAddOnModal, setShowAddOnModal] = useState(false)
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
   const [newItem, setNewItem] = useState<{
     day: string;
     title: string;
     description: string;
   }>({
+<<<<<<< HEAD
     day: "Day 3",
     title: "",
     description: "",
   });
   const [packageType, setPackageType] = useState("Leisure");
   const [services, setServices] = useState<Record<ServiceKey, boolean>>({
+=======
+    day: 'Day 3',
+    title: '',
+    description: ''
+  })
+  const [packageType] = useState('Leisure')
+  const [services] = useState<Record<ServiceKey, boolean>>({
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     hotel: true,
     flights: true,
     tours: true,
@@ -192,6 +375,7 @@ const QuotationBuilderPage: React.FC = () => {
     markupPercent: 12,
     serviceFee: 120,
     taxPercent: 5,
+<<<<<<< HEAD
     discount: 0,
   });
   const [addOnServices, setAddOnServices] = useState<
@@ -212,6 +396,28 @@ const QuotationBuilderPage: React.FC = () => {
     sellValue: "",
   });
   const previewRef = useRef<HTMLDivElement | null>(null);
+=======
+    discount: 0
+  })
+  const [addOnServices, setAddOnServices] = useState<AddOnService[]>([])
+  const [addOnDraft, setAddOnDraft] = useState({
+    name: '',
+    weight: '',
+    baseCost: '',
+    markup: '',
+    sellValue: ''
+  })
+  const [serviceOverrides, setServiceOverrides] = useState<
+    Record<string, {
+      weight?: string
+      baseCost?: string
+      markupPercent?: string
+      sellValue?: string
+      paymentTerms?: string
+    }>
+  >({})
+  const previewRef = useRef<HTMLDivElement | null>(null)
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   const selectedLead = useMemo(
     () => leads.find((lead) => lead.id === selectedLeadId) || null,
@@ -281,6 +487,7 @@ const QuotationBuilderPage: React.FC = () => {
     [templates],
   );
 
+<<<<<<< HEAD
   const packageTypeOptions = useMemo(
     () =>
       ["Leisure", "Corporate", "Group", "Visa Only", "Insurance Only"].map(
@@ -291,6 +498,23 @@ const QuotationBuilderPage: React.FC = () => {
       ),
     [],
   );
+=======
+  const supplierDropdownOptions = useMemo(
+    () => [
+      { value: '', label: 'Select a supplier' },
+      ...suppliers.map(supplier => ({
+        value: supplier.id,
+        label: supplier.name
+      }))
+    ],
+    [suppliers]
+  )
+
+  const selectedSupplier = useMemo(
+    () => suppliers.find(supplier => supplier.id === selectedSupplierId) || null,
+    [selectedSupplierId, suppliers]
+  )
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   const currencyOptions = useMemo(
     () => [
@@ -350,6 +574,7 @@ const QuotationBuilderPage: React.FC = () => {
   );
 
   const serviceCostRows = useMemo<ServiceCostRow[]>(() => {
+<<<<<<< HEAD
     const activeDefinitions = selectedServiceDefinitions;
     if (!activeDefinitions.length) {
       return [];
@@ -375,16 +600,94 @@ const QuotationBuilderPage: React.FC = () => {
         ((baseCost * markupPercent) / 100).toFixed(2),
       );
       const sellValue = Number((baseCost + markupAmount).toFixed(2));
+=======
+    const activeDefinitions = selectedServiceDefinitions
+    if (!activeDefinitions.length) return []
+
+    const globalSupplierCost = Number(costs.supplierCost) || 0
+    const globalMarkup = Number(costs.markupPercent) || 0
+
+    // Rows with a baseCost override bypass weight distribution entirely.
+    // Rows without use the weight-based distribution of the remaining supplierCost.
+    const overriddenKeys = new Set(
+      activeDefinitions
+        .filter(def => {
+          const val = serviceOverrides[def.key]?.baseCost
+          return val !== undefined && val !== '' && !isNaN(Number(val))
+        })
+        .map(def => def.key)
+    )
+    const overriddenTotal = activeDefinitions.reduce((sum, def) => {
+      if (!overriddenKeys.has(def.key)) return sum
+      return sum + (Number(serviceOverrides[def.key]?.baseCost) || 0)
+    }, 0)
+    const remainingCost = Math.max(0, globalSupplierCost - overriddenTotal)
+
+    // Effective weight per row (use override if present)
+    const effectiveWeights = activeDefinitions.map(def => {
+      if (overriddenKeys.has(def.key)) return 0
+      const overrideWeight = serviceOverrides[def.key]?.weight
+      if (overrideWeight !== undefined && overrideWeight !== '' && !isNaN(Number(overrideWeight))) {
+        return Number(overrideWeight)
+      }
+      return def.weight
+    })
+    const totalWeight = effectiveWeights.reduce((s, w) => s + w, 0)
+
+    let allocatedRemainder = 0
+    const freeRows = activeDefinitions.filter(def => !overriddenKeys.has(def.key))
+
+    return activeDefinitions.map((definition, index) => {
+      const override = serviceOverrides[definition.key] ?? {}
+      const effectiveWeight = effectiveWeights[index]
+      
+      const overrideMarkup = override.markupPercent
+      const effectiveMarkup = (overrideMarkup !== undefined && overrideMarkup !== '' && !isNaN(Number(overrideMarkup)))
+        ? Number(overrideMarkup)
+        : globalMarkup
+
+      let baseCost: number
+      if (overriddenKeys.has(definition.key)) {
+        baseCost = Number(override.baseCost) || 0
+      } else {
+        const isLastFree =
+          freeRows.length > 0 &&
+          definition.key === freeRows[freeRows.length - 1].key
+        const weighted = totalWeight
+          ? (remainingCost * effectiveWeights[index]) / totalWeight
+          : 0
+        baseCost = Number(
+          (isLastFree ? remainingCost - allocatedRemainder : weighted).toFixed(2)
+        )
+        allocatedRemainder = Number((allocatedRemainder + baseCost).toFixed(2))
+      }
+
+      const markupAmount = Number(((baseCost * effectiveMarkup) / 100).toFixed(2))
+      const computedSell = Number((baseCost + markupAmount).toFixed(2))
+
+      const overrideSell = override.sellValue
+      const finalSell = (overrideSell !== undefined && overrideSell !== '' && !isNaN(Number(overrideSell)))
+        ? Number(overrideSell)
+        : computedSell
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
       return {
         ...definition,
+        weight: effectiveWeight,
         baseCost,
-        markupPercent,
+        markupPercent: effectiveMarkup,
         markupAmount,
+<<<<<<< HEAD
         sellValue,
       };
     });
   }, [costs.markupPercent, costs.supplierCost, selectedServiceDefinitions]);
+=======
+        sellValue: finalSell
+      }
+    })
+  }, [costs.markupPercent, costs.supplierCost, selectedServiceDefinitions, serviceOverrides])
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   useEffect(() => {
     const loadDestinations = async () => {
@@ -454,7 +757,17 @@ const QuotationBuilderPage: React.FC = () => {
     } finally {
       setTemplatesLoading(false);
     }
+<<<<<<< HEAD
   }, [token]);
+=======
+
+    void loadTemplates()
+  }, [token])
+
+  const [packages, setPackages] = useState<any[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(false)
+  const [selectedPackageId, setSelectedPackageId] = useState('')
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   useEffect(() => {
     void loadTemplates();
@@ -467,7 +780,11 @@ const QuotationBuilderPage: React.FC = () => {
     if (!token) return;
     setPackagesLoading(true);
     quotationsApi
+<<<<<<< HEAD
       .listPackages({ status: "PUBLISHED", limit: 100 })
+=======
+      .listPackages({ limit: 200 })
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
       .then((res: any) => {
         const list = res?.data?.data ?? res?.data ?? res ?? [];
         setPackages(Array.isArray(list) ? list : []);
@@ -478,15 +795,37 @@ const QuotationBuilderPage: React.FC = () => {
 
   const packageOptions = useMemo(
     () => [
+<<<<<<< HEAD
       { value: "", label: "Select a ready package..." },
       ...packages.map((pkg: any) => ({
         value: pkg.id,
         label: `${pkg.name || pkg.title || "Package"} — ${pkg.destination || ""}`,
       })),
+=======
+      {
+        value: '',
+        label: 'No package — fill quotation manually',
+        searchText: 'manual none'
+      },
+      ...packages.map((pkg: any) => {
+        const kind =
+          String(pkg.packageKind ?? pkg.package_kind ?? 'READY').toUpperCase() ===
+          'CUSTOMIZED'
+            ? 'Custom'
+            : 'Ready'
+        return {
+          value: pkg.id,
+          label: `${pkg.name || pkg.title || 'Package'} — ${pkg.destination || ''}`,
+          searchText: `${pkg.name} ${pkg.destination} ${kind}`,
+          rightLabel: kind
+        }
+      })
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     ],
     [packages],
   );
 
+<<<<<<< HEAD
   const loadFromPackage = (packageId: string) => {
     const pkg = packages.find((p: any) => p.id === packageId);
     if (!pkg) return;
@@ -520,6 +859,231 @@ const QuotationBuilderPage: React.FC = () => {
 
   useEffect(() => {
     if (!selectedLead) return;
+=======
+  const selectedPackage = useMemo(
+    () =>
+      packages.find((pkg: any) => String(pkg.id ?? '') === selectedPackageId) ||
+      null,
+    [packages, selectedPackageId]
+  )
+
+  const sourcePackageName = useMemo(
+    () => String(selectedPackage?.name ?? selectedPackage?.title ?? '').trim(),
+    [selectedPackage]
+  )
+
+  const selectedPackageKindLabel = useMemo(() => {
+    const raw = String(
+      selectedPackage?.packageKind ?? selectedPackage?.package_kind ?? ''
+    )
+      .trim()
+      .toUpperCase()
+
+    if (raw === 'CUSTOMIZED') return 'Customized Package'
+    if (raw === 'READY') return 'Ready Package'
+    return raw ? raw.replace(/_/g, ' ') : ''
+  }, [selectedPackage])
+
+  const quotationTitleDisplay =
+    form.quotationTitle.trim() || sourcePackageName || 'Manual Quotation'
+  const previewDurationLabel =
+    buildDurationValue(form.nights, form.durationDays) ||
+    formatDurationLabel('', form.nights)
+  const travellerLabel = pluralize(Math.max(0, Number(form.adults) || 0), 'adult')
+
+  const loadFromPackage = async (packageId: string) => {
+    if (!packageId) return
+    const fromList = packages.find(
+      (p: any) => String(p.id ?? '') === packageId
+    ) as
+      | Record<string, unknown>
+      | undefined
+    let pkg: Record<string, unknown> | undefined = fromList
+      ? { ...fromList }
+      : undefined
+    try {
+      const res = await quotationsApi.getPackage(packageId)
+      const full = unwrapPackageResponse(res)
+      if (full) pkg = { ...pkg, ...full }
+    } catch {
+      /* list row only */
+    }
+    if (!pkg) return
+
+    const packageRecordId = String(pkg.id ?? packageId).trim()
+    if (packageRecordId) {
+      setPackages(prev => {
+        const existingIndex = prev.findIndex(
+          (item: any) => String(item.id ?? '') === packageRecordId
+        )
+        if (existingIndex === -1) {
+          return [...prev, pkg]
+        }
+        return prev.map((item: any) =>
+          String(item.id ?? '') === packageRecordId ? { ...item, ...pkg } : item
+        )
+      })
+    }
+
+    setServiceOverrides({})
+
+    const kind =
+      String(pkg.packageKind ?? pkg.package_kind ?? 'READY').toUpperCase() ===
+      'CUSTOMIZED'
+        ? 'CUSTOMIZED'
+        : 'READY'
+    const customRaw = pkg.customServices ?? pkg.custom_services
+    const customArr = Array.isArray(customRaw) ? customRaw : []
+
+    if (kind === 'CUSTOMIZED' && customArr.length > 0) {
+      setAddOnServices(
+        customArr.map((s: any, i: number) => {
+          const cost = Number(s?.cost ?? 0) || 0
+          const mPct = Number(s?.markupPercent ?? s?.markup_percent ?? 0) || 0
+          const sell =
+            s?.sellValue != null || s?.sell_value != null
+              ? Number(s.sellValue ?? s.sell_value)
+              : Number((cost * (1 + mPct / 100)).toFixed(2))
+          const mk = Number(((cost * mPct) / 100).toFixed(2))
+          return {
+            id: String(s?.id ?? `pkg-line-${i}`),
+            name: String(s?.name ?? `Service ${i + 1}`),
+            weight: 0,
+            baseCost: cost,
+            markup: mk,
+            sellValue: sell
+          }
+        })
+      )
+    } else {
+      setAddOnServices([])
+    }
+
+    const itin = pkg.itinerary
+    let parsedItineraryItems: Item[] = []
+    if (
+      itin &&
+      typeof itin === 'object' &&
+      !Array.isArray(itin) &&
+      (typeof (itin as { plain?: unknown }).plain === 'string' ||
+        typeof (itin as { text?: unknown }).text === 'string')
+    ) {
+      const plain = String(
+        (itin as { plain?: string; text?: string }).plain ??
+          (itin as { text?: string }).text ??
+          ''
+      ).trim()
+      if (plain) {
+        const chunks = plain
+          .split(/\n\s*\n+/)
+          .map(s => s.trim())
+          .filter(Boolean)
+        parsedItineraryItems = chunks.map((chunk, i) => {
+          const lines = chunk.split('\n')
+          const first = (lines[0] ?? '').trim()
+          const rest = lines.slice(1).join('\n').trim()
+          return {
+            id: `it-${i}`,
+            day: getDayLabel(i),
+            title: first || getDayLabel(i),
+            description: rest
+          }
+        })
+      }
+    } else if (Array.isArray(itin) && itin.length > 0) {
+      parsedItineraryItems = itin.map((row: any, i: number) => ({
+        id: String(row?.id ?? `it-${i}`),
+        day: getDayLabel(i),
+        title: String(row?.title ?? row?.heading ?? ''),
+        description: String(row?.description ?? row?.details ?? '')
+      }))
+    }
+
+    const durationParts = parseDurationParts(pkg.duration)
+    const derivedNights =
+      durationParts.nights || String(parseNightsFromDuration(pkg.duration, form.nights))
+    const derivedDays =
+      durationParts.days ||
+      (parsedItineraryItems.length > 0 ? String(parsedItineraryItems.length) : '')
+    const itineraryDayCount =
+      parseDayCount(derivedDays) ||
+      (parsedItineraryItems.length > 0 ? parsedItineraryItems.length : 0)
+    setItineraryItems(buildItineraryRows(itineraryDayCount, parsedItineraryItems))
+
+    setForm(prev => {
+      const vf = pkg!.validTo ?? pkg!.valid_to
+      const vfStr =
+        vf != null && String(vf).length >= 10 ? String(vf).slice(0, 10) : ''
+      return {
+        ...prev,
+        quotationTitle: String(pkg!.name ?? pkg!.title ?? prev.quotationTitle),
+        destination: String(
+          pkg!.destination ?? pkg!.destinationName ?? prev.destination
+        ),
+        nights: Number(derivedNights || prev.nights || 1),
+        durationDays:
+          derivedDays || prev.durationDays || String(parsedItineraryItems.length || 0),
+        inclusions: String(pkg!.inclusions ?? prev.inclusions),
+        exclusions: String(pkg!.exclusions ?? prev.exclusions),
+        paymentTerms: String(
+          pkg!.paymentTerms ?? pkg!.payment_terms ?? prev.paymentTerms
+        ),
+        cancellationPolicy: String(
+          pkg!.cancellationPolicy ?? pkg!.cancellation_policy ?? prev.cancellationPolicy
+        ),
+        hotelDetails: String(pkg!.hotelDetails ?? pkg!.hotel_details ?? prev.hotelDetails),
+        visaDetails: String(pkg!.visaDetails ?? pkg!.visa_details ?? prev.visaDetails),
+        validUntil: vfStr || prev.validUntil,
+        headerBranding: pkg!.name
+          ? `Package: ${String(pkg.name)}`
+          : prev.headerBranding
+      }
+    })
+
+    const base = Number(pkg.baseCost ?? pkg.base_cost ?? 0)
+    const mk = pkg.markupPercent ?? pkg.markup_percent
+    setCosts(prev => ({
+      ...prev,
+      supplierCost: base > 0 ? base : prev.supplierCost,
+      markupPercent:
+        mk != null && Number(mk) >= 0 ? Number(mk) : prev.markupPercent
+    }))
+  }
+
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      if (!token) {
+        setSuppliers([])
+        return
+      }
+
+      setSuppliersLoading(true)
+      try {
+        const response = await suppliersApi.list({ page: 1, limit: 100 })
+        const payload = (response as any)?.data ?? response
+        const data = (payload as any)?.data || (payload as any)?.items || payload
+        if (Array.isArray(data)) {
+          setSuppliers(data.map((s: any) => ({
+            id: s.id || s._id,
+            name: s.name || s.companyName || 'Unnamed Supplier'
+          })))
+        } else {
+          setSuppliers([])
+        }
+      } catch (error) {
+        console.error('Failed to load suppliers:', error)
+        setSuppliers([])
+      } finally {
+        setSuppliersLoading(false)
+      }
+    }
+
+    void loadSuppliers()
+  }, [token])
+
+  useEffect(() => {
+    if (!selectedLead) return
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
     const resolvedDestination =
       typeof selectedLead.destination === "string" ?
@@ -545,6 +1109,14 @@ const QuotationBuilderPage: React.FC = () => {
     }));
   }, [selectedLead, destinationMap, form.destination]);
 
+  useEffect(() => {
+    const dayCount = parseDayCount(form.durationDays)
+    setItineraryItems(prev => {
+      const next = buildItineraryRows(dayCount, prev)
+      return areItineraryRowsEqual(prev, next) ? prev : next
+    })
+  }, [form.durationDays])
+
   const addOnTotal = useMemo(
     () =>
       addOnServices.reduce(
@@ -553,6 +1125,33 @@ const QuotationBuilderPage: React.FC = () => {
       ),
     [addOnServices],
   );
+
+  const addOnBaseCostTotal = useMemo(
+    () =>
+      Number(
+        addOnServices
+          .reduce((sum, item) => sum + (Number(item.baseCost) || 0), 0)
+          .toFixed(2)
+      ),
+    [addOnServices]
+  )
+
+  const addOnMarkupTotal = useMemo(
+    () =>
+      Number(
+        addOnServices
+          .reduce(
+            (sum, item) =>
+              sum +
+              ((Number(item.sellValue) || 0) - (Number(item.baseCost) || 0)),
+            0
+          )
+          .toFixed(2)
+      ),
+    [addOnServices]
+  )
+
+  const [editingAddOnId, setEditingAddOnId] = useState<string | null>(null)
 
   const addAddOnService = () => {
     const name = addOnDraft.name.trim();
@@ -574,17 +1173,42 @@ const QuotationBuilderPage: React.FC = () => {
       alert("Please fill all add-on fields with valid values.");
       return;
     }
+<<<<<<< HEAD
     setAddOnServices((prev) => [
       ...prev,
       {
         id: `addon-${Date.now()}`,
+=======
+    if (editingAddOnId) {
+      setAddOnServices(prev => prev.map(s => s.id === editingAddOnId ? {
+        id: s.id,
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
         name,
         weight,
         baseCost,
         markup,
+<<<<<<< HEAD
         sellValue,
       },
     ]);
+=======
+        sellValue
+      } : s))
+      setEditingAddOnId(null)
+    } else {
+      setAddOnServices(prev => [
+        ...prev,
+        {
+          id: `addon-${Date.now()}`,
+          name,
+          weight,
+          baseCost,
+          markup,
+          sellValue
+        }
+      ])
+    }
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     setAddOnDraft({
       name: "",
       weight: "",
@@ -594,6 +1218,24 @@ const QuotationBuilderPage: React.FC = () => {
     });
     setShowAddOnModal(false);
   };
+
+  const editAddOnService = (service: typeof addOnServices[0]) => {
+    setEditingAddOnId(service.id)
+    setAddOnDraft({
+      name: service.name,
+      weight: String(service.weight),
+      baseCost: String(service.baseCost),
+      markup: String(service.markup),
+      sellValue: String(service.sellValue)
+    })
+    setShowAddOnModal(true)
+  }
+
+  const removeAddOnService = (id: string) => {
+    if (confirm('Remove this service?')) {
+      setAddOnServices(prev => prev.filter(s => s.id !== id))
+    }
+  }
 
   const computed = useMemo(() => {
     const supplier = Number(costs.supplierCost) || 0;
@@ -836,7 +1478,10 @@ const QuotationBuilderPage: React.FC = () => {
       .map((definition) => definition.label)
       .join(", ");
 
+    const supplierName = selectedSupplier?.name?.trim() || ''
+
     const sections = [
+<<<<<<< HEAD
       `Trip Summary:\nDestination: ${form.destination || "N/A"}\nTravel Date: ${
         form.startDate || "N/A"
       }\nNights: ${form.nights}\nAdults: ${
@@ -859,11 +1504,48 @@ const QuotationBuilderPage: React.FC = () => {
         `Footer Disclaimer:\n${form.footerDisclaimer.trim()}`
       : "",
     ].filter(Boolean);
+=======
+      `Trip Summary:\nQuote Reference: ${
+        form.quote || 'N/A'
+      }\nQuotation Title: ${
+        quotationTitleDisplay || 'N/A'
+      }\nVersion: ${form.version || 'N/A'}\nDestination: ${
+        form.destination || 'N/A'
+      }\nTravel Date: ${form.startDate || 'N/A'}\nNights: ${
+        form.nights
+      }\nDays: ${form.durationDays || 'N/A'}\nDuration: ${
+        previewDurationLabel || 'N/A'
+      }\nAdults: ${form.adults}\nPackage Type: ${packageType}${
+        sourcePackageName ? `\nSelected Package: ${sourcePackageName}` : ''
+      }${supplierName ? `\nSupplier: ${supplierName}` : ''}`,
+      enabledServices ? `Enabled Services:\n${enabledServices}` : '',
+      itinerarySummary ? `Itinerary:\n${itinerarySummary}` : '',
+      form.headerBranding.trim()
+        ? `Header Branding:\n${form.headerBranding.trim()}`
+        : '',
+      form.inclusions.trim() ? `Inclusions:\n${form.inclusions.trim()}` : '',
+      form.exclusions.trim() ? `Exclusions:\n${form.exclusions.trim()}` : '',
+      form.hotelDetails.trim()
+        ? `Hotel Details:\n${form.hotelDetails.trim()}`
+        : '',
+      form.visaDetails.trim() ? `Visa Details:\n${form.visaDetails.trim()}` : '',
+      form.paymentTerms.trim()
+        ? `Payment Terms:\n${form.paymentTerms.trim()}`
+        : '',
+      form.cancellationPolicy.trim()
+        ? `Cancellation Policy:\n${form.cancellationPolicy.trim()}`
+        : '',
+      form.footerDisclaimer.trim()
+        ? `Footer Disclaimer:\n${form.footerDisclaimer.trim()}`
+        : ''
+    ].filter(Boolean)
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
     if (!sections.length) return undefined;
     return sections.join("\n\n").slice(0, 3900);
   };
 
+<<<<<<< HEAD
   const handleSave = async () => {
     setSaveError("");
 
@@ -876,15 +1558,166 @@ const QuotationBuilderPage: React.FC = () => {
         return;
       }
     }
+=======
+  const buildBuilderSnapshot = () => {
+    const travelEndDate = toDateInputValue(form.startDate, form.nights)
+
+    return {
+      quoteReference: form.quote.trim() || null,
+      versionLabel: form.version.trim() || null,
+      quotationTitle: form.quotationTitle.trim() || null,
+      lead: {
+        id: selectedLeadId || null,
+        fullName: form.customer.trim() || selectedLead?.fullName || null,
+        email: form.email.trim() || selectedLead?.email || null,
+        phone: selectedLead?.phone || null,
+        destination:
+          form.destination.trim() ||
+          selectedLead?.destinationName ||
+          (selectedLead?.destinationId
+            ? destinationMap[selectedLead.destinationId]
+            : null) ||
+          null
+      },
+      customerName: form.customer.trim() || null,
+      customerEmail: form.email.trim() || null,
+      destination: form.destination.trim() || null,
+      travelStartDate: form.startDate || null,
+      travelEndDate,
+      nights: Number(form.nights) || 0,
+      durationNights: Number(form.nights) || 0,
+      durationDays: parseDayCount(form.durationDays) || 0,
+      durationLabel: previewDurationLabel || null,
+      adults: Number(form.adults) || 0,
+      validUntil: form.validUntil || null,
+      packageType,
+      currency,
+      package: selectedPackageId
+        ? {
+            id: selectedPackageId,
+            name: sourcePackageName || null,
+            duration: previewDurationLabel || null,
+            destination: form.destination.trim() || null,
+            validFrom:
+              String(
+                selectedPackage?.validFrom ?? selectedPackage?.valid_from ?? ''
+              ).trim() ||
+              form.startDate ||
+              null,
+            validTo:
+              String(
+                selectedPackage?.validTo ?? selectedPackage?.valid_to ?? ''
+              ).trim() ||
+              form.validUntil ||
+              null,
+            kind:
+              selectedPackage?.packageKind ??
+              selectedPackage?.package_kind ??
+              null
+          }
+        : null,
+      supplierDetails: selectedSupplierId
+        ? {
+            supplierId: selectedSupplierId,
+            supplierName: selectedSupplier?.name || null
+          }
+        : null,
+      enabledServices: selectedServiceDefinitions.map(definition => ({
+        key: definition.key,
+        label: definition.label,
+        itemType: definition.itemType
+      })),
+      services,
+      serviceRows: serviceCostRows.map(row => {
+        const override = serviceOverrides[row.key] ?? {}
+        return {
+          key: row.key,
+          label: row.label,
+          itemType: row.itemType,
+          weight:
+            override.weight !== undefined && override.weight !== ''
+              ? Number(override.weight)
+              : row.weight,
+          baseCost:
+            override.baseCost !== undefined && override.baseCost !== ''
+              ? Number(override.baseCost)
+              : row.baseCost,
+          markupPercent:
+            override.markupPercent !== undefined && override.markupPercent !== ''
+              ? Number(override.markupPercent)
+              : row.markupPercent,
+          markupAmount: row.markupAmount,
+          sellValue:
+            override.sellValue !== undefined && override.sellValue !== ''
+              ? Number(override.sellValue)
+              : row.sellValue,
+          paymentTerms: override.paymentTerms?.trim() || null
+        }
+      }),
+      addOnServices: addOnServices.map(service => ({
+        id: service.id,
+        name: service.name,
+        weight: Number(service.weight) || 0,
+        baseCost: Number(service.baseCost) || 0,
+        markup: Number(service.markup) || 0,
+        sellValue: Number(service.sellValue) || 0
+      })),
+      itineraryItems: itineraryItems.map(item => ({
+        id: item.id,
+        day: item.day,
+        title: item.title,
+        description: item.description
+      })),
+      content: {
+        headerBranding: form.headerBranding,
+        inclusions: form.inclusions,
+        exclusions: form.exclusions,
+        paymentTerms: form.paymentTerms,
+        cancellationPolicy: form.cancellationPolicy,
+        footerDisclaimer: form.footerDisclaimer,
+        hotelDetails: form.hotelDetails,
+        visaDetails: form.visaDetails
+      },
+      pricing: {
+        supplierCost: Number(costs.supplierCost) || 0,
+        addOnBaseCost: addOnBaseCostTotal,
+        markupPercent: Number(costs.markupPercent) || 0,
+        addOnMarkup: addOnMarkupTotal,
+        serviceFee: Number(costs.serviceFee) || 0,
+        taxPercent: Number(costs.taxPercent) || 0,
+        discount: Number(costs.discount) || 0,
+        taxAmount: Number(computed.taxVal) || 0,
+        totalPrice: Number(computed.totalPrice) || 0,
+        profit: Number(computed.profit) || 0,
+        margin: Number(computed.margin) || 0,
+        serviceChargesTotal,
+        totalMarkupFromServices
+      }
+    }
+  }
+
+  const handleSave = () => {
+    setSaveError('')
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
     if (!token) {
       const newQuote: SavedQuote = {
         id: String(Date.now()),
+<<<<<<< HEAD
         quoteNumber: form.quote || "Draft",
         customer: form.customer || "Unnamed Customer",
         email: form.email || "New Lead",
         destination: form.destination || "Destination",
         details: `${form.nights} nights - ${packageType}`,
+=======
+        quoteNumber: form.quote || 'Draft',
+        customer: form.customer || 'Unnamed Customer',
+        email: form.email || 'New Lead',
+        destination: form.destination || 'Destination',
+        details: [quotationTitleDisplay, previewDurationLabel || `${form.nights} nights`]
+          .filter(Boolean)
+          .join(' • '),
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
         total: computed.totalPrice,
         margin: Number(computed.margin.toFixed(1)),
         status: "pending",
@@ -912,6 +1745,7 @@ const QuotationBuilderPage: React.FC = () => {
       return;
     }
 
+<<<<<<< HEAD
     if (!selectedServiceDefinitions.length) {
       setSaveError("Select at least one service in Package Builder.");
       return;
@@ -976,6 +1810,43 @@ const QuotationBuilderPage: React.FC = () => {
       const markupAmount =
         Number(costs.supplierCost || 0) *
         (Number(costs.markupPercent || 0) / 100);
+=======
+    const supplier = Number(costs.supplierCost) || 0
+    const serviceFee = Number(costs.serviceFee) || 0
+    const totalSupplierCost = Number((supplier + addOnBaseCostTotal).toFixed(2))
+    const markupAmount = Number(
+      (
+        supplier * ((Number(costs.markupPercent) || 0) / 100) +
+        addOnMarkupTotal
+      ).toFixed(2)
+    )
+    const components = [
+      ...serviceCostRows.map(row => {
+        const override = serviceOverrides[row.key] ?? {}
+        const effectiveSell =
+          override.sellValue !== undefined
+            ? Number(override.sellValue)
+            : row.sellValue
+        return {
+          itemType: row.itemType,
+          description: `${row.label}${
+            form.destination ? ` - ${form.destination}` : ''
+          }${override.paymentTerms ? ` (${override.paymentTerms})` : ''}`,
+          cost: row.baseCost,
+          sellValue: effectiveSell
+        }
+      }),
+      ...addOnServices.map(service => ({
+        itemType: 'OTHER',
+        description: `Add-on Service - ${service.name}`,
+        cost: Number((Number(service.baseCost) || 0).toFixed(2)),
+        sellValue: Number((Number(service.sellValue) || 0).toFixed(2))
+      }))
+    ]
+
+    const taxPercent = Number(costs.taxPercent) || 0
+    const discount = Number(costs.discount) || 0
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
       const expiresInHours = (() => {
         if (!form.validUntil) return undefined;
@@ -985,6 +1856,7 @@ const QuotationBuilderPage: React.FC = () => {
         return Math.min(hours, 720);
       })();
 
+<<<<<<< HEAD
       const payload = {
         leadId: selectedLeadId,
         ...(templateIdToUse && templateIdToUse !== "CUSTOM" ?
@@ -1018,6 +1890,25 @@ const QuotationBuilderPage: React.FC = () => {
       );
     } finally {
       setSaving(false);
+=======
+    const payload = {
+      leadId: selectedLeadId,
+      ...(selectedTemplateId ? { templateId: selectedTemplateId } : {}),
+      components,
+      marginPercent: Number(costs.markupPercent) || 0,
+      discount,
+      taxPercent,
+      supplierCost: totalSupplierCost,
+      markupAmount,
+      serviceFeeAmount: serviceFee,
+      taxAmount: Number(computed.taxVal) || 0,
+      costCurrency: currency,
+      clientCurrency: currency,
+      supplierCurrency: currency,
+      importantNotes: buildImportantNotes(),
+      builderSnapshot: buildBuilderSnapshot(),
+      ...(expiresInHours ? { expiresInHours } : {})
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     }
   };
 
@@ -1173,6 +2064,7 @@ const QuotationBuilderPage: React.FC = () => {
                       {selectedTemplate.templateType}) - Min margin{" "}
                       {selectedTemplate.minMarginPercent}%
                     </p>
+<<<<<<< HEAD
                   : null}
                   {showCustomTemplateFields ?
                     <div className="mt-3 space-y-3 rounded-lg border border-purple-200 bg-purple-50/30 p-3 dark:border-purple-800 dark:bg-purple-900/10">
@@ -1276,6 +2168,46 @@ const QuotationBuilderPage: React.FC = () => {
                     searchPlaceholder="Search ready packages..."
                     onChange={(pkgId) => {
                       if (pkgId) loadFromPackage(pkgId);
+=======
+                  ) : null}
+
+                  <div>
+                    <label className='field-label'>Supplier</label>
+                    <SearchableDropdown
+                      value={selectedSupplierId}
+                      options={supplierDropdownOptions}
+                      onChange={setSelectedSupplierId}
+                      disabled={suppliersLoading}
+                      searchPlaceholder='Search supplier...'
+                    />
+                    {suppliersLoading ? (
+                      <p className='mt-1 text-xs text-gray-500'>
+                        Loading suppliers...
+                      </p>
+                    ) : null}
+                  </div>
+
+                </div>
+
+                <div className='md:col-span-2 rounded-xl border border-green-200 bg-green-50/30 p-3 dark:border-green-800 dark:bg-green-900/10'>
+                  <label className='field-label text-green-700 dark:text-green-300'>
+                    Load from package (Ready or Customized)
+                  </label>
+                  <p className='mb-2 text-[11px] text-green-600 dark:text-green-400'>
+                    Select a catalog package to prefill the quotation. After
+                    loading, you can edit the title, duration, itinerary, and
+                    content here without changing the source package. Customized
+                    packages also load editable service lines.
+                  </p>
+                  <SearchableDropdown
+                    value={selectedPackageId}
+                    options={packageOptions}
+                    disabled={packagesLoading}
+                    searchPlaceholder='Search packages...'
+                    onChange={pkgId => {
+                      setSelectedPackageId(pkgId)
+                      if (pkgId) void loadFromPackage(pkgId)
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                     }}
                   />
                   {packagesLoading ?
@@ -1286,7 +2218,16 @@ const QuotationBuilderPage: React.FC = () => {
                 </div>
 
                 <Field
+<<<<<<< HEAD
                   label="Customer"
+=======
+                  label='Quotation / Package Title'
+                  value={form.quotationTitle}
+                  onChange={v => setForm(p => ({ ...p, quotationTitle: v }))}
+                />
+                <Field
+                  label='Customer'
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                   value={form.customer}
                   onChange={(v) => setForm((p) => ({ ...p, customer: v }))}
                 />
@@ -1328,6 +2269,7 @@ const QuotationBuilderPage: React.FC = () => {
                   />
                 </div>
                 <div>
+<<<<<<< HEAD
                   <label className="field-label">Nights</label>
                   <input
                     type="number"
@@ -1340,6 +2282,41 @@ const QuotationBuilderPage: React.FC = () => {
                       }))
                     }
                   />
+=======
+                  <label className='field-label'>Duration</label>
+                  <div className='grid grid-cols-2 gap-2'>
+                    <input
+                      type='number'
+                      min='0'
+                      className='field-input'
+                      placeholder='Nights'
+                      value={form.nights}
+                      onChange={e =>
+                        setForm(p => ({
+                          ...p,
+                          nights: Number(e.target.value || 0)
+                        }))
+                      }
+                    />
+                    <input
+                      type='number'
+                      min='1'
+                      className='field-input'
+                      placeholder='Days'
+                      value={form.durationDays}
+                      onChange={e =>
+                        setForm(p => ({
+                          ...p,
+                          durationDays: e.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <p className='mt-1 text-xs text-gray-500'>
+                    Duration saves with the quotation itself as{' '}
+                    {previewDurationLabel || '0N/0D'}.
+                  </p>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                 </div>
                 <div>
                   <label className="field-label">Adults</label>
@@ -1358,6 +2335,7 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
 
+<<<<<<< HEAD
             <SurfaceCard>
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -1414,6 +2392,8 @@ const QuotationBuilderPage: React.FC = () => {
                 ))}
               </div>
             </SurfaceCard>
+=======
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
             <SurfaceCard>
               <div className="mb-3 flex items-center justify-between">
@@ -1480,6 +2460,7 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
             <SurfaceCard>
+<<<<<<< HEAD
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                   Itinerary Items
@@ -1509,6 +2490,69 @@ const QuotationBuilderPage: React.FC = () => {
                   </div>
                 ))}
               </div>
+=======
+              <div className='mb-4'>
+                <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
+                  Itinerary Items
+                </h2>
+                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                  Day fields are created automatically from the quotation
+                  `Days` value.
+                </p>
+              </div>
+              {parseDayCount(form.durationDays) <= 0 ? (
+                <div className='rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-3 py-4 text-sm text-gray-500 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-gray-400'>
+                  Enter the total `Days` in duration to generate itinerary
+                  fields.
+                </div>
+              ) : (
+                <div className='space-y-3'>
+                  {itineraryItems.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className='rounded-xl border border-blue-100 bg-blue-50/30 p-3 dark:border-blue-900/40 dark:bg-blue-900/10'
+                    >
+                      <div className='mb-3 flex items-center gap-2'>
+                        <span className='rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200'>
+                          {getDayLabel(index)}
+                        </span>
+                        <input
+                          className='field-input'
+                          placeholder='Title (Arrival, Sightseeing, Leisure...)'
+                          value={item.title}
+                          onChange={event => {
+                            const nextValue = event.target.value
+                            setItineraryItems(prev =>
+                              prev.map((row, rowIndex) =>
+                                rowIndex === index
+                                  ? { ...row, title: nextValue }
+                                  : row
+                              )
+                            )
+                          }}
+                        />
+                      </div>
+                      <textarea
+                        className='field-input'
+                        rows={4}
+                        placeholder='Add the plan for this day...'
+                        value={item.description}
+                        onChange={event => {
+                          const nextValue = event.target.value
+                          setItineraryItems(prev =>
+                            prev.map((row, rowIndex) =>
+                              rowIndex === index
+                                ? { ...row, description: nextValue }
+                                : row
+                            )
+                          )
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
             </SurfaceCard>
             <SurfaceCard>
               <div className="mb-3 flex items-start justify-between gap-3">
@@ -1516,9 +2560,14 @@ const QuotationBuilderPage: React.FC = () => {
                   <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                     Pricing Breakdown
                   </h2>
+<<<<<<< HEAD
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     Auto generated from Supplier Cost, Markup, Service Fee, Tax,
                     and Discount.
+=======
+                  <p className='text-xs text-gray-500 dark:text-gray-400'>
+                    Edit any field to recalculate all values automatically.
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                   </p>
                 </div>
                 <SearchableDropdown
@@ -1562,6 +2611,7 @@ const QuotationBuilderPage: React.FC = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
+<<<<<<< HEAD
                     <tr className="border-b border-gray-200 text-gray-500 dark:border-gray-700">
                       <th className="py-2 text-left">Service</th>
                       <th className="py-2 text-right">Weight</th>
@@ -1599,17 +2649,238 @@ const QuotationBuilderPage: React.FC = () => {
                         <td
                           colSpan={5}
                           className="py-3 text-center text-xs text-gray-500"
+=======
+                    <tr className='border-b border-gray-200 text-gray-500 dark:border-gray-700'>
+                      <th className='py-2 text-left'>Service</th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Weight %
+                      </th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Base Cost
+                      </th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Markup %
+                      </th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Sell Value
+                      </th>
+                      <th className='py-2 text-right text-[11px]'>
+                        Payment Terms
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {serviceCostRows.map(row => {
+                      const override = serviceOverrides[row.key] ?? {}
+                      const hasWeightOverride = override.weight !== undefined
+                      const hasBaseCostOverride = override.baseCost !== undefined
+                      const hasMarkupOverride = override.markupPercent !== undefined
+                      const hasSellOverride = override.sellValue !== undefined
+                      const inputBase =
+                        'rounded border px-1.5 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100'
+                      const overrideCls = 'border-violet-300 bg-violet-50 dark:border-violet-600 dark:bg-violet-900/20'
+                      const normalCls = 'border-gray-200 bg-transparent dark:border-gray-700'
+                      
+                      // Use override values if they exist (even if empty string), otherwise use computed values
+                      const displayWeight = hasWeightOverride ? String(override.weight) : String(row.weight)
+                      const displayBaseCost = hasBaseCostOverride ? String(override.baseCost) : row.baseCost.toFixed(2)
+                      const displayMarkup = hasMarkupOverride ? String(override.markupPercent) : row.markupPercent.toFixed(1)
+                      const displaySell = hasSellOverride ? String(override.sellValue) : row.sellValue.toFixed(2)
+                      
+                      return (
+                        <tr
+                          key={row.key}
+                          className='border-b border-gray-100 dark:border-gray-800'
                         >
-                          Select at least one service in Package Builder.
+                          <td className='py-2 text-sm'>{row.label}</td>
+
+                          {/* Weight */}
+                          <td className='py-2 text-right'>
+                            <div className='flex items-center justify-end gap-0.5'>
+                              <input
+                                type='number'
+                                min='0'
+                                max='100'
+                                step='0.1'
+                                value={displayWeight}
+                                onChange={e =>
+                                  setServiceOverrides(prev => ({
+                                    ...prev,
+                                    [row.key]: { ...prev[row.key], weight: e.target.value }
+                                  }))
+                                }
+                                onBlur={e => {
+                                  // Clean up empty values on blur
+                                  if (e.target.value === '') {
+                                    setServiceOverrides(prev => {
+                                      const newOverrides = { ...prev }
+                                      if (newOverrides[row.key]) {
+                                        const { weight, ...rest } = newOverrides[row.key]
+                                        if (Object.keys(rest).length === 0) {
+                                          delete newOverrides[row.key]
+                                        } else {
+                                          newOverrides[row.key] = rest
+                                        }
+                                      }
+                                      return newOverrides
+                                    })
+                                  }
+                                }}
+                                className={`w-16 ${inputBase} ${hasWeightOverride ? overrideCls : normalCls}`}
+                              />
+                              <span className='text-xs text-gray-500'>%</span>
+                            </div>
+                          </td>
+
+                          {/* Base Cost */}
+                          <td className='py-2 text-right'>
+                            <input
+                              type='number'
+                              min='0'
+                              step='0.01'
+                              value={displayBaseCost}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], baseCost: e.target.value }
+                                }))
+                              }
+                              onBlur={e => {
+                                if (e.target.value === '') {
+                                  setServiceOverrides(prev => {
+                                    const newOverrides = { ...prev }
+                                    if (newOverrides[row.key]) {
+                                      const { baseCost, ...rest } = newOverrides[row.key]
+                                      if (Object.keys(rest).length === 0) {
+                                        delete newOverrides[row.key]
+                                      } else {
+                                        newOverrides[row.key] = rest
+                                      }
+                                    }
+                                    return newOverrides
+                                  })
+                                }
+                              }}
+                              className={`w-24 ${inputBase} ${hasBaseCostOverride ? overrideCls : normalCls}`}
+                            />
+                          </td>
+
+                          {/* Markup % */}
+                          <td className='py-2 text-right'>
+                            <div className='flex items-center justify-end gap-0.5'>
+                              <input
+                                type='number'
+                                min='0'
+                                max='100'
+                                step='0.1'
+                                value={displayMarkup}
+                                onChange={e =>
+                                  setServiceOverrides(prev => ({
+                                    ...prev,
+                                    [row.key]: { ...prev[row.key], markupPercent: e.target.value }
+                                  }))
+                                }
+                                onBlur={e => {
+                                  if (e.target.value === '') {
+                                    setServiceOverrides(prev => {
+                                      const newOverrides = { ...prev }
+                                      if (newOverrides[row.key]) {
+                                        const { markupPercent, ...rest } = newOverrides[row.key]
+                                        if (Object.keys(rest).length === 0) {
+                                          delete newOverrides[row.key]
+                                        } else {
+                                          newOverrides[row.key] = rest
+                                        }
+                                      }
+                                      return newOverrides
+                                    })
+                                  }
+                                }}
+                                className={`w-16 ${inputBase} text-green-700 dark:text-green-400 ${hasMarkupOverride ? overrideCls : normalCls}`}
+                              />
+                              <span className='text-xs text-gray-500'>%</span>
+                            </div>
+                            <span className='block text-right text-[10px] text-green-500 mt-0.5'>
+                              ({money(row.markupAmount)})
+                            </span>
+                          </td>
+
+                          {/* Sell Value */}
+                          <td className='py-2 text-right font-medium'>
+                            <input
+                              type='number'
+                              min='0'
+                              step='0.01'
+                              value={displaySell}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], sellValue: e.target.value }
+                                }))
+                              }
+                              onBlur={e => {
+                                if (e.target.value === '') {
+                                  setServiceOverrides(prev => {
+                                    const newOverrides = { ...prev }
+                                    if (newOverrides[row.key]) {
+                                      const { sellValue, ...rest } = newOverrides[row.key]
+                                      if (Object.keys(rest).length === 0) {
+                                        delete newOverrides[row.key]
+                                      } else {
+                                        newOverrides[row.key] = rest
+                                      }
+                                    }
+                                    return newOverrides
+                                  })
+                                }
+                              }}
+                              className={`w-24 ${inputBase} ${hasSellOverride ? overrideCls : normalCls}`}
+                            />
+                          </td>
+
+                          {/* Payment Terms */}
+                          <td className='py-2 text-right'>
+                            <input
+                              type='text'
+                              placeholder='e.g. 50% advance'
+                              value={override.paymentTerms ?? ''}
+                              onChange={e =>
+                                setServiceOverrides(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...prev[row.key], paymentTerms: e.target.value }
+                                }))
+                              }
+                              className={`w-32 ${inputBase} ${
+                                override.paymentTerms ? overrideCls : normalCls
+                              }`}
+                            />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {!serviceCostRows.length ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className='py-3 text-center text-xs text-gray-500'
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
+                        >
+                          Enable services in the Cost &amp; Profit section to see the breakdown.
                         </td>
                       </tr>
                     : null}
                   </tbody>
                 </table>
               </div>
+<<<<<<< HEAD
               <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+=======
+              <div className='mt-4 rounded-xl border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
+                <div className='mb-2 flex items-center justify-between'>
+                  <h3 className='text-sm font-semibold text-gray-800 dark:text-gray-100'>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                     Add-on Services
                   </h3>
                   <button
@@ -1619,6 +2890,7 @@ const QuotationBuilderPage: React.FC = () => {
                     <FaPlus className="mr-1 inline" /> Add Service
                   </button>
                 </div>
+<<<<<<< HEAD
                 {addOnServices.length ?
                   <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
                     <div className="grid grid-cols-5 gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
@@ -1627,10 +2899,22 @@ const QuotationBuilderPage: React.FC = () => {
                       <span className="text-right">Base Cost</span>
                       <span className="text-right">Markup</span>
                       <span className="text-right">Sell Value</span>
+=======
+                {addOnServices.length ? (
+                  <div className='space-y-2 text-xs text-gray-600 dark:text-gray-300'>
+                    <div className='grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                      <span>Service</span>
+                      <span className='text-right w-16'>Weight</span>
+                      <span className='text-right w-20'>Base Cost</span>
+                      <span className='text-right w-20'>Markup</span>
+                      <span className='text-right w-20'>Sell Value</span>
+                      <span className='text-right w-16'>Actions</span>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                     </div>
                     {addOnServices.map((service) => (
                       <div
                         key={service.id}
+<<<<<<< HEAD
                         className="grid grid-cols-5 items-center gap-2"
                       >
                         <span>{service.name}</span>
@@ -1644,8 +2928,39 @@ const QuotationBuilderPage: React.FC = () => {
                           {money(Number(service.markup) || 0)}
                         </span>
                         <span className="text-right font-medium text-gray-800 dark:text-gray-100">
+=======
+                        className='grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-2'
+                      >
+                        <span>{service.name}</span>
+                        <span className='text-right w-16'>
+                          {Number(service.weight || 0).toFixed(1)}%
+                        </span>
+                        <span className='text-right w-20'>
+                          {money(Number(service.baseCost) || 0)}
+                        </span>
+                        <span className='text-right w-20'>
+                          {money(Number(service.markup) || 0)}
+                        </span>
+                        <span className='text-right w-20 font-medium text-gray-800 dark:text-gray-100'>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                           {money(Number(service.sellValue) || 0)}
                         </span>
+                        <div className='flex gap-1'>
+                          <button
+                            onClick={() => editAddOnService(service)}
+                            className='rounded p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                            title='Edit'
+                          >
+                            <FaPencil className='text-xs' />
+                          </button>
+                          <button
+                            onClick={() => removeAddOnService(service.id)}
+                            className='rounded p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                            title='Remove'
+                          >
+                            <FaTrash className='text-xs' />
+                          </button>
+                        </div>
                       </div>
                     ))}
                     <div className="flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200">
@@ -1666,6 +2981,7 @@ const QuotationBuilderPage: React.FC = () => {
                   </div>
                 }
               </div>
+<<<<<<< HEAD
               <div className="mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800">
                 <div className="mb-1 flex justify-between text-xs text-gray-500">
                   <span>Supplier Cost</span>
@@ -1704,6 +3020,88 @@ const QuotationBuilderPage: React.FC = () => {
                 <div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold">
                   <span>Total</span>
                   <span className="text-blue-600">{money(total)}</span>
+=======
+                      <div className='rounded-xl bg-gray-50 p-3 dark:bg-gray-800'>
+                <div className='space-y-2'>
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Supplier Cost</span>
+                    <input
+                      type='number'
+                      min='0'
+                      step='0.01'
+                      value={costs.supplierCost}
+                      onChange={e => setCosts(p => ({ ...p, supplierCost: Number(e.target.value) || 0 }))}
+                      className='w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600'
+                    />
+                  </div>
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Total Markup</span>
+                    <span className='font-medium'>{money(totalMarkupFromServices || computed.markupVal)}</span>
+                  </div>
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Service Fee</span>
+                    <input
+                      type='number'
+                      min='0'
+                      step='0.01'
+                      value={costs.serviceFee}
+                      onChange={e => setCosts(p => ({ ...p, serviceFee: Number(e.target.value) || 0 }))}
+                      className='w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600'
+                    />
+                  </div>
+                  {addOnTotal ? (
+                    <div className='flex justify-between items-center text-xs'>
+                      <span className='text-gray-500'>Add-on Services</span>
+                      <span className='font-medium'>{money(addOnTotal)}</span>
+                    </div>
+                  ) : null}
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Subtotal</span>
+                    <span className='font-medium'>{money(subtotal)}</span>
+                  </div>
+                  <div className='flex justify-between items-center text-xs'>
+                    <span className='text-gray-500'>Tax %</span>
+                    <div className='flex items-center gap-1'>
+                      <input
+                        type='number'
+                        min='0'
+                        max='100'
+                        step='0.1'
+                        value={costs.taxPercent}
+                        onChange={e => setCosts(p => ({ ...p, taxPercent: Number(e.target.value) || 0 }))}
+                        className='w-16 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600'
+                      />
+                      <span className='text-gray-500'>= {money(taxes)}</span>
+                    </div>
+                  </div>
+                  {costs.discount ? (
+                    <div className='flex justify-between items-center text-xs'>
+                      <span className='text-gray-500'>Discount</span>
+                      <input
+                        type='number'
+                        min='0'
+                        step='0.01'
+                        value={costs.discount}
+                        onChange={e => setCosts(p => ({ ...p, discount: Number(e.target.value) || 0 }))}
+                        className='w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600'
+                      />
+                    </div>
+                  ) : (
+                    <div className='flex justify-between items-center text-xs'>
+                      <span className='text-gray-500'>Discount</span>
+                      <button
+                        onClick={() => setCosts(p => ({ ...p, discount: 0 }))}
+                        className='text-blue-600 hover:text-blue-700 text-xs'
+                      >
+                        + Add Discount
+                      </button>
+                    </div>
+                  )}
+                  <div className='flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
+                    <span>Total</span>
+                    <span className='text-blue-600'>{money(total)}</span>
+                  </div>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                 </div>
               </div>
             </SurfaceCard>
@@ -1785,8 +3183,43 @@ const QuotationBuilderPage: React.FC = () => {
                     placeholder="Cancellation and refund terms"
                   />
                 </div>
+<<<<<<< HEAD
                 <div className="md:col-span-2">
                   <label className="field-label">Footer Disclaimer</label>
+=======
+                <div>
+                  <label className='field-label'>Hotel details</label>
+                  <textarea
+                    rows={3}
+                    className='field-input'
+                    value={form.hotelDetails}
+                    onChange={event =>
+                      setForm(prev => ({
+                        ...prev,
+                        hotelDetails: event.target.value
+                      }))
+                    }
+                    placeholder='Hotel name, star category, rooms, meal plan, check-in/out'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Visa details</label>
+                  <textarea
+                    rows={3}
+                    className='field-input'
+                    value={form.visaDetails}
+                    onChange={event =>
+                      setForm(prev => ({
+                        ...prev,
+                        visaDetails: event.target.value
+                      }))
+                    }
+                    placeholder='Visa type, fees, processing time, documents required'
+                  />
+                </div>
+                <div className='md:col-span-2'>
+                  <label className='field-label'>Footer Disclaimer</label>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                   <textarea
                     rows={2}
                     className="field-input"
@@ -1853,6 +3286,7 @@ const QuotationBuilderPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg">
                         <img
+<<<<<<< HEAD
                           src="/logo1.png"
                           alt="Get2Vacation"
                           className="h-8 w-6"
@@ -1862,6 +3296,17 @@ const QuotationBuilderPage: React.FC = () => {
                         <p className="font-semibold">Get2Vacation Travel CRM</p>
                         <p className="text-xs text-gray-500">
                           support@Get2Vacation.com
+=======
+                          src='/logo1.png'
+                          alt='Get2Vacations'
+                          className='h-8 w-6'
+                        />
+                      </div>
+                      <div>
+                        <p className='font-semibold'>Get2Vacations Travel CRM</p>
+                        <p className='text-xs text-gray-500'>
+                          support@Get2Vacations.com
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                         </p>
                       </div>
                     </div>
@@ -1888,6 +3333,7 @@ const QuotationBuilderPage: React.FC = () => {
                       </span>
                     </p>
                     <p>
+<<<<<<< HEAD
                       Package:{" "}
                       <span className="font-semibold text-gray-700">
                         {packageType}
@@ -1896,6 +3342,28 @@ const QuotationBuilderPage: React.FC = () => {
                     <p className="text-right">
                       Services:{" "}
                       <span className="font-semibold text-gray-700">
+=======
+                      Package Type:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {packageType}
+                      </span>
+                    </p>
+                    <p className='text-right'>
+                      Duration:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {previewDurationLabel || 'N/A'}
+                      </span>
+                    </p>
+                    <p>
+                      Title:{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {quotationTitleDisplay}
+                      </span>
+                    </p>
+                    <p className='text-right'>
+                      Services:{' '}
+                      <span className='font-semibold text-gray-700'>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                         {selectedServiceDefinitions.length}
                       </span>
                     </p>
@@ -1927,10 +3395,16 @@ const QuotationBuilderPage: React.FC = () => {
                           {form.email || "guest@email.com"}
                         </p>
                       </div>
+<<<<<<< HEAD
                       <div className="text-right text-xs text-gray-500">
                         <p>{form.destination || "Destination"}</p>
+=======
+                      <div className='text-right text-xs text-gray-500'>
+                        <p>{form.destination || 'Destination'}</p>
+                        <p>Duration: {previewDurationLabel || 'N/A'}</p>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                         <p>
-                          {form.nights} nights - {form.adults} adults
+                          Travellers: {travellerLabel}
                         </p>
                       </div>
                     </div>
@@ -1950,8 +3424,50 @@ const QuotationBuilderPage: React.FC = () => {
                     </div>
                   </div>
 
+<<<<<<< HEAD
                   <div className="mb-4">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+=======
+                  {quotationTitleDisplay ||
+                  selectedPackageKindLabel ? (
+                    <div className='mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3'>
+                      <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700'>
+                        Trip Snapshot
+                      </p>
+                      <div className='grid grid-cols-1 gap-2 text-xs text-blue-900 sm:grid-cols-3'>
+                        <div>
+                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                            Title
+                          </p>
+                          <p className='mt-1'>{quotationTitleDisplay}</p>
+                        </div>
+                        <div>
+                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                            Duration
+                          </p>
+                          <p className='mt-1'>{previewDurationLabel || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                            Type
+                          </p>
+                          <p className='mt-1'>
+                            {selectedPackageKindLabel ||
+                              (sourcePackageName ? 'Package Copy' : packageType)}
+                          </p>
+                        </div>
+                      </div>
+                      {sourcePackageName ? (
+                        <p className='mt-2 text-[11px] text-blue-700'>
+                          Source package: {sourcePackageName}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className='mb-4'>
+                    <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                       Included Services
                     </p>
                     {selectedServiceDefinitions.length ?
@@ -2043,8 +3559,38 @@ const QuotationBuilderPage: React.FC = () => {
                     </div>
                   : null}
 
+<<<<<<< HEAD
                   <div className="preview-validation rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
                     <FaCheck className="preview-validation-icon mr-1 inline" />{" "}
+=======
+                  {form.hotelDetails.trim() || form.visaDetails.trim() ? (
+                    <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                      {form.hotelDetails.trim() ? (
+                        <div className='rounded-xl border border-sky-200 bg-sky-50 p-3'>
+                          <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-sky-700'>
+                            Hotel Details
+                          </p>
+                          <p className='text-xs whitespace-pre-wrap text-sky-900'>
+                            {form.hotelDetails.trim()}
+                          </p>
+                        </div>
+                      ) : null}
+                      {form.visaDetails.trim() ? (
+                        <div className='rounded-xl border border-violet-200 bg-violet-50 p-3'>
+                          <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-violet-700'>
+                            Visa Details
+                          </p>
+                          <p className='text-xs whitespace-pre-wrap text-violet-900'>
+                            {form.visaDetails.trim()}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className='preview-validation rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700'>
+                    <FaCheck className='preview-validation-icon mr-1 inline' />{' '}
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                     Preview validated and ready to share.
                   </div>
 
@@ -2169,11 +3715,19 @@ const QuotationBuilderPage: React.FC = () => {
         )}
 
         {showAddOnModal && (
+<<<<<<< HEAD
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur">
             <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Add Service
+=======
+          <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur'>
+            <div className='w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700'>
+              <div className='mb-3 flex items-center justify-between'>
+                <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+                  {editingAddOnId ? 'Edit Service' : 'Add Service'}
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                 </h3>
                 <button
                   onClick={() => setShowAddOnModal(false)}
@@ -2268,7 +3822,7 @@ const QuotationBuilderPage: React.FC = () => {
                   onClick={addAddOnService}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
                 >
-                  Add Service
+                  {editingAddOnId ? 'Update Service' : 'Add Service'}
                 </button>
               </div>
             </div>

@@ -32,6 +32,8 @@ const componentSchema = z.object({
   cost: z.coerce.number().nonnegative(),
 });
 
+const snapshotSchema = z.object({}).passthrough();
+
 const currencyCode = z.string().trim().min(3).max(10);
 
 const create = z.object({
@@ -57,6 +59,7 @@ const create = z.object({
     supplierCurrency: currencyCode.optional(),
     expiresInHours: z.coerce.number().int().positive().max(720).optional(),
     importantNotes: z.string().max(4000).optional(),
+    builderSnapshot: snapshotSchema.optional(),
     responseCategory: responseCategory.optional(),
   }),
   params: z.object({}).optional(),
@@ -84,6 +87,7 @@ const update = z.object({
       supplierCurrency: currencyCode.optional(),
       notes: z.string().max(2000).optional(),
       importantNotes: z.string().max(4000).optional(),
+      builderSnapshot: snapshotSchema.optional(),
       responseCategory: responseCategory.optional(),
     })
     .refine(
@@ -110,6 +114,12 @@ const list = z.object({
       status: quotationStatus.optional(),
       leadId: z.string().uuid().optional(),
       createdBy: z.string().uuid().optional(),
+      sourcePackageId: z.string().uuid().optional(),
+      quotationTitle: z.string().max(200).optional(),
+      tripDestination: z.string().max(200).optional(),
+      durationNights: z.coerce.number().int().min(0).optional(),
+      durationDays: z.coerce.number().int().min(1).optional(),
+      travelStartDate: z.string().date().optional(),
       includeItems: z.coerce.boolean().optional(),
       availableForBooking: z.coerce.boolean().optional(),
     })
@@ -234,6 +244,12 @@ const leadToQuoteReport = z.object({
       from: z.string().optional(),
       to: z.string().optional(),
       createdBy: z.string().uuid().optional(),
+      sourcePackageId: z.string().uuid().optional(),
+      quotationTitle: z.string().max(200).optional(),
+      tripDestination: z.string().max(200).optional(),
+      durationNights: z.coerce.number().int().min(0).optional(),
+      durationDays: z.coerce.number().int().min(1).optional(),
+      travelStartDate: z.string().date().optional(),
     })
     .optional(),
 });

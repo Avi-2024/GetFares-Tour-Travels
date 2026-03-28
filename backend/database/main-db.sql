@@ -92,6 +92,7 @@ CREATE TABLE users (
     expertise_destinations TEXT[],
     agent_country VARCHAR(100),
     agent_type VARCHAR(40),
+    manager_id UUID REFERENCES users(id) ON DELETE SET NULL,
 
     target_amount NUMERIC(12,2) CHECK (target_amount >= 0),
     incentive_percent NUMERIC(5,2) CHECK (incentive_percent >= 0 AND incentive_percent <= 100),
@@ -101,6 +102,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_users_manager_id ON users(manager_id);
 
 CREATE TABLE login_audit (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -413,6 +415,20 @@ CREATE TABLE quotations (
     pricing_id UUID REFERENCES destination_pricing(id) ON DELETE SET NULL,
     template_id UUID REFERENCES quotation_templates(id) ON DELETE SET NULL,
     template_snapshot JSONB,
+    source_package_id UUID REFERENCES packages(id) ON DELETE SET NULL,
+    quotation_title VARCHAR(200),
+    trip_destination VARCHAR(200),
+    duration_nights INT CHECK (duration_nights >= 0),
+    duration_days INT CHECK (duration_days >= 0),
+    duration_label VARCHAR(50),
+    travel_start_date DATE,
+    itinerary JSONB,
+    inclusions TEXT,
+    exclusions TEXT,
+    hotel_details TEXT,
+    visa_details TEXT,
+    payment_terms TEXT,
+    cancellation_policy TEXT,
     quote_number VARCHAR(50),
 
     total_cost NUMERIC(12,2) CHECK (total_cost >= 0),

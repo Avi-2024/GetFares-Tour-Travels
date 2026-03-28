@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaBars,
@@ -8,6 +8,7 @@ import {
   FaMoon,
   FaSun
 } from 'react-icons/fa6'
+import { authApi } from '../../api/auth'
 import { useAuth } from '../../context/AuthContext'
 import { useNotifications } from '../../context/NotificationsContext'
 
@@ -32,61 +33,35 @@ const formatRoleLabel = (role?: string) => {
     .join(' ')
 }
 
-type BreakState = { isBreak: boolean; startedAt: number | null }
-
-const BREAK_STORAGE_KEY = 'header_break_state'
-
-const getStoredBreakState = (): BreakState => {
-  if (typeof window === 'undefined') return { isBreak: false, startedAt: null }
-  try {
-    const raw = localStorage.getItem(BREAK_STORAGE_KEY)
-    if (!raw) return { isBreak: false, startedAt: null }
-    const parsed = JSON.parse(raw) as {
-      isBreak?: boolean
-      startedAt?: number | null
-    }
-    if (parsed?.isBreak && typeof parsed.startedAt === 'number') {
-      return { isBreak: true, startedAt: parsed.startedAt }
-    }
-    return { isBreak: false, startedAt: null }
-  } catch (error) {
-    console.warn('Failed to parse break state', error)
-    return { isBreak: false, startedAt: null }
-  }
-}
-
-const formatDuration = (ms: number) => {
-  if (!Number.isFinite(ms) || ms <= 0) return '00:00'
-  const totalSeconds = Math.floor(ms / 1000)
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  const pad = (value: number) => value.toString().padStart(2, '0')
-  if (hours > 0) return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
-  return `${pad(minutes)}:${pad(seconds)}`
+type PresencePayload = {
+  id?: string
+  fullName?: string
+  name?: string
+  email?: string
+  role?: string
+  roleId?: string
+  active?: boolean | null
+  isActive?: boolean
 }
 
 const Header: React.FC<{
   onMenuClick: () => void
 }> = ({ onMenuClick }) => {
+  const navigate = useNavigate()
+  const { hasPermission, logout, user, token, setAuthState } = useAuth()
+  const { unreadCount } = useNotifications()
+
   const [dark, setDark] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('theme') === 'dark'
   })
   const [menuOpen, setMenuOpen] = useState(false)
-  const [breakState, setBreakState] = useState<BreakState>(() =>
-    getStoredBreakState()
+  const [workingMode, setWorkingMode] = useState<boolean | null>(
+    typeof user?.active === 'boolean' ? user.active : null
   )
-  const [breakElapsed, setBreakElapsed] = useState(() => {
-    if (breakState.isBreak && breakState.startedAt) {
-      return Date.now() - breakState.startedAt
-    }
-    return 0
-  })
+  const [togglingWorkingMode, setTogglingWorkingMode] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
-  const navigate = useNavigate()
-  const { hasPermission, logout, user } = useAuth()
-  const { unreadCount } = useNotifications()
+
   const displayName = getDisplayName(user?.name, user?.email)
   const roleLabel = formatRoleLabel(user?.role)
   const initials = getInitials(displayName)
@@ -96,58 +71,86 @@ const Header: React.FC<{
   }, [dark])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(
-      BREAK_STORAGE_KEY,
-      JSON.stringify({
-        isBreak: breakState.isBreak,
-        startedAt: breakState.startedAt
-      })
-    )
-  }, [breakState])
-
-  useEffect(() => {
-    const { isBreak, startedAt } = breakState
-    if (!isBreak || !startedAt) return undefined
-
-    const interval = setInterval(() => {
-      setBreakElapsed(Date.now() - startedAt)
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [breakState])
+    setWorkingMode(typeof user?.active === 'boolean' ? user.active : null)
+  }, [user?.active])
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
+      if (ref.current && !ref.current.contains(e.target as Node)) {
         setMenuOpen(false)
+      }
     }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
   }, [])
 
-  const toggle = () => {
+  const toggleTheme = () => {
     const next = !dark
     setDark(next)
     localStorage.setItem('theme', next ? 'dark' : 'light')
     document.documentElement.classList.toggle('dark', next)
   }
 
-  const handleToggleBreak = () => {
-    if (breakState.isBreak) {
-      setBreakState({ isBreak: false, startedAt: null })
-      setBreakElapsed(0)
-      return
-    }
-    const startedAt = Date.now()
-    setBreakState({ isBreak: true, startedAt })
-    setBreakElapsed(0)
+  const syncPresenceUser = (payload: PresencePayload) => {
+    if (!token) return
+    setAuthState(token, {
+      id: payload.id || user?.id || '',
+      name:
+        payload.fullName?.trim() ||
+        payload.name?.trim() ||
+        user?.name ||
+        'User',
+      email: payload.email || user?.email || '',
+      role: payload.role ?? user?.role,
+      roleId: payload.roleId ?? user?.roleId,
+      active: payload.active ?? null,
+      isActive: payload.isActive
+    })
   }
 
-  const breakTimerLabel = useMemo(() => {
-    if (!breakState.isBreak) return 'Start Break'
-    return `On Break • ${formatDuration(breakElapsed)}`
-  }, [breakState.isBreak, breakElapsed])
+  const handleToggleWorkingMode = async () => {
+    if (togglingWorkingMode || workingMode === null) return
+
+    const next = !workingMode
+    setTogglingWorkingMode(true)
+    try {
+      const response = await authApi.toggleActive(next)
+      const payload = response?.data
+      const confirmed =
+        typeof payload?.active === 'boolean' ? payload.active : null
+      setWorkingMode(confirmed)
+      if (payload) {
+        syncPresenceUser(payload)
+      }
+    } catch {
+      setWorkingMode(typeof user?.active === 'boolean' ? user.active : null)
+    } finally {
+      setTogglingWorkingMode(false)
+    }
+  }
+
+  const workingModeSupported = workingMode !== null
+  const workingModeLabel =
+    workingMode === null ? 'Working Mode' : workingMode ? 'Working' : 'Away'
+  const workingModeTitle = !workingModeSupported
+    ? 'Backend working mode is unavailable until active presence is configured in the database'
+    : workingMode
+    ? 'Click to switch to away mode'
+    : 'Click to switch to working mode'
+  const workingModeClasses = !workingModeSupported
+    ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
+    : workingMode
+    ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200'
+    : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-400 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/40'
+  const workingModeDotClasses = !workingModeSupported
+    ? 'bg-gray-400'
+    : workingMode
+    ? togglingWorkingMode
+      ? 'bg-green-400 animate-pulse'
+      : 'bg-green-500'
+    : togglingWorkingMode
+    ? 'bg-amber-400 animate-pulse'
+    : 'bg-amber-500'
 
   return (
     <header className='sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white/90 px-4 backdrop-blur lg:px-8 dark:border-gray-700 dark:bg-gray-900/90'>
@@ -170,38 +173,16 @@ const Header: React.FC<{
       <div className='flex items-center gap-2 sm:gap-3'>
         <button
           type='button'
-          onClick={handleToggleBreak}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
-            breakState.isBreak
-              ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-400 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/40'
-              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-          }`}
+          onClick={() => void handleToggleWorkingMode()}
+          disabled={!workingModeSupported || togglingWorkingMode}
+          title={workingModeTitle}
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-2 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:gap-2 sm:px-3 sm:text-sm ${workingModeClasses}`}
         >
-          <span
-            className={`h-2 w-2 rounded-full ${
-              breakState.isBreak ? 'bg-amber-500 animate-pulse' : 'bg-gray-400'
-            }`}
-          />
-          {breakTimerLabel}
+          <span className={`h-2 w-2 rounded-full ${workingModeDotClasses}`} />
+          <span>{workingModeLabel}</span>
         </button>
         <button
-          type='button'
-          disabled={breakState.isBreak}
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-            breakState.isBreak
-              ? 'border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
-              : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200'
-          }`}
-        >
-          <span
-            className={`h-2 w-2 rounded-full ${
-              breakState.isBreak ? 'bg-gray-400' : 'bg-green-500'
-            }`}
-          />
-          {breakState.isBreak ? 'Away' : 'Active'}
-        </button>
-        <button
-          onClick={toggle}
+          onClick={toggleTheme}
           className='rounded-xl border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
         >
           {dark ? <FaSun /> : <FaMoon />}

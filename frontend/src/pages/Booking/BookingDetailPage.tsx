@@ -16,6 +16,7 @@ import {
 } from 'react-icons/fa6'
 import { bookingsApi } from '../../api/bookings'
 import { paymentsApi } from '../../api/payments'
+import { quotationsApi } from '../../api/quotations'
 import { getApiErrorMessage } from '../../api/apiClient'
 
 // Types
@@ -893,6 +894,12 @@ const BookingDetailPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [history, setHistory] = useState<StatusHistory[]>([])
+  const [quotationDetails, setQuotationDetails] = useState<
+    Record<string, unknown> | null
+  >(null)
+  const [quotationComponents, setQuotationComponents] = useState<
+    Array<Record<string, unknown>>
+  >([])
   const invoiceModalContentRef = useRef<HTMLDivElement | null>(null)
 
   const downloadInvoicePdf = (url?: string, invoiceNumber?: string) => {
@@ -1119,10 +1126,34 @@ const BookingDetailPage: React.FC = () => {
         mappedPayments
       )
 
-      setBooking(resolvedBooking)
-      setInvoices(mappedInvoices)
-      setPayments(mappedPayments)
-      setHistory(mappedHistory)
+	      setBooking(resolvedBooking)
+	      setInvoices(mappedInvoices)
+	      setPayments(mappedPayments)
+	      setHistory(mappedHistory)
+	      setQuotationDetails(null)
+	      setQuotationComponents([])
+
+	      if (resolvedBooking.quotationId) {
+	        try {
+	          const quotRes = await quotationsApi.getById(resolvedBooking.quotationId)
+	          const quotData = unwrapData<any>(quotRes)
+	          const quoteRecord =
+	            quotData && typeof quotData === 'object' && !Array.isArray(quotData)
+	              ? (quotData as Record<string, unknown>)
+	              : null
+	          const components =
+	            quoteRecord?.components ?? quoteRecord?.items ?? []
+	          setQuotationDetails(
+	            quoteRecord && Object.keys(quoteRecord).length > 0
+	              ? quoteRecord
+	              : null
+	          )
+	          setQuotationComponents(toRecordArray(components))
+	        } catch {
+	          setQuotationDetails(null)
+	          setQuotationComponents([])
+	        }
+	      }
     } catch (err) {
       console.error('Failed to load booking details:', err)
       const message = getApiErrorMessage(err, 'Failed to load booking details')
@@ -1451,6 +1482,17 @@ const BookingDetailPage: React.FC = () => {
     }
   }
 
+  const toTrimmedText = (value: unknown): string => {
+    if (typeof value === 'string') return value.trim()
+    if (typeof value === 'number') return String(value)
+    return ''
+  }
+
+  const hasVisibleEntries = (value: Record<string, unknown>) =>
+    Object.values(value).some(
+      entry => entry !== null && entry !== undefined && entry !== ''
+    )
+
   const renderKeyValueBlock = (value: unknown) => {
     const record = toRecord(value)
     const entries = Object.entries(record).filter(
@@ -1536,38 +1578,258 @@ const BookingDetailPage: React.FC = () => {
     )
   }
 
-  const renderOtherServices = (value: unknown) => {
-    const rows = toRecordArray(value)
-    if (!rows.length) {
-      return <p className='text-xs text-gray-500 dark:text-gray-400'>Not set</p>
+  const renderTextBlock = (
+    value: unknown,
+    emptyLabel = 'Not set',
+    tone: 'default' | 'success' | 'danger' = 'default'
+  ) => {
+    const text = toTrimmedText(value)
+    if (!text) {
+      return <p className='text-xs text-gray-500 dark:text-gray-400'>{emptyLabel}</p>
+    }
+
+    const toneClass =
+      tone === 'success'
+        ? 'border-green-200 bg-green-50 text-green-800'
+        : tone === 'danger'
+        ? 'border-red-200 bg-red-50 text-red-800'
+        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-200'
+
+    return (
+      <div className={`rounded-lg border p-3 ${toneClass}`}>
+        <p className='text-sm whitespace-pre-wrap break-words'>{text}</p>
+      </div>
+    )
+  }
+
+  const renderTagList = (value: unknown, emptyLabel: string) => {
+    const items = Array.isArray(value)
+      ? value.map(item => toTrimmedText(item)).filter(Boolean)
+      : []
+
+    if (!items.length) {
+      return <p className='text-xs text-gray-500 dark:text-gray-400'>{emptyLabel}</p>
     }
 
     return (
       <div className='flex flex-wrap gap-2'>
+        {items.map(item => (
+          <span
+            key={item}
+            className='inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  const renderItineraryItems = (value: unknown) => {
+    const rows = toRecordArray(value)
+    if (!rows.length) {
+      return (
+        <p className='text-xs text-gray-500 dark:text-gray-400'>
+          No itinerary saved in quotation
+        </p>
+      )
+    }
+
+    return (
+      <div className='space-y-3'>
         {rows.map((row, index) => {
-          const type = formatStructuredValue(
-            row.serviceType ?? row.type ?? `Service ${index + 1}`
+          const day = toTrimmedText(row.day ?? row.dayLabel) || `Day ${index + 1}`
+          const title = toTrimmedText(row.title ?? row.heading) || 'Activity'
+          const description = toTrimmedText(
+            row.description ?? row.details ?? row.notes
           )
-          const description = formatStructuredValue(
-            row.description ?? row.notes ?? ''
-          )
-          const tag =
-            description && description !== '-'
-              ? `${type}: ${description}`
-              : type
 
           return (
-            <span
-              key={`service-${index}`}
-              className='inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+            <div
+              key={`itinerary-${index}`}
+              className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'
             >
-              {tag}
-            </span>
+              <p className='text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400'>
+                {day}
+              </p>
+              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                {title}
+              </p>
+              {description ? (
+                <p className='mt-1 text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap'>
+                  {description}
+                </p>
+              ) : null}
+            </div>
           )
         })}
       </div>
     )
   }
+
+  const quotationSnapshot = toRecord(
+    quotationDetails?.templateSnapshot ?? quotationDetails?.template_snapshot
+  )
+  const quotationBuilderSnapshot = toRecord(quotationSnapshot.builderSnapshot)
+  const quotationSupplierDetails = toRecord(
+    quotationSnapshot.supplierDetails ?? quotationSnapshot.supplier
+  )
+  const quotationPackageDetails = toRecord(quotationSnapshot.package)
+  const quotationPricing = toRecord(
+    quotationSnapshot.pricing ?? quotationBuilderSnapshot.pricing
+  )
+  const quotationSnapshotCurrency =
+    toTrimmedText(quotationSnapshot.currency) ||
+    toTrimmedText(quotationDetails?.supplierCurrency)
+  const quotationCurrency = quotationSnapshotCurrency || booking?.clientCurrency || 'INR'
+  const quotationItinerary = toRecordArray(
+    quotationSnapshot.itineraryItems ?? quotationBuilderSnapshot.itineraryItems
+  )
+  const quotationServiceRows = toRecordArray(
+    quotationSnapshot.serviceRows ?? quotationBuilderSnapshot.serviceRows
+  )
+  const quotationAddOnServices = toRecordArray(
+    quotationSnapshot.addOnServices ?? quotationBuilderSnapshot.addOnServices
+  )
+  const quotationOverview = {
+    customerName: toTrimmedText(quotationSnapshot.customerName) || undefined,
+    customerEmail: toTrimmedText(quotationSnapshot.customerEmail) || undefined,
+    destination: toTrimmedText(quotationSnapshot.destination) || undefined,
+    travelStartDate: quotationSnapshot.travelStartDate
+      ? formatDate(String(quotationSnapshot.travelStartDate))
+      : undefined,
+    travelEndDate: quotationSnapshot.travelEndDate
+      ? formatDate(String(quotationSnapshot.travelEndDate))
+      : undefined,
+    nights:
+      quotationSnapshot.nights !== null &&
+      quotationSnapshot.nights !== undefined &&
+      quotationSnapshot.nights !== ''
+        ? String(quotationSnapshot.nights)
+        : undefined,
+    adults:
+      quotationSnapshot.adults !== null &&
+      quotationSnapshot.adults !== undefined &&
+      quotationSnapshot.adults !== ''
+        ? String(quotationSnapshot.adults)
+        : undefined,
+    validUntil: quotationSnapshot.validUntil
+      ? formatDate(String(quotationSnapshot.validUntil))
+      : undefined,
+    packageType: toTrimmedText(quotationSnapshot.packageType) || undefined,
+    currency: quotationSnapshotCurrency || undefined
+  }
+  const quotationPricingSummary = {
+    supplierCost:
+      quotationPricing.supplierCost !== undefined
+        ? formatCurrency(toNumber(quotationPricing.supplierCost, 0), quotationCurrency)
+        : undefined,
+    markupAmount:
+      quotationPricing.markupAmount !== undefined
+        ? formatCurrency(toNumber(quotationPricing.markupAmount, 0), quotationCurrency)
+        : undefined,
+    addOnMarkup:
+      quotationPricing.addOnMarkup !== undefined
+        ? formatCurrency(toNumber(quotationPricing.addOnMarkup, 0), quotationCurrency)
+        : undefined,
+    serviceFee:
+      quotationPricing.serviceFee !== undefined
+        ? formatCurrency(toNumber(quotationPricing.serviceFee, 0), quotationCurrency)
+        : undefined,
+    taxAmount:
+      quotationPricing.taxAmount !== undefined
+        ? formatCurrency(toNumber(quotationPricing.taxAmount, 0), quotationCurrency)
+        : undefined,
+    discount:
+      quotationPricing.discount !== undefined
+        ? formatCurrency(toNumber(quotationPricing.discount, 0), quotationCurrency)
+        : undefined,
+    finalAmount:
+      quotationPricing.finalAmount !== undefined
+        ? formatCurrency(toNumber(quotationPricing.finalAmount, 0), quotationCurrency)
+        : undefined
+  }
+  const quotationEnabledServices =
+    Array.isArray(quotationSnapshot.enabledServices) &&
+    quotationSnapshot.enabledServices.length > 0
+      ? quotationSnapshot.enabledServices
+      : quotationBuilderSnapshot.enabledServices
+  const quotationImportantNotes =
+    toTrimmedText(
+      quotationDetails?.importantNotes ?? quotationDetails?.important_notes
+    ) || ''
+  const quotationNoteSections = quotationImportantNotes
+    ? quotationImportantNotes
+        .split(/\n{2,}/)
+        .map(block => block.trim())
+        .filter(Boolean)
+        .map((block, index) => {
+          const lines = block.split('\n')
+          const first = lines[0]?.trim() || ''
+          if (first.endsWith(':')) {
+            return {
+              id: `quotation-note-${index}`,
+              title: first.slice(0, -1),
+              content: lines.slice(1).join('\n').trim() || '-'
+            }
+          }
+          return {
+            id: `quotation-note-${index}`,
+            title: `Note ${index + 1}`,
+            content: block
+          }
+        })
+    : []
+  const normalizeSectionTitle = (value: string) =>
+    value.trim().toLowerCase().replace(/\s+/g, ' ')
+  const coveredQuotationNoteTitles = new Set(
+    [
+      hasVisibleEntries(quotationOverview) ? 'Trip Summary' : '',
+      toTrimmedText(quotationSnapshot.headerBranding) ? 'Header Branding' : '',
+      toTrimmedText(quotationSnapshot.inclusions) ? 'Inclusions' : '',
+      toTrimmedText(quotationSnapshot.exclusions) ? 'Exclusions' : '',
+      toTrimmedText(quotationSnapshot.hotelDetails) ? 'Hotel Details' : '',
+      toTrimmedText(quotationSnapshot.visaDetails) ? 'Visa Details' : '',
+      toTrimmedText(quotationSnapshot.paymentTerms) ? 'Payment Terms' : '',
+      toTrimmedText(quotationSnapshot.cancellationPolicy)
+        ? 'Cancellation Policy'
+        : '',
+      toTrimmedText(quotationSnapshot.footerDisclaimer)
+        ? 'Footer Disclaimer'
+        : '',
+      Array.isArray(quotationEnabledServices) && quotationEnabledServices.length > 0
+        ? 'Enabled Services'
+        : '',
+      quotationItinerary.length > 0 ? 'Itinerary' : ''
+    ]
+      .filter(Boolean)
+      .map(title => normalizeSectionTitle(title))
+  )
+  const visibleQuotationNoteSections = quotationNoteSections.filter(
+    section => !coveredQuotationNoteTitles.has(normalizeSectionTitle(section.title))
+  )
+  const hasSavedQuotationDetails =
+    Boolean(quotationDetails) &&
+    (hasVisibleEntries(quotationOverview) ||
+      Object.keys(quotationSupplierDetails).length > 0 ||
+      Object.keys(quotationPackageDetails).length > 0 ||
+      hasVisibleEntries(quotationPricingSummary) ||
+      quotationItinerary.length > 0 ||
+      quotationServiceRows.length > 0 ||
+      quotationAddOnServices.length > 0 ||
+      (Array.isArray(quotationEnabledServices) &&
+        quotationEnabledServices.length > 0) ||
+      Boolean(
+        toTrimmedText(quotationSnapshot.hotelDetails) ||
+          toTrimmedText(quotationSnapshot.visaDetails) ||
+          toTrimmedText(quotationSnapshot.headerBranding) ||
+          toTrimmedText(quotationSnapshot.paymentTerms) ||
+          toTrimmedText(quotationSnapshot.cancellationPolicy) ||
+          toTrimmedText(quotationSnapshot.footerDisclaimer) ||
+          toTrimmedText(quotationSnapshot.inclusions) ||
+          toTrimmedText(quotationSnapshot.exclusions) ||
+          visibleQuotationNoteSections.length > 0
+      ))
 
   if (loading && !booking) {
     return (
@@ -1881,49 +2143,247 @@ const BookingDetailPage: React.FC = () => {
                           <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
                             Supplier Details
                           </p>
-                          {renderKeyValueBlock(booking.supplierDetails)}
-                        </div>
-                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
-                            DMC Details
-                          </p>
-                          {renderKeyValueBlock(booking.dmcDetails)}
-                        </div>
-                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
-                            Hotel Segments
-                          </p>
-                          {renderSegmentsTable(
-                            booking.hotelSegments,
-                            'No hotel segments added yet'
-                          )}
-                        </div>
-                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
-                            Flight Segments
-                          </p>
-                          {renderSegmentsTable(
-                            booking.flightSegments,
-                            'No flight segments added yet'
-                          )}
-                        </div>
-                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
-                            Insurance Details
-                          </p>
-                          {renderKeyValueBlock(booking.insuranceDetails)}
-                        </div>
-                        <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
-                            Other Services
-                          </p>
-                          {renderOtherServices(booking.otherServices)}
-                        </div>
-                      </div>
-                    </div>
+                          {(() => {
+                            const sd = booking.supplierDetails as Record<string, unknown> | undefined
+                            const supplierId = sd?.supplierId ?? sd?.supplier_id
+                            const supplierName = sd?.supplierName ?? sd?.supplier_name
+                            if (!supplierId && !supplierName) {
+                              return <p className='text-xs text-gray-500 dark:text-gray-400'>Not set</p>
+                            }
+                            return (
+                              <dl className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                                {supplierId ? (
+                                  <div className='rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/50'>
+                                    <dt className='text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400'>Supplier ID</dt>
+                                    <dd className='mt-1 text-sm text-gray-900 dark:text-gray-100 break-all'>{String(supplierId)}</dd>
+                                  </div>
+                                ) : null}
+                                {supplierName ? (
+                                  <div className='rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/50'>
+                                    <dt className='text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400'>Supplier Name</dt>
+                                    <dd className='mt-1 text-sm text-gray-900 dark:text-gray-100'>{String(supplierName)}</dd>
+                                  </div>
+                                ) : null}
+                              </dl>
+	                            )
+	                          })()}
+	                        </div>
+	                        {quotationComponents.length > 0 ? (
+	                          <div className='rounded-lg border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
+	                            <p className='text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2'>
+                              Quotation Service Components
+                            </p>
+                            <div className='overflow-x-auto'>
+                              <table className='w-full text-xs'>
+                                <thead>
+                                  <tr className='border-b border-blue-200 dark:border-blue-800 text-left text-gray-500'>
+                                    <th className='py-1.5 pr-3'>Service</th>
+                                    <th className='py-1.5 pr-3'>Description</th>
+                                    <th className='py-1.5 text-right'>Cost</th>
+                                    {/* <th className='py-1.5 text-right'>Sell Value</th> */}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {quotationComponents.map((comp: any, idx: number) => (
+                                    <tr key={comp.id ?? idx} className='border-b border-blue-100 dark:border-blue-900'>
+                                      <td className='py-1.5 pr-3 font-medium text-gray-800 dark:text-gray-200'>
+                                        {comp.itemType ?? comp.item_type ?? '—'}
+                                      </td>
+                                      <td className='py-1.5 pr-3 text-gray-600 dark:text-gray-400'>
+                                        {comp.description ?? '—'}
+                                      </td>
+                                      <td className='py-1.5 text-right text-gray-800 dark:text-gray-200'>
+                                        {comp.cost != null ? Number(comp.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                                      </td>
+                                      {/* <td className='py-1.5 text-right font-semibold text-gray-900 dark:text-gray-100'>
+                                        {comp.sellValue != null ? Number(comp.sellValue ?? comp.sell_value ?? comp.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                                      </td> */}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+	                        ) : null}
+	                      </div>
+	                    </div>
 
-                    {/* Recent Invoices */}
-                    <div>
+	                    {hasSavedQuotationDetails ? (
+	                      <div>
+	                        <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2'>
+	                          <FaFileInvoice className='text-blue-500' />
+	                          Saved Quotation Details
+	                        </h3>
+	                        <div className='space-y-3'>
+	                          {hasVisibleEntries(quotationOverview) ? (
+	                            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                              <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                Quotation Overview
+	                              </p>
+	                              {renderKeyValueBlock(quotationOverview)}
+	                            </div>
+	                          ) : null}
+	                          {Object.keys(quotationSupplierDetails).length > 0 ? (
+	                            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                              <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                Quotation Supplier
+	                              </p>
+	                              {renderKeyValueBlock(quotationSupplierDetails)}
+	                            </div>
+	                          ) : null}
+	                          {Object.keys(quotationPackageDetails).length > 0 ? (
+	                            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                              <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                Package Details
+	                              </p>
+	                              {renderKeyValueBlock(quotationPackageDetails)}
+	                            </div>
+	                          ) : null}
+	                          {hasVisibleEntries(quotationPricingSummary) ? (
+	                            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                              <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                Saved Pricing Snapshot
+	                              </p>
+	                              {renderKeyValueBlock(quotationPricingSummary)}
+	                            </div>
+	                          ) : null}
+	                          <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+	                            {toTrimmedText(quotationSnapshot.hotelDetails) ? (
+	                              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                                <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                  Hotel Details
+	                                </p>
+	                                {renderTextBlock(quotationSnapshot.hotelDetails)}
+	                              </div>
+	                            ) : null}
+	                            {toTrimmedText(quotationSnapshot.visaDetails) ? (
+	                              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                                <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                  Visa Details
+	                                </p>
+	                                {renderTextBlock(quotationSnapshot.visaDetails)}
+	                              </div>
+	                            ) : null}
+	                            {toTrimmedText(quotationSnapshot.headerBranding) ? (
+	                              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                                <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                  Header Branding
+	                                </p>
+	                                {renderTextBlock(quotationSnapshot.headerBranding)}
+	                              </div>
+	                            ) : null}
+	                            {toTrimmedText(quotationSnapshot.paymentTerms) ? (
+	                              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                                <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                  Payment Terms
+	                                </p>
+	                                {renderTextBlock(quotationSnapshot.paymentTerms)}
+	                              </div>
+	                            ) : null}
+	                            {toTrimmedText(quotationSnapshot.cancellationPolicy) ? (
+	                              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                                <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                  Cancellation Policy
+	                                </p>
+	                                {renderTextBlock(quotationSnapshot.cancellationPolicy)}
+	                              </div>
+	                            ) : null}
+	                            {toTrimmedText(quotationSnapshot.footerDisclaimer) ? (
+	                              <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                                <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                  Footer Disclaimer
+	                                </p>
+	                                {renderTextBlock(quotationSnapshot.footerDisclaimer)}
+	                              </div>
+	                            ) : null}
+	                            {toTrimmedText(quotationSnapshot.inclusions) ? (
+	                              <div className='rounded-lg border border-green-200 p-3 dark:border-green-800'>
+	                                <p className='text-xs text-green-700 dark:text-green-300 mb-2'>
+	                                  Inclusions
+	                                </p>
+	                                {renderTextBlock(
+	                                  quotationSnapshot.inclusions,
+	                                  'Not set',
+	                                  'success'
+	                                )}
+	                              </div>
+	                            ) : null}
+	                            {toTrimmedText(quotationSnapshot.exclusions) ? (
+	                              <div className='rounded-lg border border-red-200 p-3 dark:border-red-800'>
+	                                <p className='text-xs text-red-700 dark:text-red-300 mb-2'>
+	                                  Exclusions
+	                                </p>
+	                                {renderTextBlock(
+	                                  quotationSnapshot.exclusions,
+	                                  'Not set',
+	                                  'danger'
+	                                )}
+	                              </div>
+	                            ) : null}
+	                          </div>
+	                          {Array.isArray(quotationEnabledServices) &&
+	                          quotationEnabledServices.length > 0 ? (
+	                            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                              <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                Enabled Services
+	                              </p>
+	                              {renderTagList(
+	                                quotationEnabledServices,
+	                                'No enabled services saved'
+	                              )}
+	                            </div>
+	                          ) : null}
+	                          {quotationServiceRows.length > 0 ? (
+	                            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                              <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                Service Rows
+	                              </p>
+	                              {renderSegmentsTable(
+	                                quotationServiceRows,
+	                                'No service rows saved'
+	                              )}
+	                            </div>
+	                          ) : null}
+	                          {quotationAddOnServices.length > 0 ? (
+	                            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                              <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                Add-on Services
+	                              </p>
+	                              {renderSegmentsTable(
+	                                quotationAddOnServices,
+	                                'No add-on services saved'
+	                              )}
+	                            </div>
+	                          ) : null}
+	                          {quotationItinerary.length > 0 ? (
+	                            <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
+	                              <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                Itinerary
+	                              </p>
+	                              {renderItineraryItems(quotationItinerary)}
+	                            </div>
+	                          ) : null}
+	                          {visibleQuotationNoteSections.length > 0 ? (
+	                            <div className='space-y-3'>
+	                              {visibleQuotationNoteSections.map(section => (
+	                                <div
+	                                  key={section.id}
+	                                  className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'
+	                                >
+	                                  <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
+	                                    {section.title}
+	                                  </p>
+	                                  {renderTextBlock(section.content)}
+	                                </div>
+	                              ))}
+	                            </div>
+	                          ) : null}
+	                        </div>
+	                      </div>
+	                    ) : null}
+
+	                    {/* Recent Invoices */}
+	                    <div>
                       <div className='flex justify-between items-center mb-4'>
                         <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
                           <FaFileInvoice className='text-blue-500' />

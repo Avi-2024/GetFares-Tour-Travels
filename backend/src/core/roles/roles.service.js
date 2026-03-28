@@ -1,9 +1,11 @@
 import { AppError } from "../errors/index.js";
 
 const ROLES_TABLE = "roles";
+const COUNTRIES_TABLE = "countries";
 
 function createRolesService({ db, logger }) {
   const columnCache = new Map();
+  const tableCache = new Map();
 
   async function hasColumn(columnName) {
     if (typeof db?.query !== "function") {
@@ -25,6 +27,95 @@ function createRolesService({ db, logger }) {
     } catch (_error) {
       columnCache.set(columnName, false);
       return false;
+    }
+  }
+
+  async function hasTable(tableName) {
+    if (typeof db?.query !== "function") {
+      return true;
+    }
+
+    if (tableCache.has(tableName)) {
+      return tableCache.get(tableName);
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        [tableName],
+      );
+      const exists = result.rowCount > 0;
+      tableCache.set(tableName, exists);
+      return exists;
+    } catch (_error) {
+      tableCache.set(tableName, false);
+      return false;
+    }
+  }
+
+  const normalizeCountryText = (value) => {
+    if (value === undefined) return undefined;
+    const normalized = String(value ?? "").trim();
+    return normalized || null;
+  };
+
+  const normalizeCountryKey = (value) =>
+    value === null || value === undefined ? null : String(value).trim().toLowerCase();
+
+  async function resolveCountryName(countryValue) {
+    const normalized = normalizeCountryText(countryValue);
+    if (normalized === undefined || normalized === null) {
+      return normalized;
+    }
+
+    if (typeof db?.query !== "function") {
+      return normalized;
+    }
+
+    const countriesTableExists = await hasTable(COUNTRIES_TABLE);
+    if (!countriesTableExists) {
+      return normalized;
+    }
+
+    try {
+      const result = await db.query(
+        `
+          SELECT id, code, name, is_active
+          FROM ${COUNTRIES_TABLE}
+          WHERE LOWER(code) = LOWER($1)
+             OR LOWER(name) = LOWER($1)
+          LIMIT 1
+        `,
+        [normalized],
+      );
+
+      const country = result.rows?.[0];
+      if (!country) {
+        throw new AppError(
+          400,
+          "Invalid country. Please select a valid active country.",
+          "ROLE_COUNTRY_INVALID",
+        );
+      }
+
+      if (country.is_active === false) {
+        throw new AppError(
+          409,
+          "Selected country is inactive. Activate it first.",
+          "ROLE_COUNTRY_INACTIVE",
+        );
+      }
+
+      return country.name;
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      logger?.warn?.(
+        { countryValue: normalized, err: error },
+        "Country validation failed during role create/update; using raw country text",
+      );
+      return normalized;
     }
   }
 
@@ -60,11 +151,32 @@ function createRolesService({ db, logger }) {
       throw new AppError(400, "Role name is required", "ROLE_NAME_REQUIRED");
     }
 
+    const resolvedCountry = await resolveCountryName(payload.country);
+
     const existing = await findRoleByName(name);
     if (existing) {
-      throw new AppError(409, "Role already exists", "ROLE_ALREADY_EXISTS");
+      const existingCountry = normalizeCountryText(existing.country);
+      const requestedCountry =
+        resolvedCountry === undefined ? existingCountry : resolvedCountry;
+      const mismatch =
+        resolvedCountry !== undefined &&
+        normalizeCountryKey(existingCountry) !== normalizeCountryKey(resolvedCountry);
+      throw new AppError(
+        409,
+        mismatch
+          ? `Role already exists for ${existingCountry || "All countries"}. Select existing role from list or choose a different role name.`
+          : "Role already exists",
+        "ROLE_ALREADY_EXISTS",
+        {
+          existingRoleId: existing.id,
+          existingRoleName: existing.name,
+          existingCountry,
+          requestedCountry,
+        },
+      );
     }
 
+    const includeCountry = await hasColumn("country");
     const includeIsActive = await hasColumn("is_active");
     const record = {
       name,
@@ -72,7 +184,14 @@ function createRolesService({ db, logger }) {
     };
 
     if (payload.country !== undefined) {
-      record.country = payload.country || null;
+      if (includeCountry) {
+        record.country = resolvedCountry ?? null;
+      } else {
+        logger?.warn?.(
+          { roleName: name },
+          "roles.country column missing; skipping country during role create",
+        );
+      }
     }
 
     if (includeIsActive && payload.isActive !== undefined) {
@@ -109,12 +228,21 @@ function createRolesService({ db, logger }) {
       updates.name = name;
     }
 
+    const includeCountry = await hasColumn("country");
+    const resolvedCountry = await resolveCountryName(payload.country);
     if (payload.description !== undefined) {
       updates.description = payload.description ?? null;
     }
 
     if (payload.country !== undefined) {
-      updates.country = payload.country || null;
+      if (includeCountry) {
+        updates.country = resolvedCountry ?? null;
+      } else {
+        logger?.warn?.(
+          { roleId },
+          "roles.country column missing; skipping country during role update",
+        );
+      }
     }
 
     const includeIsActive = await hasColumn("is_active");

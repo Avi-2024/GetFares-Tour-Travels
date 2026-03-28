@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useCallback, useEffect, useState } from "react";
+=======
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 import {
   FaPlus,
   FaEdit,
@@ -8,6 +12,7 @@ import {
   FaCheck,
   FaInfo,
   FaExclamationTriangle,
+<<<<<<< HEAD
   FaCheckCircle,
 } from "react-icons/fa";
 import { FaXmark, FaFilter } from "react-icons/fa6";
@@ -27,6 +32,31 @@ interface User {
   permissions?: string[];
   isActive: boolean;
   createdAt: string;
+=======
+  FaCheckCircle
+} from 'react-icons/fa'
+import { FaXmark, FaFilter } from 'react-icons/fa6'
+import { getApiErrorMessage } from '../../api/apiClient'
+import { usersApi } from '../../api/users'
+import { useAuth } from '../../context/AuthContext'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { CRM_COUNTRY_OPTIONS } from '../../utils/countries'
+
+interface User {
+  id: string
+  fullName: string
+  email: string
+  phone?: string
+  country?: string
+  agentCountry?: string
+  agentType?: string
+  managerId?: string | null
+  role?: string
+  roleId?: string
+  permissions?: string[]
+  isActive: boolean
+  createdAt: string
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 }
 
 interface Role {
@@ -35,11 +65,21 @@ interface Role {
   description?: string;
 }
 
+<<<<<<< HEAD
 // const COUNTRY_OPTIONS = [
 //   { value: "", label: "Select country" },
 //   { value: "India", label: "India" },
 //   { value: "Dubai", label: "Dubai" },
 // ];
+=======
+const COUNTRY_OPTIONS = CRM_COUNTRY_OPTIONS
+const AGENT_TYPE_OPTIONS = [
+  { value: '', label: 'Select agent type' },
+  { value: 'HOLIDAY', label: 'Holiday' },
+  { value: 'VISA', label: 'Visa' },
+  { value: 'BOTH', label: 'Both' }
+]
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
 const getRoleLabel = (
   roleName?: string,
@@ -166,9 +206,11 @@ const UserFormModal = ({
   mode,
   user,
   roles,
+  users,
   onClose,
   onSave,
 }: {
+<<<<<<< HEAD
   isOpen: boolean;
   mode: "create" | "edit";
   user: User | null;
@@ -196,14 +238,92 @@ const UserFormModal = ({
         password: "",
         isActive: true,
       };
+=======
+  isOpen: boolean
+  mode: 'create' | 'edit'
+  user: User | null
+  roles: Role[]
+  users: User[]
+  onClose: () => void
+  onSave: (formData: any) => void
+}) => {
+  const initialFormData =
+    user && mode === 'edit'
+      ? {
+          fullName: user.fullName,
+          email: user.email,
+          phone: user.phone || '',
+          country: user.country || '',
+          agentType: user.agentType || '',
+          managerId: user.managerId || '',
+          role: user.roleId || '',
+          password: '',
+          isActive: user.isActive
+        }
+      : {
+          fullName: '',
+          email: '',
+          phone: '',
+          country: '',
+          agentType: '',
+          managerId: '',
+          role: '',
+          password: '',
+          isActive: true
+        }
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   const [formData, setFormData] = useState(initialFormData);
   const [roleSearch, setRoleSearch] = useState(() => {
+<<<<<<< HEAD
     const selected = roles.find((role) => role.id === initialFormData.role);
     return selected?.name ?? "";
   });
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [createRoleName, setCreateRoleName] = useState("");
+=======
+    const selected = roles.find(role => role.id === initialFormData.role)
+    return selected?.name ?? ''
+  })
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false)
+  const [createRoleName, setCreateRoleName] = useState('')
+  const selectedRole = useMemo(
+    () => roles.find(role => role.id === formData.role),
+    [roles, formData.role]
+  )
+  const selectedRoleName = (selectedRole?.name || roleSearch || '')
+    .trim()
+    .toLowerCase()
+  // Check if role has agent-related permissions or is explicitly an agent role
+  const isAgentRole = useMemo(() => {
+    if (!selectedRole) return false
+    // Check if role has agent-specific permissions
+    const agentPermissions = ['leads:read', 'leads:update', 'bookings:create']
+    // You can also check by role name as fallback
+    const nameIndicatesAgent = selectedRoleName.includes('agent') || 
+                                selectedRoleName.includes('consultant') ||
+                                selectedRoleName.includes('executive')
+    return nameIndicatesAgent
+  }, [selectedRole, selectedRoleName])
+  const managerOptions = useMemo(
+    () => [
+      { value: '', label: 'Select manager' },
+      ...users
+        .filter(candidate => {
+          const roleName = (candidate.role || '').toLowerCase()
+          // Check if role name contains manager-related keywords
+          return roleName.includes('manager') || 
+                 roleName.includes('admin') ||
+                 roleName.includes('management')
+        })
+        .map(candidate => ({
+          value: candidate.id,
+          label: `${candidate.fullName} (${candidate.email})`
+        }))
+    ],
+    [users]
+  )
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   if (!isOpen) return null;
 
@@ -248,6 +368,38 @@ const UserFormModal = ({
               placeholder="John Doe"
             />
           </div>
+          {isAgentRole ? (
+            <>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                  Agent Type
+                </label>
+                <SearchableDropdown
+                  value={formData.agentType}
+                  onChange={value =>
+                    setFormData({ ...formData, agentType: value })
+                  }
+                  options={AGENT_TYPE_OPTIONS}
+                  placeholder='Select agent type'
+                  className='w-full'
+                />
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                  Reports To (Manager)
+                </label>
+                <SearchableDropdown
+                  value={formData.managerId}
+                  onChange={value =>
+                    setFormData({ ...formData, managerId: value })
+                  }
+                  options={managerOptions}
+                  placeholder='Select manager'
+                  className='w-full'
+                />
+              </div>
+            </>
+          ) : null}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -285,6 +437,7 @@ const UserFormModal = ({
             </label>
             <SearchableDropdown
               value={formData.country}
+<<<<<<< HEAD
               onChange={(value: string) =>
                 setFormData({ ...formData, country: value })
               }
@@ -294,6 +447,12 @@ const UserFormModal = ({
                 { value: "UAE", label: "UAE" },
               ]}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
+=======
+              onChange={value => setFormData({ ...formData, country: value })}
+              options={COUNTRY_OPTIONS}
+              placeholder='Select country'
+              className='w-full'
+>>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
             />
           </div>
           <div>
@@ -738,6 +897,8 @@ const UsersPage: React.FC = () => {
         email: formData.email,
         phone: normalizePhone(formData.phone),
         country: formData.country,
+        agentType: formData.agentType || undefined,
+        managerId: formData.managerId || undefined,
         password: formData.password,
         roleId: roleId || undefined,
         roleName: roleName || undefined,
@@ -780,6 +941,8 @@ const UsersPage: React.FC = () => {
         email: formData.email,
         phone: normalizePhone(formData.phone),
         country: formData.country,
+        agentType: formData.agentType || undefined,
+        managerId: formData.managerId || null,
         roleId: roleId ?? null,
         roleName: roleName || undefined,
         isActive: formData.isActive,
@@ -916,6 +1079,7 @@ const UsersPage: React.FC = () => {
           mode="create"
           user={null}
           roles={roles}
+          users={users}
           onClose={() => setShowCreateModal(false)}
           onSave={handleCreateUser}
         />
@@ -930,6 +1094,7 @@ const UsersPage: React.FC = () => {
           mode="edit"
           user={selectedUser}
           roles={roles}
+          users={users}
           onClose={() => {
             setShowEditModal(false);
             setSelectedUser(null);

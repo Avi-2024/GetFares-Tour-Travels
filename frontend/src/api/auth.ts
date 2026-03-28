@@ -10,6 +10,8 @@ type LoginResponse = {
       name?: string;
       role?: string;
       roleId?: string;
+      active?: boolean | null;
+      isActive?: boolean;
     };
   };
 };
@@ -26,6 +28,8 @@ type ProfileResponse = {
     agentCountry?: string | null;
     country?: string | null;
     agentType?: string | null;
+    active?: boolean | null;
+    isActive?: boolean;
   };
 };
 
@@ -38,6 +42,11 @@ export const authApi = {
     }),
   profile: () =>
     apiRequest<ProfileResponse>(`/api/auth/me?ts=${Date.now()}`),
+  toggleActive: (active: boolean) =>
+    apiRequest<ProfileResponse>("/api/auth/toggle-active", {
+      method: "POST",
+      body: { active },
+    }),
   forgotPassword: (payload: { email: string }) =>
     apiRequest<{ message: string }>("/api/auth/forgot-password", {
       method: "POST",

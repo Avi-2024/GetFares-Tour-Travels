@@ -32,6 +32,10 @@ function roundCurrency(value) {
   return Number(parsed.toFixed(2));
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function toDateOnly(value) {
   if (!value) {
     return null;
@@ -41,6 +45,127 @@ function toDateOnly(value) {
     return null;
   }
   return date.toISOString().slice(0, 10);
+}
+
+function formatDurationLabel(duration, fallbackNights) {
+  const raw = String(duration || "").trim();
+  if (raw) {
+    return raw;
+  }
+
+  const nights = Math.max(0, Number(fallbackNights) || 0);
+  if (!nights) {
+    return "";
+  }
+
+  return `${nights}N/${nights + 1}D`;
+}
+
+function addPdfTextSection(doc, title, value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return false;
+  }
+
+  doc.fontSize(13).text(title, { underline: true });
+  doc.fontSize(11).text(text);
+  doc.moveDown();
+  return true;
+}
+
+function normalizeText(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const text = String(value).trim();
+  return text || null;
+}
+
+function toWholeNumber(value, fallback = null) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.floor(parsed));
+}
+
+function buildDurationValue(nights, days) {
+  const safeNights = toWholeNumber(nights, null);
+  const safeDays = toWholeNumber(days, null);
+
+  if (safeNights !== null && safeDays !== null) {
+    return `${safeNights}N/${safeDays}D`;
+  }
+  if (safeNights !== null) {
+    return `${safeNights}N`;
+  }
+  if (safeDays !== null) {
+    return `${safeDays}D`;
+  }
+
+  return null;
+}
+
+function normalizeItineraryItems(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .map((item, index) => ({
+      id: normalizeText(item?.id) || `day-${index + 1}`,
+      day: normalizeText(item?.day) || `Day ${index + 1}`,
+      title: normalizeText(item?.title),
+      description: normalizeText(item?.description),
+    }))
+    .filter(
+      (item) => item.day || item.title || item.description,
+    );
+}
+
+function extractQuotationContentFields(builderSnapshot = null) {
+  const builder = isPlainObject(builderSnapshot) ? builderSnapshot : null;
+  const content = isPlainObject(builder?.content) ? builder.content : {};
+  const lead = isPlainObject(builder?.lead) ? builder.lead : {};
+  const packageDetails = isPlainObject(builder?.package) ? builder.package : {};
+  const itineraryItems = normalizeItineraryItems(builder?.itineraryItems);
+  const durationNights = toWholeNumber(
+    builder?.durationNights ?? builder?.nights,
+    null,
+  );
+  const durationDays = toWholeNumber(
+    builder?.durationDays,
+    itineraryItems.length || null,
+  );
+  const durationLabel =
+    normalizeText(builder?.durationLabel) ||
+    normalizeText(packageDetails?.duration) ||
+    buildDurationValue(durationNights, durationDays) ||
+    formatDurationLabel(null, durationNights);
+
+  return {
+    source_package_id: normalizeText(packageDetails?.id),
+    quotation_title:
+      normalizeText(builder?.quotationTitle) ||
+      normalizeText(packageDetails?.name ?? packageDetails?.title),
+    trip_destination:
+      normalizeText(builder?.destination) ||
+      normalizeText(lead.destination ?? lead.destinationName),
+    duration_nights: durationNights,
+    duration_days: durationDays,
+    duration_label: durationLabel || null,
+    travel_start_date:
+      toDateOnly(builder?.travelStartDate ?? lead.travelDate) || null,
+    itinerary: itineraryItems.length ? itineraryItems : null,
+    inclusions: normalizeText(content.inclusions),
+    exclusions: normalizeText(content.exclusions),
+    hotel_details: normalizeText(content.hotelDetails),
+    visa_details: normalizeText(content.visaDetails),
+    payment_terms: normalizeText(content.paymentTerms),
+    cancellation_policy: normalizeText(content.cancellationPolicy),
+  };
 }
 
 function addHours(date, hours) {
@@ -137,13 +262,6 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       cost: roundCurrency(component.cost),
     }));
 
-    const totalCost = roundCurrency(
-      normalizedComponents.reduce(
-        (sum, item) => sum + roundCurrency(item.cost),
-        0,
-      ),
-    );
-
     const marginPercent = Number(payload.marginPercent ?? 0);
     if (
       !Number.isFinite(marginPercent) ||
@@ -157,7 +275,45 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       );
     }
 
-    const marginAmount = roundCurrency((totalCost * marginPercent) / 100);
+    const componentCost = roundCurrency(
+      normalizedComponents.reduce(
+        (sum, item) => sum + roundCurrency(item.cost),
+        0,
+      ),
+    );
+    const totalCost = roundCurrency(
+      payload.supplierCost !== undefined ? payload.supplierCost : componentCost,
+    );
+    if (totalCost < 0) {
+      throw new AppError(
+        400,
+        "supplierCost cannot be negative",
+        "QUOTATION_INVALID_SUPPLIER_COST",
+      );
+    }
+
+    const marginAmount = roundCurrency(
+      payload.markupAmount !== undefined
+        ? payload.markupAmount
+        : (totalCost * marginPercent) / 100,
+    );
+    if (marginAmount < 0) {
+      throw new AppError(
+        400,
+        "markupAmount cannot be negative",
+        "QUOTATION_INVALID_MARKUP_AMOUNT",
+      );
+    }
+
+    const serviceFeeAmount = roundCurrency(payload.serviceFeeAmount ?? 0);
+    if (serviceFeeAmount < 0) {
+      throw new AppError(
+        400,
+        "serviceFeeAmount cannot be negative",
+        "QUOTATION_INVALID_SERVICE_FEE",
+      );
+    }
+
     const discount = roundCurrency(payload.discount ?? 0);
     if (discount < 0) {
       throw new AppError(
@@ -167,7 +323,9 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       );
     }
 
-    const subTotal = roundCurrency(totalCost + marginAmount - discount);
+    const subTotal = roundCurrency(
+      totalCost + marginAmount + serviceFeeAmount - discount,
+    );
     if (subTotal < 0) {
       throw new AppError(
         400,
@@ -218,6 +376,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       totalCost,
       marginPercent: roundCurrency(marginPercent),
       marginAmount,
+      serviceFeeAmount,
       discount,
       discountAmount: discount,
       tax: taxAmount,
@@ -263,23 +422,127 @@ function createQuotationsService({ repository, logger, events, s3 }) {
   }
 
   function buildTemplateSnapshot(template) {
-    if (!template) {
-      return null;
-    }
+    return buildQuotationSnapshot(template, null);
+  }
 
-    return {
-      id: template.id,
-      code: template.code,
-      name: template.name,
-      templateType: template.templateType,
-      minMarginPercent: template.minMarginPercent,
-      headerBranding: template.headerBranding,
-      inclusions: template.inclusions,
-      exclusions: template.exclusions,
-      paymentTerms: template.paymentTerms,
-      cancellationPolicy: template.cancellationPolicy,
-      footerDisclaimer: template.footerDisclaimer,
+  function buildQuotationSnapshot(template, builderSnapshot = null) {
+    const source = isPlainObject(template) ? template : null;
+    const builder = isPlainObject(builderSnapshot) ? builderSnapshot : null;
+    const content = isPlainObject(builder?.content) ? builder.content : {};
+    const lead = isPlainObject(builder?.lead) ? builder.lead : {};
+    const supplierDetails = isPlainObject(builder?.supplierDetails)
+      ? builder.supplierDetails
+      : null;
+    const packageDetails = isPlainObject(builder?.package) ? builder.package : null;
+    const quotationContent = extractQuotationContentFields(builderSnapshot);
+
+    const snapshot = {
+      id: source?.id ?? null,
+      code: source?.code ?? null,
+      name: source?.name ?? null,
+      templateType: source?.templateType ?? source?.template_type ?? null,
+      minMarginPercent:
+        source
+          ? source.minMarginPercent ?? source.min_margin_percent ?? 0
+          : null,
+      headerBranding:
+        content.headerBranding ??
+        source?.headerBranding ??
+        source?.header_branding ??
+        null,
+      inclusions:
+        quotationContent.inclusions ??
+        content.inclusions ??
+        source?.inclusions ??
+        null,
+      exclusions:
+        quotationContent.exclusions ??
+        content.exclusions ??
+        source?.exclusions ??
+        null,
+      paymentTerms:
+        content.paymentTerms ??
+        source?.paymentTerms ??
+        source?.payment_terms ??
+        null,
+      cancellationPolicy:
+        content.cancellationPolicy ??
+        source?.cancellationPolicy ??
+        source?.cancellation_policy ??
+        null,
+      footerDisclaimer:
+        content.footerDisclaimer ??
+        source?.footerDisclaimer ??
+        source?.footer_disclaimer ??
+        null,
+      quotationTitle: quotationContent.quotation_title,
+      quoteReference: builder?.quoteReference ?? null,
+      versionLabel: builder?.versionLabel ?? null,
+      customerName:
+        builder?.customerName ?? lead.fullName ?? lead.name ?? null,
+      customerEmail: builder?.customerEmail ?? lead.email ?? null,
+      destination:
+        quotationContent.trip_destination ??
+        builder?.destination ??
+        lead.destination ??
+        lead.destinationName ??
+        null,
+      travelStartDate:
+        quotationContent.travel_start_date ??
+        builder?.travelStartDate ??
+        null,
+      travelEndDate: builder?.travelEndDate ?? null,
+      nights: builder?.nights ?? null,
+      durationNights: quotationContent.duration_nights,
+      durationDays: quotationContent.duration_days,
+      durationLabel: quotationContent.duration_label,
+      adults: builder?.adults ?? null,
+      validUntil: builder?.validUntil ?? null,
+      packageType: builder?.packageType ?? null,
+      currency: builder?.currency ?? null,
+      lead: builder ? lead : null,
+      sourcePackageId: quotationContent.source_package_id,
+      supplierDetails,
+      supplier: supplierDetails,
+      package: packageDetails,
+      hotelDetails: quotationContent.hotel_details,
+      visaDetails: quotationContent.visa_details,
+      paymentTerms:
+        quotationContent.payment_terms ??
+        content.paymentTerms ??
+        source?.paymentTerms ??
+        source?.payment_terms ??
+        null,
+      cancellationPolicy:
+        quotationContent.cancellation_policy ??
+        content.cancellationPolicy ??
+        source?.cancellationPolicy ??
+        source?.cancellation_policy ??
+        null,
+      enabledServices: Array.isArray(builder?.enabledServices)
+        ? builder.enabledServices
+        : [],
+      serviceRows: Array.isArray(builder?.serviceRows) ? builder.serviceRows : [],
+      addOnServices: Array.isArray(builder?.addOnServices)
+        ? builder.addOnServices
+        : [],
+      itineraryItems: quotationContent.itinerary || [],
+      pricing: isPlainObject(builder?.pricing) ? builder.pricing : null,
+      services: isPlainObject(builder?.services) ? builder.services : null,
+      builderSnapshot: builder,
     };
+
+    const hasValues = Object.values(snapshot).some((value) => {
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      if (isPlainObject(value)) {
+        return Object.keys(value).length > 0;
+      }
+      return value !== null && value !== undefined && value !== "";
+    });
+
+    return hasValues ? snapshot : null;
   }
 
   async function resolvePdfDocumentConstructor() {
@@ -405,6 +668,57 @@ function createQuotationsService({ repository, logger, events, s3 }) {
 
       const lead = quotation.lead || {};
       const templateSnapshot = quotation.templateSnapshot || quotation.template || {};
+      const snapshotLead =
+        templateSnapshot.lead || templateSnapshot.builderSnapshot?.lead || {};
+      const packageSnapshot =
+        templateSnapshot.package || templateSnapshot.builderSnapshot?.package || {};
+      const quotationTitle =
+        quotation.quotationTitle ||
+        templateSnapshot.quotationTitle ||
+        packageSnapshot.name ||
+        packageSnapshot.title ||
+        "-";
+      const customerName =
+        templateSnapshot.customerName ||
+        snapshotLead.fullName ||
+        snapshotLead.name ||
+        lead.fullName ||
+        "-";
+      const customerPhone = snapshotLead.phone || lead.phone || "-";
+      const customerEmail =
+        templateSnapshot.customerEmail || snapshotLead.email || lead.email || "-";
+      const destinationName =
+        quotation.tripDestination ||
+        quotation.destination?.name ||
+        templateSnapshot.destination ||
+        snapshotLead.destination ||
+        "-";
+      const packageName =
+        packageSnapshot.name || packageSnapshot.title || quotationTitle;
+      const packageKind = String(
+        packageSnapshot.kind ||
+          packageSnapshot.packageKind ||
+          templateSnapshot.packageType ||
+          "",
+      )
+        .trim()
+        .replace(/_/g, " ");
+      const packageDuration =
+        quotation.durationLabel ||
+        templateSnapshot.durationLabel ||
+        formatDurationLabel(
+          packageSnapshot.duration,
+          quotation.durationNights ?? templateSnapshot.durationNights ?? templateSnapshot.nights,
+        ) ||
+        "-";
+      const travelStartDate =
+        quotation.travelStartDate ||
+        templateSnapshot.travelStartDate ||
+        snapshotLead.travelDate ||
+        "-";
+      const travelEndDate = templateSnapshot.travelEndDate || "-";
+      const validUntil = templateSnapshot.validUntil || quotation.expiresAt || "-";
+      const adults = Math.max(0, Number(templateSnapshot.adults || 0));
       const companyName =
         String(templateSnapshot.headerBranding || "").trim() ||
         "GetFares Travel CRM";
@@ -423,11 +737,31 @@ function createQuotationsService({ repository, logger, events, s3 }) {
 
       doc.fontSize(13).text("Customer Details", { underline: true });
       doc.fontSize(11);
-      doc.text(`Name: ${lead.fullName || "-"}`);
-      doc.text(`Phone: ${lead.phone || "-"}`);
-      doc.text(`Email: ${lead.email || "-"}`);
-      doc.text(`Destination: ${quotation.destination?.name || "-"}`);
+      doc.text(`Name: ${customerName}`);
+      doc.text(`Phone: ${customerPhone}`);
+      doc.text(`Email: ${customerEmail}`);
+      doc.text(`Destination: ${destinationName}`);
       doc.moveDown();
+
+      const packageLines = [
+        quotationTitle !== "-" ? `Quotation Title: ${quotationTitle}` : "",
+        quotation.sourcePackageId && packageName && packageName !== quotationTitle
+          ? `Source Package: ${packageName}`
+          : "",
+        packageKind ? `Package Type: ${packageKind}` : "",
+        packageDuration !== "-" ? `Duration: ${packageDuration}` : "",
+        adults > 0 ? `Travellers: ${adults} ${adults === 1 ? "adult" : "adults"}` : "",
+        travelStartDate !== "-" ? `Travel Date: ${travelStartDate}` : "",
+        travelEndDate !== "-" ? `Travel End Date: ${travelEndDate}` : "",
+        validUntil !== "-" ? `Valid Until: ${validUntil}` : "",
+      ].filter(Boolean);
+
+      if (packageLines.length) {
+        doc.fontSize(13).text("Trip Details", { underline: true });
+        doc.fontSize(11);
+        packageLines.forEach((line) => doc.text(line));
+        doc.moveDown();
+      }
 
       doc.fontSize(13).text("Items", { underline: true });
       doc.fontSize(11);
@@ -452,23 +786,58 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       doc.text(`Final Price: INR ${Number(quotation.finalPrice || 0).toFixed(2)}`);
       doc.moveDown();
 
-      if (templateSnapshot.inclusions) {
-        doc.fontSize(13).text("Inclusions", { underline: true });
-        doc.fontSize(11).text(String(templateSnapshot.inclusions));
+      const itineraryItems = Array.isArray(quotation.itinerary)
+        ? quotation.itinerary
+        : Array.isArray(templateSnapshot.itineraryItems)
+          ? templateSnapshot.itineraryItems
+        : [];
+      if (itineraryItems.length) {
+        doc.fontSize(13).text("Itinerary Snapshot", { underline: true });
+        doc.fontSize(11);
+        itineraryItems.forEach((item, index) => {
+          const day = String(item?.day || `Day ${index + 1}`);
+          const title = String(item?.title || "").trim();
+          const description = String(item?.description || "").trim();
+          doc.text(`${day}: ${title || day}`);
+          if (description) {
+            doc.text(description, {
+              indent: 14,
+            });
+          }
+        });
         doc.moveDown();
       }
 
-      if (templateSnapshot.exclusions) {
-        doc.fontSize(13).text("Exclusions", { underline: true });
-        doc.fontSize(11).text(String(templateSnapshot.exclusions));
-        doc.moveDown();
-      }
-
-      if (templateSnapshot.cancellationPolicy) {
-        doc.fontSize(13).text("Cancellation Policy", { underline: true });
-        doc.fontSize(11).text(String(templateSnapshot.cancellationPolicy));
-        doc.moveDown();
-      }
+      addPdfTextSection(
+        doc,
+        "Hotel Details",
+        quotation.hotelDetails ?? templateSnapshot.hotelDetails,
+      );
+      addPdfTextSection(
+        doc,
+        "Visa Details",
+        quotation.visaDetails ?? templateSnapshot.visaDetails,
+      );
+      addPdfTextSection(
+        doc,
+        "Inclusions",
+        quotation.inclusions ?? templateSnapshot.inclusions,
+      );
+      addPdfTextSection(
+        doc,
+        "Exclusions",
+        quotation.exclusions ?? templateSnapshot.exclusions,
+      );
+      addPdfTextSection(
+        doc,
+        "Payment Terms",
+        quotation.paymentTerms ?? templateSnapshot.paymentTerms,
+      );
+      addPdfTextSection(
+        doc,
+        "Cancellation Policy",
+        quotation.cancellationPolicy ?? templateSnapshot.cancellationPolicy,
+      );
 
       if (quotation.importantNotes) {
         doc.fontSize(13).text("Important Notes", { underline: true });
@@ -656,6 +1025,7 @@ function createQuotationsService({ repository, logger, events, s3 }) {
     const leadToQuoteMinutes = leadCreatedTs
       ? Math.max(0, Math.round((now.getTime() - leadCreatedTs) / (60 * 1000)))
       : null;
+    const quotationContent = extractQuotationContentFields(payload.builderSnapshot);
 
     const created = await repository.create({
       parent_quote_id: payload.parentQuoteId || null,
@@ -663,7 +1033,11 @@ function createQuotationsService({ repository, logger, events, s3 }) {
       created_by: context.user.id,
       pricing_id: payload.pricingId || null,
       template_id: template?.id || payload.templateId || null,
-      template_snapshot: buildTemplateSnapshot(template),
+      ...quotationContent,
+      template_snapshot: buildQuotationSnapshot(
+        template,
+        payload.builderSnapshot,
+      ),
       quote_number: buildQuoteNumber(),
       total_cost: pricing.totalCost,
       margin_percent: pricing.marginPercent,
@@ -751,6 +1125,9 @@ function createQuotationsService({ repository, logger, events, s3 }) {
     const pricing = calculatePricing({
       components: payload.components || current.items || [],
       marginPercent: payload.marginPercent ?? current.marginPercent,
+      supplierCost: payload.supplierCost ?? current.supplierCost,
+      markupAmount: payload.markupAmount ?? current.markupAmount,
+      serviceFeeAmount: payload.serviceFeeAmount ?? current.serviceFeeAmount,
       discount: payload.discount ?? current.discount,
       taxAmount: payload.taxAmount,
       taxPercent: payload.taxPercent,
@@ -780,14 +1157,21 @@ function createQuotationsService({ repository, logger, events, s3 }) {
         0,
     );
     const requiresApproval = pricing.marginPercent < minMarginPercent;
+    const nextBuilderSnapshot =
+      payload.builderSnapshot ??
+      current.templateSnapshot?.builderSnapshot ??
+      null;
+    const quotationContent = extractQuotationContentFields(nextBuilderSnapshot);
 
     const updated = await repository.update(id, {
       pricing_id:
         payload.pricingId !== undefined ? payload.pricingId : current.pricingId,
       template_id: nextTemplateId || null,
-      template_snapshot: template
-        ? buildTemplateSnapshot(template)
-        : current.templateSnapshot,
+      ...quotationContent,
+      template_snapshot: buildQuotationSnapshot(
+        template || current.templateSnapshot,
+        nextBuilderSnapshot,
+      ),
       total_cost: pricing.totalCost,
       margin_percent: pricing.marginPercent,
       margin_amount: pricing.marginAmount,

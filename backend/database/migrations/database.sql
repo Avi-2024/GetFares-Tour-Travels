@@ -55,6 +55,7 @@ CREATE TABLE users (
     expertise_destinations TEXT[],
     agent_country VARCHAR(100),
     agent_type VARCHAR(40),
+    manager_id UUID REFERENCES users(id) ON DELETE SET NULL,
 
     target_amount NUMERIC(12,2) CHECK (target_amount >= 0),
     incentive_percent NUMERIC(5,2) CHECK (incentive_percent >= 0 AND incentive_percent <= 100),
@@ -64,6 +65,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_users_manager_id ON users(manager_id);
 
 CREATE TABLE login_audit (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -376,6 +378,20 @@ CREATE TABLE quotations (
     pricing_id UUID REFERENCES destination_pricing(id) ON DELETE SET NULL,
     template_id UUID REFERENCES quotation_templates(id) ON DELETE SET NULL,
     template_snapshot JSONB,
+    source_package_id UUID REFERENCES packages(id) ON DELETE SET NULL,
+    quotation_title VARCHAR(200),
+    trip_destination VARCHAR(200),
+    duration_nights INT CHECK (duration_nights >= 0),
+    duration_days INT CHECK (duration_days >= 0),
+    duration_label VARCHAR(50),
+    travel_start_date DATE,
+    itinerary JSONB,
+    inclusions TEXT,
+    exclusions TEXT,
+    hotel_details TEXT,
+    visa_details TEXT,
+    payment_terms TEXT,
+    cancellation_policy TEXT,
     quote_number VARCHAR(50),
 
     total_cost NUMERIC(12,2) CHECK (total_cost >= 0),
@@ -1014,3 +1030,59 @@ CREATE INDEX idx_roles_country ON roles(country) WHERE country IS NOT NULL;
 
 CREATE INDEX idx_queued_leads_pending ON queued_leads(queued_at ASC) WHERE processed_at IS NULL;
 CREATE INDEX idx_queued_leads_lead_id ON queued_leads(lead_id);
+
+-- =============================
+-- HIERARCHY & COUNTRY MASTER
+-- =============================
+
+CREATE TABLE IF NOT EXISTS countries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(10) NOT NULL UNIQUE,
+    name VARCHAR(120) NOT NULL UNIQUE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_countries (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    country_id UUID NOT NULL REFERENCES countries(id) ON DELETE CASCADE,
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, country_id)
+);
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE leads
+  ADD COLUMN IF NOT EXISTS country_id UUID REFERENCES countries(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS lead_assignment_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    previous_assignee_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    new_assignee_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    mode VARCHAR(50),
+    reason TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_countries_is_active ON countries(is_active);
+CREATE INDEX IF NOT EXISTS idx_countries_name ON countries(name);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_primary_country
+  ON user_countries(user_id) WHERE is_primary = TRUE;
+CREATE INDEX IF NOT EXISTS idx_users_parent_id ON users(parent_id);
+CREATE INDEX IF NOT EXISTS idx_leads_country_id ON leads(country_id);
+CREATE INDEX IF NOT EXISTS idx_lead_assignment_history_lead_id
+  ON lead_assignment_history(lead_id, created_at DESC);
+
+INSERT INTO countries (code, name)
+VALUES
+  ('IN', 'India'),
+  ('AE', 'UAE')
+ON CONFLICT (code) DO NOTHING;

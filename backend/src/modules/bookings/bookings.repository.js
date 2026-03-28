@@ -227,6 +227,27 @@ function createBookingsRepository({ db, logger, schema }) {
     };
   }
 
+  function toPayment(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      bookingId: row.booking_id ?? row.bookingId ?? null,
+      amount: toNumber(row.amount, 0),
+      currency: row.currency ?? "INR",
+      paymentMode: row.payment_mode ?? row.paymentMode ?? null,
+      paymentReference: row.payment_reference ?? row.paymentReference ?? null,
+      proofUrl: row.proof_url ?? row.proofUrl ?? null,
+      status: row.status ?? "PENDING",
+      isVerified: toBoolean(row.is_verified ?? row.isVerified, false),
+      paidAt: toDate(row.paid_at ?? row.paidAt),
+      createdAt: toDate(row.created_at ?? row.createdAt),
+      updatedAt: toDate(row.updated_at ?? row.updatedAt),
+    };
+  }
+
   function toStatusHistory(row) {
     if (!row) {
       return null;
@@ -861,6 +882,55 @@ function createBookingsRepository({ db, logger, schema }) {
         invoice_number: invoiceNumber,
       });
       return toInvoice(row);
+    },
+
+    async findPaymentByBookingAndReference(bookingId, paymentReference) {
+      const tableExists = await hasTable(schema.paymentsTable);
+      if (!tableExists || !bookingId || !paymentReference) {
+        return null;
+      }
+
+      const row = await db.findOne(schema.paymentsTable, {
+        booking_id: bookingId,
+        payment_reference: paymentReference,
+      });
+      return toPayment(row);
+    },
+
+    async createPendingInvoicePayment(payload) {
+      const tableExists = await hasTable(schema.paymentsTable);
+      if (!tableExists) {
+        return null;
+      }
+
+      const amount = toNumber(payload.amount, 0);
+      if (amount <= 0) {
+        return null;
+      }
+
+      const existing = await db.findOne(schema.paymentsTable, {
+        booking_id: payload.bookingId,
+        payment_reference: payload.paymentReference,
+      });
+      if (existing) {
+        return toPayment(existing);
+      }
+
+      const nowIso = new Date().toISOString();
+      const row = await db.insert(schema.paymentsTable, {
+        booking_id: payload.bookingId,
+        amount,
+        currency: payload.currency || "INR",
+        payment_mode: payload.paymentMode || "BANK_TRANSFER",
+        payment_reference: payload.paymentReference || null,
+        proof_url: payload.proofUrl || null,
+        status: "PENDING",
+        is_verified: false,
+        paid_at: null,
+        updated_at: nowIso,
+      });
+
+      return toPayment(row);
     },
 
     async getPaymentPolicySnapshot(bookingId, advanceRequired = 0) {

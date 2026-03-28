@@ -39,6 +39,19 @@ const quickFilters = [
 ] as const
 type QuickFilter = typeof quickFilters[number]['key']
 
+const formatPaxSummary = (lead: LeadListItem) => {
+  const adults = Math.max(lead.adultsCount ?? 0, 0)
+  const children = Math.max(lead.childrenCount ?? 0, 0)
+  const adultLabel = `${adults} Adult${adults === 1 ? '' : 's'}`
+
+  if (children <= 0) return adultLabel
+
+  return `${adultLabel}, ${children} ${children === 1 ? 'Child' : 'Children'}`
+}
+
+const formatChildAges = (lead: LeadListItem) =>
+  lead.childAges.length > 0 ? `Child Ages: ${lead.childAges.join(', ')}` : ''
+
 const Leads: React.FC = () => {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
   const [statusFilter, setStatusFilter] = useState<SopStatusLabel | 'ALL'>(
@@ -93,7 +106,7 @@ const Leads: React.FC = () => {
         const statusMatch =
           statusFilter === 'ALL' || lead.statusLabel === statusFilter
         const text =
-          `${lead.name} ${lead.email} ${lead.destination} ${lead.phone}`.toLowerCase()
+          `${lead.name} ${lead.email} ${lead.destination} ${lead.phone} ${formatPaxSummary(lead)} ${lead.childAges.join(' ')}`.toLowerCase()
         return quickMatch && statusMatch && text.includes(search.toLowerCase())
       }),
     [fetchedLeads, quickFilter, search, statusFilter]
@@ -141,7 +154,7 @@ const Leads: React.FC = () => {
 
   return (
     <div className='space-y-4 sm:space-y-6 overflow-x-hidden'>
-      <div className='max-w-9xl mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0'>
+      <div className=' mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0'>
         <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
           <div className='flex flex-col gap-1'>
             <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
@@ -252,7 +265,7 @@ const Leads: React.FC = () => {
           ) : (
             <>
               <div className='hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll'>
-                <table className='min-w-[1320px] w-full'>
+                <table className='min-w-[920px] w-full'>
                   <thead className='bg-gray-50 dark:bg-gray-800/50'>
                     <tr>
                       <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
@@ -294,6 +307,14 @@ const Leads: React.FC = () => {
                           <p className='font-medium text-gray-900 dark:text-gray-100'>
                             {lead.name}
                           </p>
+                          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                            {formatPaxSummary(lead)}
+                          </p>
+                          {formatChildAges(lead) ? (
+                            <p className='mt-1 text-xs text-blue-600 dark:text-blue-300'>
+                              {formatChildAges(lead)}
+                            </p>
+                          ) : null}
                         </td>
                         <td className='pl-1 pr-5 py-4 text-xs text-gray-500'>
                           {lead.leadId}
@@ -352,6 +373,14 @@ const Leads: React.FC = () => {
                         <p className='text-xs text-gray-500'>
                           Lead ID: {lead.leadId}
                         </p>
+                        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                          {formatPaxSummary(lead)}
+                        </p>
+                        {formatChildAges(lead) ? (
+                          <p className='mt-1 text-xs text-blue-600 dark:text-blue-300'>
+                            {formatChildAges(lead)}
+                          </p>
+                        ) : null}
                       </div>
                       <StatusBadge status={lead.statusLabel} />
                     </div>

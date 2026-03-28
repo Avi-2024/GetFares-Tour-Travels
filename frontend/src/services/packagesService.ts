@@ -7,6 +7,16 @@ export type PackageCategory =
   | "LUXURY"
   | "HONEYMOON"
   | "FAMILY";
+export type PackageKind = "READY" | "CUSTOMIZED";
+
+export type PackageCustomServiceLine = {
+  id?: string;
+  name: string;
+  description?: string;
+  cost: number;
+  markupPercent?: number;
+  sellValue?: number;
+};
 
 export type PackageRecord = {
   id: string;
@@ -16,6 +26,15 @@ export type PackageRecord = {
   baseCost: number;
   markupPercent: number;
   startingPrice: number;
+  packageKind: PackageKind;
+  customServices: PackageCustomServiceLine[];
+  visaDetails: string | null;
+  paymentTerms: string | null;
+  inclusions: string | null;
+  exclusions: string | null;
+  itinerary: unknown;
+  hotelDetails: string | null;
+  cancellationPolicy: string | null;
   packageCategory: PackageCategory | null;
   status: PackageStatus;
   validFrom: string | null;
@@ -65,23 +84,47 @@ const toNumber = (value: unknown, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const toPackageRecord = (row: any): PackageRecord => ({
-  id: String(row?.id ?? ""),
-  name: String(row?.name ?? ""),
-  destination: String(row?.destination ?? ""),
-  duration: row?.duration ?? null,
-  baseCost: toNumber(row?.baseCost),
-  markupPercent: toNumber(row?.markupPercent),
-  startingPrice: toNumber(row?.startingPrice),
-  packageCategory: row?.packageCategory ?? null,
-  status: (row?.status ?? "DRAFT") as PackageStatus,
-  validFrom: row?.validFrom ?? null,
-  validTo: row?.validTo ?? null,
-  publishToWebsite: Boolean(row?.publishToWebsite),
-  isSoldOut: Boolean(row?.isSoldOut),
-  createdAt: row?.createdAt ?? null,
-  updatedAt: row?.updatedAt ?? null,
-});
+const toPackageRecord = (row: any): PackageRecord => {
+  const kind = String(row?.packageKind ?? "READY").toUpperCase();
+  const customRaw = row?.customServices;
+  const customServices: PackageCustomServiceLine[] = Array.isArray(customRaw)
+    ? customRaw.map((s: any) => ({
+        id: s?.id ? String(s.id) : undefined,
+        name: String(s?.name ?? ""),
+        description: s?.description ? String(s.description) : undefined,
+        cost: toNumber(s?.cost),
+        markupPercent:
+          s?.markupPercent != null ? toNumber(s.markupPercent) : undefined,
+        sellValue: s?.sellValue != null ? toNumber(s.sellValue) : undefined,
+      }))
+    : [];
+  return {
+    id: String(row?.id ?? ""),
+    name: String(row?.name ?? ""),
+    destination: String(row?.destination ?? ""),
+    duration: row?.duration ?? null,
+    baseCost: toNumber(row?.baseCost),
+    markupPercent: toNumber(row?.markupPercent),
+    startingPrice: toNumber(row?.startingPrice),
+    packageKind: kind === "CUSTOMIZED" ? "CUSTOMIZED" : "READY",
+    customServices,
+    visaDetails: row?.visaDetails ?? null,
+    paymentTerms: row?.paymentTerms ?? null,
+    inclusions: row?.inclusions ?? null,
+    exclusions: row?.exclusions ?? null,
+    itinerary: row?.itinerary ?? null,
+    hotelDetails: row?.hotelDetails ?? null,
+    cancellationPolicy: row?.cancellationPolicy ?? null,
+    packageCategory: row?.packageCategory ?? null,
+    status: (row?.status ?? "DRAFT") as PackageStatus,
+    validFrom: row?.validFrom ?? null,
+    validTo: row?.validTo ?? null,
+    publishToWebsite: Boolean(row?.publishToWebsite),
+    isSoldOut: Boolean(row?.isSoldOut),
+    createdAt: row?.createdAt ?? null,
+    updatedAt: row?.updatedAt ?? null,
+  };
+};
 
 const toEnquiryRecord = (row: any): PackageEnquiry => ({
   id: String(row?.id ?? ""),

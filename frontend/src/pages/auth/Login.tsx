@@ -127,7 +127,9 @@ const Login = () => {
         name: userName,
         email: userEmail,
         role: userRole,
-        roleId: data.user.roleId
+        roleId: data.user.roleId,
+        active: data.user.active ?? null,
+        isActive: data.user.isActive
       })
       const isAdmin = String(userRole || '').toLowerCase() === 'admin'
       await refreshPermissions(data.accessToken)
@@ -267,13 +269,13 @@ const Login = () => {
                 <div className='p-0 rounded-2xl transition-all duration-500 group-hover:scale-110'>
                   <img
                     src='/logo1.png'
-                    alt='Get2Vacation'
+                    alt='Get2Vacations'
                     className='h-8 w-6 transition-transform duration-500 group-hover:rotate-12'
                   />
                 </div>
                 <div className='flex flex-col'>
                   <span className='text-2xl font-black tracking-tighter text-white uppercase'>
-                    Get2Vacation <span className='text-blue-500'>CRM</span>
+                    Get2Vacations <span className='text-blue-500'>CRM</span>
                   </span>
                   <span className='text-[10px] font-bold tracking-[0.4em] text-blue-400/70 uppercase'>
                     Travel Intelligence
@@ -349,13 +351,13 @@ const Login = () => {
                   <div className='h-11 w-11 rounded-xl flex items-center justify-center'>
                     <img
                       src='/logo1.png'
-                      alt='Get2Vacation'
+                      alt='Get2Vacations'
                       className='h-8 w-6'
                     />
                   </div>
                   <div>
                     <p className='text-xs font-semibold uppercase tracking-[0.2em] text-blue-600'>
-                      Get2Vacation CRM
+                      Get2Vacations CRM
                     </p>
                     <p className='text-lg font-semibold text-slate-900'>
                       Sign in to continue
@@ -466,7 +468,7 @@ const Login = () => {
               </div>
 
               <p className='mt-6 text-center text-xs text-slate-400'>
-                Powered by Get2Vacation Tour & Travels CRM
+                Powered by Get2Vacations Tour & Travels CRM
               </p>
             </div>
           </section>
