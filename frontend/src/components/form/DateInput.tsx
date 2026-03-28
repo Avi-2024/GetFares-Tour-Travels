@@ -8,6 +8,7 @@ type Props = {
   error?: string;
   min?: string;
   max?: string;
+  className?: string;
 };
 
 const DateInput = ({
@@ -18,6 +19,7 @@ const DateInput = ({
   error,
   min,
   max,
+  className,
 }: Props) => (
   <FieldWrapper label={label} required={required} error={error}>
     <input
@@ -26,7 +28,7 @@ const DateInput = ({
       min={min}
       max={max}
       onChange={(event) => onChange(event.target.value)}
-      className={`field-input ${error ? "border-red-500" : ""}`}
+      className={`field-input ${error ? "border-red-500" : ""} ${className ?? ""}`.trim()}
     />
   </FieldWrapper>
 );

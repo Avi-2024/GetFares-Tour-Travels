@@ -528,7 +528,7 @@ const CreateLead: React.FC = () => {
             />
           </div>
           <div>
-            <label className='field-label'>Preferred Hotel Category *</label>
+            <label className='field-label'>Preferred Hotel Category </label>
             <SearchableDropdown
               value={form.preferredHotelCategory}
               options={hotelCategoryOptions}
@@ -548,7 +548,7 @@ const CreateLead: React.FC = () => {
             />
           </div>
           <div>
-            <label className='field-label'>Purpose of Travel *</label>
+            <label className='field-label'>Purpose of Travel </label>
             <SearchableDropdown
               value={form.travelPurpose}
               options={travelPurposeOptions}

@@ -245,12 +245,10 @@ const QuotationBuilderPage: React.FC = () => {
   const [suppliersLoading, setSuppliersLoading] = useState(false)
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [saveError, setSaveError] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [saving] = useState(false)
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
     {},
   );
-  const [createQuotationFlag, setCreateQuotationFlag] = useState(true);
-  const [quotationPayload, setQuotationPayload] = useState({});
   const [form, setForm] = useState({
     quote: '',
     version: 'Draft',
@@ -1545,6 +1543,7 @@ const QuotationBuilderPage: React.FC = () => {
       builderSnapshot: buildBuilderSnapshot(),
       ...(expiresInHours ? { expiresInHours } : {})
     }
+    void payload
   };
 
   return (

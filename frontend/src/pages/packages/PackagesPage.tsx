@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { FaBoxOpen, FaPlus, FaSave, FaTrash } from 'react-icons/fa'
+import { FaPlus, FaSave, FaTrash } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -477,18 +477,6 @@ const PackagesPage: React.FC = () => {
     'ALL'
   )
   const [destinationFilter, setDestinationFilter] = useState('')
-  const [enquiries, setEnquiries] = useState<any[]>([])
-  const [enquiryDraft, setEnquiryDraft] = useState({
-    leadId: '',
-    fullName: '',
-    phone: '',
-    email: '',
-    source: 'CRM',
-    travelDate: '',
-    travellersCount: '2'
-  })
-  const [enquiryLoading, setEnquiryLoading] = useState(false)
-  const [enquiryError, setEnquiryError] = useState('')
 
   const selectedPackage = useMemo(
     () => items.find(item => item.id === selectedId) || null,
@@ -589,29 +577,6 @@ const PackagesPage: React.FC = () => {
     statusFilter
   ])
 
-  const loadEnquiries = useCallback(
-    async (id: string) => {
-      if (!id) {
-        setEnquiries([])
-        return
-      }
-      setEnquiryLoading(true)
-      setEnquiryError('')
-      try {
-        const rows = await packagesService.listEnquiries(id)
-        setEnquiries(rows)
-      } catch (err) {
-        setEnquiryError(
-          getApiErrorMessage(err, 'Failed to load package enquiries.')
-        )
-        setEnquiries([])
-      } finally {
-        setEnquiryLoading(false)
-      }
-    },
-    [packagesService]
-  )
-
   useEffect(() => {
     void loadPackages()
   }, [loadPackages])
@@ -620,7 +585,6 @@ const PackagesPage: React.FC = () => {
     if (!selectedPackage) {
       setForm(emptyForm)
       setStartingPriceManual(false)
-      setEnquiries([])
       return
     }
     const durationParts = parseDurationParts(selectedPackage.duration || '')
@@ -667,8 +631,7 @@ const PackagesPage: React.FC = () => {
       })),
       isSoldOut: selectedPackage.isSoldOut
     })
-    void loadEnquiries(selectedPackage.id)
-  }, [loadEnquiries, selectedPackage])
+  }, [selectedPackage])
 
   useEffect(() => {
     if (startingPriceManual) return
@@ -698,8 +661,6 @@ const PackagesPage: React.FC = () => {
     setViewMode('EDIT')
     setForm(emptyForm)
     setStartingPriceManual(false)
-    setEnquiries([])
-    setEnquiryError('')
   }
 
   const handleSave = async () => {
@@ -781,34 +742,6 @@ const PackagesPage: React.FC = () => {
       setError(getApiErrorMessage(err, 'Could not save package.'))
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleCreateEnquiry = async () => {
-    if (!selectedId) return
-    setEnquiryError('')
-    try {
-      await packagesService.createEnquiry(selectedId, {
-        leadId: enquiryDraft.leadId || undefined,
-        fullName: enquiryDraft.fullName || undefined,
-        phone: enquiryDraft.phone || undefined,
-        email: enquiryDraft.email || undefined,
-        source: enquiryDraft.source || undefined,
-        travelDate: enquiryDraft.travelDate || undefined,
-        travellersCount: Number(enquiryDraft.travellersCount || 1)
-      })
-      setEnquiryDraft({
-        leadId: '',
-        fullName: '',
-        phone: '',
-        email: '',
-        source: 'CRM',
-        travelDate: '',
-        travellersCount: '2'
-      })
-      await loadEnquiries(selectedId)
-    } catch (err) {
-      setEnquiryError(getApiErrorMessage(err, 'Could not create enquiry.'))
     }
   }
 

@@ -46,6 +46,16 @@ type BookingRecord = {
   bookingNumber?: string
   quotationId?: string
   quotation_id?: string
+  email?: string
+  customerEmail?: string
+  customer_email?: string
+  phone?: string
+  customerPhone?: string
+  customer_phone?: string
+  customer?: {
+    email?: string
+    phone?: string
+  }
 }
 
 type QuotationRecord = {

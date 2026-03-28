@@ -226,8 +226,6 @@ const UserFormModal = ({
   // Check if role has agent-related permissions or is explicitly an agent role
   const isAgentRole = useMemo(() => {
     if (!selectedRole) return false
-    // Check if role has agent-specific permissions
-    const agentPermissions = ['leads:read', 'leads:update', 'bookings:create']
     // You can also check by role name as fallback
     const nameIndicatesAgent = selectedRoleName.includes('agent') || 
                                 selectedRoleName.includes('consultant') ||
