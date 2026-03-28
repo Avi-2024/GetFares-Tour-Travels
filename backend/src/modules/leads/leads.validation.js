@@ -20,6 +20,7 @@ const basePayload = z.object({
   nationality: z.string().min(2).max(80).optional(),
   leadCountry: z.string().min(2).max(100).optional(),
   country: z.string().min(2).max(100).optional(),
+  countryId: z.string().uuid().optional(),
   phone: z.string().min(6).max(20).optional(),
   email: z.string().email().optional(),
   panNumber: z.string().min(8).max(20).optional(),
@@ -109,6 +110,7 @@ const list = z.object({
       type: z.string().min(2).max(40).optional(),
       leadCountry: z.string().min(2).max(100).optional(),
       country: z.string().min(2).max(100).optional(),
+      countryId: z.string().uuid().optional(),
       assignedTo: z.string().uuid().optional(),
       email: z.string().email().optional(),
       phone: z.string().optional(),
@@ -120,6 +122,7 @@ const assign = z.object({
   body: z
     .object({
       force: z.boolean().optional(),
+      assignedTo: z.string().uuid().optional(),
       excludeUserId: z.string().uuid().optional(),
       reason: z.string().max(200).optional(),
       mode: z
@@ -131,6 +134,7 @@ const assign = z.object({
           "AUTO_CREATE",
         ])
         .optional(),
+      roleName: z.enum(["agent", "manager"]).optional(),
     })
     .optional(),
   params: z.object({ id: z.string().uuid() }),

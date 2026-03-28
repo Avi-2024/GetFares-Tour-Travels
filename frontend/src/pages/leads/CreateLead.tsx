@@ -6,6 +6,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
+import { CRM_COUNTRY_OPTIONS } from '../../utils/countries'
 
 type FormState = {
   firstName: string
@@ -367,11 +368,7 @@ const CreateLead: React.FC = () => {
             <label className='field-label'>Lead Country *</label>
             <SearchableDropdown
               value={form.leadCountry}
-              options={[
-                { value: '', label: 'Select country' },
-                { value: 'India', label: 'India' },
-                { value: 'UAE', label: 'UAE' }
-              ]}
+              options={CRM_COUNTRY_OPTIONS}
               hasError={fieldError('leadCountry')}
               searchPlaceholder='Search country...'
               onChange={value =>

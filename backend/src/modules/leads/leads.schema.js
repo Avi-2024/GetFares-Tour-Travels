@@ -6,7 +6,10 @@ const LeadsSchema = Object.freeze({
   followupAlertLogsTable: "lead_followup_alert_logs",
   queuedLeadsTable: "queued_leads",
   usersTable: "users",
+  countriesTable: "countries",
+  userCountriesTable: "user_countries",
   rolesTable: "roles",
+  assignmentHistoryTable: "lead_assignment_history",
   destinationsTable: "destinations",
   entityName: "Leads",
 });

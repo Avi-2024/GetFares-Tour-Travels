@@ -9,6 +9,7 @@ export * from "./refunds";
 export * from "./visa";
 export * from "./campaigns";
 export * from "./destinations";
+export * from "./countries";
 export * from "./customers";
 export * from "./suppliers";
 export * from "./complaints";

@@ -1,5 +1,11 @@
 function createLeadsRepository({ db, logger, schema }) {
-  const ASSIGNABLE_ROLES = new Set(["sales_consultant", "agent"]);
+  const ASSIGNABLE_ROLES = new Set([
+    "sales_consultant",
+    "agent",
+    "visa_executive",
+    "holiday_consultant",
+  ]);
+  const MANAGER_ROLES = new Set(["manager", "department_head", "team_lead"]);
   const FOLLOWUP_TYPE_TO_DB = Object.freeze({
     CALL: 1,
     WHATSAPP: 2,
@@ -216,6 +222,7 @@ function createLeadsRepository({ db, logger, schema }) {
       leadCountry:
         row.lead_country ?? row.leadCountry ?? row.country ?? null,
       country: row.lead_country ?? row.leadCountry ?? row.country ?? null,
+      countryId: row.country_id ?? row.countryId ?? null,
       destinationId,
       destination: destination ? toDestinationDomain(destination) : null,
       destinationName: destination?.name ?? null,
@@ -299,6 +306,7 @@ function createLeadsRepository({ db, logger, schema }) {
       fullName: row.full_name ?? row.fullName ?? null,
       email: row.email ?? null,
       role: roleName ? String(roleName).toLowerCase() : null,
+      managerId: row.manager_id ?? row.managerId ?? null,
       country: row.agent_country ?? row.agentCountry ?? null,
       agentType: row.agent_type ?? row.agentType ?? null,
       expertiseDestinations: normalizeTextArray(
@@ -404,6 +412,10 @@ function createLeadsRepository({ db, logger, schema }) {
 
     if (filters.leadCountry || filters.country) {
       mapped.lead_country = filters.leadCountry ?? filters.country;
+    }
+
+    if (filters.countryId) {
+      mapped.country_id = filters.countryId;
     }
 
     if (filters.campaignId) {
@@ -829,9 +841,171 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findUserAgentCountry(userId) {
       if (!userId) return null;
+
+      if (db.adapter === "postgres") {
+        const [hasUserCountriesTable, hasCountriesTable] = await Promise.all([
+          hasTable(schema.userCountriesTable),
+          hasTable(schema.countriesTable),
+        ]);
+        if (hasUserCountriesTable && hasCountriesTable) {
+          const result = await db.query(
+            `
+              SELECT c.name
+              FROM ${schema.userCountriesTable} uc
+              INNER JOIN ${schema.countriesTable} c ON c.id = uc.country_id
+              WHERE uc.user_id = $1
+              ORDER BY uc.is_primary DESC, c.name ASC
+              LIMIT 1
+            `,
+            [userId],
+          );
+          if (result.rows[0]?.name) {
+            return result.rows[0].name;
+          }
+        }
+      }
+
       const row = await db.findById(schema.usersTable, userId);
       if (!row) return null;
       return row.agent_country ?? row.agentCountry ?? null;
+    },
+
+    async findUserCountryNames(userId) {
+      if (!userId) return [];
+      if (db.adapter === "postgres") {
+        const [hasUserCountriesTable, hasCountriesTable] = await Promise.all([
+          hasTable(schema.userCountriesTable),
+          hasTable(schema.countriesTable),
+        ]);
+        if (hasUserCountriesTable && hasCountriesTable) {
+          const result = await db.query(
+            `
+              SELECT c.name
+              FROM ${schema.userCountriesTable} uc
+              INNER JOIN ${schema.countriesTable} c ON c.id = uc.country_id
+              WHERE uc.user_id = $1
+              ORDER BY uc.is_primary DESC, c.name ASC
+            `,
+            [userId],
+          );
+          return result.rows
+            .map((row) => row.name)
+            .filter(Boolean);
+        }
+      }
+
+      const row = await db.findById(schema.usersTable, userId);
+      const singleCountry = row?.agent_country ?? row?.agentCountry ?? null;
+      return singleCountry ? [singleCountry] : [];
+    },
+
+    async findActiveAgentsByCountry(country, agentType = null) {
+      if (!country && !agentType) {
+        return this.findActiveAssignableUsers('agent');
+      }
+
+      const normalizedCountry = country ? String(country).trim().toLowerCase() : null;
+      const normalizedType = agentType ? String(agentType).trim().toUpperCase() : null;
+      
+      // Use database-level filtering for better performance
+      if (db.adapter === 'postgres' && normalizedCountry) {
+        const typeCondition = normalizedType 
+          ? `AND (u.agent_type = $2 OR u.agent_type = 'BOTH')`
+          : '';
+        
+        const params = normalizedType 
+          ? [normalizedCountry, normalizedType]
+          : [normalizedCountry];
+
+        const query = `
+          SELECT u.*, r.name as role_name
+          FROM ${schema.usersTable} u
+          LEFT JOIN ${schema.rolesTable} r ON u.role_id = r.id
+          WHERE u.is_active = true
+            AND COALESCE(u.is_on_leave, false) = false
+            AND u.last_login IS NOT NULL
+            AND LOWER(u.agent_country) = $1
+            AND r.name IN ('agent', 'sales_consultant', 'visa_executive', 'holiday_consultant')
+            ${typeCondition}
+          ORDER BY u.id ASC
+        `;
+        
+        try {
+          const result = await db.query(query, params);
+          return result.rows.map(row => toAssignableUser(row, row.role_name));
+        } catch (error) {
+          logger.error({ err: error }, 'Error in findActiveAgentsByCountry, falling back');
+          // Fallback to in-memory filtering
+        }
+      }
+
+      // Fallback: In-memory filtering
+      const [users, roleLookup] = await Promise.all([
+        db.findMany(schema.usersTable, {}),
+        loadRoleLookup(),
+      ]);
+
+      const activeUsers = users
+        .filter((row) => {
+          const isActive = row.is_active ?? row.isActive ?? true;
+          const isOnLeave = row.is_on_leave ?? row.isOnLeave ?? false;
+          const activeToggle = row.active ?? row.active_status ?? undefined;
+          const isPresenceActive =
+            activeToggle === undefined ? true : Boolean(activeToggle);
+          const lastLogin = row.last_login ?? row.lastLogin ?? null;
+          const hasToken = Boolean(lastLogin);
+          
+          if (!isActive || isOnLeave || !isPresenceActive || !hasToken) {
+            return false;
+          }
+
+          const roleId = row.role_id ?? row.roleId ?? null;
+          const roleFromUser = row.role ? String(row.role).toLowerCase() : null;
+          const roleFromLookup = roleLookup.get(roleId);
+          const roleName =
+            roleFromUser ||
+            (roleFromLookup ? String(roleFromLookup).toLowerCase() : null);
+          
+          if (!ASSIGNABLE_ROLES.has(roleName)) {
+            return false;
+          }
+
+          // Country filter
+          if (normalizedCountry) {
+            const agentCountry = row.agent_country ?? row.agentCountry ?? null;
+            const normalizedAgentCountry = agentCountry 
+              ? String(agentCountry).trim().toLowerCase()
+              : null;
+            if (!normalizedAgentCountry || normalizedAgentCountry !== normalizedCountry) {
+              return false;
+            }
+          }
+
+          // Agent type filter
+          if (normalizedType) {
+            const agentTypeValue = row.agent_type ?? row.agentType ?? null;
+            const normalizedAgentType = agentTypeValue
+              ? String(agentTypeValue).trim().toUpperCase()
+              : null;
+            if (!normalizedAgentType || 
+                (normalizedAgentType !== normalizedType && normalizedAgentType !== 'BOTH')) {
+              return false;
+            }
+          }
+
+          return true;
+        })
+        .map((row) => {
+          const roleId = row.role_id ?? row.roleId ?? null;
+          const roleFromUser = row.role ? String(row.role).toLowerCase() : null;
+          const roleFromLookup = roleLookup.get(roleId);
+          const roleName =
+            roleFromUser ||
+            (roleFromLookup ? String(roleFromLookup).toLowerCase() : null);
+          return toAssignableUser(row, roleName);
+        });
+
+      return activeUsers;
     },
 
     async findActiveAssignableUsers(roleName = null) {
@@ -871,6 +1045,12 @@ function createLeadsRepository({ db, logger, schema }) {
         });
 
       if (normalizedRole) {
+        if (normalizedRole === "agent") {
+          return activeUsers.filter((user) => ASSIGNABLE_ROLES.has(user.role));
+        }
+        if (normalizedRole === "manager") {
+          return activeUsers.filter((user) => MANAGER_ROLES.has(user.role));
+        }
         return activeUsers.filter((user) => user.role === normalizedRole);
       }
 
@@ -878,6 +1058,45 @@ function createLeadsRepository({ db, logger, schema }) {
         ASSIGNABLE_ROLES.has(user.role),
       );
       return preferred.length ? preferred : activeUsers;
+    },
+
+    async findManagedAgentIds(managerId) {
+      if (!managerId) return [];
+      if (db.adapter === "postgres") {
+        const hasParentId = await hasColumn(schema.usersTable, "parent_id");
+        if (hasParentId) {
+          const result = await db.query(
+            `
+              SELECT id
+              FROM ${schema.usersTable}
+              WHERE COALESCE(parent_id, manager_id) = $1
+            `,
+            [managerId],
+          );
+          return result.rows.map((row) => row.id).filter(Boolean);
+        }
+      }
+      const users = await db.findMany(schema.usersTable, {
+        manager_id: managerId,
+      });
+      return users
+        .map((row) => row.id)
+        .filter(Boolean);
+    },
+
+    async findAssignableUserById(userId) {
+      if (!userId) return null;
+      const [row, roleLookup] = await Promise.all([
+        db.findById(schema.usersTable, userId),
+        loadRoleLookup(),
+      ]);
+      if (!row) return null;
+      const roleId = row.role_id ?? row.roleId ?? null;
+      const roleFromUser = row.role ? String(row.role).toLowerCase() : null;
+      const roleFromLookup = roleLookup.get(roleId);
+      const roleName =
+        roleFromUser || (roleFromLookup ? String(roleFromLookup).toLowerCase() : null);
+      return toAssignableUser(row, roleName);
     },
 
     async getOpenLeadLoadByUserIds(userIds = []) {
@@ -1212,6 +1431,26 @@ function createLeadsRepository({ db, logger, schema }) {
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.update(schema.tableName, id, sanitized);
       return mapRowToDomain(row);
+    },
+
+    async createAssignmentHistory(payload = {}) {
+      const tableName = schema.assignmentHistoryTable;
+      const tableExists = await hasTable(tableName);
+      if (!tableExists) {
+        return null;
+      }
+      const sanitized = await sanitizeForTable(tableName, {
+        lead_id: payload.leadId,
+        previous_assignee_id: payload.previousAssigneeId || null,
+        new_assignee_id: payload.newAssigneeId || null,
+        assigned_by: payload.assignedBy || null,
+        mode: payload.mode || null,
+        reason: payload.reason || null,
+      });
+      if (!Object.keys(sanitized).length) {
+        return null;
+      }
+      return db.insert(tableName, sanitized);
     },
 
     async createActivity(payload) {

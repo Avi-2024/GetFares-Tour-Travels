@@ -1,4 +1,5 @@
 import { AppError } from "../../core/errors/index.js";
+import { isSuperAdminRole } from "../../core/constants/index.js";
 
 function createRbacService({
   repository,
@@ -183,6 +184,24 @@ function createRbacService({
           "roleId is required",
           "RBAC_INVALID_INPUT",
         );
+      }
+
+      const role = await repository.findRoleById(roleId);
+      if (!role) {
+        throw new AppError(404, "Role not found", "RBAC_ROLE_NOT_FOUND");
+      }
+
+      if (isSuperAdminRole(role.name || "")) {
+        const existingCount = await repository.countActiveUsersByRoleId(roleId, {
+          excludeUserId: userId,
+        });
+        if (existingCount > 0) {
+          throw new AppError(
+            409,
+            "Only one active Super Admin is allowed in the system",
+            "RBAC_SINGLE_SUPERADMIN_ENFORCED",
+          );
+        }
       }
 
       const assignment = await repository.assignRoleById(userId, roleId);
