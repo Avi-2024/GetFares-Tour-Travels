@@ -7,6 +7,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
+import { usersApi } from '../../api/users'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import {
   buildBookingCreatePayloadFromQuotation,
@@ -109,6 +110,11 @@ const LeadDetails: React.FC = () => {
     useState('')
   const [conversionFollowUpMessage, setConversionFollowUpMessage] =
     useState('')
+  const [assigneeOptions, setAssigneeOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([{ value: '', label: 'Select assignee' }])
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   const createdAtLabel = useMemo(() => {
     const raw =
@@ -256,6 +262,26 @@ const LeadDetails: React.FC = () => {
     }
   }, [id])
 
+  const loadAssigneeOptions = useCallback(async () => {
+    if (!lead) return
+    try {
+      const res = await usersApi.list({ isActive: true, limit: 500 })
+      const rows = unwrapApiArray(res) as Array<Record<string, unknown>>
+
+      setAssigneeOptions([
+        { value: '', label: 'Select assignee' },
+        ...rows.map(row => ({
+          value: String(row.id ?? ''),
+          label: `${String(row.fullName ?? row.full_name ?? 'User')} (${String(
+            row.role ?? 'user'
+          )})`
+        }))
+      ])
+    } catch {
+      setAssigneeOptions([{ value: '', label: 'Select assignee' }])
+    }
+  }, [lead])
+
   React.useEffect(() => {
     void loadLead()
     void loadFollowups()
@@ -269,6 +295,10 @@ const LeadDetails: React.FC = () => {
     }
     void loadSentQuotationsForLead()
   }, [selectedStatusLabel, loadSentQuotationsForLead])
+
+  React.useEffect(() => {
+    void loadAssigneeOptions()
+  }, [loadAssigneeOptions])
 
   const compliance = useMemo(() => {
     const summary = {
@@ -707,6 +737,7 @@ const LeadDetails: React.FC = () => {
   }
 
   const canRunOps = hasPermission('leads:update')
+  const canAssignLead = hasPermission('leads:update')
 
   const handleDisableCalls = async () => {
     if (!id) return
@@ -718,6 +749,21 @@ const LeadDetails: React.FC = () => {
       await loadLead()
     } catch {
       setShowDisablePopup(false)
+    }
+  }
+
+  const assignLeadNow = async () => {
+    if (!id || !selectedAssigneeId) return
+    setAssigning(true)
+    setStatusError('')
+    try {
+      await leadsService.assignLead(id, { assignedTo: selectedAssigneeId, force: true })
+      await loadLead()
+      setSelectedAssigneeId('')
+    } catch (err) {
+      setStatusError(getApiErrorMessage(err, 'Unable to assign lead.'))
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -1161,6 +1207,33 @@ const LeadDetails: React.FC = () => {
               <FaCheckCircle />
             </button>
           </div>
+
+          {canAssignLead ? (
+            <div className='mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
+              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                Assign Lead
+              </p>
+              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                Assignee options are scoped by your role, team, and lead country.
+              </p>
+              <div className='mt-2 grid grid-cols-1 gap-2'>
+                <SearchableDropdown
+                  value={selectedAssigneeId}
+                  onChange={setSelectedAssigneeId}
+                  options={assigneeOptions}
+                  placeholder='Select assignee'
+                  searchPlaceholder='Search assignee...'
+                />
+                <button
+                  onClick={() => void assignLeadNow()}
+                  disabled={assigning || !selectedAssigneeId}
+                  className='inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60'
+                >
+                  {assigning ? 'Assigning...' : 'Assign Lead'}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className='mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
             <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>

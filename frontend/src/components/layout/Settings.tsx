@@ -24,11 +24,16 @@ import { useUsersService } from '../../hooks/useUsersService'
 import SurfaceCard from '../ui/SurfaceCard'
 import SearchableDropdown from '../ui/SearchableDropdown'
 import DestinationPricingManager from '../settings/DestinationPricingManager'
+import CountryManagementPanel from '../settings/CountryManagementPanel'
+import {
+  CRM_ADMIN_COUNTRY_OPTIONS
+} from '../../utils/countries'
 
 type Tab =
   | 'user-management'
   | 'roles-permissions'
   | 'system-settings'
+  | 'country-management'
   | 'destinations-pricing'
   | 'pdf-templates'
   | 'integrations'
@@ -93,11 +98,10 @@ type SettingsResponse = {
 
 type CountryCode = 'All' | 'India' | 'UAE'
 
-const COUNTRY_OPTIONS: Array<{ value: CountryCode; label: string }> = [
-  { value: 'All', label: 'All Countries' },
-  { value: 'India', label: 'India' },
-  { value: 'UAE', label: 'UAE' }
-]
+const COUNTRY_OPTIONS = CRM_ADMIN_COUNTRY_OPTIONS as Array<{
+  value: CountryCode
+  label: string
+}>
 
 const ROLE_COUNTRY_OPTIONS = COUNTRY_OPTIONS.filter(
   option => option.value !== 'All'
@@ -106,6 +110,7 @@ const ROLE_COUNTRY_OPTIONS = COUNTRY_OPTIONS.filter(
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'user-management', label: 'User Management' },
   { id: 'roles-permissions', label: 'Roles & Permissions' },
+  { id: 'country-management', label: 'Country Management' },
   { id: 'system-settings', label: 'System Settings' },
   // { id: 'destinations-pricing', label: 'Destinations & Pricing' },
   { id: 'pdf-templates', label: 'PDF Templates' }
@@ -173,6 +178,27 @@ function extractObject<T extends object> (response: unknown): T | null {
   const payload = response as { data?: unknown }
   if (payload.data && typeof payload.data === 'object') return payload.data as T
   return response as T
+}
+
+type ErrorEnvelope = {
+  error?: {
+    code?: string
+    details?: {
+      existingRoleId?: string
+      existingRoleName?: string
+      existingCountry?: string | null
+      requestedCountry?: string | null
+    } | null
+  }
+}
+
+const extractErrorEnvelope = (error: unknown): ErrorEnvelope | null => {
+  if (!error || typeof error !== 'object') return null
+  const details = (error as { details?: unknown }).details
+  if (!details || typeof details !== 'object') return null
+  const envelope = details as ErrorEnvelope
+  if (!envelope.error || typeof envelope.error !== 'object') return null
+  return envelope
 }
 
 const normalizeUsers = (rows: RawUser[]): UserRecord[] =>
@@ -648,6 +674,27 @@ const Settings: React.FC = () => {
           )}`
         )
       } else {
+        const envelope = extractErrorEnvelope(e)
+        const errorCode = envelope?.error?.code
+        const existingRoleId = envelope?.error?.details?.existingRoleId
+
+        if (errorCode === 'ROLE_ALREADY_EXISTS' && existingRoleId) {
+          try {
+            await loadRoles()
+          } catch (_error) {
+            // Keep flow usable even if refresh fails.
+          }
+          setSelectedRolePermissionsRoleId(existingRoleId)
+          closeCreateRoleModal()
+          setError(
+            `${getApiErrorMessage(
+              e,
+              'Role already exists'
+            )}. Existing role selected for editing permissions.`
+          )
+          return
+        }
+
         setError(getApiErrorMessage(e, 'Unable to create role'))
       }
     } finally {
@@ -710,13 +757,37 @@ const Settings: React.FC = () => {
   }
 
   const onCreateAndAssignRole = async (roleName: string) => {
-    const created = await authService.createRole({
-      name: roleName.trim()
-    })
-    const newRoleId = created?.id
-    if (newRoleId && assignUserId) {
-      await usersService.update(assignUserId, { roleId: newRoleId })
+    const trimmedName = roleName.trim()
+    let roleId = ''
+    let created: { id?: string; name?: string } | null = null
+
+    try {
+      created = await authService.createRole({
+        name: trimmedName
+      })
+      roleId = created?.id ?? ''
+    } catch (error) {
+      const envelope = extractErrorEnvelope(error)
+      const existingRoleId = envelope?.error?.details?.existingRoleId
+      const isDuplicate = envelope?.error?.code === 'ROLE_ALREADY_EXISTS'
+      if (!isDuplicate || !existingRoleId) {
+        throw error
+      }
+      roleId = existingRoleId
+      created = {
+        id: existingRoleId,
+        name: trimmedName
+      }
     }
+
+    if (!roleId) {
+      throw new Error('Role creation did not return an id.')
+    }
+
+    if (assignUserId) {
+      await usersService.update(assignUserId, { roleId })
+    }
+
     return created
   }
 
@@ -1157,7 +1228,7 @@ const Settings: React.FC = () => {
                           { value: '', label: 'Select role' },
                           ...roles.map(role => ({
                             value: role.id,
-                            label: `${role.name} • ${getRoleCountry(role.id)}`
+                            label: `${role.name} - ${getRoleCountry(role.id)}`
                           }))
                         ]}
                         placeholder='Select role'
@@ -1378,6 +1449,13 @@ const Settings: React.FC = () => {
           </SurfaceCard>
         ) : null}
 
+        {activeTab === 'country-management' ? (
+          <CountryManagementPanel
+            canReadSettings={canReadSettings}
+            canUpdateSettings={canUpdateSettings}
+          />
+        ) : null}
+
         {activeTab === 'destinations-pricing' ? (
           <DestinationPricingManager
             canReadSettings={canReadSettings}
@@ -1579,7 +1657,10 @@ const Settings: React.FC = () => {
                 }
                 options={[
                   { value: '', label: 'Select Role (optional)' },
-                  ...roles.map(r => ({ value: r.id, label: r.name }))
+                  ...roles.map(r => ({
+                    value: r.id,
+                    label: r.country ? `${r.name} - ${r.country}` : r.name
+                  }))
                 ]}
                 placeholder='Select Role (optional)'
                 className='w-full'
@@ -1741,7 +1822,10 @@ const Settings: React.FC = () => {
                     {(() => {
                       const query = assignRoleSearch.trim().toLowerCase()
                       const filtered = roles.filter(r =>
-                        r.name.toLowerCase().includes(query)
+                        r.name.toLowerCase().includes(query) ||
+                        String(r.country || '')
+                          .toLowerCase()
+                          .includes(query)
                       )
                       const exactMatch = roles.some(
                         r => r.name.toLowerCase() === query
@@ -1760,7 +1844,9 @@ const Settings: React.FC = () => {
                                 setAssignRoleDropdownOpen(false)
                               }}
                             >
-                              {role.name}
+                              {role.country
+                                ? `${role.name} - ${role.country}`
+                                : role.name}
                             </button>
                           ))}
                           {!exactMatch && query ? (

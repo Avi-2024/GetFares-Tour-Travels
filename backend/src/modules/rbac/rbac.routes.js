@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/utils/index.js";
+import { AppError } from "../../core/errors/index.js";
+import { isSuperAdminRole } from "../../core/constants/index.js";
 
 function createRbacRoutes({
   controller,
@@ -12,11 +14,26 @@ function createRbacRoutes({
   const permissionsRouter = Router();
   const rolesRouter = Router();
 
+  const requireSuperAdmin = (req, _res, next) => {
+    const role = req.context?.user?.role;
+    if (isSuperAdminRole(role)) {
+      return next();
+    }
+    return next(
+      new AppError(
+        403,
+        "Only super admin can manage RBAC roles and permissions",
+        "RBAC_SUPERADMIN_REQUIRED",
+      ),
+    );
+  };
+
   // Backward-compatible RBAC admin endpoints
   adminRouter.post(
     "/assign",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.assignRole),
     asyncHandler(controller.assignRole),
   );
@@ -24,6 +41,7 @@ function createRbacRoutes({
     "/permissions",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.listPermissions),
     asyncHandler(controller.listPermissions),
   );
@@ -31,6 +49,7 @@ function createRbacRoutes({
     "/permissions",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.createPermission),
     asyncHandler(controller.createPermission),
   );
@@ -38,6 +57,7 @@ function createRbacRoutes({
     "/permissions/:id",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.updatePermission),
     asyncHandler(controller.updatePermission),
   );
@@ -45,6 +65,7 @@ function createRbacRoutes({
     "/roles",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.listRoles),
     asyncHandler(controller.listRoles),
   );
@@ -52,6 +73,7 @@ function createRbacRoutes({
     "/roles",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.createRole),
     asyncHandler(controller.createRole),
   );
@@ -59,6 +81,7 @@ function createRbacRoutes({
     "/roles/:id",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.updateRole),
     asyncHandler(controller.updateRole),
   );
@@ -66,6 +89,7 @@ function createRbacRoutes({
     "/roles/:id/permissions",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.updateRolePermissions),
     asyncHandler(controller.updateRolePermissions),
   );
@@ -73,6 +97,7 @@ function createRbacRoutes({
     "/roles/:id/permissions",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.rolePermissionsById),
     asyncHandler(controller.getRolePermissionsById),
   );
@@ -80,6 +105,7 @@ function createRbacRoutes({
     "/roles/:role/permissions",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.rolePermissionsByRole),
     asyncHandler(controller.getRolePermissions),
   );
@@ -87,6 +113,7 @@ function createRbacRoutes({
     "/roles/:role/permissions",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.setRolePermissions),
     asyncHandler(controller.setRolePermissions),
   );
@@ -102,6 +129,7 @@ function createRbacRoutes({
     "/",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.listPermissions),
     asyncHandler(controller.listPermissions),
   );
@@ -109,6 +137,7 @@ function createRbacRoutes({
     "/",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.createPermission),
     asyncHandler(controller.createPermission),
   );
@@ -116,6 +145,7 @@ function createRbacRoutes({
     "/:id",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.updatePermission),
     asyncHandler(controller.updatePermission),
   );
@@ -124,6 +154,7 @@ function createRbacRoutes({
     "/",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.listRoles),
     asyncHandler(controller.listRoles),
   );
@@ -131,6 +162,7 @@ function createRbacRoutes({
     "/",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.createRole),
     asyncHandler(controller.createRole),
   );
@@ -138,6 +170,7 @@ function createRbacRoutes({
     "/:id",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.updateRole),
     asyncHandler(controller.updateRole),
   );
@@ -145,6 +178,7 @@ function createRbacRoutes({
     "/:id/permissions",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.updateRolePermissions),
     asyncHandler(controller.updateRolePermissions),
   );
@@ -152,6 +186,7 @@ function createRbacRoutes({
     "/:id/permissions",
     requireAuth,
     authorize("rbac:manage"),
+    requireSuperAdmin,
     validateRequest(validation.rolePermissionsById),
     asyncHandler(controller.getRolePermissionsById),
   );
