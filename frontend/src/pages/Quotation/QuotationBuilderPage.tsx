@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -16,15 +16,6 @@ import {
   FaFloppyDisk,
   FaMobileScreen,
   FaPlus,
-<<<<<<< HEAD
-} from "react-icons/fa6";
-import SurfaceCard from "../../components/ui/SurfaceCard";
-import SearchableDropdown from "../../components/ui/SearchableDropdown";
-import { quotationsApi } from "../../api/quotations";
-import { getApiErrorMessage } from "../../api/apiClient";
-import { useAuth } from "../../context/AuthContext";
-import { useLeadsService } from "../../hooks/useLeadsService";
-=======
   FaPencil,
   FaTrash
 } from 'react-icons/fa6'
@@ -35,7 +26,6 @@ import { quotationsApi } from '../../api/quotations'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 import { useLeadsService } from '../../hooks/useLeadsService'
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
 type Currency = "USD" | "EUR" | "INR";
 type SavedQuote = {
@@ -237,33 +227,6 @@ const initialItinerary: Item[] = [
 ];
 
 const QuotationBuilderPage: React.FC = () => {
-<<<<<<< HEAD
-  const navigate = useNavigate();
-  const { token } = useAuth();
-  const leadsService = useLeadsService();
-  const [showPreview, setShowPreview] = useState(true);
-  const [mobile, setMobile] = useState(false);
-  const [currency, setCurrency] = useState<Currency>("INR");
-  const [leads, setLeads] = useState<LeadOption[]>([]);
-  const [leadsLoading, setLeadsLoading] = useState(false);
-  const [leadsError, setLeadsError] = useState("");
-  const [selectedLeadId, setSelectedLeadId] = useState("");
-  const [templates, setTemplates] = useState<TemplateOption[]>([]);
-  const [templatesLoading, setTemplatesLoading] = useState(false);
-  const [templatesError, setTemplatesError] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [showCustomTemplateFields, setShowCustomTemplateFields] =
-    useState(false);
-  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
-  const [customTemplateForm, setCustomTemplateForm] = useState({
-    code: "",
-    name: "",
-    templateType: "CUSTOM_ITINERARY" as TemplateType,
-    minMarginPercent: 0,
-  });
-  const [saveError, setSaveError] = useState("");
-  const [saving, setSaving] = useState(false);
-=======
   const navigate = useNavigate()
   const { token } = useAuth()
   const leadsService = useLeadsService()
@@ -283,21 +246,12 @@ const QuotationBuilderPage: React.FC = () => {
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
     {},
   );
   const [createQuotationFlag, setCreateQuotationFlag] = useState(true);
   const [quotationPayload, setQuotationPayload] = useState({});
   const [form, setForm] = useState({
-<<<<<<< HEAD
-    quote: "",
-    version: "Draft",
-    customer: "",
-    email: "",
-    destination: "",
-    startDate: "",
-=======
     quote: '',
     version: 'Draft',
     quotationTitle: '',
@@ -305,27 +259,9 @@ const QuotationBuilderPage: React.FC = () => {
     email: '',
     destination: '',
     startDate: '',
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     nights: 1,
     durationDays: '2',
     adults: 1,
-<<<<<<< HEAD
-    validUntil: "",
-    inclusions: "",
-    exclusions: "",
-    headerBranding: "",
-    paymentTerms: "",
-    cancellationPolicy: "",
-    footerDisclaimer: "",
-    termsAndConditions: "",
-  });
-  const [downloading, setDownloading] = useState(false);
-  const [showSaved, setShowSaved] = useState(false);
-  const [itineraryItems, setItineraryItems] =
-    useState<Item[]>(initialItinerary);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showAddOnModal, setShowAddOnModal] = useState(false);
-=======
     validUntil: '',
     inclusions: '',
     exclusions: '',
@@ -343,27 +279,17 @@ const QuotationBuilderPage: React.FC = () => {
   )
   const [showAddModal, setShowAddModal] = useState(false)
   const [showAddOnModal, setShowAddOnModal] = useState(false)
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
   const [newItem, setNewItem] = useState<{
     day: string;
     title: string;
     description: string;
   }>({
-<<<<<<< HEAD
-    day: "Day 3",
-    title: "",
-    description: "",
-  });
-  const [packageType, setPackageType] = useState("Leisure");
-  const [services, setServices] = useState<Record<ServiceKey, boolean>>({
-=======
     day: 'Day 3',
     title: '',
     description: ''
   })
   const [packageType] = useState('Leisure')
   const [services] = useState<Record<ServiceKey, boolean>>({
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     hotel: true,
     flights: true,
     tours: true,
@@ -375,28 +301,6 @@ const QuotationBuilderPage: React.FC = () => {
     markupPercent: 12,
     serviceFee: 120,
     taxPercent: 5,
-<<<<<<< HEAD
-    discount: 0,
-  });
-  const [addOnServices, setAddOnServices] = useState<
-    {
-      id: string;
-      name: string;
-      weight: number;
-      baseCost: number;
-      markup: number;
-      sellValue: number;
-    }[]
-  >([]);
-  const [addOnDraft, setAddOnDraft] = useState({
-    name: "",
-    weight: "",
-    baseCost: "",
-    markup: "",
-    sellValue: "",
-  });
-  const previewRef = useRef<HTMLDivElement | null>(null);
-=======
     discount: 0
   })
   const [addOnServices, setAddOnServices] = useState<AddOnService[]>([])
@@ -417,7 +321,6 @@ const QuotationBuilderPage: React.FC = () => {
     }>
   >({})
   const previewRef = useRef<HTMLDivElement | null>(null)
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   const selectedLead = useMemo(
     () => leads.find((lead) => lead.id === selectedLeadId) || null,
@@ -487,18 +390,6 @@ const QuotationBuilderPage: React.FC = () => {
     [templates],
   );
 
-<<<<<<< HEAD
-  const packageTypeOptions = useMemo(
-    () =>
-      ["Leisure", "Corporate", "Group", "Visa Only", "Insurance Only"].map(
-        (item) => ({
-          value: item,
-          label: item,
-        }),
-      ),
-    [],
-  );
-=======
   const supplierDropdownOptions = useMemo(
     () => [
       { value: '', label: 'Select a supplier' },
@@ -514,7 +405,6 @@ const QuotationBuilderPage: React.FC = () => {
     () => suppliers.find(supplier => supplier.id === selectedSupplierId) || null,
     [selectedSupplierId, suppliers]
   )
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   const currencyOptions = useMemo(
     () => [
@@ -574,33 +464,6 @@ const QuotationBuilderPage: React.FC = () => {
   );
 
   const serviceCostRows = useMemo<ServiceCostRow[]>(() => {
-<<<<<<< HEAD
-    const activeDefinitions = selectedServiceDefinitions;
-    if (!activeDefinitions.length) {
-      return [];
-    }
-    const totalWeight = activeDefinitions.reduce(
-      (sum, definition) => sum + definition.weight,
-      0,
-    );
-    const supplierCost = Number(costs.supplierCost) || 0;
-    const markupPercent = Number(costs.markupPercent) || 0;
-
-    let allocatedCost = 0;
-
-    return activeDefinitions.map((definition, index) => {
-      const isLast = index === activeDefinitions.length - 1;
-      const weightedCost =
-        totalWeight ? (supplierCost * definition.weight) / totalWeight : 0;
-      const baseCost = Number(
-        (isLast ? supplierCost - allocatedCost : weightedCost).toFixed(2),
-      );
-      allocatedCost = Number((allocatedCost + baseCost).toFixed(2));
-      const markupAmount = Number(
-        ((baseCost * markupPercent) / 100).toFixed(2),
-      );
-      const sellValue = Number((baseCost + markupAmount).toFixed(2));
-=======
     const activeDefinitions = selectedServiceDefinitions
     if (!activeDefinitions.length) return []
 
@@ -669,7 +532,6 @@ const QuotationBuilderPage: React.FC = () => {
       const finalSell = (overrideSell !== undefined && overrideSell !== '' && !isNaN(Number(overrideSell)))
         ? Number(overrideSell)
         : computedSell
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
       return {
         ...definition,
@@ -677,17 +539,10 @@ const QuotationBuilderPage: React.FC = () => {
         baseCost,
         markupPercent: effectiveMarkup,
         markupAmount,
-<<<<<<< HEAD
-        sellValue,
-      };
-    });
-  }, [costs.markupPercent, costs.supplierCost, selectedServiceDefinitions]);
-=======
         sellValue: finalSell
       }
     })
   }, [costs.markupPercent, costs.supplierCost, selectedServiceDefinitions, serviceOverrides])
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   useEffect(() => {
     const loadDestinations = async () => {
@@ -757,34 +612,22 @@ const QuotationBuilderPage: React.FC = () => {
     } finally {
       setTemplatesLoading(false);
     }
-<<<<<<< HEAD
-  }, [token]);
-=======
 
-    void loadTemplates()
   }, [token])
 
   const [packages, setPackages] = useState<any[]>([])
   const [packagesLoading, setPackagesLoading] = useState(false)
   const [selectedPackageId, setSelectedPackageId] = useState('')
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   useEffect(() => {
     void loadTemplates();
   }, [loadTemplates]);
 
-  const [packages, setPackages] = useState<any[]>([]);
-  const [packagesLoading, setPackagesLoading] = useState(false);
-
   useEffect(() => {
     if (!token) return;
     setPackagesLoading(true);
     quotationsApi
-<<<<<<< HEAD
-      .listPackages({ status: "PUBLISHED", limit: 100 })
-=======
       .listPackages({ limit: 200 })
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
       .then((res: any) => {
         const list = res?.data?.data ?? res?.data ?? res ?? [];
         setPackages(Array.isArray(list) ? list : []);
@@ -795,16 +638,9 @@ const QuotationBuilderPage: React.FC = () => {
 
   const packageOptions = useMemo(
     () => [
-<<<<<<< HEAD
-      { value: "", label: "Select a ready package..." },
-      ...packages.map((pkg: any) => ({
-        value: pkg.id,
-        label: `${pkg.name || pkg.title || "Package"} — ${pkg.destination || ""}`,
-      })),
-=======
       {
         value: '',
-        label: 'No package — fill quotation manually',
+        label: 'No package - fill quotation manually',
         searchText: 'manual none'
       },
       ...packages.map((pkg: any) => {
@@ -815,51 +651,15 @@ const QuotationBuilderPage: React.FC = () => {
             : 'Ready'
         return {
           value: pkg.id,
-          label: `${pkg.name || pkg.title || 'Package'} — ${pkg.destination || ''}`,
+          label: `${pkg.name || pkg.title || 'Package'} - ${pkg.destination || ''}`,
           searchText: `${pkg.name} ${pkg.destination} ${kind}`,
           rightLabel: kind
         }
       })
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     ],
     [packages],
   );
 
-<<<<<<< HEAD
-  const loadFromPackage = (packageId: string) => {
-    const pkg = packages.find((p: any) => p.id === packageId);
-    if (!pkg) return;
-    setForm((prev) => ({
-      ...prev,
-      destination: pkg.destination || pkg.destinationName || prev.destination,
-      nights: pkg.nights ?? pkg.duration ?? prev.nights,
-      inclusions: pkg.inclusions || prev.inclusions,
-      exclusions: pkg.exclusions || prev.exclusions,
-      termsAndConditions:
-        pkg.terms || pkg.termsAndConditions || prev.termsAndConditions,
-      paymentTerms: pkg.paymentTerms || prev.paymentTerms,
-      cancellationPolicy: pkg.cancellationPolicy || prev.cancellationPolicy,
-      priceValidity: pkg.priceValidity || prev.priceValidity,
-    }));
-    if (Array.isArray(pkg.services) && pkg.services.length > 0) {
-      setServiceCostRows(
-        pkg.services.map((svc: any, idx: number) => ({
-          id: `pkg-${idx}`,
-          type: svc.type || svc.itemType || "OTHER",
-          description: svc.description || svc.name || "",
-          nights: svc.nights ?? 1,
-          costPerUnit: Number(svc.cost ?? svc.costPerUnit ?? 0),
-          markupPercent: Number(svc.markup ?? svc.markupPercent ?? 0),
-          markupAmount: 0,
-          sellValue: 0,
-        })),
-      );
-    }
-  };
-
-  useEffect(() => {
-    if (!selectedLead) return;
-=======
   const selectedPackage = useMemo(
     () =>
       packages.find((pkg: any) => String(pkg.id ?? '') === selectedPackageId) ||
@@ -1083,7 +883,6 @@ const QuotationBuilderPage: React.FC = () => {
 
   useEffect(() => {
     if (!selectedLead) return
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
     const resolvedDestination =
       typeof selectedLead.destination === "string" ?
@@ -1173,25 +972,13 @@ const QuotationBuilderPage: React.FC = () => {
       alert("Please fill all add-on fields with valid values.");
       return;
     }
-<<<<<<< HEAD
-    setAddOnServices((prev) => [
-      ...prev,
-      {
-        id: `addon-${Date.now()}`,
-=======
     if (editingAddOnId) {
       setAddOnServices(prev => prev.map(s => s.id === editingAddOnId ? {
         id: s.id,
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
         name,
         weight,
         baseCost,
         markup,
-<<<<<<< HEAD
-        sellValue,
-      },
-    ]);
-=======
         sellValue
       } : s))
       setEditingAddOnId(null)
@@ -1208,7 +995,6 @@ const QuotationBuilderPage: React.FC = () => {
         }
       ])
     }
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     setAddOnDraft({
       name: "",
       weight: "",
@@ -1481,30 +1267,6 @@ const QuotationBuilderPage: React.FC = () => {
     const supplierName = selectedSupplier?.name?.trim() || ''
 
     const sections = [
-<<<<<<< HEAD
-      `Trip Summary:\nDestination: ${form.destination || "N/A"}\nTravel Date: ${
-        form.startDate || "N/A"
-      }\nNights: ${form.nights}\nAdults: ${
-        form.adults
-      }\nPackage Type: ${packageType}`,
-      enabledServices ? `Enabled Services:\n${enabledServices}` : "",
-      itinerarySummary ? `Itinerary:\n${itinerarySummary}` : "",
-      form.headerBranding.trim() ?
-        `Header Branding:\n${form.headerBranding.trim()}`
-      : "",
-      form.inclusions.trim() ? `Inclusions:\n${form.inclusions.trim()}` : "",
-      form.exclusions.trim() ? `Exclusions:\n${form.exclusions.trim()}` : "",
-      form.paymentTerms.trim() ?
-        `Payment Terms:\n${form.paymentTerms.trim()}`
-      : "",
-      form.cancellationPolicy.trim() ?
-        `Cancellation Policy:\n${form.cancellationPolicy.trim()}`
-      : "",
-      form.footerDisclaimer.trim() ?
-        `Footer Disclaimer:\n${form.footerDisclaimer.trim()}`
-      : "",
-    ].filter(Boolean);
-=======
       `Trip Summary:\nQuote Reference: ${
         form.quote || 'N/A'
       }\nQuotation Title: ${
@@ -1539,26 +1301,11 @@ const QuotationBuilderPage: React.FC = () => {
         ? `Footer Disclaimer:\n${form.footerDisclaimer.trim()}`
         : ''
     ].filter(Boolean)
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
     if (!sections.length) return undefined;
     return sections.join("\n\n").slice(0, 3900);
   };
 
-<<<<<<< HEAD
-  const handleSave = async () => {
-    setSaveError("");
-
-    // Validate template fields if "Save as Template" is checked
-    if (saveAsTemplate && showCustomTemplateFields) {
-      if (!customTemplateForm.code.trim() || !customTemplateForm.name.trim()) {
-        setSaveError(
-          "Template code and name are required when saving as template",
-        );
-        return;
-      }
-    }
-=======
   const buildBuilderSnapshot = () => {
     const travelEndDate = toDateInputValue(form.startDate, form.nights)
 
@@ -1698,26 +1445,17 @@ const QuotationBuilderPage: React.FC = () => {
 
   const handleSave = () => {
     setSaveError('')
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
     if (!token) {
       const newQuote: SavedQuote = {
         id: String(Date.now()),
-<<<<<<< HEAD
-        quoteNumber: form.quote || "Draft",
-        customer: form.customer || "Unnamed Customer",
-        email: form.email || "New Lead",
-        destination: form.destination || "Destination",
-        details: `${form.nights} nights - ${packageType}`,
-=======
         quoteNumber: form.quote || 'Draft',
         customer: form.customer || 'Unnamed Customer',
         email: form.email || 'New Lead',
         destination: form.destination || 'Destination',
         details: [quotationTitleDisplay, previewDurationLabel || `${form.nights} nights`]
           .filter(Boolean)
-          .join(' • '),
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
+          .join(' â€¢ '),
         total: computed.totalPrice,
         margin: Number(computed.margin.toFixed(1)),
         status: "pending",
@@ -1745,72 +1483,6 @@ const QuotationBuilderPage: React.FC = () => {
       return;
     }
 
-<<<<<<< HEAD
-    if (!selectedServiceDefinitions.length) {
-      setSaveError("Select at least one service in Package Builder.");
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      let templateIdToUse = selectedTemplateId;
-
-      // Create template first if checkbox is checked
-      if (saveAsTemplate && showCustomTemplateFields) {
-        const templatePayload = {
-          code: customTemplateForm.code.trim().toUpperCase(),
-          name: customTemplateForm.name.trim(),
-          templateType: customTemplateForm.templateType,
-          minMarginPercent: Number(customTemplateForm.minMarginPercent || 0),
-          isActive: true,
-          headerBranding: form.headerBranding.trim() || undefined,
-          inclusions: form.inclusions.trim() || undefined,
-          exclusions: form.exclusions.trim() || undefined,
-          paymentTerms: form.paymentTerms.trim() || undefined,
-          cancellationPolicy: form.cancellationPolicy.trim() || undefined,
-          footerDisclaimer: form.footerDisclaimer.trim() || undefined,
-        };
-
-        const templateResponse =
-          await quotationsApi.createTemplate(templatePayload);
-        const newTemplateId =
-          (templateResponse as any)?.data?.id || (templateResponse as any)?.id;
-
-        if (newTemplateId) {
-          templateIdToUse = newTemplateId;
-          await loadTemplates();
-        }
-      }
-
-      // Now save the quotation
-      const supplier = Number(costs.supplierCost) || 0;
-      const serviceFee = Number(costs.serviceFee) || 0;
-      const components = [
-        ...serviceCostRows.map((row) => ({
-          itemType: row.itemType,
-          description: `${row.label}${
-            form.destination ? ` - ${form.destination}` : ""
-          }`,
-          cost: row.baseCost,
-        })),
-        ...(serviceFee ?
-          [
-            {
-              itemType: "OTHER",
-              description: "Service Fee",
-              cost: Number(serviceFee.toFixed(2)),
-            },
-          ]
-        : []),
-      ];
-
-      const taxPercent = Number(costs.taxPercent) || 0;
-      const discount = Number(costs.discount) || 0;
-      const markupAmount =
-        Number(costs.supplierCost || 0) *
-        (Number(costs.markupPercent || 0) / 100);
-=======
     const supplier = Number(costs.supplierCost) || 0
     const serviceFee = Number(costs.serviceFee) || 0
     const totalSupplierCost = Number((supplier + addOnBaseCostTotal).toFixed(2))
@@ -1846,7 +1518,6 @@ const QuotationBuilderPage: React.FC = () => {
 
     const taxPercent = Number(costs.taxPercent) || 0
     const discount = Number(costs.discount) || 0
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
       const expiresInHours = (() => {
         if (!form.validUntil) return undefined;
@@ -1856,41 +1527,6 @@ const QuotationBuilderPage: React.FC = () => {
         return Math.min(hours, 720);
       })();
 
-<<<<<<< HEAD
-      const payload = {
-        leadId: selectedLeadId,
-        ...(templateIdToUse && templateIdToUse !== "CUSTOM" ?
-          { templateId: templateIdToUse }
-        : {}),
-        components,
-        marginPercent: Number(costs.markupPercent) || 0,
-        discount,
-        taxPercent,
-        supplierCost: supplier,
-        markupAmount,
-        serviceFeeAmount: serviceFee,
-        taxAmount: Number(computed.taxVal) || 0,
-        costCurrency: currency,
-        clientCurrency: currency,
-        supplierCurrency: currency,
-        importantNotes: buildImportantNotes(),
-        ...(expiresInHours ? { expiresInHours } : {}),
-      };
-
-      await quotationsApi.create(payload);
-      setShowSaved(true);
-      setTimeout(() => navigate("/quotations"), 1200);
-    } catch (error) {
-      console.error("Failed to save quotation:", error);
-      setSaveError(
-        getApiErrorMessage(
-          error,
-          "Failed to save quotation. Please try again.",
-        ),
-      );
-    } finally {
-      setSaving(false);
-=======
     const payload = {
       leadId: selectedLeadId,
       ...(selectedTemplateId ? { templateId: selectedTemplateId } : {}),
@@ -1908,7 +1544,6 @@ const QuotationBuilderPage: React.FC = () => {
       importantNotes: buildImportantNotes(),
       builderSnapshot: buildBuilderSnapshot(),
       ...(expiresInHours ? { expiresInHours } : {})
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
     }
   };
 
@@ -2027,15 +1662,10 @@ const QuotationBuilderPage: React.FC = () => {
                         searchPlaceholder="Search quotation template..."
                         onChange={(nextId) => {
                           setSelectedTemplateId(nextId);
-                          if (nextId === "CUSTOM") {
-                            setShowCustomTemplateFields(true);
-                          } else {
-                            setShowCustomTemplateFields(false);
-                            const template =
-                              templates.find((item) => item.id === nextId) ||
-                              null;
-                            applyTemplateDefaults(template);
-                          }
+                          const template =
+                            templates.find((item) => item.id === nextId) ||
+                            null;
+                          applyTemplateDefaults(template);
                         }}
                       />
                     </div>
@@ -2058,117 +1688,12 @@ const QuotationBuilderPage: React.FC = () => {
                       {templatesError}
                     </p>
                   : null}
-                  {selectedTemplate ?
+                  {selectedTemplate ? (
                     <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
                       Selected: {selectedTemplate.name} (
                       {selectedTemplate.templateType}) - Min margin{" "}
                       {selectedTemplate.minMarginPercent}%
                     </p>
-<<<<<<< HEAD
-                  : null}
-                  {showCustomTemplateFields ?
-                    <div className="mt-3 space-y-3 rounded-lg border border-purple-200 bg-purple-50/30 p-3 dark:border-purple-800 dark:bg-purple-900/10">
-                      <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">
-                        Custom Template Details
-                      </p>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div>
-                          <label className="field-label">Template Code</label>
-                          <input
-                            className="field-input"
-                            value={customTemplateForm.code}
-                            onChange={(e) =>
-                              setCustomTemplateForm((p) => ({
-                                ...p,
-                                code: e.target.value,
-                              }))
-                            }
-                            placeholder="e.g., CUSTOM-001"
-                          />
-                        </div>
-                        <div>
-                          <label className="field-label">Template Name</label>
-                          <input
-                            className="field-input"
-                            value={customTemplateForm.name}
-                            onChange={(e) =>
-                              setCustomTemplateForm((p) => ({
-                                ...p,
-                                name: e.target.value,
-                              }))
-                            }
-                            placeholder="e.g., My Custom Template"
-                          />
-                        </div>
-                        <div>
-                          <label className="field-label">Template Type</label>
-                          <SearchableDropdown
-                            value={customTemplateForm.templateType}
-                            options={[
-                              {
-                                value: "READY_PACKAGE",
-                                label: "READY_PACKAGE",
-                              },
-                              { value: "VISA", label: "VISA" },
-                              {
-                                value: "CUSTOM_ITINERARY",
-                                label: "CUSTOM_ITINERARY",
-                              },
-                            ]}
-                            searchPlaceholder="Select type..."
-                            onChange={(value) =>
-                              setCustomTemplateForm((p) => ({
-                                ...p,
-                                templateType: value as TemplateType,
-                              }))
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="field-label">Min Margin %</label>
-                          <input
-                            type="number"
-                            className="field-input"
-                            value={customTemplateForm.minMarginPercent}
-                            onChange={(e) =>
-                              setCustomTemplateForm((p) => ({
-                                ...p,
-                                minMarginPercent: Number(e.target.value || 0),
-                              }))
-                            }
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
-                      <label className="inline-flex items-center gap-2 text-sm text-purple-700 dark:text-purple-300">
-                        <input
-                          type="checkbox"
-                          checked={saveAsTemplate}
-                          onChange={(e) => setSaveAsTemplate(e.target.checked)}
-                          className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        Save this quotation as template
-                      </label>
-                    </div>
-                  : null}
-                </div>
-
-                <div className="md:col-span-2 rounded-xl border border-green-200 bg-green-50/30 p-3 dark:border-green-800 dark:bg-green-900/10">
-                  <label className="field-label text-green-700 dark:text-green-300">
-                    Load from Ready Package
-                  </label>
-                  <p className="mb-2 text-[11px] text-green-600 dark:text-green-400">
-                    Pre-costed packages with fixed markup. Select to auto-fill
-                    destination, services, inclusions & exclusions.
-                  </p>
-                  <SearchableDropdown
-                    value=""
-                    options={packageOptions}
-                    disabled={packagesLoading}
-                    searchPlaceholder="Search ready packages..."
-                    onChange={(pkgId) => {
-                      if (pkgId) loadFromPackage(pkgId);
-=======
                   ) : null}
 
                   <div>
@@ -2207,7 +1732,6 @@ const QuotationBuilderPage: React.FC = () => {
                     onChange={pkgId => {
                       setSelectedPackageId(pkgId)
                       if (pkgId) void loadFromPackage(pkgId)
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                     }}
                   />
                   {packagesLoading ?
@@ -2218,16 +1742,12 @@ const QuotationBuilderPage: React.FC = () => {
                 </div>
 
                 <Field
-<<<<<<< HEAD
-                  label="Customer"
-=======
                   label='Quotation / Package Title'
                   value={form.quotationTitle}
                   onChange={v => setForm(p => ({ ...p, quotationTitle: v }))}
                 />
                 <Field
                   label='Customer'
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                   value={form.customer}
                   onChange={(v) => setForm((p) => ({ ...p, customer: v }))}
                 />
@@ -2269,20 +1789,6 @@ const QuotationBuilderPage: React.FC = () => {
                   />
                 </div>
                 <div>
-<<<<<<< HEAD
-                  <label className="field-label">Nights</label>
-                  <input
-                    type="number"
-                    className="field-input"
-                    value={form.nights}
-                    onChange={(e) =>
-                      setForm((p) => ({
-                        ...p,
-                        nights: Number(e.target.value || 1),
-                      }))
-                    }
-                  />
-=======
                   <label className='field-label'>Duration</label>
                   <div className='grid grid-cols-2 gap-2'>
                     <input
@@ -2316,7 +1822,6 @@ const QuotationBuilderPage: React.FC = () => {
                     Duration saves with the quotation itself as{' '}
                     {previewDurationLabel || '0N/0D'}.
                   </p>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                 </div>
                 <div>
                   <label className="field-label">Adults</label>
@@ -2335,65 +1840,6 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
 
-<<<<<<< HEAD
-            <SurfaceCard>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  Package Builder
-                </h2>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Select scope & services
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="field-label">Package Type</label>
-                  <SearchableDropdown
-                    value={packageType}
-                    options={packageTypeOptions}
-                    searchPlaceholder="Search package type..."
-                    onChange={setPackageType}
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {SERVICE_DEFINITIONS.map((service) => (
-                    <button
-                      key={service.key}
-                      onClick={() =>
-                        setServices((prev) => ({
-                          ...prev,
-                          [service.key]: !prev[service.key],
-                        }))
-                      }
-                      className={`px-3 py-2 text-xs rounded-lg border ${
-                        services[service.key] ?
-                          "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200"
-                        : "bg-white border-gray-200 text-gray-600 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300"
-                      }`}
-                    >
-                      {service.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
-                {selectedServiceDefinitions.map((definition) => (
-                  <div
-                    key={definition.key}
-                    className="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
-                  >
-                    <p className="text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      {definition.itemType}
-                    </p>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {definition.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </SurfaceCard>
-=======
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
             <SurfaceCard>
               <div className="mb-3 flex items-center justify-between">
@@ -2460,37 +1906,6 @@ const QuotationBuilderPage: React.FC = () => {
               </div>
             </SurfaceCard>
             <SurfaceCard>
-<<<<<<< HEAD
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  Itinerary Items
-                </h2>
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300"
-                >
-                  <FaPlus className="mr-1 inline" /> Add Item
-                </button>
-              </div>
-              <div className="space-y-3">
-                {itineraryItems.map((i) => (
-                  <div
-                    key={i.id}
-                    className="rounded-xl border border-gray-200 p-3 dark:border-gray-700"
-                  >
-                    <div className="mb-1 flex items-center gap-2">
-                      <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                        {i.day}
-                      </span>
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {i.title}
-                      </h3>
-                    </div>
-                    <p className="text-xs text-gray-500">{i.description}</p>
-                  </div>
-                ))}
-              </div>
-=======
               <div className='mb-4'>
                 <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
                   Itinerary Items
@@ -2552,7 +1967,6 @@ const QuotationBuilderPage: React.FC = () => {
                   ))}
                 </div>
               )}
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
             </SurfaceCard>
             <SurfaceCard>
               <div className="mb-3 flex items-start justify-between gap-3">
@@ -2560,14 +1974,8 @@ const QuotationBuilderPage: React.FC = () => {
                   <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                     Pricing Breakdown
                   </h2>
-<<<<<<< HEAD
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Auto generated from Supplier Cost, Markup, Service Fee, Tax,
-                    and Discount.
-=======
                   <p className='text-xs text-gray-500 dark:text-gray-400'>
                     Edit any field to recalculate all values automatically.
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                   </p>
                 </div>
                 <SearchableDropdown
@@ -2611,45 +2019,6 @@ const QuotationBuilderPage: React.FC = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-<<<<<<< HEAD
-                    <tr className="border-b border-gray-200 text-gray-500 dark:border-gray-700">
-                      <th className="py-2 text-left">Service</th>
-                      <th className="py-2 text-right">Weight</th>
-                      <th className="py-2 text-right">Base Cost</th>
-                      <th className="py-2 text-right">Markup</th>
-                      <th className="py-2 text-right">Sell Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {serviceCostRows.map((row) => (
-                      <tr
-                        key={row.key}
-                        className="border-b border-gray-100 dark:border-gray-800"
-                      >
-                        <td className="py-2">{row.label}</td>
-                        <td className="py-2 text-right text-gray-500">
-                          {row.weight}%
-                        </td>
-                        <td className="py-2 text-right">
-                          {money(row.baseCost)}
-                        </td>
-                        <td className="py-2 text-right text-green-600">
-                          {row.markupPercent.toFixed(1)}%
-                          <span className="ml-1 text-[11px] text-green-500">
-                            ({money(row.markupAmount)})
-                          </span>
-                        </td>
-                        <td className="py-2 text-right font-medium">
-                          {money(row.sellValue)}
-                        </td>
-                      </tr>
-                    ))}
-                    {!serviceCostRows.length ?
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="py-3 text-center text-xs text-gray-500"
-=======
                     <tr className='border-b border-gray-200 text-gray-500 dark:border-gray-700'>
                       <th className='py-2 text-left'>Service</th>
                       <th className='py-2 text-right text-[11px]'>
@@ -2863,24 +2232,17 @@ const QuotationBuilderPage: React.FC = () => {
                         <td
                           colSpan={6}
                           className='py-3 text-center text-xs text-gray-500'
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                         >
                           Enable services in the Cost &amp; Profit section to see the breakdown.
                         </td>
                       </tr>
-                    : null}
+                    ) : null}
                   </tbody>
                 </table>
               </div>
-<<<<<<< HEAD
-              <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-=======
               <div className='mt-4 rounded-xl border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
                 <div className='mb-2 flex items-center justify-between'>
                   <h3 className='text-sm font-semibold text-gray-800 dark:text-gray-100'>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                     Add-on Services
                   </h3>
                   <button
@@ -2890,16 +2252,6 @@ const QuotationBuilderPage: React.FC = () => {
                     <FaPlus className="mr-1 inline" /> Add Service
                   </button>
                 </div>
-<<<<<<< HEAD
-                {addOnServices.length ?
-                  <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                    <div className="grid grid-cols-5 gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                      <span>Service</span>
-                      <span className="text-right">Weight</span>
-                      <span className="text-right">Base Cost</span>
-                      <span className="text-right">Markup</span>
-                      <span className="text-right">Sell Value</span>
-=======
                 {addOnServices.length ? (
                   <div className='space-y-2 text-xs text-gray-600 dark:text-gray-300'>
                     <div className='grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
@@ -2909,26 +2261,10 @@ const QuotationBuilderPage: React.FC = () => {
                       <span className='text-right w-20'>Markup</span>
                       <span className='text-right w-20'>Sell Value</span>
                       <span className='text-right w-16'>Actions</span>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                     </div>
                     {addOnServices.map((service) => (
                       <div
                         key={service.id}
-<<<<<<< HEAD
-                        className="grid grid-cols-5 items-center gap-2"
-                      >
-                        <span>{service.name}</span>
-                        <span className="text-right">
-                          {Number(service.weight || 0).toFixed(1)}%
-                        </span>
-                        <span className="text-right">
-                          {money(Number(service.baseCost) || 0)}
-                        </span>
-                        <span className="text-right">
-                          {money(Number(service.markup) || 0)}
-                        </span>
-                        <span className="text-right font-medium text-gray-800 dark:text-gray-100">
-=======
                         className='grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-2'
                       >
                         <span>{service.name}</span>
@@ -2942,7 +2278,6 @@ const QuotationBuilderPage: React.FC = () => {
                           {money(Number(service.markup) || 0)}
                         </span>
                         <span className='text-right w-20 font-medium text-gray-800 dark:text-gray-100'>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                           {money(Number(service.sellValue) || 0)}
                         </span>
                         <div className='flex gap-1'>
@@ -2972,55 +2307,16 @@ const QuotationBuilderPage: React.FC = () => {
                       <span>{money(serviceChargesTotal)}</span>
                     </div>
                   </div>
-                : <div className="space-y-2 text-xs text-gray-500">
+                ) : (
+                  <div className="space-y-2 text-xs text-gray-500">
                     <p>No add-on services added yet.</p>
                     <div className="flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100">
                       <span>Services Total</span>
                       <span>{money(serviceChargesTotal)}</span>
                     </div>
                   </div>
-                }
+                )}
               </div>
-<<<<<<< HEAD
-              <div className="mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800">
-                <div className="mb-1 flex justify-between text-xs text-gray-500">
-                  <span>Supplier Cost</span>
-                  <span>{money(computed.supplier)}</span>
-                </div>
-                <div className="mb-1 flex justify-between text-xs text-gray-500">
-                  <span>Total Markup</span>
-                  <span>
-                    {money(totalMarkupFromServices || computed.markupVal)}
-                  </span>
-                </div>
-                <div className="mb-1 flex justify-between text-xs text-gray-500">
-                  <span>Service Fee</span>
-                  <span>{money(computed.serviceFee)}</span>
-                </div>
-                {addOnTotal ?
-                  <div className="mb-1 flex justify-between text-xs text-gray-500">
-                    <span>Add-on Services</span>
-                    <span>{money(addOnTotal)}</span>
-                  </div>
-                : null}
-                <div className="mb-1 flex justify-between text-xs text-gray-500">
-                  <span>Subtotal</span>
-                  <span>{money(subtotal)}</span>
-                </div>
-                <div className="mb-1 flex justify-between text-xs text-gray-500">
-                  <span>Taxes ({costs.taxPercent}%)</span>
-                  <span>{money(taxes)}</span>
-                </div>
-                {costs.discount ?
-                  <div className="mb-1 flex justify-between text-xs text-gray-500">
-                    <span>Discount</span>
-                    <span>-{money(costs.discount)}</span>
-                  </div>
-                : null}
-                <div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold">
-                  <span>Total</span>
-                  <span className="text-blue-600">{money(total)}</span>
-=======
                       <div className='rounded-xl bg-gray-50 p-3 dark:bg-gray-800'>
                 <div className='space-y-2'>
                   <div className='flex justify-between items-center text-xs'>
@@ -3101,7 +2397,6 @@ const QuotationBuilderPage: React.FC = () => {
                     <span>Total</span>
                     <span className='text-blue-600'>{money(total)}</span>
                   </div>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                 </div>
               </div>
             </SurfaceCard>
@@ -3183,10 +2478,6 @@ const QuotationBuilderPage: React.FC = () => {
                     placeholder="Cancellation and refund terms"
                   />
                 </div>
-<<<<<<< HEAD
-                <div className="md:col-span-2">
-                  <label className="field-label">Footer Disclaimer</label>
-=======
                 <div>
                   <label className='field-label'>Hotel details</label>
                   <textarea
@@ -3219,7 +2510,6 @@ const QuotationBuilderPage: React.FC = () => {
                 </div>
                 <div className='md:col-span-2'>
                   <label className='field-label'>Footer Disclaimer</label>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                   <textarea
                     rows={2}
                     className="field-input"
@@ -3286,17 +2576,6 @@ const QuotationBuilderPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg">
                         <img
-<<<<<<< HEAD
-                          src="/logo1.png"
-                          alt="Get2Vacation"
-                          className="h-8 w-6"
-                        />
-                      </div>
-                      <div>
-                        <p className="font-semibold">Get2Vacation Travel CRM</p>
-                        <p className="text-xs text-gray-500">
-                          support@Get2Vacation.com
-=======
                           src='/logo1.png'
                           alt='Get2Vacations'
                           className='h-8 w-6'
@@ -3306,7 +2585,6 @@ const QuotationBuilderPage: React.FC = () => {
                         <p className='font-semibold'>Get2Vacations Travel CRM</p>
                         <p className='text-xs text-gray-500'>
                           support@Get2Vacations.com
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                         </p>
                       </div>
                     </div>
@@ -3333,16 +2611,6 @@ const QuotationBuilderPage: React.FC = () => {
                       </span>
                     </p>
                     <p>
-<<<<<<< HEAD
-                      Package:{" "}
-                      <span className="font-semibold text-gray-700">
-                        {packageType}
-                      </span>
-                    </p>
-                    <p className="text-right">
-                      Services:{" "}
-                      <span className="font-semibold text-gray-700">
-=======
                       Package Type:{' '}
                       <span className='font-semibold text-gray-700'>
                         {packageType}
@@ -3363,7 +2631,6 @@ const QuotationBuilderPage: React.FC = () => {
                     <p className='text-right'>
                       Services:{' '}
                       <span className='font-semibold text-gray-700'>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                         {selectedServiceDefinitions.length}
                       </span>
                     </p>
@@ -3395,14 +2662,9 @@ const QuotationBuilderPage: React.FC = () => {
                           {form.email || "guest@email.com"}
                         </p>
                       </div>
-<<<<<<< HEAD
-                      <div className="text-right text-xs text-gray-500">
-                        <p>{form.destination || "Destination"}</p>
-=======
                       <div className='text-right text-xs text-gray-500'>
                         <p>{form.destination || 'Destination'}</p>
                         <p>Duration: {previewDurationLabel || 'N/A'}</p>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                         <p>
                           Travellers: {travellerLabel}
                         </p>
@@ -3424,10 +2686,6 @@ const QuotationBuilderPage: React.FC = () => {
                     </div>
                   </div>
 
-<<<<<<< HEAD
-                  <div className="mb-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-=======
                   {quotationTitleDisplay ||
                   selectedPackageKindLabel ? (
                     <div className='mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3'>
@@ -3467,7 +2725,6 @@ const QuotationBuilderPage: React.FC = () => {
 
                   <div className='mb-4'>
                     <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                       Included Services
                     </p>
                     {selectedServiceDefinitions.length ?
@@ -3559,10 +2816,6 @@ const QuotationBuilderPage: React.FC = () => {
                     </div>
                   : null}
 
-<<<<<<< HEAD
-                  <div className="preview-validation rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
-                    <FaCheck className="preview-validation-icon mr-1 inline" />{" "}
-=======
                   {form.hotelDetails.trim() || form.visaDetails.trim() ? (
                     <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2'>
                       {form.hotelDetails.trim() ? (
@@ -3590,7 +2843,6 @@ const QuotationBuilderPage: React.FC = () => {
 
                   <div className='preview-validation rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700'>
                     <FaCheck className='preview-validation-icon mr-1 inline' />{' '}
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                     Preview validated and ready to share.
                   </div>
 
@@ -3715,19 +2967,11 @@ const QuotationBuilderPage: React.FC = () => {
         )}
 
         {showAddOnModal && (
-<<<<<<< HEAD
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur">
-            <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Add Service
-=======
           <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur'>
             <div className='w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700'>
               <div className='mb-3 flex items-center justify-between'>
                 <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
                   {editingAddOnId ? 'Edit Service' : 'Add Service'}
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
                 </h3>
                 <button
                   onClick={() => setShowAddOnModal(false)}
