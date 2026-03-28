@@ -18,8 +18,8 @@ type FormState = {
   location: string
   destinationName: string
   travelDate: string
-  adultsCount: number
-  childrenCount: number
+  adultsCount: string
+  childrenCount: string
   budget: string
   visaRequired: 'YES' | 'NO' | ''
   preferredHotelCategory: '3_STAR' | '4_STAR' | '5_STAR' | 'ANY' | ''
@@ -39,8 +39,8 @@ const initialForm: FormState = {
   location: '',
   destinationName: '',
   travelDate: '',
-  adultsCount: 2,
-  childrenCount: 0,
+  adultsCount: '2',
+  childrenCount: '0',
   budget: '',
   visaRequired: '',
   preferredHotelCategory: '',
@@ -121,6 +121,11 @@ const CreateLead: React.FC = () => {
     const email = form.email.trim()
     const phoneDigits = form.phone.replace(/\D/g, '')
 
+    const adultsCountValue = Number(form.adultsCount || 0)
+    const childrenCountValue = Number(form.childrenCount || 0)
+    const adultsCountSafe = Number.isFinite(adultsCountValue) ? adultsCountValue : 0
+    const childrenCountSafe = Number.isFinite(childrenCountValue) ? childrenCountValue : 0
+
     return {
       firstName: !form.firstName.trim(),
       lastName: !form.lastName.trim(),
@@ -131,10 +136,10 @@ const CreateLead: React.FC = () => {
       destinationName: !form.destinationName.trim(),
       travelDate: !form.travelDate,
       adultsChildren:
-        form.adultsCount < 0 || form.childrenCount < 0 || form.adultsCount < 1,
+        adultsCountSafe < 0 || childrenCountSafe < 0 || adultsCountSafe < 1,
       childrenAges:
-        form.childrenCount > 0 &&
-        (childAges.length !== form.childrenCount ||
+        childrenCountSafe > 0 &&
+        (childAges.length !== childrenCountSafe ||
           childAges.some(age => {
             const numericAge = Number(age)
             return (
@@ -144,8 +149,8 @@ const CreateLead: React.FC = () => {
               numericAge > 18
             )
           })),
-      budget: !form.budget.trim() || Number(form.budget) <= 0,
-      visaRequired: form.visaRequired === '',
+      budget: false,
+      visaRequired: false,
       preferredHotelCategory: form.preferredHotelCategory === '',
       travelPurpose: !form.travelPurpose.trim()
     }
@@ -244,6 +249,8 @@ const CreateLead: React.FC = () => {
       .filter(Boolean)
       .join(' ')
     const normalizedPhone = form.phone.replace(/\D/g, '')
+    const adultsCountNumber = Number(form.adultsCount || 0)
+    const childrenCountNumber = Number(form.childrenCount || 0)
     const cleanChildAges = childAges
       .map(age => age.trim())
       .filter(age => age !== '')
@@ -251,7 +258,7 @@ const CreateLead: React.FC = () => {
       .filter(age => Number.isFinite(age) && age >= 0 && age <= 18)
 
     const childAgesNote =
-      form.childrenCount > 0
+      childrenCountNumber > 0
         ? `Child Ages: ${cleanChildAges.map(age => String(age)).join(', ')}`
         : ''
 
@@ -269,11 +276,11 @@ const CreateLead: React.FC = () => {
         clientCurrency: form.clientCurrency.trim().toUpperCase(),
         destinationName: form.destinationName.trim(),
         travelDate: form.travelDate,
-        adultsCount: form.adultsCount,
-        childrenCount: form.childrenCount,
+        adultsCount: adultsCountNumber,
+        childrenCount: childrenCountNumber,
         childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
-        budget: Number(form.budget),
-        visaRequired: form.visaRequired === 'YES',
+        budget: form.budget.trim() ? Number(form.budget) : undefined,
+        visaRequired: form.visaRequired ? form.visaRequired === 'YES' : undefined,
         preferredHotelCategory: form.preferredHotelCategory,
         travelPurpose: form.travelPurpose.trim(),
         source: form.leadSource.trim() || 'Website',
@@ -424,7 +431,7 @@ const CreateLead: React.FC = () => {
                 onChange={event =>
                   setForm(prev => ({
                     ...prev,
-                    adultsCount: Number(event.target.value || 0)
+                    adultsCount: event.target.value
                   }))
                 }
               />
@@ -439,13 +446,14 @@ const CreateLead: React.FC = () => {
                 }`}
                 value={form.childrenCount}
                 onChange={event => {
+                  const rawValue = event.target.value
                   const nextCount = Math.max(
                     0,
-                    Math.floor(Number(event.target.value || 0))
+                    Math.floor(Number(rawValue || 0))
                   )
                   setForm(prev => ({
                     ...prev,
-                    childrenCount: nextCount
+                    childrenCount: rawValue
                   }))
                   setChildAges(prev => {
                     if (nextCount === prev.length) return prev
@@ -462,11 +470,11 @@ const CreateLead: React.FC = () => {
               />
             </div>
           </div>
-          {form.childrenCount > 0 ? (
+          {Number(form.childrenCount || 0) > 0 ? (
             <div className='md:col-span-2'>
               <label className='field-label'>Children Ages *</label>
               <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3'>
-                {Array.from({ length: form.childrenCount }).map((_, index) => (
+                {Array.from({ length: Number(form.childrenCount || 0) }).map((_, index) => (
                   <input
                     key={`child-age-${index}`}
                     type='number'
@@ -491,7 +499,7 @@ const CreateLead: React.FC = () => {
             </div>
           ) : null}
           <div>
-            <label className='field-label'>Budget *</label>
+            <label className='field-label'>Budget</label>
             <input
               type='number'
               min={1}
@@ -505,7 +513,7 @@ const CreateLead: React.FC = () => {
             />
           </div>
           <div>
-            <label className='field-label'>Visa Required *</label>
+            <label className='field-label'>Visa Required</label>
             <SearchableDropdown
               value={form.visaRequired}
               options={visaOptions}

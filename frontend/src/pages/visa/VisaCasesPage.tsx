@@ -214,19 +214,93 @@ const VisaCasesPage = () => {
     return rows.filter((row) => {
       const matchesTab = tab === "ALL" || row.workflowStage === tab;
       if (!query) return matchesTab;
-      return (
-        row.id.toLowerCase().includes(query) ||
-        row.country.toLowerCase().includes(query) ||
-        row.visaType.toLowerCase().includes(query) ||
-        getBookingLabel(row.bookingId).toLowerCase().includes(query) ||
-        getSupplierName(row.supplierId).toLowerCase().includes(query) ||
-        humanizeVisaStage(row.workflowStage).toLowerCase().includes(query)
-      ) && matchesTab;
+      const appointmentText = row.appointmentDate
+        ? new Date(row.appointmentDate).toLocaleDateString()
+        : "";
+      const appointmentIso = row.appointmentDate
+        ? new Date(row.appointmentDate).toISOString().split("T")[0]
+        : "";
+      const submissionText = row.submissionDate
+        ? new Date(row.submissionDate).toLocaleDateString()
+        : "";
+      const submissionIso = row.submissionDate
+        ? new Date(row.submissionDate).toISOString().split("T")[0]
+        : "";
+      const validUntilText = row.visaValidUntil
+        ? new Date(row.visaValidUntil).toLocaleDateString()
+        : "";
+      const validUntilIso = row.visaValidUntil
+        ? new Date(row.visaValidUntil).toISOString().split("T")[0]
+        : "";
+      const haystack = [
+        row.id,
+        row.bookingId,
+        getBookingLabel(row.bookingId),
+        row.country,
+        row.visaType,
+        humanizeVisaStage(row.workflowStage),
+        getSupplierName(row.supplierId),
+        appointmentText,
+        appointmentIso,
+        submissionText,
+        submissionIso,
+        validUntilText,
+        validUntilIso,
+        row.fees != null ? String(row.fees) : ""
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query) && matchesTab;
     });
   }, [getBookingLabel, getSupplierName, rows, search, tab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginatedRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const exportCurrentTable = () => {
+    if (!paginatedRows.length) return;
+
+    const headers = [
+      'Case ID',
+      'Booking',
+      'Country',
+      'Visa Type',
+      'Stage',
+      'Appointment Date',
+      'Submission Date',
+      'Valid Until',
+      'Supplier',
+      'Fees'
+    ];
+
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+    const dataRows = paginatedRows.map(row => [
+      row.id ?? '',
+      getBookingLabel(row.bookingId),
+      row.country ?? '',
+      row.visaType ?? '',
+      humanizeVisaStage(row.workflowStage),
+      row.appointmentDate ?? '',
+      row.submissionDate ?? '',
+      row.visaValidUntil ?? '',
+      getSupplierName(row.supplierId),
+      row.fees ?? 0
+    ]);
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `visa-cases-page-${page}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   const summary = useMemo(() => {
     const expiringSoon = rows.filter((row) => {
@@ -253,12 +327,21 @@ const VisaCasesPage = () => {
           </p>
           {error ? <p className="mt-2 text-xs text-red-500 sm:text-sm">{error}</p> : null}
         </div>
-        <button
-          onClick={() => navigate("/visa/new")}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
-        >
-          <FaPlus className="text-sm" /> Create Visa Case
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <button
+            onClick={exportCurrentTable}
+            disabled={!paginatedRows.length}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-green-500 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
+          >
+            <FaDownload className="text-sm" /> Export
+          </button>
+          <button
+            onClick={() => navigate("/visa/new")}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
+          >
+            <FaPlus className="text-sm" /> Create Visa Case
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -362,9 +445,6 @@ const VisaCasesPage = () => {
               className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
             />
           </div>
-          <button className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
-            <FaDownload className="mr-2" /> Export
-          </button>
         </div>
       </div>
 

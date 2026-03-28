@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FaPlus } from 'react-icons/fa6'
+import { FaPlus, FaDownload } from 'react-icons/fa6'
 import { TextInput } from '../../components/form'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -70,6 +70,8 @@ type BookingOption = {
 type BookingMeta = {
   customerName?: string
   bookingNumber?: string
+  customerEmail?: string
+  customerPhone?: string
 }
 
 const extractRows = <T,>(response: unknown): T[] => {
@@ -95,6 +97,8 @@ const ComplaintsPage = () => {
   const [loading, setLoading] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [loadingBookings, setLoadingBookings] = useState(false)
+  const [showAllRows, setShowAllRows] = useState(false)
+  const [page, setPage] = useState(1)
   const [form, setForm] = useState({
     bookingId: '',
     assignedTo: '',
@@ -104,6 +108,7 @@ const ComplaintsPage = () => {
   })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [assigneeUsers, setAssigneeUsers] = useState<AssignableUser[]>([])
   const [bookingOptions, setBookingOptions] = useState<BookingOption[]>([])
   const [bookingMetaById, setBookingMetaById] = useState<
@@ -150,6 +155,76 @@ const ComplaintsPage = () => {
       ? `${meta.customerName} - ${bookingLabel}`
       : bookingLabel
   }
+
+  const exportAllRows = () => {
+    if (!rows.length) return
+
+    const headers = ['ID', 'Booking', 'Issue', 'Status']
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`
+
+    const dataRows = rows.map(row => [
+      row.id ?? '',
+      formatBookingDisplay(row.bookingId),
+      row.issueType ?? '',
+      row.status ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `complaints-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const filteredRows = rows.filter(row => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!query) return true
+    const bookingDisplay = formatBookingDisplay(row.bookingId)
+    const bookingMeta = bookingMetaById[row.bookingId || '']
+    const createdAtText = (row as any)?.createdAt
+      ? new Date((row as any).createdAt).toLocaleDateString()
+      : ''
+    const createdAtIso = (row as any)?.createdAt
+      ? new Date((row as any).createdAt).toISOString().split('T')[0]
+      : ''
+    const haystack = [
+      row.id,
+      row.bookingId,
+      bookingDisplay,
+      row.issueType,
+      row.status,
+      (row as any)?.description ?? '',
+      bookingMeta?.customerName ?? '',
+      bookingMeta?.customerEmail ?? '',
+      bookingMeta?.customerPhone ?? '',
+      createdAtText,
+      createdAtIso
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(query)
+  })
+
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const paginatedRows = filteredRows.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  )
+  const displayRows = showAllRows ? paginatedRows : filteredRows.slice(0, 3)
+
+  useEffect(() => {
+    if (!showAllRows) {
+      setPage(1)
+    }
+  }, [showAllRows, rows.length])
 
   // Fetch complaints on mount
   useEffect(() => {
@@ -220,12 +295,21 @@ const ComplaintsPage = () => {
         })
 
         const leadNameById = new Map<string, string>()
+        const leadEmailById = new Map<string, string>()
+        const leadPhoneById = new Map<string, string>()
         leadRows.forEach(lead => {
           const leadId = lead.id
           const leadName =
             lead.fullName || lead.customerName || lead.name || lead.email
           if (leadId && leadName) {
             leadNameById.set(leadId, leadName)
+          }
+          if (leadId && lead.email) {
+            leadEmailById.set(leadId, lead.email)
+          }
+          const phone = (lead as any)?.phone || (lead as any)?.mobile
+          if (leadId && phone) {
+            leadPhoneById.set(leadId, String(phone))
           }
         })
 
@@ -252,7 +336,21 @@ const ComplaintsPage = () => {
 
           bookingMeta[bookingId] = {
             customerName,
-            bookingNumber
+            bookingNumber,
+            customerEmail:
+              booking.email ||
+              booking.customerEmail ||
+              booking.customer_email ||
+              booking.customer?.email ||
+              (leadId ? leadEmailById.get(leadId) : '') ||
+              '',
+            customerPhone:
+              booking.phone ||
+              booking.customerPhone ||
+              booking.customer_phone ||
+              booking.customer?.phone ||
+              (leadId ? leadPhoneById.get(leadId) : '') ||
+              ''
           }
         })
 
@@ -384,13 +482,22 @@ const ComplaintsPage = () => {
 
   return (
     <div className='space-y-6'>
-      <div>
-        <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-          Complaints
-        </h1>
-        <p className='text-sm text-gray-500'>
-          Track post-sales complaints and activity trail.
-        </p>
+      <div className='flex items-start justify-between gap-3'>
+        <div>
+          <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+            Complaints
+          </h1>
+          <p className='text-sm text-gray-500'>
+            Track post-sales complaints and activity trail.
+          </p>
+        </div>
+        <button
+          onClick={exportAllRows}
+          disabled={!rows.length}
+          className='inline-flex items-center justify-center rounded-xl border border-green-500 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
+        >
+          <FaDownload className='mr-2' /> Export
+        </button>
       </div>
 
       {!localStorage.getItem('auth_token') && (
@@ -503,6 +610,32 @@ const ComplaintsPage = () => {
 
       <div className='grid grid-cols-1 gap-6 xl:grid-cols-2'>
         <SurfaceCard className='p-0 overflow-hidden'>
+          <div className='flex flex-col gap-3 border-b border-gray-100 px-5 py-3 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between'>
+            <div className='flex items-center justify-between sm:justify-start sm:gap-3'>
+              <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                Complaints
+              </h3>
+              {filteredRows.length > 3 ? (
+                <button
+                  onClick={() => setShowAllRows(value => !value)}
+                  className='text-xs font-medium text-blue-600 hover:text-blue-700'
+                >
+                  {showAllRows ? 'Show Less' : 'View All'}
+                </button>
+              ) : null}
+            </div>
+            <div className='relative w-full sm:max-w-xs'>
+              <input
+                value={searchTerm}
+                onChange={event => {
+                  setSearchTerm(event.target.value)
+                  setPage(1)
+                }}
+                placeholder='Search complaints...'
+                className='w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+              />
+            </div>
+          </div>
           {loading && rows.length === 0 ? (
             <div className='flex items-center justify-center py-12'>
               <div className='text-center'>
@@ -515,46 +648,120 @@ const ComplaintsPage = () => {
               <p className='text-sm text-gray-500'>No complaints found</p>
             </div>
           ) : (
-            <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
-              <thead className='bg-gray-50 dark:bg-gray-800/95'>
-                <tr>
-                  <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    ID
-                  </th>
-                  <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    Booking
-                  </th>
-                  <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    Issue
-                  </th>
-                  <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                {rows.map(row => (
-                  <tr
+            <>
+              {/* Mobile cards */}
+              <div className='divide-y divide-gray-100 dark:divide-gray-800 sm:hidden'>
+                {displayRows.map(row => (
+                  <button
                     key={row.id}
                     onClick={() => navigate(`/complaints/${row.id}`)}
-                    className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors'
+                    className='w-full text-left px-5 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50'
                   >
-                    <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
-                      {row.id}
-                    </td>
-                    <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
-                      {formatBookingDisplay(row.bookingId)}
-                    </td>
-                    <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
-                      {row.issueType}
-                    </td>
-                    <td className='px-5 py-4 text-sm text-gray-700 dark:text-gray-200'>
-                      {row.status}
-                    </td>
-                  </tr>
+                    <div className='flex items-start justify-between gap-3'>
+                      <div className='min-w-0'>
+                        <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                          {row.issueType}
+                        </p>
+                        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                          {formatBookingDisplay(row.bookingId)}
+                        </p>
+                        <p className='mt-1 text-[11px] text-blue-600 dark:text-blue-300'>
+                          {row.id}
+                        </p>
+                      </div>
+                      <span className='inline-flex rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                        {row.status}
+                      </span>
+                    </div>
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop table */}
+              <table className='hidden w-full divide-y divide-gray-200 dark:divide-gray-800 sm:table'>
+                <thead className='bg-gray-50 dark:bg-gray-800/95'>
+                  <tr>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      ID
+                    </th>
+                    <th className='px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Booking
+                    </th>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Issue
+                    </th>
+                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                  {displayRows.map(row => {
+                    const bookingMeta = bookingMetaById[row.bookingId || '']
+                    const bookingLabel =
+                      bookingMeta?.bookingNumber || row.bookingId || '-'
+                    return (
+                    <tr
+                      key={row.id}
+                      onClick={() => navigate(`/complaints/${row.id}`)}
+                      className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors'
+                    >
+                      <td className='px-5 py-4 text-xs font-medium text-blue-600 dark:text-blue-300'>
+                        {row.id}
+                      </td>
+                      <td className='px-3 py-4 text-xs text-gray-700 dark:text-gray-200'>
+                        {bookingMeta?.customerName ? (
+                          <div className='leading-tight'>
+                            <p className='font-medium text-gray-900 dark:text-gray-100'>
+                              {bookingMeta.customerName}
+                            </p>
+                            <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+                              {bookingLabel}
+                            </p>
+                          </div>
+                        ) : (
+                          <span>{formatBookingDisplay(row.bookingId)}</span>
+                        )}
+                      </td>
+                      <td className='px-5 py-4 text-xs text-gray-700 dark:text-gray-200'>
+                        {row.issueType}
+                      </td>
+                      <td className='px-5 py-4 text-xs text-gray-700 dark:text-gray-200'>
+                        {row.status}
+                      </td>
+                    </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {showAllRows ? (
+                <div className='flex items-center justify-between px-5 py-4 border-t border-gray-200 dark:border-gray-800'>
+                  <p className='text-xs text-gray-500'>
+                    Showing {Math.min(rows.length, (page - 1) * pageSize + 1)}-
+                    {Math.min(rows.length, page * pageSize)} of {rows.length}
+                  </p>
+                  <div className='flex items-center gap-2'>
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className='p-2 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40'
+                    >
+                      &lt;
+                    </button>
+                    <span className='px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-sm font-medium'>
+                      {page}
+                    </span>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className='p-2 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40'
+                    >
+                      &gt;
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
           )}
         </SurfaceCard>
 

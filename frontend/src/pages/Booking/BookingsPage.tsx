@@ -41,6 +41,9 @@ interface Booking {
   id: string
   bookingId: string
   customer: string
+  email?: string
+  phone?: string
+  consultant?: string
   destination: string
   dates: string
   startDate?: string
@@ -1720,6 +1723,16 @@ const BookingsPage: React.FC = () => {
       ? lookups?.destinationById?.[destinationId]
       : undefined
 
+    const leadEmail =
+      lead?.email ?? lead?.primaryEmail ?? lead?.contactEmail ?? ''
+    const leadPhone =
+      lead?.phone ?? lead?.mobile ?? lead?.whatsapp ?? ''
+    const consultantName =
+      lead?.assignedUser?.fullName ??
+      lead?.consultantName ??
+      lead?.consultant ??
+      ''
+
     return {
       id: String(b.id ?? idx),
       bookingId: b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
@@ -1730,6 +1743,19 @@ const BookingsPage: React.FC = () => {
         lead?.fullName ??
         lead?.name ??
         'Unknown',
+      email:
+        b.email ??
+        b.customerEmail ??
+        b.clientEmail ??
+        leadEmail ??
+        '',
+      phone:
+        b.phone ??
+        b.customerPhone ??
+        b.clientPhone ??
+        leadPhone ??
+        '',
+      consultant: consultantName,
       destination:
         b.destination ??
         b.tripDestination ??
@@ -2117,10 +2143,29 @@ const BookingsPage: React.FC = () => {
     return bookingItems.filter(booking => {
       const statusMatch =
         statusFilter === 'all' || booking.status === statusFilter
-      const searchMatch =
-        booking.bookingId.toLowerCase().includes(search.toLowerCase()) ||
-        booking.customer.toLowerCase().includes(search.toLowerCase()) ||
-        booking.destination.toLowerCase().includes(search.toLowerCase())
+      const query = search.toLowerCase().trim()
+      if (!query) return statusMatch
+      const createdAtText = booking.createdAt
+        ? new Date(booking.createdAt).toLocaleDateString()
+        : ''
+      const createdAtIso = booking.createdAt
+        ? new Date(booking.createdAt).toISOString().split('T')[0]
+        : ''
+      const haystack = [
+        booking.bookingId,
+        booking.customer,
+        booking.email ?? '',
+        booking.phone ?? '',
+        booking.consultant ?? '',
+        booking.destination,
+        booking.status,
+        createdAtText,
+        createdAtIso
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      const searchMatch = haystack.includes(query)
       return statusMatch && searchMatch
     })
   }, [search, statusFilter, bookingItems])
@@ -2143,6 +2188,48 @@ const BookingsPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize))
   const rows = ordered.slice((page - 1) * pageSize, page * pageSize)
+
+  const exportCurrentTable = () => {
+    if (!rows.length) return
+
+    const headers = [
+      'Booking ID',
+      'Customer',
+      'Destination',
+      'Dates',
+      'Status',
+      'Payment',
+      'Paid',
+      'Total',
+      'Created At'
+    ]
+
+    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`
+
+    const dataRows = rows.map(booking => [
+      booking.bookingId ?? '',
+      booking.customer ?? '',
+      booking.destination ?? '',
+      booking.dates ?? '',
+      booking.status ?? '',
+      booking.payment ?? '',
+      booking.paid ?? 0,
+      booking.total ?? 0,
+      booking.createdAt ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `bookings-page-${page}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className='space-y-4 sm:space-y-6'>
@@ -2204,12 +2291,21 @@ const BookingsPage: React.FC = () => {
             Monitor confirmations, payments, and documents from one place.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 w-full sm:w-auto'
-        >
-          <FaPlus className='mr-2' /> New Booking
-        </button>
+        <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+          <button
+            onClick={exportCurrentTable}
+            disabled={!rows.length}
+            className='inline-flex items-center justify-center rounded-xl border border-green-500 dark:border-green-400 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            <FaDownload className='mr-2' /> Export
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 w-full sm:w-auto'
+          >
+            <FaPlus className='mr-2' /> New Booking
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -2370,11 +2466,6 @@ const BookingsPage: React.FC = () => {
                   }}
                 />
               </div>
-
-              {/* Export Button */}
-              <button className='inline-flex items-center rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'>
-                <FaDownload className='mr-2' /> Export
-              </button>
 
               {/* Close filter button on mobile */}
               {showMobileFilters && (

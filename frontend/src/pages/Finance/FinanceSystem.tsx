@@ -8,7 +8,8 @@ import {
   FaSearch,
   FaChevronLeft,
   FaChevronRight,
-  FaBars
+  FaBars,
+  FaDownload
 } from 'react-icons/fa'
 import { FaXmark, FaPenToSquare, FaPercent, FaRotate } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
@@ -1045,21 +1046,51 @@ const FinanceSystem: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [tabMenuOpen])
 
-  const filteredClients = clients.filter(c =>
-    `${c.name ?? ''} ${c.email ?? ''} ${c.pan ?? ''} ${c.phone ?? ''} ${
-      c.address ?? ''
-    }`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+  const toDateTokens = (value?: string | null) => {
+    if (!value) return [] as string[]
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return [value]
+    return [parsed.toLocaleDateString(), parsed.toISOString().split('T')[0], value]
+  }
 
-  const filteredSuppliers = suppliers.filter(s =>
-    `${s.name ?? ''} ${s.email ?? ''} ${s.phone ?? ''} ${s.pan ?? ''} ${
-      s.gst ?? ''
-    } ${s.invoiceDetails ?? ''}`
+  const filteredClients = clients.filter(c => {
+    const searchValue = search.trim().toLowerCase()
+    if (!searchValue) return true
+    const haystack = [
+      c.id,
+      c.name,
+      c.email,
+      c.phone,
+      c.pan,
+      c.address,
+      c.currency
+    ]
+      .filter(Boolean)
+      .join(' ')
       .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+    return haystack.includes(searchValue)
+  })
+
+  const filteredSuppliers = suppliers.filter(s => {
+    const searchValue = search.trim().toLowerCase()
+    if (!searchValue) return true
+    const haystack = [
+      s.id,
+      s.name,
+      s.email,
+      s.phone,
+      s.pan,
+      s.gst,
+      s.address,
+      s.invoiceDetails,
+      s.currency,
+      s.isActive ? 'active' : 'inactive'
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(searchValue)
+  })
 
   const getBookingDisplay = (bookingId: string) => {
     const normalized = String(bookingId || '').trim()
@@ -1074,13 +1105,31 @@ const FinanceSystem: React.FC = () => {
       : booking.bookingNumber
   }
 
-  const filteredPayments = payments.filter(p =>
-    `${p.id} ${p.bookingId} ${getBookingDisplay(p.bookingId)} ${
-      p.reference ?? ''
-    } ${p.mode} ${paymentModeLabel(p.mode)}`
+  const filteredPayments = payments.filter(p => {
+    const searchValue = search.trim().toLowerCase()
+    if (!searchValue) return true
+    const bookingDisplay = getBookingDisplay(p.bookingId)
+    const bookingLookup = bookingLookupById.get(String(p.bookingId || ''))
+    const dateTokens = toDateTokens(p.date)
+    const haystack = [
+      p.id,
+      p.bookingId,
+      bookingDisplay,
+      bookingLookup?.bookingNumber,
+      bookingLookup?.customer,
+      p.reference,
+      p.mode,
+      paymentModeLabel(p.mode),
+      p.status,
+      p.amount?.toString(),
+      p.currency,
+      ...dateTokens
+    ]
+      .filter(Boolean)
+      .join(' ')
       .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+    return haystack.includes(searchValue)
+  })
 
   // Pagination
   const totalPages = Math.max(
@@ -1106,6 +1155,108 @@ const FinanceSystem: React.FC = () => {
     (page - 1) * pageSize,
     page * pageSize
   )
+
+  const exportCurrentTable = () => {
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`
+
+    let headers: string[] = []
+    let dataRows: Array<Array<string | number>> = []
+
+    if (activeTab === 'clients') {
+      headers = ['Name', 'Email', 'Phone', 'PAN', 'Address', 'Currency']
+      dataRows = paginatedClients.map(client => [
+        client.name ?? '',
+        client.email ?? '',
+        client.phone ?? '',
+        client.pan ?? '',
+        client.address ?? '',
+        client.currency ?? ''
+      ])
+    } else if (activeTab === 'suppliers') {
+      headers = [
+        'Name',
+        'Email',
+        'Phone',
+        'PAN',
+        'GST',
+        'Invoice Details',
+        'Currency',
+        'Status'
+      ]
+      dataRows = paginatedSuppliers.map(supplier => [
+        supplier.name ?? '',
+        supplier.email ?? '',
+        supplier.phone ?? '',
+        supplier.pan ?? '',
+        supplier.gst ?? '',
+        supplier.invoiceDetails ?? '',
+        supplier.currency ?? '',
+        supplier.isActive ? 'Active' : 'Inactive'
+      ])
+    } else if (activeTab === 'payments') {
+      headers = [
+        'Booking ID',
+        'Amount',
+        'Status',
+        'Mode',
+        'Date',
+        'Reference',
+        'Currency'
+      ]
+      dataRows = paginatedPayments.map(payment => [
+        payment.bookingId ?? '',
+        payment.amount ?? 0,
+        payment.status ?? '',
+        payment.mode ?? '',
+        payment.date ?? '',
+        payment.reference ?? '',
+        payment.currency ?? ''
+      ])
+    } else if (activeTab === 'cost') {
+      headers = [
+        'Quote #',
+        'Lead Name',
+        'Status',
+        'Supplier Cost',
+        'Supplier Tax',
+        'Markup',
+        'Service Fee',
+        'GST',
+        'TCS',
+        'Total Sale Value',
+        'Currency',
+        'Created At'
+      ]
+      dataRows = costRows.map(row => [
+        row.quoteNumber ?? '',
+        row.leadName ?? '',
+        row.status ?? '',
+        row.supplierCost ?? 0,
+        row.supplierTaxAmount ?? 0,
+        row.markupAmount ?? 0,
+        row.serviceFeeAmount ?? 0,
+        row.gstAmount ?? 0,
+        row.tcsAmount ?? 0,
+        row.totalSaleValue ?? 0,
+        row.effectiveCurrency ?? '',
+        row.createdAt ?? ''
+      ])
+    }
+
+    if (!dataRows.length) return
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `finance-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleAddClient = async (data: any) => {
     setSaving(true)
@@ -1328,6 +1479,18 @@ const FinanceSystem: React.FC = () => {
               </p>
             </div>
             <div className='flex items-center gap-2'>
+              <button
+                onClick={exportCurrentTable}
+                disabled={
+                  (activeTab === 'clients' && paginatedClients.length === 0) ||
+                  (activeTab === 'suppliers' && paginatedSuppliers.length === 0) ||
+                  (activeTab === 'payments' && paginatedPayments.length === 0) ||
+                  (activeTab === 'cost' && costRows.length === 0)
+                }
+                className='inline-flex items-center justify-center rounded-lg border border-green-500 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
+              >
+                <FaDownload className='mr-2' /> Export
+              </button>
               <button
                 onClick={() => {
                   setError('')

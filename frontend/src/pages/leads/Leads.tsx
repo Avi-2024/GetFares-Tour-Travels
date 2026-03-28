@@ -4,6 +4,7 @@ import {
   FaCalendarPlus,
   FaChevronLeft,
   FaChevronRight,
+  FaDownload,
   FaEye,
   FaFire,
   FaPlus,
@@ -105,8 +106,14 @@ const Leads: React.FC = () => {
           (quickFilter === 'LATE_RESPONSE' && lead.slaBreached)
         const statusMatch =
           statusFilter === 'ALL' || lead.statusLabel === statusFilter
+        const createdAtText = lead.createdAt
+          ? new Date(lead.createdAt).toLocaleDateString()
+          : ''
+        const createdAtIso = lead.createdAt
+          ? new Date(lead.createdAt).toISOString().split('T')[0]
+          : ''
         const text =
-          `${lead.name} ${lead.email} ${lead.destination} ${lead.phone} ${formatPaxSummary(lead)} ${lead.childAges.join(' ')}`.toLowerCase()
+          `${lead.name} ${lead.leadId} ${lead.email} ${lead.destination} ${lead.phone} ${lead.consultant} ${createdAtText} ${createdAtIso} ${formatPaxSummary(lead)} ${lead.childAges.join(' ')}`.toLowerCase()
         return quickMatch && statusMatch && text.includes(search.toLowerCase())
       }),
     [fetchedLeads, quickFilter, search, statusFilter]
@@ -145,6 +152,44 @@ const Leads: React.FC = () => {
     nav(`/leads/${lead.id}`, { state: { lead } })
   }
 
+  const exportCurrentTable = () => {
+    if (!rows.length) return
+
+    const headers = [
+      'Lead',
+      'Lead ID',
+      'Contact',
+      'Destination',
+      'Visa/Holidays',
+      'Status',
+      'SLA'
+    ]
+
+    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`
+
+    const dataRows = rows.map(lead => [
+      lead.name ?? '',
+      lead.leadId ?? '',
+      `${lead.email ?? ''} ${lead.phone ? `| ${lead.phone}` : ''}`.trim(),
+      lead.destination ?? '',
+      getVisaHolidayLabel(lead),
+      toStatusLabelText(lead.statusLabel),
+      lead.slaBreached ? 'Breached' : lead.sla ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `leads-page-${page}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   const getVisaHolidayLabel = (lead: LeadListItem) => {
     const source = `${lead.packageName ?? ''} ${lead.statusLabel ?? ''}`
       .trim()
@@ -164,13 +209,23 @@ const Leads: React.FC = () => {
               SOP-aligned lead pipeline with follow-up and SLA visibility.
             </p>
           </div>
-          <button
-            onClick={() => nav('/create-lead')}
-            className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto'
-          >
-            <FaPlus className='mr-2' />
-            <span>Create Lead</span>
-          </button>
+          <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+            <button
+              onClick={exportCurrentTable}
+              disabled={!rows.length}
+              className='inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+            >
+              <FaDownload className='mr-2' />
+              <span>Export</span>
+            </button>
+            <button
+              onClick={() => nav('/create-lead')}
+              className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto'
+            >
+              <FaPlus className='mr-2' />
+              <span>Create Lead</span>
+            </button>
+          </div>
         </div>
 
         <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4'>
@@ -275,10 +330,7 @@ const Leads: React.FC = () => {
                         Lead ID
                       </th>
                       <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                        Email
-                      </th>
-                      <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                        Phone
+                        Contact
                       </th>
                       <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
                         Destination
@@ -323,9 +375,9 @@ const Leads: React.FC = () => {
                           <p className='text-sm text-gray-800 dark:text-gray-200'>
                             {lead.email}
                           </p>
-                        </td>
-                        <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-200'>
-                          {lead.phone}
+                          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                            {lead.phone}
+                          </p>
                         </td>
                         <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-200'>
                           {lead.destination}
@@ -384,14 +436,10 @@ const Leads: React.FC = () => {
                       </div>
                       <StatusBadge status={lead.statusLabel} />
                     </div>
-                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-1.5'>
+                    <div className='grid grid-cols-1 gap-1.5'>
                       <p className='text-xs text-gray-600 dark:text-gray-300'>
-                        <span className='text-gray-500'>Email:</span>{' '}
-                        {lead.email}
-                      </p>
-                      <p className='text-xs text-gray-600 dark:text-gray-300'>
-                        <span className='text-gray-500'>Phone:</span>{' '}
-                        {lead.phone}
+                        <span className='text-gray-500'>Contact:</span>{' '}
+                        {lead.email} · {lead.phone}
                       </p>
                     </div>
                     <p className='text-sm text-gray-700 dark:text-gray-200'>

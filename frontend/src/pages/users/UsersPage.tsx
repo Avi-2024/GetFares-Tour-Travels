@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import React, { useCallback, useEffect, useState } from "react";
-=======
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 import {
   FaPlus,
   FaEdit,
@@ -12,27 +8,6 @@ import {
   FaCheck,
   FaInfo,
   FaExclamationTriangle,
-<<<<<<< HEAD
-  FaCheckCircle,
-} from "react-icons/fa";
-import { FaXmark, FaFilter } from "react-icons/fa6";
-import { getApiErrorMessage } from "../../api/apiClient";
-import { usersApi } from "../../api/users";
-import { useAuth } from "../../context/AuthContext";
-import SearchableDropdown from "../../components/ui/SearchableDropdown";
-
-interface User {
-  id: string;
-  fullName: string;
-  email: string;
-  phone?: string;
-  country?: string;
-  role?: string;
-  roleId?: string;
-  permissions?: string[];
-  isActive: boolean;
-  createdAt: string;
-=======
   FaCheckCircle
 } from 'react-icons/fa'
 import { FaXmark, FaFilter } from 'react-icons/fa6'
@@ -56,7 +31,6 @@ interface User {
   permissions?: string[]
   isActive: boolean
   createdAt: string
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 }
 
 interface Role {
@@ -65,13 +39,6 @@ interface Role {
   description?: string;
 }
 
-<<<<<<< HEAD
-// const COUNTRY_OPTIONS = [
-//   { value: "", label: "Select country" },
-//   { value: "India", label: "India" },
-//   { value: "Dubai", label: "Dubai" },
-// ];
-=======
 const COUNTRY_OPTIONS = CRM_COUNTRY_OPTIONS
 const AGENT_TYPE_OPTIONS = [
   { value: '', label: 'Select agent type' },
@@ -79,7 +46,6 @@ const AGENT_TYPE_OPTIONS = [
   { value: 'VISA', label: 'Visa' },
   { value: 'BOTH', label: 'Both' }
 ]
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
 const getRoleLabel = (
   roleName?: string,
@@ -210,35 +176,6 @@ const UserFormModal = ({
   onClose,
   onSave,
 }: {
-<<<<<<< HEAD
-  isOpen: boolean;
-  mode: "create" | "edit";
-  user: User | null;
-  roles: Role[];
-  onClose: () => void;
-  onSave: (formData: any) => void;
-}) => {
-  const initialFormData =
-    user && mode === "edit" ?
-      {
-        fullName: user.fullName,
-        email: user.email,
-        phone: user.phone || "",
-        country: user.country || "",
-        role: user.roleId || "",
-        password: "",
-        isActive: user.isActive,
-      }
-    : {
-        fullName: "",
-        email: "",
-        phone: "",
-        country: "",
-        role: "",
-        password: "",
-        isActive: true,
-      };
-=======
   isOpen: boolean
   mode: 'create' | 'edit'
   user: User | null
@@ -271,17 +208,9 @@ const UserFormModal = ({
           password: '',
           isActive: true
         }
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   const [formData, setFormData] = useState(initialFormData);
   const [roleSearch, setRoleSearch] = useState(() => {
-<<<<<<< HEAD
-    const selected = roles.find((role) => role.id === initialFormData.role);
-    return selected?.name ?? "";
-  });
-  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
-  const [createRoleName, setCreateRoleName] = useState("");
-=======
     const selected = roles.find(role => role.id === initialFormData.role)
     return selected?.name ?? ''
   })
@@ -323,7 +252,6 @@ const UserFormModal = ({
     ],
     [users]
   )
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
 
   if (!isOpen) return null;
 
@@ -437,22 +365,10 @@ const UserFormModal = ({
             </label>
             <SearchableDropdown
               value={formData.country}
-<<<<<<< HEAD
-              onChange={(value: string) =>
-                setFormData({ ...formData, country: value })
-              }
-              options={[
-                { value: "", label: "Select country" },
-                { value: "India", label: "India" },
-                { value: "UAE", label: "UAE" },
-              ]}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-=======
               onChange={value => setFormData({ ...formData, country: value })}
               options={COUNTRY_OPTIONS}
               placeholder='Select country'
               className='w-full'
->>>>>>> ec85886ca51a1dd52b418ecf83b816a144747852
             />
           </div>
           <div>
@@ -1177,7 +1093,6 @@ const UsersPage: React.FC = () => {
               <FaFilter />
             </button>
           </div>
-
           {/* Mobile Filter Panel */}
           {showMobileFilters && (
             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
@@ -1235,7 +1150,6 @@ const UsersPage: React.FC = () => {
             />
           </div>
         </div>
-
         {/* Users Table - Desktop */}
         <div className="hidden sm:block bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="overflow-x-auto">

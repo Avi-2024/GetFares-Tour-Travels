@@ -7,7 +7,8 @@ import {
   FaEye,
   FaChevronLeft,
   FaChevronRight,
-  FaXmark
+  FaXmark,
+  FaDownload
 } from 'react-icons/fa6'
 import { FaSearch } from 'react-icons/fa'
 import { CurrencyInput } from '../../components/form'
@@ -51,6 +52,8 @@ type BookingLookup = {
   id: string
   bookingNumber: string
   customer?: string
+  customerEmail?: string
+  customerPhone?: string
 }
 
 type PaymentLookup = {
@@ -741,19 +744,46 @@ const RefundsPage = () => {
     return rows.filter(row => {
       const bookingDisplay = getBookingDisplay(row.bookingId)
       const paymentDisplay = getPaymentDisplay(row.paymentId)
-      const matchesSearch =
-        row.id.toLowerCase().includes(search.toLowerCase()) ||
-        row.bookingId.toLowerCase().includes(search.toLowerCase()) ||
-        (row.paymentId?.toLowerCase() || '').includes(search.toLowerCase()) ||
-        bookingDisplay.toLowerCase().includes(search.toLowerCase()) ||
-        paymentDisplay.toLowerCase().includes(search.toLowerCase())
-
+      const query = search.toLowerCase().trim()
       const matchesStatus =
         statusFilter === 'all' || row.status === statusFilter
+      if (!query) return matchesStatus
+
+      const bookingMeta = bookingById.get(String(row.bookingId || ''))
+      const createdAtText = row.createdAt
+        ? new Date(row.createdAt).toLocaleDateString()
+        : ''
+      const createdAtIso = row.createdAt
+        ? new Date(row.createdAt).toISOString().split('T')[0]
+        : ''
+      const haystack = [
+        row.id,
+        row.bookingId,
+        row.paymentId ?? '',
+        bookingDisplay,
+        paymentDisplay,
+        bookingMeta?.customer ?? '',
+        bookingMeta?.customerEmail ?? '',
+        bookingMeta?.customerPhone ?? '',
+        row.status,
+        createdAtText,
+        createdAtIso
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      const matchesSearch = haystack.includes(query)
 
       return matchesSearch && matchesStatus
     })
-  }, [rows, search, statusFilter, getBookingDisplay, getPaymentDisplay])
+  }, [
+    rows,
+    search,
+    statusFilter,
+    getBookingDisplay,
+    getPaymentDisplay,
+    bookingById
+  ])
 
   const toTimestamp = (value?: string | null) => {
     if (!value) return 0
@@ -773,6 +803,50 @@ const RefundsPage = () => {
 
   const totalPages = Math.ceil(ordered.length / pageSize)
   const paginatedRows = ordered.slice((page - 1) * pageSize, page * pageSize)
+
+  const exportCurrentTable = () => {
+    if (!paginatedRows.length) return
+
+    const headers = [
+      'Refund ID',
+      'Booking ID',
+      'Payment ID',
+      'Refund Amount',
+      'Supplier Penalty',
+      'Service Charge',
+      'Net Amount',
+      'Status',
+      'Created At',
+      'Created By'
+    ]
+
+    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`
+
+    const dataRows = paginatedRows.map(row => [
+      row.id ?? '',
+      row.bookingId ?? '',
+      row.paymentId ?? '',
+      row.refundAmount ?? 0,
+      row.supplierPenalty ?? 0,
+      row.serviceCharge ?? 0,
+      row.netAmount ?? 0,
+      row.status ?? '',
+      row.createdAt ?? '',
+      row.createdBy ?? ''
+    ])
+
+    const csv = [headers, ...dataRows]
+      .map(row => row.map(cell => escapeCsv(String(cell))).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `refunds-page-${page}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ show: true, message, type })
@@ -914,7 +988,22 @@ const RefundsPage = () => {
               booking.booking_number ||
               booking.code ||
               `BK-${booking.id}`,
-            customer: derivedCustomerName
+            customer: derivedCustomerName,
+            customerEmail:
+              booking.customerEmail ||
+              booking.customer_email ||
+              booking.customer?.email ||
+              booking.customer?.primaryEmail ||
+              leadRecord?.email ||
+              '',
+            customerPhone:
+              booking.customerPhone ||
+              booking.customer_phone ||
+              booking.customer?.phone ||
+              booking.customer?.mobile ||
+              leadRecord?.phone ||
+              leadRecord?.mobile ||
+              ''
           }
         })
       )
@@ -1181,14 +1270,23 @@ const RefundsPage = () => {
             <p className='mt-2 text-xs sm:text-sm text-red-500'>{error}</p>
           ) : null}
         </div>
-        <PermissionGate permission='refunds:update'>
+        <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
           <button
-            onClick={() => setShowForm(open => !open)}
-            className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors w-full sm:w-auto'
+            onClick={exportCurrentTable}
+            disabled={!paginatedRows.length}
+            className='inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-green-500 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
           >
-            <FaPlus /> Create Refund
+            <FaDownload /> Export
           </button>
-        </PermissionGate>
+          <PermissionGate permission='refunds:update'>
+            <button
+              onClick={() => setShowForm(open => !open)}
+              className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors w-full sm:w-auto'
+            >
+              <FaPlus /> Create Refund
+            </button>
+          </PermissionGate>
+        </div>
       </div>
 
       {/* Create Form */}

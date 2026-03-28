@@ -225,6 +225,18 @@ const formatRelativeTime = (value?: string | null) => {
   return rtf.format(diffDays, "day");
 };
 
+const toDateTokens = (value: unknown): string[] => {
+  const raw = toPlainText(value);
+  if (!raw) return [];
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return [raw];
+  return [
+    parsed.toLocaleDateString(),
+    parsed.toISOString().split('T')[0],
+    raw,
+  ];
+};
+
 const getStatusTone = (status: NotificationStatus) => {
   if (status === "READ") {
     return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
@@ -322,14 +334,76 @@ const NotificationsPage: React.FC = () => {
       const searchValue = searchTerm.trim().toLowerCase();
       if (!searchValue) return matchesModule;
 
+      const payload = (notification.payload || {}) as Record<string, unknown>;
+      const dateTokens = [
+        notification.createdAt,
+        notification.updatedAt,
+        payload.createdAt,
+        payload.updatedAt,
+        payload.bookingDate,
+        payload.travelDate,
+        payload.departureDate,
+        payload.returnDate,
+        payload.paymentDate,
+        payload.refundDate,
+        payload.followUpDate,
+        payload.followUpAt,
+        payload.scheduledAt,
+        payload.dueDate,
+      ].flatMap(toDateTokens);
+
       const haystack = [
         toFriendlyTitle(notification),
         toFriendlyMessage(notification),
         toEntityLabel(notification),
+        toPlainText(notification.title),
+        toPlainText(notification.message),
         toPlainText(notification.entityType),
         toPlainText(notification.entityId),
         toPlainText(notification.eventName),
         toPlainText(notification.channel),
+        notification.status,
+        toModule(notification),
+        toPlainText(payload.fullName),
+        toPlainText(payload.customerName),
+        toPlainText(payload.leadName),
+        toPlainText(payload.supplierName),
+        toPlainText(payload.consultantName),
+        toPlainText(payload.username),
+        toPlainText(payload.userName),
+        toPlainText(payload.email),
+        toPlainText(payload.customerEmail),
+        toPlainText(payload.phone),
+        toPlainText(payload.customerPhone),
+        toPlainText(payload.mobile),
+        toPlainText(payload.bookingId),
+        toPlainText(payload.booking_id),
+        toPlainText(payload.bookingNumber),
+        toPlainText(payload.bookingLabel),
+        toPlainText(payload.destination),
+        toPlainText(payload.quotationId),
+        toPlainText(payload.quotation_id),
+        toPlainText(payload.quotationNumber),
+        toPlainText(payload.quoteNumber),
+        toPlainText(payload.paymentId),
+        toPlainText(payload.payment_id),
+        toPlainText(payload.paymentReference),
+        toPlainText(payload.refundId),
+        toPlainText(payload.refundReference),
+        toPlainText(payload.status),
+        toPlainText(payload.segment),
+        toPlainText(payload.segmentLabel),
+        toPlainText(payload.preferences),
+        toPlainText(payload.address),
+        toPlainText(payload.addressLine),
+        toPlainText(payload.clientCurrency),
+        toPlainText(payload.currency),
+        toPlainText(payload.lifetimeValue),
+        toPlainText(payload.ltv),
+        toPlainText(payload.totalBookings),
+        toPlainText(payload.bookingsCount),
+        toPlainText(payload),
+        ...dateTokens,
       ]
         .filter(Boolean)
         .join(" ")
