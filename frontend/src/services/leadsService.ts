@@ -107,8 +107,26 @@ const extractFollowups = (response: LeadFollowupsResponse) => {
 };
 
 const extractArray = (response: unknown) => {
-  const data = (response as { data?: unknown })?.data ?? response;
-  return Array.isArray(data) ? data : [];
+  const payload = (response as { data?: unknown })?.data ?? response;
+  if (Array.isArray(payload)) return payload;
+
+  const firstLevelData = (payload as { data?: unknown; items?: unknown })?.data;
+  if (Array.isArray(firstLevelData)) return firstLevelData;
+
+  const firstLevelItems = (payload as { data?: unknown; items?: unknown })?.items;
+  if (Array.isArray(firstLevelItems)) return firstLevelItems;
+
+  const secondLevelData = (
+    firstLevelData as { data?: unknown; items?: unknown }
+  )?.data;
+  if (Array.isArray(secondLevelData)) return secondLevelData;
+
+  const secondLevelItems = (
+    firstLevelData as { data?: unknown; items?: unknown }
+  )?.items;
+  if (Array.isArray(secondLevelItems)) return secondLevelItems;
+
+  return [];
 };
 
 const normalizePriority = (lead: LeadApiRecord): LeadPriority => {

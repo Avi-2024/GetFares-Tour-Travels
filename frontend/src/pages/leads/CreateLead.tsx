@@ -6,7 +6,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
-import { CRM_COUNTRY_OPTIONS } from '../../utils/countries'
+import { Country } from 'country-state-city'
 
 type FormState = {
   firstName: string
@@ -173,15 +173,40 @@ const CreateLead: React.FC = () => {
     []
   )
 
+  const allCountryNames = useMemo(
+    () => Country.getAllCountries().map(country => country.name),
+    []
+  )
+
   const destinationOptions = useMemo(
-    () => [
-      { value: '', label: 'Select destination' },
-      ...destinations.map(destination => ({
-        value: destination.name,
-        label: destination.name
-      }))
-    ],
-    [destinations]
+    () => {
+      const destinationNames = destinations
+        .map(destination => {
+          if (typeof destination === 'string') return destination
+          if (!destination || typeof destination !== 'object') return ''
+          return (
+            destination.name ||
+            destination.destinationName ||
+            destination.country ||
+            ''
+          )
+        })
+        .map(name => String(name).trim())
+        .filter(Boolean)
+
+      const mergedNames = Array.from(
+        new Set([...allCountryNames, ...destinationNames])
+      ).sort((a, b) => a.localeCompare(b))
+
+      return [
+        { value: '', label: 'Select destination' },
+        ...mergedNames.map(name => ({
+          value: name,
+          label: name
+        }))
+      ]
+    },
+    [allCountryNames, destinations]
   )
 
   const visaOptions = useMemo(
@@ -236,6 +261,17 @@ const CreateLead: React.FC = () => {
       }))
     ],
     [campaigns]
+  )
+
+  const countryOptions = useMemo(
+    () => [
+      { value: '', label: 'Select country' },
+      ...allCountryNames.map(name => ({
+        value: name,
+        label: name
+      }))
+    ],
+    [allCountryNames]
   )
 
   const handleSubmit = async () => {
@@ -368,7 +404,7 @@ const CreateLead: React.FC = () => {
             <label className='field-label'>Lead Country *</label>
             <SearchableDropdown
               value={form.leadCountry}
-              options={CRM_COUNTRY_OPTIONS}
+              options={countryOptions}
               hasError={fieldError('leadCountry')}
               searchPlaceholder='Search country...'
               onChange={value =>
