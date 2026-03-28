@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaCalendarPlus,
@@ -52,6 +52,13 @@ const formatPaxSummary = (lead: LeadListItem) => {
 
 const formatChildAges = (lead: LeadListItem) =>
   lead.childAges.length > 0 ? `Child Ages: ${lead.childAges.join(', ')}` : ''
+
+const truncateEmail = (value: string, maxLength = 26) => {
+  const safe = (value || '').trim()
+  if (!safe) return 'N/A'
+  if (safe.length <= maxLength) return safe
+  return `${safe.slice(0, Math.max(3, maxLength - 3))}...`
+}
 
 const Leads: React.FC = () => {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
@@ -113,7 +120,7 @@ const Leads: React.FC = () => {
           ? new Date(lead.createdAt).toISOString().split('T')[0]
           : ''
         const text =
-          `${lead.name} ${lead.leadId} ${lead.email} ${lead.destination} ${lead.phone} ${lead.consultant} ${createdAtText} ${createdAtIso} ${formatPaxSummary(lead)} ${lead.childAges.join(' ')}`.toLowerCase()
+          `${lead.name} ${lead.leadId} ${lead.email} • {lead.phone} ${lead.consultant} ${createdAtText} ${createdAtIso} ${formatPaxSummary(lead)} ${lead.childAges.join(' ')}`.toLowerCase()
         return quickMatch && statusMatch && text.includes(search.toLowerCase())
       }),
     [fetchedLeads, quickFilter, search, statusFilter]
@@ -320,7 +327,17 @@ const Leads: React.FC = () => {
           ) : (
             <>
               <div className='hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll'>
-                <table className='min-w-[920px] w-full'>
+                <table className='min-w-[1080px] w-full table-fixed'>
+                  <colgroup>
+                    <col className='w-[19%]' />
+                    <col className='w-[10%]' />
+                    <col className='w-[26%]' />
+                    <col className='w-[12%]' />
+                    <col className='w-[11%]' />
+                    <col className='w-[10%]' />
+                    <col className='w-[6%]' />
+                    <col className='w-[6%]' />
+                  </colgroup>
                   <thead className='bg-gray-50 dark:bg-gray-800/50'>
                     <tr>
                       <th className='px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider'>
@@ -372,14 +389,20 @@ const Leads: React.FC = () => {
                           {lead.leadId}
                         </td>
                         <td className='px-5 py-4'>
-                          <p className='text-sm text-gray-800 dark:text-gray-200'>
-                            {lead.email}
+                          <p
+                            className='max-w-full truncate text-sm text-gray-800 dark:text-gray-200'
+                            title={lead.email}
+                          >
+                            {truncateEmail(lead.email)}
                           </p>
                           <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                             {lead.phone}
                           </p>
                         </td>
-                        <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-200'>
+                        <td
+                          className='px-5 py-4 truncate text-sm text-gray-800 dark:text-gray-200'
+                          title={lead.destination}
+                        >
                           {lead.destination}
                         </td>
                         <td className='px-5 py-4 text-sm text-gray-800 dark:text-gray-200'>
@@ -439,7 +462,7 @@ const Leads: React.FC = () => {
                     <div className='grid grid-cols-1 gap-1.5'>
                       <p className='text-xs text-gray-600 dark:text-gray-300'>
                         <span className='text-gray-500'>Contact:</span>{' '}
-                        {lead.email} · {lead.phone}
+                        {truncateEmail(lead.email, 22)} • {lead.phone}
                       </p>
                     </div>
                     <p className='text-sm text-gray-700 dark:text-gray-200'>
@@ -559,3 +582,4 @@ const KpiCard = ({
 )
 
 export default Leads
+
