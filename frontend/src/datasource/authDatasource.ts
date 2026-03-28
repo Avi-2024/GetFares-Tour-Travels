@@ -94,7 +94,15 @@ export const createAuthDatasource = (client: HttpClient) => ({
   ) => client.patch(`/api/roles/${roleId}/permissions`, payload),
   setRolePermissions: (role: string, payload: { permissions: string[] }) =>
     client.put(`/api/rbac/roles/${role}/permissions`, payload),
-  updateRole: (roleId: string, payload: { country?: string | null }) =>
+  updateRole: (
+    roleId: string,
+    payload: {
+      name?: string;
+      description?: string | null;
+      country?: string | null;
+      isActive?: boolean;
+    },
+  ) =>
     client.patch<{ data?: RoleRecord }>(`/api/roles/${roleId}`, payload),
 });
 

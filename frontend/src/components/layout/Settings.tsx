@@ -11,7 +11,6 @@ import {
   FaFilter,
   FaPlus,
   FaMagnifyingGlass,
-  FaEarthAmericas,
   FaShield,
   FaTrash,
   FaUserPlus,
@@ -80,6 +79,7 @@ type RoleOption = {
   name: string;
   description?: string | null;
   country?: string | null;
+  isActive?: boolean;
 };
 
 type PermissionOption = {
@@ -282,6 +282,16 @@ const getRoleColor = (name: string) => {
   return ROLE_COLOR_PALETTE[index];
 };
 
+const getCountryHue = (value: string) => {
+  const input = value || "country";
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 360;
+};
+
 const ACTION_LABELS: Record<string, string> = {
   create: "Create",
   read: "Read",
@@ -466,7 +476,12 @@ const RoleListItem: React.FC<{
       selected ?
         "border-blue-200 bg-blue-50 dark:border-blue-700/50 dark:bg-blue-950/40"
       : "border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50"
-    }`}
+    } ${countryLabel ? "border-l-4" : ""}`}
+    style={
+      countryLabel ?
+        { borderLeftColor: `hsl(${getCountryHue(countryLabel)} 70% 45%)` }
+      : undefined
+    }
   >
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -479,7 +494,14 @@ const RoleListItem: React.FC<{
         </p>
       </div>
       {countryLabel ?
-        <span className="rounded-full border border-gray-200 px-2 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-300">
+        <span
+          className="rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+          style={{
+            borderColor: `hsl(${getCountryHue(countryLabel)} 70% 45%)`,
+            color: `hsl(${getCountryHue(countryLabel)} 70% 40%)`,
+            backgroundColor: `hsla(${getCountryHue(countryLabel)}, 70%, 45%, 0.12)`,
+          }}
+        >
           {countryLabel}
         </span>
       : null}
@@ -515,20 +537,24 @@ const Settings: React.FC = () => {
     useState<CountryCode>("All");
   const [memberSearch, setMemberSearch] = useState("");
   const [permissionSearch, setPermissionSearch] = useState("");
-  const [roleTab, setRoleTab] = useState<"members" | "permissions">(
-    "permissions",
-  );
+  const [roleTab, setRoleTab] = useState<
+    "members" | "permissions" | "configuration"
+  >("permissions");
   const [permissionCategoryState, setPermissionCategoryState] = useState<
     Record<string, boolean>
   >({});
+  const [roleConfigName, setRoleConfigName] = useState("");
+  const [roleConfigDescription, setRoleConfigDescription] = useState("");
+  const [roleConfigCountry, setRoleConfigCountry] =
+    useState<CountryCode>("India");
+  const [roleConfigActive, setRoleConfigActive] = useState(true);
+  const [roleConfigSaving, setRoleConfigSaving] = useState(false);
   const [rolePermissionCounts, setRolePermissionCounts] = useState<
     Record<string, number>
   >({});
   const [roleCountryOverrides, setRoleCountryOverrides] = useState<
     Record<string, CountryCode>
   >({});
-  const [selectedRoleCountry, setSelectedRoleCountry] =
-    useState<CountryCode>("India");
   const [adminCountryFilter, setAdminCountryFilter] =
     useState<CountryCode>("All");
   const [loadingRolePermissions, setLoadingRolePermissions] = useState(false);
@@ -791,6 +817,26 @@ const Settings: React.FC = () => {
     }));
   }, [users, roles, rolePermissionCounts]);
 
+  const roleCountryMap = useMemo(
+    () =>
+      new Map<string, CountryCode>(
+        roles
+          .filter((r) => r.country)
+          .map((r) => [r.id, r.country as CountryCode]),
+      ),
+    [roles],
+  );
+
+  const getRoleCountry = useCallback(
+    (roleId?: string): CountryCode => {
+      if (!roleId) return "India";
+      return (
+        roleCountryOverrides[roleId] || roleCountryMap.get(roleId) || "India"
+      );
+    },
+    [roleCountryOverrides, roleCountryMap],
+  );
+
   const filteredRoleStats = useMemo(() => {
     const query = roleSearch.trim().toLowerCase();
     const countryFilter = roleCountryFilter?.toLowerCase?.() ?? "all";
@@ -798,10 +844,10 @@ const Settings: React.FC = () => {
       const nameMatched = !query || role.name.toLowerCase().includes(query);
       if (!nameMatched) return false;
       if (!countryFilter || countryFilter === "all") return true;
-      const roleCountry = roleCountryOverrides[role.id] ?? role.country ?? "";
+      const roleCountry = getRoleCountry(role.id);
       return roleCountry.toLowerCase() === countryFilter;
     });
-  }, [roleSearch, roleStats, roleCountryFilter, roleCountryOverrides]);
+  }, [roleSearch, roleStats, roleCountryFilter, getRoleCountry]);
 
   const selectedRoleMembers = useMemo(() => {
     if (!selectedRolePermissionsRoleId) return [];
@@ -849,26 +895,6 @@ const Settings: React.FC = () => {
     });
   }, [permissionGroups]);
 
-  const roleCountryMap = useMemo(
-    () =>
-      new Map<string, CountryCode>(
-        roles
-          .filter((r) => r.country)
-          .map((r) => [r.id, r.country as CountryCode]),
-      ),
-    [roles],
-  );
-
-  const getRoleCountry = useCallback(
-    (roleId?: string): CountryCode => {
-      if (!roleId) return "India";
-      return (
-        roleCountryOverrides[roleId] || roleCountryMap.get(roleId) || "India"
-      );
-    },
-    [roleCountryOverrides, roleCountryMap],
-  );
-
   const selectedRole = useMemo(
     () =>
       roles.find((role) => role.id === selectedRolePermissionsRoleId) ?? null,
@@ -876,9 +902,18 @@ const Settings: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!selectedRolePermissionsRoleId) return;
-    setSelectedRoleCountry(getRoleCountry(selectedRolePermissionsRoleId));
-  }, [selectedRolePermissionsRoleId, getRoleCountry]);
+    if (!selectedRole) {
+      setRoleConfigName("");
+      setRoleConfigDescription("");
+      setRoleConfigCountry("India");
+      setRoleConfigActive(true);
+      return;
+    }
+    setRoleConfigName(selectedRole.name ?? "");
+    setRoleConfigDescription(selectedRole.description ?? "");
+    setRoleConfigCountry(getRoleCountry(selectedRole.id));
+    setRoleConfigActive(selectedRole.isActive !== false);
+  }, [selectedRole, getRoleCountry]);
 
   const loadRolePermissionCounts = useCallback(async () => {
     if (!canManageRbac || roles.length === 0) {
@@ -1196,6 +1231,55 @@ const Settings: React.FC = () => {
       setError(getApiErrorMessage(e, "Unable to update role permissions"));
     } finally {
       setSavingRolePermissions(false);
+    }
+  };
+
+  const saveRoleConfiguration = async () => {
+    if (!canManageRbac) {
+      setError("You do not have permission to update roles.");
+      return;
+    }
+    if (!selectedRolePermissionsRoleId) {
+      setError("Please select a role first.");
+      return;
+    }
+    const trimmedName = roleConfigName.trim();
+    if (!trimmedName) {
+      setError("Role name is required.");
+      return;
+    }
+    setRoleConfigSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      await authService.updateRole(selectedRolePermissionsRoleId, {
+        name: trimmedName,
+        description: roleConfigDescription.trim() || null,
+        country: roleConfigCountry,
+        isActive: roleConfigActive,
+      });
+      setRoles((prev) =>
+        prev.map((role) =>
+          role.id === selectedRolePermissionsRoleId ?
+            {
+              ...role,
+              name: trimmedName,
+              description: roleConfigDescription.trim() || null,
+              country: roleConfigCountry,
+              isActive: roleConfigActive,
+            }
+          : role,
+        ),
+      );
+      setRoleCountryOverrides((prev) => ({
+        ...prev,
+        [selectedRolePermissionsRoleId]: roleConfigCountry,
+      }));
+      setMessage("Role configuration updated.");
+    } catch (e) {
+      setError(getApiErrorMessage(e, "Unable to update role configuration"));
+    } finally {
+      setRoleConfigSaving(false);
     }
   };
 
@@ -1640,6 +1724,16 @@ const Settings: React.FC = () => {
                     >
                       Permissions
                     </button>
+                    <button
+                      className={`pb-3 font-medium transition ${
+                        roleTab === "configuration" ?
+                          "border-b-2 border-blue-600 text-gray-900 dark:text-gray-100"
+                        : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                      }`}
+                      onClick={() => setRoleTab("configuration")}
+                    >
+                      Configuration
+                    </button>
                   </div>
 
                   {roleTab === "members" ?
@@ -1721,7 +1815,10 @@ const Settings: React.FC = () => {
                         </div>
                       }
                     </div>
-                  : <div className="mt-4 space-y-4">
+                  : null}
+
+                  {roleTab === "permissions" ?
+                    <div className="mt-4 space-y-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="relative flex-1">
                           <FaMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400" />
@@ -1790,65 +1887,98 @@ const Settings: React.FC = () => {
                         </div>
                       }
                     </div>
-                  }
+                  : null}
+
+                  {roleTab === "configuration" ?
+                    <div className="mt-4 space-y-4">
+                      {!selectedRole ?
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
+                          Select a role to edit its configuration.
+                        </div>
+                      : <>
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div>
+                              <label className="field-label">Role Name</label>
+                              <input
+                                className="field-input"
+                                value={roleConfigName}
+                                onChange={(e) =>
+                                  setRoleConfigName(e.target.value)
+                                }
+                              />
+                            </div>
+                            <div>
+                              <label className="field-label">Country</label>
+                              <SearchableDropdown
+                                value={roleConfigCountry}
+                                options={ROLE_COUNTRY_OPTIONS}
+                                onChange={(value) =>
+                                  setRoleConfigCountry(value as CountryCode)
+                                }
+                                className="w-full"
+                                searchPlaceholder="Search country..."
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="field-label">Description</label>
+                            <textarea
+                              className="field-input min-h-[110px]"
+                              value={roleConfigDescription}
+                              onChange={(e) =>
+                                setRoleConfigDescription(e.target.value)
+                              }
+                            />
+                          </div>
+                          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                Active Role
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Disable a role to prevent it from being
+                                assigned.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRoleConfigActive((prev) => !prev)
+                              }
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                roleConfigActive ? "bg-blue-600" : (
+                                  "bg-gray-300 dark:bg-gray-700"
+                                )
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                  roleConfigActive ? "translate-x-6" : (
+                                    "translate-x-1"
+                                  )
+                                }`}
+                              />
+                            </button>
+                          </div>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => void saveRoleConfiguration()}
+                              disabled={
+                                roleConfigSaving ||
+                                !selectedRolePermissionsRoleId
+                              }
+                              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                            >
+                              {roleConfigSaving ? "Saving..." : "Save Role"}
+                            </button>
+                          </div>
+                        </>
+                      }
+                    </div>
+                  : null}
 
                   {roleTab === "permissions" ?
                     <>
-                      <div className="mt-6 border-t border-gray-200 pt-5 dark:border-gray-700">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          Country
-                        </p>
-                        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-                          <SearchableDropdown
-                            value={selectedRoleCountry}
-                            options={ROLE_COUNTRY_OPTIONS}
-                            onChange={(value) =>
-                              setSelectedRoleCountry(value as CountryCode)
-                            }
-                            className="w-full sm:w-56"
-                            dropdownPlacement="up"
-                            searchPlaceholder="Search country..."
-                          />
-                          <button
-                            onClick={async () => {
-                              if (!selectedRolePermissionsRoleId) return;
-                              try {
-                                await authService.updateRole(
-                                  selectedRolePermissionsRoleId,
-                                  {
-                                    country: selectedRoleCountry,
-                                  },
-                                );
-                                setRoleCountryOverrides((prev) => ({
-                                  ...prev,
-                                  [selectedRolePermissionsRoleId]:
-                                    selectedRoleCountry,
-                                }));
-                                setRoles((prev) =>
-                                  prev.map((r) =>
-                                    r.id === selectedRolePermissionsRoleId ?
-                                      { ...r, country: selectedRoleCountry }
-                                    : r,
-                                  ),
-                                );
-                              } catch (err) {
-                                alert(
-                                  getApiErrorMessage(
-                                    err,
-                                    "Failed to save country",
-                                  ),
-                                );
-                              }
-                            }}
-                            disabled={!selectedRolePermissionsRoleId}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-orange-100 px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:from-amber-100 hover:via-orange-100 hover:to-orange-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 disabled:translate-y-0 disabled:opacity-60 disabled:shadow-none dark:border-amber-500/40 dark:from-amber-500/20 dark:via-orange-500/20 dark:to-orange-500/20 dark:text-amber-100 sm:w-auto"
-                          >
-                            <FaEarthAmericas className="text-base" />
-                            Save Country
-                          </button>
-                        </div>
-                      </div>
-
                       <div className="mt-4 flex items-center justify-between gap-2">
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {selectedRolePermissions.length} selected

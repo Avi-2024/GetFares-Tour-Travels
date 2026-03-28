@@ -76,7 +76,15 @@ export const createAuthService = (datasource: AuthDatasource) => ({
       permissions?: { permissionId?: string; key?: string; enabled?: boolean }[];
     },
   ) => datasource.updateRolePermissions(roleId, payload),
-  updateRole: (roleId: string, payload: { country?: string | null }) =>
+  updateRole: (
+    roleId: string,
+    payload: {
+      name?: string;
+      description?: string | null;
+      country?: string | null;
+      isActive?: boolean;
+    },
+  ) =>
     datasource.updateRole(roleId, payload),
   setRolePermissions: (role: string, permissions: string[]) =>
     datasource.setRolePermissions(role, { permissions }),
