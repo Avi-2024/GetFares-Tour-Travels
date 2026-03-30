@@ -792,10 +792,10 @@ const QuotationsPage: React.FC = () => {
   }
 
   return (
-    <div className='space-y-4 sm:space-y-6'>
+    <div className='min-w-0 space-y-4 sm:space-y-6'>
       {/* Header */}
-      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
-        <div className='flex flex-col gap-1'>
+      <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
+        <div className='min-w-0 flex flex-col gap-1'>
           <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
             Quotations
           </h1>
@@ -804,18 +804,18 @@ const QuotationsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:self-center sm:-mt-2'>
+        <div className='flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end lg:w-auto lg:self-start'>
           <button
             onClick={exportCurrentTable}
             disabled={!rows.length}
-            className='inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+            className='inline-flex w-full items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 sm:w-auto'
           >
             <FaDownload className='mr-2' />
             <span>Export</span>
           </button>
           <button
             onClick={() => nav('/quotations/builder')}
-            className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto'
+            className='inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto'
           >
             <FaPlus className='mr-2' />
             <span>Create Quotation</span>
@@ -940,7 +940,7 @@ const QuotationsPage: React.FC = () => {
             } lg:block space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30`}
           >
             <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5'>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Quote Number
                 </label>
@@ -954,7 +954,7 @@ const QuotationsPage: React.FC = () => {
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Customer
                 </label>
@@ -968,7 +968,7 @@ const QuotationsPage: React.FC = () => {
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Email
                 </label>
@@ -980,7 +980,7 @@ const QuotationsPage: React.FC = () => {
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Phone
                 </label>
@@ -992,7 +992,7 @@ const QuotationsPage: React.FC = () => {
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Template
                 </label>
@@ -1009,7 +1009,7 @@ const QuotationsPage: React.FC = () => {
             </div>
 
             <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6'>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   From Date
                 </label>
@@ -1022,7 +1022,7 @@ const QuotationsPage: React.FC = () => {
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   To Date
                 </label>
@@ -1033,7 +1033,7 @@ const QuotationsPage: React.FC = () => {
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Destination
                 </label>
@@ -1046,7 +1046,7 @@ const QuotationsPage: React.FC = () => {
                   onChange={value => updateDraftFilter('destination', value)}
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Status
                 </label>
@@ -1061,7 +1061,7 @@ const QuotationsPage: React.FC = () => {
                   }
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   SLA
                 </label>
@@ -1076,7 +1076,7 @@ const QuotationsPage: React.FC = () => {
                   }
                 />
               </div>
-              <div>
+              <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Sort By
                 </label>
@@ -1235,33 +1235,33 @@ const QuotationsPage: React.FC = () => {
               ))}
             </div>
 
-            {/* Desktop View - Table (UNCHANGED) */}
-            <div className='hidden lg:block overflow-x-auto'>
+            {/* Desktop View - Table */}
+            <div className='hidden max-w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 lg:block'>
               <table className='min-w-[980px] w-full divide-y divide-gray-200 dark:divide-gray-800'>
                 <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
                   <tr>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Quote #
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Customer
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Destination
                     </th>
-                    <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Total
                     </th>
-                    <th className='px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Status
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Last Sent
                     </th>
-                    <th className='px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       SLA
                     </th>
-                    <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Actions
                     </th>
                   </tr>
@@ -1272,29 +1272,29 @@ const QuotationsPage: React.FC = () => {
                       key={q.id}
                       className='group hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors'
                     >
-                      <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
+                      <td className='px-3 xl:px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300 whitespace-nowrap'>
                         {q.quoteNumber}
                       </td>
-                      <td className='px-5 py-4'>
-                        <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                      <td className='px-3 xl:px-5 py-4 min-w-[150px] max-w-[200px]'>
+                        <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
                           {q.customer}
                         </p>
-                        <p className='text-xs text-gray-500'>{q.email}</p>
+                        <p className='text-xs text-gray-500 truncate'>{q.email}</p>
                       </td>
-                      <td className='px-5 py-4'>
-                        <p className='text-sm text-gray-800 dark:text-gray-100'>
+                      <td className='px-3 xl:px-5 py-4 min-w-[180px] max-w-[250px]'>
+                        <p className='text-sm text-gray-800 dark:text-gray-100 truncate'>
                           {q.destination}
                         </p>
-                        <p className='text-xs text-gray-500'>{q.details}</p>
+                        <p className='text-xs text-gray-500 truncate'>{q.details}</p>
                         {q.templateName ? (
-                          <p className='text-[11px] text-blue-600 dark:text-blue-300'>
+                          <p className='text-[11px] text-blue-600 dark:text-blue-300 truncate'>
                             Template:{' '}
                             {q.templateCode ? `${q.templateCode} - ` : ''}
                             {q.templateName}
                           </p>
                         ) : null}
                       </td>
-                      <td className='px-5 py-4 text-right'>
+                      <td className='px-3 xl:px-5 py-4 text-right whitespace-nowrap'>
                         <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                           ${(q.total || 0).toFixed(2)}
                         </p>
@@ -1302,16 +1302,16 @@ const QuotationsPage: React.FC = () => {
                           Margin {q.margin || 0}%
                         </p>
                       </td>
-                      <td className='px-5 py-4 text-center'>
+                      <td className='px-3 xl:px-5 py-4 text-center'>
                         <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize whitespace-nowrap ${
                             styles[q.status]
                           }`}
                         >
                           {q.status}
                         </span>
                       </td>
-                      <td className='px-5 py-4 text-xs text-gray-500'>
+                      <td className='px-3 xl:px-5 py-4 text-xs text-gray-500 whitespace-nowrap'>
                         {q.lastSent ?? 'Never Sent'}
                       </td>
                       <td className='px-5 py-4 text-center'>
