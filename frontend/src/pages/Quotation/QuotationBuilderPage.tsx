@@ -132,6 +132,60 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   { key: "insurance", label: "Insurance", itemType: "INSURANCE", weight: 8 },
 ];
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isUuid(value: unknown): value is string {
+  if (typeof value !== "string") return false
+  return UUID_REGEX.test(value.trim())
+}
+
+function unwrapApiData<T>(response: unknown): T | null {
+  if (!response) return null
+  if (typeof response === "object" && response && "data" in response) {
+    return ((response as { data?: unknown }).data ?? null) as T | null
+  }
+  return response as T
+}
+
+function toTrimmedString(value: unknown): string {
+  if (value === null || value === undefined) return ""
+  return String(value).trim()
+}
+
+function firstNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    if (value === null || value === undefined) continue
+    const text = String(value)
+    if (text.trim()) return text
+  }
+  return ""
+}
+
+function toFiniteNumber(value: unknown, fallback = 0): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function toDateInputString(value: unknown): string {
+  const text = toTrimmedString(value)
+  if (!text) return ""
+  const parsed = new Date(text)
+  if (Number.isNaN(parsed.getTime())) {
+    return text.length >= 10 ? text.slice(0, 10) : ""
+  }
+  return parsed.toISOString().slice(0, 10)
+}
+
+function normalizeServiceKey(value: unknown): ServiceKey | null {
+  const normalized = toTrimmedString(value).toLowerCase()
+  if (!normalized) return null
+  const matched = SERVICE_DEFINITIONS.find(
+    definition => definition.key === normalized
+  )
+  return matched?.key ?? null
+}
+
 function parseNightsFromDuration(duration: unknown, fallback: number): number {
   if (duration == null || duration === '') return fallback
   const s = String(duration)
@@ -275,10 +329,23 @@ const initialItinerary: Item[] = [
   },
 ];
 
-const QuotationBuilderPage: React.FC = () => {
+type QuotationBuilderPageProps = {
+  mode?: 'create' | 'edit'
+  quotationId?: string
+}
+
+const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
+  mode = 'create',
+  quotationId = ''
+}) => {
   const navigate = useNavigate()
+  const editingQuotationId = quotationId
+  const isEditMode = mode === 'edit'
   const { token } = useAuth()
   const leadsService = useLeadsService()
+  const [loadingEditQuotation, setLoadingEditQuotation] = useState(false)
+  const [loadedQuotationStatus, setLoadedQuotationStatus] = useState<string | null>(null)
+  const [hasLoadedEditSnapshot, setHasLoadedEditSnapshot] = useState(false)
   const [showPreview, setShowPreview] = useState(true)
   const [mobile, setMobile] = useState(false)
   const [currency, setCurrency] = useState<Currency>('INR')
@@ -367,6 +434,12 @@ const QuotationBuilderPage: React.FC = () => {
     Record<string, boolean>
   >({})
   const previewRef = useRef<HTMLDivElement | null>(null)
+  const skipLeadAutofillRef = useRef(false)
+
+  const isEditLocked =
+    isEditMode &&
+    loadedQuotationStatus !== null &&
+    loadedQuotationStatus === 'APPROVED'
 
   const selectedLead = useMemo(
     () => leads.find((lead) => lead.id === selectedLeadId) || null,
@@ -999,6 +1072,495 @@ const QuotationBuilderPage: React.FC = () => {
   }, [token])
 
   useEffect(() => {
+    if (!isEditMode || !editingQuotationId) return
+    if (!token) {
+      setSaveError('Login required to edit quotations.')
+      return
+    }
+
+    let cancelled = false
+    const loadQuotationForEdit = async () => {
+      setLoadingEditQuotation(true)
+      setSaveError('')
+      try {
+        const response = await quotationsApi.getById(editingQuotationId)
+        const quotation = unwrapApiData<Record<string, unknown>>(response)
+        if (!quotation) {
+          throw new Error('Quotation payload not found')
+        }
+
+        const quotationStatus = toTrimmedString(quotation.status).toUpperCase()
+        if (!cancelled) {
+          setLoadedQuotationStatus(quotationStatus || null)
+          if (quotationStatus === 'APPROVED') {
+            setSaveError('Approved quotations cannot be edited in builder.')
+          }
+        }
+
+        const snapshotRoot =
+          quotation.templateSnapshot && typeof quotation.templateSnapshot === 'object'
+            ? (quotation.templateSnapshot as Record<string, unknown>)
+            : quotation.template_snapshot && typeof quotation.template_snapshot === 'object'
+              ? (quotation.template_snapshot as Record<string, unknown>)
+              : null
+
+        const builderSnapshot =
+          snapshotRoot?.builderSnapshot &&
+          typeof snapshotRoot.builderSnapshot === 'object'
+            ? (snapshotRoot.builderSnapshot as Record<string, unknown>)
+            : null
+
+        const snapshot = builderSnapshot ?? snapshotRoot
+        const snapshotLead =
+          snapshot?.lead && typeof snapshot.lead === 'object'
+            ? (snapshot.lead as Record<string, unknown>)
+            : null
+        const snapshotPackage =
+          snapshot?.package && typeof snapshot.package === 'object'
+            ? (snapshot.package as Record<string, unknown>)
+            : null
+        const snapshotContent =
+          snapshot?.content && typeof snapshot.content === 'object'
+            ? (snapshot.content as Record<string, unknown>)
+            : null
+        const snapshotPricing =
+          snapshot?.pricing && typeof snapshot.pricing === 'object'
+            ? (snapshot.pricing as Record<string, unknown>)
+            : null
+        const relationLead =
+          quotation.lead && typeof quotation.lead === 'object'
+            ? (quotation.lead as Record<string, unknown>)
+            : null
+        const relationDestination =
+          quotation.destination && typeof quotation.destination === 'object'
+            ? (quotation.destination as Record<string, unknown>)
+            : null
+
+        const leadId = toTrimmedString(
+          quotation.leadId ?? quotation.lead_id ?? snapshotLead?.id
+        )
+        if (!cancelled && leadId) {
+          skipLeadAutofillRef.current = true
+          setSelectedLeadId(leadId)
+        }
+
+        const templateIdCandidate = toTrimmedString(
+          quotation.templateId ?? quotation.template_id ?? snapshotRoot?.id
+        )
+        const validTemplateId = isUuid(templateIdCandidate)
+          ? templateIdCandidate
+          : ''
+        if (!cancelled) {
+          setSelectedTemplateId(validTemplateId)
+        }
+        if (!cancelled && validTemplateId) {
+          const templateTypeRaw = toTrimmedString(
+            snapshotRoot?.templateType ?? snapshotRoot?.template_type
+          ).toUpperCase()
+          const templateType: TemplateType =
+            templateTypeRaw === 'VISA' || templateTypeRaw === 'CUSTOM_ITINERARY'
+              ? templateTypeRaw
+              : 'READY_PACKAGE'
+          const snapshotTemplate: TemplateOption = {
+            id: validTemplateId,
+            code: toTrimmedString(snapshotRoot?.code) || `TMP-${validTemplateId.slice(0, 6).toUpperCase()}`,
+            name: toTrimmedString(snapshotRoot?.name) || 'Saved Template',
+            templateType,
+            isActive: true,
+            minMarginPercent: toFiniteNumber(snapshotRoot?.minMarginPercent ?? snapshotRoot?.min_margin_percent, 0),
+            headerBranding: toTrimmedString(snapshotRoot?.headerBranding),
+            inclusions: toTrimmedString(snapshotRoot?.inclusions),
+            exclusions: toTrimmedString(snapshotRoot?.exclusions),
+            paymentTerms: toTrimmedString(snapshotRoot?.paymentTerms ?? snapshotRoot?.payment_terms),
+            cancellationPolicy: toTrimmedString(
+              snapshotRoot?.cancellationPolicy ?? snapshotRoot?.cancellation_policy
+            ),
+            footerDisclaimer: toTrimmedString(snapshotRoot?.footerDisclaimer ?? snapshotRoot?.footer_disclaimer)
+          }
+          setTemplates(prev =>
+            prev.some(template => template.id === snapshotTemplate.id)
+              ? prev
+              : [...prev, snapshotTemplate]
+          )
+        }
+
+        const sourcePackageId = toTrimmedString(
+          quotation.sourcePackageId ??
+            quotation.source_package_id ??
+            snapshot?.sourcePackageId ??
+            snapshotRoot?.sourcePackageId ??
+            snapshotPackage?.id
+        )
+        if (!cancelled) {
+          setSelectedPackageId(sourcePackageId)
+        }
+        if (!cancelled && sourcePackageId && snapshotPackage) {
+          const packageRecord = { ...snapshotPackage, id: sourcePackageId }
+          setPackages(prev => {
+            const currentIndex = prev.findIndex(
+              item => String(item?.id ?? '') === sourcePackageId
+            )
+            if (currentIndex === -1) {
+              return [...prev, packageRecord]
+            }
+            return prev.map(item =>
+              String(item?.id ?? '') === sourcePackageId
+                ? { ...item, ...packageRecord }
+                : item
+            )
+          })
+        }
+
+        const supplierDetails =
+          snapshot?.supplierDetails && typeof snapshot.supplierDetails === 'object'
+            ? (snapshot.supplierDetails as Record<string, unknown>)
+            : snapshotRoot?.supplierDetails && typeof snapshotRoot.supplierDetails === 'object'
+              ? (snapshotRoot.supplierDetails as Record<string, unknown>)
+              : snapshotRoot?.supplier && typeof snapshotRoot.supplier === 'object'
+                ? (snapshotRoot.supplier as Record<string, unknown>)
+                : null
+        const supplierId = toTrimmedString(
+          supplierDetails?.supplierId ?? supplierDetails?.id
+        )
+        const supplierName = toTrimmedString(
+          supplierDetails?.supplierName ?? supplierDetails?.name
+        )
+        if (!cancelled && supplierId) {
+          setSelectedSupplierId(supplierId)
+        }
+        if (!cancelled && supplierId && supplierName) {
+          setSuppliers(prev =>
+            prev.some(supplier => supplier.id === supplierId)
+              ? prev
+              : [...prev, { id: supplierId, name: supplierName }]
+          )
+        }
+
+        const snapshotDurationLabel = firstNonEmptyString(
+          quotation.durationLabel,
+          quotation.duration_label,
+          snapshot?.durationLabel,
+          snapshotRoot?.durationLabel,
+          snapshotPackage?.duration
+        )
+        const durationParts = parseDurationParts(snapshotDurationLabel)
+        const nights = Math.max(
+          1,
+          Math.floor(
+            toFiniteNumber(
+              quotation.durationNights ??
+                quotation.duration_nights ??
+                snapshot?.durationNights ??
+                snapshot?.nights ??
+                snapshotRoot?.durationNights ??
+                snapshotRoot?.nights,
+              parseNightsFromDuration(snapshotDurationLabel, 1)
+            )
+          )
+        )
+
+        const rawItinerary = Array.isArray(snapshot?.itineraryItems)
+          ? snapshot.itineraryItems
+          : Array.isArray(quotation.itinerary)
+            ? quotation.itinerary
+            : Array.isArray(snapshotRoot?.itineraryItems)
+              ? snapshotRoot.itineraryItems
+              : []
+        const mappedItinerary = rawItinerary
+          .map((row: any, index: number) => ({
+            id: String(row?.id ?? `saved-it-${index + 1}`),
+            day: String(row?.day ?? getDayLabel(index)),
+            title: String(row?.title ?? row?.heading ?? ''),
+            description: String(row?.description ?? row?.details ?? '')
+          }))
+          .filter(
+            item =>
+              item.day.trim() || item.title.trim() || item.description.trim()
+          )
+        const durationDays = parseDayCount(
+          quotation.durationDays ??
+            quotation.duration_days ??
+            snapshot?.durationDays ??
+            snapshotRoot?.durationDays ??
+            durationParts.days
+        )
+        const itineraryDayCount =
+          durationDays || mappedItinerary.length || Math.max(1, nights + 1)
+
+        if (!cancelled) {
+          setItineraryItems(buildItineraryRows(itineraryDayCount, mappedItinerary))
+        }
+
+        const addOnSnapshot = Array.isArray(snapshot?.addOnServices)
+          ? snapshot.addOnServices
+          : Array.isArray(snapshotRoot?.addOnServices)
+            ? snapshotRoot.addOnServices
+            : []
+        if (!cancelled) {
+          setAddOnServices(
+            addOnSnapshot
+              .map((service: any, index: number) => {
+                const baseCost = toFiniteNumber(service?.baseCost, 0)
+                const sellValue = toFiniteNumber(
+                  service?.sellValue,
+                  baseCost + toFiniteNumber(service?.markup, 0)
+                )
+                return {
+                  id: String(service?.id ?? `saved-addon-${index + 1}`),
+                  name: toTrimmedString(service?.name) || `Add-on ${index + 1}`,
+                  weight: Math.max(0, toFiniteNumber(service?.weight, 0)),
+                  baseCost,
+                  markup: toFiniteNumber(service?.markup, sellValue - baseCost),
+                  sellValue
+                }
+              })
+              .filter(service => service.name)
+          )
+        }
+
+        const serviceRowSnapshot = Array.isArray(snapshot?.serviceRows)
+          ? snapshot.serviceRows
+          : Array.isArray(snapshotRoot?.serviceRows)
+            ? snapshotRoot.serviceRows
+            : []
+        if (!cancelled) {
+          const nextOverrides: ServiceOverridesState = {}
+          serviceRowSnapshot.forEach((row: any) => {
+            const key = normalizeServiceKey(row?.key)
+            if (!key) return
+            nextOverrides[key] = {
+              weight:
+                row?.weight !== undefined && row?.weight !== null
+                  ? String(row.weight)
+                  : undefined,
+              baseCost:
+                row?.baseCost !== undefined && row?.baseCost !== null
+                  ? String(row.baseCost)
+                  : undefined,
+              markupPercent:
+                row?.markupPercent !== undefined && row?.markupPercent !== null
+                  ? String(row.markupPercent)
+                  : undefined,
+              sellValue:
+                row?.sellValue !== undefined && row?.sellValue !== null
+                  ? String(row.sellValue)
+                  : undefined,
+              paymentTerms: toTrimmedString(row?.paymentTerms) || undefined
+            }
+          })
+          setServiceOverrides(nextOverrides)
+        }
+
+        const travelStartDate = toDateInputString(
+          quotation.travelStartDate ??
+            quotation.travel_start_date ??
+            snapshot?.travelStartDate ??
+            snapshotRoot?.travelStartDate ??
+            relationLead?.travelDate
+        )
+        const validUntil = toDateInputString(
+          snapshot?.validUntil ?? snapshotRoot?.validUntil ?? quotation.expiresAt
+        )
+        const destinationName = firstNonEmptyString(
+          quotation.tripDestination,
+          quotation.trip_destination,
+          snapshot?.destination,
+          snapshotRoot?.destination,
+          relationDestination?.name,
+          snapshotLead?.destination,
+          relationLead?.destinationName
+        )
+        const customerName = firstNonEmptyString(
+          snapshot?.customerName,
+          snapshotRoot?.customerName,
+          snapshotLead?.fullName,
+          snapshotLead?.name,
+          relationLead?.fullName
+        )
+        const customerEmail = firstNonEmptyString(
+          snapshot?.customerEmail,
+          snapshotRoot?.customerEmail,
+          snapshotLead?.email,
+          relationLead?.email
+        )
+        const quoteReference = firstNonEmptyString(
+          snapshot?.quoteReference,
+          snapshotRoot?.quoteReference,
+          quotation.quoteNumber
+        )
+        const versionLabel = firstNonEmptyString(
+          snapshot?.versionLabel,
+          snapshotRoot?.versionLabel,
+          quotation.versionNumber ? `V${quotation.versionNumber}` : null
+        )
+        const quotationTitle = firstNonEmptyString(
+          quotation.quotationTitle,
+          quotation.quotation_title,
+          snapshot?.quotationTitle,
+          snapshotRoot?.quotationTitle,
+          snapshotPackage?.name,
+          snapshotPackage?.title
+        )
+
+        if (!cancelled) {
+          setForm(prev => ({
+            ...prev,
+            quote: quoteReference || prev.quote,
+            version: versionLabel || prev.version,
+            quotationTitle: quotationTitle || prev.quotationTitle,
+            customer: customerName || prev.customer,
+            email: customerEmail || prev.email,
+            destination: destinationName || prev.destination,
+            startDate: travelStartDate || prev.startDate,
+            nights,
+            durationDays: String(itineraryDayCount),
+            adults: Math.max(
+              1,
+              Math.floor(
+                toFiniteNumber(
+                  snapshot?.adults ??
+                    snapshotRoot?.adults ??
+                    relationLead?.adultsCount,
+                  prev.adults || 1
+                )
+              )
+            ),
+            validUntil: validUntil || prev.validUntil,
+            inclusions: firstNonEmptyString(
+              quotation.inclusions,
+              snapshotContent?.inclusions,
+              snapshotRoot?.inclusions,
+              prev.inclusions
+            ),
+            exclusions: firstNonEmptyString(
+              quotation.exclusions,
+              snapshotContent?.exclusions,
+              snapshotRoot?.exclusions,
+              prev.exclusions
+            ),
+            headerBranding: firstNonEmptyString(
+              snapshotContent?.headerBranding,
+              snapshotRoot?.headerBranding,
+              prev.headerBranding
+            ),
+            paymentTerms: firstNonEmptyString(
+              quotation.paymentTerms,
+              quotation.payment_terms,
+              snapshotContent?.paymentTerms,
+              snapshotRoot?.paymentTerms,
+              snapshotRoot?.payment_terms,
+              prev.paymentTerms
+            ),
+            cancellationPolicy: firstNonEmptyString(
+              quotation.cancellationPolicy,
+              quotation.cancellation_policy,
+              snapshotContent?.cancellationPolicy,
+              snapshotRoot?.cancellationPolicy,
+              snapshotRoot?.cancellation_policy,
+              prev.cancellationPolicy
+            ),
+            footerDisclaimer: firstNonEmptyString(
+              snapshotContent?.footerDisclaimer,
+              snapshotRoot?.footerDisclaimer,
+              snapshotRoot?.footer_disclaimer,
+              prev.footerDisclaimer
+            ),
+            hotelDetails: firstNonEmptyString(
+              quotation.hotelDetails,
+              quotation.hotel_details,
+              snapshotContent?.hotelDetails,
+              snapshotRoot?.hotelDetails,
+              snapshotRoot?.hotel_details,
+              prev.hotelDetails
+            ),
+            visaDetails: firstNonEmptyString(
+              quotation.visaDetails,
+              quotation.visa_details,
+              snapshotContent?.visaDetails,
+              snapshotRoot?.visaDetails,
+              snapshotRoot?.visa_details,
+              prev.visaDetails
+            )
+          }))
+        }
+
+        if (!cancelled) {
+          setCosts(prev => ({
+            supplierCost: Math.max(
+              0,
+              toFiniteNumber(
+                quotation.supplierCost ?? snapshotPricing?.supplierCost,
+                prev.supplierCost
+              )
+            ),
+            markupPercent: Math.max(
+              0,
+              toFiniteNumber(
+                quotation.marginPercent ?? snapshotPricing?.markupPercent,
+                prev.markupPercent
+              )
+            ),
+            serviceFee: Math.max(
+              0,
+              toFiniteNumber(
+                quotation.serviceFeeAmount ?? snapshotPricing?.serviceFee,
+                prev.serviceFee
+              )
+            ),
+            taxPercent: Math.max(
+              0,
+              toFiniteNumber(snapshotPricing?.taxPercent, prev.taxPercent)
+            ),
+            discount: Math.max(
+              0,
+              toFiniteNumber(
+                quotation.discount ?? snapshotPricing?.discount,
+                prev.discount
+              )
+            )
+          }))
+
+          const selectedCurrency = toTrimmedString(
+            quotation.clientCurrency ??
+              quotation.costCurrency ??
+              snapshot?.currency ??
+              snapshotRoot?.currency
+          ).toUpperCase()
+          if (
+            selectedCurrency === 'INR' ||
+            selectedCurrency === 'USD' ||
+            selectedCurrency === 'EUR'
+          ) {
+            setCurrency(selectedCurrency)
+          }
+          setHasLoadedEditSnapshot(true)
+        }
+      } catch (error) {
+        console.error('Failed to load quotation for edit:', error)
+        if (!cancelled) {
+          setSaveError(
+            getApiErrorMessage(error, 'Failed to load quotation for editing.')
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingEditQuotation(false)
+        }
+      }
+    }
+
+    void loadQuotationForEdit()
+    return () => {
+      cancelled = true
+    }
+  }, [editingQuotationId, isEditMode, token])
+
+  useEffect(() => {
+    if (skipLeadAutofillRef.current) {
+      skipLeadAutofillRef.current = false
+      return
+    }
+    if (isEditMode && hasLoadedEditSnapshot) return
     if (!selectedLead) return
 
     const resolvedDestination =
@@ -1023,7 +1585,7 @@ const QuotationBuilderPage: React.FC = () => {
         : prev.startDate,
       adults: Number(selectedLead.adultsCount || prev.adults || 1),
     }));
-  }, [selectedLead, destinationMap, form.destination]);
+  }, [selectedLead, destinationMap, form.destination, hasLoadedEditSnapshot, isEditMode]);
 
   useEffect(() => {
     const dayCount = parseDayCount(form.durationDays)
@@ -1600,9 +2162,17 @@ const QuotationBuilderPage: React.FC = () => {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (saving) return
     setSaveError('')
+    if (isEditMode && !editingQuotationId) {
+      setSaveError('Quotation ID is missing for edit mode.')
+      return
+    }
+    if (isEditLocked) {
+      setSaveError('Approved quotations cannot be edited.')
+      return
+    }
     if (hasPricingErrors) {
       setSaveError('Fix pricing validation errors before saving.')
       return
@@ -1643,7 +2213,7 @@ const QuotationBuilderPage: React.FC = () => {
         return;
       }
 
-      if (!selectedLeadId) {
+      if (!isEditMode && !selectedLeadId) {
         setSaveError("Please select a lead before saving.");
         return;
       }
@@ -1692,9 +2262,11 @@ const QuotationBuilderPage: React.FC = () => {
         return Math.min(hours, 720);
       })();
 
-      const payload = {
-        leadId: selectedLeadId,
-        ...(selectedTemplateId ? { templateId: selectedTemplateId } : {}),
+      const validTemplateId = isUuid(selectedTemplateId)
+        ? selectedTemplateId
+        : undefined
+      const basePayload = {
+        ...(validTemplateId ? { templateId: validTemplateId } : {}),
         components,
         marginPercent: Number(costs.markupPercent) || 0,
         discount,
@@ -1710,11 +2282,46 @@ const QuotationBuilderPage: React.FC = () => {
         builderSnapshot: buildBuilderSnapshot(),
         ...(expiresInHours ? { expiresInHours } : {})
       }
-      void payload
+      if (isEditMode && editingQuotationId) {
+        await quotationsApi.update(editingQuotationId, basePayload)
+      } else {
+        await quotationsApi.create({
+          ...basePayload,
+          leadId: selectedLeadId
+        })
+      }
+      setShowSaved(true)
+      setTimeout(() => navigate("/quotations"), 1200)
+    } catch (error) {
+      console.error('Failed to save quotation:', error)
+      setSaveError(
+        getApiErrorMessage(
+          error,
+          isEditMode
+            ? 'Failed to update quotation.'
+            : 'Failed to create quotation.'
+        )
+      )
     } finally {
       setSaving(false)
     }
   };
+
+  if (isEditMode && !editingQuotationId) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+        Quotation ID missing. Please open edit from the quotations list.
+      </div>
+    )
+  }
+
+  if (isEditMode && loadingEditQuotation && !hasLoadedEditSnapshot) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+        Loading quotation details...
+      </div>
+    )
+  }
 
   return (
     <>
@@ -1731,11 +2338,13 @@ const QuotationBuilderPage: React.FC = () => {
                 <FaArrowLeft className="text-sm" />
               </button>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                Quotation Builder
+                {isEditMode ? "Edit Quotation" : "Quotation Builder"}
               </h1>
             </div>
             <p className="text-sm text-gray-500">
-              Create and preview polished quotations quickly.
+              {isEditMode
+                ? "Update your draft quotation with the same builder experience."
+                : "Create and preview polished quotations quickly."}
             </p>
             <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
               <p className="font-semibold">How Template Works</p>
@@ -1766,10 +2375,12 @@ const QuotationBuilderPage: React.FC = () => {
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || hasPricingErrors}
+              disabled={saving || hasPricingErrors || isEditLocked}
               className="col-span-3 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              <FaFloppyDisk className="mr-2 inline" /> {saving ? 'Saving...' : 'Save Quotation'}
+              <FaFloppyDisk className="mr-2 inline" /> {saving
+                ? (isEditMode ? 'Updating...' : 'Saving...')
+                : (isEditMode ? 'Update Quotation' : 'Save Quotation')}
             </button>
           </div>
         </div>
@@ -2981,7 +3592,7 @@ const QuotationBuilderPage: React.FC = () => {
               <FaCheck className="text-xl" />
             </div>
             <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Quotation saved
+              {isEditMode ? 'Quotation updated' : 'Quotation saved'}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Redirecting to quotations list...

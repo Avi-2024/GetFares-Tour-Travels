@@ -7,6 +7,7 @@ import {
   FaEye,
   FaFilePdf,
   FaPaperPlane,
+  FaPencil,
   FaPlus,
   FaXmark,
   FaClockRotateLeft
@@ -695,6 +696,7 @@ const QuotationDetailPage: React.FC = () => {
 
   const isApproved = status === 'APPROVED'
   const isRejected = status === 'REJECTED'
+  const canEditQuotation = status !== 'APPROVED'
 
   if (!id) {
     return (
@@ -787,6 +789,14 @@ const QuotationDetailPage: React.FC = () => {
         </div>
 
         <div className='flex flex-nowrap items-center gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible'>
+          {canEditQuotation ? (
+            <button
+              onClick={() => navigate(`/quotations/${id}/edit`)}
+              className='h-9 px-4 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors inline-flex items-center whitespace-nowrap shrink-0'
+            >
+              <FaPencil className='mr-2' /> Edit
+            </button>
+          ) : null}
           <button
             onClick={() => void handleDownloadPdf()}
             disabled={downloadingPdf}

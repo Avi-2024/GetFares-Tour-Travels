@@ -1070,10 +1070,10 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
     assertAuthenticatedUser(context.user);
 
     const current = await getById(id, context, { includeItems: true });
-    if (current.status !== QUOTATION_STATUS.DRAFT) {
+    if (current.status === QUOTATION_STATUS.APPROVED) {
       throw new AppError(
         409,
-        "Only DRAFT quotation can be edited",
+        "Approved quotation cannot be edited",
         "QUOTATION_LOCKED",
       );
     }

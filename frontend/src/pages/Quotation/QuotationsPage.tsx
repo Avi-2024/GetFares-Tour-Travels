@@ -11,7 +11,8 @@ import {
   FaWhatsapp,
   FaFilter,
   FaXmark,
-  FaCircleXmark
+  FaCircleXmark,
+  FaPencil
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
@@ -674,7 +675,6 @@ const QuotationsPage: React.FC = () => {
         reason: rejectReason
       })
 
-      // Update local state
       setQuotations(prev =>
         prev.map(q =>
           q.id === selectedQuotation.id
@@ -692,6 +692,14 @@ const QuotationsPage: React.FC = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleEditQuotation = (quotation: Quotation) => {
+    if (quotation.status === 'accepted') {
+      setError('Approved quotations cannot be edited')
+      return
+    }
+    nav(`/quotations/${quotation.id}/edit`)
   }
 
   const handleSendWhatsApp = async (quotation: Quotation) => {
@@ -1196,6 +1204,16 @@ const QuotationsPage: React.FC = () => {
                     >
                       <FaEye className='text-sm' />
                     </button>
+                    {q.status !== 'accepted' && (
+                      <button
+                        onClick={() => handleEditQuotation(q)}
+                        disabled={loading}
+                        className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50'
+                        title='Edit quotation'
+                      >
+                        <FaPencil className='text-sm' />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleSendWhatsApp(q)}
                       disabled={loading}
@@ -1323,9 +1341,20 @@ const QuotationsPage: React.FC = () => {
                           <button
                             onClick={() => handleViewQuotation(q)}
                             className='rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                            title='View'
                           >
                             <FaEye />
                           </button>
+                          {q.status !== 'accepted' && (
+                            <button
+                              onClick={() => handleEditQuotation(q)}
+                              disabled={loading}
+                              className='rounded-lg border border-gray-200 p-2 text-blue-600 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50'
+                              title='Edit quotation'
+                            >
+                              <FaPencil />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleSendWhatsApp(q)}
                             disabled={loading}
