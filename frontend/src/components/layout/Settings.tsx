@@ -11,6 +11,14 @@ import {
   FaMagnifyingGlass,
   FaUserPlus,
 } from "react-icons/fa6";
+import Select from "react-select";
+import { Country } from "country-state-city";
+import {
+  PhoneInput,
+  type CountryIso2,
+  type PhoneInputRefType,
+} from "react-international-phone";
+import "react-international-phone/style.css";
 import { getApiErrorMessage } from "../../api/apiClient";
 import {
   settingsApi,
@@ -104,6 +112,12 @@ const ROLE_COUNTRY_OPTIONS = COUNTRY_OPTIONS.filter(
   (option) => option.value !== "All",
 );
 
+type UserCountryOption = {
+  value: string;
+  label: string;
+  iso2: CountryIso2;
+};
+
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: "user-management", label: "User Management" },
   { id: "roles-permissions", label: "Roles & Permissions" },
@@ -154,12 +168,6 @@ const parseDate = (value?: string) => {
   if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleString();
 };
-
-const getRoleLabel = (
-  roleName: string | undefined,
-  roleId: string | undefined,
-  roleMap: Map<string, string>,
-) => roleName ?? roleMap.get(roleId ?? "") ?? "-";
 
 function extractRows<T>(response: unknown): T[] {
   const payload = response as { data?: T[] | { data?: T[]; items?: T[] } };
@@ -562,7 +570,12 @@ const Settings: React.FC = () => {
     email: "",
     password: "",
     roleId: "",
+    country: "",
+    phone: "",
   });
+  const [inviteCountryIso2, setInviteCountryIso2] =
+    useState<CountryIso2>("in");
+  const invitePhoneInputRef = useRef<PhoneInputRefType>(null);
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignUserId, setAssignUserId] = useState("");
@@ -587,16 +600,121 @@ const Settings: React.FC = () => {
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [savingSystem, setSavingSystem] = useState(false);
   const [savingIntegrations, setSavingIntegrations] = useState(false);
-  const roleLabelMap = useMemo(
-    () => new Map(roles.map((role) => [role.id, role.name])),
-    [roles],
-  );
   const canReadUsers = hasPermission("users:read");
   const canCreateUsers = hasPermission("users:create");
   const canUpdateUsers = hasPermission("users:update");
   const canManageRbac = hasPermission("rbac:manage");
   const canReadSettings = hasPermission("settings:read");
   const canUpdateSettings = hasPermission("settings:update");
+
+  const userCountryOptions = useMemo<UserCountryOption[]>(() => {
+    return Country.getAllCountries()
+      .map((country) => ({
+        value: country.name,
+        label: country.name,
+        iso2: String(country.isoCode || "").toLowerCase() as CountryIso2,
+      }))
+      .filter((option) => option.value && option.iso2)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, []);
+
+  const userCountryByIso2 = useMemo(() => {
+    return new Map<CountryIso2, UserCountryOption>(
+      userCountryOptions.map((option) => [option.iso2, option]),
+    );
+  }, [userCountryOptions]);
+
+  const selectedInviteCountryOption = useMemo(() => {
+    if (!inviteForm.country) return null;
+    return (
+      userCountryOptions.find((option) => option.value === inviteForm.country) ??
+      null
+    );
+  }, [inviteForm.country, userCountryOptions]);
+
+  const inviteCountrySelectStyles = useMemo(
+    () => ({
+      control: (base: any, state: any) => ({
+        ...base,
+        minHeight: 46,
+        borderRadius: 12,
+        borderColor: state.isFocused ? "#2563eb" : "#d1d5db",
+        boxShadow: state.isFocused ? "0 0 0 2px rgba(37, 99, 235, 0.12)" : "none",
+        "&:hover": {
+          borderColor: state.isFocused ? "#2563eb" : "#9ca3af",
+        },
+      }),
+      valueContainer: (base: any) => ({
+        ...base,
+        padding: "0 12px",
+      }),
+      indicatorsContainer: (base: any) => ({
+        ...base,
+        paddingRight: 6,
+      }),
+      menu: (base: any) => ({
+        ...base,
+        borderRadius: 12,
+        overflow: "hidden",
+        zIndex: 70,
+      }),
+      option: (base: any, state: any) => ({
+        ...base,
+        backgroundColor: state.isFocused ? "#eff6ff" : "#ffffff",
+        color: "#111827",
+      }),
+    }),
+    [],
+  );
+
+  const resetInviteForm = useCallback(() => {
+    setInviteForm({
+      fullName: "",
+      email: "",
+      password: "",
+      roleId: "",
+      country: "",
+      phone: "",
+    });
+    setInviteCountryIso2("in");
+  }, []);
+
+  const closeInviteModal = useCallback(() => {
+    setInviteOpen(false);
+    resetInviteForm();
+  }, [resetInviteForm]);
+
+  const handleInviteCountryChange = useCallback(
+    (option: UserCountryOption | null) => {
+      const iso2 = option?.iso2 ?? "in";
+      setInviteCountryIso2(iso2);
+      setInviteForm((prev) => ({
+        ...prev,
+        country: option?.value ?? "",
+      }));
+    },
+    [],
+  );
+
+  const handleInvitePhoneChange = useCallback(
+    (phone: string, meta: { country: { iso2: CountryIso2 } }) => {
+      const iso2 = meta?.country?.iso2 ?? "in";
+      const countryOption = userCountryByIso2.get(iso2);
+      setInviteCountryIso2(iso2);
+      setInviteForm((prev) => ({
+        ...prev,
+        phone,
+        country: countryOption?.value ?? prev.country,
+      }));
+    },
+    [userCountryByIso2],
+  );
+
+  useEffect(() => {
+    invitePhoneInputRef.current?.setCountry(inviteCountryIso2, {
+      focusOnInput: false,
+    });
+  }, [inviteCountryIso2]);
   const visibleTabs = useMemo(
     () =>
       tabs.filter((tab) => {
@@ -1052,6 +1170,19 @@ const Settings: React.FC = () => {
       setError("Full name and email are required.");
       return;
     }
+    if (!inviteForm.country.trim()) {
+      setError("Country is required.");
+      return;
+    }
+    const phoneDigits = inviteForm.phone.replace(/\D/g, "");
+    const isValidPhone =
+      inviteForm.phone.trim().startsWith("+") &&
+      phoneDigits.length >= 8 &&
+      phoneDigits.length <= 15;
+    if (!isValidPhone) {
+      setError("Enter a valid international phone number.");
+      return;
+    }
     if (inviteForm.password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
@@ -1064,12 +1195,14 @@ const Settings: React.FC = () => {
           email: inviteForm.email.trim(),
           password: inviteForm.password,
           roleId: inviteForm.roleId || undefined,
+          phone: inviteForm.phone.trim(),
+          country: inviteForm.country.trim(),
+          agentCountry: inviteForm.country.trim(),
           isActive: true,
         }),
       );
       void created;
-      setInviteOpen(false);
-      setInviteForm({ fullName: "", email: "", password: "", roleId: "" });
+      closeInviteModal();
       setMessage("User invited successfully.");
       await loadUsers();
     } catch (e) {
@@ -2084,7 +2217,7 @@ const Settings: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/40"
-            onClick={() => setInviteOpen(false)}
+            onClick={closeInviteModal}
           />
           <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold">Invite Team Member</h3>
@@ -2114,6 +2247,41 @@ const Settings: React.FC = () => {
                   setInviteForm((f) => ({ ...f, password: e.target.value }))
                 }
               />
+              <div>
+                <label className="field-label">Country</label>
+                <Select
+                  className="mt-1"
+                  classNamePrefix="invite-country"
+                  options={userCountryOptions}
+                  value={selectedInviteCountryOption}
+                  onChange={(option) =>
+                    handleInviteCountryChange(option as UserCountryOption | null)
+                  }
+                  placeholder="Search country..."
+                  isClearable
+                  styles={inviteCountrySelectStyles}
+                />
+              </div>
+              <div>
+                <label className="field-label">Phone</label>
+                <PhoneInput
+                  ref={invitePhoneInputRef}
+                  value={inviteForm.phone}
+                  defaultCountry={inviteCountryIso2}
+                  onChange={handleInvitePhoneChange}
+                  inputClassName="field-input !w-full"
+                  countrySelectorStyleProps={{
+                    buttonClassName:
+                      "h-[46px] rounded-l-xl border border-gray-200",
+                  }}
+                  inputProps={{
+                    name: "invite-phone",
+                    required: true,
+                    autoComplete: "tel",
+                    placeholder: "International phone number",
+                  }}
+                />
+              </div>
               <SearchableDropdown
                 value={inviteForm.roleId}
                 onChange={(value) =>
@@ -2132,7 +2300,7 @@ const Settings: React.FC = () => {
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button
-                onClick={() => setInviteOpen(false)}
+                onClick={closeInviteModal}
                 className="rounded-xl border border-gray-200 px-4 py-2 text-sm"
               >
                 Cancel

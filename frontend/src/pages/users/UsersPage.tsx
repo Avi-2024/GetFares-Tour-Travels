@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FaPlus,
   FaEdit,
@@ -11,11 +11,18 @@ import {
   FaCheckCircle
 } from 'react-icons/fa'
 import { FaXmark, FaFilter } from 'react-icons/fa6'
+import Select from 'react-select'
+import { Country } from 'country-state-city'
+import {
+  PhoneInput,
+  type CountryIso2,
+  type PhoneInputRefType
+} from 'react-international-phone'
+import 'react-international-phone/style.css'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { usersApi } from '../../api/users'
 import { useAuth } from '../../context/AuthContext'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
-import { CRM_COUNTRY_OPTIONS } from '../../utils/countries'
 
 interface User {
   id: string
@@ -43,7 +50,12 @@ interface UsersPageProps {
   embedded?: boolean;
 }
 
-const COUNTRY_OPTIONS = CRM_COUNTRY_OPTIONS
+type UserCountryOption = {
+  value: string
+  label: string
+  iso2: CountryIso2
+}
+
 const AGENT_TYPE_OPTIONS = [
   { value: '', label: 'Select agent type' },
   { value: 'HOLIDAY', label: 'Holiday' },
@@ -188,32 +200,48 @@ const UserFormModal = ({
   onClose: () => void
   onSave: (formData: any) => void
 }) => {
-  const initialFormData =
-    user && mode === 'edit'
-      ? {
-          fullName: user.fullName,
-          email: user.email,
-          phone: user.phone || '',
-          country: user.country || '',
-          agentType: user.agentType || '',
-          managerId: user.managerId || '',
-          role: user.roleId || '',
-          password: '',
-          isActive: user.isActive
-        }
-      : {
-          fullName: '',
-          email: '',
-          phone: '',
-          country: '',
-          agentType: '',
-          managerId: '',
-          role: '',
-          password: '',
-          isActive: true
-        }
+  const initialFormData = useMemo(
+    () =>
+      user && mode === 'edit'
+        ? {
+            fullName: user.fullName,
+            email: user.email,
+            phone: user.phone || '',
+            country: user.country || '',
+            agentType: user.agentType || '',
+            managerId: user.managerId || '',
+            role: user.roleId || '',
+            password: '',
+            isActive: user.isActive
+          }
+        : {
+            fullName: '',
+            email: '',
+            phone: '',
+            country: '',
+            agentType: '',
+            managerId: '',
+            role: '',
+            password: '',
+            isActive: true
+          },
+    [mode, user]
+  )
+
+  const resolveIso2FromCountryName = useCallback((countryName?: string) => {
+    if (!countryName) return 'in' as CountryIso2
+    const matchedCountry = Country.getAllCountries().find(
+      country =>
+        String(country.name || '').toLowerCase() ===
+        String(countryName).toLowerCase()
+    )
+    return (String(matchedCountry?.isoCode || '').toLowerCase() as CountryIso2) || 'in'
+  }, [])
 
   const [formData, setFormData] = useState(initialFormData);
+  const [selectedCountryIso2, setSelectedCountryIso2] =
+    useState<CountryIso2>(() => resolveIso2FromCountryName(initialFormData.country))
+  const phoneInputRef = useRef<PhoneInputRefType>(null)
   const [roleSearch, setRoleSearch] = useState(() => {
     const selected = roles.find(role => role.id === initialFormData.role)
     return selected?.name ?? ''
@@ -224,6 +252,96 @@ const UserFormModal = ({
     () => roles.find(role => role.id === formData.role),
     [roles, formData.role]
   )
+
+  const countryOptions = useMemo<UserCountryOption[]>(() => {
+    return Country.getAllCountries()
+      .map(country => ({
+        value: country.name,
+        label: country.name,
+        iso2: String(country.isoCode || '').toLowerCase() as CountryIso2
+      }))
+      .filter(option => option.value && option.iso2)
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [])
+
+  const countryByIso2 = useMemo(() => {
+    return new Map<CountryIso2, UserCountryOption>(
+      countryOptions.map(option => [option.iso2, option])
+    )
+  }, [countryOptions])
+
+  const selectedCountryOption = useMemo(() => {
+    if (!formData.country) return null
+    return (
+      countryOptions.find(
+        option => option.value.toLowerCase() === formData.country.toLowerCase()
+      ) || null
+    )
+  }, [countryOptions, formData.country])
+
+  const countrySelectStyles = useMemo(
+    () => ({
+      control: (base: any, state: any) => ({
+        ...base,
+        minHeight: 42,
+        borderRadius: 8,
+        borderColor: state.isFocused ? '#3b82f6' : '#d1d5db',
+        boxShadow: state.isFocused ? '0 0 0 2px rgba(59,130,246,0.2)' : 'none',
+        '&:hover': {
+          borderColor: state.isFocused ? '#3b82f6' : '#9ca3af'
+        }
+      }),
+      valueContainer: (base: any) => ({
+        ...base,
+        padding: '0 10px'
+      }),
+      indicatorsContainer: (base: any) => ({
+        ...base,
+        paddingRight: 6
+      }),
+      menu: (base: any) => ({
+        ...base,
+        borderRadius: 10,
+        overflow: 'hidden',
+        zIndex: 70
+      }),
+      option: (base: any, state: any) => ({
+        ...base,
+        backgroundColor: state.isFocused ? '#eff6ff' : '#fff',
+        color: '#111827'
+      })
+    }),
+    []
+  )
+
+  useEffect(() => {
+    phoneInputRef.current?.setCountry(selectedCountryIso2, {
+      focusOnInput: false
+    })
+  }, [selectedCountryIso2])
+
+  const handleCountryChange = (option: UserCountryOption | null) => {
+    const iso2 = option?.iso2 || 'in'
+    setSelectedCountryIso2(iso2)
+    setFormData(prev => ({
+      ...prev,
+      country: option?.value || ''
+    }))
+  }
+
+  const handlePhoneChange = (
+    phone: string,
+    meta: { country: { iso2: CountryIso2 } }
+  ) => {
+    const iso2 = meta?.country?.iso2 || 'in'
+    const countryOption = countryByIso2.get(iso2)
+    setSelectedCountryIso2(iso2)
+    setFormData(prev => ({
+      ...prev,
+      phone,
+      country: countryOption?.value || prev.country
+    }))
+  }
   const selectedRoleName = (selectedRole?.name || roleSearch || '')
     .trim()
     .toLowerCase()
@@ -351,26 +469,34 @@ const UserFormModal = ({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Phone
             </label>
-            <input
-              type="text"
+            <PhoneInput
+              ref={phoneInputRef}
               value={formData.phone}
-              onChange={(e) =>
-                setFormData({ ...formData, phone: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
-              placeholder="+1 234 567 8900"
+              defaultCountry={selectedCountryIso2}
+              onChange={handlePhoneChange}
+              inputClassName="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-r-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100"
+              countrySelectorStyleProps={{
+                buttonClassName:
+                  'h-[42px] rounded-l-lg border border-gray-300 dark:border-gray-700'
+              }}
+              inputProps={{
+                name: 'user-phone',
+                autoComplete: 'tel',
+                placeholder: 'International phone number'
+              }}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Country <span className="text-red-500">*</span>
             </label>
-            <SearchableDropdown
-              value={formData.country}
-              onChange={value => setFormData({ ...formData, country: value })}
-              options={COUNTRY_OPTIONS}
-              placeholder='Select country'
-              className='w-full'
+            <Select
+              options={countryOptions}
+              value={selectedCountryOption}
+              onChange={option => handleCountryChange(option as UserCountryOption | null)}
+              placeholder='Search country...'
+              isClearable
+              styles={countrySelectStyles}
             />
           </div>
           <div>
