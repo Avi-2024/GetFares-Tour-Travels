@@ -73,6 +73,13 @@ function createBookingsRoutes({
     validateRequest(validation.transitionStatus),
     asyncHandler(controller.transitionStatus),
   );
+  router.post(
+    "/:id/approve",
+    requireAuth,
+    authorize("bookings:update"),
+    validateRequest(validation.byId),
+    asyncHandler(controller.approve),
+  );
   router.get(
     "/:id",
     requireAuth,

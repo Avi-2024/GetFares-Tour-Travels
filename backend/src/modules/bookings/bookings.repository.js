@@ -207,6 +207,7 @@ function createBookingsRepository({ db, logger, schema }) {
               email: createdByUser.email ?? null,
             }
           : null,
+      isApproved: toBoolean(row.is_approved ?? row.isApproved, false),
       isDeleted: toBoolean(row.is_deleted ?? row.isDeleted, false),
       createdAt: toDate(row.created_at ?? row.createdAt),
       updatedAt: toDate(row.updated_at ?? row.updatedAt),
