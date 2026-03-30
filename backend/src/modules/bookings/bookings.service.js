@@ -1121,6 +1121,28 @@ function createBookingsService({ repository, logger, events, config }) {
       await getById(id, context);
       return repository.findInvoicesByBookingId(id);
     },
+
+    async approve(id, context = {}) {
+      const booking = await getById(id, context);
+
+      if (booking.isApproved) {
+        throw new AppError(
+          409,
+          "Booking is already approved",
+          "BOOKING_ALREADY_APPROVED",
+        );
+      }
+
+      const updated = await repository.update(id, {
+        is_approved: true,
+        updated_at: new Date().toISOString(),
+      });
+
+      const hydrated = withDeadlineInsights(updated);
+      events.emitUpdated(hydrated);
+
+      return hydrated;
+    },
   });
 }
 
