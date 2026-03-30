@@ -96,6 +96,25 @@ const CreateLead: React.FC = () => {
     setDuplicateWarning('')
   }
 
+  const handlePhoneKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+    const allowedKeys = [
+      'Backspace',
+      'Delete',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowUp',
+      'ArrowDown',
+      'Tab',
+      'Home',
+      'End'
+    ]
+    if (allowedKeys.includes(event.key)) return
+    if (!/^\d$/.test(event.key)) {
+      event.preventDefault()
+    }
+  }
+
 
 
   useEffect(() => {
@@ -503,13 +522,24 @@ const CreateLead: React.FC = () => {
             error={fieldError('email')}
             type='email'
           />
-          <Field
-            label='Phone *'
-            value={form.phone}
-            onChange={value => setForm(prev => ({ ...prev, phone: value }))}
-            error={fieldError('phone')}
-            type='tel'
-          />
+          <div>
+            <label className='field-label'>Phone *</label>
+            <input
+              type='tel'
+              value={form.phone}
+              onChange={event =>
+                setForm(prev => ({
+                  ...prev,
+                  phone: event.target.value
+                }))
+              }
+              placeholder='Phone number'
+              className={`field-input ${fieldError('phone') ? 'border-red-500' : ''}`}
+              inputMode='numeric'
+              pattern='[0-9]*'
+              onKeyDown={handlePhoneKeyDown}
+            />
+          </div>
           <div>
             <label className='field-label'>Lead Country *</label>
             <SearchableDropdown
