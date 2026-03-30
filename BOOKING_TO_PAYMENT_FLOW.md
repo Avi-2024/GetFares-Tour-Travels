@@ -139,7 +139,7 @@
 - Lead status updates: `NEW → QUOTED → CONVERTED/LOST`
 
 ### Booking Rules
-- **Advance Policy**: 
+- **Advance Policy**:
   - 50% for refundable bookings
   - 100% for non-refundable bookings
 - **Confirmation Requirements**:
@@ -307,7 +307,7 @@ payments.verified           // Payment verified by admin
 
 ### 3. Confirmation Gate
 - **Rule**: Advance requirement + proof → CONFIRMED
-- **Validation**: 
+- **Validation**:
   - `advance_received >= advanceRequired`
   - `hasProof === true`
 - **Location**: `bookings.service.js → assertPaymentPolicyForConfirmation()`

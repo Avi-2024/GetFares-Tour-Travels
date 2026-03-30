@@ -1,4 +1,28 @@
 function createUsersRepository({ db, logger, schema }) {
+  async function hasColumn(tableName, columnName) {
+    if (db.adapter !== "postgres") {
+      return false;
+    }
+    try {
+      const result = await db.query(
+        `
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = $1
+            AND column_name = $2
+          LIMIT 1
+        `,
+        [tableName, columnName],
+      );
+      return result.rowCount > 0;
+    } catch (error) {
+      if (error?.code === "42P01") {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   async function findAll(filters = {}) {
     return db.findMany(schema.tableName, filters);
   }
@@ -191,6 +215,7 @@ function createUsersRepository({ db, logger, schema }) {
   }
 
   return Object.freeze({
+    hasColumn,
     findAll,
     findById,
     create,

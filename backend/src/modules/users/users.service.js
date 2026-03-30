@@ -155,6 +155,23 @@ function toUser(entity, roleLookup, permissions = [], countries = []) {
 }
 
 function createUsersService({ repository, logger, events, rbacService }) {
+  let parentIdColumnSupported;
+
+  async function supportsParentIdColumn() {
+    if (parentIdColumnSupported !== undefined) {
+      return parentIdColumnSupported;
+    }
+    if (typeof repository.hasColumn !== "function") {
+      parentIdColumnSupported = false;
+      return parentIdColumnSupported;
+    }
+    parentIdColumnSupported = await repository.hasColumn(
+      "users",
+      "parent_id",
+    );
+    return parentIdColumnSupported;
+  }
+
   function getRoleIdFromPayload(payload = {}) {
     if (Object.prototype.hasOwnProperty.call(payload, "roleId")) {
       return payload.roleId;
@@ -495,7 +512,11 @@ function createUsersService({ repository, logger, events, rbacService }) {
         nextIsActive,
       });
 
-      const created = await repository.create(mapCreatePayload(enriched));
+      const createPayload = mapCreatePayload(enriched);
+      if (!(await supportsParentIdColumn())) {
+        delete createPayload.parent_id;
+      }
+      const created = await repository.create(createPayload);
 
       if (countryResolution.hasCountryIds) {
         await repository.replaceUserCountries({
@@ -615,7 +636,11 @@ function createUsersService({ repository, logger, events, rbacService }) {
         nextIsActive,
       });
 
-      const updated = await repository.update(id, mapUpdatePayload(enriched));
+      const updatePayload = mapUpdatePayload(enriched);
+      if (!(await supportsParentIdColumn())) {
+        delete updatePayload.parent_id;
+      }
+      const updated = await repository.update(id, updatePayload);
 
       if (countryResolution.hasCountryIds) {
         await repository.replaceUserCountries({
