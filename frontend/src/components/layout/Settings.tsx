@@ -7,14 +7,9 @@ import React, {
 } from "react";
 import {
   FaChevronDown,
-  FaDownload,
-  FaFilter,
   FaPlus,
   FaMagnifyingGlass,
-  FaShield,
-  FaTrash,
   FaUserPlus,
-  FaUsers,
 } from "react-icons/fa6";
 import { getApiErrorMessage } from "../../api/apiClient";
 import {
@@ -30,6 +25,7 @@ import SearchableDropdown from "../ui/SearchableDropdown";
 import DestinationPricingManager from "../settings/DestinationPricingManager";
 import CountryManagementPanel from "../settings/CountryManagementPanel";
 import { CRM_ADMIN_COUNTRY_OPTIONS } from "../../utils/countries";
+import UsersPage from "../../pages/users/UsersPage";
 
 type Tab =
   | "user-management"
@@ -39,8 +35,6 @@ type Tab =
   | "destinations-pricing"
   | "pdf-templates"
   | "integrations";
-
-type UserStatusFilter = "all" | "active" | "inactive";
 
 type UserRecord = {
   id: string;
@@ -518,8 +512,6 @@ const Settings: React.FC = () => {
   const usersService = useUsersService();
   const authService = useAuthService();
   const [activeTab, setActiveTab] = useState<Tab>("user-management");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [permissionsCatalog, setPermissionsCatalog] = useState<
@@ -559,7 +551,6 @@ const Settings: React.FC = () => {
     useState<CountryCode>("All");
   const [loadingRolePermissions, setLoadingRolePermissions] = useState(false);
   const [savingRolePermissions, setSavingRolePermissions] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const noticeTimerRef = useRef<number | null>(null);
@@ -621,14 +612,11 @@ const Settings: React.FC = () => {
       setUsers([]);
       return;
     }
-    setLoadingUsers(true);
     try {
       const response = await usersService.list();
       setUsers(normalizeUsers(extractRows<RawUser>(response)));
     } catch (e) {
       setError(getApiErrorMessage(e, "Unable to load users"));
-    } finally {
-      setLoadingUsers(false);
     }
   }, [canReadUsers, usersService]);
 
@@ -778,29 +766,6 @@ const Settings: React.FC = () => {
     };
     void loadSettings();
   }, []);
-
-  const filteredUsers = useMemo(
-    () =>
-      users.filter((user) => {
-        const matched =
-          user.fullName.toLowerCase().includes(search.toLowerCase()) ||
-          user.email.toLowerCase().includes(search.toLowerCase()) ||
-          getRoleLabel(user.role, user.roleId, roleLabelMap)
-            .toLowerCase()
-            .includes(search.toLowerCase());
-        const statusMatched =
-          statusFilter === "all" ||
-          (statusFilter === "active" && user.isActive) ||
-          (statusFilter === "inactive" && !user.isActive);
-        const countryMatched =
-          !adminCountryFilter ||
-          adminCountryFilter === "All" ||
-          (user.country ?? user.agentCountry ?? "").toLowerCase() ===
-            adminCountryFilter.toLowerCase();
-        return matched && statusMatched && countryMatched;
-      }),
-    [users, search, statusFilter, roleLabelMap, adminCountryFilter],
-  );
 
   const roleStats = useMemo(() => {
     const usersByRoleId = new Map<string, number>();
@@ -1114,22 +1079,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const onDeactivate = async (id: string) => {
-    if (!canUpdateUsers) {
-      setError("You do not have permission to update users.");
-      return;
-    }
-    setError("");
-    setMessage("");
-    try {
-      await usersService.update(id, { isActive: false });
-      setMessage("User deactivated.");
-      await loadUsers();
-    } catch (e) {
-      setError(getApiErrorMessage(e, "Unable to deactivate user"));
-    }
-  };
-
   const onCreateAndAssignRole = async (roleName: string) => {
     const trimmedName = roleName.trim();
     let roleId = "";
@@ -1283,34 +1232,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const onExport = () => {
-    const lines = [
-      ["Name", "Email", "Role", "Status", "Last Active"].join(","),
-      ...filteredUsers.map((u) =>
-        [
-          u.fullName,
-          u.email,
-          getRoleLabel(u.role, u.roleId, roleLabelMap),
-          u.isActive ? "Active" : "Inactive",
-          u.lastActive,
-        ]
-          .map((v) => `\"${String(v).replace(/\"/g, '""')}\"`)
-          .join(","),
-      ),
-    ];
-    const blob = new Blob([lines.join("\n")], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "settings-users.csv";
-    document.body.append(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
   const saveSystem = async () => {
     if (!canUpdateSettings) {
       setError("You do not have permission to update settings.");
@@ -1451,132 +1372,7 @@ const Settings: React.FC = () => {
           </div>
         : null}
 
-        {activeTab === "user-management" ?
-          <SurfaceCard className="p-0 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-gray-100 p-4">
-              <div className="relative w-full max-w-sm">
-                <FaMagnifyingGlass className="pointer-events-none absolute left-3 top-3 text-xs text-gray-400" />
-                <input
-                  className="field-input pl-9"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search users"
-                />
-              </div>
-              <div className="ml-3 flex gap-2">
-                <button
-                  onClick={() =>
-                    setStatusFilter(
-                      statusFilter === "all" ? "active"
-                      : statusFilter === "active" ? "inactive"
-                      : "all",
-                    )
-                  }
-                  className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-100"
-                >
-                  <FaFilter />
-                </button>
-                <button
-                  onClick={onExport}
-                  className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-100"
-                >
-                  <FaDownload />
-                </button>
-                {canCreateUsers ?
-                  <button
-                    onClick={() => setInviteOpen(true)}
-                    className="rounded-lg bg-blue-600 px-3 py-2 text-white"
-                  >
-                    <FaUserPlus />
-                  </button>
-                : null}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 px-4 pt-4 sm:grid-cols-3">
-              <StatCard
-                title="Total Users"
-                value={String(users.length)}
-                icon={<FaUsers className="text-blue-600" />}
-              />
-              <StatCard
-                title="Active"
-                value={String(users.filter((u) => u.isActive).length)}
-                icon={<FaShield className="text-green-500" />}
-              />
-              <StatCard
-                title="Inactive"
-                value={String(users.filter((u) => !u.isActive).length)}
-                icon={<FaFilter className="text-amber-500" />}
-              />
-            </div>
-            <div className="overflow-x-auto p-4">
-              <table className="min-w-[780px] w-full divide-y divide-gray-200">
-                <thead>
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs text-gray-500">
-                      User
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs text-gray-500">
-                      Role
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs text-gray-500">
-                      Status
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs text-gray-500">
-                      Last Active
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs text-gray-500">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {loadingUsers ?
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-3 py-4 text-sm text-gray-500"
-                      >
-                        Loading users...
-                      </td>
-                    </tr>
-                  : filteredUsers.map((u) => (
-                      <tr key={u.id}>
-                        <td className="px-3 py-3">
-                          <p className="text-sm font-medium">{u.fullName}</p>
-                          <p className="text-xs text-gray-500">{u.email}</p>
-                        </td>
-                        <td className="px-3 py-3 text-sm">
-                          {getRoleLabel(u.role, u.roleId, roleLabelMap)}
-                        </td>
-                        <td className="px-3 py-3 text-sm">
-                          {u.isActive ? "Active" : "Inactive"}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-gray-500">
-                          {u.lastActive}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {canUpdateUsers ?
-                            <button
-                              disabled={!u.isActive}
-                              onClick={() => void onDeactivate(u.id)}
-                              className="text-red-500 disabled:opacity-30"
-                            >
-                              <FaTrash />
-                            </button>
-                          : <span className="text-xs text-gray-400">
-                              No access
-                            </span>
-                          }
-                        </td>
-                      </tr>
-                    ))
-                  }
-                </tbody>
-              </table>
-            </div>
-          </SurfaceCard>
-        : null}
+        {activeTab === "user-management" ? <UsersPage embedded /> : null}
 
         {activeTab === "roles-permissions" ?
           <SurfaceCard>
@@ -2606,26 +2402,6 @@ const Settings: React.FC = () => {
     </div>
   );
 };
-
-const StatCard = ({
-  title,
-  value,
-  icon,
-}: {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-}) => (
-  <SurfaceCard hoverable className="flex items-center justify-between p-5">
-    <div>
-      <p className="text-xs uppercase tracking-wide text-gray-500">{title}</p>
-      <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-        {value}
-      </p>
-    </div>
-    {icon}
-  </SurfaceCard>
-);
 
 type PermissionsMultiSelectProps = {
   selected: string[];
