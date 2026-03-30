@@ -814,7 +814,8 @@ const PaymentFormModal = ({
       ...customers.map((customer) => ({
         value: customer.id,
         label: `${customer.name}${customer.email ? ` (${customer.email})` : ""}`,
-        searchText: `${customer.name} ${customer.email ?? ""} ${customer.id}`.trim(),
+        searchText:
+          `${customer.name} ${customer.email ?? ""} ${customer.id}`.trim(),
       })),
     ],
     [customers, loadingCustomers],
@@ -839,7 +840,8 @@ const PaymentFormModal = ({
         label: `${booking.bookingNumber}${
           booking.customer ? ` - ${booking.customer}` : ""
         }`,
-        searchText: `${booking.bookingNumber} ${booking.customer ?? ""} ${booking.id}`.trim(),
+        searchText:
+          `${booking.bookingNumber} ${booking.customer ?? ""} ${booking.id}`.trim(),
       })),
     ];
   }, [bookings, loadingBookings, formData.customer]);
