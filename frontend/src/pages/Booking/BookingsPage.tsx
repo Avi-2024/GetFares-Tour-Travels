@@ -2989,9 +2989,6 @@ const BookingsPage: React.FC = () => {
                         {booking.total.toLocaleString()}
                       </p>
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                      {booking.documentsReady}/{booking.documentsTotal} docs
-                    </p>
                   </div>
 
                   {/* Actions */}
@@ -3063,9 +3060,6 @@ const BookingsPage: React.FC = () => {
                     </th>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Payment
-                    </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Docs
                     </th>
                     <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Actions
@@ -3143,39 +3137,6 @@ const BookingsPage: React.FC = () => {
                             }}
                           />
                         </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-xs ${
-                              (
-                                booking.documentsReady ===
-                                booking.documentsTotal
-                              ) ?
-                                "text-green-600"
-                              : "text-amber-600"
-                            }`}
-                          >
-                            {booking.documentsReady}/{booking.documentsTotal}{" "}
-                            ready
-                          </span>
-                          <button
-                            onClick={() =>
-                              navigate(`/bookings/${booking.id}/documents`)
-                            }
-                            className="text-xs text-blue-600 hover:text-blue-800 underline"
-                            title="View Documents"
-                          >
-                            View
-                          </button>
-                        </div>
-                        {booking.documentsReady < booking.documentsTotal && (
-                          <p className="text-xs text-red-500 mt-1">
-                            Missing{" "}
-                            {booking.documentsTotal - booking.documentsReady}{" "}
-                            docs
-                          </p>
-                        )}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-1 transition-all duration-200">
