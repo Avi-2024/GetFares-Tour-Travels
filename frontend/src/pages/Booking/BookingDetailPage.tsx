@@ -1297,26 +1297,41 @@ const BookingDetailPage: React.FC = () => {
     }
   };
 
-  const getDeadlineRiskColor = (risk?: DeadlineRiskLevel) => {
-    switch (risk) {
-      case "OVERDUE":
-        return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900";
-      case "DEADLINE_DUE":
-        return "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900";
-      case "D2_DUE":
-        return "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900";
-      case "SAFE":
-      default:
-        return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
-    }
-  };
+  // const getDeadlineRiskColor = (risk?: DeadlineRiskLevel) => {
+  //   switch (risk) {
+  //     case "OVERDUE":
+  //       return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900";
+  //     case "DEADLINE_DUE":
+  //       return "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900";
+  //     case "D2_DUE":
+  //       return "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900";
+  //     case "SAFE":
+  //     default:
+  //       return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
+  //   }
+  // };
 
-  const getDeadlineRiskLabel = (risk?: DeadlineRiskLevel) => {
-    if (risk === "D2_DUE") return "D-2 Due";
-    if (risk === "DEADLINE_DUE") return "Deadline Due";
-    if (risk === "OVERDUE") return "Overdue";
-    return "Safe";
-  };
+  // const getDeadlineRiskLabel = (risk?: DeadlineRiskLevel) => {
+  //   if (risk === "D2_DUE") return "D-2 Due";
+  //   if (risk === "DEADLINE_DUE") return "Deadline Due";
+  //   if (risk === "OVERDUE") return "Overdue";
+  //   return "Safe";
+  // };
+
+  // const getInvoiceStatusColor = (status: string) => {
+  //   switch (status) {
+  //     case "PAID":
+  //       return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
+  //     case "SENT":
+  //       return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900";
+  //     case "DRAFT":
+  //       return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+  //     case "OVERDUE":
+  //       return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900";
+  //     default:
+  //       return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+  //   }
+  // };
 
   const getHistoryIcon = (type: string) => {
     switch (type) {
@@ -1923,13 +1938,13 @@ const BookingDetailPage: React.FC = () => {
                 >
                   {booking.status}
                 </span>
-                <span
+                {/* <span
                   className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${getDeadlineRiskColor(
                     booking.deadlineRiskLevel,
                   )}`}
                 >
                   {getDeadlineRiskLabel(booking.deadlineRiskLevel)}
-                </span>
+                </span> */}
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
                 <span className="flex items-center gap-1.5">
@@ -1987,11 +2002,11 @@ const BookingDetailPage: React.FC = () => {
                       >
                         <Icon className="text-sm" />
                         <span>{tab.label}</span>
-                        {tab.badge && (
+                        {/* {tab.badge && (
                           <span className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 py-0.5 px-2 rounded-full text-xs">
                             {tab.badge}
                           </span>
-                        )}
+                        )} */}
                       </button>
                     );
                   })}
