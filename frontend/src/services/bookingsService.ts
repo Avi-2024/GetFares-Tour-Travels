@@ -13,6 +13,7 @@ export const createBookingsService = (datasource: BookingsDatasource) => ({
     datasource.changeStatus(id, payload),
   statusHistory: (id: string) => datasource.statusHistory(id),
   generateInvoice: (id: string) => datasource.generateInvoice(id),
+  approve: (id: string) => datasource.approve(id),
   listInvoices: (id: string) => datasource.listInvoices(id),
   getDocuments: (id: string) => datasource.getDocuments(id),
   uploadDocument: (id: string, formData: FormData) =>

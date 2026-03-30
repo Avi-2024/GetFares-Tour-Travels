@@ -36,6 +36,7 @@ export const createBookingsDatasource = (client: HttpClient) => ({
     client.get(`/api/bookings/${id}/status-history`),
   generateInvoice: (id: string) =>
     client.post(`/api/bookings/${id}/invoices/generate`),
+  approve: (id: string) => client.post(`/api/bookings/${id}/approve`),
   listInvoices: (id: string) => client.get(`/api/bookings/${id}/invoices`),
   getDocuments: (id: string) => client.get(`/api/bookings/${id}/documents`),
   uploadDocument: (id: string, formData: FormData) =>

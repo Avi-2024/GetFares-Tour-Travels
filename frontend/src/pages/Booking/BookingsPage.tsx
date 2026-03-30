@@ -8,7 +8,6 @@ import {
   FaCreditCard,
   FaDownload,
   FaEye,
-  FaFileInvoiceDollar,
   FaMagnifyingGlass,
   FaPaperPlane,
   FaPlus,
@@ -2084,6 +2083,23 @@ const BookingsPage: React.FC = () => {
     }
   };
 
+  const handleApproveBooking = async (bookingId: string) => {
+    setLoading(true);
+    try {
+      await bookingsService.approve(bookingId);
+      await fetchBookings();
+      showToast("Booking approved successfully", "success");
+    } catch (error) {
+      console.error("Failed to approve booking:", error);
+      showToast(
+        getApiErrorMessage(error, "Failed to approve booking"),
+        "error",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRecordPayment = (booking: Booking) => {
     setSelectedBooking(booking);
     setShowPaymentModal(true);
@@ -3013,14 +3029,12 @@ const BookingsPage: React.FC = () => {
                       <FaEye className="text-sm" />
                     </button>
                     <button
-                      className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                      onClick={() => {
-                        setSelectedBooking(booking);
-                        setShowInvoiceModal(true);
-                      }}
-                      title="Generate Invoice"
+                      className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
+                      onClick={() => handleApproveBooking(booking.id)}
+                      disabled={loading}
+                      title="Approve Booking"
                     >
-                      <FaFileInvoiceDollar className="text-sm" />
+                      <FaCircleCheck className="text-sm" />
                     </button>
                     <button
                       onClick={() => handleSendConfirmation(booking.id)}
@@ -3161,15 +3175,12 @@ const BookingsPage: React.FC = () => {
                             <FaEye />
                           </button>
                           <button
-                            onClick={() => {
-                              setSelectedBooking(booking);
-                              setShowInvoiceModal(true);
-                            }}
+                            onClick={() => handleApproveBooking(booking.id)}
                             disabled={loading}
-                            className="rounded-lg border border-gray-200 p-2 text-blue-600 hover:bg-blue-50 dark:border-gray-700 dark:hover:bg-blue-900/20 disabled:opacity-50"
-                            title="Generate Invoice"
+                            className="rounded-lg border border-gray-200 p-2 text-emerald-600 hover:bg-emerald-50 dark:border-gray-700 dark:hover:bg-emerald-900/20 disabled:opacity-50"
+                            title="Approve Booking"
                           >
-                            <FaFileInvoiceDollar />
+                            <FaCircleCheck />
                           </button>
                           <button
                             onClick={() => handleSendConfirmation(booking.id)}

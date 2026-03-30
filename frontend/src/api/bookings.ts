@@ -16,6 +16,8 @@ export const bookingsApi = {
     apiRequest(`/api/bookings/${id}/status-history`),
   generateInvoice: (id: string) =>
     apiRequest(`/api/bookings/${id}/invoices/generate`, { method: "POST" }),
+  approve: (id: string) =>
+    apiRequest(`/api/bookings/${id}/approve`, { method: "POST" }),
   listInvoices: (id: string) => apiRequest(`/api/bookings/${id}/invoices`),
   getDocuments: (id: string) => apiRequest(`/api/bookings/${id}/documents`),
   uploadDocument: (id: string, file: File, type: string) => {
