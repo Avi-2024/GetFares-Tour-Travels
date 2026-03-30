@@ -22,6 +22,7 @@ import {
   toStatusLabelText,
   type SopStatusLabel
 } from '../../utils/leadStatus'
+import { getCurrencyOptions } from '../../utils/currency'
 
 type QualificationForm = {
   panNumber: string
@@ -376,16 +377,7 @@ const LeadDetails: React.FC = () => {
     return [placeholder, ...rows]
   }, [eligibleConversionQuotations])
 
-  const currencyOptions = useMemo(
-    () => [
-      { value: 'INR', label: 'INR' },
-      { value: 'USD', label: 'USD' },
-      { value: 'EUR', label: 'EUR' },
-      { value: 'GBP', label: 'GBP' },
-      { value: 'AED', label: 'AED' }
-    ],
-    []
-  )
+  const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
 
   const visaOptions = useMemo(
     () => [
@@ -616,7 +608,7 @@ const LeadDetails: React.FC = () => {
           unknown
         >[]
         const activeBooking = bookings.find(
-          b => !Boolean(b.isDeleted ?? b.is_deleted ?? false)
+          b => !(b.isDeleted ?? b.is_deleted ?? false)
         )
 
         if (activeBooking?.id) {

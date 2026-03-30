@@ -7,12 +7,14 @@ import {
   type PhoneInputRefType
 } from 'react-international-phone'
 import 'react-international-phone/style.css'
+import CurrencyInput, { formatValue } from 'react-currency-input-field'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
 import { Country } from 'country-state-city'
+import { getCurrencyLocaleByCode, getCurrencyOptions } from '../../utils/currency'
 
 type LeadType = 'HOLIDAY' | 'VISA' | null
 
@@ -67,13 +69,21 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_E164_DIGITS_MIN = 8
 const PHONE_E164_DIGITS_MAX = 15
 
-const COUNTRY_CURRENCY_FALLBACK: Record<string, string> = {
-  in: 'INR',
-  us: 'USD',
-  gb: 'GBP',
-  ae: 'AED',
-  eu: 'EUR'
+type CurrencyMeta = {
+  code: string
+  locale: string
+  symbol: string
 }
+
+const COUNTRY_CURRENCY_MAP: Record<string, CurrencyMeta> = {
+  in: { code: 'INR', locale: 'hi-IN', symbol: '₹' },
+  us: { code: 'USD', locale: 'en-US', symbol: '$' },
+  gb: { code: 'GBP', locale: 'en-GB', symbol: '£' },
+  ae: { code: 'AED', locale: 'en-AE', symbol: 'د.إ' },
+  eu: { code: 'EUR', locale: 'de-DE', symbol: '€' }
+}
+
+const FALLBACK_CURRENCY_META: CurrencyMeta = COUNTRY_CURRENCY_MAP.in
 
 const detectLocaleCountryIso2 = (): CountryIso2 => {
   if (typeof navigator === 'undefined' || !navigator.language) {
@@ -89,12 +99,13 @@ const createInitialFormState = (): FormState => {
   const matchedCountry = Country.getAllCountries().find(
     country => String(country.isoCode || '').toLowerCase() === iso2
   )
+  const localeCurrencyCode = String(matchedCountry?.currency || '')
+    .trim()
+    .toUpperCase()
   const resolvedCurrency =
-    String(matchedCountry?.currency || '')
-      .trim()
-      .toUpperCase() ||
-    COUNTRY_CURRENCY_FALLBACK[iso2] ||
-    'INR'
+    COUNTRY_CURRENCY_MAP[iso2]?.code ||
+    localeCurrencyCode ||
+    FALLBACK_CURRENCY_META.code
 
   return {
     ...initialForm,
@@ -248,17 +259,7 @@ const CreateLead: React.FC = () => {
     [validation]
   )
 
-  const currencyOptions = useMemo(
-    () => [
-      { value: '', label: 'Select currency' },
-      { value: 'INR', label: 'INR' },
-      { value: 'USD', label: 'USD' },
-      { value: 'EUR', label: 'EUR' },
-      { value: 'GBP', label: 'GBP' },
-      { value: 'AED', label: 'AED' }
-    ],
-    []
-  )
+  const currencyOptions = useMemo(() => getCurrencyOptions(true), [])
 
   const allCountries = useMemo(() => Country.getAllCountries(), [])
 
@@ -274,10 +275,11 @@ const CreateLead: React.FC = () => {
       const iso2 = String(country.isoCode || '').toLowerCase() as CountryIso2
       if (!name || !iso2) return
       const currency =
+        COUNTRY_CURRENCY_MAP[iso2]?.code ||
         String(country.currency || '')
           .trim()
           .toUpperCase() ||
-        COUNTRY_CURRENCY_FALLBACK[iso2] ||
+        FALLBACK_CURRENCY_META.code ||
         ''
       map.set(name, { iso2, currency })
     })
@@ -297,15 +299,51 @@ const CreateLead: React.FC = () => {
     countryMetaByName.forEach(meta => {
       if (meta.currency) map.set(meta.iso2, meta.currency)
     })
-    Object.entries(COUNTRY_CURRENCY_FALLBACK).forEach(([iso2, currency]) => {
-      map.set(iso2 as CountryIso2, currency)
+    Object.entries(COUNTRY_CURRENCY_MAP).forEach(([iso2, meta]) => {
+      map.set(iso2 as CountryIso2, meta.code)
     })
     return map
   }, [countryMetaByName])
 
   const resolveCurrencyForIso2 = (iso2: CountryIso2) => {
-    return currencyByIso2.get(iso2) || 'INR'
+    return currencyByIso2.get(iso2) || FALLBACK_CURRENCY_META.code
   }
+
+  const currencyMetaByCode = useMemo(() => {
+    const map = new Map<string, CurrencyMeta>()
+    const currencyLocaleByCode = getCurrencyLocaleByCode()
+
+    getCurrencyOptions(false).forEach(option => {
+      map.set(option.value, {
+        code: option.value,
+        locale: currencyLocaleByCode.get(option.value) || 'en-US',
+        symbol: option.value
+      })
+    })
+
+    Object.values(COUNTRY_CURRENCY_MAP).forEach(meta => {
+      map.set(meta.code, meta)
+    })
+
+    return map
+  }, [])
+
+  const selectedCurrencyMeta = useMemo(() => {
+    return currencyMetaByCode.get(form.clientCurrency) || FALLBACK_CURRENCY_META
+  }, [currencyMetaByCode, form.clientCurrency])
+
+  const formattedBudgetPreview = useMemo(() => {
+    if (!form.budget) return ''
+    return (
+      formatValue({
+        value: form.budget,
+        intlConfig: {
+          locale: selectedCurrencyMeta.locale,
+          currency: selectedCurrencyMeta.code
+        }
+      }) || ''
+    )
+  }, [form.budget, selectedCurrencyMeta.code, selectedCurrencyMeta.locale])
 
   useEffect(() => {
     phoneInputRef.current?.setCountry(phoneCountryIso2, {
@@ -452,6 +490,7 @@ const CreateLead: React.FC = () => {
       .filter(Boolean)
       .join(' ')
     const normalizedPhone = form.phone.replace(/\D/g, '')
+    const normalizedBudget = Number((form.budget || '').replace(/,/g, ''))
     const adultsCountNumber = Number(form.adultsCount || 0)
     const childrenCountNumber = Number(form.childrenCount || 0)
     const cleanChildAges = childAges
@@ -482,7 +521,10 @@ const CreateLead: React.FC = () => {
         adultsCount: adultsCountNumber,
         childrenCount: childrenCountNumber,
         childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
-        budget: form.budget.trim() ? Number(form.budget) : undefined,
+        budget:
+          form.budget.trim() && Number.isFinite(normalizedBudget)
+            ? normalizedBudget
+            : undefined,
         visaRequired: form.visaRequired
           ? form.visaRequired === 'YES'
           : undefined,
@@ -684,7 +726,10 @@ const CreateLead: React.FC = () => {
               hasError={fieldError('clientCurrency')}
               searchPlaceholder='Search currency...'
               onChange={value =>
-                setForm(prev => ({ ...prev, clientCurrency: value }))
+                setForm(prev => ({
+                  ...prev,
+                  clientCurrency: String(value || '').toUpperCase()
+                }))
               }
             />
           </div>
@@ -802,17 +847,29 @@ const CreateLead: React.FC = () => {
           ) : null}
           <div>
             <label className='field-label'>Budget</label>
-            <input
-              type='number'
-              min={1}
+            <CurrencyInput
+              id='lead-budget'
+              name='lead-budget'
+              value={form.budget}
+              decimalsLimit={2}
+              allowNegativeValue={false}
+              intlConfig={{
+                locale: selectedCurrencyMeta.locale,
+                currency: selectedCurrencyMeta.code
+              }}
               className={`field-input ${
                 fieldError('budget') ? 'border-red-500' : ''
               }`}
-              value={form.budget}
-              onChange={event =>
-                setForm(prev => ({ ...prev, budget: event.target.value }))
+              placeholder='Enter budget'
+              onValueChange={(value?: string) =>
+                setForm(prev => ({ ...prev, budget: value || '' }))
               }
             />
+            {formattedBudgetPreview ? (
+              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                Preview: {formattedBudgetPreview}
+              </p>
+            ) : null}
           </div>
           <div>
             <label className='field-label'>Visa Required</label>

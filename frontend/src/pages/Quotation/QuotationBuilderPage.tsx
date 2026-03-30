@@ -26,8 +26,9 @@ import { quotationsApi } from '../../api/quotations'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 import { useLeadsService } from '../../hooks/useLeadsService'
+import { getCurrencyOptions } from '../../utils/currency'
 
-type Currency = "USD" | "EUR" | "INR";
+type Currency = string;
 type SavedQuote = {
   id: string;
   quoteNumber: string;
@@ -525,14 +526,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     [selectedSupplierId, suppliers]
   )
 
-  const currencyOptions = useMemo(
-    () => [
-      { value: "INR", label: "INR" },
-      { value: "USD", label: "USD" },
-      { value: "EUR", label: "EUR" },
-    ],
-    [],
-  );
+  const currencyOptions = useMemo(() => getCurrencyOptions(false), []);
 
   const applyTemplateDefaults = (template: TemplateOption | null) => {
     if (!template) return;
@@ -1526,11 +1520,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               snapshot?.currency ??
               snapshotRoot?.currency
           ).toUpperCase()
-          if (
-            selectedCurrency === 'INR' ||
-            selectedCurrency === 'USD' ||
-            selectedCurrency === 'EUR'
-          ) {
+          if (/^[A-Z]{3}$/.test(selectedCurrency)) {
             setCurrency(selectedCurrency)
           }
           setHasLoadedEditSnapshot(true)
@@ -2769,7 +2759,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   value={currency}
                   options={currencyOptions}
                   searchPlaceholder="Search currency..."
-                  onChange={(value) => setCurrency(value as Currency)}
+                  onChange={(value) =>
+                    setCurrency(String(value || 'INR').toUpperCase())
+                  }
                 />
               </div>
               <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
