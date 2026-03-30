@@ -3164,31 +3164,35 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   : null}
 
                   <div className="mb-4 rounded-xl border border-gray-200 p-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <div>
-                        <p className="font-semibold text-gray-900">
+                    <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 sm:items-start">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 break-words">
                           {form.customer || "Guest Name"}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 break-words">
                           {form.email || "guest@email.com"}
                         </p>
                       </div>
-                      <div className='text-right text-xs text-gray-500'>
-                        <p>{form.destination || 'Destination'}</p>
-                        <p>Duration: {previewDurationLabel || 'N/A'}</p>
-                        <p>
-                          Travellers: {travellerLabel}
+                      <div className="min-w-0 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 sm:text-right dark:bg-gray-800/40">
+                        <p className="font-medium text-gray-700 dark:text-gray-200 break-words">
+                          {form.destination || 'Destination'}
+                        </p>
+                        <p className="mt-1 break-words">
+                          Duration: <span className="font-medium text-gray-700 dark:text-gray-200">{previewDurationLabel || 'N/A'}</span>
+                        </p>
+                        <p className="mt-1 break-words">
+                          Travellers: <span className="font-medium text-gray-700 dark:text-gray-200">{travellerLabel}</span>
                         </p>
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
-                      <p>
+                    <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-gray-500 sm:grid-cols-2">
+                      <p className="break-words">
                         Travel Date:{" "}
                         <span className="text-gray-700">
                           {formatPreviewDate(form.startDate)}
                         </span>
                       </p>
-                      <p className="text-right">
+                      <p className="break-words sm:text-right">
                         Valid Until:{" "}
                         <span className="text-gray-700">
                           {formatPreviewDateTime(form.validUntil)}
