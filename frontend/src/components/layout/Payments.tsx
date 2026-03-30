@@ -789,13 +789,22 @@ const PaymentFormModal = ({
     Array<{ id: string; name: string; email?: string }>
   >([]);
   const [bookings, setBookings] = useState<
-    Array<{ id: string; bookingNumber: string; customer?: string }>
+    Array<{
+      id: string;
+      bookingNumber: string;
+      customer?: string;
+      customerId?: string;
+      totalAmount?: number;
+    }>
   >([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [invoiceUploadError, setInvoiceUploadError] = useState("");
   const invoiceInputRef = useRef<HTMLInputElement | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofUploadError, setProofUploadError] = useState("");
+  const proofInputRef = useRef<HTMLInputElement | null>(null);
   const customerDropdownOptions = useMemo(
     () => [
       {
@@ -803,27 +812,27 @@ const PaymentFormModal = ({
         label: loadingCustomers ? "Loading customers..." : "Select customer...",
       },
       ...customers.map((customer) => ({
-        value: customer.name,
+        value: customer.id,
         label: `${customer.name}${customer.email ? ` (${customer.email})` : ""}`,
+        searchText:
+          `${customer.name} ${customer.email ?? ""} ${customer.id}`.trim(),
       })),
     ],
     [customers, loadingCustomers],
   );
   const bookingDropdownOptions = useMemo(() => {
-    const selectedCustomer = formData.customer?.trim().toLowerCase();
+    const selectedCustomerId = formData.customer?.trim();
     const filtered =
-      selectedCustomer ?
-        bookings.filter((b) =>
-          b.customer?.trim().toLowerCase().includes(selectedCustomer),
-        )
-      : bookings;
+      selectedCustomerId ?
+        bookings.filter((booking) => booking.customerId === selectedCustomerId)
+      : [];
     return [
       {
         value: "",
         label:
           loadingBookings ? "Loading bookings..."
-          : filtered.length === 0 && selectedCustomer ?
-            "No bookings for this customer"
+          : !selectedCustomerId ? "Select customer first"
+          : filtered.length === 0 ? "No bookings for this customer"
           : "Select booking...",
       },
       ...filtered.map((booking) => ({
@@ -831,9 +840,20 @@ const PaymentFormModal = ({
         label: `${booking.bookingNumber}${
           booking.customer ? ` - ${booking.customer}` : ""
         }`,
+        searchText:
+          `${booking.bookingNumber} ${booking.customer ?? ""} ${booking.id}`.trim(),
       })),
     ];
   }, [bookings, loadingBookings, formData.customer]);
+  const selectedBooking = useMemo(
+    () => bookings.find((booking) => booking.id === formData.bookingId),
+    [bookings, formData.bookingId],
+  );
+  const selectedBookingTotal = useMemo(() => {
+    if (!selectedBooking) return null;
+    const total = Number(selectedBooking.totalAmount ?? 0);
+    return Number.isFinite(total) && total > 0 ? total : null;
+  }, [selectedBooking]);
   const paymentModeOptions = useMemo(
     () => [
       { value: "bank", label: "Bank Transfer" },
@@ -862,15 +882,25 @@ const PaymentFormModal = ({
     }
   }, []);
 
+  const clearProofSelection = useCallback(() => {
+    setProofFile(null);
+    setProofUploadError("");
+    if (proofInputRef.current) {
+      proofInputRef.current.value = "";
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen) {
       clearInvoiceSelection();
+      clearProofSelection();
     }
-  }, [isOpen, clearInvoiceSelection]);
+  }, [isOpen, clearInvoiceSelection, clearProofSelection]);
 
   useEffect(() => {
     clearInvoiceSelection();
-  }, [transaction, clearInvoiceSelection]);
+    clearProofSelection();
+  }, [transaction, clearInvoiceSelection, clearProofSelection]);
 
   const handleInvoiceFileChange = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -892,6 +922,28 @@ const PaymentFormModal = ({
 
     setInvoiceUploadError("");
     setInvoiceFile(file);
+  };
+
+  const handleProofFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.type.startsWith("image/")) {
+      setProofUploadError("Upload a PDF or image as proof");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_INVOICE_FILE_SIZE) {
+      setProofUploadError("Proof must be 5 MB or smaller");
+      event.target.value = "";
+      return;
+    }
+
+    setProofUploadError("");
+    setProofFile(file);
   };
 
   // Load customers and bookings when modal opens
@@ -980,6 +1032,23 @@ const PaymentFormModal = ({
               booking.customer_name ||
               booking.customer ||
               "",
+            customerId:
+              (
+                booking.customerId ||
+                booking.customer_id ||
+                booking.customer?.id
+              ) ?
+                `customer-${booking.customerId || booking.customer_id || booking.customer?.id}`
+              : booking.leadId || booking.lead_id || booking.lead?.id ?
+                `lead-${booking.leadId || booking.lead_id || booking.lead?.id}`
+              : "",
+            totalAmount: Number(
+              booking.totalAmount ??
+                booking.total_amount ??
+                booking.finalPrice ??
+                booking.final_price ??
+                0,
+            ),
           })),
         );
       } catch (err) {
@@ -994,15 +1063,27 @@ const PaymentFormModal = ({
 
   if (!isOpen) return null;
 
-  const currentInvoiceLink = transaction?.invoiceUrl ?? transaction?.proofUrl;
+  const currentInvoiceLink = transaction?.invoiceUrl;
+  const currentProofLink = transaction?.proofUrl;
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.customer) newErrors.customer = "Customer is required";
     if (!formData.bookingId) newErrors.bookingId = "Booking ID is required";
     if (!formData.amount) newErrors.amount = "Amount is required";
-    if (parseFloat(formData.amount) <= 0)
+    const parsedAmount = Number(formData.amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
       newErrors.amount = "Amount must be positive";
+    if (
+      Number.isFinite(parsedAmount) &&
+      parsedAmount > 0 &&
+      selectedBookingTotal !== null &&
+      parsedAmount > selectedBookingTotal
+    ) {
+      newErrors.amount = `Amount cannot exceed ${selectedBookingTotal.toFixed(
+        2,
+      )}`;
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -1011,6 +1092,14 @@ const PaymentFormModal = ({
     if (!validate()) return;
 
     let invoiceAttachment:
+      | {
+          name: string;
+          type: string;
+          size: number;
+          data: string;
+        }
+      | undefined;
+    let proofAttachment:
       | {
           name: string;
           type: string;
@@ -1037,6 +1126,22 @@ const PaymentFormModal = ({
       }
     }
 
+    if (proofFile) {
+      try {
+        const base64 = await fileToBase64(proofFile);
+        proofAttachment = {
+          name: proofFile.name,
+          type: proofFile.type,
+          size: proofFile.size,
+          data: base64,
+        };
+      } catch (error) {
+        console.error("Failed to process payment proof", error);
+        setProofUploadError("Unable to read the proof file. Please try again.");
+        return;
+      }
+    }
+
     const now = new Date().toISOString();
     onSave({
       ...formData,
@@ -1047,6 +1152,7 @@ const PaymentFormModal = ({
       createdAt: transaction?.createdAt || now,
       updatedAt: now,
       invoiceAttachment,
+      proofAttachment,
     });
   };
 
@@ -1142,10 +1248,16 @@ const PaymentFormModal = ({
                 }`}
                 placeholder="0.00"
                 min="0"
+                max={selectedBookingTotal ?? undefined}
                 step="0.01"
               />
               {errors.amount && (
                 <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
+              )}
+              {!errors.amount && selectedBookingTotal !== null && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Max payable amount: {selectedBookingTotal.toLocaleString()}
+                </p>
               )}
             </div>
             <div>
@@ -1195,95 +1307,180 @@ const PaymentFormModal = ({
 
           <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              Invoice Attachment
+              Attachments
             </h4>
-            <div className="space-y-3">
-              {invoiceFile ?
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">
-                      {invoiceFile.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      PDF · {formatFileSize(invoiceFile.size)}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-red-600 hover:underline"
-                    onClick={clearInvoiceSelection}
-                  >
-                    Remove
-                  </button>
-                </div>
-              : <p className="text-sm text-gray-500">
-                  Upload the finalized invoice PDF (max 5 MB) that should be
-                  linked with this payment.
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-gray-800 mb-2">
+                  Invoice Attachment
                 </p>
-              }
+                <div className="space-y-3">
+                  {invoiceFile ?
+                    <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {invoiceFile.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          PDF · {formatFileSize(invoiceFile.size)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-red-600 hover:underline"
+                        onClick={clearInvoiceSelection}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  : <p className="text-sm text-gray-500">
+                      Upload the finalized invoice PDF (max 5 MB).
+                    </p>
+                  }
 
-              {currentInvoiceLink && !invoiceFile && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  <p className="font-medium">Invoice PDF already uploaded.</p>
-                  <p className="text-xs text-amber-700">
-                    Replace it with a new PDF?
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <a
-                      href={currentInvoiceLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-semibold text-blue-600 hover:underline"
+                  {currentInvoiceLink && !invoiceFile && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      <p className="font-medium">
+                        Invoice PDF already uploaded.
+                      </p>
+                      <p className="text-xs text-amber-700">
+                        Replace it with a new PDF?
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <a
+                          href={currentInvoiceLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-blue-600 hover:underline"
+                        >
+                          View current invoice
+                        </a>
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-amber-900 hover:underline"
+                          onClick={() => invoiceInputRef.current?.click()}
+                        >
+                          Upload new PDF
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label
+                      htmlFor="invoice-upload"
+                      className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
                     >
-                      View current invoice
-                    </a>
-                    <button
-                      type="button"
-                      className="text-xs font-semibold text-amber-900 hover:underline"
-                      onClick={() => invoiceInputRef.current?.click()}
-                    >
-                      Upload new PDF
-                    </button>
+                      Upload PDF
+                    </label>
+                    <input
+                      id="invoice-upload"
+                      ref={invoiceInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={handleInvoiceFileChange}
+                    />
                   </div>
-                </div>
-              )}
 
-              <div className="flex flex-wrap items-center gap-3">
-                <label
-                  htmlFor="invoice-upload"
-                  className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
-                >
-                  Upload PDF
-                </label>
-                <input
-                  id="invoice-upload"
-                  ref={invoiceInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={handleInvoiceFileChange}
-                />
+                  {invoiceUploadError && (
+                    <p className="text-xs text-red-500">{invoiceUploadError}</p>
+                  )}
+                </div>
               </div>
 
-              {invoiceUploadError && (
-                <p className="text-xs text-red-500">{invoiceUploadError}</p>
-              )}
+              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-gray-800 mb-2">
+                  Payment Proof
+                </p>
+                <div className="space-y-3">
+                  {proofFile ?
+                    <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {proofFile.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(proofFile.size)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-red-600 hover:underline"
+                        onClick={clearProofSelection}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  : <p className="text-sm text-gray-500">
+                      Upload payment proof (PDF or image, max 5 MB).
+                    </p>
+                  }
 
-              {formData.notes !== undefined && (
-                <div>
-                  <label className="field-label">Notes</label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                    rows={3}
-                    className="field-input"
-                    placeholder="Additional notes..."
-                  />
+                  {currentProofLink && !proofFile && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      <p className="font-medium">Proof already uploaded.</p>
+                      <p className="text-xs text-amber-700">
+                        Replace it with a new file?
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <a
+                          href={currentProofLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-blue-600 hover:underline"
+                        >
+                          View current proof
+                        </a>
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-amber-900 hover:underline"
+                          onClick={() => proofInputRef.current?.click()}
+                        >
+                          Upload new file
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label
+                      htmlFor="proof-upload"
+                      className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                    >
+                      Upload Proof
+                    </label>
+                    <input
+                      id="proof-upload"
+                      ref={proofInputRef}
+                      type="file"
+                      accept="application/pdf,image/*"
+                      className="hidden"
+                      onChange={handleProofFileChange}
+                    />
+                  </div>
+
+                  {proofUploadError && (
+                    <p className="text-xs text-red-500">{proofUploadError}</p>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
+
+            {formData.notes !== undefined && (
+              <div className="mt-4">
+                <label className="field-label">Notes</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) =>
+                    setFormData({ ...formData, notes: e.target.value })
+                  }
+                  rows={3}
+                  className="field-input"
+                  placeholder="Additional notes..."
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -2389,7 +2586,12 @@ const Payments: React.FC = () => {
               gatewayOrderId: data.gatewayOrderId || tx.gatewayOrderId,
               gatewayPaymentId: data.gatewayPaymentId || tx.gatewayPaymentId,
               gatewaySignature: data.gatewaySignature || tx.gatewaySignature,
-              proofUrl: data.proofUrl || tx.proofUrl,
+              proofUrl:
+                data.proofUrl ||
+                data?.proofAttachment?.data ||
+                data?.proofAttachment?.content ||
+                data?.proofAttachment?.base64 ||
+                tx.proofUrl,
               invoiceUrl:
                 refreshedTx?.invoiceUrl ||
                 data?.invoiceAttachment?.data ||
@@ -2431,7 +2633,12 @@ const Payments: React.FC = () => {
         gatewayOrderId: data.gatewayOrderId || undefined,
         gatewayPaymentId: data.gatewayPaymentId || undefined,
         gatewaySignature: data.gatewaySignature || undefined,
-        proofUrl: data.proofUrl || undefined,
+        proofUrl:
+          data.proofUrl ||
+          data?.proofAttachment?.data ||
+          data?.proofAttachment?.content ||
+          data?.proofAttachment?.base64 ||
+          undefined,
         invoiceAttachment: data.invoiceAttachment || undefined,
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.date) || undefined,

@@ -12,12 +12,12 @@ const Layout: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
-      {sidebarOpen ? (
+      {sidebarOpen ?
         <div
           className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
-      ) : null}
+      : null}
 
       <div
         className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}

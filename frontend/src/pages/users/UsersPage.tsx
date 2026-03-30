@@ -39,6 +39,10 @@ interface Role {
   description?: string;
 }
 
+interface UsersPageProps {
+  embedded?: boolean;
+}
+
 const COUNTRY_OPTIONS = CRM_COUNTRY_OPTIONS
 const AGENT_TYPE_OPTIONS = [
   { value: '', label: 'Select agent type' },
@@ -670,7 +674,7 @@ const AssignRoleModal = ({
   );
 };
 
-const UsersPage: React.FC = () => {
+const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
   const { hasPermission } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -947,7 +951,13 @@ const UsersPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div
+        className={
+          embedded ?
+            "w-full flex items-center justify-center py-12"
+          : "flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950"
+        }
+      >
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Loading users...</p>
@@ -958,7 +968,13 @@ const UsersPage: React.FC = () => {
 
   if (loadingError) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div
+        className={
+          embedded ?
+            "w-full flex items-center justify-center py-12"
+          : "flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950"
+        }
+      >
         <div className="text-center max-w-md">
           <p className="text-sm text-red-600 mb-4">{loadingError}</p>
           <button
@@ -972,8 +988,19 @@ const UsersPage: React.FC = () => {
     );
   }
 
+  const wrapperClass = embedded
+    ? "w-full text-gray-900 dark:text-gray-100"
+    : "flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100";
+  const containerClass = embedded
+    ? "w-full py-4 sm:py-6 lg:py-8"
+    : "max-w-8xl mx-auto px-0 sm:px-6 lg:px-0 py-4 sm:py-6 lg:py-8";
+  const headerSpacingClass = embedded
+    ? "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"
+    : "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 -mt-2 sm:-mt-4 lg:-mt-8";
+  const Wrapper = embedded ? "div" : "main";
+
   return (
-    <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+    <Wrapper className={wrapperClass}>
       {/* Toast Notification */}
       {toast.show && (
         <Toast
@@ -1046,9 +1073,9 @@ const UsersPage: React.FC = () => {
         />
       : null}
 
-      <div className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-0 py-4 sm:py-6 lg:py-8">
+      <div className={containerClass}>
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 -mt-2 sm:-mt-4 lg:-mt-8">
+        <div className={headerSpacingClass}>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
               User Management
@@ -1351,7 +1378,7 @@ const UsersPage: React.FC = () => {
           animation: fadeIn 0.3s ease-out;
         }
       `}</style>
-    </main>
+    </Wrapper>
   );
 };
 

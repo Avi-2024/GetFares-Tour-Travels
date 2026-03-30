@@ -549,7 +549,7 @@ const CreateLead: React.FC = () => {
 
   if (!leadType) {
     return (
-      <div className='mx-auto max-w-4xl space-y-6'>
+      <div className='mx-auto max-w-9xl space-y-6 px-0'>
         <div className='flex items-center gap-3'>
           <button
             onClick={() => navigate('/leads')}
@@ -573,7 +573,7 @@ const CreateLead: React.FC = () => {
             onClick={() => handleLeadTypeSelect('HOLIDAY')}
             className='group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-8 text-left transition-all hover:border-blue-500 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500'
           >
-            <div className='absolute right-4 top-4 text-4xl opacity-10 transition-opacity group-hover:opacity-20'>
+            <div className='absolute right-4 top-4 text-4xl opacity-20 transition-opacity group-hover:opacity-35'>
               🏖️
             </div>
             <h3 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
@@ -597,7 +597,7 @@ const CreateLead: React.FC = () => {
             onClick={() => handleLeadTypeSelect('VISA')}
             className='group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-8 text-left transition-all hover:border-green-500 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:hover:border-green-500'
           >
-            <div className='absolute right-4 top-4 text-4xl opacity-10 transition-opacity group-hover:opacity-20'>
+            <div className='absolute right-4 top-4 text-4xl opacity-20 transition-opacity group-hover:opacity-35'>
               ✈️
             </div>
             <h3 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
