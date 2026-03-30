@@ -1,6 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FaArrowLeft, FaCheckCircle } from 'react-icons/fa'
+import {
+  PhoneInput,
+  type CountryIso2,
+  type PhoneInputRefType
+} from 'react-international-phone'
+import 'react-international-phone/style.css'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
@@ -58,13 +64,51 @@ const initialForm: FormState = {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_E164_DIGITS_MIN = 8
+const PHONE_E164_DIGITS_MAX = 15
+
+const COUNTRY_CURRENCY_FALLBACK: Record<string, string> = {
+  in: 'INR',
+  us: 'USD',
+  gb: 'GBP',
+  ae: 'AED',
+  eu: 'EUR'
+}
+
+const detectLocaleCountryIso2 = (): CountryIso2 => {
+  if (typeof navigator === 'undefined' || !navigator.language) {
+    return 'in'
+  }
+  const locale = navigator.language
+  const region = locale.includes('-') ? locale.split('-')[1]?.toLowerCase() : ''
+  return (region || 'in') as CountryIso2
+}
+
+const createInitialFormState = (): FormState => {
+  const iso2 = detectLocaleCountryIso2()
+  const matchedCountry = Country.getAllCountries().find(
+    country => String(country.isoCode || '').toLowerCase() === iso2
+  )
+  const resolvedCurrency =
+    String(matchedCountry?.currency || '')
+      .trim()
+      .toUpperCase() ||
+    COUNTRY_CURRENCY_FALLBACK[iso2] ||
+    'INR'
+
+  return {
+    ...initialForm,
+    leadCountry: matchedCountry?.name || '',
+    clientCurrency: resolvedCurrency
+  }
+}
 
 const CreateLead: React.FC = () => {
   const navigate = useNavigate()
   const leadsService = useLeadsService()
   const campaignsService = useCampaignsService()
   const [leadType, setLeadType] = useState<LeadType>(null)
-  const [form, setForm] = useState<FormState>(initialForm)
+  const [form, setForm] = useState<FormState>(() => createInitialFormState())
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [destinations, setDestinations] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -72,6 +116,10 @@ const CreateLead: React.FC = () => {
   const [duplicateWarning, setDuplicateWarning] = useState('')
   const [showErrors, setShowErrors] = useState(false)
   const [childAges, setChildAges] = useState<string[]>([])
+  const [phoneCountryIso2, setPhoneCountryIso2] = useState<CountryIso2>(() =>
+    detectLocaleCountryIso2()
+  )
+  const phoneInputRef = useRef<PhoneInputRefType>(null)
 
   const isFieldVisible = (fieldName: string) => {
     if (!leadType) return true
@@ -80,7 +128,7 @@ const CreateLead: React.FC = () => {
 
   const handleLeadTypeSelect = (type: 'HOLIDAY' | 'VISA') => {
     setLeadType(type)
-    setForm(initialForm)
+    setForm(createInitialFormState())
     setChildAges([])
     setShowErrors(false)
     setApiError('')
@@ -89,33 +137,12 @@ const CreateLead: React.FC = () => {
 
   const handleBackToSelection = () => {
     setLeadType(null)
-    setForm(initialForm)
+    setForm(createInitialFormState())
     setChildAges([])
     setShowErrors(false)
     setApiError('')
     setDuplicateWarning('')
   }
-
-  const handlePhoneKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.ctrlKey || event.metaKey || event.altKey) return
-    const allowedKeys = [
-      'Backspace',
-      'Delete',
-      'ArrowLeft',
-      'ArrowRight',
-      'ArrowUp',
-      'ArrowDown',
-      'Tab',
-      'Home',
-      'End'
-    ]
-    if (allowedKeys.includes(event.key)) return
-    if (!/^\d$/.test(event.key)) {
-      event.preventDefault()
-    }
-  }
-
-
 
   useEffect(() => {
     const loadData = async () => {
@@ -172,17 +199,25 @@ const CreateLead: React.FC = () => {
   const validation = useMemo(() => {
     const email = form.email.trim()
     const phoneDigits = form.phone.replace(/\D/g, '')
+    const phoneLooksValid =
+      form.phone.trim().startsWith('+') &&
+      phoneDigits.length >= PHONE_E164_DIGITS_MIN &&
+      phoneDigits.length <= PHONE_E164_DIGITS_MAX
 
     const adultsCountValue = Number(form.adultsCount || 0)
     const childrenCountValue = Number(form.childrenCount || 0)
-    const adultsCountSafe = Number.isFinite(adultsCountValue) ? adultsCountValue : 0
-    const childrenCountSafe = Number.isFinite(childrenCountValue) ? childrenCountValue : 0
+    const adultsCountSafe = Number.isFinite(adultsCountValue)
+      ? adultsCountValue
+      : 0
+    const childrenCountSafe = Number.isFinite(childrenCountValue)
+      ? childrenCountValue
+      : 0
 
     return {
       firstName: !form.firstName.trim(),
       lastName: !form.lastName.trim(),
       email: !email || !EMAIL_PATTERN.test(email),
-      phone: phoneDigits.length < 10,
+      phone: !phoneLooksValid,
       leadCountry: !form.leadCountry,
       clientCurrency: !form.clientCurrency.trim(),
       destinationName: !form.destinationName.trim(),
@@ -225,41 +260,86 @@ const CreateLead: React.FC = () => {
     []
   )
 
+  const allCountries = useMemo(() => Country.getAllCountries(), [])
+
   const allCountryNames = useMemo(
-    () => Country.getAllCountries().map(country => country.name),
-    []
+    () => allCountries.map(country => country.name),
+    [allCountries]
   )
 
-  const destinationOptions = useMemo(
-    () => {
-      const destinationNames = destinations
-        .map(destination => {
-          if (typeof destination === 'string') return destination
-          if (!destination || typeof destination !== 'object') return ''
-          return (
-            destination.name ||
-            destination.destinationName ||
-            destination.country ||
-            ''
-          )
-        })
-        .map(name => String(name).trim())
-        .filter(Boolean)
+  const countryMetaByName = useMemo(() => {
+    const map = new Map<string, { iso2: CountryIso2; currency: string }>()
+    allCountries.forEach(country => {
+      const name = String(country.name || '').trim()
+      const iso2 = String(country.isoCode || '').toLowerCase() as CountryIso2
+      if (!name || !iso2) return
+      const currency =
+        String(country.currency || '')
+          .trim()
+          .toUpperCase() ||
+        COUNTRY_CURRENCY_FALLBACK[iso2] ||
+        ''
+      map.set(name, { iso2, currency })
+    })
+    return map
+  }, [allCountries])
 
-      const mergedNames = Array.from(
-        new Set([...allCountryNames, ...destinationNames])
-      ).sort((a, b) => a.localeCompare(b))
+  const countryNameByIso2 = useMemo(() => {
+    const map = new Map<CountryIso2, string>()
+    countryMetaByName.forEach((meta, name) => {
+      map.set(meta.iso2, name)
+    })
+    return map
+  }, [countryMetaByName])
 
-      return [
-        { value: '', label: 'Select destination' },
-        ...mergedNames.map(name => ({
-          value: name,
-          label: name
-        }))
-      ]
-    },
-    [allCountryNames, destinations]
-  )
+  const currencyByIso2 = useMemo(() => {
+    const map = new Map<CountryIso2, string>()
+    countryMetaByName.forEach(meta => {
+      if (meta.currency) map.set(meta.iso2, meta.currency)
+    })
+    Object.entries(COUNTRY_CURRENCY_FALLBACK).forEach(([iso2, currency]) => {
+      map.set(iso2 as CountryIso2, currency)
+    })
+    return map
+  }, [countryMetaByName])
+
+  const resolveCurrencyForIso2 = (iso2: CountryIso2) => {
+    return currencyByIso2.get(iso2) || 'INR'
+  }
+
+  useEffect(() => {
+    phoneInputRef.current?.setCountry(phoneCountryIso2, {
+      focusOnInput: false
+    })
+  }, [phoneCountryIso2])
+
+  const destinationOptions = useMemo(() => {
+    const destinationNames = destinations
+      .map(destination => {
+        if (typeof destination === 'string') return destination
+        if (!destination || typeof destination !== 'object') return ''
+        return (
+          destination.name ||
+          destination.destinationName ||
+          destination.country ||
+          ''
+        )
+      })
+      .map(name => String(name).trim())
+      .filter(Boolean)
+
+    const mergedNames = Array.from(
+      new Set([...allCountryNames, ...destinationNames])
+    ).sort((a, b) => a.localeCompare(b))
+
+    return [
+      { value: '', label: 'Select destination' },
+      ...mergedNames.map(name => ({
+        value: name,
+        label: name
+      }))
+    ]
+  }, [allCountryNames, destinations])
 
   const visaOptions = useMemo(
     () => [
@@ -326,6 +406,41 @@ const CreateLead: React.FC = () => {
     [allCountryNames]
   )
 
+  const handleLeadCountryChange = (countryName: string) => {
+    const meta = countryMetaByName.get(countryName)
+    if (!meta) {
+      setForm(prev => ({ ...prev, leadCountry: countryName }))
+      return
+    }
+
+    setPhoneCountryIso2(meta.iso2)
+    setForm(prev => ({
+      ...prev,
+      leadCountry: countryName,
+      clientCurrency: meta.currency || prev.clientCurrency || 'INR'
+    }))
+  }
+
+  const handlePhoneChange = (
+    phone: string,
+    meta: { country: { iso2: CountryIso2 } }
+  ) => {
+    const iso2 = meta.country?.iso2
+    if (!iso2) {
+      setForm(prev => ({ ...prev, phone }))
+      return
+    }
+
+    const mappedCountryName = countryNameByIso2.get(iso2)
+    setPhoneCountryIso2(iso2)
+    setForm(prev => ({
+      ...prev,
+      phone,
+      leadCountry: mappedCountryName || prev.leadCountry,
+      clientCurrency: resolveCurrencyForIso2(iso2)
+    }))
+  }
+
   const handleSubmit = async () => {
     setShowErrors(true)
     if (hasError) return
@@ -368,7 +483,9 @@ const CreateLead: React.FC = () => {
         childrenCount: childrenCountNumber,
         childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
         budget: form.budget.trim() ? Number(form.budget) : undefined,
-        visaRequired: form.visaRequired ? form.visaRequired === 'YES' : undefined,
+        visaRequired: form.visaRequired
+          ? form.visaRequired === 'YES'
+          : undefined,
         preferredHotelCategory: form.preferredHotelCategory,
         travelPurpose: form.travelPurpose.trim(),
         source: form.leadSource.trim() || 'Website',
@@ -524,21 +641,30 @@ const CreateLead: React.FC = () => {
           />
           <div>
             <label className='field-label'>Phone *</label>
-            <input
-              type='tel'
+            <PhoneInput
+              ref={phoneInputRef}
               value={form.phone}
-              onChange={event =>
-                setForm(prev => ({
-                  ...prev,
-                  phone: event.target.value
-                }))
-              }
-              placeholder='Phone number'
-              className={`field-input ${fieldError('phone') ? 'border-red-500' : ''}`}
-              inputMode='numeric'
-              pattern='[0-9]*'
-              onKeyDown={handlePhoneKeyDown}
+              defaultCountry={phoneCountryIso2}
+              onChange={handlePhoneChange}
+              inputClassName={`field-input !w-full ${
+                fieldError('phone') ? '!border-red-500' : ''
+              }`}
+              countrySelectorStyleProps={{
+                buttonClassName:
+                  'h-[52px] rounded-l-xl border border-gray-200 dark:border-gray-700'
+              }}
+              inputProps={{
+                name: 'phone',
+                required: true,
+                autoComplete: 'tel',
+                placeholder: 'Phone number'
+              }}
             />
+            {form.phone && !fieldError('phone') ? (
+              <p className='mt-1 text-xs text-green-600 dark:text-green-400'>
+                Phone number format looks valid.
+              </p>
+            ) : null}
           </div>
           <div>
             <label className='field-label'>Lead Country *</label>
@@ -547,9 +673,7 @@ const CreateLead: React.FC = () => {
               options={countryOptions}
               hasError={fieldError('leadCountry')}
               searchPlaceholder='Search country...'
-              onChange={value =>
-                setForm(prev => ({ ...prev, leadCountry: value }))
-              }
+              onChange={handleLeadCountryChange}
             />
           </div>
           <div>
@@ -650,27 +774,29 @@ const CreateLead: React.FC = () => {
             <div className='md:col-span-2'>
               <label className='field-label'>Children Ages *</label>
               <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3'>
-                {Array.from({ length: Number(form.childrenCount || 0) }).map((_, index) => (
-                  <input
-                    key={`child-age-${index}`}
-                    type='number'
-                    min={0}
-                    max={18}
-                    step='1'
-                    placeholder={`Child ${index + 1} age`}
-                    className={`field-input ${
-                      fieldError('childrenAges') ? 'border-red-500' : ''
-                    }`}
-                    value={childAges[index] ?? ''}
-                    onChange={event =>
-                      setChildAges(prev => {
-                        const next = [...prev]
-                        next[index] = event.target.value
-                        return next
-                      })
-                    }
-                  />
-                ))}
+                {Array.from({ length: Number(form.childrenCount || 0) }).map(
+                  (_, index) => (
+                    <input
+                      key={`child-age-${index}`}
+                      type='number'
+                      min={0}
+                      max={18}
+                      step='1'
+                      placeholder={`Child ${index + 1} age`}
+                      className={`field-input ${
+                        fieldError('childrenAges') ? 'border-red-500' : ''
+                      }`}
+                      value={childAges[index] ?? ''}
+                      onChange={event =>
+                        setChildAges(prev => {
+                          const next = [...prev]
+                          next[index] = event.target.value
+                          return next
+                        })
+                      }
+                    />
+                  )
+                )}
               </div>
             </div>
           ) : null}
