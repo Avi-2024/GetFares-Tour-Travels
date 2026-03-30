@@ -8,7 +8,8 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaXmark,
-  FaDownload
+  FaDownload,
+  FaFilter
 } from 'react-icons/fa6'
 import { FaSearch } from 'react-icons/fa'
 import { CurrencyInput } from '../../components/form'
@@ -26,6 +27,47 @@ import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 
 type RefundStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED'
+
+const quickFilters = [
+  { key: 'ALL', label: 'All' },
+  { key: 'ACTION_REQUIRED', label: 'Action Required' },
+  { key: 'PENDING', label: 'Pending' },
+  { key: 'APPROVED', label: 'Approved' },
+  { key: 'REJECTED', label: 'Rejected' },
+  { key: 'PROCESSED', label: 'Processed' }
+] as const
+type QuickFilter = (typeof quickFilters)[number]['key']
+
+type RefundFilterState = {
+  refundId: string
+  bookingId: string
+  paymentId: string
+  customer: string
+  status: 'ALL' | RefundStatus
+  fromDate: string
+  toDate: string
+  minAmount: string
+  maxAmount: string
+  sortBy:
+    | 'NEWEST_FIRST'
+    | 'OLDEST_FIRST'
+    | 'AMOUNT_HIGH_TO_LOW'
+    | 'AMOUNT_LOW_TO_HIGH'
+    | 'NET_HIGH_TO_LOW'
+}
+
+const defaultFilters: RefundFilterState = {
+  refundId: '',
+  bookingId: '',
+  paymentId: '',
+  customer: '',
+  status: 'ALL',
+  fromDate: '',
+  toDate: '',
+  minAmount: '',
+  maxAmount: '',
+  sortBy: 'NEWEST_FIRST'
+}
 
 type RefundRow = {
   id: string
@@ -568,15 +610,47 @@ const mapApiRefund = (refund: any): RefundRow => {
   }
 }
 
+const toIsoDate = (value?: string | null) => {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toISOString().split('T')[0]
+}
+
+const matchesQuickFilter = (quickFilter: QuickFilter, row: RefundRow) => {
+  switch (quickFilter) {
+    case 'ALL':
+      return true
+    case 'ACTION_REQUIRED':
+      return row.status === 'PENDING' || row.status === 'APPROVED'
+    case 'PENDING':
+      return row.status === 'PENDING'
+    case 'APPROVED':
+      return row.status === 'APPROVED'
+    case 'REJECTED':
+      return row.status === 'REJECTED'
+    case 'PROCESSED':
+      return row.status === 'PROCESSED'
+    default:
+      return true
+  }
+}
+
 const RefundsPage = () => {
   const { token } = useAuth()
   const [rows, setRows] = useState<RefundRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | RefundStatus>('all')
+  const [filterError, setFilterError] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [page, setPage] = useState(1)
+  const [draftFilters, setDraftFilters] =
+    useState<RefundFilterState>(defaultFilters)
+  const [appliedFilters, setAppliedFilters] =
+    useState<RefundFilterState>(defaultFilters)
   const [toast, setToast] = useState<{
     show: boolean
     message: string
@@ -728,9 +802,9 @@ const RefundsPage = () => {
     [loadingPayments, paymentOptions]
   )
 
-  const statusDropdownOptions = useMemo(
+  const statusOptions = useMemo(
     () => [
-      { value: 'all', label: 'All Statuses' },
+      { value: 'ALL', label: 'All Statuses' },
       { value: 'PENDING', label: 'Pending' },
       { value: 'APPROVED', label: 'Approved' },
       { value: 'REJECTED', label: 'Rejected' },
@@ -739,22 +813,151 @@ const RefundsPage = () => {
     []
   )
 
+  const sortOptions = useMemo(
+    () => [
+      { value: 'NEWEST_FIRST', label: 'Newest First' },
+      { value: 'OLDEST_FIRST', label: 'Oldest First' },
+      { value: 'AMOUNT_HIGH_TO_LOW', label: 'Amount High-Low' },
+      { value: 'AMOUNT_LOW_TO_HIGH', label: 'Amount Low-High' },
+      { value: 'NET_HIGH_TO_LOW', label: 'Net Amount High-Low' }
+    ],
+    []
+  )
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (appliedFilters.refundId) count += 1
+    if (appliedFilters.bookingId) count += 1
+    if (appliedFilters.paymentId) count += 1
+    if (appliedFilters.customer) count += 1
+    if (appliedFilters.status !== 'ALL') count += 1
+    if (appliedFilters.fromDate) count += 1
+    if (appliedFilters.toDate) count += 1
+    if (appliedFilters.minAmount) count += 1
+    if (appliedFilters.maxAmount) count += 1
+    if (appliedFilters.sortBy !== 'NEWEST_FIRST') count += 1
+    return count
+  }, [appliedFilters])
+
+  const updateDraftFilter = <K extends keyof RefundFilterState>(
+    key: K,
+    value: RefundFilterState[K]
+  ) => {
+    setDraftFilters(previous => ({
+      ...previous,
+      [key]: value
+    }))
+  }
+
+  useEffect(() => {
+    if (
+      draftFilters.fromDate &&
+      draftFilters.toDate &&
+      draftFilters.fromDate > draftFilters.toDate
+    ) {
+      setFilterError('From Date cannot be later than To Date.')
+      return
+    }
+
+    const minAmount = Number(draftFilters.minAmount || 0)
+    const maxAmount = Number(draftFilters.maxAmount || 0)
+    if (
+      draftFilters.minAmount &&
+      draftFilters.maxAmount &&
+      minAmount > maxAmount
+    ) {
+      setFilterError('Min Amount cannot be greater than Max Amount.')
+      return
+    }
+
+    setFilterError('')
+    const timer = window.setTimeout(() => {
+      setAppliedFilters({
+        ...draftFilters,
+        refundId: draftFilters.refundId.trim(),
+        bookingId: draftFilters.bookingId.trim(),
+        paymentId: draftFilters.paymentId.trim(),
+        customer: draftFilters.customer.trim(),
+        minAmount: draftFilters.minAmount.trim(),
+        maxAmount: draftFilters.maxAmount.trim()
+      })
+      setPage(1)
+    }, 250)
+
+    return () => window.clearTimeout(timer)
+  }, [draftFilters])
+
   // Filter and pagination
   const filteredRows = useMemo(() => {
     return rows.filter(row => {
+      if (!matchesQuickFilter(quickFilter, row)) return false
+      if (appliedFilters.status !== 'ALL' && row.status !== appliedFilters.status)
+        return false
+
+      const createdAtIso = toIsoDate(row.createdAt)
+      if (appliedFilters.fromDate && (!createdAtIso || createdAtIso < appliedFilters.fromDate))
+        return false
+      if (appliedFilters.toDate && (!createdAtIso || createdAtIso > appliedFilters.toDate))
+        return false
+
       const bookingDisplay = getBookingDisplay(row.bookingId)
       const paymentDisplay = getPaymentDisplay(row.paymentId)
-      const query = search.toLowerCase().trim()
-      const matchesStatus =
-        statusFilter === 'all' || row.status === statusFilter
-      if (!query) return matchesStatus
-
       const bookingMeta = bookingById.get(String(row.bookingId || ''))
+
+      if (
+        appliedFilters.refundId &&
+        !String(row.id ?? '')
+          .toLowerCase()
+          .includes(appliedFilters.refundId.toLowerCase())
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.bookingId &&
+        !`${row.bookingId} ${bookingDisplay}`
+          .toLowerCase()
+          .includes(appliedFilters.bookingId.toLowerCase())
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.paymentId &&
+        !`${row.paymentId ?? ''} ${paymentDisplay}`
+          .toLowerCase()
+          .includes(appliedFilters.paymentId.toLowerCase())
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.customer &&
+        !`${bookingMeta?.customer ?? ''} ${bookingMeta?.customerEmail ?? ''} ${
+          bookingMeta?.customerPhone ?? ''
+        }`
+          .toLowerCase()
+          .includes(appliedFilters.customer.toLowerCase())
+      ) {
+        return false
+      }
+
+      const refundAmount = Number(row.refundAmount || 0)
+      if (
+        appliedFilters.minAmount &&
+        refundAmount < Number(appliedFilters.minAmount)
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.maxAmount &&
+        refundAmount > Number(appliedFilters.maxAmount)
+      ) {
+        return false
+      }
+
+      const query = search.toLowerCase().trim()
+      if (!query) return true
+
       const createdAtText = row.createdAt
         ? new Date(row.createdAt).toLocaleDateString()
-        : ''
-      const createdAtIso = row.createdAt
-        ? new Date(row.createdAt).toISOString().split('T')[0]
         : ''
       const haystack = [
         row.id,
@@ -772,14 +975,13 @@ const RefundsPage = () => {
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-      const matchesSearch = haystack.includes(query)
-
-      return matchesSearch && matchesStatus
+      return haystack.includes(query)
     })
   }, [
     rows,
     search,
-    statusFilter,
+    quickFilter,
+    appliedFilters,
     getBookingDisplay,
     getPaymentDisplay,
     bookingById
@@ -794,11 +996,25 @@ const RefundsPage = () => {
   const ordered = useMemo(
     () =>
       [...filteredRows].sort((a, b) => {
+        if (appliedFilters.sortBy === 'AMOUNT_HIGH_TO_LOW') {
+          return Number(b.refundAmount || 0) - Number(a.refundAmount || 0)
+        }
+        if (appliedFilters.sortBy === 'AMOUNT_LOW_TO_HIGH') {
+          return Number(a.refundAmount || 0) - Number(b.refundAmount || 0)
+        }
+        if (appliedFilters.sortBy === 'NET_HIGH_TO_LOW') {
+          return Number(b.netAmount || 0) - Number(a.netAmount || 0)
+        }
+        if (appliedFilters.sortBy === 'OLDEST_FIRST') {
+          const left = toTimestamp(a.createdAt)
+          const right = toTimestamp(b.createdAt)
+          return left - right
+        }
         const left = toTimestamp(a.createdAt)
         const right = toTimestamp(b.createdAt)
         return right - left
       }),
-    [filteredRows]
+    [filteredRows, appliedFilters.sortBy]
   )
 
   const totalPages = Math.ceil(ordered.length / pageSize)
@@ -846,6 +1062,16 @@ const RefundsPage = () => {
     anchor.download = `refunds-page-${page}.csv`
     anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleResetFilters = () => {
+    setFilterError('')
+    setDraftFilters(defaultFilters)
+    setAppliedFilters(defaultFilters)
+    setQuickFilter('ALL')
+    setSearch('')
+    setShowMobileFilters(false)
+    setPage(1)
   }
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
@@ -1374,31 +1600,235 @@ const RefundsPage = () => {
       )}
 
       {/* Filters */}
-      <div className='flex flex-col sm:flex-row gap-3'>
-        <div className='flex-1 relative'>
-          <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm' />
-          <input
-            type='text'
-            value={search}
-            onChange={e => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            placeholder='Search by refund ID, booking name/number, payment reference...'
-            className='w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800'
-          />
+      <SurfaceCard className='p-3 sm:p-4 border border-gray-200 dark:border-gray-800 space-y-3'>
+        {filterError ? (
+          <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+            {filterError}
+          </div>
+        ) : null}
+
+        <div className='w-full overflow-x-auto pb-1 scrollbar-hide'>
+          <div className='inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1 min-w-max'>
+            {quickFilters.map(item => (
+              <button
+                key={item.key}
+                onClick={() => {
+                  setQuickFilter(item.key)
+                  setPage(1)
+                }}
+                className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+                  quickFilter === item.key
+                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <SearchableDropdown
-          value={statusFilter}
-          onChange={value => {
-            setStatusFilter(value as 'all' | RefundStatus)
-            setPage(1)
-          }}
-          options={statusDropdownOptions}
-          className='sm:w-56'
-          searchPlaceholder='Search status...'
-        />
-      </div>
+
+        <div className='grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end'>
+          <div className='relative w-full'>
+            <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400' />
+            <input
+              type='text'
+              value={search}
+              onChange={event => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
+              placeholder='Search by refund ID, booking, payment, customer...'
+              className='w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800'
+            />
+          </div>
+          <div className='flex items-center justify-between gap-2 lg:block'>
+            <div className='text-xs text-gray-500 dark:text-gray-400'>
+              {activeFilterCount > 0
+                ? `${activeFilterCount} filter(s) applied`
+                : 'No filter applied'}
+            </div>
+            <button
+              type='button'
+              onClick={() => setShowMobileFilters(previous => !previous)}
+              className='sm:hidden inline-flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+            >
+              <FaFilter className='mr-2' />
+              {showMobileFilters ? 'Hide Filters' : 'Advanced Filters'}
+            </button>
+          </div>
+        </div>
+
+        <div
+          className={`${
+            showMobileFilters ? 'block' : 'hidden'
+          } sm:block space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30`}
+        >
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5'>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                Refund ID
+              </label>
+              <input
+                type='text'
+                value={draftFilters.refundId}
+                onChange={event =>
+                  updateDraftFilter('refundId', event.target.value)
+                }
+                placeholder='Refund ID'
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                Booking
+              </label>
+              <input
+                type='text'
+                value={draftFilters.bookingId}
+                onChange={event =>
+                  updateDraftFilter('bookingId', event.target.value)
+                }
+                placeholder='Booking number or ID'
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                Payment
+              </label>
+              <input
+                type='text'
+                value={draftFilters.paymentId}
+                onChange={event =>
+                  updateDraftFilter('paymentId', event.target.value)
+                }
+                placeholder='Payment reference or ID'
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                Customer
+              </label>
+              <input
+                type='text'
+                value={draftFilters.customer}
+                onChange={event =>
+                  updateDraftFilter('customer', event.target.value)
+                }
+                placeholder='Customer name/email/phone'
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                Status
+              </label>
+              <SearchableDropdown
+                value={draftFilters.status}
+                onChange={value =>
+                  updateDraftFilter('status', value as RefundFilterState['status'])
+                }
+                options={statusOptions}
+                searchPlaceholder='Search status...'
+              />
+            </div>
+          </div>
+
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5'>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                From Date
+              </label>
+              <input
+                type='date'
+                value={draftFilters.fromDate}
+                onChange={event =>
+                  updateDraftFilter('fromDate', event.target.value)
+                }
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                To Date
+              </label>
+              <input
+                type='date'
+                value={draftFilters.toDate}
+                onChange={event => updateDraftFilter('toDate', event.target.value)}
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                Min Amount
+              </label>
+              <input
+                type='number'
+                min='0'
+                value={draftFilters.minAmount}
+                onChange={event =>
+                  updateDraftFilter('minAmount', event.target.value)
+                }
+                placeholder='0'
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                Max Amount
+              </label>
+              <input
+                type='number'
+                min='0'
+                value={draftFilters.maxAmount}
+                onChange={event =>
+                  updateDraftFilter('maxAmount', event.target.value)
+                }
+                placeholder='Any'
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                Sort By
+              </label>
+              <SearchableDropdown
+                value={draftFilters.sortBy}
+                onChange={value =>
+                  updateDraftFilter('sortBy', value as RefundFilterState['sortBy'])
+                }
+                options={sortOptions}
+                searchPlaceholder='Search sort option...'
+              />
+            </div>
+          </div>
+
+          <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
+            {showMobileFilters ? (
+              <button
+                type='button'
+                onClick={() => setShowMobileFilters(false)}
+                className='sm:hidden rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+              >
+                <span className='inline-flex items-center gap-2'>
+                  <FaXmark />
+                  Hide Panel
+                </span>
+              </button>
+            ) : null}
+            <button
+              type='button'
+              onClick={handleResetFilters}
+              className='rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+      </SurfaceCard>
 
       {/* Table */}
       <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>

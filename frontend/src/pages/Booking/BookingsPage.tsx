@@ -33,33 +33,78 @@ import { quotationsApi } from "../../api/quotations";
 import { suppliersApi } from "../../api/suppliers";
 import { getApiErrorMessage } from "../../api/apiClient";
 
-type BookingStatus = "confirmed" | "pending" | "cancelled";
-type PaymentStatus = "partial" | "unpaid" | "paid" | "refunded";
-// type DeadlineRiskLevel = "SAFE" | "D2_DUE" | "DEADLINE_DUE" | "OVERDUE";
+type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
+type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
+type DeadlineRiskLevel = 'SAFE' | 'D2_DUE' | 'DEADLINE_DUE' | 'OVERDUE'
+
+const quickFilters = [
+  { key: 'ALL', label: 'All' },
+  { key: 'ACTIVE', label: 'Active' },
+  { key: 'PENDING', label: 'Pending' },
+  { key: 'CANCELLED', label: 'Cancelled' },
+  { key: 'PAYMENT_DUE', label: 'Payment Due' },
+  { key: 'OVERDUE', label: 'Overdue' }
+] as const
+type QuickFilter = (typeof quickFilters)[number]['key']
+
+type BookingFilterState = {
+  bookingId: string
+  customer: string
+  email: string
+  phone: string
+  consultant: string
+  destination: string
+  status: 'ALL' | BookingStatus
+  payment: 'ALL' | PaymentStatus
+  risk: 'ALL' | DeadlineRiskLevel
+  fromDate: string
+  toDate: string
+  sortBy:
+    | 'NEWEST_FIRST'
+    | 'OLDEST_FIRST'
+    | 'AMOUNT_HIGH_TO_LOW'
+    | 'AMOUNT_LOW_TO_HIGH'
+    | 'CUSTOMER_A_Z'
+}
+
+const defaultFilters: BookingFilterState = {
+  bookingId: '',
+  customer: '',
+  email: '',
+  phone: '',
+  consultant: '',
+  destination: '',
+  status: 'ALL',
+  payment: 'ALL',
+  risk: 'ALL',
+  fromDate: '',
+  toDate: '',
+  sortBy: 'NEWEST_FIRST'
+}
 
 interface Booking {
-  id: string;
-  bookingId: string;
-  customer: string;
-  email?: string;
-  phone?: string;
-  consultant?: string;
-  destination: string;
-  dates: string;
-  startDate?: string;
-  endDate?: string;
-  createdAt?: string | null;
-  status: BookingStatus;
-  payment: PaymentStatus;
-  paid: number;
-  total: number;
-  documentsReady: number;
-  documentsTotal: number;
-  // deadlineRiskLevel?: DeadlineRiskLevel;
-  blockingDeadlineAt?: string | null;
-  balanceDueBy?: string | null;
-  supplierPaymentDeadlineAt?: string | null;
-  cancellationDeadlineAt?: string | null;
+  id: string
+  bookingId: string
+  customer: string
+  email?: string
+  phone?: string
+  consultant?: string
+  destination: string
+  dates: string
+  startDate?: string
+  endDate?: string
+  createdAt?: string | null
+  status: BookingStatus
+  payment: PaymentStatus
+  paid: number
+  total: number
+  documentsReady: number
+  documentsTotal: number
+  deadlineRiskLevel?: DeadlineRiskLevel
+  blockingDeadlineAt?: string | null
+  balanceDueBy?: string | null
+  supplierPaymentDeadlineAt?: string | null
+  cancellationDeadlineAt?: string | null
 }
 
 interface NewBookingData {
@@ -134,18 +179,44 @@ const paymentClasses: Record<PaymentStatus, string> = {
     "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900",
   paid: "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900",
   refunded:
-    "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
-};
+    'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+}
 
-// const deadlineRiskClasses: Record<DeadlineRiskLevel, string> = {
-//   SAFE: "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900",
-//   D2_DUE:
-//     "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900",
-//   DEADLINE_DUE:
-//     "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900",
-//   OVERDUE:
-//     "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900",
-// };
+const deadlineRiskClasses: Record<DeadlineRiskLevel, string> = {
+  SAFE: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900',
+  D2_DUE:
+    'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900',
+  DEADLINE_DUE:
+    'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900',
+  OVERDUE:
+    'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
+}
+
+const toIsoDate = (value?: string | null) => {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toISOString().split('T')[0]
+}
+
+const matchesQuickFilter = (quickFilter: QuickFilter, booking: Booking) => {
+  switch (quickFilter) {
+    case 'ALL':
+      return true
+    case 'ACTIVE':
+      return booking.status === 'confirmed'
+    case 'PENDING':
+      return booking.status === 'pending'
+    case 'CANCELLED':
+      return booking.status === 'cancelled'
+    case 'PAYMENT_DUE':
+      return booking.payment === 'partial' || booking.payment === 'unpaid'
+    case 'OVERDUE':
+      return booking.deadlineRiskLevel === 'OVERDUE'
+    default:
+      return true
+  }
+}
 
 const getDefaultInvoiceDueDate = () => {
   const dueDate = new Date();
@@ -1518,19 +1589,22 @@ const CancelBookingModal = ({
 };
 
 const BookingsPage: React.FC = () => {
-  const bookingsService = useBookingsService();
-  const leadsService = useLeadsService();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [statusFilter, setStatusFilter] = useState<"all" | BookingStatus>(
-    "all",
-  );
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [error, setError] = useState("");
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [bookingItems, setBookingItems] = useState<Booking[]>([]);
+  const bookingsService = useBookingsService()
+  const leadsService = useLeadsService()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [error, setError] = useState('')
+  const [filterError, setFilterError] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [bookingItems, setBookingItems] = useState<Booking[]>([])
+  const [draftFilters, setDraftFilters] =
+    useState<BookingFilterState>(defaultFilters)
+  const [appliedFilters, setAppliedFilters] =
+    useState<BookingFilterState>(defaultFilters)
   const [stats, setStats] = useState({
     totalBookings: 0,
     activeBookings: 0,
@@ -1560,17 +1634,7 @@ const BookingsPage: React.FC = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
-  const pageSize = 15;
-
-  const statusFilterOptions = useMemo(
-    () => [
-      { value: "all", label: "All Status" },
-      { value: "confirmed", label: "Confirmed" },
-      { value: "pending", label: "Pending" },
-      { value: "cancelled", label: "Cancelled" },
-    ],
-    [],
-  );
+  const pageSize = 15
 
   const normalizeStatus = (value?: string): BookingStatus => {
     switch ((value ?? "").toUpperCase()) {
@@ -1870,12 +1934,9 @@ const BookingsPage: React.FC = () => {
 
       const params: Record<string, string | number | boolean> = {
         page: 1,
-        limit: 20,
-      };
-      if (statusFilter !== "all") {
-        params.status = statusFilter.toUpperCase();
+        limit: 500
       }
-      const res = await bookingsService.list(params);
+      const res = await bookingsService.list(params)
       const raw =
         (res as any)?.data?.data ??
         (res as any)?.data?.items ??
@@ -1992,7 +2053,7 @@ const BookingsPage: React.FC = () => {
       setLoading(false);
       setStatsLoading(false);
     }
-  }, [bookingsService, leadsService, statusFilter]);
+  }, [bookingsService, leadsService])
 
   useEffect(() => {
     void fetchBookings();
@@ -2138,22 +2199,197 @@ const BookingsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  const destinationOptions = useMemo(
+    () => [
+      { value: '', label: 'All Destinations' },
+      ...Array.from(
+        new Set(
+          bookingItems
+            .map(item => String(item.destination ?? '').trim())
+            .filter(Boolean)
+        )
+      )
+        .sort((a, b) => a.localeCompare(b))
+        .map(name => ({ value: name, label: name }))
+    ],
+    [bookingItems]
+  )
+
+  const statusOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All Statuses' },
+      { value: 'confirmed', label: 'Confirmed' },
+      { value: 'pending', label: 'Pending' },
+      { value: 'cancelled', label: 'Cancelled' }
+    ],
+    []
+  )
+
+  const paymentOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All Payments' },
+      { value: 'paid', label: 'Paid' },
+      { value: 'partial', label: 'Partial' },
+      { value: 'unpaid', label: 'Unpaid' },
+      { value: 'refunded', label: 'Refunded' }
+    ],
+    []
+  )
+
+  const riskOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All Risk Levels' },
+      { value: 'SAFE', label: 'Safe' },
+      { value: 'D2_DUE', label: 'D-2 Due' },
+      { value: 'DEADLINE_DUE', label: 'Deadline Due' },
+      { value: 'OVERDUE', label: 'Overdue' }
+    ],
+    []
+  )
+
+  const sortOptions = useMemo(
+    () => [
+      { value: 'NEWEST_FIRST', label: 'Newest First' },
+      { value: 'OLDEST_FIRST', label: 'Oldest First' },
+      { value: 'AMOUNT_HIGH_TO_LOW', label: 'Amount High-Low' },
+      { value: 'AMOUNT_LOW_TO_HIGH', label: 'Amount Low-High' },
+      { value: 'CUSTOMER_A_Z', label: 'Customer A-Z' }
+    ],
+    []
+  )
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (appliedFilters.bookingId) count += 1
+    if (appliedFilters.customer) count += 1
+    if (appliedFilters.email) count += 1
+    if (appliedFilters.phone) count += 1
+    if (appliedFilters.consultant) count += 1
+    if (appliedFilters.destination) count += 1
+    if (appliedFilters.status !== 'ALL') count += 1
+    if (appliedFilters.payment !== 'ALL') count += 1
+    if (appliedFilters.risk !== 'ALL') count += 1
+    if (appliedFilters.fromDate) count += 1
+    if (appliedFilters.toDate) count += 1
+    if (appliedFilters.sortBy !== 'NEWEST_FIRST') count += 1
+    return count
+  }, [appliedFilters])
+
+  const updateDraftFilter = <K extends keyof BookingFilterState>(
+    key: K,
+    value: BookingFilterState[K]
+  ) => {
+    setDraftFilters(previous => ({
+      ...previous,
+      [key]: value
+    }))
+  }
+
+  useEffect(() => {
+    if (
+      draftFilters.fromDate &&
+      draftFilters.toDate &&
+      draftFilters.fromDate > draftFilters.toDate
+    ) {
+      setFilterError('From Date cannot be later than To Date.')
+      return
+    }
+
+    setFilterError('')
+    const timer = window.setTimeout(() => {
+      setAppliedFilters({
+        ...draftFilters,
+        bookingId: draftFilters.bookingId.trim(),
+        customer: draftFilters.customer.trim(),
+        email: draftFilters.email.trim(),
+        phone: draftFilters.phone.trim(),
+        consultant: draftFilters.consultant.trim()
+      })
+      setPage(1)
+    }, 250)
+
+    return () => window.clearTimeout(timer)
+  }, [draftFilters])
 
   const filtered = useMemo(() => {
-    return bookingItems.filter((booking) => {
-      const statusMatch =
-        statusFilter === "all" || booking.status === statusFilter;
-      const query = search.toLowerCase().trim();
-      if (!query) return statusMatch;
-      const createdAtText =
-        booking.createdAt ?
-          new Date(booking.createdAt).toLocaleDateString()
-        : "";
-      const createdAtIso =
-        booking.createdAt ?
-          new Date(booking.createdAt).toISOString().split("T")[0]
-        : "";
+    return bookingItems.filter(booking => {
+      if (!matchesQuickFilter(quickFilter, booking)) return false
+
+      if (appliedFilters.status !== 'ALL' && booking.status !== appliedFilters.status)
+        return false
+      if (
+        appliedFilters.payment !== 'ALL' &&
+        booking.payment !== appliedFilters.payment
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.risk !== 'ALL' &&
+        (booking.deadlineRiskLevel ?? 'SAFE') !== appliedFilters.risk
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.destination &&
+        booking.destination !== appliedFilters.destination
+      ) {
+        return false
+      }
+
+      const createdAtIso = toIsoDate(booking.createdAt)
+      if (appliedFilters.fromDate && (!createdAtIso || createdAtIso < appliedFilters.fromDate))
+        return false
+      if (appliedFilters.toDate && (!createdAtIso || createdAtIso > appliedFilters.toDate))
+        return false
+
+      if (
+        appliedFilters.bookingId &&
+        !String(booking.bookingId ?? '')
+          .toLowerCase()
+          .includes(appliedFilters.bookingId.toLowerCase())
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.customer &&
+        !String(booking.customer ?? '')
+          .toLowerCase()
+          .includes(appliedFilters.customer.toLowerCase())
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.email &&
+        !String(booking.email ?? '')
+          .toLowerCase()
+          .includes(appliedFilters.email.toLowerCase())
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.phone &&
+        !String(booking.phone ?? '')
+          .toLowerCase()
+          .includes(appliedFilters.phone.toLowerCase())
+      ) {
+        return false
+      }
+      if (
+        appliedFilters.consultant &&
+        !String(booking.consultant ?? '')
+          .toLowerCase()
+          .includes(appliedFilters.consultant.toLowerCase())
+      ) {
+        return false
+      }
+
+      const query = search.toLowerCase().trim()
+      if (!query) return true
+      const createdAtText = booking.createdAt
+        ? new Date(booking.createdAt).toLocaleDateString()
+        : ''
       const haystack = [
         booking.bookingId,
         booking.customer,
@@ -2162,16 +2398,16 @@ const BookingsPage: React.FC = () => {
         booking.consultant ?? "",
         booking.destination,
         booking.status,
+        booking.payment,
         createdAtText,
         createdAtIso,
       ]
         .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      const searchMatch = haystack.includes(query);
-      return statusMatch && searchMatch;
-    });
-  }, [search, statusFilter, bookingItems]);
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [search, bookingItems, quickFilter, appliedFilters])
 
   const toTimestamp = (value?: string | null) => {
     if (!value) return 0;
@@ -2182,15 +2418,39 @@ const BookingsPage: React.FC = () => {
   const ordered = useMemo(
     () =>
       [...filtered].sort((a, b) => {
-        const left = toTimestamp(a.createdAt);
-        const right = toTimestamp(b.createdAt);
-        return right - left;
+        if (appliedFilters.sortBy === 'AMOUNT_HIGH_TO_LOW') {
+          return Number(b.total || 0) - Number(a.total || 0)
+        }
+        if (appliedFilters.sortBy === 'AMOUNT_LOW_TO_HIGH') {
+          return Number(a.total || 0) - Number(b.total || 0)
+        }
+        if (appliedFilters.sortBy === 'CUSTOMER_A_Z') {
+          return String(a.customer || '').localeCompare(String(b.customer || ''))
+        }
+        if (appliedFilters.sortBy === 'OLDEST_FIRST') {
+          const left = toTimestamp(a.createdAt)
+          const right = toTimestamp(b.createdAt)
+          return left - right
+        }
+        const left = toTimestamp(a.createdAt)
+        const right = toTimestamp(b.createdAt)
+        return right - left
       }),
-    [filtered],
-  );
+    [filtered, appliedFilters.sortBy]
+  )
 
-  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
-  const rows = ordered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize))
+  const rows = ordered.slice((page - 1) * pageSize, page * pageSize)
+
+  const handleResetFilters = () => {
+    setFilterError('')
+    setDraftFilters(defaultFilters)
+    setAppliedFilters(defaultFilters)
+    setQuickFilter('ALL')
+    setSearch('')
+    setShowMobileFilters(false)
+    setPage(1)
+  }
 
   const exportCurrentTable = () => {
     if (!rows.length) return;
@@ -2389,90 +2649,260 @@ const BookingsPage: React.FC = () => {
         )}
 
         {/* Filters Section */}
-        <div className="border-b border-gray-100 dark:border-gray-800 p-3 sm:p-4">
-          {/* Mobile: Search + Filter Button */}
-          <div className="flex items-center gap-2 lg:hidden">
-            <div className="flex-1 relative">
-              <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400" />
+        <div className='border-b border-gray-100 dark:border-gray-800 p-3 sm:p-4 space-y-3'>
+          {filterError ? (
+            <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+              {filterError}
+            </div>
+          ) : null}
+
+          <div className='w-full overflow-x-auto pb-1 scrollbar-hide'>
+            <div className='inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1 min-w-max'>
+              {quickFilters.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => {
+                    setQuickFilter(item.key)
+                    setPage(1)
+                  }}
+                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+                    quickFilter === item.key
+                      ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className='grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end'>
+            <div className='relative w-full'>
+              <FaMagnifyingGlass className='absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400' />
               <input
-                className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
-                placeholder="Search bookings..."
+                className='w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                placeholder='Search booking, customer, destination...'
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
+                onChange={event => {
+                  setSearch(event.target.value)
+                  setPage(1)
                 }}
               />
             </div>
-            <button
-              onClick={() => setShowMobileFilters(!showMobileFilters)}
-              className={`p-2.5 rounded-xl border transition-colors ${
-                showMobileFilters ?
-                  "bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-800"
-                : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"
-              }`}
-            >
-              <FaFilter />
-            </button>
+            <div className='flex items-center justify-between gap-2 lg:block'>
+              <div className='text-xs text-gray-500 dark:text-gray-400'>
+                {activeFilterCount > 0
+                  ? `${activeFilterCount} filter(s) applied`
+                  : 'No filter applied'}
+              </div>
+              <button
+                type='button'
+                onClick={() => setShowMobileFilters(previous => !previous)}
+                className='lg:hidden inline-flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+              >
+                <FaFilter className='mr-2' />
+                {showMobileFilters ? 'Hide Filters' : 'Advanced Filters'}
+              </button>
+            </div>
           </div>
 
-          {/* Filters (Desktop always visible, Mobile toggleable) */}
           <div
             className={`${
-              showMobileFilters ? "block" : "hidden"
-            } lg:block mt-3 lg:mt-0`}
+              showMobileFilters ? 'block' : 'hidden'
+            } lg:block space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30`}
           >
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-              {/* Status Filter and Search (Desktop) */}
-              <div className="hidden lg:flex flex-col sm:flex-row gap-2">
-                <div className="relative w-full sm:w-80">
-                  <FaMagnifyingGlass className="pointer-events-none absolute left-3 top-3 text-xs text-gray-400" />
-                  <input
-                    className="field-input pl-9"
-                    placeholder="Search booking, customer, destination"
-                    value={search}
-                    onChange={(e) => {
-                      setSearch(e.target.value);
-                      setPage(1);
-                    }}
-                  />
-                </div>
-                <SearchableDropdown
-                  className="w-full sm:w-44"
-                  value={statusFilter}
-                  options={statusFilterOptions}
-                  searchPlaceholder="Search status..."
-                  onChange={(value) => {
-                    setStatusFilter(value as "all" | BookingStatus);
-                    setPage(1);
-                  }}
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5'>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Booking ID
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.bookingId}
+                  onChange={event =>
+                    updateDraftFilter('bookingId', event.target.value)
+                  }
+                  placeholder='Booking number'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
-
-              {/* Mobile Status Filter */}
-              <div className="lg:hidden w-full">
-                <SearchableDropdown
-                  className="w-full"
-                  value={statusFilter}
-                  options={statusFilterOptions}
-                  searchPlaceholder="Search status..."
-                  onChange={(value) => {
-                    setStatusFilter(value as "all" | BookingStatus);
-                    setPage(1);
-                    setShowMobileFilters(false);
-                  }}
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Customer
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.customer}
+                  onChange={event =>
+                    updateDraftFilter('customer', event.target.value)
+                  }
+                  placeholder='Customer name'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Email
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.email}
+                  onChange={event => updateDraftFilter('email', event.target.value)}
+                  placeholder='Partial email'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Phone
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.phone}
+                  onChange={event => updateDraftFilter('phone', event.target.value)}
+                  placeholder='Partial phone'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Consultant
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.consultant}
+                  onChange={event =>
+                    updateDraftFilter('consultant', event.target.value)
+                  }
+                  placeholder='Consultant name'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+            </div>
 
-              {/* Close filter button on mobile */}
-              {showMobileFilters && (
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6'>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  From Date
+                </label>
+                <input
+                  type='date'
+                  value={draftFilters.fromDate}
+                  onChange={event =>
+                    updateDraftFilter('fromDate', event.target.value)
+                  }
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  To Date
+                </label>
+                <input
+                  type='date'
+                  value={draftFilters.toDate}
+                  onChange={event => updateDraftFilter('toDate', event.target.value)}
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Destination
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.destination}
+                  options={destinationOptions}
+                  placeholder='All Destinations'
+                  searchPlaceholder='Search destination...'
+                  onChange={value => updateDraftFilter('destination', value)}
+                />
+              </div>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Status
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.status}
+                  options={statusOptions}
+                  placeholder='All Statuses'
+                  searchPlaceholder='Search status...'
+                  onChange={value =>
+                    updateDraftFilter('status', value as BookingFilterState['status'])
+                  }
+                />
+              </div>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Payment
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.payment}
+                  options={paymentOptions}
+                  placeholder='All Payments'
+                  searchPlaceholder='Search payment status...'
+                  onChange={value =>
+                    updateDraftFilter('payment', value as BookingFilterState['payment'])
+                  }
+                />
+              </div>
+              <div>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Risk Level
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.risk}
+                  options={riskOptions}
+                  placeholder='All Risk Levels'
+                  searchPlaceholder='Search risk...'
+                  onChange={value =>
+                    updateDraftFilter('risk', value as BookingFilterState['risk'])
+                  }
+                />
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[1fr_auto]'>
+              <div className='xl:max-w-xs'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Sort By
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.sortBy}
+                  options={sortOptions}
+                  placeholder='Newest First'
+                  searchPlaceholder='Search sort option...'
+                  onChange={value =>
+                    updateDraftFilter('sortBy', value as BookingFilterState['sortBy'])
+                  }
+                />
+              </div>
+              <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:self-end'>
+                {showMobileFilters ? (
+                  <button
+                    type='button'
+                    onClick={() => setShowMobileFilters(false)}
+                    className='lg:hidden rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                  >
+                    <span className='inline-flex items-center gap-2'>
+                      <FaXmark />
+                      Hide Panel
+                    </span>
+                  </button>
+                ) : null}
                 <button
-                  onClick={() => setShowMobileFilters(false)}
-                  className="lg:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  type='button'
+                  onClick={handleResetFilters}
+                  className='rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
                 >
-                  <FaXmark />
+                  Reset Filters
                 </button>
-              )}
+              </div>
             </div>
           </div>
         </div>

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FaCalendarDays,
   FaChevronLeft,
   FaChevronRight,
   FaEye,
@@ -12,10 +11,12 @@ import {
   FaWhatsapp,
   FaFilter,
   FaXmark,
-  FaCircleXmark
+  FaCircleXmark,
+  FaPencil
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
 import { quotationsApi } from '../../api/quotations'
 import { getApiErrorMessage } from '../../api/apiClient'
@@ -48,14 +49,49 @@ interface Quotation {
   leadToQuoteSentMinutes?: number | null
 }
 
-const tabs = [
-  'All',
-  'pending',
-  'accepted',
-  'expired',
-  'rejected',
-  'draft'
+const quickFilters = [
+  { key: 'ALL', label: 'All' },
+  { key: 'ACTIVE', label: 'Active' },
+  { key: 'PENDING', label: 'Pending' },
+  { key: 'ACCEPTED', label: 'Accepted' },
+  { key: 'EXPIRED', label: 'Expired' },
+  { key: 'REJECTED', label: 'Rejected' },
+  { key: 'DRAFT', label: 'Draft' }
 ] as const
+type QuickFilter = (typeof quickFilters)[number]['key']
+
+type QuotationFilterState = {
+  quoteNumber: string
+  customer: string
+  email: string
+  phone: string
+  destination: string
+  template: string
+  status: 'ALL' | Status
+  sla: 'ALL' | 'WITHIN_SLA' | 'BREACHED' | 'UNTRACKED'
+  fromDate: string
+  toDate: string
+  sortBy:
+    | 'NEWEST_FIRST'
+    | 'OLDEST_FIRST'
+    | 'VALUE_HIGH_TO_LOW'
+    | 'VALUE_LOW_TO_HIGH'
+    | 'CUSTOMER_A_Z'
+}
+
+const defaultFilters: QuotationFilterState = {
+  quoteNumber: '',
+  customer: '',
+  email: '',
+  phone: '',
+  destination: '',
+  template: '',
+  status: 'ALL',
+  sla: 'ALL',
+  fromDate: '',
+  toDate: '',
+  sortBy: 'NEWEST_FIRST'
+}
 const styles: Record<Status, string> = {
   pending:
     'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900',
@@ -86,20 +122,51 @@ const mapApiStatusToUi = (status?: string): Status => {
   }
 }
 
+const toIsoDate = (value?: string | null) => {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toISOString().split('T')[0]
+}
+
+const matchesQuickFilter = (quickFilter: QuickFilter, status: Status) => {
+  switch (quickFilter) {
+    case 'ALL':
+      return true
+    case 'ACTIVE':
+      return status === 'pending' || status === 'draft'
+    case 'PENDING':
+      return status === 'pending'
+    case 'ACCEPTED':
+      return status === 'accepted'
+    case 'EXPIRED':
+      return status === 'expired'
+    case 'REJECTED':
+      return status === 'rejected'
+    case 'DRAFT':
+      return status === 'draft'
+    default:
+      return true
+  }
+}
+
 const QuotationsPage: React.FC = () => {
   const nav = useNavigate()
   const { token } = useAuth()
-  const [tab, setTab] = useState<typeof tabs[number]>('All')
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('ALL')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [error, setError] = useState('')
+  const [filterError, setFilterError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [rejectModalOpen, setRejectModalOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
-  const [selectedDate, setSelectedDate] = useState('')
-  const [showDatePicker, setShowDatePicker] = useState(false)
   const [quotations, setQuotations] = useState<Quotation[]>([])
+  const [draftFilters, setDraftFilters] =
+    useState<QuotationFilterState>(defaultFilters)
+  const [appliedFilters, setAppliedFilters] =
+    useState<QuotationFilterState>(defaultFilters)
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(
     null
   )
@@ -295,6 +362,55 @@ const QuotationsPage: React.FC = () => {
 
   const allItems = useMemo(() => quotations, [quotations])
 
+  const destinationOptions = useMemo(
+    () => [
+      { value: '', label: 'All Destinations' },
+      ...Array.from(
+        new Set(
+          allItems
+            .map(item => String(item.destination ?? '').trim())
+            .filter(Boolean)
+        )
+      )
+        .sort((a, b) => a.localeCompare(b))
+        .map(name => ({ value: name, label: name }))
+    ],
+    [allItems]
+  )
+
+  const statusOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All Statuses' },
+      { value: 'pending', label: 'Pending' },
+      { value: 'accepted', label: 'Accepted' },
+      { value: 'expired', label: 'Expired' },
+      { value: 'rejected', label: 'Rejected' },
+      { value: 'draft', label: 'Draft' }
+    ],
+    []
+  )
+
+  const slaOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All SLA' },
+      { value: 'WITHIN_SLA', label: 'Within SLA' },
+      { value: 'BREACHED', label: 'Breached' },
+      { value: 'UNTRACKED', label: 'Untracked' }
+    ],
+    []
+  )
+
+  const sortOptions = useMemo(
+    () => [
+      { value: 'NEWEST_FIRST', label: 'Newest First' },
+      { value: 'OLDEST_FIRST', label: 'Oldest First' },
+      { value: 'VALUE_HIGH_TO_LOW', label: 'Value High-Low' },
+      { value: 'VALUE_LOW_TO_HIGH', label: 'Value Low-High' },
+      { value: 'CUSTOMER_A_Z', label: 'Customer A-Z' }
+    ],
+    []
+  )
+
   const kpis = useMemo(() => {
     const now = new Date()
     const currentMonth = now.getMonth()
@@ -330,27 +446,142 @@ const QuotationsPage: React.FC = () => {
     }
   }, [quotations])
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (appliedFilters.quoteNumber) count += 1
+    if (appliedFilters.customer) count += 1
+    if (appliedFilters.email) count += 1
+    if (appliedFilters.phone) count += 1
+    if (appliedFilters.destination) count += 1
+    if (appliedFilters.template) count += 1
+    if (appliedFilters.status !== 'ALL') count += 1
+    if (appliedFilters.sla !== 'ALL') count += 1
+    if (appliedFilters.fromDate) count += 1
+    if (appliedFilters.toDate) count += 1
+    if (appliedFilters.sortBy !== 'NEWEST_FIRST') count += 1
+    return count
+  }, [appliedFilters])
+
+  const updateDraftFilter = <K extends keyof QuotationFilterState>(
+    key: K,
+    value: QuotationFilterState[K]
+  ) => {
+    setDraftFilters(previous => ({
+      ...previous,
+      [key]: value
+    }))
+  }
+
+  useEffect(() => {
+    if (
+      draftFilters.fromDate &&
+      draftFilters.toDate &&
+      draftFilters.fromDate > draftFilters.toDate
+    ) {
+      setFilterError('From Date cannot be later than To Date.')
+      return
+    }
+
+    setFilterError('')
+    const timer = window.setTimeout(() => {
+      setAppliedFilters({
+        ...draftFilters,
+        quoteNumber: draftFilters.quoteNumber.trim(),
+        customer: draftFilters.customer.trim(),
+        email: draftFilters.email.trim(),
+        phone: draftFilters.phone.trim(),
+        template: draftFilters.template.trim()
+      })
+      setPage(1)
+    }, 250)
+
+    return () => window.clearTimeout(timer)
+  }, [draftFilters])
+
   const filtered = useMemo(
     () =>
       allItems
         .filter(q => q && typeof q === 'object')
         .filter(q => {
-          if (tab !== 'All' && q.status !== tab) return false
-          if (selectedDate && q.sentDate !== selectedDate) return false
+          if (!matchesQuickFilter(quickFilter, q.status)) return false
+          if (appliedFilters.status !== 'ALL' && q.status !== appliedFilters.status)
+            return false
+
+          const recordDate = toIsoDate(q.createdAt) || toIsoDate(q.sentDate)
+          if (appliedFilters.fromDate && (!recordDate || recordDate < appliedFilters.fromDate))
+            return false
+          if (appliedFilters.toDate && (!recordDate || recordDate > appliedFilters.toDate))
+            return false
+
+          if (appliedFilters.destination && q.destination !== appliedFilters.destination)
+            return false
+
+          if (
+            appliedFilters.quoteNumber &&
+            !String(q.quoteNumber ?? '')
+              .toLowerCase()
+              .includes(appliedFilters.quoteNumber.toLowerCase())
+          ) {
+            return false
+          }
+          if (
+            appliedFilters.customer &&
+            !String(q.customer ?? '')
+              .toLowerCase()
+              .includes(appliedFilters.customer.toLowerCase())
+          ) {
+            return false
+          }
+          if (
+            appliedFilters.email &&
+            !String(q.email ?? '')
+              .toLowerCase()
+              .includes(appliedFilters.email.toLowerCase())
+          ) {
+            return false
+          }
+          if (
+            appliedFilters.phone &&
+            !String(q.phone ?? '')
+              .toLowerCase()
+              .includes(appliedFilters.phone.toLowerCase())
+          ) {
+            return false
+          }
+          if (appliedFilters.template) {
+            const templateHaystack = [
+              q.templateCode,
+              q.templateName,
+              q.quotationTitle
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase()
+            if (!templateHaystack.includes(appliedFilters.template.toLowerCase()))
+              return false
+          }
+
+          if (appliedFilters.sla === 'BREACHED' && !q.responseSlaBreached)
+            return false
+          if (
+            appliedFilters.sla === 'WITHIN_SLA' &&
+            (!q.responseCategory || q.responseSlaBreached !== false)
+          ) {
+            return false
+          }
+          if (appliedFilters.sla === 'UNTRACKED' && q.responseCategory)
+            return false
+
           const query = search.toLowerCase().trim()
           if (!query) return true
           const createdAtText = q.createdAt
             ? new Date(q.createdAt).toLocaleDateString()
             : ''
-          const createdAtIso = q.createdAt
-            ? new Date(q.createdAt).toISOString().split('T')[0]
-            : ''
+          const createdAtIso = toIsoDate(q.createdAt)
           const sentAtText = q.sentDate
             ? new Date(q.sentDate).toLocaleDateString()
             : ''
-          const sentAtIso = q.sentDate
-            ? new Date(q.sentDate).toISOString().split('T')[0]
-            : ''
+          const sentAtIso = toIsoDate(q.sentDate)
           const haystack = [
             q.quoteNumber,
             q.id,
@@ -372,7 +603,7 @@ const QuotationsPage: React.FC = () => {
             .toLowerCase()
           return haystack.includes(query)
         }),
-    [tab, search, selectedDate, allItems]
+    [quickFilter, search, allItems, appliedFilters]
   )
 
   const toTimestamp = (value?: string | null) => {
@@ -384,15 +615,39 @@ const QuotationsPage: React.FC = () => {
   const ordered = useMemo(
     () =>
       [...filtered].sort((a, b) => {
-        const left = toTimestamp(a.createdAt)
-        const right = toTimestamp(b.createdAt)
+        if (appliedFilters.sortBy === 'VALUE_HIGH_TO_LOW') {
+          return Number(b.total || 0) - Number(a.total || 0)
+        }
+        if (appliedFilters.sortBy === 'VALUE_LOW_TO_HIGH') {
+          return Number(a.total || 0) - Number(b.total || 0)
+        }
+        if (appliedFilters.sortBy === 'CUSTOMER_A_Z') {
+          return String(a.customer || '').localeCompare(String(b.customer || ''))
+        }
+        if (appliedFilters.sortBy === 'OLDEST_FIRST') {
+          const left = toTimestamp(a.createdAt || a.sentDate)
+          const right = toTimestamp(b.createdAt || b.sentDate)
+          return left - right
+        }
+        const left = toTimestamp(a.createdAt || a.sentDate)
+        const right = toTimestamp(b.createdAt || b.sentDate)
         return right - left
       }),
-    [filtered]
+    [filtered, appliedFilters.sortBy]
   )
 
   const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize))
   const rows = ordered.slice((page - 1) * pageSize, page * pageSize)
+
+  const handleResetFilters = () => {
+    setFilterError('')
+    setDraftFilters(defaultFilters)
+    setAppliedFilters(defaultFilters)
+    setQuickFilter('ALL')
+    setSearch('')
+    setShowMobileFilters(false)
+    setPage(1)
+  }
 
   const rejectQuotation = (quotation: Quotation) => {
     setSelectedQuotation(quotation)
@@ -420,7 +675,6 @@ const QuotationsPage: React.FC = () => {
         reason: rejectReason
       })
 
-      // Update local state
       setQuotations(prev =>
         prev.map(q =>
           q.id === selectedQuotation.id
@@ -438,6 +692,14 @@ const QuotationsPage: React.FC = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleEditQuotation = (quotation: Quotation) => {
+    if (quotation.status === 'accepted') {
+      setError('Approved quotations cannot be edited')
+      return
+    }
+    nav(`/quotations/${quotation.id}/edit`)
   }
 
   const handleSendWhatsApp = async (quotation: Quotation) => {
@@ -530,44 +792,30 @@ const QuotationsPage: React.FC = () => {
   }
 
   return (
-    <div className='space-y-4 sm:space-y-6'>
+    <div className='min-w-0 space-y-4 sm:space-y-6'>
       {/* Header */}
-      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
-        <div className='flex flex-col gap-1'>
+      <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
+        <div className='min-w-0 flex flex-col gap-1'>
           <h1 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100'>
             Quotations
           </h1>
           <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400'>
             Manage, track, and convert quotations faster.
           </p>
-          <div className='flex flex-wrap gap-2 mt-1 relative'>
-            <div className='relative'>
-              <FaMagnifyingGlass className='pointer-events-none absolute left-3 top-3 text-xs text-gray-400' />
-              <input
-                className='field-input pl-9 pr-3 w-56'
-                placeholder='Search quotations...'
-                value={search}
-                onChange={e => {
-                  setSearch(e.target.value)
-                  setPage(1)
-                }}
-              />
-            </div>
-          </div>
         </div>
 
-        <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:self-center sm:-mt-2'>
+        <div className='flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end lg:w-auto lg:self-start'>
           <button
             onClick={exportCurrentTable}
             disabled={!rows.length}
-            className='inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+            className='inline-flex w-full items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 sm:w-auto'
           >
             <FaDownload className='mr-2' />
             <span>Export</span>
           </button>
           <button
             onClick={() => nav('/quotations/builder')}
-            className='inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto'
+            className='inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto'
           >
             <FaPlus className='mr-2' />
             <span>Create Quotation</span>
@@ -628,130 +876,246 @@ const QuotationsPage: React.FC = () => {
         )}
 
         {/* Filters Section */}
-        <div className='border-b border-gray-100 dark:border-gray-800 p-3 sm:p-4'>
-          {/* Mobile: Search + Filter Button */}
-          <div className='flex items-center gap-2 lg:hidden'>
-            <div className='flex-1 relative'>
-              <FaMagnifyingGlass className='absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
-              <input
-                value={search}
-                onChange={e => {
-                  setSearch(e.target.value)
-                  setPage(1)
-                }}
-                className='w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500'
-                placeholder='Search quotations...'
-              />
+        <div className='border-b border-gray-100 dark:border-gray-800 p-3 sm:p-4 space-y-3'>
+          {filterError ? (
+            <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+              {filterError}
             </div>
-            <button
-              onClick={() => setShowMobileFilters(!showMobileFilters)}
-              className={`p-2.5 rounded-xl border transition-colors ${
-                showMobileFilters
-                  ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-800'
-                  : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
-              }`}
-            >
-              <FaFilter />
-            </button>
+          ) : null}
+
+          <div className='w-full overflow-x-auto pb-1 scrollbar-hide'>
+            <div className='inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1 min-w-max'>
+              {quickFilters.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => {
+                    setQuickFilter(item.key)
+                    setPage(1)
+                  }}
+                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+                    quickFilter === item.key
+                      ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Filters (Desktop always visible, Mobile toggleable) */}
+          <div className='grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end'>
+            <div className='relative w-full'>
+              <FaMagnifyingGlass className='absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400' />
+              <input
+                value={search}
+                onChange={event => {
+                  setSearch(event.target.value)
+                  setPage(1)
+                }}
+                className='w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                placeholder='Search quote, customer, destination...'
+              />
+            </div>
+            <div className='flex items-center justify-between gap-2 lg:block'>
+              <div className='text-xs text-gray-500 dark:text-gray-400'>
+                {activeFilterCount > 0
+                  ? `${activeFilterCount} filter(s) applied`
+                  : 'No filter applied'}
+              </div>
+              <button
+                type='button'
+                onClick={() => setShowMobileFilters(previous => !previous)}
+                className='lg:hidden inline-flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+              >
+                <FaFilter className='mr-2' />
+                {showMobileFilters ? 'Hide Filters' : 'Advanced Filters'}
+              </button>
+            </div>
+          </div>
+
           <div
             className={`${
               showMobileFilters ? 'block' : 'hidden'
-            } lg:block mt-3 lg:mt-0`}
+            } lg:block space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30`}
           >
-            <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3'>
-              {/* Tabs */}
-              <div className='w-full lg:w-auto overflow-x-auto pb-1 scrollbar-hide'>
-                <div className='inline-flex rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-1 min-w-max'>
-                  {tabs.map(t => (
-                    <button
-                      key={t}
-                      onClick={() => {
-                        setTab(t)
-                        setPage(1)
-                        setShowMobileFilters(false)
-                      }}
-                      className={`px-3 py-1.5 text-xs sm:text-sm font-medium capitalize rounded-lg whitespace-nowrap transition-all ${
-                        tab === t
-                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5'>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Quote Number
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.quoteNumber}
+                  onChange={event =>
+                    updateDraftFilter('quoteNumber', event.target.value)
+                  }
+                  placeholder='Quote # or ID'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
               </div>
-
-              {/* Desktop Search and Date Range (unchanged) */}
-              <div className='hidden lg:flex items-center gap-2'>
-                <div className='relative w-80'>
-                  <FaMagnifyingGlass className='absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
-                  <input
-                    value={search}
-                    onChange={e => {
-                      setSearch(e.target.value)
-                      setPage(1)
-                    }}
-                    className='w-full pl-9 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-800'
-                    placeholder='Search quote, customer, destination'
-                  />
-                </div>
-                <div className='relative'>
-                  <button
-                    onClick={() => setShowDatePicker(p => !p)}
-                    className='inline-flex items-center rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
-                  >
-                    <FaCalendarDays className='mr-2' /> Select Date
-                  </button>
-                  {showDatePicker && (
-                    <div className='absolute right-0 mt-2 z-30 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900'>
-                      <label className='text-xs text-gray-500 dark:text-gray-400'>
-                        Date
-                      </label>
-                      <input
-                        type='date'
-                        value={selectedDate}
-                        onChange={e => setSelectedDate(e.target.value)}
-                        className='field-input w-full mt-1'
-                      />
-                      <div className='flex justify-end gap-2 mt-3'>
-                        <button
-                          onClick={() => {
-                            setSelectedDate('')
-                            setPage(1)
-                            setShowDatePicker(false)
-                          }}
-                          className='px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                        >
-                          Clear
-                        </button>
-                        <button
-                          onClick={() => {
-                            setPage(1)
-                            setShowDatePicker(false)
-                          }}
-                          className='px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700'
-                        >
-                          Apply
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Customer
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.customer}
+                  onChange={event =>
+                    updateDraftFilter('customer', event.target.value)
+                  }
+                  placeholder='Customer name'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
               </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Email
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.email}
+                  onChange={event => updateDraftFilter('email', event.target.value)}
+                  placeholder='Partial email'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Phone
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.phone}
+                  onChange={event => updateDraftFilter('phone', event.target.value)}
+                  placeholder='Partial phone'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Template
+                </label>
+                <input
+                  type='text'
+                  value={draftFilters.template}
+                  onChange={event =>
+                    updateDraftFilter('template', event.target.value)
+                  }
+                  placeholder='Template name/code'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+            </div>
 
-              {/* Close filter button on mobile */}
-              {showMobileFilters && (
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6'>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  From Date
+                </label>
+                <input
+                  type='date'
+                  value={draftFilters.fromDate}
+                  onChange={event =>
+                    updateDraftFilter('fromDate', event.target.value)
+                  }
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  To Date
+                </label>
+                <input
+                  type='date'
+                  value={draftFilters.toDate}
+                  onChange={event => updateDraftFilter('toDate', event.target.value)}
+                  className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
+                />
+              </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Destination
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.destination}
+                  options={destinationOptions}
+                  placeholder='All Destinations'
+                  searchPlaceholder='Search destination...'
+                  onChange={value => updateDraftFilter('destination', value)}
+                />
+              </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Status
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.status}
+                  options={statusOptions}
+                  placeholder='All Statuses'
+                  searchPlaceholder='Search status...'
+                  onChange={value =>
+                    updateDraftFilter('status', value as QuotationFilterState['status'])
+                  }
+                />
+              </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  SLA
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.sla}
+                  options={slaOptions}
+                  placeholder='All SLA'
+                  searchPlaceholder='Search SLA...'
+                  onChange={value =>
+                    updateDraftFilter('sla', value as QuotationFilterState['sla'])
+                  }
+                />
+              </div>
+              <div className='w-full'>
+                <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                  Sort By
+                </label>
+                <SearchableDropdown
+                  className='w-full'
+                  value={draftFilters.sortBy}
+                  options={sortOptions}
+                  placeholder='Newest First'
+                  searchPlaceholder='Search sort option...'
+                  onChange={value =>
+                    updateDraftFilter(
+                      'sortBy',
+                      value as QuotationFilterState['sortBy']
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
+              {showMobileFilters ? (
                 <button
+                  type='button'
                   onClick={() => setShowMobileFilters(false)}
-                  className='lg:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                  className='lg:hidden rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
                 >
-                  <FaXmark />
+                  <span className='inline-flex items-center gap-2'>
+                    <FaXmark />
+                    Hide Panel
+                  </span>
                 </button>
-              )}
+              ) : null}
+              <button
+                type='button'
+                onClick={handleResetFilters}
+                className='rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+              >
+                Reset Filters
+              </button>
             </div>
           </div>
         </div>
@@ -840,6 +1204,16 @@ const QuotationsPage: React.FC = () => {
                     >
                       <FaEye className='text-sm' />
                     </button>
+                    {q.status !== 'accepted' && (
+                      <button
+                        onClick={() => handleEditQuotation(q)}
+                        disabled={loading}
+                        className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50'
+                        title='Edit quotation'
+                      >
+                        <FaPencil className='text-sm' />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleSendWhatsApp(q)}
                       disabled={loading}
@@ -861,33 +1235,33 @@ const QuotationsPage: React.FC = () => {
               ))}
             </div>
 
-            {/* Desktop View - Table (UNCHANGED) */}
-            <div className='hidden lg:block overflow-x-auto'>
+            {/* Desktop View - Table */}
+            <div className='hidden max-w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 lg:block'>
               <table className='min-w-[980px] w-full divide-y divide-gray-200 dark:divide-gray-800'>
                 <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
                   <tr>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Quote #
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Customer
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Destination
                     </th>
-                    <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Total
                     </th>
-                    <th className='px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Status
                     </th>
-                    <th className='px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Last Sent
                     </th>
-                    <th className='px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       SLA
                     </th>
-                    <th className='px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
                       Actions
                     </th>
                   </tr>
@@ -898,29 +1272,29 @@ const QuotationsPage: React.FC = () => {
                       key={q.id}
                       className='group hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors'
                     >
-                      <td className='px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300'>
+                      <td className='px-3 xl:px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300 whitespace-nowrap'>
                         {q.quoteNumber}
                       </td>
-                      <td className='px-5 py-4'>
-                        <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                      <td className='px-3 xl:px-5 py-4 min-w-[150px] max-w-[200px]'>
+                        <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
                           {q.customer}
                         </p>
-                        <p className='text-xs text-gray-500'>{q.email}</p>
+                        <p className='text-xs text-gray-500 truncate'>{q.email}</p>
                       </td>
-                      <td className='px-5 py-4'>
-                        <p className='text-sm text-gray-800 dark:text-gray-100'>
+                      <td className='px-3 xl:px-5 py-4 min-w-[180px] max-w-[250px]'>
+                        <p className='text-sm text-gray-800 dark:text-gray-100 truncate'>
                           {q.destination}
                         </p>
-                        <p className='text-xs text-gray-500'>{q.details}</p>
+                        <p className='text-xs text-gray-500 truncate'>{q.details}</p>
                         {q.templateName ? (
-                          <p className='text-[11px] text-blue-600 dark:text-blue-300'>
+                          <p className='text-[11px] text-blue-600 dark:text-blue-300 truncate'>
                             Template:{' '}
                             {q.templateCode ? `${q.templateCode} - ` : ''}
                             {q.templateName}
                           </p>
                         ) : null}
                       </td>
-                      <td className='px-5 py-4 text-right'>
+                      <td className='px-3 xl:px-5 py-4 text-right whitespace-nowrap'>
                         <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                           ${(q.total || 0).toFixed(2)}
                         </p>
@@ -928,16 +1302,16 @@ const QuotationsPage: React.FC = () => {
                           Margin {q.margin || 0}%
                         </p>
                       </td>
-                      <td className='px-5 py-4 text-center'>
+                      <td className='px-3 xl:px-5 py-4 text-center'>
                         <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize whitespace-nowrap ${
                             styles[q.status]
                           }`}
                         >
                           {q.status}
                         </span>
                       </td>
-                      <td className='px-5 py-4 text-xs text-gray-500'>
+                      <td className='px-3 xl:px-5 py-4 text-xs text-gray-500 whitespace-nowrap'>
                         {q.lastSent ?? 'Never Sent'}
                       </td>
                       <td className='px-5 py-4 text-center'>
@@ -967,9 +1341,20 @@ const QuotationsPage: React.FC = () => {
                           <button
                             onClick={() => handleViewQuotation(q)}
                             className='rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                            title='View'
                           >
                             <FaEye />
                           </button>
+                          {q.status !== 'accepted' && (
+                            <button
+                              onClick={() => handleEditQuotation(q)}
+                              disabled={loading}
+                              className='rounded-lg border border-gray-200 p-2 text-blue-600 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50'
+                              title='Edit quotation'
+                            >
+                              <FaPencil />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleSendWhatsApp(q)}
                             disabled={loading}

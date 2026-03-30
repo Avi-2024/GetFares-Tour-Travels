@@ -21,6 +21,7 @@ import { createDestinationsModule } from "./destinations/index.js";
 import { createPackagesModule } from "./packages/index.js";
 import { createSuppliersModule } from "./suppliers/index.js";
 import { createCountriesModule } from "./countries/index.js";
+import { createMailModule } from "./mail/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -117,6 +118,10 @@ function registerModules(app, dependencies) {
   });
   mountedModules.notifications = notificationsModule;
   app.use("/api/notifications", notificationsModule.router);
+
+  const mailModule = createMailModule(featureDependencies);
+  mountedModules.mail = mailModule;
+  app.use("/api/mail", mailModule.routes);
 
   return mountedModules;
 }

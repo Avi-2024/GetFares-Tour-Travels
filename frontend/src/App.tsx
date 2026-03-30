@@ -6,7 +6,8 @@ import Dashboard from "./pages/core/Dashboard";
 import Leads from "./pages/leads/Leads";
 import BookingsPage from "./pages/Booking/BookingsPage";
 import QuotationsPage from "./pages/Quotation/QuotationsPage";
-import QuotationBuilderPage from "./pages/Quotation/QuotationBuilderPage";
+import CreateQuotationPage from "./pages/Quotation/CreateQuotationPage";
+import EditQuotationPage from "./pages/Quotation/EditQuotationPage";
 import QuotationDetailPage from "./pages/Quotation/QuotationDetailPage";
 import Settings from "./components/layout/Settings";
 
@@ -84,7 +85,13 @@ function App() {
             <Route element={<PermissionRoute permission="quotations:create" />}>
               <Route
                 path="/quotations/builder"
-                element={<QuotationBuilderPage />}
+                element={<CreateQuotationPage />}
+              />
+            </Route>
+            <Route element={<PermissionRoute permission="quotations:update" />}>
+              <Route
+                path="/quotations/:id/edit"
+                element={<EditQuotationPage />}
               />
             </Route>
 

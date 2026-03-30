@@ -102,6 +102,10 @@ const list = z.object({
     .object({
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().optional(),
+      search: z.string().trim().max(150).optional(),
+      quickFilter: z
+        .enum(["ALL", "ACTIVE", "FOLLOW_UP", "CLOSED", "LATE_RESPONSE"])
+        .optional(),
       status: leadStatus.optional(),
       source: z.string().optional(),
       temperature: z.enum(["HOT", "WARM", "COLD"]).optional(),
@@ -112,8 +116,16 @@ const list = z.object({
       country: z.string().min(2).max(100).optional(),
       countryId: z.string().uuid().optional(),
       assignedTo: z.string().uuid().optional(),
-      email: z.string().email().optional(),
-      phone: z.string().optional(),
+      email: z.string().trim().max(150).optional(),
+      phone: z.string().trim().max(20).optional(),
+      leadId: z.string().trim().max(120).optional(),
+      destination: z.string().trim().max(150).optional(),
+      fromDate: z.string().date().optional(),
+      toDate: z.string().date().optional(),
+      sla: z.enum(["WITHIN_SLA", "OVERDUE", "PENDING"]).optional(),
+      sortBy: z
+        .enum(["NEWEST_FIRST", "OLDEST_FIRST", "NAME_A_Z", "STATUS"])
+        .optional(),
     })
     .optional(),
 });

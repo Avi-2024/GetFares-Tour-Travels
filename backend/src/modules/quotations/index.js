@@ -23,6 +23,7 @@ function createQuotationsModule({ dependencies }) {
     logger: dependencies.logger,
     events,
     s3: dependencies.storage?.s3,
+    mailService: dependencies.services?.mail,
   });
 
   const controller = createQuotationsController({ service });

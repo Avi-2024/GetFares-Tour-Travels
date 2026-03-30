@@ -94,4 +94,4 @@ const config = Object.freeze({
   },
 });
 
-export { config };
+export { config, env };

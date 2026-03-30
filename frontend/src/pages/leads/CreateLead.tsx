@@ -8,6 +8,8 @@ import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
 import { Country } from 'country-state-city'
 
+type LeadType = 'HOLIDAY' | 'VISA' | null
+
 type FormState = {
   firstName: string
   lastName: string
@@ -27,6 +29,11 @@ type FormState = {
   leadSource: string
   campaignId: string
   notes: string
+}
+
+const HIDDEN_FIELDS_BY_TYPE: Record<NonNullable<LeadType>, string[]> = {
+  VISA: ['leadSource', 'preferredHotelCategory', 'campaignId'],
+  HOLIDAY: []
 }
 
 const initialForm: FormState = {
@@ -56,6 +63,7 @@ const CreateLead: React.FC = () => {
   const navigate = useNavigate()
   const leadsService = useLeadsService()
   const campaignsService = useCampaignsService()
+  const [leadType, setLeadType] = useState<LeadType>(null)
   const [form, setForm] = useState<FormState>(initialForm)
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [destinations, setDestinations] = useState<any[]>([])
@@ -64,6 +72,31 @@ const CreateLead: React.FC = () => {
   const [duplicateWarning, setDuplicateWarning] = useState('')
   const [showErrors, setShowErrors] = useState(false)
   const [childAges, setChildAges] = useState<string[]>([])
+
+  const isFieldVisible = (fieldName: string) => {
+    if (!leadType) return true
+    return !HIDDEN_FIELDS_BY_TYPE[leadType]?.includes(fieldName)
+  }
+
+  const handleLeadTypeSelect = (type: 'HOLIDAY' | 'VISA') => {
+    setLeadType(type)
+    setForm(initialForm)
+    setChildAges([])
+    setShowErrors(false)
+    setApiError('')
+    setDuplicateWarning('')
+  }
+
+  const handleBackToSelection = () => {
+    setLeadType(null)
+    setForm(initialForm)
+    setChildAges([])
+    setShowErrors(false)
+    setApiError('')
+    setDuplicateWarning('')
+  }
+
+
 
   useEffect(() => {
     const loadData = async () => {
@@ -322,7 +355,7 @@ const CreateLead: React.FC = () => {
         source: form.leadSource.trim() || 'Website',
         campaignId: form.campaignId || undefined,
         notes: mergedNotes || undefined,
-        leadType: 'HOLIDAY',
+        leadType,
         status: 'OPEN',
         qualificationCompleted: true
       })
@@ -336,25 +369,102 @@ const CreateLead: React.FC = () => {
   const fieldError = (key: keyof typeof validation) =>
     showErrors && validation[key]
 
+  if (!leadType) {
+    return (
+      <div className='mx-auto max-w-4xl space-y-6'>
+        <div className='flex items-center gap-3'>
+          <button
+            onClick={() => navigate('/leads')}
+            className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+            aria-label='Back to leads'
+          >
+            <FaArrowLeft className='text-sm' />
+          </button>
+          <div>
+            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+              Create New Lead
+            </h1>
+            <p className='text-sm text-gray-500'>
+              Select the type of lead you want to create
+            </p>
+          </div>
+        </div>
+
+        <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
+          <button
+            onClick={() => handleLeadTypeSelect('HOLIDAY')}
+            className='group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-8 text-left transition-all hover:border-blue-500 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500'
+          >
+            <div className='absolute right-4 top-4 text-4xl opacity-10 transition-opacity group-hover:opacity-20'>
+              🏖️
+            </div>
+            <h3 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
+              Tourist Lead
+            </h3>
+            <p className='mt-2 text-sm text-gray-600 dark:text-gray-400'>
+              For holiday packages, tours, and leisure travel bookings
+            </p>
+            <ul className='mt-4 space-y-2 text-sm text-gray-500 dark:text-gray-500'>
+              <li>• Hotel preferences</li>
+              <li>• Travel packages</li>
+              <li>• Campaign tracking</li>
+              <li>• Lead source attribution</li>
+            </ul>
+            <div className='mt-6 inline-flex items-center text-sm font-medium text-blue-600 dark:text-blue-400'>
+              Select Tourist Lead →
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleLeadTypeSelect('VISA')}
+            className='group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-8 text-left transition-all hover:border-green-500 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:hover:border-green-500'
+          >
+            <div className='absolute right-4 top-4 text-4xl opacity-10 transition-opacity group-hover:opacity-20'>
+              ✈️
+            </div>
+            <h3 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
+              Visa Lead
+            </h3>
+            <p className='mt-2 text-sm text-gray-600 dark:text-gray-400'>
+              For visa applications and immigration services
+            </p>
+            <ul className='mt-4 space-y-2 text-sm text-gray-500 dark:text-gray-500'>
+              <li>• Visa processing</li>
+              <li>• Document management</li>
+              <li>• Application tracking</li>
+              <li>• Simplified workflow</li>
+            </ul>
+            <div className='mt-6 inline-flex items-center text-sm font-medium text-green-600 dark:text-green-400'>
+              Select Visa Lead →
+            </div>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className='mx-auto max-w-9xl space-y-6'>
       <div className='flex items-center gap-3'>
         <button
-          onClick={() => navigate('/leads')}
+          onClick={handleBackToSelection}
           className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-          aria-label='Back to leads'
+          aria-label='Back to lead type selection'
         >
           <FaArrowLeft className='text-sm' />
         </button>
-        <div>
+        <div className='flex-1'>
           <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-            Create New Lead
+            Create {leadType === 'HOLIDAY' ? 'Tourist' : 'Visa'} Lead
           </h1>
           <p className='text-sm text-gray-500'>
             SOP qualification capture for first response. PAN can be collected
             later after payment or finance onboarding.
           </p>
         </div>
+        <span className='inline-flex items-center rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'>
+          {leadType === 'HOLIDAY' ? '🏖️ Tourist' : '✈️ Visa'} Lead
+        </span>
       </div>
 
       {duplicateWarning ? (
@@ -563,26 +673,28 @@ const CreateLead: React.FC = () => {
               }
             />
           </div>
-          <div>
-            <label className='field-label'>Preferred Hotel Category </label>
-            <SearchableDropdown
-              value={form.preferredHotelCategory}
-              options={hotelCategoryOptions}
-              hasError={fieldError('preferredHotelCategory')}
-              searchPlaceholder='Search hotel category...'
-              onChange={value =>
-                setForm(prev => ({
-                  ...prev,
-                  preferredHotelCategory: value as
-                    | '3_STAR'
-                    | '4_STAR'
-                    | '5_STAR'
-                    | 'ANY'
-                    | ''
-                }))
-              }
-            />
-          </div>
+          {isFieldVisible('preferredHotelCategory') && (
+            <div>
+              <label className='field-label'>Preferred Hotel Category </label>
+              <SearchableDropdown
+                value={form.preferredHotelCategory}
+                options={hotelCategoryOptions}
+                hasError={fieldError('preferredHotelCategory')}
+                searchPlaceholder='Search hotel category...'
+                onChange={value =>
+                  setForm(prev => ({
+                    ...prev,
+                    preferredHotelCategory: value as
+                      | '3_STAR'
+                      | '4_STAR'
+                      | '5_STAR'
+                      | 'ANY'
+                      | ''
+                  }))
+                }
+              />
+            </div>
+          )}
           <div>
             <label className='field-label'>Purpose of Travel </label>
             <SearchableDropdown
@@ -595,28 +707,32 @@ const CreateLead: React.FC = () => {
               }
             />
           </div>
-          <div>
-            <label className='field-label'>Lead Source</label>
-            <SearchableDropdown
-              value={form.leadSource}
-              options={leadSourceOptions}
-              searchPlaceholder='Search lead source...'
-              onChange={value =>
-                setForm(prev => ({ ...prev, leadSource: value }))
-              }
-            />
-          </div>
-          <div className='md:col-span-2'>
-            <label className='field-label'>Campaign</label>
-            <SearchableDropdown
-              value={form.campaignId}
-              options={campaignOptions}
-              searchPlaceholder='Search campaign...'
-              onChange={value =>
-                setForm(prev => ({ ...prev, campaignId: value }))
-              }
-            />
-          </div>
+          {isFieldVisible('leadSource') && (
+            <div>
+              <label className='field-label'>Lead Source</label>
+              <SearchableDropdown
+                value={form.leadSource}
+                options={leadSourceOptions}
+                searchPlaceholder='Search lead source...'
+                onChange={value =>
+                  setForm(prev => ({ ...prev, leadSource: value }))
+                }
+              />
+            </div>
+          )}
+          {isFieldVisible('campaignId') && (
+            <div className='md:col-span-2'>
+              <label className='field-label'>Campaign</label>
+              <SearchableDropdown
+                value={form.campaignId}
+                options={campaignOptions}
+                searchPlaceholder='Search campaign...'
+                onChange={value =>
+                  setForm(prev => ({ ...prev, campaignId: value }))
+                }
+              />
+            </div>
+          )}
           <div className='md:col-span-2'>
             <label className='field-label'>Notes</label>
             <textarea
