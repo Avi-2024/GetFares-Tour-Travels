@@ -18,7 +18,6 @@ import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useLeadsService } from '../../hooks/useLeadsService'
-import { useDateTimePreferences } from '../../context/DateTimePreferencesContext'
 import type { LeadListItem, LeadsPagination } from '../../services/leadsService'
 import { toStatusLabelText } from '../../utils/leadStatus'
 
@@ -108,6 +107,7 @@ const Leads: React.FC = () => {
   const pageSize = 15
   const nav = useNavigate()
   const leadsService = useLeadsService()
+  const maxSelectableDate = getLocalTodayIsoDate()
 
   const countryOptions = useMemo(
     () => [

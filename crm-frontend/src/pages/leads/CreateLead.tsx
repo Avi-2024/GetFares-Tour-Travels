@@ -141,6 +141,16 @@ const CreateLead: React.FC = () => {
   )
   const minTravelDate = useMemo(() => getLocalTodayIsoDate(), [])
   const phoneInputRef = useRef<PhoneInputRefType>(null)
+  const currencyLocaleMap = useMemo(() => getCurrencyLocaleByCode(), [])
+  const selectedCurrencyMeta = useMemo(() => {
+    const normalizedCode =
+      form.clientCurrency.trim().toUpperCase() || FALLBACK_CURRENCY_META.code
+    return {
+      code: normalizedCode,
+      locale: currencyLocaleMap.get(normalizedCode) || FALLBACK_CURRENCY_META.locale,
+      symbol: FALLBACK_CURRENCY_META.symbol
+    }
+  }, [currencyLocaleMap, form.clientCurrency])
 
   const isFieldVisible = (fieldName: string) => {
     if (!leadType) return true
