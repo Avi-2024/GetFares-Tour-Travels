@@ -83,6 +83,12 @@ const truncateEmail = (value: string, maxLength = 26) => {
   return `${safe.slice(0, Math.max(3, maxLength - 3))}...`;
 };
 
+const getLocalTodayIsoDate = () => {
+  const now = new Date();
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().split("T")[0];
+};
+
 const Leads: React.FC = () => {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
   const [search, setSearch] = useState("");
@@ -99,6 +105,7 @@ const Leads: React.FC = () => {
     useState<LeadFilterState>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const pageSize = 15;
+  const maxSelectableDate = useMemo(() => getLocalTodayIsoDate(), []);
   const nav = useNavigate();
   const leadsService = useLeadsService();
 
@@ -546,6 +553,7 @@ const Leads: React.FC = () => {
                   </label>
                   <input
                     type="date"
+                    max={maxSelectableDate}
                     value={draftFilters.fromDate}
                     onChange={(event) =>
                       updateDraftFilter("fromDate", event.target.value)
@@ -559,6 +567,7 @@ const Leads: React.FC = () => {
                   </label>
                   <input
                     type="date"
+                    max={maxSelectableDate}
                     value={draftFilters.toDate}
                     onChange={(event) =>
                       updateDraftFilter("toDate", event.target.value)

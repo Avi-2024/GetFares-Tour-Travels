@@ -178,6 +178,12 @@ function toDateInputString (value: unknown): string {
   return parsed.toISOString().slice(0, 10)
 }
 
+function getLocalTodayIsoDate (): string {
+  const now = new Date()
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 10)
+}
+
 function normalizeServiceKey (value: unknown): ServiceKey | null {
   const normalized = toTrimmedString(value).toLowerCase()
   if (!normalized) return null
@@ -383,6 +389,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
     {}
   )
+  const todayIsoDate = getLocalTodayIsoDate()
+  const minValidUntilDateTime = `${todayIsoDate}T00:00`
   const [form, setForm] = useState({
     quote: '',
     version: 'Draft',
@@ -390,7 +398,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     customer: '',
     email: '',
     destination: '',
-    startDate: '',
+    startDate: todayIsoDate,
     nights: 1,
     durationDays: '2',
     adults: 1,
@@ -1656,6 +1664,18 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   ])
 
   useEffect(() => {
+    if (isEditMode) return
+    setForm(prev =>
+      prev.startDate === todayIsoDate
+        ? prev
+        : {
+            ...prev,
+            startDate: todayIsoDate
+          }
+    )
+  }, [isEditMode, todayIsoDate])
+
+  useEffect(() => {
     const dayCount = parseDayCount(form.durationDays)
     setItineraryItems(prev => {
       const next = buildItineraryRows(dayCount, prev)
@@ -2259,6 +2279,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       setSaveError('Fix pricing validation errors before saving.')
       return
     }
+    if (form.validUntil && form.validUntil < minValidUntilDateTime) {
+      setSaveError('Valid Until must be today or a future date/time.')
+      return
+    }
     setSaving(true)
 
     try {
@@ -2642,9 +2666,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     type='date'
                     className='field-input'
                     value={form.startDate}
-                    onChange={e =>
-                      setForm(p => ({ ...p, startDate: e.target.value }))
-                    }
+                    max={todayIsoDate}
+                    disabled
+                    readOnly
                   />
                 </div>
                 <div>
@@ -2652,10 +2676,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <input
                     type='datetime-local'
                     className='field-input'
+                    min={minValidUntilDateTime}
                     value={form.validUntil}
-                    onChange={e =>
-                      setForm(p => ({ ...p, validUntil: e.target.value }))
-                    }
+                    onChange={e => {
+                      const nextValue = e.target.value
+                      if (nextValue && nextValue < minValidUntilDateTime) {
+                        return
+                      }
+                      setForm(p => ({ ...p, validUntil: nextValue }))
+                    }}
                   />
                 </div>
                 <div>
