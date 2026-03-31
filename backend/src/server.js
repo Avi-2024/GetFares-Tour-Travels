@@ -1,11 +1,14 @@
 import http from "node:http";
 import { createApp } from "./app.js";
-import { createSocketServer } from "./core/realtime/index.js";
-import { createAutomationRuntime } from "./core/automation/index.js";
+import { createSocketServer } from "../crm/core/realtime/index.js";
+import { createAutomationRuntime } from "../crm/core/automation/index.js";
 
 const { app, container, modules, runtime } = createApp();
 const httpServer = http.createServer(app);
-const automationRuntime = createAutomationRuntime({ container, modules });
+const automationRuntime = createAutomationRuntime({
+  container,
+  modules: modules?.crm || modules,
+});
 
 const socketServer = createSocketServer({
   httpServer,

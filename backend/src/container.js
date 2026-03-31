@@ -1,13 +1,13 @@
 import EventEmitter from "node:events";
-import { config } from "./core/config/index.js";
-import { logger } from "./core/logger/index.js";
-import { createDatabaseConnection } from "./core/database/index.js";
-import { createSocketEventPublisher } from "./core/realtime/index.js";
-import { createMetricsStore } from "./core/observability/index.js";
-import { createS3Service } from "./core/storage/index.js";
-import { createRolesService } from "./core/roles/index.js";
-import { createMailService } from "./core/mail/index.js";
-import * as coreMiddlewares from "./core/middlewares/index.js";
+import { config } from "../crm/core/config/index.js";
+import { logger } from "../crm/core/logger/index.js";
+import { createDatabaseConnection } from "../crm/core/database/index.js";
+import { createSocketEventPublisher } from "../crm/core/realtime/index.js";
+import { createMetricsStore } from "../crm/core/observability/index.js";
+import { createS3Service } from "../crm/core/storage/index.js";
+import { createRolesService } from "../crm/core/roles/index.js";
+import { createMailService } from "../crm/core/mail/index.js";
+import * as coreMiddlewares from "../crm/core/middlewares/index.js";
 
 function createContainer(overrides = {}) {
   const eventBus = overrides.eventBus || new EventEmitter();
@@ -23,8 +23,7 @@ function createContainer(overrides = {}) {
   const s3 = overrides.s3 || createS3Service({ config, logger });
   const rolesService =
     overrides.rolesService || createRolesService({ db, logger });
-  const mailService =
-    overrides.mailService || createMailService({ logger });
+  const mailService = overrides.mailService || createMailService({ logger });
 
   return {
     config,
