@@ -2572,13 +2572,6 @@ const BookingsPage: React.FC = () => {
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <button
-            onClick={exportCurrentTable}
-            disabled={!rows.length}
-            className="inline-flex items-center justify-center rounded-xl border border-green-500 dark:border-green-400 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <FaDownload className="mr-2" /> Export
-          </button>
-          <button
             onClick={() => setShowCreateModal(true)}
             className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 w-full sm:w-auto"
           >
@@ -2911,6 +2904,14 @@ const BookingsPage: React.FC = () => {
                     </span>
                   </button>
                 ) : null}
+                <button
+                  type='button'
+                  onClick={exportCurrentTable}
+                  disabled={!rows.length}
+                  className='inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                >
+                  <FaDownload className='mr-2' /> Export
+                </button>
                 <button
                   type='button'
                   onClick={handleResetFilters}
