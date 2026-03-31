@@ -390,7 +390,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     {}
   )
   const todayIsoDate = getLocalTodayIsoDate()
-  const minValidUntilDateTime = `${todayIsoDate}T00:00`
   const [form, setForm] = useState({
     quote: '',
     version: 'Draft',
@@ -1925,6 +1924,23 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     return parsed.toLocaleDateString()
   }
 
+  const validUntilDateValue = useMemo(
+    () => toDateInputString(form.validUntil),
+    [form.validUntil]
+  )
+
+  const updateValidUntilDate = (dateValue: string) => {
+    if (!dateValue) {
+      setForm(prev => ({ ...prev, validUntil: '' }))
+      return
+    }
+    if (dateValue < todayIsoDate) {
+      setForm(prev => ({ ...prev, validUntil: `${todayIsoDate}T23:59` }))
+      return
+    }
+    setForm(prev => ({ ...prev, validUntil: `${dateValue}T23:59` }))
+  }
+
   const autofillCustomer = () => {
     if (selectedLead) {
       setForm(p => ({
@@ -2279,9 +2295,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       setSaveError('Fix pricing validation errors before saving.')
       return
     }
-    if (form.validUntil && form.validUntil < minValidUntilDateTime) {
-      setSaveError('Valid Until must be today or a future date/time.')
-      return
+    if (form.validUntil) {
+      const selectedDate = toDateInputString(form.validUntil)
+      if (!selectedDate || selectedDate < todayIsoDate) {
+        setSaveError('Valid Until must be current or future date.')
+        return
+      }
     }
     setSaving(true)
 
@@ -2664,7 +2683,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <label className='field-label'>Start Date</label>
                   <input
                     type='date'
-                    className='field-input'
+                    className='field-input date-input-dark'
                     value={form.startDate}
                     max={todayIsoDate}
                     disabled
@@ -2674,18 +2693,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 <div>
                   <label className='field-label'>Valid Until</label>
                   <input
-                    type='datetime-local'
-                    className='field-input'
-                    min={minValidUntilDateTime}
-                    value={form.validUntil}
-                    onChange={e => {
-                      const nextValue = e.target.value
-                      if (nextValue && nextValue < minValidUntilDateTime) {
-                        return
-                      }
-                      setForm(p => ({ ...p, validUntil: nextValue }))
-                    }}
+                    type='date'
+                    className='field-input date-input-dark bg-white text-black focus:ring-2 focus:ring-blue-500'
+                    style={{ color: '#111827' }}
+                    min={todayIsoDate}
+                    value={validUntilDateValue}
+                    onChange={e => updateValidUntilDate(e.target.value)}
                   />
+                  <p className='mt-1 text-xs text-gray-500'>
+                    Select current or any future date.
+                  </p>
                 </div>
                 <div>
                   <label className='field-label'>Duration</label>
