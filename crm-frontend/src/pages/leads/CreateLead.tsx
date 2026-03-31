@@ -15,8 +15,7 @@ import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
 import { Country } from 'country-state-city'
 import {
-  getCurrencyLocaleByCode,
-  getCurrencyOptions
+  getCurrencyLocaleByCode
 } from '../../utils/currency'
 
 type LeadType = 'HOLIDAY' | 'VISA' | null
@@ -102,6 +101,74 @@ const getLocalTodayIsoDate = (): string => {
   const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000
   return new Date(now.getTime() - timezoneOffsetMs).toISOString().split('T')[0]
 }
+
+const createCountryCurrencyMap = (): Record<string, string> => {
+  const map: Record<string, string> = {
+    'India': 'INR',
+    'United States': 'USD',
+    'United Kingdom': 'GBP',
+    'United Arab Emirates': 'AED',
+    'Saudi Arabia': 'SAR',
+    'Qatar': 'QAR',
+    'Kuwait': 'KWD',
+    'Oman': 'OMR',
+    'Bahrain': 'BHD',
+    'Canada': 'CAD',
+    'Australia': 'AUD',
+    'Singapore': 'SGD',
+    'Malaysia': 'MYR',
+    'Thailand': 'THB',
+    'Indonesia': 'IDR',
+    'Japan': 'JPY',
+    'China': 'CNY',
+    'South Korea': 'KRW',
+    'Hong Kong': 'HKD',
+    'New Zealand': 'NZD',
+    'Switzerland': 'CHF',
+    'Sweden': 'SEK',
+    'Norway': 'NOK',
+    'Denmark': 'DKK',
+    'Poland': 'PLN',
+    'Czech Republic': 'CZK',
+    'Hungary': 'HUF',
+    'Russia': 'RUB',
+    'Turkey': 'TRY',
+    'South Africa': 'ZAR',
+    'Egypt': 'EGP',
+    'Nigeria': 'NGN',
+    'Kenya': 'KES',
+    'Brazil': 'BRL',
+    'Mexico': 'MXN',
+    'Argentina': 'ARS',
+    'Chile': 'CLP',
+    'Colombia': 'COP',
+    'Peru': 'PEN',
+    'Israel': 'ILS',
+    'Philippines': 'PHP',
+    'Vietnam': 'VND',
+    'Bangladesh': 'BDT',
+    'Pakistan': 'PKR',
+    'Sri Lanka': 'LKR',
+    'Nepal': 'NPR',
+    'Maldives': 'MVR',
+    'Mauritius': 'MUR',
+    'Seychelles': 'SCR'
+  }
+  
+  const euroCountries = [
+    'Germany', 'France', 'Italy', 'Spain', 'Portugal', 'Netherlands',
+    'Belgium', 'Austria', 'Greece', 'Ireland', 'Finland', 'Luxembourg',
+    'Slovenia', 'Cyprus', 'Malta', 'Slovakia', 'Estonia', 'Latvia',
+    'Lithuania', 'Croatia'
+  ]
+  euroCountries.forEach(country => {
+    map[country] = 'EUR'
+  })
+  
+  return map
+}
+
+const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
 
 const createInitialFormState = (): FormState => {
   const iso2 = detectLocaleCountryIso2()
@@ -192,10 +259,24 @@ const CreateLead: React.FC = () => {
     const checkDuplicates = async () => {
       const email = form.email.trim()
       const phone = form.phone.replace(/\D/g, '')
+      
+      // Only check if both email and phone have meaningful values
       if (!email && !phone) {
         setDuplicateWarning('')
         return
       }
+      
+      // Don't check if email is invalid or phone is too short
+      if (email && !EMAIL_PATTERN.test(email)) {
+        setDuplicateWarning('')
+        return
+      }
+      
+      if (phone && phone.length < PHONE_E164_DIGITS_MIN) {
+        setDuplicateWarning('')
+        return
+      }
+      
       try {
         const result = await leadsService.checkDuplicate(
           email || undefined,
@@ -306,73 +387,6 @@ const CreateLead: React.FC = () => {
     []
   )
 
-  // Currency mapping by country
-  const countryCurrencyMap = useMemo(() => {
-    const map: Record<string, string> = {
-      'India': 'INR',
-      'United States': 'USD',
-      'United Kingdom': 'GBP',
-      'United Arab Emirates': 'AED',
-      'Saudi Arabia': 'SAR',
-      'Qatar': 'QAR',
-      'Kuwait': 'KWD',
-      'Oman': 'OMR',
-      'Bahrain': 'BHD',
-      'Canada': 'CAD',
-      'Australia': 'AUD',
-      'Singapore': 'SGD',
-      'Malaysia': 'MYR',
-      'Thailand': 'THB',
-      'Indonesia': 'IDR',
-      'Japan': 'JPY',
-      'China': 'CNY',
-      'South Korea': 'KRW',
-      'Hong Kong': 'HKD',
-      'New Zealand': 'NZD',
-      'Switzerland': 'CHF',
-      'Sweden': 'SEK',
-      'Norway': 'NOK',
-      'Denmark': 'DKK',
-      'Poland': 'PLN',
-      'Czech Republic': 'CZK',
-      'Hungary': 'HUF',
-      'Russia': 'RUB',
-      'Turkey': 'TRY',
-      'South Africa': 'ZAR',
-      'Egypt': 'EGP',
-      'Nigeria': 'NGN',
-      'Kenya': 'KES',
-      'Brazil': 'BRL',
-      'Mexico': 'MXN',
-      'Argentina': 'ARS',
-      'Chile': 'CLP',
-      'Colombia': 'COP',
-      'Peru': 'PEN',
-      'Israel': 'ILS',
-      'Philippines': 'PHP',
-      'Vietnam': 'VND',
-      'Bangladesh': 'BDT',
-      'Pakistan': 'PKR',
-      'Sri Lanka': 'LKR',
-      'Nepal': 'NPR',
-      'Maldives': 'MVR',
-      'Mauritius': 'MUR',
-      'Seychelles': 'SCR'
-    }
-    
-    // Add Euro countries
-    const euroCountries = [
-      'Germany', 'France', 'Italy', 'Spain', 'Portugal', 'Netherlands',
-      'Belgium', 'Austria', 'Greece', 'Ireland', 'Finland', 'Luxembourg',
-      'Slovenia', 'Cyprus', 'Malta', 'Slovakia', 'Estonia', 'Latvia',
-      'Lithuania', 'Croatia'
-    ]
-    euroCountries.forEach(country => {
-      map[country] = 'EUR'
-    })
-    
-    return map
-  }, [])
 
   const destinationOptions = useMemo(
     () => {
@@ -467,6 +481,66 @@ const CreateLead: React.FC = () => {
     ],
     [allCountryNames]
   )
+
+  const countryMetaByName = useMemo(() => {
+    const map = new Map<
+      string,
+      { iso2: CountryIso2; currency: string }
+    >()
+    Country.getAllCountries().forEach(country => {
+      if (country.name) {
+        map.set(country.name, {
+          iso2: String(country.isoCode || '').toLowerCase() as CountryIso2,
+          currency: COUNTRY_CURRENCY_NAME_MAP[country.name] || ''
+        })
+      }
+    })
+    return map
+  }, [])
+
+  const countryNameByIso2 = useMemo(() => {
+    const map = new Map<CountryIso2, string>()
+    Country.getAllCountries().forEach(country => {
+      const iso2 = String(country.isoCode || '').toLowerCase() as CountryIso2
+      if (country.name) {
+        map.set(iso2, country.name)
+      }
+    })
+    return map
+  }, [])
+
+  const resolveCurrencyForIso2 = (iso2: CountryIso2): string => {
+    const countryName = countryNameByIso2.get(iso2)
+    if (!countryName) return 'INR'
+    return COUNTRY_CURRENCY_NAME_MAP[countryName] || COUNTRY_CURRENCY_MAP[iso2]?.code || 'INR'
+  }
+
+  const selectedCurrencyMeta = useMemo(() => {
+    const currencyCode = form.clientCurrency.trim().toUpperCase()
+    if (!currencyCode) return FALLBACK_CURRENCY_META
+    const meta = getCurrencyLocaleByCode()
+    if (meta && typeof meta === 'object' && 'locale' in meta) {
+      return meta as unknown as CurrencyMeta
+    }
+    return FALLBACK_CURRENCY_META
+  }, [form.clientCurrency])
+
+  const formattedBudgetPreview = useMemo(() => {
+    if (!form.budget) return ''
+    const numericBudget = Number((form.budget || '').replace(/,/g, ''))
+    if (!Number.isFinite(numericBudget)) return ''
+    try {
+      return formatValue({
+        value: form.budget,
+        intlConfig: {
+          locale: selectedCurrencyMeta.locale,
+          currency: selectedCurrencyMeta.code
+        }
+      })
+    } catch {
+      return ''
+    }
+  }, [form.budget, selectedCurrencyMeta])
 
   const handleLeadCountryChange = (countryName: string) => {
     const meta = countryMetaByName.get(countryName)
@@ -739,14 +813,7 @@ const CreateLead: React.FC = () => {
               options={countryOptions}
               hasError={fieldError('leadCountry')}
               searchPlaceholder='Search country...'
-              onChange={value => {
-                setForm(prev => ({ ...prev, leadCountry: value }))
-                // Auto-select currency based on country
-                const currency = countryCurrencyMap[value]
-                if (currency) {
-                  setForm(prev => ({ ...prev, clientCurrency: currency }))
-                }
-              }}
+              onChange={handleLeadCountryChange}
             />
           </div>
           <div>
@@ -763,7 +830,7 @@ const CreateLead: React.FC = () => {
                 }))
               }
             />
-            {form.leadCountry && countryCurrencyMap[form.leadCountry] && (
+            {form.leadCountry && COUNTRY_CURRENCY_NAME_MAP[form.leadCountry] && (
               <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                 💡 Auto-selected based on {form.leadCountry}. You can change it manually.
               </p>

@@ -1054,34 +1054,62 @@ function createLeadsService({ repository, logger, events }) {
     if (!candidates) {
       candidates = await repository.findActiveAssignableUsers(roleName);
       
-      // Filter by country and agent type
-      if (roleName === ASSIGNMENT_ROLES.AGENT && (leadCountry || requiredLeadType)) {
-        const scoped = candidates.filter((candidate) => {
+      // NEW: 2-Tier Priority Matching
+      if (roleName === ASSIGNMENT_ROLES.AGENT && requiredLeadType) {
+        const perfectMatch = [];
+        const typeOnlyMatch = [];
+        
+        for (const candidate of candidates) {
           const agentCountry = normalizeCategory(candidate.country);
           const agentType = normalizeAgentType(candidate.agentType);
-
-          if (leadCountry && (!agentCountry || agentCountry !== leadCountry)) {
-            return false;
+          
+          // Check if agent type matches
+          const typeMatches = agentType === requiredLeadType || agentType === "BOTH";
+          
+          if (!typeMatches) {
+            continue; // Skip if type doesn't match
           }
-          if (
-            requiredLeadType &&
-            (!agentType || (agentType !== requiredLeadType && agentType !== "BOTH"))
-          ) {
-            return false;
+          
+          // Priority 1: Country + Type match
+          if (leadCountry && agentCountry && agentCountry === leadCountry) {
+            perfectMatch.push(candidate);
           }
-          return true;
-        });
-
-        // Cache the filtered result
-        if (scoped.length && leadCountry) {
-          agentCache.set(leadCountry, requiredLeadType, scoped);
-          logger.debug(
-            { leadCountry, leadType: requiredLeadType, count: scoped.length },
-            'Cached agents for country'
-          );
+          // Priority 2: Type match + Agent has no country restriction
+          else if (!agentCountry) {
+            typeOnlyMatch.push(candidate);
+          }
         }
         
-        candidates = scoped;
+        // Select best pool
+        let selectedPool = [];
+        let tier = 'NONE';
+        
+        if (perfectMatch.length > 0) {
+          selectedPool = perfectMatch;
+          tier = 'PERFECT';
+        } else if (typeOnlyMatch.length > 0) {
+          selectedPool = typeOnlyMatch;
+          tier = 'TYPE_ONLY';
+        }
+        
+        logger.debug(
+          { 
+            leadCountry, 
+            leadType: requiredLeadType,
+            tier,
+            perfectCount: perfectMatch.length,
+            typeOnlyCount: typeOnlyMatch.length,
+            selectedCount: selectedPool.length
+          },
+          'Agent pool selected by 2-tier priority'
+        );
+        
+        // Cache the selected pool
+        if (selectedPool.length && leadCountry) {
+          agentCache.set(leadCountry, requiredLeadType, selectedPool);
+        }
+        
+        candidates = selectedPool;
       }
     }
 
@@ -1095,33 +1123,7 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     if (!candidates.length) {
-      // Fallback: Try without country filter
-      if (leadCountry && roleName === ASSIGNMENT_ROLES.AGENT) {
-        logger.info(
-          { leadCountry },
-          'No agents found for country, trying fallback to all countries'
-        );
-        
-        candidates = agentCache.get(null, requiredLeadType);
-        if (!candidates) {
-          candidates = await repository.findActiveAssignableUsers(roleName);
-          
-          if (requiredLeadType) {
-            candidates = candidates.filter((candidate) => {
-              const agentType = normalizeAgentType(candidate.agentType);
-              return agentType === requiredLeadType || agentType === "BOTH";
-            });
-          }
-          
-          if (candidates.length) {
-            agentCache.set(null, requiredLeadType, candidates);
-          }
-        }
-      }
-      
-      if (!candidates.length) {
-        return null;
-      }
+      return null;
     }
 
     if (options.managerId && roleName === ASSIGNMENT_ROLES.AGENT) {
@@ -1203,9 +1205,9 @@ function createLeadsService({ repository, logger, events }) {
       String(left.id).localeCompare(String(right.id)),
     );
     
-    // Get last assigned from in-memory state (per country)
+    // Get last assigned from in-memory state (per country and type)
     const lastAssignedUserId = roundRobinState.getLastAssigned(
-      leadCountry,
+      leadCountry || 'all',
       requiredLeadType
     );
 
@@ -1231,16 +1233,17 @@ function createLeadsService({ repository, logger, events }) {
     // Update round-robin state
     if (selectedAgent) {
       roundRobinState.setLastAssigned(
-        leadCountry,
+        leadCountry || 'all',
         requiredLeadType,
         selectedAgent.id
       );
       logger.debug(
         { 
-          leadCountry, 
+          leadCountry: leadCountry || 'all', 
           leadType: requiredLeadType,
           selectedAgentId: selectedAgent.id,
-          agentName: selectedAgent.fullName
+          agentName: selectedAgent.fullName,
+          agentCountry: selectedAgent.country
         },
         'Round-robin assignment completed'
       );
