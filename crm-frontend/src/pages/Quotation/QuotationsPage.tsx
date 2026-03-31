@@ -58,7 +58,7 @@ const quickFilters = [
   { key: 'REJECTED', label: 'Rejected' },
   { key: 'DRAFT', label: 'Draft' }
 ] as const
-type QuickFilter = (typeof quickFilters)[number]['key']
+type QuickFilter = typeof quickFilters[number]['key']
 
 type QuotationFilterState = {
   quoteNumber: string
@@ -507,16 +507,28 @@ const QuotationsPage: React.FC = () => {
         .filter(q => q && typeof q === 'object')
         .filter(q => {
           if (!matchesQuickFilter(quickFilter, q.status)) return false
-          if (appliedFilters.status !== 'ALL' && q.status !== appliedFilters.status)
+          if (
+            appliedFilters.status !== 'ALL' &&
+            q.status !== appliedFilters.status
+          )
             return false
 
           const recordDate = toIsoDate(q.createdAt) || toIsoDate(q.sentDate)
-          if (appliedFilters.fromDate && (!recordDate || recordDate < appliedFilters.fromDate))
+          if (
+            appliedFilters.fromDate &&
+            (!recordDate || recordDate < appliedFilters.fromDate)
+          )
             return false
-          if (appliedFilters.toDate && (!recordDate || recordDate > appliedFilters.toDate))
+          if (
+            appliedFilters.toDate &&
+            (!recordDate || recordDate > appliedFilters.toDate)
+          )
             return false
 
-          if (appliedFilters.destination && q.destination !== appliedFilters.destination)
+          if (
+            appliedFilters.destination &&
+            q.destination !== appliedFilters.destination
+          )
             return false
 
           if (
@@ -560,7 +572,9 @@ const QuotationsPage: React.FC = () => {
               .filter(Boolean)
               .join(' ')
               .toLowerCase()
-            if (!templateHaystack.includes(appliedFilters.template.toLowerCase()))
+            if (
+              !templateHaystack.includes(appliedFilters.template.toLowerCase())
+            )
               return false
           }
 
@@ -625,7 +639,9 @@ const QuotationsPage: React.FC = () => {
           return Number(a.total || 0) - Number(b.total || 0)
         }
         if (appliedFilters.sortBy === 'CUSTOMER_A_Z') {
-          return String(a.customer || '').localeCompare(String(b.customer || ''))
+          return String(a.customer || '').localeCompare(
+            String(b.customer || '')
+          )
         }
         if (appliedFilters.sortBy === 'OLDEST_FIRST') {
           const left = toTimestamp(a.createdAt || a.sentDate)
@@ -970,7 +986,9 @@ const QuotationsPage: React.FC = () => {
                 <input
                   type='text'
                   value={draftFilters.email}
-                  onChange={event => updateDraftFilter('email', event.target.value)}
+                  onChange={event =>
+                    updateDraftFilter('email', event.target.value)
+                  }
                   placeholder='Partial email'
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
@@ -982,7 +1000,9 @@ const QuotationsPage: React.FC = () => {
                 <input
                   type='text'
                   value={draftFilters.phone}
-                  onChange={event => updateDraftFilter('phone', event.target.value)}
+                  onChange={event =>
+                    updateDraftFilter('phone', event.target.value)
+                  }
                   placeholder='Partial phone'
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
@@ -1024,7 +1044,9 @@ const QuotationsPage: React.FC = () => {
                 <input
                   type='date'
                   value={draftFilters.toDate}
-                  onChange={event => updateDraftFilter('toDate', event.target.value)}
+                  onChange={event =>
+                    updateDraftFilter('toDate', event.target.value)
+                  }
                   className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
                 />
               </div>
@@ -1052,7 +1074,10 @@ const QuotationsPage: React.FC = () => {
                   placeholder='All Statuses'
                   searchPlaceholder='Search status...'
                   onChange={value =>
-                    updateDraftFilter('status', value as QuotationFilterState['status'])
+                    updateDraftFilter(
+                      'status',
+                      value as QuotationFilterState['status']
+                    )
                   }
                 />
               </div>
@@ -1067,7 +1092,10 @@ const QuotationsPage: React.FC = () => {
                   placeholder='All SLA'
                   searchPlaceholder='Search SLA...'
                   onChange={value =>
-                    updateDraftFilter('sla', value as QuotationFilterState['sla'])
+                    updateDraftFilter(
+                      'sla',
+                      value as QuotationFilterState['sla']
+                    )
                   }
                 />
               </div>
@@ -1125,7 +1153,7 @@ const QuotationsPage: React.FC = () => {
         </div>
 
         {/* Quotations List */}
-        <div className='relative'>
+        <div className='relative min-w-0 overflow-x-hidden'>
           {rows.length === 0 ? (
             hasLoadedOnce && !isFetchingList ? (
               <div className='p-8'>
@@ -1142,249 +1170,254 @@ const QuotationsPage: React.FC = () => {
             )
           ) : (
             <div className='min-h-[420px] max-h-[62vh] overflow-y-auto'>
-            {/* Mobile View - Cards */}
-            <div className='block lg:hidden divide-y divide-gray-100 dark:divide-gray-800'>
-              {rows.map((q, index) => (
-                <div
-                  key={q.id}
-                  className={`p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors ${
-                    index !== rows.length - 1
-                      ? 'border-b border-gray-100 dark:border-gray-800'
-                      : ''
-                  }`}
-                >
-                  {/* Header with Quote Number and Status */}
-                  <div className='flex items-start justify-between'>
-                    <div className='space-y-1'>
-                      <p className='text-sm font-medium text-blue-600 dark:text-blue-400'>
-                        {q.quoteNumber}
-                      </p>
-                      <p className='text-xs text-gray-500'>{q.customer}</p>
-                    </div>
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${
-                        styles[q.status]
-                      }`}
-                    >
-                      {q.status}
-                    </span>
-                  </div>
-
-                  {/* Destination and Details */}
-                  <div className='space-y-1'>
-                    <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                      {q.destination}
-                    </p>
-                    <p className='text-xs text-gray-500'>{q.details}</p>
-                    {q.templateName ? (
-                      <p className='text-[11px] text-blue-600 dark:text-blue-300'>
-                        Template: {q.templateCode ? `${q.templateCode} - ` : ''}
-                        {q.templateName}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  {/* Email */}
-                  <p className='text-xs text-gray-500 truncate'>{q.email}</p>
-
-                  {/* Total and Margin */}
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                        ${(q.total || 0).toLocaleString()}
-                      </p>
-                      <p className='text-xs text-green-600 dark:text-green-400'>
-                        Margin {q.margin || 0}%
-                      </p>
-                    </div>
-                    <p className='text-xs text-gray-500'>
-                      {q.lastSent ?? 'Never Sent'}
-                    </p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className='flex justify-end gap-2 pt-2'>
-                    <button
-                      onClick={() => handleViewQuotation(q)}
-                      className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors'
-                      title='View'
-                    >
-                      <FaEye className='text-sm' />
-                    </button>
-                    {q.status !== 'accepted' && (
-                      <button
-                        onClick={() => handleEditQuotation(q)}
-                        disabled={isMutating}
-                        className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50'
-                        title='Edit quotation'
+              {/* Mobile View - Cards */}
+              <div className='block lg:hidden divide-y divide-gray-100 dark:divide-gray-800'>
+                {rows.map((q, index) => (
+                  <div
+                    key={q.id}
+                    className={`p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors ${
+                      index !== rows.length - 1
+                        ? 'border-b border-gray-100 dark:border-gray-800'
+                        : ''
+                    }`}
+                  >
+                    {/* Header with Quote Number and Status */}
+                    <div className='flex items-start justify-between'>
+                      <div className='space-y-1'>
+                        <p className='text-sm font-medium text-blue-600 dark:text-blue-400'>
+                          {q.quoteNumber}
+                        </p>
+                        <p className='text-xs text-gray-500'>{q.customer}</p>
+                      </div>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${
+                          styles[q.status]
+                        }`}
                       >
-                        <FaPencil className='text-sm' />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleSendWhatsApp(q)}
-                      disabled={isMutating}
-                      className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50'
-                      title='Send via WhatsApp'
-                    >
-                      <FaWhatsapp className='text-sm' />
-                    </button>
-                    <button
-                      onClick={() => rejectQuotation(q)}
-                      disabled={isMutating}
-                      className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50'
-                      title='Reject quotation'
-                    >
-                      <FaCircleXmark className='text-sm' />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                        {q.status}
+                      </span>
+                    </div>
 
-            {/* Desktop View - Table */}
-            <div className='hidden max-w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 lg:block'>
-              <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
-                <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
-                  <tr>
-                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
-                      Quote #
-                    </th>
-                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
-                      Customer
-                    </th>
-                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
-                      Destination
-                    </th>
-                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
-                      Total
-                    </th>
-                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
-                      Status
-                    </th>
-                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
-                      Last Sent
-                    </th>
-                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
-                      SLA
-                    </th>
-                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                  {rows.map(q => (
-                    <tr
-                      key={q.id}
-                      className='group hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors'
-                    >
-                      <td className='px-3 xl:px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300 whitespace-nowrap'>
-                        {q.quoteNumber}
-                      </td>
-                      <td className='px-3 xl:px-5 py-4 min-w-[150px] max-w-[200px]'>
-                        <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
-                          {q.customer}
+                    {/* Destination and Details */}
+                    <div className='space-y-1'>
+                      <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                        {q.destination}
+                      </p>
+                      <p className='text-xs text-gray-500'>{q.details}</p>
+                      {q.templateName ? (
+                        <p className='text-[11px] text-blue-600 dark:text-blue-300'>
+                          Template:{' '}
+                          {q.templateCode ? `${q.templateCode} - ` : ''}
+                          {q.templateName}
                         </p>
-                        <p className='text-xs text-gray-500 truncate'>{q.email}</p>
-                      </td>
-                      <td className='px-3 xl:px-5 py-4 min-w-[180px] max-w-[250px]'>
-                        <p className='text-sm text-gray-800 dark:text-gray-100 truncate'>
-                          {q.destination}
-                        </p>
-                        <p className='text-xs text-gray-500 truncate'>{q.details}</p>
-                        {q.templateName ? (
-                          <p className='text-[11px] text-blue-600 dark:text-blue-300 truncate'>
-                            Template:{' '}
-                            {q.templateCode ? `${q.templateCode} - ` : ''}
-                            {q.templateName}
-                          </p>
-                        ) : null}
-                      </td>
-                      <td className='px-3 xl:px-5 py-4 text-right whitespace-nowrap'>
+                      ) : null}
+                    </div>
+
+                    {/* Email */}
+                    <p className='text-xs text-gray-500 truncate'>{q.email}</p>
+
+                    {/* Total and Margin */}
+                    <div className='flex items-center justify-between'>
+                      <div>
                         <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                          ${(q.total || 0).toFixed(2)}
+                          ${(q.total || 0).toLocaleString()}
                         </p>
                         <p className='text-xs text-green-600 dark:text-green-400'>
                           Margin {q.margin || 0}%
                         </p>
-                      </td>
-                      <td className='px-3 xl:px-5 py-4 text-center'>
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize whitespace-nowrap ${
-                            styles[q.status]
-                          }`}
-                        >
-                          {q.status}
-                        </span>
-                      </td>
-                      <td className='px-3 xl:px-5 py-4 text-xs text-gray-500 whitespace-nowrap'>
+                      </div>
+                      <p className='text-xs text-gray-500'>
                         {q.lastSent ?? 'Never Sent'}
-                      </td>
-                      <td className='px-5 py-4 text-center'>
-                        {q.responseCategory ? (
-                          <div className='space-y-0.5'>
-                            <span
-                              className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                q.responseSlaBreached
-                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                              }`}
-                            >
-                              {q.responseCategory.replace(/_/g, ' ')}
-                            </span>
-                            {q.leadToQuoteSentMinutes != null ? (
-                              <p className='text-[10px] text-gray-400'>
-                                {q.leadToQuoteSentMinutes}m to send
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className='text-[10px] text-gray-400'>—</span>
-                        )}
-                      </td>
-                      <td className='px-5 py-4'>
-                        <div className='flex justify-end gap-2 transition-all duration-200'>
-                          <button
-                            onClick={() => handleViewQuotation(q)}
-                            className='rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                            title='View'
-                          >
-                            <FaEye />
-                          </button>
-                          {q.status !== 'accepted' && (
-                            <button
-                              onClick={() => handleEditQuotation(q)}
-                              disabled={isMutating}
-                              className='rounded-lg border border-gray-200 p-2 text-blue-600 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50'
-                              title='Edit quotation'
-                            >
-                              <FaPencil />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleSendWhatsApp(q)}
-                            disabled={isMutating}
-                            className='rounded-lg border border-gray-200 p-2 text-green-600 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50'
-                            title='Send via WhatsApp'
-                          >
-                            <FaWhatsapp />
-                          </button>
-                          <button
-                            onClick={() => rejectQuotation(q)}
-                            disabled={isMutating}
-                            className='rounded-lg border border-gray-200 p-2 text-red-600 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50'
-                            title='Reject quotation'
-                          >
-                            <FaCircleXmark />
-                          </button>
-                        </div>
-                      </td>
+                      </p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className='flex justify-end gap-2 pt-2'>
+                      <button
+                        onClick={() => handleViewQuotation(q)}
+                        className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors'
+                        title='View'
+                      >
+                        <FaEye className='text-sm' />
+                      </button>
+                      {q.status !== 'accepted' && (
+                        <button
+                          onClick={() => handleEditQuotation(q)}
+                          disabled={isMutating}
+                          className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50'
+                          title='Edit quotation'
+                        >
+                          <FaPencil className='text-sm' />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleSendWhatsApp(q)}
+                        disabled={isMutating}
+                        className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50'
+                        title='Send via WhatsApp'
+                      >
+                        <FaWhatsapp className='text-sm' />
+                      </button>
+                      <button
+                        onClick={() => rejectQuotation(q)}
+                        disabled={isMutating}
+                        className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50'
+                        title='Reject quotation'
+                      >
+                        <FaCircleXmark className='text-sm' />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop View - Table */}
+              <div className='hidden w-full min-w-0 max-w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 lg:block'>
+                <table className='w-full min-w-[1120px] table-fixed divide-y divide-gray-200 dark:divide-gray-800'>
+                  <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
+                    <tr>
+                      <th className='w-[16%] px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                        Quote #
+                      </th>
+                      <th className='w-[18%] px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                        Customer
+                      </th>
+                      <th className='w-[20%] px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                        Destination
+                      </th>
+                      <th className='w-[10%] px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                        Total
+                      </th>
+                      <th className='w-[10%] px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                        Status
+                      </th>
+                      <th className='w-[10%] px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                        Last Sent
+                      </th>
+                      <th className='w-[8%] px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                        SLA
+                      </th>
+                      <th className='w-[8%] px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                    {rows.map(q => (
+                      <tr
+                        key={q.id}
+                        className='group hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors'
+                      >
+                        <td className='px-3 xl:px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300 whitespace-nowrap'>
+                          {q.quoteNumber}
+                        </td>
+                        <td className='px-3 xl:px-5 py-4 min-w-[150px] max-w-[200px]'>
+                          <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
+                            {q.customer}
+                          </p>
+                          <p className='text-xs text-gray-500 truncate'>
+                            {q.email}
+                          </p>
+                        </td>
+                        <td className='px-3 xl:px-5 py-4 min-w-[180px] max-w-[250px]'>
+                          <p className='text-sm text-gray-800 dark:text-gray-100 truncate'>
+                            {q.destination}
+                          </p>
+                          <p className='text-xs text-gray-500 truncate'>
+                            {q.details}
+                          </p>
+                          {q.templateName ? (
+                            <p className='text-[11px] text-blue-600 dark:text-blue-300 truncate'>
+                              Template:{' '}
+                              {q.templateCode ? `${q.templateCode} - ` : ''}
+                              {q.templateName}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className='px-3 xl:px-5 py-4 text-right whitespace-nowrap'>
+                          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            ${(q.total || 0).toFixed(2)}
+                          </p>
+                          <p className='text-xs text-green-600 dark:text-green-400'>
+                            Margin {q.margin || 0}%
+                          </p>
+                        </td>
+                        <td className='px-3 xl:px-5 py-4 text-center'>
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize whitespace-nowrap ${
+                              styles[q.status]
+                            }`}
+                          >
+                            {q.status}
+                          </span>
+                        </td>
+                        <td className='px-3 xl:px-5 py-4 text-xs text-gray-500 whitespace-nowrap'>
+                          {q.lastSent ?? 'Never Sent'}
+                        </td>
+                        <td className='px-5 py-4 text-center'>
+                          {q.responseCategory ? (
+                            <div className='space-y-0.5'>
+                              <span
+                                className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  q.responseSlaBreached
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                }`}
+                              >
+                                {q.responseCategory.replace(/_/g, ' ')}
+                              </span>
+                              {q.leadToQuoteSentMinutes != null ? (
+                                <p className='text-[10px] text-gray-400'>
+                                  {q.leadToQuoteSentMinutes}m to send
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className='text-[10px] text-gray-400'>—</span>
+                          )}
+                        </td>
+                        <td className='px-5 py-4'>
+                          <div className='flex justify-end gap-2 transition-all duration-200'>
+                            <button
+                              onClick={() => handleViewQuotation(q)}
+                              className='rounded-lg border border-gray-200 p-2 text-gray-500 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                              title='View'
+                            >
+                              <FaEye />
+                            </button>
+                            {q.status !== 'accepted' && (
+                              <button
+                                onClick={() => handleEditQuotation(q)}
+                                disabled={isMutating}
+                                className='rounded-lg border border-gray-200 p-2 text-blue-600 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50'
+                                title='Edit quotation'
+                              >
+                                <FaPencil />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleSendWhatsApp(q)}
+                              disabled={isMutating}
+                              className='rounded-lg border border-gray-200 p-2 text-green-600 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50'
+                              title='Send via WhatsApp'
+                            >
+                              <FaWhatsapp />
+                            </button>
+                            <button
+                              onClick={() => rejectQuotation(q)}
+                              disabled={isMutating}
+                              className='rounded-lg border border-gray-200 p-2 text-red-600 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50'
+                              title='Reject quotation'
+                            >
+                              <FaCircleXmark />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
