@@ -363,26 +363,26 @@ const UserFormModal = ({
       selectedRoleName.includes('executive')
     return nameIndicatesAgent
   }, [selectedRole, selectedRoleName])
-  const managerOptions = useMemo(
-    () => [
-      { value: '', label: 'Select manager' },
-      ...users
-        .filter(candidate => {
-          const roleName = (candidate.role || '').toLowerCase()
-          // Check if role name contains manager-related keywords
-          return (
-            roleName.includes('manager') ||
-            roleName.includes('admin') ||
-            roleName.includes('management')
-          )
-        })
-        .map(candidate => ({
-          value: candidate.id,
-          label: `${candidate.fullName} (${candidate.email})`
-        }))
-    ],
-    [users]
-  )
+  // const managerOptions = useMemo(
+  //   () => [
+  //     { value: '', label: 'Select manager' },
+  //     ...users
+  //       .filter(candidate => {
+  //         const roleName = (candidate.role || '').toLowerCase()
+  //         // Check if role name contains manager-related keywords
+  //         return (
+  //           roleName.includes('manager') ||
+  //           roleName.includes('admin') ||
+  //           roleName.includes('management')
+  //         )
+  //       })
+  //       .map(candidate => ({
+  //         value: candidate.id,
+  //         label: `${candidate.fullName} (${candidate.email})`
+  //       }))
+  //   ],
+  //   [users]
+  // )
 
   if (!isOpen) return null
 
@@ -509,9 +509,9 @@ const UserFormModal = ({
                     const filtered = roles.filter(role =>
                       role.name.toLowerCase().includes(query)
                     )
-                    const exactMatch = roles.some(
-                      role => role.name.toLowerCase() === query
-                    )
+                    // const exactMatch = roles.some(
+                    //   role => role.name.toLowerCase() === query
+                    // )
                     return (
                       <>
                         {filtered.map(role => (
