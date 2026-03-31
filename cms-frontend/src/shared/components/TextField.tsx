@@ -45,7 +45,7 @@ export class TextField extends Component<TextFieldProps> {
       >
         <label
           className={joinClassNames(
-            "text-xs font-semibold uppercase tracking-[0.18em] text-mist-200/80",
+            "text-sm font-medium text-gray-700 dark:text-gray-200",
             labelClassName,
           )}
           htmlFor={id}
@@ -55,7 +55,7 @@ export class TextField extends Component<TextFieldProps> {
         <div className="relative flex items-center">
           {startIcon && (
             <span
-              className="absolute left-4 text-mist-200/70"
+              className="absolute left-4 text-gray-400 dark:text-gray-500"
               aria-hidden="true"
             >
               {startIcon}
@@ -64,7 +64,7 @@ export class TextField extends Component<TextFieldProps> {
           <input
             id={id}
             className={joinClassNames(
-              "h-12 w-full rounded-xl border border-white/10 bg-white/5 text-sm text-mist-50 placeholder:text-mist-200/40 transition focus:border-brand-400/70 focus:outline-none focus:ring-2 focus:ring-brand-400/40",
+              "h-11 w-full rounded-xl border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 transition focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:ring-blue-900/60",
               inputPadding,
               inputClassName,
             )}
