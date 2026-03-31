@@ -9,8 +9,8 @@ import {
   requestContext,
   notFound,
   errorHandler,
-} from "./core/middlewares/index.js";
-import { createRequestMetricsMiddleware } from "./core/observability/index.js";
+} from "../crm/core/middlewares/index.js";
+import { createRequestMetricsMiddleware } from "../crm/core/observability/index.js";
 
 function createApp(overrides = {}) {
   const app = express();
@@ -42,7 +42,7 @@ function createApp(overrides = {}) {
     createRequestMetricsMiddleware({ metricsStore: container.metricsStore }),
   );
 
-  const modules = registerModules(app, container);
+  const modules = registerModules(app, container, overrides.modules || {});
 
   app.get("/health", (req, res) => {
     const uptimeSeconds = Math.floor(
