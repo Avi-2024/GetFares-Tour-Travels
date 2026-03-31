@@ -14,7 +14,10 @@ import { getApiErrorMessage } from '../../api/apiClient'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
 import { Country } from 'country-state-city'
-import { getCurrencyLocaleByCode, getCurrencyOptions } from '../../utils/currency'
+import {
+  getCurrencyLocaleByCode,
+  getCurrencyOptions
+} from '../../utils/currency'
 
 type LeadType = 'HOLIDAY' | 'VISA' | null
 
@@ -94,6 +97,12 @@ const detectLocaleCountryIso2 = (): CountryIso2 => {
   return (region || 'in') as CountryIso2
 }
 
+const getLocalTodayIsoDate = (): string => {
+  const now = new Date()
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().split('T')[0]
+}
+
 const createInitialFormState = (): FormState => {
   const iso2 = detectLocaleCountryIso2()
   const matchedCountry = Country.getAllCountries().find(
@@ -130,6 +139,7 @@ const CreateLead: React.FC = () => {
   const [phoneCountryIso2, setPhoneCountryIso2] = useState<CountryIso2>(() =>
     detectLocaleCountryIso2()
   )
+  const minTravelDate = useMemo(() => getLocalTodayIsoDate(), [])
   const phoneInputRef = useRef<PhoneInputRefType>(null)
 
   const isFieldVisible = (fieldName: string) => {
@@ -223,6 +233,8 @@ const CreateLead: React.FC = () => {
     const childrenCountSafe = Number.isFinite(childrenCountValue)
       ? childrenCountValue
       : 0
+    const isTravelDateInPast =
+      form.travelDate.trim() !== '' && form.travelDate < minTravelDate
 
     return {
       firstName: !form.firstName.trim(),
@@ -232,7 +244,7 @@ const CreateLead: React.FC = () => {
       leadCountry: !form.leadCountry,
       clientCurrency: !form.clientCurrency.trim(),
       destinationName: !form.destinationName.trim(),
-      travelDate: !form.travelDate,
+      travelDate: !form.travelDate || isTravelDateInPast,
       adultsChildren:
         adultsCountSafe < 0 || childrenCountSafe < 0 || adultsCountSafe < 1,
       childrenAges:
@@ -252,7 +264,7 @@ const CreateLead: React.FC = () => {
       preferredHotelCategory: form.preferredHotelCategory === '',
       travelPurpose: !form.travelPurpose.trim()
     }
-  }, [form, childAges])
+  }, [form, childAges, minTravelDate])
 
   const hasError = useMemo(
     () => Object.values(validation).some(Boolean),
@@ -754,6 +766,7 @@ const CreateLead: React.FC = () => {
             <label className='field-label'>Travel Date *</label>
             <input
               type='date'
+              min={minTravelDate}
               className={`field-input ${
                 fieldError('travelDate') ? 'border-red-500' : ''
               }`}
@@ -934,7 +947,7 @@ const CreateLead: React.FC = () => {
             </div>
           )}
           {isFieldVisible('campaignId') && (
-            <div className='md:col-span-2'>
+            <div>
               <label className='field-label'>Campaign</label>
               <SearchableDropdown
                 value={form.campaignId}
