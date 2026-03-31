@@ -259,10 +259,24 @@ const CreateLead: React.FC = () => {
     const checkDuplicates = async () => {
       const email = form.email.trim()
       const phone = form.phone.replace(/\D/g, '')
+      
+      // Only check if both email and phone have meaningful values
       if (!email && !phone) {
         setDuplicateWarning('')
         return
       }
+      
+      // Don't check if email is invalid or phone is too short
+      if (email && !EMAIL_PATTERN.test(email)) {
+        setDuplicateWarning('')
+        return
+      }
+      
+      if (phone && phone.length < PHONE_E164_DIGITS_MIN) {
+        setDuplicateWarning('')
+        return
+      }
+      
       try {
         const result = await leadsService.checkDuplicate(
           email || undefined,
@@ -799,14 +813,7 @@ const CreateLead: React.FC = () => {
               options={countryOptions}
               hasError={fieldError('leadCountry')}
               searchPlaceholder='Search country...'
-              onChange={value => {
-                setForm(prev => ({ ...prev, leadCountry: value }))
-                // Auto-select currency based on country
-                const currency = COUNTRY_CURRENCY_NAME_MAP[value]
-                if (currency) {
-                  setForm(prev => ({ ...prev, clientCurrency: currency }))
-                }
-              }}
+              onChange={handleLeadCountryChange}
             />
           </div>
           <div>
