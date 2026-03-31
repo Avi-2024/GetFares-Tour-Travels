@@ -329,33 +329,8 @@ function createUsersService({ repository, logger, events, rbacService }) {
     }
 
     if (roleKind === "AGENT") {
-      if (!parentId) {
-        throw new AppError(
-          400,
-          "parentId (managerId) is required for agent role",
-          "USER_AGENT_PARENT_REQUIRED",
-        );
-      }
-      if (userId && String(parentId) === String(userId)) {
-        throw new AppError(
-          400,
-          "User cannot be parent of itself",
-          "USER_PARENT_SELF_REFERENCE",
-        );
-      }
-
-      const manager = await repository.findById(parentId);
-      if (!manager) {
-        throw new AppError(404, "Manager not found", "USER_MANAGER_NOT_FOUND");
-      }
-      const managerRoleName = roleLookup.get(manager.role_id) || null;
-      if (getRoleKind(managerRoleName) !== "MANAGER") {
-        throw new AppError(
-          400,
-          "parentId must reference a manager user",
-          "USER_PARENT_MANAGER_REQUIRED",
-        );
-      }
+      // Agent role no longer requires parentId/managerId
+      // Validation removed to allow agents without managers
     }
 
     return roleKind;

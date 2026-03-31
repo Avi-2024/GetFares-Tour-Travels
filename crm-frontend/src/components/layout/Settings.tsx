@@ -3,7 +3,6 @@ import {
   FaChevronDown,
   FaPlus,
   FaMagnifyingGlass,
-  FaUserPlus
 } from 'react-icons/fa6'
 import Select from 'react-select'
 import { Country } from 'country-state-city'
@@ -19,6 +18,7 @@ import {
   type IntegrationSettingsPayload,
   type SystemSettingsPayload,
 } from "../../api/settings";
+import { countriesApi, type CountryRecord } from "../../api/countries";
 import { useAuth } from "../../context/AuthContext";
 import { useDateTimePreferences } from "../../context/DateTimePreferencesContext";
 import { useAuthService } from "../../hooks/useAuthService";
@@ -27,7 +27,7 @@ import SurfaceCard from "../ui/SurfaceCard";
 import SearchableDropdown from "../ui/SearchableDropdown";
 import DestinationPricingManager from "../settings/DestinationPricingManager";
 import CountryManagementPanel from "../settings/CountryManagementPanel";
-import { CRM_ADMIN_COUNTRY_OPTIONS } from "../../utils/countries";
+import { buildAdminCountryOptions, type CountryOption } from "../../utils/countries";
 import UsersPage from "../../pages/users/UsersPage";
 
 type Tab =
@@ -96,16 +96,13 @@ type SettingsResponse = {
   integrations?: Partial<IntegrationSettingsForm>
 }
 
-type CountryCode = 'All' | 'India' | 'UAE'
+type CountryCode = string
 
-const COUNTRY_OPTIONS = CRM_ADMIN_COUNTRY_OPTIONS as Array<{
-  value: CountryCode
-  label: string
-}>
-
-const ROLE_COUNTRY_OPTIONS = COUNTRY_OPTIONS.filter(
-  option => option.value !== 'All'
-)
+const DEFAULT_COUNTRY_OPTIONS: CountryOption[] = [
+  { value: 'All', label: 'All Countries' },
+  { value: 'India', label: 'India' },
+  { value: 'UAE', label: 'UAE' }
+]
 
 type UserCountryOption = {
   value: string
@@ -627,12 +624,23 @@ const Settings: React.FC = () => {
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [savingSystem, setSavingSystem] = useState(false)
   const [savingIntegrations, setSavingIntegrations] = useState(false)
+  const [countries, setCountries] = useState<CountryRecord[]>([])
+  const [, setLoadingCountries] = useState(false)
   const canReadUsers = hasPermission('users:read')
   const canCreateUsers = hasPermission('users:create')
   const canUpdateUsers = hasPermission('users:update')
   const canManageRbac = hasPermission('rbac:manage')
   const canReadSettings = hasPermission('settings:read')
   const canUpdateSettings = hasPermission('settings:update')
+
+  const countryOptions = useMemo<CountryOption[]>(() => {
+    if (!countries.length) return DEFAULT_COUNTRY_OPTIONS
+    return buildAdminCountryOptions(countries)
+  }, [countries])
+
+  const roleCountryOptions = useMemo<CountryOption[]>(() => {
+    return countryOptions.filter(option => option.value !== 'All')
+  }, [countryOptions])
 
   const userCountryOptions = useMemo<UserCountryOption[]>(() => {
     return Country.getAllCountries()
@@ -795,6 +803,23 @@ const Settings: React.FC = () => {
   useEffect(() => {
     void loadRoles()
   }, [loadRoles])
+
+  useEffect(() => {
+    const loadCountries = async () => {
+      setLoadingCountries(true)
+      try {
+        const response = await countriesApi.list({ includeInactive: false })
+        const data = response?.data || []
+        setCountries(Array.isArray(data) ? data : [])
+      } catch (e) {
+        console.error('Failed to load countries:', e)
+        setCountries([])
+      } finally {
+        setLoadingCountries(false)
+      }
+    }
+    void loadCountries()
+  }, [])
 
   useEffect(() => {
     if (!message) return
@@ -1501,7 +1526,7 @@ const Settings: React.FC = () => {
             </label>
             <SearchableDropdown
               value={adminCountryFilter}
-              options={COUNTRY_OPTIONS}
+              options={countryOptions}
               onChange={value => setAdminCountryFilter(value as CountryCode)}
               className='mt-2 w-full'
               searchPlaceholder='Search country...'
@@ -1544,24 +1569,13 @@ const Settings: React.FC = () => {
 
         {activeTab === 'roles-permissions' ? (
           <SurfaceCard>
-            <div className='flex flex-wrap items-center justify-between gap-3'>
-              <div>
-                <h2 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
-                  Roles & Permissions
-                </h2>
-                <p className='text-sm text-gray-500 dark:text-gray-400'>
-                  Manage access, members, and permissions by role.
-                </p>
-              </div>
-              {canManageRbac ? (
-                <button
-                  onClick={() => setAssignOpen(true)}
-                  className='inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                >
-                  <FaUserPlus />
-                  Assign Role
-                </button>
-              ) : null}
+            <div>
+              <h2 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
+                Roles & Permissions
+              </h2>
+              <p className='text-sm text-gray-500 dark:text-gray-400'>
+                Only permissions can be edited.
+              </p>
             </div>
             {!canManageRbac ? (
               <p className='mt-4 text-sm text-gray-500 dark:text-gray-400'>
@@ -1570,30 +1584,21 @@ const Settings: React.FC = () => {
             ) : (
               <div className='mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]'>
                 <div className='flex flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40'>
-                  <div className='flex items-center gap-2'>
-                    <div className='relative flex-1'>
-                      <FaMagnifyingGlass className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
-                      <input
-                        className='field-input !py-2 !pl-9'
-                        placeholder='Search roles'
-                        value={roleSearch}
-                        onChange={e => setRoleSearch(e.target.value)}
-                      />
-                    </div>
-                    <button
-                      onClick={() => setCreateRoleOpen(true)}
-                      className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500'
-                    >
-                      <FaPlus />
-                      Create
-                    </button>
+                  <div className='relative'>
+                    <FaMagnifyingGlass className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
+                    <input
+                      className='field-input !py-2 !pl-9'
+                      placeholder='Search roles'
+                      value={roleSearch}
+                      onChange={e => setRoleSearch(e.target.value)}
+                    />
                   </div>
                   <div className='flex items-center justify-between text-xs text-gray-500 dark:text-gray-400'>
                     <span>{filteredRoleStats.length} roles</span>
                     <div className='w-36'>
                       <SearchableDropdown
                         value={roleCountryFilter}
-                        options={COUNTRY_OPTIONS}
+                        options={countryOptions}
                         onChange={value =>
                           setRoleCountryFilter(value as CountryCode)
                         }
@@ -1878,7 +1883,7 @@ const Settings: React.FC = () => {
                               <label className='field-label'>Country</label>
                               <SearchableDropdown
                                 value={roleConfigCountry}
-                                options={ROLE_COUNTRY_OPTIONS}
+                                options={roleCountryOptions}
                                 onChange={value =>
                                   setRoleConfigCountry(value as CountryCode)
                                 }
@@ -2423,7 +2428,7 @@ const Settings: React.FC = () => {
                 <label className='field-label'>Country</label>
                 <SearchableDropdown
                   value={createRoleCountry}
-                  options={ROLE_COUNTRY_OPTIONS}
+                  options={roleCountryOptions}
                   onChange={value => setCreateRoleCountry(value as CountryCode)}
                   className='mt-1 w-full'
                   searchPlaceholder='Search country...'

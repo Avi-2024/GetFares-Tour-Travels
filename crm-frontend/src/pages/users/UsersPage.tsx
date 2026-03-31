@@ -427,38 +427,6 @@ const UserFormModal = ({
               placeholder='John Doe'
             />
           </div>
-          {isAgentRole ? (
-            <>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                  Agent Type
-                </label>
-                <SearchableDropdown
-                  value={formData.agentType}
-                  onChange={value =>
-                    setFormData({ ...formData, agentType: value })
-                  }
-                  options={AGENT_TYPE_OPTIONS}
-                  placeholder='Select agent type'
-                  className='w-full'
-                />
-              </div>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                  Reports To (Manager)
-                </label>
-                <SearchableDropdown
-                  value={formData.managerId}
-                  onChange={value =>
-                    setFormData({ ...formData, managerId: value })
-                  }
-                  options={managerOptions}
-                  placeholder='Select manager'
-                  className='w-full'
-                />
-              </div>
-            </>
-          ) : null}
 
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
@@ -478,7 +446,7 @@ const UserFormModal = ({
 
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-              Phone
+              Phone <span className='text-red-500'>*</span>
             </label>
             <PhoneInput
               ref={phoneInputRef}
@@ -492,11 +460,13 @@ const UserFormModal = ({
               }}
               inputProps={{
                 name: 'user-phone',
+                required: true,
                 autoComplete: 'tel',
                 placeholder: 'International phone number'
               }}
             />
           </div>
+
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
               Country <span className='text-red-500'>*</span>
@@ -508,16 +478,18 @@ const UserFormModal = ({
                 handleCountryChange(option as UserCountryOption | null)
               }
               placeholder='Search country...'
-              isClearable
+              isClearable={false}
               styles={countrySelectStyles}
             />
           </div>
+
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-              Role
+              Role <span className='text-red-500'>*</span>
             </label>
             <div className='relative'>
               <input
+                required
                 value={roleSearch}
                 onChange={e => {
                   const next = e.target.value
@@ -557,19 +529,7 @@ const UserFormModal = ({
                             {role.name}
                           </button>
                         ))}
-                        {!exactMatch && query ? (
-                          <button
-                            type='button'
-                            className='w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50'
-                            onClick={() => {
-                              setFormData({ ...formData, role: '' })
-                              setCreateRoleName(roleSearch.trim())
-                              setRoleDropdownOpen(false)
-                            }}
-                          >
-                            Create new role: "{roleSearch.trim()}"
-                          </button>
-                        ) : null}
+                    
                         {filtered.length === 0 && !query ? (
                           <p className='px-3 py-2 text-sm text-gray-500'>
                             No roles found.
@@ -582,6 +542,25 @@ const UserFormModal = ({
               ) : null}
             </div>
           </div>
+
+          {isAgentRole ? (
+            <>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                  Agent Type
+                </label>
+                <SearchableDropdown
+                  value={formData.agentType}
+                  onChange={value =>
+                    setFormData({ ...formData, agentType: value })
+                  }
+                  options={AGENT_TYPE_OPTIONS}
+                  placeholder='Select agent type'
+                  className='w-full'
+                />
+              </div>
+            </>
+          ) : null}
 
           {mode === 'create' && (
             <div>
@@ -597,7 +576,11 @@ const UserFormModal = ({
                 }
                 className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
                 placeholder='Minimum 8 characters'
+                minLength={8}
               />
+              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                Must be at least 8 characters long
+              </p>
             </div>
           )}
 
@@ -933,6 +916,14 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       showToast('Please enter a valid email address.', 'error')
       return
     }
+    if (!formData.phone?.trim()) {
+      showToast('Phone number is required.', 'error')
+      return
+    }
+    if (!isValidPhone(formData.phone)) {
+      showToast('Phone number must be 6-20 digits.', 'error')
+      return
+    }
     if (!formData.password || formData.password.length < 8) {
       showToast('Password must be at least 8 characters.', 'error')
       return
@@ -941,8 +932,8 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       showToast('Please select a country.', 'error')
       return
     }
-    if (!isValidPhone(formData.phone)) {
-      showToast('Phone number must be 6-20 digits.', 'error')
+    if (!formData.role?.trim() && !formData.roleName?.trim()) {
+      showToast('Please select or create a role.', 'error')
       return
     }
 
@@ -955,7 +946,6 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
         phone: normalizePhone(formData.phone),
         country: formData.country,
         agentType: formData.agentType || undefined,
-        managerId: formData.managerId || undefined,
         password: formData.password,
         roleId: roleId || undefined,
         roleName: roleName || undefined,
@@ -985,6 +975,10 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       showToast('Please enter a valid email address.', 'error')
       return
     }
+    if (!formData.phone?.trim()) {
+      showToast('Phone number is required.', 'error')
+      return
+    }
     if (!isValidPhone(formData.phone)) {
       showToast('Phone number must be 6-20 digits.', 'error')
       return
@@ -993,13 +987,14 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
     try {
       const roleName = formData.roleName?.trim() || undefined
       const roleId = roleName ? undefined : formData.role || null
+      const normalizedPhone = normalizePhone(formData.phone)
+      
       await usersApi.update(selectedUser.id, {
         fullName: formData.fullName,
         email: formData.email,
-        phone: normalizePhone(formData.phone),
-        country: formData.country,
+        phone: normalizedPhone || undefined,
+        country: formData.country || undefined,
         agentType: formData.agentType || undefined,
-        managerId: formData.managerId || null,
         roleId: roleId ?? null,
         roleName: roleName || undefined,
         isActive: formData.isActive
