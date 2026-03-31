@@ -8,7 +8,7 @@ import {
   FaGlobeAsia,
   FaLock
 } from 'react-icons/fa'
-import { authApi, rbacApi } from '../../api'
+import { authApi } from '../../api'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 
@@ -132,15 +132,11 @@ const Login = () => {
         isActive: data.user.isActive
       })
       const isAdmin = String(userRole || '').toLowerCase() === 'admin'
-      await refreshPermissions(data.accessToken)
       if (isAdmin) {
         navigate('/dashboard')
         return
       }
-      const permissionsResponse = await rbacApi
-        .myPermissions()
-        .catch(() => null)
-      const permissions = permissionsResponse?.data?.permissions ?? []
+      const permissions = await refreshPermissions(data.accessToken)
       navigate(resolveLandingRoute(permissions))
     } catch (err) {
       setApiError(
