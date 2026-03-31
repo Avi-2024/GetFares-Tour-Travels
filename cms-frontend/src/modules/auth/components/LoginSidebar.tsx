@@ -1,6 +1,10 @@
 import { Component } from "react";
 
 export class LoginSidebar extends Component {
+  shouldComponentUpdate() {
+    return false;
+  }
+
   render() {
     return (
       <section className="relative hidden flex-col justify-between overflow-hidden bg-[#020617] px-16 py-16 text-white lg:flex xl:px-20 xl:py-20">

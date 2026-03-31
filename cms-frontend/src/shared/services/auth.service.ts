@@ -1,4 +1,4 @@
-class LoginDatasource {
+class AuthService {
   public async login(
     username: string,
     password: string,
@@ -16,4 +16,4 @@ class LoginDatasource {
   public async logout(): Promise<void> {}
 }
 
-export default new LoginDatasource();
+export default new AuthService();

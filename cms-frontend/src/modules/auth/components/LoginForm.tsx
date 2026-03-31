@@ -1,5 +1,5 @@
 import { Component } from "react";
-import type { FormEventHandler } from "react";
+import type { SyntheticEvent } from "react";
 import { Button } from "../../../shared/components/Button";
 
 interface LoginFormProps {
@@ -18,7 +18,7 @@ interface LoginFormProps {
 }
 
 export class LoginForm extends Component<LoginFormProps> {
-  private handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
+  private handleSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     this.props.onSubmit();
   };
@@ -131,7 +131,7 @@ export class LoginForm extends Component<LoginFormProps> {
                     type="email"
                     value={username}
                     onChange={(event) => onUsernameChange(event.target.value)}
-                    placeholder="admin@travel-crm.com"
+                    placeholder="admin@travel-cms.com"
                     disabled={loading}
                     className={`${inputClassName} pl-10 pr-12`}
                   />

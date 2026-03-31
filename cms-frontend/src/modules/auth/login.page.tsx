@@ -2,7 +2,7 @@ import { Component } from "react";
 
 import { LoginForm } from "./components/LoginForm";
 import { LoginSidebar } from "./components/LoginSidebar";
-import loginDatasource from "./login.datasource";
+import loginDatasource from "../../shared/services/auth.service";
 
 interface LoginPageProps {
   theme: "light" | "dark";
@@ -67,8 +67,8 @@ class LoginPage extends Component<LoginPageProps, LoginPageState> {
     return (
       <main className="min-h-screen bg-slate-50 text-slate-900">
         <div className="relative min-h-screen overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.18),_transparent_55%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_rgba(6,182,212,0.14),_transparent_45%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.18),transparent_55%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(6,182,212,0.14),transparent_45%)]" />
 
           <div className="relative z-10 grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
             <LoginSidebar />
