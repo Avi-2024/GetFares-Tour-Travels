@@ -158,7 +158,9 @@ const QuotationsPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const [error, setError] = useState('')
   const [filterError, setFilterError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [isFetchingList, setIsFetchingList] = useState(false)
+  const [isMutating, setIsMutating] = useState(false)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [rejectModalOpen, setRejectModalOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
@@ -206,7 +208,7 @@ const QuotationsPage: React.FC = () => {
         return
       }
 
-      setLoading(true)
+      setIsFetchingList(true)
       try {
         const response = await quotationsApi.list({ includeItems: false })
 
@@ -353,7 +355,8 @@ const QuotationsPage: React.FC = () => {
         // No fallback data on error
         setQuotations([])
       } finally {
-        setLoading(false)
+        setIsFetchingList(false)
+        setHasLoadedOnce(true)
       }
     }
 
@@ -668,7 +671,7 @@ const QuotationsPage: React.FC = () => {
       return
     }
 
-    setLoading(true)
+    setIsMutating(true)
     try {
       await quotationsApi.changeStatus(selectedQuotation.id, {
         status: 'REJECTED',
@@ -690,7 +693,7 @@ const QuotationsPage: React.FC = () => {
       console.error('Failed to reject quotation:', error)
       setError(getApiErrorMessage(error, 'Failed to reject quotation'))
     } finally {
-      setLoading(false)
+      setIsMutating(false)
     }
   }
 
@@ -703,13 +706,13 @@ const QuotationsPage: React.FC = () => {
   }
 
   const handleSendWhatsApp = async (quotation: Quotation) => {
-    setLoading(true)
+    setIsMutating(true)
     try {
       const phone = quotation.phone
 
       if (!phone || phone === 'No phone') {
         setError('Phone number not available for WhatsApp sending')
-        setLoading(false)
+        setIsMutating(false)
         return
       }
 
@@ -739,7 +742,7 @@ const QuotationsPage: React.FC = () => {
         getApiErrorMessage(error, 'Failed to send quotation via WhatsApp')
       )
     } finally {
-      setLoading(false)
+      setIsMutating(false)
     }
   }
 
@@ -792,7 +795,7 @@ const QuotationsPage: React.FC = () => {
   }
 
   return (
-    <div className='min-w-0 space-y-4 sm:space-y-6'>
+    <div className='w-full max-w-full min-w-0 overflow-x-hidden space-y-4 sm:space-y-6'>
       {/* Header */}
       <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
         <div className='min-w-0 flex flex-col gap-1'>
@@ -805,14 +808,6 @@ const QuotationsPage: React.FC = () => {
         </div>
 
         <div className='flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end lg:w-auto lg:self-start'>
-          <button
-            onClick={exportCurrentTable}
-            disabled={!rows.length}
-            className='inline-flex w-full items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 sm:w-auto'
-          >
-            <FaDownload className='mr-2' />
-            <span>Export</span>
-          </button>
           <button
             onClick={() => nav('/quotations/builder')}
             className='inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto'
@@ -926,7 +921,7 @@ const QuotationsPage: React.FC = () => {
               <button
                 type='button'
                 onClick={() => setShowMobileFilters(previous => !previous)}
-                className='lg:hidden inline-flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                className='inline-flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
               >
                 <FaFilter className='mr-2' />
                 {showMobileFilters ? 'Hide Filters' : 'Advanced Filters'}
@@ -937,9 +932,9 @@ const QuotationsPage: React.FC = () => {
           <div
             className={`${
               showMobileFilters ? 'block' : 'hidden'
-            } lg:block space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30`}
+            } space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30`}
           >
-            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5'>
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5'>
               <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   Quote Number
@@ -1008,7 +1003,7 @@ const QuotationsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6'>
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6'>
               <div className='w-full'>
                 <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
                   From Date
@@ -1101,7 +1096,7 @@ const QuotationsPage: React.FC = () => {
                 <button
                   type='button'
                   onClick={() => setShowMobileFilters(false)}
-                  className='lg:hidden rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                  className='rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
                 >
                   <span className='inline-flex items-center gap-2'>
                     <FaXmark />
@@ -1116,25 +1111,37 @@ const QuotationsPage: React.FC = () => {
               >
                 Reset Filters
               </button>
+              <button
+                type='button'
+                onClick={exportCurrentTable}
+                disabled={!rows.length}
+                className='inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+              >
+                <FaDownload className='mr-2' />
+                <span>Export</span>
+              </button>
             </div>
           </div>
         </div>
 
         {/* Quotations List */}
-        {loading ? (
-          <div className='p-8 flex justify-center'>
-            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600'></div>
-          </div>
-        ) : rows.length === 0 ? (
-          <div className='p-8'>
-            <EmptyState
-              title='No quotations found'
-              description='Try different filters or create a new quotation.'
-              icon={<FaFileInvoice className='text-4xl' />}
-            />
-          </div>
-        ) : (
-          <>
+        <div className='relative'>
+          {rows.length === 0 ? (
+            hasLoadedOnce && !isFetchingList ? (
+              <div className='p-8'>
+                <EmptyState
+                  title='No quotations found'
+                  description='Try different filters or create a new quotation.'
+                  icon={<FaFileInvoice className='text-4xl' />}
+                />
+              </div>
+            ) : (
+              <div className='p-8 flex justify-center'>
+                <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600'></div>
+              </div>
+            )
+          ) : (
+            <div className='min-h-[420px] max-h-[62vh] overflow-y-auto'>
             {/* Mobile View - Cards */}
             <div className='block lg:hidden divide-y divide-gray-100 dark:divide-gray-800'>
               {rows.map((q, index) => (
@@ -1207,7 +1214,7 @@ const QuotationsPage: React.FC = () => {
                     {q.status !== 'accepted' && (
                       <button
                         onClick={() => handleEditQuotation(q)}
-                        disabled={loading}
+                        disabled={isMutating}
                         className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50'
                         title='Edit quotation'
                       >
@@ -1216,7 +1223,7 @@ const QuotationsPage: React.FC = () => {
                     )}
                     <button
                       onClick={() => handleSendWhatsApp(q)}
-                      disabled={loading}
+                      disabled={isMutating}
                       className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50'
                       title='Send via WhatsApp'
                     >
@@ -1224,7 +1231,7 @@ const QuotationsPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => rejectQuotation(q)}
-                      disabled={loading}
+                      disabled={isMutating}
                       className='p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50'
                       title='Reject quotation'
                     >
@@ -1237,7 +1244,7 @@ const QuotationsPage: React.FC = () => {
 
             {/* Desktop View - Table */}
             <div className='hidden max-w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 lg:block'>
-              <table className='min-w-[980px] w-full divide-y divide-gray-200 dark:divide-gray-800'>
+              <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
                 <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
                   <tr>
                     <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
@@ -1348,7 +1355,7 @@ const QuotationsPage: React.FC = () => {
                           {q.status !== 'accepted' && (
                             <button
                               onClick={() => handleEditQuotation(q)}
-                              disabled={loading}
+                              disabled={isMutating}
                               className='rounded-lg border border-gray-200 p-2 text-blue-600 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50'
                               title='Edit quotation'
                             >
@@ -1357,7 +1364,7 @@ const QuotationsPage: React.FC = () => {
                           )}
                           <button
                             onClick={() => handleSendWhatsApp(q)}
-                            disabled={loading}
+                            disabled={isMutating}
                             className='rounded-lg border border-gray-200 p-2 text-green-600 dark:border-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50'
                             title='Send via WhatsApp'
                           >
@@ -1365,7 +1372,7 @@ const QuotationsPage: React.FC = () => {
                           </button>
                           <button
                             onClick={() => rejectQuotation(q)}
-                            disabled={loading}
+                            disabled={isMutating}
                             className='rounded-lg border border-gray-200 p-2 text-red-600 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50'
                             title='Reject quotation'
                           >
@@ -1378,8 +1385,11 @@ const QuotationsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            </div>
+          )}
 
-            {/* Pagination */}
+          {/* Pagination */}
+          {rows.length > 0 ? (
             <div className='flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-gray-200 dark:border-gray-800'>
               <p className='text-xs sm:text-sm text-gray-500 dark:text-gray-400 order-2 sm:order-1'>
                 Showing {Math.min(filtered.length, (page - 1) * pageSize + 1)}-
@@ -1406,8 +1416,14 @@ const QuotationsPage: React.FC = () => {
                 </button>
               </div>
             </div>
-          </>
-        )}
+          ) : null}
+
+          {isFetchingList && hasLoadedOnce ? (
+            <div className='absolute inset-0 z-10 flex items-center justify-center bg-white/60 dark:bg-gray-900/60 backdrop-blur-[1px]'>
+              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600'></div>
+            </div>
+          ) : null}
+        </div>
       </SurfaceCard>
       {rejectModalOpen && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4'>
@@ -1449,10 +1465,10 @@ const QuotationsPage: React.FC = () => {
               </button>
               <button
                 onClick={handleRejectSubmit}
-                disabled={loading}
+                disabled={isMutating}
                 className='px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm flex items-center gap-2 disabled:opacity-50'
               >
-                {loading ? (
+                {isMutating ? (
                   <>
                     <span className='animate-spin'>⌛</span>
                     Rejecting...

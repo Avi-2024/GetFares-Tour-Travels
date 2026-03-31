@@ -109,11 +109,8 @@ const formatDurationLabel = (duration: unknown, fallbackNights: number) => {
   return `${nights}N/${nights + 1}D`
 }
 
-const pluralize = (
-  value: number,
-  singular: string,
-  plural = `${singular}s`
-) => `${value} ${value === 1 ? singular : plural}`
+const pluralize = (value: number, singular: string, plural = `${singular}s`) =>
+  `${value} ${value === 1 ? singular : plural}`
 
 const formatDateOnly = (value?: string | null) => {
   if (!value) return 'N/A'
@@ -296,8 +293,7 @@ const QuotationDetailPage: React.FC = () => {
 
   const lead = quotation?.lead ?? quotation?.relations?.lead ?? null
   const snapshot = quotation?.templateSnapshot ?? null
-  const snapshotLead =
-    snapshot?.lead ?? snapshot?.builderSnapshot?.lead ?? null
+  const snapshotLead = snapshot?.lead ?? snapshot?.builderSnapshot?.lead ?? null
   const packageSnapshot =
     snapshot?.package ?? snapshot?.builderSnapshot?.package ?? null
   const destination =
@@ -384,15 +380,23 @@ const QuotationDetailPage: React.FC = () => {
     snapshot?.durationLabel ??
     (formatDurationLabel(
       packageSnapshot?.duration,
-      toNumber(quotation?.durationNights ?? snapshot?.durationNights ?? snapshot?.nights, 0)
+      toNumber(
+        quotation?.durationNights ??
+          snapshot?.durationNights ??
+          snapshot?.nights,
+        0
+      )
     ) ||
-    'N/A')
+      'N/A')
   const displayTravellerSummary = pluralize(
     Math.max(0, toNumber(snapshot?.adults, 0)),
     'adult'
   )
   const displayTravelStartDate =
-    quotation?.travelStartDate ?? snapshot?.travelStartDate ?? lead?.travelDate ?? null
+    quotation?.travelStartDate ??
+    snapshot?.travelStartDate ??
+    lead?.travelDate ??
+    null
   const displayTravelEndDate = snapshot?.travelEndDate ?? null
   const displayValidUntil = snapshot?.validUntil ?? quotation?.expiresAt ?? null
   const itineraryItems = useMemo(() => {
@@ -761,10 +765,12 @@ const QuotationDetailPage: React.FC = () => {
             <div className='mt-3 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 dark:border-amber-700 dark:bg-amber-900/30'>
               <div className='flex-1'>
                 <p className='text-sm font-medium text-amber-800 dark:text-amber-200'>
-                  Margin below template minimum — Department Head approval required before sending.
+                  Margin below template minimum — Department Head approval
+                  required before sending.
                 </p>
                 <p className='mt-0.5 text-xs text-amber-600 dark:text-amber-400'>
-                  Margin: {quotation.marginPercent ?? 0}% (min: {quotation.minMarginPercent ?? 0}%)
+                  Margin: {quotation.marginPercent ?? 0}% (min:{' '}
+                  {quotation.minMarginPercent ?? 0}%)
                 </p>
               </div>
               <button
@@ -774,7 +780,9 @@ const QuotationDetailPage: React.FC = () => {
                     await quotationsApi.approveMargin(id!)
                     await loadDetails()
                   } catch (err) {
-                    setError(getApiErrorMessage(err, 'Failed to approve margin'))
+                    setError(
+                      getApiErrorMessage(err, 'Failed to approve margin')
+                    )
                   } finally {
                     setSavingStatus(false)
                   }
@@ -949,9 +957,7 @@ const QuotationDetailPage: React.FC = () => {
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
                 {displayDuration}
               </p>
-              <p className='text-xs text-gray-500'>
-                {displayTravellerSummary}
-              </p>
+              <p className='text-xs text-gray-500'>{displayTravellerSummary}</p>
               <p className='text-xs text-gray-500'>
                 Travel Date {formatDateOnly(displayTravelStartDate)}
                 {displayTravelEndDate
@@ -1488,4 +1494,3 @@ const QuotationDetailPage: React.FC = () => {
 }
 
 export default QuotationDetailPage
-

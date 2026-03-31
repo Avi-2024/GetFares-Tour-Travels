@@ -1497,13 +1497,6 @@ const RefundsPage = () => {
           ) : null}
         </div>
         <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
-          <button
-            onClick={exportCurrentTable}
-            disabled={!paginatedRows.length}
-            className='inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-green-500 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
-          >
-            <FaDownload /> Export
-          </button>
           <PermissionGate permission='refunds:update'>
             <button
               onClick={() => setShowForm(open => !open)}
@@ -1819,6 +1812,14 @@ const RefundsPage = () => {
                 </span>
               </button>
             ) : null}
+            <button
+              type='button'
+              onClick={exportCurrentTable}
+              disabled={!paginatedRows.length}
+              className='inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-green-500 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
+            >
+              <FaDownload /> Export
+            </button>
             <button
               type='button'
               onClick={handleResetFilters}

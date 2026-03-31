@@ -23,6 +23,7 @@ import {
   toStatusLabelText,
   type SopStatusLabel
 } from '../../utils/leadStatus'
+import { getCurrencyOptions } from '../../utils/currency'
 
 type QualificationForm = {
   panNumber: string
@@ -69,7 +70,7 @@ type LeadQuotationOption = {
   sentAt: string | null
 }
 
-function unwrapApiArray(response: unknown): unknown[] {
+function unwrapApiArray (response: unknown): unknown[] {
   if (!response || typeof response !== 'object') return []
   const data = (response as { data?: unknown }).data
   return Array.isArray(data) ? data : []
@@ -111,8 +112,7 @@ const LeadDetails: React.FC = () => {
   const [loadingSentQuotations, setLoadingSentQuotations] = useState(false)
   const [selectedConversionQuotationId, setSelectedConversionQuotationId] =
     useState('')
-  const [conversionFollowUpMessage, setConversionFollowUpMessage] =
-    useState('')
+  const [conversionFollowUpMessage, setConversionFollowUpMessage] = useState('')
   const [assigneeOptions, setAssigneeOptions] = useState<
     Array<{ value: string; label: string }>
   >([{ value: '', label: 'Select assignee' }])
@@ -227,8 +227,9 @@ const LeadDetails: React.FC = () => {
           id: String(q.id ?? ''),
           quoteNumber: String(q.quoteNumber ?? q.quote_number ?? q.id ?? ''),
           status: String(q.status ?? '').toUpperCase(),
-          tripDestination:
-            (q.tripDestination ?? q.trip_destination ?? null) as string | null,
+          tripDestination: (q.tripDestination ?? q.trip_destination ?? null) as
+            | string
+            | null,
           totalSaleValue: Number(
             q.totalSaleValue ?? q.finalPrice ?? q.total ?? 0
           ),
@@ -247,10 +248,7 @@ const LeadDetails: React.FC = () => {
       const eligible = mapped.filter(
         item =>
           ['SENT', 'VIEWED', 'APPROVED'].includes(item.status) &&
-          !(
-            item.requiresApproval &&
-            ['SENT', 'VIEWED'].includes(item.status)
-          )
+          !(item.requiresApproval && ['SENT', 'VIEWED'].includes(item.status))
       )
       setSelectedConversionQuotationId(prev => {
         if (prev && eligible.some(q => q.id === prev)) return prev
@@ -368,8 +366,9 @@ const LeadDetails: React.FC = () => {
         value: q.id,
         label: `${num} · ${q.status} · ${amountLabel}`,
         selectedLabel: `${num} — ${amountLabel}`,
-        searchText:
-          `${num} ${q.status} ${q.tripDestination ?? ''} ${sentLabel} ${amountLabel} ${q.id}`.trim(),
+        searchText: `${num} ${q.status} ${
+          q.tripDestination ?? ''
+        } ${sentLabel} ${amountLabel} ${q.id}`.trim(),
         leftLabel: num,
         rightLabel: amountLabel,
         rightSubLabel: subParts.join(' · ')
@@ -378,16 +377,7 @@ const LeadDetails: React.FC = () => {
     return [placeholder, ...rows]
   }, [eligibleConversionQuotations, formatDate])
 
-  const currencyOptions = useMemo(
-    () => [
-      { value: 'INR', label: 'INR' },
-      { value: 'USD', label: 'USD' },
-      { value: 'EUR', label: 'EUR' },
-      { value: 'GBP', label: 'GBP' },
-      { value: 'AED', label: 'AED' }
-    ],
-    []
-  )
+  const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
 
   const visaOptions = useMemo(
     () => [
@@ -409,7 +399,8 @@ const LeadDetails: React.FC = () => {
     []
   )
 
-  const isCallsDisabled = lead?.callsDisabled || lead?.calls_disabled || callsButtonDisabled
+  const isCallsDisabled =
+    lead?.callsDisabled || lead?.calls_disabled || callsButtonDisabled
 
   const followupTypeOptions = useMemo(() => {
     const all = [
@@ -618,11 +609,15 @@ const LeadDetails: React.FC = () => {
           unknown
         >[]
         const activeBooking = bookings.find(
-          b => !Boolean(b.isDeleted ?? b.is_deleted ?? false)
+          b => !(b.isDeleted ?? b.is_deleted ?? false)
         )
 
         if (activeBooking?.id) {
-          followUp = `A booking already exists for this quotation (${String(activeBooking.bookingNumber ?? activeBooking.booking_number ?? activeBooking.id)}).`
+          followUp = `A booking already exists for this quotation (${String(
+            activeBooking.bookingNumber ??
+              activeBooking.booking_number ??
+              activeBooking.id
+          )}).`
         } else {
           if (!fullQuote || typeof fullQuote !== 'object') {
             followUp =
@@ -645,15 +640,17 @@ const LeadDetails: React.FC = () => {
                   'data' in createdRes
                     ? (createdRes as { data: Record<string, unknown> }).data
                     : (createdRes as Record<string, unknown> | null)
-                const bn =
-                  (createdRow?.bookingNumber ??
-                    createdRow?.booking_number) as string | undefined
+                const bn = (createdRow?.bookingNumber ??
+                  createdRow?.booking_number) as string | undefined
                 const bid = createdRow?.id as string | undefined
                 followUp = bn
                   ? `Booking ${bn} was created from this quotation.`
                   : bid
-                    ? `Booking was created (reference ${String(bid).slice(0, 8)}…).`
-                    : 'Booking was created from this quotation.'
+                  ? `Booking was created (reference ${String(bid).slice(
+                      0,
+                      8
+                    )}…).`
+                  : 'Booking was created from this quotation.'
               } catch (cErr) {
                 setStatusError(
                   getApiErrorMessage(
@@ -759,7 +756,10 @@ const LeadDetails: React.FC = () => {
     setAssigning(true)
     setStatusError('')
     try {
-      await leadsService.assignLead(id, { assignedTo: selectedAssigneeId, force: true })
+      await leadsService.assignLead(id, {
+        assignedTo: selectedAssigneeId,
+        force: true
+      })
       await loadLead()
       setSelectedAssigneeId('')
     } catch (err) {
@@ -1010,18 +1010,21 @@ const LeadDetails: React.FC = () => {
                       }
                     />
                   </div>
-                  {(lead?.childAges?.length > 0 || lead?.child_ages?.length > 0) ? (
+                  {lead?.childAges?.length > 0 ||
+                  lead?.child_ages?.length > 0 ? (
                     <div className='md:col-span-2'>
                       <label className='field-label'>Child Ages</label>
                       <div className='flex flex-wrap gap-2'>
-                        {(lead.childAges || lead.child_ages || []).map((age: number, idx: number) => (
-                          <span
-                            key={`age-${idx}`}
-                            className='inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                          >
-                            Child {idx + 1}: {age} yrs
-                          </span>
-                        ))}
+                        {(lead.childAges || lead.child_ages || []).map(
+                          (age: number, idx: number) => (
+                            <span
+                              key={`age-${idx}`}
+                              className='inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                            >
+                              Child {idx + 1}: {age} yrs
+                            </span>
+                          )
+                        )}
                       </div>
                     </div>
                   ) : null}
@@ -1141,8 +1144,7 @@ const LeadDetails: React.FC = () => {
                   <p className='mt-2 text-xs text-gray-500'>Loading…</p>
                 ) : sentQuotations.length === 0 ? (
                   <p className='mt-2 text-xs text-amber-700 dark:text-amber-300'>
-                    No sent quotations yet. Send a quotation to this lead
-                    first.
+                    No sent quotations yet. Send a quotation to this lead first.
                   </p>
                 ) : eligibleConversionQuotations.length === 0 ? (
                   <p className='mt-2 text-xs text-amber-700 dark:text-amber-300'>
@@ -1170,7 +1172,9 @@ const LeadDetails: React.FC = () => {
                     />
                     <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
                       {eligibleConversionQuotations.length} quote
-                      {eligibleConversionQuotations.length === 1 ? '' : 's'}{' '}
+                      {eligibleConversionQuotations.length === 1
+                        ? ''
+                        : 's'}{' '}
                       ready · use the search box when there are many.
                     </p>
                     {selectedConversionQuotationId ? (
@@ -1201,8 +1205,7 @@ const LeadDetails: React.FC = () => {
               onClick={() => void updateStatus()}
               disabled={
                 statusSaving ||
-                (selectedStatusLabel === 'CONVERTED' &&
-                  loadingSentQuotations)
+                (selectedStatusLabel === 'CONVERTED' && loadingSentQuotations)
               }
               className='mt-2 inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60'
             >
@@ -1217,7 +1220,8 @@ const LeadDetails: React.FC = () => {
                 Assign Lead
               </p>
               <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                Assignee options are scoped by your role, team, and lead country.
+                Assignee options are scoped by your role, team, and lead
+                country.
               </p>
               <div className='mt-2 grid grid-cols-1 gap-2'>
                 <SearchableDropdown
@@ -1244,13 +1248,21 @@ const LeadDetails: React.FC = () => {
             </p>
             <div className='mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300'>
               <div className='flex items-center justify-between gap-2'>
-                <p className={isCallsDisabled ? 'line-through text-gray-400 dark:text-gray-500' : ''}>
+                <p
+                  className={
+                    isCallsDisabled
+                      ? 'line-through text-gray-400 dark:text-gray-500'
+                      : ''
+                  }
+                >
                   Calls: {compliance.calls} / {REQUIRED_COMPLIANCE.calls}
                 </p>
                 <div className='relative'>
                   {showDisablePopup ? (
                     <div className='pointer-events-none absolute bottom-full right-0 z-10 mb-1 min-w-[180px] rounded-md bg-gray-900 px-3 py-1.5 text-center text-[10px] font-medium whitespace-nowrap text-white shadow-lg dark:bg-gray-800'>
-                      {isCallsDisabled ? 'Calls disabled — WhatsApp only' : 'Calls re-enabled'}
+                      {isCallsDisabled
+                        ? 'Calls disabled — WhatsApp only'
+                        : 'Calls re-enabled'}
                     </div>
                   ) : null}
                   <button
@@ -1266,8 +1278,17 @@ const LeadDetails: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <p className={isCallsDisabled ? 'font-medium text-green-700 dark:text-green-400' : ''}>
-                WhatsApp: {isCallsDisabled ? '∞' : `${compliance.whatsapp} / ${REQUIRED_COMPLIANCE.whatsapp}`}
+              <p
+                className={
+                  isCallsDisabled
+                    ? 'font-medium text-green-700 dark:text-green-400'
+                    : ''
+                }
+              >
+                WhatsApp:{' '}
+                {isCallsDisabled
+                  ? '∞'
+                  : `${compliance.whatsapp} / ${REQUIRED_COMPLIANCE.whatsapp}`}
               </p>
               <p>Final Reminder: {compliance.finalReminders} / 1</p>
               <p
@@ -1371,19 +1392,23 @@ const LeadDetails: React.FC = () => {
                     Run Late Response Check
                   </button>
                   <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
-                    Flags leads where assigned agents have not responded within the SLA deadline.
+                    Flags leads where assigned agents have not responded within
+                    the SLA deadline.
                   </p>
                 </div>
                 <div>
                   <button
                     disabled={opsRunning}
-                    onClick={() => void runAutomation('processCadenceAutomation')}
+                    onClick={() =>
+                      void runAutomation('processCadenceAutomation')
+                    }
                     className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
                   >
                     Run Cadence Automation
                   </button>
                   <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
-                    Triggers the next scheduled follow-up (call / WhatsApp) based on the SOP cadence timeline.
+                    Triggers the next scheduled follow-up (call / WhatsApp)
+                    based on the SOP cadence timeline.
                   </p>
                 </div>
                 <div>
@@ -1395,7 +1420,8 @@ const LeadDetails: React.FC = () => {
                     Run Non-Responsive Check
                   </button>
                   <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
-                    Marks leads as NON_RESPONSIVE if all follow-up attempts (6 calls + 7 WhatsApp + 1 final reminder) are exhausted.
+                    Marks leads as NON_RESPONSIVE if all follow-up attempts (6
+                    calls + 7 WhatsApp + 1 final reminder) are exhausted.
                   </p>
                 </div>
               </div>
