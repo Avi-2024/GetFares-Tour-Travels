@@ -192,7 +192,6 @@ const UserFormModal = ({
   mode,
   user,
   roles,
-  users,
   onClose,
   onSave
 }: {
