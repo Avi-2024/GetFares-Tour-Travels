@@ -2,6 +2,11 @@ import { Component } from "react";
 
 import { LoginForm } from "./components/LoginForm";
 import { LoginSidebar } from "./components/LoginSidebar";
+import loginDatasource from "./login.datasource";
+
+interface LoginPageProps {
+  theme: "light" | "dark";
+}
 
 interface LoginPageState {
   loading: boolean;
@@ -12,7 +17,7 @@ interface LoginPageState {
   error: string;
 }
 
-class LoginPage extends Component<object, LoginPageState> {
+class LoginPage extends Component<LoginPageProps, LoginPageState> {
   state: LoginPageState = {
     loading: false,
     username: "",
@@ -37,43 +42,57 @@ class LoginPage extends Component<object, LoginPageState> {
     }
     this._setState("error", "");
     this._setState("loading", true);
-    // Simulate API call — replace with real auth logic
-    await new Promise((r) => setTimeout(r, 1600));
-    this._setState("loading", false);
-    this._setState("error", "Invalid username or password.");
+
+    try {
+      const result = await loginDatasource.login(username, password);
+      if (result === true) {
+        this._setState("error", "");
+      } else {
+        this._setState("error", result || "Unable to sign in.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to sign in.";
+      this._setState("error", message);
+    } finally {
+      this._setState("loading", false);
+    }
   };
 
   render() {
     const { username, password, showPassword, remember, loading, error } =
       this.state;
+    const { theme } = this.props;
 
     return (
-      <div className="relative min-h-screen overflow-hidden bg-ink-950 text-mist-50">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-brand-500/20 blur-[120px]" />
-          <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-white/5 blur-[120px]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(92,199,255,0.12),_transparent_55%)]" />
-        </div>
+      <main className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="relative min-h-screen overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.18),_transparent_55%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_rgba(6,182,212,0.14),_transparent_45%)]" />
 
-        <div className="relative z-10 flex min-h-screen flex-col lg:flex-row">
-          <LoginSidebar />
-          <LoginForm
-            username={username}
-            password={password}
-            showPassword={showPassword}
-            remember={remember}
-            loading={loading}
-            error={error}
-            onUsernameChange={(value) => this._setState("username", value)}
-            onPasswordChange={(value) => this._setState("password", value)}
-            onTogglePassword={() =>
-              this._setState("showPassword", !showPassword)
-            }
-            onRememberChange={(checked) => this._setState("remember", checked)}
-            onSubmit={this.handleSubmit}
-          />
+          <div className="relative z-10 grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
+            <LoginSidebar />
+            <LoginForm
+              theme={theme}
+              username={username}
+              password={password}
+              showPassword={showPassword}
+              remember={remember}
+              loading={loading}
+              error={error}
+              onUsernameChange={(value) => this._setState("username", value)}
+              onPasswordChange={(value) => this._setState("password", value)}
+              onTogglePassword={() =>
+                this._setState("showPassword", !showPassword)
+              }
+              onRememberChange={(checked) =>
+                this._setState("remember", checked)
+              }
+              onSubmit={this.handleSubmit}
+            />
+          </div>
         </div>
-      </div>
+      </main>
     );
   }
 }
