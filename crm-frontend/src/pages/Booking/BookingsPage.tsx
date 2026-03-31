@@ -181,16 +181,6 @@ const paymentClasses: Record<PaymentStatus, string> = {
     'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
 }
 
-const deadlineRiskClasses: Record<DeadlineRiskLevel, string> = {
-  SAFE: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900',
-  D2_DUE:
-    'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900',
-  DEADLINE_DUE:
-    'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-900',
-  OVERDUE:
-    'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
-}
-
 const toIsoDate = (value?: string | null) => {
   if (!value) return ''
   const parsed = new Date(value)
