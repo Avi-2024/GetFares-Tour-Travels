@@ -101,4 +101,21 @@
     -moz-appearance: textfield;
     appearance: textfield;
   }
+
+  .date-input-dark {
+    color: #111827;
+    color-scheme: light;
+  }
+
+  .date-input-dark::-webkit-datetime-edit,
+  .date-input-dark::-webkit-datetime-edit-text,
+  .date-input-dark::-webkit-datetime-edit-day-field,
+  .date-input-dark::-webkit-datetime-edit-month-field,
+  .date-input-dark::-webkit-datetime-edit-year-field {
+    color: #111827;
+  }
+
+  .date-input-dark::-webkit-calendar-picker-indicator {
+    opacity: 0.95;
+  }
 }

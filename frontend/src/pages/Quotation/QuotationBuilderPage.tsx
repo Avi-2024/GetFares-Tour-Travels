@@ -178,6 +178,12 @@ function toDateInputString (value: unknown): string {
   return parsed.toISOString().slice(0, 10)
 }
 
+function getLocalTodayIsoDate (): string {
+  const now = new Date()
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 10)
+}
+
 function normalizeServiceKey (value: unknown): ServiceKey | null {
   const normalized = toTrimmedString(value).toLowerCase()
   if (!normalized) return null
@@ -383,6 +389,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const [destinationMap, setDestinationMap] = useState<Record<string, string>>(
     {}
   )
+  const todayIsoDate = getLocalTodayIsoDate()
   const [form, setForm] = useState({
     quote: '',
     version: 'Draft',
@@ -390,7 +397,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     customer: '',
     email: '',
     destination: '',
-    startDate: '',
+    startDate: todayIsoDate,
     nights: 1,
     durationDays: '2',
     adults: 1,
@@ -1656,6 +1663,18 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   ])
 
   useEffect(() => {
+    if (isEditMode) return
+    setForm(prev =>
+      prev.startDate === todayIsoDate
+        ? prev
+        : {
+            ...prev,
+            startDate: todayIsoDate
+          }
+    )
+  }, [isEditMode, todayIsoDate])
+
+  useEffect(() => {
     const dayCount = parseDayCount(form.durationDays)
     setItineraryItems(prev => {
       const next = buildItineraryRows(dayCount, prev)
@@ -1903,6 +1922,23 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return value
     return parsed.toLocaleDateString()
+  }
+
+  const validUntilDateValue = useMemo(
+    () => toDateInputString(form.validUntil),
+    [form.validUntil]
+  )
+
+  const updateValidUntilDate = (dateValue: string) => {
+    if (!dateValue) {
+      setForm(prev => ({ ...prev, validUntil: '' }))
+      return
+    }
+    if (dateValue < todayIsoDate) {
+      setForm(prev => ({ ...prev, validUntil: `${todayIsoDate}T23:59` }))
+      return
+    }
+    setForm(prev => ({ ...prev, validUntil: `${dateValue}T23:59` }))
   }
 
   const autofillCustomer = () => {
@@ -2258,6 +2294,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     if (hasPricingErrors) {
       setSaveError('Fix pricing validation errors before saving.')
       return
+    }
+    if (form.validUntil) {
+      const selectedDate = toDateInputString(form.validUntil)
+      if (!selectedDate || selectedDate < todayIsoDate) {
+        setSaveError('Valid Until must be current or future date.')
+        return
+      }
     }
     setSaving(true)
 
@@ -2640,23 +2683,26 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <label className='field-label'>Start Date</label>
                   <input
                     type='date'
-                    className='field-input'
+                    className='field-input date-input-dark'
                     value={form.startDate}
-                    onChange={e =>
-                      setForm(p => ({ ...p, startDate: e.target.value }))
-                    }
+                    max={todayIsoDate}
+                    disabled
+                    readOnly
                   />
                 </div>
                 <div>
                   <label className='field-label'>Valid Until</label>
                   <input
-                    type='datetime-local'
-                    className='field-input'
-                    value={form.validUntil}
-                    onChange={e =>
-                      setForm(p => ({ ...p, validUntil: e.target.value }))
-                    }
+                    type='date'
+                    className='field-input date-input-dark bg-white text-black focus:ring-2 focus:ring-blue-500'
+                    style={{ color: '#111827' }}
+                    min={todayIsoDate}
+                    value={validUntilDateValue}
+                    onChange={e => updateValidUntilDate(e.target.value)}
                   />
+                  <p className='mt-1 text-xs text-gray-500'>
+                    Select current or any future date.
+                  </p>
                 </div>
                 <div>
                   <label className='field-label'>Duration</label>
