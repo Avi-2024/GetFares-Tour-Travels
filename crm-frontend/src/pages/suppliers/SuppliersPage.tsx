@@ -642,117 +642,169 @@ const SuppliersPage: React.FC = () => {
                 </div>
               </div>
               <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
-                <input
-                  value={supplierForm.name}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      name: event.target.value
-                    }))
-                  }
-                  className='field-input md:col-span-2'
-                  placeholder='Supplier name *'
-                />
-                <input
-                  value={supplierForm.contactPerson}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      contactPerson: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Contact person'
-                />
-                <input
-                  value={supplierForm.phone}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      phone: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Phone'
-                />
-                <input
-                  value={supplierForm.email}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      email: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Email'
-                />
-                <input
-                  value={supplierForm.country}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      country: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Country'
-                />
-                <input
-                  value={supplierForm.supplierCurrency}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      supplierCurrency: event.target.value.toUpperCase()
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Currency'
-                />
-                <input
-                  type='date'
-                  value={supplierForm.rateValidUntil}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      rateValidUntil: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                />
-                <input
-                  type='date'
-                  value={supplierForm.paymentDeadlineDate}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      paymentDeadlineDate: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                />
-                <input
-                  value={supplierForm.contractUrl}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      contractUrl: event.target.value
-                    }))
-                  }
-                  className='field-input md:col-span-2'
-                  placeholder='Contract URL'
-                />
-                <textarea
-                  rows={3}
-                  value={supplierForm.productionCommitment}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      productionCommitment: event.target.value
-                    }))
-                  }
-                  className='field-input md:col-span-2'
-                  placeholder='Production commitment'
-                />
+                <div className='md:col-span-2'>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Supplier name <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    value={supplierForm.name}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        name: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Supplier name *'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Contact person
+                  </label>
+                  <input
+                    value={supplierForm.contactPerson}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        contactPerson: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Contact person'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Phone
+                  </label>
+                  <input
+                    value={supplierForm.phone}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        phone: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Phone'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Email
+                  </label>
+                  <input
+                    value={supplierForm.email}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        email: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Email'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Country
+                  </label>
+                  <input
+                    value={supplierForm.country}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        country: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Country'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Currency
+                  </label>
+                  <input
+                    value={supplierForm.supplierCurrency}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        supplierCurrency: event.target.value.toUpperCase()
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Currency'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Rate valid until
+                  </label>
+                  <input
+                    type='date'
+                    value={supplierForm.rateValidUntil}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        rateValidUntil: event.target.value
+                      }))
+                    }
+                    min={new Date().toISOString().split('T')[0]}
+                    className='field-input text-gray-900'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Payment deadline date
+                  </label>
+                  <input
+                    type='date'
+                    value={supplierForm.paymentDeadlineDate}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        paymentDeadlineDate: event.target.value
+                      }))
+                    }
+                    min={new Date().toISOString().split('T')[0]}
+                    className='field-input text-gray-900'
+                  />
+                </div>
+                <div className='md:col-span-2'>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Contract URL
+                  </label>
+                  <input
+                    value={supplierForm.contractUrl}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        contractUrl: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Contract URL'
+                  />
+                </div>
+                <div className='md:col-span-2'>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Production commitment
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={supplierForm.productionCommitment}
+                    onChange={event =>
+                      setSupplierForm(prev => ({
+                        ...prev,
+                        productionCommitment: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Production commitment'
+                  />
+                </div>
               </div>
 
               <div className='mt-3 flex items-center gap-2'>
@@ -806,76 +858,106 @@ const SuppliersPage: React.FC = () => {
               </div>
 
               <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-2'>
-                <input
-                  value={payableForm.bookingId}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      bookingId: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Booking ID (UUID) *'
-                />
-                <input
-                  value={payableForm.paymentReference}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      paymentReference: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Payment reference'
-                />
-                <input
-                  type='number'
-                  min='0'
-                  value={payableForm.payableAmount}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      payableAmount: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Payable amount *'
-                />
-                <input
-                  type='number'
-                  min='0'
-                  value={payableForm.paidAmount}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      paidAmount: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Paid amount'
-                />
-                <input
-                  type='date'
-                  value={payableForm.dueDate}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      dueDate: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                />
-                <SearchableDropdown
-                  value={payableForm.status}
-                  options={payableFormStatusOptions}
-                  onChange={value =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      status: value as PayableForm['status']
-                    }))
-                  }
-                  searchPlaceholder='Search payable status...'
-                />
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Booking ID (UUID) <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    value={payableForm.bookingId}
+                    onChange={event =>
+                      setPayableForm(prev => ({
+                        ...prev,
+                        bookingId: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Booking ID (UUID) *'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Payment reference
+                  </label>
+                  <input
+                    value={payableForm.paymentReference}
+                    onChange={event =>
+                      setPayableForm(prev => ({
+                        ...prev,
+                        paymentReference: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Payment reference'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Payable amount <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='number'
+                    min='0'
+                    value={payableForm.payableAmount}
+                    onChange={event =>
+                      setPayableForm(prev => ({
+                        ...prev,
+                        payableAmount: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Payable amount *'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Paid amount
+                  </label>
+                  <input
+                    type='number'
+                    min='0'
+                    value={payableForm.paidAmount}
+                    onChange={event =>
+                      setPayableForm(prev => ({
+                        ...prev,
+                        paidAmount: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                    placeholder='Paid amount'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Due date
+                  </label>
+                  <input
+                    type='date'
+                    value={payableForm.dueDate}
+                    onChange={event =>
+                      setPayableForm(prev => ({
+                        ...prev,
+                        dueDate: event.target.value
+                      }))
+                    }
+                    className='field-input'
+                  />
+                </div>
+                <div>
+                  <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Status
+                  </label>
+                  <SearchableDropdown
+                    value={payableForm.status}
+                    options={payableFormStatusOptions}
+                    onChange={value =>
+                      setPayableForm(prev => ({
+                        ...prev,
+                        status: value as PayableForm['status']
+                      }))
+                    }
+                    searchPlaceholder='Search payable status...'
+                  />
+                </div>
               </div>
 
               <button

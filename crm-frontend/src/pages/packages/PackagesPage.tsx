@@ -204,8 +204,8 @@ const parseItineraryItems = (itinerary: unknown): ItineraryDayRow[] => {
       typeof objectValue.plain === 'string'
         ? objectValue.plain
         : typeof objectValue.text === 'string'
-          ? objectValue.text
-          : ''
+        ? objectValue.text
+        : ''
     if (plainText) {
       return parsePlainItinerary(plainText)
     }
@@ -224,7 +224,7 @@ const buildItineraryRows = (
   }))
 
 /** Convert stored itinerary (JSONB) to editable plain text for the form. */
-export function itineraryToPlainText(itinerary: unknown): string {
+export function itineraryToPlainText (itinerary: unknown): string {
   if (itinerary == null) return ''
   if (typeof itinerary === 'string') return itinerary
   if (typeof itinerary === 'object' && !Array.isArray(itinerary)) {
@@ -396,7 +396,9 @@ const PackageDetailView: React.FC<{
         )}
         {pkg.paymentTerms && (
           <SurfaceCard className='p-4'>
-            <h3 className='mb-2 font-semibold text-indigo-600'>Payment Terms</h3>
+            <h3 className='mb-2 font-semibold text-indigo-600'>
+              Payment Terms
+            </h3>
             <div className='whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300'>
               {pkg.paymentTerms}
             </div>
@@ -604,7 +606,8 @@ const PackagesPage: React.FC = () => {
       name: selectedPackage.name || '',
       destination: selectedPackage.destination || '',
       durationNights: durationParts.nights,
-      durationDays: derivedDayCount > 0 ? String(derivedDayCount) : durationParts.days,
+      durationDays:
+        derivedDayCount > 0 ? String(derivedDayCount) : durationParts.days,
       baseCost,
       markupPercent,
       startingPrice,
@@ -625,8 +628,7 @@ const PackagesPage: React.FC = () => {
         name: s.name || '',
         description: s.description || '',
         cost: String(s.cost ?? ''),
-        markupPercent:
-          s.markupPercent != null ? String(s.markupPercent) : '',
+        markupPercent: s.markupPercent != null ? String(s.markupPercent) : '',
         sellValue: s.sellValue != null ? String(s.sellValue) : ''
       })),
       isSoldOut: selectedPackage.isSoldOut
@@ -669,7 +671,9 @@ const PackagesPage: React.FC = () => {
       return
     }
     if (pricingValidationMessage) {
-      setError(`${pricingValidationMessage} Increase markup or enter a higher starting price.`)
+      setError(
+        `${pricingValidationMessage} Increase markup or enter a higher starting price.`
+      )
       return
     }
     setSaving(true)
@@ -686,7 +690,9 @@ const PackagesPage: React.FC = () => {
     const customLines =
       form.packageKind === 'CUSTOMIZED'
         ? form.customServices
-            .filter(row => row.name.trim() && toNumberOrUndefined(row.cost) != null)
+            .filter(
+              row => row.name.trim() && toNumberOrUndefined(row.cost) != null
+            )
             .map(row => {
               const cost = toNumberOrUndefined(row.cost) ?? 0
               const markupPercent = toNumberOrUndefined(row.markupPercent)
@@ -995,8 +1001,7 @@ const PackagesPage: React.FC = () => {
                           : 'text-gray-500 dark:text-gray-400'
                       }`}
                     >
-                      {pricingValidationMessage ||
-                        ''}
+                      {pricingValidationMessage || ''}
                     </p>
                   </div>
                 </div>
@@ -1014,8 +1019,8 @@ const PackagesPage: React.FC = () => {
                           prev.customServices.length === 0
                             ? [emptyCustomRow()]
                             : value === 'READY'
-                              ? []
-                              : prev.customServices
+                            ? []
+                            : prev.customServices
                       }))
                     }
                     searchPlaceholder='Package type...'
@@ -1058,6 +1063,7 @@ const PackagesPage: React.FC = () => {
                       type='date'
                       className='field-input'
                       value={form.validFrom}
+                      min={new Date().toISOString().split('T')[0]}
                       onChange={event =>
                         setForm(prev => ({
                           ...prev,
@@ -1072,6 +1078,7 @@ const PackagesPage: React.FC = () => {
                       type='date'
                       className='field-input'
                       value={form.validTo}
+                      min={new Date().toISOString().split('T')[0]}
                       onChange={event =>
                         setForm(prev => ({
                           ...prev,
@@ -1131,7 +1138,9 @@ const PackagesPage: React.FC = () => {
                 <div>
                   <div className='flex flex-col gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3 dark:border-blue-900/40 dark:bg-blue-900/10'>
                     <div>
-                      <label className='field-label mb-0'>Itinerary (day-wise)</label>
+                      <label className='field-label mb-0'>
+                        Itinerary (day-wise)
+                      </label>
                       <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                         Day fields are created automatically from the `Days`
                         duration value.
@@ -1165,10 +1174,11 @@ const PackagesPage: React.FC = () => {
                                   const nextValue = event.target.value
                                   setForm(prev => ({
                                     ...prev,
-                                    itineraryItems: prev.itineraryItems.map((row, rowIndex) =>
-                                      rowIndex === index
-                                        ? { ...row, title: nextValue }
-                                        : row
+                                    itineraryItems: prev.itineraryItems.map(
+                                      (row, rowIndex) =>
+                                        rowIndex === index
+                                          ? { ...row, title: nextValue }
+                                          : row
                                     )
                                   }))
                                 }}
@@ -1183,10 +1193,11 @@ const PackagesPage: React.FC = () => {
                                 const nextValue = event.target.value
                                 setForm(prev => ({
                                   ...prev,
-                                  itineraryItems: prev.itineraryItems.map((row, rowIndex) =>
-                                    rowIndex === index
-                                      ? { ...row, description: nextValue }
-                                      : row
+                                  itineraryItems: prev.itineraryItems.map(
+                                    (row, rowIndex) =>
+                                      rowIndex === index
+                                        ? { ...row, description: nextValue }
+                                        : row
                                   )
                                 }))
                               }}
@@ -1292,8 +1303,8 @@ const PackagesPage: React.FC = () => {
                               const v = e.target.value
                               setForm(prev => ({
                                 ...prev,
-                                customServices: prev.customServices.map((r, i) =>
-                                  i === idx ? { ...r, name: v } : r
+                                customServices: prev.customServices.map(
+                                  (r, i) => (i === idx ? { ...r, name: v } : r)
                                 )
                               }))
                             }}
@@ -1306,8 +1317,9 @@ const PackagesPage: React.FC = () => {
                               const v = e.target.value
                               setForm(prev => ({
                                 ...prev,
-                                customServices: prev.customServices.map((r, i) =>
-                                  i === idx ? { ...r, description: v } : r
+                                customServices: prev.customServices.map(
+                                  (r, i) =>
+                                    i === idx ? { ...r, description: v } : r
                                 )
                               }))
                             }}
@@ -1320,8 +1332,8 @@ const PackagesPage: React.FC = () => {
                               const v = e.target.value
                               setForm(prev => ({
                                 ...prev,
-                                customServices: prev.customServices.map((r, i) =>
-                                  i === idx ? { ...r, cost: v } : r
+                                customServices: prev.customServices.map(
+                                  (r, i) => (i === idx ? { ...r, cost: v } : r)
                                 )
                               }))
                             }}
@@ -1334,8 +1346,9 @@ const PackagesPage: React.FC = () => {
                               const v = e.target.value
                               setForm(prev => ({
                                 ...prev,
-                                customServices: prev.customServices.map((r, i) =>
-                                  i === idx ? { ...r, markupPercent: v } : r
+                                customServices: prev.customServices.map(
+                                  (r, i) =>
+                                    i === idx ? { ...r, markupPercent: v } : r
                                 )
                               }))
                             }}
@@ -1348,8 +1361,9 @@ const PackagesPage: React.FC = () => {
                               const v = e.target.value
                               setForm(prev => ({
                                 ...prev,
-                                customServices: prev.customServices.map((r, i) =>
-                                  i === idx ? { ...r, sellValue: v } : r
+                                customServices: prev.customServices.map(
+                                  (r, i) =>
+                                    i === idx ? { ...r, sellValue: v } : r
                                 )
                               }))
                             }}
@@ -1487,6 +1501,7 @@ const PackagesPage: React.FC = () => {
                   type='date'
                   className='field-input'
                   value={enquiryDraft.travelDate}
+                  min={new Date().toISOString().split('T')[0]}
                   onChange={event =>
                     setEnquiryDraft(prev => ({
                       ...prev,

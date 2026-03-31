@@ -33,6 +33,8 @@ interface Customer {
   lastBookingDate?: string
 }
 
+const CUSTOMER_PHONE_DIGITS = 12
+
 const CustomersPage: React.FC = () => {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -270,9 +272,12 @@ const CustomersPage: React.FC = () => {
 
   const handleEditCustomer = (customer: Customer) => {
     setEditingCustomer(customer)
+    const normalizedPhone = String(customer.phone ?? '')
+      .replace(/\D/g, '')
+      .slice(0, CUSTOMER_PHONE_DIGITS)
     setEditFormData({
       fullName: customer.fullName,
-      phone: customer.phone ?? '',
+      phone: normalizedPhone,
       email: customer.email ?? '',
       preferences: customer.preferences ?? '',
       panNumber: customer.panNumber ?? '',
@@ -299,21 +304,18 @@ const CustomersPage: React.FC = () => {
       addressLine: ''
     }
     let isValid = true
+    const phoneDigits = editFormData.phone.replace(/\D/g, '')
 
     if (!editFormData.fullName.trim()) {
       errors.fullName = 'Full name is required'
       isValid = false
     }
 
-    if (!editFormData.phone.trim()) {
+    if (!phoneDigits) {
       errors.phone = 'Phone number is required'
       isValid = false
-    } else if (
-      !/^[\+]?[1-9][\d]{0,15}$/.test(
-        editFormData.phone.replace(/[\s\-\(\)]/g, '')
-      )
-    ) {
-      errors.phone = 'Please enter a valid phone number'
+    } else if (phoneDigits.length !== CUSTOMER_PHONE_DIGITS) {
+      errors.phone = `Phone number must be exactly ${CUSTOMER_PHONE_DIGITS} digits`
       isValid = false
     }
 
@@ -353,7 +355,7 @@ const CustomersPage: React.FC = () => {
     try {
       await customersApi.update(editingCustomer.id, {
         fullName: editFormData.fullName,
-        phone: editFormData.phone || undefined,
+        phone: editFormData.phone.replace(/\D/g, '') || undefined,
         email: editFormData.email || undefined,
         preferences: editFormData.preferences || undefined,
         panNumber: editFormData.panNumber || undefined,
@@ -556,7 +558,6 @@ const CustomersPage: React.FC = () => {
                 >
                   {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
                 </button>
-
               </div>
 
               {/* Mobile Filter Button */}
@@ -597,7 +598,6 @@ const CustomersPage: React.FC = () => {
                   >
                     {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
                   </button>
-
                 </div>
               )}
             </div>
@@ -901,14 +901,20 @@ const CustomersPage: React.FC = () => {
                           setEditFormData(prev => ({
                             ...prev,
                             phone: e.target.value
+                              .replace(/\D/g, '')
+                              .slice(0, CUSTOMER_PHONE_DIGITS)
                           }))
                         }
+                        minLength={CUSTOMER_PHONE_DIGITS}
+                        maxLength={CUSTOMER_PHONE_DIGITS}
+                        inputMode='numeric'
+                        pattern={`\\d{${CUSTOMER_PHONE_DIGITS}}`}
                         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
                           editFormErrors.phone
                             ? 'border-red-500'
                             : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        placeholder='+1 555 0123'
+                        placeholder='Enter 12-digit phone number'
                       />
                       {editFormErrors.phone && (
                         <p className='mt-1 text-xs text-red-500'>
@@ -1036,11 +1042,11 @@ const CustomersPage: React.FC = () => {
                       <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                         Customer Segment
                       </label>
-	                      <SearchableDropdown
-	                        value={editFormData.segment ?? 'NEW'}
-	                        options={segments.map(segment => ({
-	                          value: segment.value,
-	                          label: segment.label
+                      <SearchableDropdown
+                        value={editFormData.segment ?? 'NEW'}
+                        options={segments.map(segment => ({
+                          value: segment.value,
+                          label: segment.label
                         }))}
                         onChange={value =>
                           setEditFormData(prev => ({

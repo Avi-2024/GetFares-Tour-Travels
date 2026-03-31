@@ -36,7 +36,7 @@ const quickFilters = [
   { key: 'REJECTED', label: 'Rejected' },
   { key: 'PROCESSED', label: 'Processed' }
 ] as const
-type QuickFilter = (typeof quickFilters)[number]['key']
+type QuickFilter = typeof quickFilters[number]['key']
 
 type RefundFilterState = {
   refundId: string
@@ -756,7 +756,9 @@ const RefundsPage = () => {
           rightSubLabel: amountLabel,
           rightSubEmphasis: true,
           selectedLabel: `${customerName} · ${refLabel} · ${amountLabel}`,
-          searchText: `${customerName} ${refLabel} ${amountLabel} ${payment.bookingId || ''}`
+          searchText: `${customerName} ${refLabel} ${amountLabel} ${
+            payment.bookingId || ''
+          }`
         }
       }),
     [payments, bookingById]
@@ -774,8 +776,7 @@ const RefundsPage = () => {
   }, [payments])
 
   const toPaymentTimestamp = (payment: PaymentLookup) => {
-    const raw =
-      payment.paidAt || payment.createdAt || payment.date || ''
+    const raw = payment.paidAt || payment.createdAt || payment.date || ''
     const parsed = Date.parse(raw)
     return Number.isFinite(parsed) ? parsed : 0
   }
@@ -891,13 +892,22 @@ const RefundsPage = () => {
   const filteredRows = useMemo(() => {
     return rows.filter(row => {
       if (!matchesQuickFilter(quickFilter, row)) return false
-      if (appliedFilters.status !== 'ALL' && row.status !== appliedFilters.status)
+      if (
+        appliedFilters.status !== 'ALL' &&
+        row.status !== appliedFilters.status
+      )
         return false
 
       const createdAtIso = toIsoDate(row.createdAt)
-      if (appliedFilters.fromDate && (!createdAtIso || createdAtIso < appliedFilters.fromDate))
+      if (
+        appliedFilters.fromDate &&
+        (!createdAtIso || createdAtIso < appliedFilters.fromDate)
+      )
         return false
-      if (appliedFilters.toDate && (!createdAtIso || createdAtIso > appliedFilters.toDate))
+      if (
+        appliedFilters.toDate &&
+        (!createdAtIso || createdAtIso > appliedFilters.toDate)
+      )
         return false
 
       const bookingDisplay = getBookingDisplay(row.bookingId)
@@ -1036,7 +1046,7 @@ const RefundsPage = () => {
       'Created By'
     ]
 
-    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`
+    const escapeCsv = (value: string) => `"${value.replace(/\"/g, '""')}"`
 
     const dataRows = paginatedRows.map(row => [
       row.id ?? '',
@@ -1125,12 +1135,13 @@ const RefundsPage = () => {
     setLoadingBookings(true)
     setLoadingPayments(true)
     try {
-      const [bookingsRes, paymentsRes, customersRes, leadsRes] = await Promise.all([
-        bookingsApi.list({ page: 1, limit: 300 }),
-        paymentsApi.list({ page: 1, limit: 300 }),
-        customersApi.list({ page: 1, limit: 500 }),
-        leadsApi.list({ page: 1, limit: 500 })
-      ])
+      const [bookingsRes, paymentsRes, customersRes, leadsRes] =
+        await Promise.all([
+          bookingsApi.list({ page: 1, limit: 300 }),
+          paymentsApi.list({ page: 1, limit: 300 }),
+          customersApi.list({ page: 1, limit: 500 }),
+          leadsApi.list({ page: 1, limit: 500 })
+        ])
 
       const bookingsPayload = bookingsRes as any
       const bookingsData =
@@ -1155,10 +1166,7 @@ const RefundsPage = () => {
       )
       const leadsPayload = leadsRes as any
       const leadsData =
-        leadsPayload?.data?.data ||
-        leadsPayload?.data ||
-        leadsPayload ||
-        []
+        leadsPayload?.data?.data || leadsPayload?.data || leadsPayload || []
       const leadsList = Array.isArray(leadsData) ? leadsData : []
       const leadsById = new Map(
         leadsList.map((lead: any) => [
@@ -1197,10 +1205,14 @@ const RefundsPage = () => {
             leadRecord?.fullName ||
             leadRecord?.leadName ||
             (customerRecord?.firstName || customerRecord?.lastName
-              ? `${customerRecord?.firstName ?? ''} ${customerRecord?.lastName ?? ''}`.trim()
+              ? `${customerRecord?.firstName ?? ''} ${
+                  customerRecord?.lastName ?? ''
+                }`.trim()
               : '') ||
             (leadRecord?.firstName || leadRecord?.lastName
-              ? `${leadRecord?.firstName ?? ''} ${leadRecord?.lastName ?? ''}`.trim()
+              ? `${leadRecord?.firstName ?? ''} ${
+                  leadRecord?.lastName ?? ''
+                }`.trim()
               : '') ||
             booking.primaryContactName ||
             booking.contactName ||
@@ -1523,10 +1535,13 @@ const RefundsPage = () => {
                 value={form.bookingId}
                 onChange={value => {
                   const selectedId = String(value || '')
-                  const relatedPayments = paymentsByBookingId.get(selectedId) ?? []
+                  const relatedPayments =
+                    paymentsByBookingId.get(selectedId) ?? []
                   const latestPayment = relatedPayments
                     .slice()
-                    .sort((a, b) => toPaymentTimestamp(b) - toPaymentTimestamp(a))[0]
+                    .sort(
+                      (a, b) => toPaymentTimestamp(b) - toPaymentTimestamp(a)
+                    )[0]
                   setForm(current => ({
                     ...current,
                     bookingId: value,
@@ -1721,7 +1736,10 @@ const RefundsPage = () => {
               <SearchableDropdown
                 value={draftFilters.status}
                 onChange={value =>
-                  updateDraftFilter('status', value as RefundFilterState['status'])
+                  updateDraftFilter(
+                    'status',
+                    value as RefundFilterState['status']
+                  )
                 }
                 options={statusOptions}
                 searchPlaceholder='Search status...'
@@ -1740,6 +1758,7 @@ const RefundsPage = () => {
                 onChange={event =>
                   updateDraftFilter('fromDate', event.target.value)
                 }
+                max={new Date().toISOString().split('T')[0]}
                 className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
               />
             </div>
@@ -1750,7 +1769,10 @@ const RefundsPage = () => {
               <input
                 type='date'
                 value={draftFilters.toDate}
-                onChange={event => updateDraftFilter('toDate', event.target.value)}
+                onChange={event =>
+                  updateDraftFilter('toDate', event.target.value)
+                }
+                max={new Date().toISOString().split('T')[0]}
                 className='w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900'
               />
             </div>
@@ -1791,7 +1813,10 @@ const RefundsPage = () => {
               <SearchableDropdown
                 value={draftFilters.sortBy}
                 onChange={value =>
-                  updateDraftFilter('sortBy', value as RefundFilterState['sortBy'])
+                  updateDraftFilter(
+                    'sortBy',
+                    value as RefundFilterState['sortBy']
+                  )
                 }
                 options={sortOptions}
                 searchPlaceholder='Search sort option...'
