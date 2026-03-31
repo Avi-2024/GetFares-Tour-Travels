@@ -81,6 +81,7 @@ web_modules/
 *.env
 /frontend/.env
 /backend/.env
+/backend/uploads
 .env
 .env.development.local
 .env.test.local
