@@ -1,23 +1,20 @@
-import express from "express";
+import { createLandingModule } from "./landing/index.js";
+import { createDestinationsModule } from "./destinations/index.js";
+import { createCmsPackagesModule } from "./packages/index.js";
+import { createVisaModule } from "./visa/index.js";
 
-function registerModules(app, dependencies, options = {}) {
-  const basePath = options.basePath || "/cms/api";
-  const router = express.Router();
-
-  router.get("/health", (_req, res) => {
-    res.status(200).json({
-      service: dependencies.config?.app?.name || "cms-service",
-      status: "ok",
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  app.use(basePath, router);
+function createCmsModules({ db }) {
+  const landing = createLandingModule({ db });
+  const destinations = createDestinationsModule({ db });
+  const packages = createCmsPackagesModule({ db });
+  const visa = createVisaModule({ db });
 
   return {
-    router,
-    basePath,
+    landing,
+    destinations,
+    packages,
+    visa,
   };
 }
 
-export { registerModules };
+export { createCmsModules };
