@@ -48,6 +48,8 @@ type LeadOption = {
   fullName?: string | null
   email?: string | null
   phone?: string | null
+  clientCurrency?: string | null
+  client_currency?: string | null
   destinationId?: string | null
   destination?: any
   destinationName?: string | null
@@ -467,6 +469,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     () => leads.find(lead => lead.id === selectedLeadId) || null,
     [leads, selectedLeadId]
   )
+
+  const selectedLeadCurrency = useMemo(() => {
+    const normalized = toTrimmedString(
+      selectedLead?.clientCurrency ?? selectedLead?.client_currency
+    ).toUpperCase()
+    return /^[A-Z]{3}$/.test(normalized) ? normalized : ''
+  }, [selectedLead?.clientCurrency, selectedLead?.client_currency])
 
   const resolvedTravelStartDate = useMemo(() => {
     if (form.startDate) return form.startDate
@@ -1667,8 +1676,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         : prev.startDate,
       adults: Number(selectedLead.adultsCount || prev.adults || 1)
     }))
+    if (selectedLeadCurrency) {
+      setCurrency(selectedLeadCurrency)
+    }
   }, [
     selectedLead,
+    selectedLeadCurrency,
     destinationMap,
     form.destination,
     hasLoadedEditSnapshot,
@@ -1940,6 +1953,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           : p.startDate,
         adults: Number(selectedLead.adultsCount || p.adults || 1)
       }))
+      if (selectedLeadCurrency) {
+        setCurrency(selectedLeadCurrency)
+      }
       setSaveError('')
       return
     }

@@ -838,10 +838,10 @@ const QuotationsPage: React.FC = () => {
           },
           {
             t: 'Value',
-            v: `₹${kpis.valueThisMonth.toLocaleString('en-IN', {
+            v: kpis.valueThisMonth.toLocaleString('en-IN', {
               maximumFractionDigits: 0
-            })}`,
-            c: 'This Month'
+            }),
+            c: 'This Month (all currencies)'
           }
         ].map(k => (
           <SurfaceCard key={k.t} hoverable className='p-3 sm:p-5'>

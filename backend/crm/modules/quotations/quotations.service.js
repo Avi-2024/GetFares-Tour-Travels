@@ -226,6 +226,35 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
     return String(value).trim().toUpperCase();
   }
 
+  function resolveDisplayCurrency(quotation, templateSnapshot = null) {
+    const snapshotCurrency =
+      templateSnapshot?.currency ??
+      templateSnapshot?.builderSnapshot?.currency ??
+      templateSnapshot?.pricing?.clientCurrency ??
+      templateSnapshot?.pricing?.costCurrency ??
+      templateSnapshot?.pricing?.supplierCurrency;
+
+    const candidates = [
+      quotation?.clientCurrency,
+      quotation?.costCurrency,
+      quotation?.supplierCurrency,
+      quotation?.currency,
+      snapshotCurrency,
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = normalizeCurrency(candidate, "");
+      if (/^[A-Z]{3}$/.test(normalized)) {
+        return normalized;
+      }
+    }
+    return "INR";
+  }
+
+  function formatAmountWithCurrency(amount, currency) {
+    return `${currency} ${Number(amount || 0).toFixed(2)}`;
+  }
+
   function normalizeResponseCategory(value) {
     if (!value) return null;
     const normalized = String(value).trim().toUpperCase();
@@ -603,6 +632,8 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
     const customerName = lead?.full_name || lead?.fullName || "Customer";
     const subject = `Quotation ${quotation.quoteNumber || quotation.id} from Get2Vacations`;
     const quotationUrl = quotation.pdfUrl || "";
+    const templateSnapshot = quotation.templateSnapshot || quotation.template || null;
+    const displayCurrency = resolveDisplayCurrency(quotation, templateSnapshot);
     
     const text = [
       `Hi ${customerName},`,
@@ -611,7 +642,7 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       quotationUrl ? `Quotation Link: ${quotationUrl}` : "",
       "",
       `Quote Number: ${quotation.quoteNumber || quotation.id}`,
-      `Final Amount: INR ${Number(quotation.finalPrice || 0).toFixed(2)}`,
+      `Final Amount: ${formatAmountWithCurrency(quotation.finalPrice, displayCurrency)}`,
       "",
       "Thanks,",
       "Get2Vacations Team",
@@ -629,7 +660,7 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
             : ""
         }
         <p><strong>Quote Number:</strong> ${quotation.quoteNumber || quotation.id}</p>
-        <p><strong>Final Amount:</strong> INR ${Number(quotation.finalPrice || 0).toFixed(2)}</p>
+        <p><strong>Final Amount:</strong> ${formatAmountWithCurrency(quotation.finalPrice, displayCurrency)}</p>
         <p>Thanks,<br/>Get2Vacations Team</p>
       </div>
     `;
@@ -712,6 +743,7 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       const companyName =
         String(templateSnapshot.headerBranding || "").trim() ||
         "GetFares Travel CRM";
+      const displayCurrency = resolveDisplayCurrency(quotation, templateSnapshot);
 
       doc.fontSize(20).text(companyName, { align: "left" });
       doc.moveDown(0.5);
@@ -761,19 +793,15 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       } else {
         items.forEach((item, index) => {
           doc.text(
-            `${index + 1}. ${item.itemType || "ITEM"} | ${item.description || "-"} | INR ${Number(item.cost || 0).toFixed(2)}`,
+            `${index + 1}. ${item.itemType || "ITEM"} | ${item.description || "-"}`,
           );
         });
       }
       doc.moveDown();
 
-      doc.fontSize(13).text("Pricing Summary", { underline: true });
+      doc.fontSize(13).text("Quotation Amount", { underline: true });
       doc.fontSize(11);
-      doc.text(`Total Cost: INR ${Number(quotation.totalCost || 0).toFixed(2)}`);
-      doc.text(`Margin %: ${Number(quotation.marginPercent || 0).toFixed(2)}`);
-      doc.text(`Markup Amount: INR ${Number(quotation.markupAmount || 0).toFixed(2)}`);
-      doc.text(`Tax: INR ${Number(quotation.taxAmount || quotation.tax || 0).toFixed(2)}`);
-      doc.text(`Final Price: INR ${Number(quotation.finalPrice || 0).toFixed(2)}`);
+      doc.text(`Final Amount: ${formatAmountWithCurrency(quotation.finalPrice, displayCurrency)}`);
       doc.moveDown();
 
       const itineraryItems = Array.isArray(quotation.itinerary)
