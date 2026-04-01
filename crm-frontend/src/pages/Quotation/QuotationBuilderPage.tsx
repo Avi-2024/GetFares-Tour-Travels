@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FaArrowLeft,
   FaArrowRotateRight,
@@ -353,6 +353,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   quotationId = ''
 }) => {
   const navigate = useNavigate()
+  const location = useLocation()
   const editingQuotationId = quotationId
   const isEditMode = mode === 'edit'
   const { token } = useAuth()
@@ -430,10 +431,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     insurance2: true
   })
   const [costs, setCosts] = useState<PricingCosts>({
-    supplierCost: 4200,
-    markupPercent: 12,
-    serviceFee: 120,
-    taxPercent: 5,
+    supplierCost: 0,
+    markupPercent: 0,
+    serviceFee: 0,
+    taxPercent: 0,
     discount: 0
   })
   const [addOnServices, setAddOnServices] = useState<AddOnService[]>([])
@@ -454,15 +455,28 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const previewRef = useRef<HTMLDivElement | null>(null)
   const skipLeadAutofillRef = useRef(false)
 
-  const isEditLocked =
-    isEditMode &&
-    loadedQuotationStatus !== null &&
-    loadedQuotationStatus === 'APPROVED'
+  const preselectedLeadId = useMemo(() => {
+    const value = new URLSearchParams(location.search).get('leadId') || ''
+    return isUuid(value) ? value : ''
+  }, [location.search])
+
+  const quotationReturnPath =
+    !isEditMode && preselectedLeadId ? `/leads/${preselectedLeadId}` : '/quotations'
 
   const selectedLead = useMemo(
     () => leads.find(lead => lead.id === selectedLeadId) || null,
     [leads, selectedLeadId]
   )
+
+  const resolvedTravelStartDate = useMemo(() => {
+    if (form.startDate) return form.startDate
+    return toDateInputString(selectedLead?.travelDate ?? '')
+  }, [form.startDate, selectedLead?.travelDate])
+
+  const isEditLocked =
+    isEditMode &&
+    loadedQuotationStatus !== null &&
+    loadedQuotationStatus === 'APPROVED'
 
   const unwrapTemplateList = (response: unknown): any[] => {
     const payload = (response as { data?: unknown })?.data ?? response
@@ -808,6 +822,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
     void loadLeads()
   }, [leadsService, token])
+
+  useEffect(() => {
+    if (isEditMode || !preselectedLeadId || selectedLeadId) return
+    if (!leads.some(lead => lead.id === preselectedLeadId)) return
+    setSelectedLeadId(preselectedLeadId)
+  }, [isEditMode, leads, preselectedLeadId, selectedLeadId])
 
   const loadTemplates = useCallback(async () => {
     if (!token) {
@@ -2107,7 +2127,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   }
 
   const buildBuilderSnapshot = () => {
-    const travelEndDate = toDateInputValue(form.startDate, form.nights)
+    const travelEndDate = toDateInputValue(resolvedTravelStartDate, form.nights)
 
     return {
       quoteReference: form.quote.trim() || null,
@@ -2129,7 +2149,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       customerName: form.customer.trim() || null,
       customerEmail: form.email.trim() || null,
       destination: form.destination.trim() || null,
-      travelStartDate: form.startDate || null,
+      travelStartDate: resolvedTravelStartDate || null,
       travelEndDate,
       nights: Number(form.nights) || 0,
       durationNights: Number(form.nights) || 0,
@@ -2255,6 +2275,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       setSaveError('Approved quotations cannot be edited.')
       return
     }
+    if (!resolvedTravelStartDate) {
+      setSaveError(
+        'Travel Date is required. Select a lead with travel date or fill Start Date.'
+      )
+      return
+    }
     if (hasPricingErrors) {
       setSaveError('Fix pricing validation errors before saving.')
       return
@@ -2294,7 +2320,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         }
 
         setShowSaved(true)
-        setTimeout(() => navigate('/quotations'), 1200)
+        setTimeout(() => navigate(quotationReturnPath), 1200)
         return
       }
 
@@ -2378,7 +2404,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         })
       }
       setShowSaved(true)
-      setTimeout(() => navigate('/quotations'), 1200)
+      setTimeout(() => navigate(quotationReturnPath), 1200)
     } catch (error) {
       console.error('Failed to save quotation:', error)
       setSaveError(
@@ -2637,7 +2663,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   onChange={v => setForm(p => ({ ...p, quote: v }))}
                 />
                 <div>
-                  <label className='field-label'>Start Date</label>
+                  <label className='field-label'>Start Date *</label>
                   <input
                     type='date'
                     className='field-input'
@@ -2646,6 +2672,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       setForm(p => ({ ...p, startDate: e.target.value }))
                     }
                   />
+                  {!form.startDate && selectedLead?.travelDate ? (
+                    <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                      Using lead travel date: {toDateInputString(selectedLead.travelDate)}
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <label className='field-label'>Valid Until</label>

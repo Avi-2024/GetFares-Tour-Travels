@@ -64,6 +64,14 @@ function createLeadsEvents({ eventBus, logger }) {
       eventBus.emit("leads.followup_overdue", payload);
     },
 
+    emitFollowupDueSoon(payload) {
+      logger.info(
+        { id: payload.id, leadId: payload.leadId },
+        "leads.followup_due_soon",
+      );
+      eventBus.emit("leads.followup_due_soon", payload);
+    },
+
     emitSlaBreached(payload) {
       logger.warn(
         { id: payload.id, leadId: payload.leadId },

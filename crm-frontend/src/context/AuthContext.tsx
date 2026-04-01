@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -26,7 +27,7 @@ type AuthContextValue = {
   loadingPermissions: boolean;
   setAuthState: (token: string, user: AuthUser) => void;
   logout: () => void;
-  refreshPermissions: (customToken?: string) => Promise<void>;
+  refreshPermissions: (customToken?: string) => Promise<string[]>;
   hasPermission: (permission: string) => boolean;
 };
 
@@ -100,6 +101,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return raw ? (JSON.parse(raw) as string[]) : [];
   });
   const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const permissionsRequestRef = useRef<{
+    token: string;
+    promise: Promise<string[]>;
+  } | null>(null);
   const isAdmin = useMemo(
     () => String(user?.role ?? "").toLowerCase() === "admin",
     [user?.role],
@@ -108,33 +113,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshPermissions = useCallback(
     async (customToken?: string) => {
       const activeToken = customToken || token;
-      if (!activeToken) return;
-      if (isAdmin) {
-        const allPermissions = ["*"];
-        setPermissions(allPermissions);
-        localStorage.setItem(
-          STORAGE_PERMISSIONS,
-          JSON.stringify(allPermissions),
-        );
-        return;
+      if (!activeToken) return [];
+
+      if (permissionsRequestRef.current?.token === activeToken) {
+        return permissionsRequestRef.current.promise;
       }
-      setLoadingPermissions(true);
-      try {
-        const response = await rbacApi.myPermissions();
-        const next =
-          (response as { data?: { permissions?: string[] } }).data
-            ?.permissions ??
-          (response as { permissions?: string[] }).permissions ??
-          [];
-        const normalized = next.map(normalizePermissionKey).filter(Boolean);
-        setPermissions(normalized);
-        localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(normalized));
-      } catch {
-        setPermissions([]);
-        localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify([]));
-      } finally {
-        setLoadingPermissions(false);
-      }
+
+      const requestPromise = (async (): Promise<string[]> => {
+        if (isAdmin) {
+          const allPermissions = ["*"];
+          setPermissions(allPermissions);
+          localStorage.setItem(
+            STORAGE_PERMISSIONS,
+            JSON.stringify(allPermissions),
+          );
+          return allPermissions;
+        }
+
+        setLoadingPermissions(true);
+        try {
+          const response = await rbacApi.myPermissions();
+          const next =
+            (response as { data?: { permissions?: string[] } }).data
+              ?.permissions ??
+            (response as { permissions?: string[] }).permissions ??
+            [];
+          const normalized = next.map(normalizePermissionKey).filter(Boolean);
+          setPermissions(normalized);
+          localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify(normalized));
+          return normalized;
+        } catch {
+          setPermissions([]);
+          localStorage.setItem(STORAGE_PERMISSIONS, JSON.stringify([]));
+          return [];
+        } finally {
+          setLoadingPermissions(false);
+        }
+      })().finally(() => {
+        if (permissionsRequestRef.current?.promise === requestPromise) {
+          permissionsRequestRef.current = null;
+        }
+      });
+
+      permissionsRequestRef.current = {
+        token: activeToken,
+        promise: requestPromise,
+      };
+
+      return requestPromise;
     },
     [token, isAdmin],
   );

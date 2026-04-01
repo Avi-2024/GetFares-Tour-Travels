@@ -72,8 +72,11 @@ export type LeadFollowupRecord = {
   followupTypeCode?: number;
   followupDate?: string | null;
   cadenceCode?: string | null;
+  statusSnapshot?: string | null;
   notes?: string | null;
   isCompleted?: boolean;
+  isScheduleOnly?: boolean;
+  countsTowardCompliance?: boolean;
   createdAt?: string | null;
 };
 

@@ -42,6 +42,14 @@ function createAutomationRuntime({ container, modules }) {
     });
   }
 
+  if (typeof leadsService?.processUpcomingFollowupReminders === "function") {
+    jobs.push({
+      name: "lead_followup_reminders",
+      intervalMs: intervals.leadFollowupReminder,
+      run: async () => leadsService.processUpcomingFollowupReminders({}, {}),
+    });
+  }
+
   if (
     typeof leadsService?.processOverdueFollowups === "function" &&
     typeof leadsService?.processCadenceAutomation === "function" &&

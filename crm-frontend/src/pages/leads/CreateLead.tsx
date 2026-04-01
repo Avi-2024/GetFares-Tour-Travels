@@ -675,7 +675,7 @@ const CreateLead: React.FC = () => {
               🏖️
             </div>
             <h3 className='text-xl font-bold text-gray-900 dark:text-gray-100'>
-              Tourist Lead
+              Holiday Lead
             </h3>
             <p className='mt-2 text-sm text-gray-600 dark:text-gray-400'>
               For holiday packages, tours, and leisure travel bookings
@@ -731,7 +731,7 @@ const CreateLead: React.FC = () => {
         </button>
         <div className='flex-1'>
           <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-            Create {leadType === 'HOLIDAY' ? 'Tourist' : 'Visa'} Lead
+            Create {leadType === 'HOLIDAY' ? 'Holiday' : 'Visa'} Lead
           </h1>
           <p className='text-sm text-gray-500'>
             SOP qualification capture for first response. PAN can be collected
@@ -739,7 +739,7 @@ const CreateLead: React.FC = () => {
           </p>
         </div>
         <span className='inline-flex items-center rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'>
-          {leadType === 'HOLIDAY' ? '🏖️ Tourist' : '✈️ Visa'} Lead
+          {leadType === 'HOLIDAY' ? '🏖️ Holiday' : '✈️ Visa'} Lead
         </span>
       </div>
 

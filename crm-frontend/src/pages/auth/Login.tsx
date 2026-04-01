@@ -8,12 +8,38 @@ import {
   FaGlobeAsia,
   FaLock
 } from 'react-icons/fa'
-import { authApi, rbacApi } from '../../api'
+import { authApi } from '../../api'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 
 const DEMO_EMAIL = 'admin@travel-crm.com'
 const DEMO_PASSWORD = 'admin@123'
+const PERMISSION_RESOLVE_TIMEOUT_MS = 2500
+const ENABLE_LOGIN_PERF_LOGS = import.meta.env.DEV
+
+type LoginPerfSummary = {
+  route: string
+  role: string
+  totalMs: number
+  loginApiMs: number
+  permissionWaitMs: number
+  permissionState: 'skipped_admin' | 'resolved' | 'timeout_or_empty'
+}
+
+const getNowMs = () =>
+  typeof performance !== 'undefined' ? performance.now() : Date.now()
+
+const formatMs = (value: number) => Number(value.toFixed(1))
+
+const logLoginPerf = (summary: LoginPerfSummary) => {
+  if (!ENABLE_LOGIN_PERF_LOGS) return
+  console.info('[login-perf]', {
+    ...summary,
+    totalMs: formatMs(summary.totalMs),
+    loginApiMs: formatMs(summary.loginApiMs),
+    permissionWaitMs: formatMs(summary.permissionWaitMs)
+  })
+}
 
 const normalizePermissionKey = (permission: string) =>
   String(permission || '')
@@ -68,7 +94,7 @@ const resolveLandingRoute = (permissions: string[]) => {
       return candidate.to
     }
   }
-  return '/dashboard'
+  return '/profile'
 }
 
 const Login = () => {
@@ -111,13 +137,18 @@ const Login = () => {
 
     setSubmitting(true)
     setApiError('')
+    const signInStartMs = getNowMs()
+    let loginApiMs = 0
+    let permissionWaitMs = 0
 
     try {
+      const loginApiStartMs = getNowMs()
       const { data } = await authApi.login({
         email,
         password,
         rememberMe: true
       })
+      loginApiMs = getNowMs() - loginApiStartMs
       const userName =
         data.user.fullName || data.user.name || email.split('@')[0]
       const userEmail = data.user.email || email
@@ -132,16 +163,67 @@ const Login = () => {
         isActive: data.user.isActive
       })
       const isAdmin = String(userRole || '').toLowerCase() === 'admin'
-      await refreshPermissions(data.accessToken)
       if (isAdmin) {
+        logLoginPerf({
+          route: '/dashboard',
+          role: String(userRole || 'admin'),
+          totalMs: getNowMs() - signInStartMs,
+          loginApiMs,
+          permissionWaitMs: 0,
+          permissionState: 'skipped_admin'
+        })
         navigate('/dashboard')
         return
       }
-      const permissionsResponse = await rbacApi
-        .myPermissions()
-        .catch(() => null)
-      const permissions = permissionsResponse?.data?.permissions ?? []
-      navigate(resolveLandingRoute(permissions))
+      const permissionsPromise = refreshPermissions(data.accessToken)
+      const permissionWaitStartMs = getNowMs()
+      const permissions = await new Promise<string[] | null>(resolve => {
+        const timeoutId = window.setTimeout(
+          () => resolve(null),
+          PERMISSION_RESOLVE_TIMEOUT_MS
+        )
+
+        permissionsPromise.then(nextPermissions => {
+          window.clearTimeout(timeoutId)
+          resolve(nextPermissions)
+        })
+      })
+      permissionWaitMs = getNowMs() - permissionWaitStartMs
+
+      if (permissions && permissions.length > 0) {
+        const route = resolveLandingRoute(permissions)
+        logLoginPerf({
+          route,
+          role: String(userRole || 'user'),
+          totalMs: getNowMs() - signInStartMs,
+          loginApiMs,
+          permissionWaitMs,
+          permissionState: 'resolved'
+        })
+        navigate(route)
+        return
+      }
+
+      logLoginPerf({
+        route: '/profile',
+        role: String(userRole || 'user'),
+        totalMs: getNowMs() - signInStartMs,
+        loginApiMs,
+        permissionWaitMs,
+        permissionState: 'timeout_or_empty'
+      })
+      navigate('/profile')
+      void permissionsPromise.then(nextPermissions => {
+        if (!nextPermissions.length) return
+        const target = resolveLandingRoute(nextPermissions)
+        if (target === '/profile') return
+        if (
+          typeof window !== 'undefined' &&
+          window.location.pathname === '/profile'
+        ) {
+          navigate(target, { replace: true })
+        }
+      })
     } catch (err) {
       setApiError(
         getApiErrorMessage(

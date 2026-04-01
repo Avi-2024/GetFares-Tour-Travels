@@ -1,4 +1,13 @@
-export * from "./apiClient";
+// New clean API structure (recommended)
+export * from './core';
+export * from './endpoints';
+export * from './services';
+export * from './hooks';
+export * from './types';
+
+// Legacy exports (deprecated - will be removed)
+export { apiRequest, createApiError, isApiError, getApiErrorMessage, API_BASE_URL } from "./apiClient";
+export type { ApiError, ApiRequestConfig, ApiClientConfig, ApiClient } from "./apiClient";
 export * from "./auth";
 export * from "./users";
 export * from "./leads";

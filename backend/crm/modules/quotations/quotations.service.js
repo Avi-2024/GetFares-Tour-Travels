@@ -125,7 +125,7 @@ function normalizeItineraryItems(items) {
     );
 }
 
-function extractQuotationContentFields(builderSnapshot = null) {
+  function extractQuotationContentFields(builderSnapshot = null) {
   const builder = isPlainObject(builderSnapshot) ? builderSnapshot : null;
   const content = isPlainObject(builder?.content) ? builder.content : {};
   const lead = isPlainObject(builder?.lead) ? builder.lead : {};
@@ -164,9 +164,27 @@ function extractQuotationContentFields(builderSnapshot = null) {
     hotel_details: normalizeText(content.hotelDetails),
     visa_details: normalizeText(content.visaDetails),
     payment_terms: normalizeText(content.paymentTerms),
-    cancellation_policy: normalizeText(content.cancellationPolicy),
-  };
-}
+      cancellation_policy: normalizeText(content.cancellationPolicy),
+    };
+  }
+
+  function ensureQuotationTravelStartDate(quotationContent = {}, lead = null) {
+    const leadTravelDate = toDateOnly(
+      lead?.travelDate ?? lead?.travel_date ?? null,
+    );
+    const resolvedTravelStartDate =
+      quotationContent?.travel_start_date || leadTravelDate || null;
+
+    if (!resolvedTravelStartDate) {
+      throw new AppError(
+        400,
+        "travelStartDate is required. Add Travel Date on the lead or quotation.",
+        "QUOTATION_TRAVEL_START_DATE_REQUIRED",
+      );
+    }
+
+    return resolvedTravelStartDate;
+  }
 
 function addHours(date, hours) {
   const base = new Date(date);
@@ -998,6 +1016,10 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       ? Math.max(0, Math.round((now.getTime() - leadCreatedTs) / (60 * 1000)))
       : null;
     const quotationContent = extractQuotationContentFields(payload.builderSnapshot);
+    quotationContent.travel_start_date = ensureQuotationTravelStartDate(
+      quotationContent,
+      lead,
+    );
 
     const created = await repository.create({
       parent_quote_id: payload.parentQuoteId || null,
@@ -1134,6 +1156,10 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       current.templateSnapshot?.builderSnapshot ??
       null;
     const quotationContent = extractQuotationContentFields(nextBuilderSnapshot);
+    quotationContent.travel_start_date = ensureQuotationTravelStartDate(
+      quotationContent,
+      current.lead || null,
+    );
 
     const updated = await repository.update(id, {
       pricing_id:

@@ -36,7 +36,7 @@ function createAuthMiddleware({ authService }) {
     }
   }
 
-  function requireAuth(req, res, next) {
+  async function requireAuth(req, res, next) {
     const token = extractToken(req);
     if (!token) {
       return next(
@@ -47,17 +47,13 @@ function createAuthMiddleware({ authService }) {
     try {
       const payload = authService.verifyToken(token);
       
-      // Check if token is blacklisted (async check)
-      authService.isTokenBlacklisted(token).then(isBlacklisted => {
-        if (isBlacklisted) {
-          return next(
-            new AppError(401, "Token has been revoked", "TOKEN_REVOKED"),
-          );
-        }
-      }).catch(err => {
-        // Log error but don't block request if blacklist check fails
-        req.log?.warn({ err }, "Blacklist check failed");
-      });
+      // Check if token is blacklisted
+      const isBlacklisted = await authService.isTokenBlacklisted(token);
+      if (isBlacklisted) {
+        return next(
+          new AppError(401, "Token has been revoked", "TOKEN_REVOKED"),
+        );
+      }
       
       req.context.user = {
         id: payload.sub,
