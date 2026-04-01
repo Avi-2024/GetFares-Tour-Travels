@@ -1,6 +1,6 @@
 import { Component } from "react";
 import type { SyntheticEvent } from "react";
-import { Button } from "../../../shared/components/Button";
+import { Button } from "../../../shared/components/button.component";
 
 interface LoginFormProps {
   username: string;

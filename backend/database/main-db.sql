@@ -30,7 +30,7 @@
 --     is_active
 -- )
 -- VALUES (
---     (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'), 
+--     (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'),
 --     'Super Admin',
 --     'admin@travel-crm.com',
 --     '$2b$10$sobkJsADDL.z5fSKtHmMVOsw28OmXODgHMlJ9G/xIa5VCsXK.H00e',
@@ -650,18 +650,13 @@ CREATE TYPE refund_status AS ENUM (
 
 CREATE TABLE refunds (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
     booking_id UUID NOT NULL REFERENCES bookings(id),
     payment_id UUID REFERENCES payments(id),
-
-    refund_amount NUMERIC(12,2) NOT NULL CHECK (refund_amount > 0),
-
+    refund_amount NUMERIC(12,2) NOT NULL CHECK (refund_amount > 0)
     gateway_refund_id VARCHAR(150),
-
-   supplier_penalty NUMERIC(12,2) DEFAULT 0 CHECK (supplier_penalty >= 0),
-service_charge NUMERIC(12,2) DEFAULT 0 CHECK (service_charge >= 0),
-
-status refund_status DEFAULT 'INITIATED',
+    supplier_penalty NUMERIC(12,2) DEFAULT 0 CHECK (supplier_penalty >= 0),
+    service_charge NUMERIC(12,2) DEFAULT 0 CHECK (service_charge >= 0),
+    status refund_status DEFAULT 'INITIATED',
     approved_by UUID REFERENCES users(id),
     processed_at TIMESTAMP,
 

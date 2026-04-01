@@ -4,7 +4,6 @@ import crypto from "node:crypto";
 import { AppError } from "../../core/errors/index.js";
 import { DEFAULT_ROLE } from "../../core/constants/index.js";
 
-
 function createAuthService({
   repository,
   logger,
@@ -47,7 +46,7 @@ function createAuthService({
   function buildAuthResponse(user) {
     const serializedUser = serializeUser(user);
     const jti = crypto.randomUUID(); // Unique token ID for blacklist
-    
+
     const accessToken = jwt.sign(
       {
         sub: serializedUser.id,
@@ -71,11 +70,11 @@ function createAuthService({
    */
   async function isTokenBlacklisted(token) {
     if (!tokenBlacklistService) return false;
-    
+
     try {
       const decoded = jwt.decode(token);
       if (!decoded?.jti) return false;
-      
+
       return await tokenBlacklistService.isTokenBlacklisted(decoded.jti);
     } catch (error) {
       logger.error({ err: error }, "Failed to check token blacklist");
@@ -102,12 +101,13 @@ function createAuthService({
       const passwordHash = await bcrypt.hash(payload.password, 12);
       const desiredRole =
         payload.role || authConfig.defaultRole || DEFAULT_ROLE;
-      const resolvedRole = rolesService ?
-        await rolesService.resolveRole({
-          role: desiredRole,
-          roleId: payload.roleId,
-        })
-      : null;
+      const resolvedRole =
+        rolesService ?
+          await rolesService.resolveRole({
+            role: desiredRole,
+            roleId: payload.roleId,
+          })
+        : null;
       const user = await repository.createUser({
         fullName: payload.fullName,
         email: payload.email,
@@ -190,7 +190,7 @@ function createAuthService({
       if (!user) {
         throw new AppError(404, "User not found", "AUTH_USER_NOT_FOUND");
       }
-      
+
       // Blacklist the token if service is available
       if (tokenBlacklistService && token) {
         try {
@@ -212,7 +212,7 @@ function createAuthService({
           );
         }
       }
-      
+
       await repository.clearLoginPresence(userId);
       return { success: true };
     },
