@@ -1,33 +1,33 @@
-Finance System ↔ CRM Mapping Requirements 
-Zephyr SGB Global 
-1. Client Onboarding 
-To be captured at the time of lead generation: 
-• PAN 
-• Address 
-• Email ID 
-• Contact Number 
-2. Supplier Onboarding 
-For onboarding a new supplier, the following details are required: 
-• Supplier PAN 
-• GST (if applicable) 
-• Address 
-• Invoice details for payment processing 
-• Supplier Contact Details: 
-o Email ID 
-o Contact Number 
-3. Cost Break-up Details 
-The following cost components must be captured: 
-• Supplier cost (with tax break-up) 
-• Our Markup 
-• Our Service Fee 
-• GST 
-• TCS (if applicable) 
-• Total sale value for the client 
-4. Mode of Payment 
-Capture the payment mode used by the client: 
-• Cash 
-• Bank Transfer 
-• Payment Gateway 
-5. Currency 
-• Currency in which the client is registered 
-• Currency in which the supplier is registered 
+Finance System ↔ CRM Mapping Requirements
+Zephyr SGB Global
+1. Client Onboarding
+To be captured at the time of lead generation:
+• PAN
+• Address
+• Email ID
+• Contact Number
+2. Supplier Onboarding
+For onboarding a new supplier, the following details are required:
+• Supplier PAN
+• GST (if applicable)
+• Address
+• Invoice details for payment processing
+• Supplier Contact Details:
+o Email ID
+o Contact Number
+3. Cost Break-up Details
+The following cost components must be captured:
+• Supplier cost (with tax break-up)
+• Our Markup
+• Our Service Fee
+• GST
+• TCS (if applicable)
+• Total sale value for the client
+4. Mode of Payment
+Capture the payment mode used by the client:
+• Cash
+• Bank Transfer
+• Payment Gateway
+5. Currency
+• Currency in which the client is registered
+• Currency in which the supplier is registered
