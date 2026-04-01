@@ -8,3 +8,8 @@ export * from './payments.api';
 export * from './visa.api';
 export * from './customers.api';
 export * from './notifications.api';
+export * from './campaigns.api';
+export * from './destinations.api';
+export * from './suppliers.api';
+export * from './reports.api';
+export * from './settings.api';

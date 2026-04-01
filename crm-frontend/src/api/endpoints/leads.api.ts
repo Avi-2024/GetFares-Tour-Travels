@@ -28,8 +28,11 @@ export interface UpdateLeadPayload {
   email?: string;
   phone?: string;
   status?: string;
+  subStatus?: string;
+  followupType?: 'CALL' | 'WHATSAPP' | 'EMAIL' | 'FINAL_REMINDER' | 'TASK';
   temperature?: string;
   notes?: string;
+  closedReason?: string;
 }
 
 export const leadsEndpoints = {

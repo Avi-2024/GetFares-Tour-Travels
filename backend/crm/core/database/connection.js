@@ -90,16 +90,18 @@ class InMemoryDatabase {
 
   async insert(tableName, payload) {
     const table = this.getTable(tableName);
-    const now = new Date().toISOString();
-    const createdAt = payload.created_at || payload.createdAt || now;
+    // Use IST timezone for timestamps
+    const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+    const istDate = new Date(now).toISOString();
+    const createdAt = payload.created_at || payload.createdAt || istDate;
 
     const row = {
       ...payload,
       id: payload.id || randomUUID(),
       created_at: createdAt,
       createdAt,
-      updated_at: now,
-      updatedAt: now,
+      updated_at: istDate,
+      updatedAt: istDate,
     };
 
     table.set(row.id, row);
@@ -162,13 +164,15 @@ class InMemoryDatabase {
       return null;
     }
 
-    const now = new Date().toISOString();
+    // Use IST timezone for timestamps
+    const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+    const istDate = new Date(now).toISOString();
     const updated = {
       ...existing,
       ...payload,
       id,
-      updated_at: now,
-      updatedAt: now,
+      updated_at: istDate,
+      updatedAt: istDate,
     };
 
     table.set(id, updated);
@@ -360,6 +364,8 @@ function createDatabaseConnection({ config, logger }) {
       // Query safety timeouts (milliseconds)
       statement_timeout: 60000,
       query_timeout: 60000,
+      // Set timezone to Indian Standard Time (IST)
+      options: '-c timezone=Asia/Kolkata',
     };
 
     // AWS RDS requires SSL connection

@@ -75,6 +75,11 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(900000),
+  AUTOMATION_LEAD_FOLLOWUP_REMINDER_INTERVAL_MS: z
+    .coerce.number()
+    .int()
+    .positive()
+    .default(60000),
   AUTOMATION_LEAD_QUEUE_INTERVAL_MS: z
     .coerce.number()
     .int()

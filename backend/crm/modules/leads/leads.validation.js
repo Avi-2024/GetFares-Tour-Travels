@@ -52,6 +52,9 @@ const basePayload = z.object({
   priorityLevel: z.coerce.number().int().nonnegative().optional(),
   isVip: z.boolean().optional(),
   callsDisabled: z.boolean().optional(),
+  followupType: z
+    .enum(["CALL", "WHATSAPP", "EMAIL", "FINAL_REMINDER", "TASK"])
+    .optional(),
   status: leadStatus.optional(),
   assignedTo: z.string().uuid().optional(),
   qualificationCompleted: z.boolean().optional(),

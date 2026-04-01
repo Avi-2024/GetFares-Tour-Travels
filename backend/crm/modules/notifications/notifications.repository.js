@@ -187,67 +187,91 @@ function createNotificationsRepository({ db, logger, schema }) {
     },
 
     async listForUser(identity, query) {
-      if (canUseRawQuery()) {
-        return listForUserRaw(identity, query);
+      try {
+        if (canUseRawQuery()) {
+          return listForUserRaw(identity, query);
+        }
+
+        const rows = await db.findMany(schema.tableName, {});
+        const filtered = rows
+          .filter((row) => isRecipientMatch(row, identity))
+          .filter((row) => (query.status ? row.status === query.status : true))
+          .sort((left, right) => {
+            const leftDate = new Date(
+              left.created_at || left.createdAt || 0,
+            ).getTime();
+            const rightDate = new Date(
+              right.created_at || right.createdAt || 0,
+            ).getTime();
+            return rightDate - leftDate;
+          });
+
+        return filtered
+          .slice(query.offset, query.offset + query.limit)
+          .map(toNotification);
+      } catch (error) {
+        logger.warn(
+          { err: error, module: "notifications" },
+          "Failed to list notifications, returning empty array",
+        );
+        return [];
       }
-
-      const rows = await db.findMany(schema.tableName, {});
-      const filtered = rows
-        .filter((row) => isRecipientMatch(row, identity))
-        .filter((row) => (query.status ? row.status === query.status : true))
-        .sort((left, right) => {
-          const leftDate = new Date(
-            left.created_at || left.createdAt || 0,
-          ).getTime();
-          const rightDate = new Date(
-            right.created_at || right.createdAt || 0,
-          ).getTime();
-          return rightDate - leftDate;
-        });
-
-      return filtered
-        .slice(query.offset, query.offset + query.limit)
-        .map(toNotification);
     },
 
     async countForUser(identity, query = {}) {
-      if (canUseRawQuery()) {
-        return countForUserRaw(identity, query);
-      }
+      try {
+        if (canUseRawQuery()) {
+          return countForUserRaw(identity, query);
+        }
 
-      const rows = await db.findMany(schema.tableName, {});
-      return rows
-        .filter((row) => isRecipientMatch(row, identity))
-        .filter((row) => (query.status ? row.status === query.status : true))
-        .length;
+        const rows = await db.findMany(schema.tableName, {});
+        return rows
+          .filter((row) => isRecipientMatch(row, identity))
+          .filter((row) => (query.status ? row.status === query.status : true))
+          .length;
+      } catch (error) {
+        logger.warn(
+          { err: error, module: "notifications" },
+          "Failed to count notifications, returning 0",
+        );
+        return 0;
+      }
     },
 
     async countUnreadForUser(identity) {
-      if (canUseRawQuery()) {
-        const sql = `
-          SELECT COUNT(*)::int AS total
-          FROM ${schema.tableName}
-          WHERE status <> $4
-          AND (
-            recipient_user_id = $1
-            OR ($2::text IS NOT NULL AND recipient_role = $2)
-            OR ($3::uuid IS NOT NULL AND recipient_team_id = $3)
-            OR (recipient_user_id IS NULL AND recipient_role IS NULL AND recipient_team_id IS NULL)
-          )
-        `;
-        const result = await db.query(sql, [
-          identity.userId || null,
-          identity.role || null,
-          identity.teamId || null,
-          schema.statuses.READ,
-        ]);
-        return Number(result.rows[0]?.total || 0);
-      }
+      try {
+        if (canUseRawQuery()) {
+          const sql = `
+            SELECT COUNT(*)::int AS total
+            FROM ${schema.tableName}
+            WHERE status <> $4
+            AND (
+              recipient_user_id = $1
+              OR ($2::text IS NOT NULL AND recipient_role = $2)
+              OR ($3::uuid IS NOT NULL AND recipient_team_id = $3)
+              OR (recipient_user_id IS NULL AND recipient_role IS NULL AND recipient_team_id IS NULL)
+            )
+          `;
+          const result = await db.query(sql, [
+            identity.userId || null,
+            identity.role || null,
+            identity.teamId || null,
+            schema.statuses.READ,
+          ]);
+          return Number(result.rows[0]?.total || 0);
+        }
 
-      const rows = await db.findMany(schema.tableName, {});
-      return rows
-        .filter((row) => isRecipientMatch(row, identity))
-        .filter((row) => row.status !== schema.statuses.READ).length;
+        const rows = await db.findMany(schema.tableName, {});
+        return rows
+          .filter((row) => isRecipientMatch(row, identity))
+          .filter((row) => row.status !== schema.statuses.READ).length;
+      } catch (error) {
+        logger.warn(
+          { err: error, module: "notifications" },
+          "Failed to count unread notifications, returning 0",
+        );
+        return 0;
+      }
     },
 
     async markDeliveryAttempt(id, deliveryResult) {

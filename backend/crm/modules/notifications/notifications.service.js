@@ -231,8 +231,11 @@ function createNotificationsService({
 
   function buildDomainRecipients(eventName, payload = {}) {
     const domain = toDomain(eventName);
-    const roles = ROLE_BY_DOMAIN[domain] || ["manager"];
     const userIds = extractUsersFromPayload(payload);
+    const roles =
+      eventName === "leads.followup_due_soon" ?
+        []
+      : (ROLE_BY_DOMAIN[domain] || ["manager"]);
 
     return normalizeRecipients({
       userIds,

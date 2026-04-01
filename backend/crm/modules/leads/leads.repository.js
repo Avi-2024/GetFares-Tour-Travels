@@ -294,8 +294,12 @@ function createLeadsRepository({ db, logger, schema }) {
       followupTypeCode: followupType,
       followupDate: row.followup_date ?? row.followupDate ?? null,
       cadenceCode: row.cadence_code ?? row.cadenceCode ?? null,
+      statusSnapshot: row.status_snapshot ?? row.statusSnapshot ?? null,
       notes: row.notes ?? null,
       isCompleted: row.is_completed ?? row.isCompleted ?? false,
+      isScheduleOnly: row.is_schedule_only ?? row.isScheduleOnly ?? false,
+      countsTowardCompliance:
+        row.counts_toward_compliance ?? row.countsTowardCompliance ?? true,
       createdAt: row.created_at ?? row.createdAt ?? null,
     };
   }
@@ -1856,16 +1860,33 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async createFollowup(payload) {
-      const row = await db.insert(schema.followupsTable, {
+      const sanitized = await sanitizeForTable(schema.followupsTable, {
         lead_id: payload.leadId,
         user_id: payload.userId || null,
         followup_type: normalizeFollowupType(payload.followupType),
         followup_date: payload.followupDate,
         cadence_code: payload.cadenceCode || null,
+        status_snapshot: payload.statusSnapshot || null,
         notes: payload.notes || null,
         is_completed: payload.isCompleted ?? false,
+        is_schedule_only: payload.isScheduleOnly ?? false,
+        counts_toward_compliance: payload.countsTowardCompliance ?? true,
       });
+      const row = await db.insert(schema.followupsTable, sanitized);
 
+      return toFollowupDomain(row);
+    },
+
+    async updateFollowup(id, payload = {}) {
+      if (!id) {
+        return null;
+      }
+      const sanitized = await sanitizeForTable(schema.followupsTable, payload);
+      if (!Object.keys(sanitized).length) {
+        const existing = await db.findById(schema.followupsTable, id);
+        return existing ? toFollowupDomain(existing) : null;
+      }
+      const row = await db.update(schema.followupsTable, id, sanitized);
       return toFollowupDomain(row);
     },
 
@@ -1876,12 +1897,12 @@ function createLeadsRepository({ db, logger, schema }) {
       const rows = await db.findMany(schema.followupsTable, {});
       const overdue = rows
         .filter((row) => {
-          const isCompleted = row.is_completed ?? row.isCompleted ?? false;
-          if (isCompleted) {
+          const followup = toFollowupDomain(row);
+          if (!followup?.isScheduleOnly || followup.isCompleted) {
             return false;
           }
 
-          const due = toDate(row.followup_date ?? row.followupDate);
+          const due = toDate(followup.followupDate);
           return due && due.getTime() <= now;
         })
         .sort((a, b) => {
@@ -1899,6 +1920,72 @@ function createLeadsRepository({ db, logger, schema }) {
     async listFollowupsByLeadId(leadId) {
       const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
       return rows.map((row) => toFollowupDomain(row));
+    },
+
+    async findPendingScheduleOnlyFollowupByLeadId(
+      leadId,
+      { referenceDate = new Date().toISOString() } = {},
+    ) {
+      if (!leadId) {
+        return null;
+      }
+
+      const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
+      const referenceTime = toDate(referenceDate)?.getTime() ?? Date.now();
+      const candidates = rows
+        .map((row) => toFollowupDomain(row))
+        .filter((item) => item?.isScheduleOnly && !item.isCompleted);
+
+      candidates.sort((left, right) => {
+        const leftTime = toDate(left.followupDate)?.getTime() ?? 0;
+        const rightTime = toDate(right.followupDate)?.getTime() ?? 0;
+        const leftBucket = leftTime <= referenceTime ? 0 : 1;
+        const rightBucket = rightTime <= referenceTime ? 0 : 1;
+
+        if (leftBucket !== rightBucket) {
+          return leftBucket - rightBucket;
+        }
+
+        if (leftBucket === 0) {
+          return rightTime - leftTime;
+        }
+
+        return leftTime - rightTime;
+      });
+
+      return candidates[0] || null;
+    },
+
+    async findUpcomingReminderFollowups({
+      limit = 100,
+      lookaheadMs = 2 * 60 * 1000,
+      referenceDate = new Date().toISOString(),
+    } = {}) {
+      const normalizedLimit = toPositiveInt(limit, 100);
+      const referenceTime = toDate(referenceDate)?.getTime() ?? Date.now();
+      const windowEnd = referenceTime + Math.max(0, Number(lookaheadMs) || 0);
+      const rows = await db.findMany(schema.followupsTable, {});
+
+      const dueSoon = rows
+        .map((row) => toFollowupDomain(row))
+        .filter((item) => {
+          if (!item?.isScheduleOnly || item.isCompleted) {
+            return false;
+          }
+          const dueTime = toDate(item.followupDate)?.getTime();
+          if (!Number.isFinite(dueTime)) {
+            return false;
+          }
+          return dueTime > referenceTime && dueTime <= windowEnd;
+        })
+        .sort((left, right) => {
+          const leftTime = toDate(left.followupDate)?.getTime() || 0;
+          const rightTime = toDate(right.followupDate)?.getTime() || 0;
+          return leftTime - rightTime;
+        })
+        .slice(0, normalizedLimit);
+
+      return dueSoon;
     },
 
     async findFollowupAlertLog({ followupId, alertType, alertDate } = {}) {
@@ -1933,7 +2020,9 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async getFollowupComplianceStats(leadId) {
       const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
-      const followups = rows.map((row) => toFollowupDomain(row));
+      const followups = rows
+        .map((row) => toFollowupDomain(row))
+        .filter((item) => !item.isScheduleOnly && item.countsTowardCompliance);
       const stats = {
         total: followups.length,
         calls: 0,

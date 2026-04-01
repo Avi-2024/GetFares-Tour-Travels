@@ -321,10 +321,24 @@ CREATE TABLE followups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     lead_id UUID REFERENCES leads(id),
     user_id UUID REFERENCES users(id),
-followup_type INT CHECK (followup_type BETWEEN 1 AND 4),    followup_date TIMESTAMP,
+    followup_type INT CHECK (followup_type BETWEEN 1 AND 4),
+    followup_date TIMESTAMP,
+    cadence_code VARCHAR(50),
+    status_snapshot VARCHAR(60),
     notes TEXT,
     is_completed BOOLEAN DEFAULT FALSE,
+    is_schedule_only BOOLEAN DEFAULT FALSE,
+    counts_toward_compliance BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE lead_followup_alert_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    followup_id UUID NOT NULL REFERENCES followups(id) ON DELETE CASCADE,
+    alert_type TEXT NOT NULL,
+    alert_date DATE NOT NULL,
+    triggered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE TABLE customer_leads (
@@ -908,8 +922,14 @@ CREATE INDEX idx_leads_pan_number ON leads(pan_number);
 CREATE UNIQUE INDEX idx_leads_meta_lead_id ON leads(meta_lead_id);
 CREATE INDEX idx_followups_lead_id ON followups(lead_id);
 CREATE INDEX idx_followups_due_open ON followups(followup_date, is_completed);
+CREATE INDEX idx_followups_is_schedule_only ON followups(is_schedule_only);
+CREATE INDEX idx_followups_lead_cadence_code ON followups(lead_id, cadence_code);
 CREATE INDEX idx_lead_activities_lead_user_created
   ON lead_activities(lead_id, user_id, created_at);
+CREATE UNIQUE INDEX uq_lead_followup_alert_logs_unique
+  ON lead_followup_alert_logs (followup_id, alert_type, alert_date);
+CREATE INDEX idx_lead_followup_alert_logs_alert_date
+  ON lead_followup_alert_logs (alert_date);
 
 
 -- =============================

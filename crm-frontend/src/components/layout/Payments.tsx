@@ -2553,7 +2553,6 @@ const Payments: React.FC = () => {
         gatewayPaymentId: data.gatewayPaymentId || undefined,
         gatewaySignature: data.gatewaySignature || undefined,
         proofUrl: data.proofUrl || undefined,
-        invoiceAttachment: data.invoiceAttachment || undefined,
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
       });
@@ -2633,13 +2632,7 @@ const Payments: React.FC = () => {
         gatewayOrderId: data.gatewayOrderId || undefined,
         gatewayPaymentId: data.gatewayPaymentId || undefined,
         gatewaySignature: data.gatewaySignature || undefined,
-        proofUrl:
-          data.proofUrl ||
-          data?.proofAttachment?.data ||
-          data?.proofAttachment?.content ||
-          data?.proofAttachment?.base64 ||
-          undefined,
-        invoiceAttachment: data.invoiceAttachment || undefined,
+        proofUrl: data.proofUrl || undefined,
         status: mapTxStatusToApi(data.status),
         paidAt: toIsoDate(data.date) || undefined,
         isVerified: data.status === "completed",

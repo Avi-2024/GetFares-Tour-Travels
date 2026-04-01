@@ -7,6 +7,7 @@ const DOMAIN_EVENT_NAMES = Object.freeze([
   "leads.reassigned",
   "leads.distribution_run",
   "leads.followup_created",
+  "leads.followup_due_soon",
   "leads.followup_overdue",
   "leads.sla_breached",
   "leads.escalated",

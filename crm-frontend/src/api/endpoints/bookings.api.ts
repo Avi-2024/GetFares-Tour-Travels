@@ -18,6 +18,25 @@ export interface CreateBookingPayload {
   travelDate?: string;
 }
 
+const toPaymentMode = (method: string) => {
+  switch (String(method || '').trim().toUpperCase()) {
+    case 'CASH':
+      return 'CASH';
+    case 'CARD':
+      return 'CARD';
+    case 'UPI':
+      return 'UPI';
+    case 'GATEWAY':
+    case 'PAYMENT_GATEWAY':
+      return 'PAYMENT_GATEWAY';
+    case 'CHEQUE':
+    case 'BANK':
+    case 'BANK_TRANSFER':
+    default:
+      return 'BANK_TRANSFER';
+  }
+};
+
 export const bookingsEndpoints = {
   list: (params?: Record<string, any>) =>
     apiClient.get<{ data: Booking[] }>(withQuery('/api/bookings', params)),
@@ -34,8 +53,18 @@ export const bookingsEndpoints = {
   changeStatus: (id: string, status: string, reason?: string) =>
     apiClient.post(`/api/bookings/${id}/status`, { status, reason }),
 
-  recordPayment: (id: string, amount: number, method: string, reference?: string) =>
-    apiClient.post('/api/payments', { bookingId: id, amount, method, reference }),
+  recordPayment: (
+    id: string,
+    amount: number,
+    method: string,
+    reference?: string,
+  ) =>
+    apiClient.post('/api/payments', {
+      bookingId: id,
+      amount,
+      paymentMode: toPaymentMode(method),
+      paymentReference: reference,
+    }),
 
   getPayments: (id: string) =>
     apiClient.get(withQuery('/api/payments', { bookingId: id })),

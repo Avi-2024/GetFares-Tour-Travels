@@ -16,15 +16,18 @@ const POSITIVE_RESPONSE_STATUSES = new Set([
 ]);
 const CLOSED_STATUSES = new Set(["CONVERTED", "LOST", "NON_RESPONSIVE"]);
 const NON_RESPONSIVE_STATUS = "NON_RESPONSIVE";
+const WORKFLOW_COMPLIANCE_STATUSES = new Set([
+  "CONTACTED",
+  "WIP",
+  "QUOTED",
+  "FOLLOW_UP",
+]);
 const FOLLOWUP_COMPLIANCE_RULES = Object.freeze({
-  requiredCalls: 4,
-  requiredWhatsapp: 2,
+  requiredCalls: 6,
+  requiredWhatsapp: 7,
   requiredFinalReminders: 1,
 });
-const FOLLOWUP_TOTAL_REQUIRED =
-  FOLLOWUP_COMPLIANCE_RULES.requiredCalls +
-  FOLLOWUP_COMPLIANCE_RULES.requiredWhatsapp +
-  FOLLOWUP_COMPLIANCE_RULES.requiredFinalReminders;
+const FOLLOWUP_REMINDER_LOOKAHEAD_MS = 2 * 60 * 1000;
 const DOC_STATUS_TO_CANONICAL = Object.freeze({
   NEW: "OPEN",
   OPEN: "OPEN",
@@ -350,8 +353,6 @@ function createLeadsService({ repository, logger, events }) {
       requiredWhatsapp,
       requiredFinalReminders,
       totalRequired,
-      allowUnlimitedWhatsapp: callsDisabled,
-      maxFollowups: callsDisabled ? null : 12,
     };
   }
   function toPositiveInt(value, fallback, max = 500) {
@@ -710,20 +711,131 @@ function createLeadsService({ repository, logger, events }) {
     const followupLabel = formatFollowupDateTime(item.followupDate, preferences);
     const timeSuffix =
       followupLabel ? ` Scheduled time was ${followupLabel}.` : "";
+    const normalizedNote = String(item.notes || "").trim();
+    const noteSuffix =
+      normalizedNote && !normalizedNote.startsWith("AUTO_CADENCE:") ?
+        ` Note: ${normalizedNote}`
+      : "";
 
     if (followupType === "CALL") {
-      return `${leadRef}: call follow-up is due now.${timeSuffix}`;
+      return `${leadRef}: call follow-up is due now.${timeSuffix}${noteSuffix}`;
     }
     if (followupType === "WHATSAPP") {
-      return `${leadRef}: WhatsApp follow-up is due now.${timeSuffix}`;
+      return `${leadRef}: WhatsApp follow-up is due now.${timeSuffix}${noteSuffix}`;
     }
     if (followupType === "EMAIL") {
-      return `${leadRef}: email follow-up is due now.${timeSuffix}`;
+      return `${leadRef}: email follow-up is due now.${timeSuffix}${noteSuffix}`;
     }
     if (followupType === "FINAL_REMINDER") {
-      return `${leadRef}: final reminder is due now.${timeSuffix}`;
+      return `${leadRef}: final reminder is due now.${timeSuffix}${noteSuffix}`;
     }
-    return `${leadRef}: follow-up is due now.${timeSuffix}`;
+    return `${leadRef}: follow-up is due now.${timeSuffix}${noteSuffix}`;
+  }
+
+  function deriveWorkflowFollowupType({
+    requestedFollowupType = null,
+    scheduledFollowup = null,
+    compliance = {},
+    policy = {},
+    subStatus = null,
+  } = {}) {
+    const normalizedRequestedType = String(requestedFollowupType || "")
+      .trim()
+      .toUpperCase();
+    const normalizedSubStatus = String(subStatus || "").trim().toUpperCase();
+    if (normalizedSubStatus === "FINAL_REMINDER") {
+      return "FINAL_REMINDER";
+    }
+
+    if (normalizedRequestedType === "CALL") {
+      return policy.callsDisabled ? "WHATSAPP" : "CALL";
+    }
+
+    if (normalizedRequestedType === "WHATSAPP") {
+      return "WHATSAPP";
+    }
+
+    if (normalizedRequestedType === "FINAL_REMINDER") {
+      return "FINAL_REMINDER";
+    }
+
+    const scheduledType = String(scheduledFollowup?.followupType || "")
+      .trim()
+      .toUpperCase();
+    if (scheduledType) {
+      if (policy.callsDisabled && scheduledType === "CALL") {
+        return "WHATSAPP";
+      }
+      return scheduledType;
+    }
+
+    if (!policy.callsDisabled && (compliance.calls || 0) < (policy.requiredCalls || 0)) {
+      return "CALL";
+    }
+
+    if ((compliance.whatsapp || 0) < (policy.requiredWhatsapp || 0)) {
+      return "WHATSAPP";
+    }
+
+    if ((compliance.finalReminders || 0) < (policy.requiredFinalReminders || 0)) {
+      return "FINAL_REMINDER";
+    }
+
+    return policy.callsDisabled ? "WHATSAPP" : "CALL";
+  }
+
+  function normalizeWorkflowHistoryFollowupType(value, policy = {}) {
+    const normalized = String(value || "").trim().toUpperCase();
+
+    if (normalized === "FINAL_REMINDER") {
+      return "FINAL_REMINDER";
+    }
+
+    if (normalized === "CALL") {
+      return policy.callsDisabled ? "WHATSAPP" : "CALL";
+    }
+
+    if (normalized === "WHATSAPP") {
+      return "WHATSAPP";
+    }
+
+    if (normalized === "EMAIL") {
+      return "EMAIL";
+    }
+
+    return null;
+  }
+
+  function buildFollowupReminderMessage(
+    item = {},
+    lead = {},
+    preferences = DEFAULT_SYSTEM_DATE_TIME_PREFERENCES,
+  ) {
+    const followupType = String(item.followupType || "").trim().toUpperCase();
+    const followupLabel = formatFollowupDateTime(item.followupDate, preferences);
+    const leadLabel =
+      lead.fullName ? `Lead ${lead.fullName}` : item.leadId ? `Lead ${item.leadId}` : "A lead";
+
+    let actionLabel = "follow-up";
+    if (followupType === "CALL") actionLabel = "call";
+    if (followupType === "WHATSAPP") actionLabel = "WhatsApp follow-up";
+    if (followupType === "EMAIL") actionLabel = "email follow-up";
+    if (followupType === "FINAL_REMINDER") actionLabel = "final reminder";
+
+    let message = `${leadLabel}: ${actionLabel} reminder`;
+    if (followupLabel) {
+      message += ` at ${followupLabel}`;
+    }
+    message += ".";
+
+    const note = String(item.notes || "").trim();
+    if (note) {
+      if (!note.startsWith("AUTO_CADENCE:")) {
+        message += `\nNote: ${note}`;
+      }
+    }
+
+    return message;
   }
 
   function toCadenceDate(baseDate, slot) {
@@ -1775,56 +1887,28 @@ function createLeadsService({ repository, logger, events }) {
         );
       }
 
-      const compliance = await repository.getFollowupComplianceStats(lead.id);
-      const nextAttempt = compliance.total + 1;
       let normalizedType = requestedType;
       if (!normalizedType) {
-        if (policy.totalRequired && nextAttempt === policy.totalRequired) {
-          normalizedType = "FINAL_REMINDER";
-        } else {
-          normalizedType = policy.callsDisabled ? "WHATSAPP" : "CALL";
-        }
+        normalizedType = policy.callsDisabled ? "WHATSAPP" : "CALL";
       }
 
       if (policy.callsDisabled && normalizedType === "CALL") {
         normalizedType = "WHATSAPP";
       }
 
-      const allowUnlimitedWhatsapp =
-        policy.allowUnlimitedWhatsapp && normalizedType === "WHATSAPP";
-      if (!allowUnlimitedWhatsapp && isFollowupComplianceSatisfied(compliance, policy)) {
-        throw new AppError(
-          409,
-          "Follow-up compliance already achieved for this lead. Use status update flow.",
-          "LEAD_FOLLOWUP_LIMIT_REACHED",
-        );
-      }
-      if (!allowUnlimitedWhatsapp && policy.maxFollowups && compliance.total >= policy.maxFollowups) {
-        throw new AppError(
-          409,
-          "Maximum follow-up attempts reached for this lead. Use status update flow.",
-          "LEAD_FOLLOWUP_LIMIT_REACHED",
-        );
-      }
-
       const followup = await repository.createFollowup({
         leadId: lead.id,
-        userId: payload.userId || context.user?.id || lead.assignedTo || null,
+        userId: payload.userId || lead.assignedTo || context.user?.id || null,
         followupType: normalizedType,
         followupDate: payload.followupDate,
         cadenceCode: payload.cadenceCode || null,
         notes: payload.notes,
+        isScheduleOnly: true,
+        countsTowardCompliance: false,
       });
 
       const followupDate = new Date(followup.followupDate);
-      const updatePayload = {
-        followup_attempts: nextAttempt,
-        status: "FOLLOW_UP",
-        sub_status:
-          normalizedType === "FINAL_REMINDER" ? "FINAL_REMINDER" : (
-            `FOLLOW_UP_${Math.min(nextAttempt, 4)}`
-          ),
-      };
+      const updatePayload = {};
 
       if (!Number.isNaN(followupDate.getTime())) {
         updatePayload.next_followup_date = followupDate
@@ -1832,23 +1916,10 @@ function createLeadsService({ repository, logger, events }) {
           .slice(0, 10);
       }
 
-      if (
-        normalizedType === "FINAL_REMINDER" ||
-        (policy.totalRequired && nextAttempt === policy.totalRequired)
-      ) {
-        updatePayload.final_reminder_at = new Date().toISOString();
+      if (Object.keys(updatePayload).length) {
+        await repository.update(lead.id, updatePayload);
       }
 
-      await repository.update(lead.id, updatePayload);
-
-      await repository.createActivity({
-        leadId: lead.id,
-        userId: context.user?.id || null,
-        activityType: "FOLLOWUP_SCHEDULED",
-        notes: payload.notes || null,
-      });
-
-      events.emitFollowupCreated(followup);
       return followup;
     },
 
@@ -1881,6 +1952,102 @@ function createLeadsService({ repository, logger, events }) {
     async listFollowups(leadId, context = {}) {
       const lead = await getById(leadId, context);
       return repository.listFollowupsByLeadId(lead.id);
+    },
+
+    async processUpcomingFollowupReminders(payload = {}) {
+      const limit = toPositiveInt(
+        payload.limit,
+        AUTOMATION_DEFAULTS.overdueFollowupLimit,
+      );
+      const lookaheadMs = toPositiveInt(
+        payload.lookaheadMs,
+        FOLLOWUP_REMINDER_LOOKAHEAD_MS,
+        10 * 60 * 1000,
+      );
+      const referenceDate = payload.referenceDate
+        ? new Date(payload.referenceDate)
+        : new Date();
+      if (Number.isNaN(referenceDate.getTime())) {
+        throw new AppError(
+          400,
+          "referenceDate is invalid",
+          "LEAD_INVALID_REFERENCE_DATE",
+        );
+      }
+
+      const dateTimePreferences = await resolveSystemDateTimePreferences();
+      const dueSoon = (
+        await repository.findUpcomingReminderFollowups({
+          limit,
+          lookaheadMs,
+          referenceDate: referenceDate.toISOString(),
+        })
+      ).filter(
+        (item) => String(item.followupType || "").trim().toUpperCase() === "CALL",
+      );
+
+      const summary = {
+        processed: dueSoon.length,
+        triggered: 0,
+        skipped: 0,
+        followups: [],
+      };
+
+      for (const item of dueSoon) {
+        const alertDate = item.followupDate ?
+          toDateOnly(item.followupDate)
+        : toDateOnly(referenceDate);
+        const existing = await repository.findFollowupAlertLog({
+          followupId: item.id,
+          alertType: "FOLLOWUP_REMINDER_2_MIN",
+          alertDate,
+        });
+
+        if (existing) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        const lead = item.leadId ? await repository.findById(item.leadId) : null;
+        const recipientUserId = lead?.assignedTo || item.userId || null;
+        if (!recipientUserId) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        await repository.createFollowupAlertLog({
+          followupId: item.id,
+          alertType: "FOLLOWUP_REMINDER_2_MIN",
+          alertDate,
+          metadata: {
+            leadId: item.leadId,
+            followupType: item.followupType,
+            followupDate: item.followupDate,
+            reminderOffsetMs: lookaheadMs,
+            referenceDate: referenceDate.toISOString(),
+          },
+        });
+
+        events.emitFollowupDueSoon({
+          ...item,
+          assignedTo: recipientUserId,
+          message: buildFollowupReminderMessage(
+            item,
+            lead || {},
+            dateTimePreferences,
+          ),
+          followupLabel: formatFollowupDateTime(
+            item.followupDate,
+            dateTimePreferences,
+          ),
+          referenceDate: referenceDate.toISOString(),
+        });
+
+        summary.triggered += 1;
+        summary.followups.push(item);
+      }
+
+      return summary;
     },
 
     async listOverdueFollowups(filters = {}) {
@@ -1936,6 +2103,16 @@ function createLeadsService({ repository, logger, events }) {
           alertDate,
         });
         if (existing) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        const existingReminder = await repository.findFollowupAlertLog({
+          followupId: item.id,
+          alertType: "FOLLOWUP_REMINDER_2_MIN",
+          alertDate,
+        });
+        if (existingReminder) {
           summary.skipped += 1;
           continue;
         }
@@ -2071,6 +2248,8 @@ function createLeadsService({ repository, logger, events }) {
             cadenceCode: slot.code,
             notes: `AUTO_CADENCE:${slot.code}`,
             isCompleted: false,
+            isScheduleOnly: true,
+            countsTowardCompliance: false,
           });
           existingCodes.add(slot.code);
           summary.scheduled += 1;
@@ -2182,8 +2361,9 @@ function createLeadsService({ repository, logger, events }) {
 
     async update(id, payload, context = {}) {
       const existing = await getById(id, context);
+      const hasExplicitStatus = payload.status !== undefined;
       const nextStatus =
-        payload.status ? normalizeLeadStatus(payload.status) : existing.status;
+        hasExplicitStatus ? normalizeLeadStatus(payload.status) : existing.status;
       payload.status = nextStatus;
 
       if (
@@ -2251,10 +2431,77 @@ function createLeadsService({ repository, logger, events }) {
         useCustomerLinking,
       });
 
+      const shouldCreateWorkflowHistory = hasExplicitStatus;
+      const shouldTrackWorkflowFollowup =
+        shouldCreateWorkflowHistory && WORKFLOW_COMPLIANCE_STATUSES.has(nextStatus);
+      let workflowFollowupType = null;
+      let workflowRecordedAt = null;
+      let scheduledReminder = null;
+      let workflowStatusSnapshot = null;
+      if (shouldCreateWorkflowHistory) {
+        scheduledReminder = await repository.findPendingScheduleOnlyFollowupByLeadId(
+          id,
+          { referenceDate: new Date().toISOString() },
+        );
+        workflowRecordedAt = new Date().toISOString();
+        if (shouldTrackWorkflowFollowup) {
+          const compliance = await repository.getFollowupComplianceStats(id);
+          const nextAttempt = compliance.total + 1;
+          const policy = getFollowupPolicy(existing);
+          workflowFollowupType = deriveWorkflowFollowupType({
+            requestedFollowupType: payload.followupType,
+            scheduledFollowup: scheduledReminder,
+            compliance,
+            policy,
+            subStatus: payload.subStatus,
+          });
+          mapped.followup_attempts = nextAttempt;
+          if (!payload.subStatus && nextStatus === "FOLLOW_UP") {
+            mapped.sub_status =
+              workflowFollowupType === "FINAL_REMINDER" ?
+                "FINAL_REMINDER"
+              : `FOLLOW_UP_${Math.min(nextAttempt, 4)}`;
+          }
+          if (workflowFollowupType === "FINAL_REMINDER") {
+            mapped.final_reminder_at = workflowRecordedAt;
+          }
+        } else {
+          const policy = getFollowupPolicy(existing);
+          workflowFollowupType =
+            normalizeWorkflowHistoryFollowupType(payload.followupType, policy) ||
+            String(scheduledReminder?.followupType || "").trim().toUpperCase() ||
+            "EMAIL";
+        }
+        workflowStatusSnapshot = deriveDocStatus(
+          nextStatus,
+          payload.subStatus ?? mapped.sub_status ?? existing.subStatus,
+        );
+      }
+
       const updated =
         Object.keys(mapped).length ?
           await repository.update(id, mapped)
         : await repository.findById(id);
+
+      if (shouldCreateWorkflowHistory && workflowFollowupType && workflowRecordedAt) {
+        await repository.createFollowup({
+          leadId: id,
+          userId: updated?.assignedTo || existing.assignedTo || context.user?.id || null,
+          followupType: workflowFollowupType,
+          followupDate: workflowRecordedAt,
+          statusSnapshot: workflowStatusSnapshot,
+          notes: payload.notes || null,
+          isCompleted: true,
+          isScheduleOnly: false,
+          countsTowardCompliance: shouldTrackWorkflowFollowup,
+        });
+
+        if (scheduledReminder?.id) {
+          await repository.updateFollowup(scheduledReminder.id, {
+            is_completed: true,
+          });
+        }
+      }
 
       if (payload.notes) {
         await repository.createActivity({

@@ -93,9 +93,14 @@ const LeadDetails: React.FC = () => {
   const [statusSaving, setStatusSaving] = useState(false)
   const [selectedStatusLabel, setSelectedStatusLabel] =
     useState<SopStatusLabel>('NEW')
+  const [workflowFollowupType, setWorkflowFollowupType] = useState<
+    'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
+  >('CALL')
+  const [statusNotes, setStatusNotes] = useState('')
   const [closedReason, setClosedReason] = useState('')
   const [qualification, setQualification] =
     useState<QualificationForm>(emptyQualification)
+  const [childAges, setChildAges] = useState<string[]>([])
   const [followupDraft, setFollowupDraft] = useState({
     followupType: 'CALL',
     followupDate: '',
@@ -106,12 +111,19 @@ const LeadDetails: React.FC = () => {
   const [opsRunning, setOpsRunning] = useState(false)
   const [callsButtonDisabled, setCallsButtonDisabled] = useState(false)
   const [showDisablePopup, setShowDisablePopup] = useState(false)
+  const [leadQuotations, setLeadQuotations] = useState<LeadQuotationOption[]>(
+    []
+  )
   const [sentQuotations, setSentQuotations] = useState<LeadQuotationOption[]>(
     []
   )
   const [loadingSentQuotations, setLoadingSentQuotations] = useState(false)
   const [selectedConversionQuotationId, setSelectedConversionQuotationId] =
     useState('')
+  const [selectedLeadQuotationId, setSelectedLeadQuotationId] = useState('')
+  const [quotationActionError, setQuotationActionError] = useState('')
+  const [quotationActionMessage, setQuotationActionMessage] = useState('')
+  const [quotationActionLoadingKey, setQuotationActionLoadingKey] = useState('')
   const [conversionFollowUpMessage, setConversionFollowUpMessage] = useState('')
   const [assigneeOptions, setAssigneeOptions] = useState<
     Array<{ value: string; label: string }>
@@ -144,7 +156,36 @@ const LeadDetails: React.FC = () => {
     return formatDateTime(dates[0], 'N/A')
   }, [followups, formatDateTime, parseApiDateTime])
 
+  const qualificationChildrenCount = useMemo(() => {
+    const numericValue = Number(qualification.childrenCount || 0)
+    if (!Number.isFinite(numericValue)) return 0
+    return Math.max(0, Math.floor(numericValue))
+  }, [qualification.childrenCount])
+
+  const cleanChildAges = useMemo(
+    () =>
+      childAges
+        .slice(0, qualificationChildrenCount)
+        .map(age => age.trim())
+        .filter(age => age !== '')
+        .map(age => Number(age))
+        .filter(age => Number.isFinite(age) && age >= 0 && age <= 18),
+    [childAges, qualificationChildrenCount]
+  )
+
   const hydrateQualification = useCallback((item: any) => {
+    const rawChildrenCount = Number(
+      item?.childrenCount ?? item?.children_count ?? 0
+    )
+    const nextChildrenCount = Number.isFinite(rawChildrenCount)
+      ? Math.max(0, Math.floor(rawChildrenCount))
+      : 0
+    const rawChildAges = Array.isArray(item?.childAges)
+      ? item.childAges
+      : Array.isArray(item?.child_ages)
+        ? item.child_ages
+        : []
+
     setQualification({
       panNumber: item?.panNumber ?? item?.pan_number ?? '',
       addressLine: item?.addressLine ?? item?.address_line ?? '',
@@ -157,7 +198,7 @@ const LeadDetails: React.FC = () => {
         '',
       travelDate: item?.travelDate?.slice?.(0, 10) || '',
       adultsCount: String(item?.adultsCount ?? 2),
-      childrenCount: String(item?.childrenCount ?? 0),
+      childrenCount: String(nextChildrenCount),
       budget:
         item?.budget !== undefined && item?.budget !== null
           ? String(item.budget)
@@ -171,6 +212,12 @@ const LeadDetails: React.FC = () => {
       preferredHotelCategory: item?.preferredHotelCategory ?? '',
       travelPurpose: item?.travelPurpose ?? ''
     })
+    setChildAges(
+      Array.from({ length: nextChildrenCount }, (_, index) => {
+        const age = rawChildAges[index]
+        return age === undefined || age === null ? '' : String(age)
+      })
+    )
   }, [])
 
   const loadLead = useCallback(async () => {
@@ -212,7 +259,7 @@ const LeadDetails: React.FC = () => {
     }
   }, [id, leadsService])
 
-  const loadSentQuotationsForLead = useCallback(async () => {
+  const loadLeadQuotationsForLead = useCallback(async () => {
     if (!id) return
     setLoadingSentQuotations(true)
     try {
@@ -241,11 +288,16 @@ const LeadDetails: React.FC = () => {
           ),
           sentAt: (q.sentAt ?? q.sent_at ?? null) as string | null
         }))
+      setLeadQuotations(mapped)
+      setSentQuotations(mapped.filter(q => quotationWasSentToLead(q)))
+      setSelectedLeadQuotationId(prev => {
+        if (prev && mapped.some(q => q.id === prev)) return prev
+        return mapped[0]?.id ?? ''
+      })
+
+      const eligible = mapped
         .filter(q => quotationWasSentToLead(q))
-
-      setSentQuotations(mapped)
-
-      const eligible = mapped.filter(
+        .filter(
         item =>
           ['SENT', 'VIEWED', 'APPROVED'].includes(item.status) &&
           !(item.requiresApproval && ['SENT', 'VIEWED'].includes(item.status))
@@ -256,7 +308,9 @@ const LeadDetails: React.FC = () => {
         return ''
       })
     } catch {
+      setLeadQuotations([])
       setSentQuotations([])
+      setSelectedLeadQuotationId('')
     } finally {
       setLoadingSentQuotations(false)
     }
@@ -285,7 +339,8 @@ const LeadDetails: React.FC = () => {
   React.useEffect(() => {
     void loadLead()
     void loadFollowups()
-  }, [loadFollowups, loadLead])
+    void loadLeadQuotationsForLead()
+  }, [loadFollowups, loadLead, loadLeadQuotationsForLead])
 
   React.useEffect(() => {
     setConversionFollowUpMessage('')
@@ -293,28 +348,33 @@ const LeadDetails: React.FC = () => {
       setSelectedConversionQuotationId('')
       return
     }
-    void loadSentQuotationsForLead()
-  }, [selectedStatusLabel, loadSentQuotationsForLead])
+    void loadLeadQuotationsForLead()
+  }, [selectedStatusLabel, loadLeadQuotationsForLead])
 
   React.useEffect(() => {
     void loadAssigneeOptions()
   }, [loadAssigneeOptions])
 
+  const visibleHistoryFollowups = useMemo(
+    () => followups.filter(item => !item?.isScheduleOnly),
+    [followups]
+  )
+
   const compliance = useMemo(() => {
     const summary = {
-      total: followups.length,
+      total: visibleHistoryFollowups.length,
       calls: 0,
       whatsapp: 0,
       finalReminders: 0
     }
-    followups.forEach(item => {
+    visibleHistoryFollowups.forEach(item => {
       const type = String(item?.followupType || '').toUpperCase()
       if (type === 'CALL') summary.calls += 1
       if (type === 'WHATSAPP') summary.whatsapp += 1
       if (type === 'FINAL_REMINDER') summary.finalReminders += 1
     })
     return summary
-  }, [followups])
+  }, [visibleHistoryFollowups])
 
   const statusOptions = useMemo(
     () =>
@@ -377,6 +437,46 @@ const LeadDetails: React.FC = () => {
     return [placeholder, ...rows]
   }, [eligibleConversionQuotations, formatDate])
 
+  const selectedLeadQuotation = useMemo(
+    () => leadQuotations.find(item => item.id === selectedLeadQuotationId) ?? null,
+    [leadQuotations, selectedLeadQuotationId]
+  )
+
+  const leadQuotationDropdownOptions = useMemo(() => {
+    const placeholder = {
+      value: '',
+      label: 'Select quotation',
+      searchText: 'select quotation quote search draft sent viewed approved'
+    }
+
+    const rows = leadQuotations.map(q => {
+      const sentLabel = q.sentAt ? formatDate(q.sentAt, '') : 'Not sent'
+      const amountLabel =
+        q.totalSaleValue > 0
+          ? new Intl.NumberFormat(undefined, {
+              style: 'currency',
+              currency: /^[A-Z]{3}$/.test(q.clientCurrency)
+                ? q.clientCurrency
+                : 'INR',
+              maximumFractionDigits: 0
+            }).format(q.totalSaleValue)
+          : '—'
+
+      const num = q.quoteNumber || q.id.slice(0, 8)
+      return {
+        value: q.id,
+        label: `${num} · ${q.status} · ${amountLabel}`,
+        selectedLabel: `${num} — ${q.status}`,
+        searchText: `${num} ${q.status} ${q.tripDestination ?? ''} ${sentLabel} ${amountLabel}`.trim(),
+        leftLabel: num,
+        rightLabel: q.status,
+        rightSubLabel: sentLabel
+      }
+    })
+
+    return [placeholder, ...rows]
+  }, [leadQuotations, formatDate])
+
   const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
 
   const visaOptions = useMemo(
@@ -415,6 +515,47 @@ const LeadDetails: React.FC = () => {
     return all
   }, [isCallsDisabled])
 
+  const workflowFollowupTypeOptions = useMemo(() => {
+    if (selectedStatusLabel === 'FINAL_REMINDER') {
+      return [{ value: 'FINAL_REMINDER', label: 'Final Reminder' }]
+    }
+
+    const options = [
+      { value: 'CALL', label: 'Call' },
+      { value: 'WHATSAPP', label: 'WhatsApp' }
+    ]
+
+    if (isCallsDisabled) {
+      return options.filter(option => option.value !== 'CALL')
+    }
+
+    return options
+  }, [isCallsDisabled, selectedStatusLabel])
+
+  const selectedWorkflowFollowupType =
+    selectedStatusLabel === 'FINAL_REMINDER'
+      ? 'FINAL_REMINDER'
+      : workflowFollowupType
+
+  React.useEffect(() => {
+    if (selectedStatusLabel === 'FINAL_REMINDER') {
+      setWorkflowFollowupType('FINAL_REMINDER')
+      return
+    }
+
+    setWorkflowFollowupType(current => {
+      if (current === 'FINAL_REMINDER') {
+        return isCallsDisabled ? 'WHATSAPP' : 'CALL'
+      }
+
+      if (isCallsDisabled && current === 'CALL') {
+        return 'WHATSAPP'
+      }
+
+      return current
+    })
+  }, [isCallsDisabled, selectedStatusLabel])
+
   const qualificationMissing = useMemo(() => {
     const missing: string[] = []
     if (!qualification.clientCurrency.trim()) missing.push('clientCurrency')
@@ -437,8 +578,24 @@ const LeadDetails: React.FC = () => {
     ) {
       missing.push('paxSplit')
     }
+
+    if (
+      children > 0 &&
+      (childAges.length !== children ||
+        childAges.some(age => {
+          const numericAge = Number(age)
+          return (
+            age.trim() === '' ||
+            !Number.isFinite(numericAge) ||
+            numericAge < 0 ||
+            numericAge > 18
+          )
+        }))
+    ) {
+      missing.push('childAges')
+    }
     return missing
-  }, [qualification])
+  }, [childAges, qualification])
 
   const isComplianceComplete =
     (isCallsDisabled || compliance.calls >= REQUIRED_COMPLIANCE.calls) &&
@@ -464,6 +621,7 @@ const LeadDetails: React.FC = () => {
         travelDate: qualification.travelDate,
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
+        childAges: cleanChildAges,
         budget: Number(qualification.budget),
         visaRequired: qualification.visaRequired === 'YES',
         preferredHotelCategory: qualification.preferredHotelCategory,
@@ -541,7 +699,12 @@ const LeadDetails: React.FC = () => {
       await leadsService.updateLead(id, {
         status: conversion.canonical,
         subStatus: conversion.subStatus,
-        closedReason: closedReason.trim() || undefined,
+        followupType: selectedWorkflowFollowupType,
+        notes: statusNotes.trim() || undefined,
+        closedReason:
+          conversion.canonical === 'LOST' || conversion.canonical === 'NON_RESPONSIVE'
+            ? closedReason.trim() || undefined
+            : undefined,
         panNumber: qualification.panNumber.trim() || undefined,
         addressLine: qualification.addressLine.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
@@ -549,6 +712,7 @@ const LeadDetails: React.FC = () => {
         travelDate: qualification.travelDate,
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
+        childAges: cleanChildAges,
         budget: Number(qualification.budget),
         visaRequired: qualification.visaRequired === 'YES',
         preferredHotelCategory: qualification.preferredHotelCategory,
@@ -595,7 +759,7 @@ const LeadDetails: React.FC = () => {
               )
             )
             await loadLead()
-            await loadSentQuotationsForLead()
+            await loadLeadQuotationsForLead()
             return
           }
         }
@@ -659,7 +823,7 @@ const LeadDetails: React.FC = () => {
                   )
                 )
                 await loadLead()
-                await loadSentQuotationsForLead()
+                await loadLeadQuotationsForLead()
                 return
               }
             }
@@ -671,8 +835,11 @@ const LeadDetails: React.FC = () => {
 
       await loadLead()
       if (conversion.canonical === 'CONVERTED') {
-        await loadSentQuotationsForLead()
+        await loadLeadQuotationsForLead()
       }
+      await loadFollowups()
+      setStatusNotes('')
+      setClosedReason('')
     } catch (err) {
       setStatusError(getApiErrorMessage(err, 'Could not update lead status.'))
     } finally {
@@ -737,6 +904,59 @@ const LeadDetails: React.FC = () => {
 
   const canRunOps = hasPermission('leads:update')
   const canAssignLead = hasPermission('leads:update')
+  const canReadQuotations = hasPermission('quotations:read')
+  const canCreateQuotation = hasPermission('quotations:create')
+  const canUpdateQuotation = hasPermission('quotations:update')
+
+  const sendQuotationFromLead = async (channel: 'EMAIL' | 'WHATSAPP') => {
+    if (!selectedLeadQuotation) {
+      setQuotationActionMessage('')
+      setQuotationActionError('Select a quotation first.')
+      return
+    }
+
+    const recipientEmail = String(lead?.email ?? '').trim()
+    const recipientPhone = String(lead?.phone ?? '').trim()
+
+    if (channel === 'EMAIL' && !recipientEmail) {
+      setQuotationActionMessage('')
+      setQuotationActionError('Lead email is missing. Cannot send quotation by email.')
+      return
+    }
+
+    if (channel === 'WHATSAPP' && !recipientPhone) {
+      setQuotationActionMessage('')
+      setQuotationActionError('Lead phone is missing. Cannot send quotation by WhatsApp.')
+      return
+    }
+
+    setQuotationActionLoadingKey(`${selectedLeadQuotation.id}:${channel}`)
+    setQuotationActionError('')
+    setQuotationActionMessage('')
+
+    try {
+      await quotationsApi.send(selectedLeadQuotation.id, {
+        channel,
+        ...(channel === 'EMAIL'
+          ? { recipientEmail }
+          : { recipientPhone })
+      })
+
+      setQuotationActionMessage(
+        `Quotation ${selectedLeadQuotation.quoteNumber || selectedLeadQuotation.id} sent via ${
+          channel === 'EMAIL' ? 'email' : 'WhatsApp'
+        }.`
+      )
+      await loadLead()
+      await loadLeadQuotationsForLead()
+    } catch (error) {
+      setQuotationActionError(
+        getApiErrorMessage(error, 'Failed to send quotation.')
+      )
+    } finally {
+      setQuotationActionLoadingKey('')
+    }
+  }
 
   const handleDisableCalls = async () => {
     if (!id) return
@@ -839,6 +1059,7 @@ const LeadDetails: React.FC = () => {
                 <p className='font-medium text-gray-900 dark:text-gray-100'>
                   SLA
                 </p>
+                
                 <p
                   className={
                     lead.slaBreached
@@ -850,16 +1071,17 @@ const LeadDetails: React.FC = () => {
                     ? 'First response was late (15-minute target missed)'
                     : 'Within 15-minute first-contact target'}
                 </p>
-                {lead.responseAt ? (
+              
+                 <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                  Date of creation: {createdAtLabel}
+                </p>
+                 {lead.responseAt ? (
                   <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                     {`First contact logged at ${
                       formatDateTime(lead.responseAt, String(lead.responseAt))
                     }.`}
                   </p>
                 ) : null}
-                <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                  Date of creation: {createdAtLabel}
-                </p>
                 <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                   First follow-up: {firstFollowupLabel}
                 </p>
@@ -1002,27 +1224,59 @@ const LeadDetails: React.FC = () => {
                       className='field-input no-spinner'
                       placeholder='Children'
                       value={qualification.childrenCount}
-                      onChange={event =>
+                      onChange={event => {
+                        const rawValue = event.target.value
+                        const nextCount = Math.max(
+                          0,
+                          Math.floor(Number(rawValue || 0))
+                        )
                         setQualification(prev => ({
                           ...prev,
-                          childrenCount: event.target.value
+                          childrenCount: rawValue
                         }))
-                      }
+                        setChildAges(prev => {
+                          if (nextCount === prev.length) return prev
+                          if (nextCount < prev.length) {
+                            return prev.slice(0, nextCount)
+                          }
+                          return [
+                            ...prev,
+                            ...Array.from(
+                              { length: nextCount - prev.length },
+                              () => ''
+                            )
+                          ]
+                        })
+                      }}
                     />
                   </div>
-                  {lead?.childAges?.length > 0 ||
-                  lead?.child_ages?.length > 0 ? (
+                  {qualificationChildrenCount > 0 ? (
                     <div className='md:col-span-2'>
-                      <label className='field-label'>Child Ages</label>
-                      <div className='flex flex-wrap gap-2'>
-                        {(lead.childAges || lead.child_ages || []).map(
-                          (age: number, idx: number) => (
-                            <span
-                              key={`age-${idx}`}
-                              className='inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                            >
-                              Child {idx + 1}: {age} yrs
-                            </span>
+                      <label className='field-label'>Children Ages</label>
+                      <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3'>
+                        {Array.from({ length: qualificationChildrenCount }).map(
+                          (_, index) => (
+                            <input
+                              key={`lead-child-age-${index}`}
+                              type='number'
+                              min={0}
+                              max={18}
+                              step='1'
+                              className={`field-input no-spinner ${
+                                qualificationMissing.includes('childAges')
+                                  ? 'border-red-500'
+                                  : ''
+                              }`}
+                              placeholder={`Child ${index + 1} age`}
+                              value={childAges[index] ?? ''}
+                              onChange={event =>
+                                setChildAges(prev => {
+                                  const next = [...prev]
+                                  next[index] = event.target.value
+                                  return next
+                                })
+                              }
+                            />
                           )
                         )}
                       </div>
@@ -1130,6 +1384,24 @@ const LeadDetails: React.FC = () => {
                 setSelectedStatusLabel(value as SopStatusLabel)
               }
             />
+            <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
+              Follow-up Type
+            </label>
+            <SearchableDropdown
+              className='mt-1'
+              value={selectedWorkflowFollowupType}
+              options={workflowFollowupTypeOptions}
+              searchPlaceholder='Search follow-up type...'
+              onChange={value =>
+                setWorkflowFollowupType(
+                  value as 'CALL' | 'WHATSAPP' | 'FINAL_REMINDER'
+                )
+              }
+            />
+            <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+              Workflow Action history will use this selected type. Schedule
+              Follow-up reminders stay separate.
+            </p>
             {selectedStatusLabel === 'CONVERTED' ? (
               <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-sm dark:border-gray-600 dark:bg-gray-800/40'>
                 <p className='font-medium text-gray-900 dark:text-gray-100'>
@@ -1194,13 +1466,30 @@ const LeadDetails: React.FC = () => {
                 )}
               </div>
             ) : null}
+            <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
+              Notes (will appear in Follow-up History)
+            </label>
             <textarea
-              className='field-input mt-2'
-              rows={2}
-              placeholder='Closed reason (required for LOST)'
-              value={closedReason}
-              onChange={event => setClosedReason(event.target.value)}
+              className='field-input mt-1'
+              rows={3}
+              placeholder='Enter notes about this status update...'
+              value={statusNotes}
+              onChange={event => setStatusNotes(event.target.value)}
             />
+            {(selectedStatusLabel === 'LOST' || selectedStatusLabel === 'NON_RESPONSIVE') ? (
+              <>
+                <label className='mt-2 block text-xs font-medium text-gray-700 dark:text-gray-300'>
+                  Closed Reason (required for LOST/NON_RESPONSIVE)
+                </label>
+                <textarea
+                  className='field-input mt-1'
+                  rows={2}
+                  placeholder='Why is this lead being closed?'
+                  value={closedReason}
+                  onChange={event => setClosedReason(event.target.value)}
+                />
+              </>
+            ) : null}
             <button
               onClick={() => void updateStatus()}
               disabled={
@@ -1238,6 +1527,160 @@ const LeadDetails: React.FC = () => {
                 >
                   {assigning ? 'Assigning...' : 'Assign Lead'}
                 </button>
+              </div>
+            </div>
+          ) : null}
+
+          {canReadQuotations || canCreateQuotation || canUpdateQuotation ? (
+            <div className='mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
+              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                Quotation Actions
+              </p>
+              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                Create, open, edit, or send quotations for this lead directly
+                from here.
+              </p>
+
+              {quotationActionError ? (
+                <div className='mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'>
+                  {quotationActionError}
+                </div>
+              ) : null}
+
+              {quotationActionMessage ? (
+                <div className='mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200'>
+                  {quotationActionMessage}
+                </div>
+              ) : null}
+
+              <div className='mt-3 grid grid-cols-1 gap-2'>
+                {canCreateQuotation ? (
+                  <button
+                    type='button'
+                    onClick={() => navigate(`/quotations/builder?leadId=${id}`)}
+                    className='inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700'
+                  >
+                    Create Quotation
+                  </button>
+                ) : null}
+
+                {loadingSentQuotations ? (
+                  <p className='text-xs text-gray-500 dark:text-gray-400'>
+                    Loading quotations...
+                  </p>
+                ) : leadQuotations.length === 0 ? (
+                  <p className='text-xs text-amber-700 dark:text-amber-300'>
+                    No quotations linked to this lead yet.
+                  </p>
+                ) : (
+                  <>
+                    <SearchableDropdown
+                      value={selectedLeadQuotationId}
+                      onChange={setSelectedLeadQuotationId}
+                      options={leadQuotationDropdownOptions}
+                      placeholder='Select quotation'
+                      searchPlaceholder='Search quote #, status, destination, amount...'
+                    />
+
+                    <div className='flex flex-wrap gap-2'>
+                      {canReadQuotations ? (
+                        <button
+                          type='button'
+                          onClick={() =>
+                            selectedLeadQuotationId &&
+                            navigate(`/quotations/${selectedLeadQuotationId}`)
+                          }
+                          disabled={!selectedLeadQuotationId}
+                          className='rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                        >
+                          Open
+                        </button>
+                      ) : null}
+
+                      {canUpdateQuotation &&
+                      selectedLeadQuotation &&
+                      selectedLeadQuotation.status !== 'APPROVED' ? (
+                        <button
+                          type='button'
+                          onClick={() =>
+                            navigate(`/quotations/${selectedLeadQuotation.id}/edit`)
+                          }
+                          className='rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 dark:border-gray-700 dark:text-blue-300 dark:hover:bg-blue-900/20'
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+
+                      {canUpdateQuotation ? (
+                        <button
+                          type='button'
+                          onClick={() => void sendQuotationFromLead('EMAIL')}
+                          disabled={
+                            !selectedLeadQuotationId ||
+                            !lead?.email ||
+                            Boolean(selectedLeadQuotation?.requiresApproval) ||
+                            quotationActionLoadingKey ===
+                              `${selectedLeadQuotationId}:EMAIL`
+                          }
+                          className='rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                        >
+                          {quotationActionLoadingKey ===
+                          `${selectedLeadQuotationId}:EMAIL`
+                            ? 'Sending Email...'
+                            : 'Send Email'}
+                        </button>
+                      ) : null}
+
+                      {canUpdateQuotation ? (
+                        <button
+                          type='button'
+                          onClick={() => void sendQuotationFromLead('WHATSAPP')}
+                          disabled={
+                            !selectedLeadQuotationId ||
+                            !lead?.phone ||
+                            Boolean(selectedLeadQuotation?.requiresApproval) ||
+                            quotationActionLoadingKey ===
+                              `${selectedLeadQuotationId}:WHATSAPP`
+                          }
+                          className='rounded-lg border border-green-200 px-3 py-2 text-xs font-semibold text-green-700 hover:bg-green-50 disabled:opacity-60 dark:border-green-900 dark:text-green-300 dark:hover:bg-green-900/20'
+                        >
+                          {quotationActionLoadingKey ===
+                          `${selectedLeadQuotationId}:WHATSAPP`
+                            ? 'Sending WhatsApp...'
+                            : 'Send WhatsApp'}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {selectedLeadQuotation ? (
+                      <div className='rounded-lg bg-gray-50 px-3 py-2 text-[11px] text-gray-600 dark:bg-gray-800/50 dark:text-gray-300'>
+                        <p>
+                          Status:{' '}
+                          <span className='font-medium'>
+                            {String(selectedLeadQuotation.status).replace(/_/g, ' ')}
+                          </span>
+                        </p>
+                        <p>
+                          Last sent:{' '}
+                          <span className='font-medium'>
+                            {selectedLeadQuotation.sentAt
+                              ? formatDateTime(
+                                  selectedLeadQuotation.sentAt,
+                                  String(selectedLeadQuotation.sentAt)
+                                )
+                              : 'Not sent'}
+                          </span>
+                        </p>
+                        {selectedLeadQuotation.requiresApproval ? (
+                          <p className='font-medium text-amber-700 dark:text-amber-300'>
+                            Margin approval is pending for this quotation, so
+                            sending is disabled.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
           ) : null}
@@ -1318,7 +1761,9 @@ const LeadDetails: React.FC = () => {
               answered your first call, also update the lead status so the
               first-response SLA is closed. Call follow-ups raise due-time
               reminders, and WhatsApp, Email, and Final Reminder notifications
-              are sent by automation when the selected date/time is due.
+              are sent by automation when the selected date/time is due. Notes
+              stay private for reminders and do not appear in Follow-up
+              History.
             </p>
             <div className='mt-2 grid grid-cols-1 gap-2'>
               <SearchableDropdown
@@ -1436,16 +1881,16 @@ const LeadDetails: React.FC = () => {
             Follow-up History
           </h3>
           <span className='text-xs text-gray-500'>
-            {followups.length} item(s)
+            {visibleHistoryFollowups.length} item(s)
           </span>
         </div>
         {loadingFollowups ? (
           <p className='mt-3 text-sm text-gray-500'>Loading follow-ups...</p>
-        ) : followups.length === 0 ? (
+        ) : visibleHistoryFollowups.length === 0 ? (
           <p className='mt-3 text-sm text-gray-500'>No follow-ups yet.</p>
         ) : (
           <div className='mt-3 space-y-2'>
-            {followups
+            {visibleHistoryFollowups
               .slice()
               .sort((a, b) => {
                 const left = parseApiDateTime(a.followupDate)?.getTime() || 0
@@ -1460,8 +1905,15 @@ const LeadDetails: React.FC = () => {
                   <div className='flex flex-wrap items-center justify-between gap-2'>
                     <div className='inline-flex items-center gap-2'>
                       <StatusBadge
-                        status={String(item.followupType || 'CALL')}
+                        status={String(
+                          item.statusSnapshot || item.followupType || 'CALL'
+                        )}
                       />
+                      {item.statusSnapshot && item.followupType ? (
+                        <span className='rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+                          {String(item.followupType).replace(/_/g, ' ')}
+                        </span>
+                      ) : null}
                       {item.cadenceCode ? (
                         <span className='rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
                           {item.cadenceCode}
@@ -1475,9 +1927,15 @@ const LeadDetails: React.FC = () => {
                         : 'No date'}
                     </span>
                   </div>
-                  <p className='mt-2 text-xs text-gray-600 dark:text-gray-300'>
-                    {item.notes || 'No notes'}
-                  </p>
+                  {item.notes ? (
+                    <p className='mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300'>
+                      {item.notes}
+                    </p>
+                  ) : (
+                    <p className='mt-2 text-xs text-gray-400 dark:text-gray-500'>
+                      No notes
+                    </p>
+                  )}
                 </div>
               ))}
           </div>

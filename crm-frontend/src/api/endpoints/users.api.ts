@@ -22,6 +22,7 @@ export interface CreateUserPayload {
 }
 
 export interface UpdateUserPayload {
+  email?: string;
   fullName?: string;
   phone?: string;
   country?: string;
