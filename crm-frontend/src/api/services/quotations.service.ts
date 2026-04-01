@@ -108,10 +108,12 @@ export class QuotationsService {
     return new Date(validUntil) < new Date();
   }
 
-  formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-IN', {
+  formatCurrency(amount: number, currency: string = 'INR'): string {
+    const normalizedCurrency = String(currency || 'INR').toUpperCase();
+    const locale = normalizedCurrency === 'INR' ? 'en-IN' : 'en-US';
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
-      currency: 'INR',
+      currency: normalizedCurrency,
     }).format(amount);
   }
 }

@@ -34,6 +34,8 @@ export type LeadApiRecord = {
   destination?: LeadDestinationRecord;
   destinationId?: string | null;
   destinationName?: string | null;
+  clientCurrency?: string | null;
+  client_currency?: string | null;
   country?: string | null;
   leadCountry?: string | null;
   childAges?: number[] | null;
