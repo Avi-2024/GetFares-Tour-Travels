@@ -2,7 +2,7 @@ import { Component } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import LoginPage from "./modules/auth/login.page";
-import NotFoundPage from "./modules/note_found/not_fount.page";
+import NotFoundPage from "./modules/not_found/not_found.page";
 import ThemeToggle from "./shared/components/theme.component";
 import { ThemeProvider } from "./shared/contexts/theme.context";
 

@@ -1,5 +1,6 @@
 import { Component } from "react";
 import type { InputHTMLAttributes, ReactNode } from "react";
+import { ClassNameBuilder } from "../utils/class-name.builder";
 
 export interface TextFieldProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -13,9 +14,6 @@ export interface TextFieldProps extends Omit<
   startIcon?: ReactNode;
   endAdornment?: ReactNode;
 }
-
-const joinClassNames = (...values: Array<string | undefined>) =>
-  values.filter(Boolean).join(" ");
 
 export class TextField extends Component<TextFieldProps> {
   render() {
@@ -41,10 +39,10 @@ export class TextField extends Component<TextFieldProps> {
 
     return (
       <div
-        className={joinClassNames("flex flex-col gap-2", wrapperClassName)}
+        className={ClassNameBuilder.join("flex flex-col gap-2", wrapperClassName)}
       >
         <label
-          className={joinClassNames(
+          className={ClassNameBuilder.join(
             "text-sm font-medium text-gray-700 dark:text-gray-200",
             labelClassName,
           )}
@@ -63,7 +61,7 @@ export class TextField extends Component<TextFieldProps> {
           )}
           <input
             id={id}
-            className={joinClassNames(
+            className={ClassNameBuilder.join(
               "h-11 w-full rounded-xl border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 transition focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:ring-blue-900/60",
               inputPadding,
               inputClassName,

@@ -17,6 +17,94 @@ interface LoginFormProps {
   onSubmit: () => void;
 }
 
+class LoginFormTheme {
+  private readonly isDark: boolean;
+
+  constructor(theme: "light" | "dark") {
+    this.isDark = theme === "dark";
+  }
+
+  public section(): string {
+    return `flex items-center justify-center px-6 py-12 lg:px-10 ${
+      this.isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
+    }`;
+  }
+
+  public card(): string {
+    return `rounded-3xl border p-8 shadow-[0_25px_80px_rgba(59,130,246,0.15)] ${
+      this.isDark ? "border-slate-800 bg-slate-900/95" : "border-slate-200/70 bg-white"
+    }`;
+  }
+
+  public title(): string {
+    return `text-lg font-semibold ${this.isDark ? "text-slate-100" : "text-slate-900"}`;
+  }
+
+  public heading(): string {
+    return `text-2xl font-semibold ${this.isDark ? "text-slate-100" : "text-slate-900"}`;
+  }
+
+  public subText(): string {
+    return `text-sm ${this.isDark ? "text-slate-400" : "text-slate-500"}`;
+  }
+
+  public label(): string {
+    return `text-sm font-medium ${this.isDark ? "text-slate-300" : "text-slate-700"}`;
+  }
+
+  public input(): string {
+    return `w-full rounded-xl border py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 ${
+      this.isDark
+        ? "border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:ring-blue-900/60"
+        : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
+    }`;
+  }
+
+  public checkbox(): string {
+    return `h-4 w-4 rounded border-slate-300 text-blue-600 ${
+      this.isDark ? "border-slate-600 bg-slate-900" : ""
+    }`;
+  }
+
+  public link(): string {
+    return `font-medium ${
+      this.isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"
+    }`;
+  }
+
+  public error(): string {
+    return `text-center text-sm ${this.isDark ? "text-red-400" : "text-red-600"}`;
+  }
+
+  public footer(): string {
+    return `mt-6 text-center text-xs ${this.isDark ? "text-slate-500" : "text-slate-400"}`;
+  }
+
+  public brand(): string {
+    return `text-xs font-semibold uppercase tracking-[0.2em] ${
+      this.isDark ? "text-blue-400" : "text-blue-600"
+    }`;
+  }
+
+  public statusBadge(): string {
+    return `flex h-8 w-8 items-center justify-center rounded-lg border text-emerald-500 ${
+      this.isDark
+        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+        : "border-emerald-100 bg-emerald-50"
+    }`;
+  }
+
+  public mutedText(): string {
+    return `flex items-center gap-2 ${this.isDark ? "text-slate-400" : "text-slate-600"}`;
+  }
+
+  public eyeButton(): string {
+    return `absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 transition-colors ${
+      this.isDark ? "hover:text-slate-300" : "hover:text-slate-600"
+    }`;
+  }
+}
+
 export class LoginForm extends Component<LoginFormProps> {
   private handleSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -37,54 +125,12 @@ export class LoginForm extends Component<LoginFormProps> {
       onTogglePassword,
       onRememberChange,
     } = this.props;
-    const isDark = theme === "dark";
-    const sectionClassName = `flex items-center justify-center px-6 py-12 lg:px-10 ${
-      isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
-    }`;
-    const cardClassName = `rounded-3xl border p-8 shadow-[0_25px_80px_rgba(59,130,246,0.15)] ${
-      isDark ?
-        "border-slate-800 bg-slate-900/95"
-      : "border-slate-200/70 bg-white"
-    }`;
-    const titleClassName = `text-lg font-semibold ${
-      isDark ? "text-slate-100" : "text-slate-900"
-    }`;
-    const headingClassName = `text-2xl font-semibold ${
-      isDark ? "text-slate-100" : "text-slate-900"
-    }`;
-    const subTextClassName = `text-sm ${
-      isDark ? "text-slate-400" : "text-slate-500"
-    }`;
-    const labelClassName = `text-sm font-medium ${
-      isDark ? "text-slate-300" : "text-slate-700"
-    }`;
-    const inputClassName = `w-full rounded-xl border py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 ${
-      isDark ?
-        "border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:ring-blue-900/60"
-      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
-    }`;
-    const checkboxClassName = `h-4 w-4 rounded border-slate-300 text-blue-600 ${
-      isDark ? "border-slate-600 bg-slate-900" : ""
-    }`;
-    const linkClassName = `font-medium ${
-      isDark ?
-        "text-blue-400 hover:text-blue-300"
-      : "text-blue-600 hover:text-blue-700"
-    }`;
-    const errorClassName = `text-center text-sm ${
-      isDark ? "text-red-400" : "text-red-600"
-    }`;
-    const footerClassName = `mt-6 text-center text-xs ${
-      isDark ? "text-slate-500" : "text-slate-400"
-    }`;
-    const brandClassName = `text-xs font-semibold uppercase tracking-[0.2em] ${
-      isDark ? "text-blue-400" : "text-blue-600"
-    }`;
+    const themeTokens = new LoginFormTheme(theme);
 
     return (
-      <section className={sectionClassName}>
+      <section className={themeTokens.section()}>
         <div className="w-full max-w-md">
-          <div className={cardClassName}>
+          <div className={themeTokens.card()}>
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl">
                 <img
@@ -94,21 +140,21 @@ export class LoginForm extends Component<LoginFormProps> {
                 />
               </div>
               <div>
-                <p className={brandClassName}>GET2VACATION CMS</p>
-                <p className={titleClassName}>Sign in to continue</p>
+                <p className={themeTokens.brand()}>GET2VACATION CMS</p>
+                <p className={themeTokens.title()}>Sign in to continue</p>
               </div>
             </div>
 
             <div className="mb-6">
-              <h2 className={headingClassName}>Welcome back</h2>
-              <p className={subTextClassName}>
+              <h2 className={themeTokens.heading()}>Welcome back</h2>
+              <p className={themeTokens.subText()}>
                 Use your admin or team credentials to enter the workspace.
               </p>
             </div>
 
             <form className="space-y-5" onSubmit={this.handleSubmit}>
               <div>
-                <label className={labelClassName}>Email address</label>
+                <label className={themeTokens.label()}>Email address</label>
                 <div className="relative mt-2">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                     <svg
@@ -133,16 +179,10 @@ export class LoginForm extends Component<LoginFormProps> {
                     onChange={(event) => onUsernameChange(event.target.value)}
                     placeholder="admin@travel-cms.com"
                     disabled={loading}
-                    className={`${inputClassName} pl-10 pr-12`}
+                    className={`${themeTokens.input()} pl-10 pr-12`}
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg border text-emerald-500 ${
-                        isDark ?
-                          "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                        : "border-emerald-100 bg-emerald-50"
-                      }`}
-                    >
+                    <div className={themeTokens.statusBadge()}>
                       <svg
                         width="14"
                         height="14"
@@ -163,7 +203,7 @@ export class LoginForm extends Component<LoginFormProps> {
               </div>
 
               <div>
-                <label className={labelClassName}>Password</label>
+                <label className={themeTokens.label()}>Password</label>
                 <div className="relative mt-2">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                     <svg
@@ -187,14 +227,12 @@ export class LoginForm extends Component<LoginFormProps> {
                     onChange={(event) => onPasswordChange(event.target.value)}
                     placeholder="Enter your password"
                     disabled={loading}
-                    className={`${inputClassName} pl-10 pr-10`}
+                    className={`${themeTokens.input()} pl-10 pr-10`}
                   />
                   <button
                     type="button"
                     onClick={onTogglePassword}
-                    className={`absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 transition-colors ${
-                      isDark ? "hover:text-slate-300" : "hover:text-slate-600"
-                    }`}
+                    className={themeTokens.eyeButton()}
                     aria-label={
                       showPassword ? "Hide password" : "Show password"
                     }
@@ -235,21 +273,17 @@ export class LoginForm extends Component<LoginFormProps> {
               </div>
 
               <div className="flex items-center justify-between text-sm">
-                <label
-                  className={`flex items-center gap-2 ${
-                    isDark ? "text-slate-400" : "text-slate-600"
-                  }`}
-                >
+                <label className={themeTokens.mutedText()}>
                   <input
                     type="checkbox"
-                    className={checkboxClassName}
+                    className={themeTokens.checkbox()}
                     checked={remember}
                     onChange={(event) => onRememberChange(event.target.checked)}
                     disabled={loading}
                   />
                   Remember me
                 </label>
-                <a href="/forgot-password" className={linkClassName}>
+                <a href="/forgot-password" className={themeTokens.link()}>
                   Forgot password?
                 </a>
               </div>
@@ -278,11 +312,11 @@ export class LoginForm extends Component<LoginFormProps> {
                 )}
               </Button>
 
-              {error && <p className={errorClassName}>{error}</p>}
+              {error && <p className={themeTokens.error()}>{error}</p>}
             </form>
           </div>
 
-          <p className={footerClassName}>Powered by Get2Vacation CMS</p>
+          <p className={themeTokens.footer()}>Powered by Get2Vacation CMS</p>
         </div>
       </section>
     );

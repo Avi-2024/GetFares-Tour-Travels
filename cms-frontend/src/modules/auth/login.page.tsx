@@ -2,7 +2,7 @@ import { Component } from "react";
 
 import { LoginForm } from "./components/LoginForm";
 import { LoginSidebar } from "./components/LoginSidebar";
-import loginDatasource from "../../shared/services/auth.service";
+import { serviceContainer } from "../../shared/core/service.container";
 import {
   ThemeContext,
   type IThemeContext,
@@ -20,6 +20,7 @@ interface LoginPageState {
 class LoginPage extends Component<object, LoginPageState> {
   static contextType = ThemeContext;
   declare context: IThemeContext;
+  private readonly authService = serviceContainer.getAuthService();
 
   state: LoginPageState = {
     loading: false,
@@ -47,7 +48,7 @@ class LoginPage extends Component<object, LoginPageState> {
     this._setState("loading", true);
 
     try {
-      const result = await loginDatasource.login(username, password);
+      const result = await this.authService.login(username, password);
       if (result === true) {
         this._setState("error", "");
       } else {

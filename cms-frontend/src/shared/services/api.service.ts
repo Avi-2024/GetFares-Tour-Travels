@@ -6,7 +6,16 @@ import axios, {
   type InternalAxiosRequestConfig,
   isAxiosError,
 } from "axios";
-import { IHttpClient, IRequestOptions, type RequestBody, type QueryParams } from "../interfaces/IHttp.interface";
+import type { IApiConfig } from "../interfaces/IApiConfig.interface";
+import {
+  IHttpClient,
+  IHttpInterceptor,
+  IRequestOptions,
+  type RequestBody,
+  type QueryParams,
+} from "../interfaces/IHttp.interface";
+import { apiConfig } from "../core/api.config";
+import type { ITokenStorage } from "../interfaces/IStorage.interface";
 import { tokenStorage } from "./storage.service";
 
 interface ApiErrorResponse {
@@ -14,9 +23,15 @@ interface ApiErrorResponse {
   errors?: Record<string, string[]>;
 }
 
-class AuthInterceptor {
+class AuthInterceptor implements IHttpInterceptor {
+  private readonly tokenStorage: ITokenStorage;
+
+  constructor(tokenStorageService: ITokenStorage = tokenStorage) {
+    this.tokenStorage = tokenStorageService;
+  }
+
   public onRequest(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-    const token = tokenStorage.loadToken();
+    const token = this.tokenStorage.loadToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,7 +43,7 @@ class AuthInterceptor {
   }
 }
 
-class ErrorInterceptor {
+class ErrorInterceptor implements IHttpInterceptor {
   public onResponse(response: AxiosResponse): AxiosResponse {
     return response;
   }
@@ -76,11 +91,11 @@ class HttpClient implements IHttpClient {
   }
 
   public static getInstance(
-    baseURL: string = import.meta.env.VITE_API_BASE_URL ?? "",
+    apiConfigService: IApiConfig = apiConfig,
     timeout?: number
   ): HttpClient {
     if (!HttpClient.instance) {
-      HttpClient.instance = new HttpClient(baseURL, timeout);
+      HttpClient.instance = new HttpClient(apiConfigService.baseURL, timeout);
     }
     return HttpClient.instance;
   }
