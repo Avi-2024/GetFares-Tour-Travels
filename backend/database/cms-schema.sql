@@ -1,3 +1,6 @@
+
+--  add one column in user table with name of cms_access boolean for the  cms authentication. (@Avi-2024)
+
 -- =========================================
 -- CMS SCHEMA FOR GET2VACATION WEBSITE
 -- =========================================

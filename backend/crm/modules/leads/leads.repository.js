@@ -225,8 +225,15 @@ function createLeadsRepository({ db, logger, schema }) {
       countryId: row.country_id ?? row.countryId ?? null,
       destinationId,
       destination: destination ? toDestinationDomain(destination) : null,
-      destinationName: destination?.name ?? null,
+      destinationName: destination?.name ?? row.travel_to ?? row.travelTo ?? null,
+      travelFrom: row.travel_from ?? row.travelFrom ?? null,
+      travelTo:
+        row.travel_to ??
+        row.travelTo ??
+        destination?.name ??
+        null,
       travelDate: row.travel_date ?? row.travelDate ?? null,
+      travelEndDate: row.travel_end_date ?? row.travelEndDate ?? null,
       budget: row.budget ?? null,
       adultsCount: row.adults_count ?? row.adultsCount ?? 1,
       childrenCount: row.children_count ?? row.childrenCount ?? 0,

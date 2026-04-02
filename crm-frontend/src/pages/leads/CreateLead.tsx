@@ -30,6 +30,7 @@ type FormState = {
   location: string
   destinationName: string
   travelDate: string
+  travelEndDate: string
   adultsCount: string
   childrenCount: string
   budget: string
@@ -56,6 +57,7 @@ const initialForm: FormState = {
   location: '',
   destinationName: '',
   travelDate: '',
+  travelEndDate: '',
   adultsCount: '2',
   childrenCount: '0',
   budget: '',
@@ -314,8 +316,14 @@ const CreateLead: React.FC = () => {
     const childrenCountSafe = Number.isFinite(childrenCountValue)
       ? childrenCountValue
       : 0
-    const isTravelDateInPast =
+    const isTravelStartDateInPast =
       form.travelDate.trim() !== '' && form.travelDate < minTravelDate
+    const isTravelEndDateInPast =
+      form.travelEndDate.trim() !== '' && form.travelEndDate < minTravelDate
+    const isTravelEndBeforeStart =
+      form.travelDate.trim() !== '' &&
+      form.travelEndDate.trim() !== '' &&
+      form.travelEndDate < form.travelDate
 
     return {
       firstName: !form.firstName.trim(),
@@ -325,7 +333,9 @@ const CreateLead: React.FC = () => {
       leadCountry: !form.leadCountry,
       clientCurrency: !form.clientCurrency.trim(),
       destinationName: !form.destinationName.trim(),
-      travelDate: !form.travelDate || isTravelDateInPast,
+      travelDate: !form.travelDate || isTravelStartDateInPast,
+      travelEndDate:
+        !form.travelEndDate || isTravelEndDateInPast || isTravelEndBeforeStart,
       adultsChildren:
         adultsCountSafe < 0 || childrenCountSafe < 0 || adultsCountSafe < 1,
       childrenAges:
@@ -518,11 +528,14 @@ const CreateLead: React.FC = () => {
   const selectedCurrencyMeta = useMemo(() => {
     const currencyCode = form.clientCurrency.trim().toUpperCase()
     if (!currencyCode) return FALLBACK_CURRENCY_META
-    const meta = getCurrencyLocaleByCode()
-    if (meta && typeof meta === 'object' && 'locale' in meta) {
-      return meta as unknown as CurrencyMeta
+    const localeMap = getCurrencyLocaleByCode()
+    const resolvedLocale =
+      localeMap.get(currencyCode) || FALLBACK_CURRENCY_META.locale
+    return {
+      code: currencyCode,
+      locale: resolvedLocale,
+      symbol: FALLBACK_CURRENCY_META.symbol
     }
-    return FALLBACK_CURRENCY_META
   }, [form.clientCurrency])
 
   const formattedBudgetPreview = useMemo(() => {
@@ -616,6 +629,7 @@ const CreateLead: React.FC = () => {
         clientCurrency: form.clientCurrency.trim().toUpperCase(),
         destinationName: form.destinationName.trim(),
         travelDate: form.travelDate,
+        travelEndDate: form.travelEndDate,
         adultsCount: adultsCountNumber,
         childrenCount: childrenCountNumber,
         childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
@@ -836,6 +850,7 @@ const CreateLead: React.FC = () => {
               </p>
             )}
           </div>
+          
           <Field
             label='Address / Location'
             value={form.location}
@@ -854,7 +869,7 @@ const CreateLead: React.FC = () => {
             />
           </div>
           <div>
-            <label className='field-label'>Travel Date *</label>
+            <label className='field-label'>Travel Start Date *</label>
             <input
               type='date'
               min={minTravelDate}
@@ -864,6 +879,20 @@ const CreateLead: React.FC = () => {
               value={form.travelDate}
               onChange={event =>
                 setForm(prev => ({ ...prev, travelDate: event.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <label className='field-label'>Travel End Date *</label>
+            <input
+              type='date'
+              min={form.travelDate || minTravelDate}
+              className={`field-input ${
+                fieldError('travelEndDate') ? 'border-red-500' : ''
+              }`}
+              value={form.travelEndDate}
+              onChange={event =>
+                setForm(prev => ({ ...prev, travelEndDate: event.target.value }))
               }
             />
           </div>
