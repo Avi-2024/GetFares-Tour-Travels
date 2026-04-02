@@ -1,17 +1,26 @@
 import { Component } from "react";
+import { ThemeContext, type IThemeContext } from "../contexts/ThemeContext";
 
-class ThemeToggle extends Component<{
-  theme: "light" | "dark";
-  onToggle: () => void;
-}> {
+/**
+ * Theme Toggle Component
+ * Single Responsibility: Display and handle theme toggle UI
+ */
+class ThemeToggle extends Component {
+  static contextType = ThemeContext;
+  declare context: IThemeContext;
+
+  private handleToggle = (): void => {
+    this.context.toggleTheme();
+  };
+
   render() {
-    const { theme, onToggle } = this.props;
+    const { theme } = this.context;
     const isDark = theme === "dark";
 
     return (
       <button
         type="button"
-        onClick={onToggle}
+        onClick={this.handleToggle}
         className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
         aria-label="Toggle theme"
       >

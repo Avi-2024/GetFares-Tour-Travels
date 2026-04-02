@@ -3,10 +3,10 @@ import { Component } from "react";
 import { LoginForm } from "./components/LoginForm";
 import { LoginSidebar } from "./components/LoginSidebar";
 import loginDatasource from "../../shared/services/auth.service";
-
-interface LoginPageProps {
-  theme: "light" | "dark";
-}
+import {
+  ThemeContext,
+  type IThemeContext,
+} from "../../shared/contexts/ThemeContext";
 
 interface LoginPageState {
   loading: boolean;
@@ -17,7 +17,10 @@ interface LoginPageState {
   error: string;
 }
 
-class LoginPage extends Component<LoginPageProps, LoginPageState> {
+class LoginPage extends Component<object, LoginPageState> {
+  static contextType = ThemeContext;
+  declare context: IThemeContext;
+
   state: LoginPageState = {
     loading: false,
     username: "",
@@ -62,13 +65,13 @@ class LoginPage extends Component<LoginPageProps, LoginPageState> {
   render() {
     const { username, password, showPassword, remember, loading, error } =
       this.state;
-    const { theme } = this.props;
+    const { theme } = this.context;
 
     return (
-      <main className="min-h-screen bg-slate-50 text-slate-900">
+      <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
         <div className="relative min-h-screen overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.18),transparent_55%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(6,182,212,0.14),transparent_45%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.18),transparent_55%)] dark:bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.08),transparent_55%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(6,182,212,0.14),transparent_45%)] dark:bg-[radial-gradient(circle_at_bottom_left,rgba(6,182,212,0.06),transparent_45%)]" />
 
           <div className="relative z-10 grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
             <LoginSidebar />

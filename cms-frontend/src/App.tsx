@@ -2,51 +2,29 @@ import { Component } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import LoginPage from "./modules/auth/login.page";
-import storageService from "./shared/services/storage.service";
-import NotFoundPage from "./modules/main/not_fount.page";
+import NotFoundPage from "./modules/note_found/not_fount.page";
 import ThemeToggle from "./shared/components/theme.component";
+import { ThemeProvider } from "./shared/contexts/theme.context";
 
-class App extends Component<object, { theme: "light" | "dark" }> {
-  state = {
-    theme: "light" as "light" | "dark",
-  };
-
-  componentDidMount() {
-    const savedTheme = storageService.theme._getTheme();
-    const nextTheme =
-      savedTheme === "light" || savedTheme === "dark" ? savedTheme : "light";
-    this.applyTheme(nextTheme);
-  }
-
-  private applyTheme = (theme: "light" | "dark") => {
-    storageService.theme._setTheme(theme);
-    this.setState({ theme });
-  };
-
-  private handleToggleTheme = () => {
-    this.applyTheme(this.state.theme === "dark" ? "light" : "dark");
-  };
-
+/**
+ * Main Application Component
+ * Single Responsibility: Application routing and layout
+ */
+class App extends Component {
   render() {
-    const { theme } = this.state;
-
     return (
-      <BrowserRouter>
-        <div
-          className={
-            theme === "dark" ?
-              "dark fixed right-4 top-4 z-50"
-            : "fixed right-4 top-4 z-50"
-          }
-        >
-          <ThemeToggle theme={theme} onToggle={this.handleToggleTheme} />
-        </div>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<LoginPage theme={theme} />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </BrowserRouter>
+      <ThemeProvider defaultTheme="light">
+        <BrowserRouter>
+          <div className="fixed right-4 top-4 z-50">
+            <ThemeToggle />
+          </div>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </BrowserRouter>
+      </ThemeProvider>
     );
   }
 }

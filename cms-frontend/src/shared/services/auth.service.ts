@@ -1,26 +1,67 @@
 import ApiConfig from "../core/api.config";
 import type User from "../models/user.model";
-import apiService from "./api.service";
-import storageService from "./storage.service";
+import { IAuthService } from "../interfaces/IAuth.interface";
+import { IHttpClient } from "../interfaces/IHttp.interface";
+import { IUserStorage, ITokenStorage } from "../interfaces/IStorage.interface";
+import { apiService } from "./api.service";
+import { userStorage, tokenStorage } from "./storage.service";
 
-class AuthService {
+class AuthService implements IAuthService<User> {
+  private static instance: AuthService;
+  private readonly httpClient: IHttpClient;
+  private readonly userStorage: IUserStorage<User>;
+  private readonly tokenStorage: ITokenStorage;
+
+  private constructor(
+    httpClient: IHttpClient,
+    userStorage: IUserStorage<User>,
+    tokenStorage: ITokenStorage
+  ) {
+    this.httpClient = httpClient;
+    this.userStorage = userStorage;
+    this.tokenStorage = tokenStorage;
+  }
+
+  public static getInstance(
+    httpClient: IHttpClient = apiService,
+    userStorageService: IUserStorage<User> = userStorage,
+    tokenStorageService: ITokenStorage = tokenStorage
+  ): AuthService {
+    if (!AuthService.instance) {
+      AuthService.instance = new AuthService(
+        httpClient,
+        userStorageService,
+        tokenStorageService
+      );
+    }
+    return AuthService.instance;
+  }
+
   public async login(
     username: string,
-    password: string,
+    password: string
   ): Promise<boolean | string> {
-    const response: User = await apiService.get(ApiConfig.endpoints.login, {
-      body: { username: username, password: password },
+    const response: User = await this.httpClient.get(ApiConfig.endpoints.login, {
+      body: { username, password },
     });
 
-    console.log(response);
-    storageService.user._setUser(response);
-
+    this.userStorage.saveUser(response);
     return true;
   }
 
   public async logout(): Promise<void> {
-    localStorage.removeItem("token");
+    this.tokenStorage.clearToken();
+    this.userStorage.clearUser();
+  }
+
+  public isAuthenticated(): boolean {
+    return this.tokenStorage.loadToken() !== null;
+  }
+
+  public getCurrentUser(): User | null {
+    return this.userStorage.loadUser();
   }
 }
 
-export default new AuthService();
+export const authService = AuthService.getInstance();
+export { AuthService };
