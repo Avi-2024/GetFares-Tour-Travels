@@ -34,6 +34,10 @@ export type LeadApiRecord = {
   destination?: LeadDestinationRecord;
   destinationId?: string | null;
   destinationName?: string | null;
+  travelFrom?: string | null;
+  travel_from?: string | null;
+  travelTo?: string | null;
+  travel_to?: string | null;
   clientCurrency?: string | null;
   client_currency?: string | null;
   country?: string | null;
@@ -56,6 +60,8 @@ export type LeadApiRecord = {
   adultsCount?: number | null;
   childrenCount?: number | null;
   travelDate?: string | null;
+  travelEndDate?: string | null;
+  travel_end_date?: string | null;
   budget?: number | null;
   visaRequired?: boolean | null;
   preferredHotelCategory?: string | null;

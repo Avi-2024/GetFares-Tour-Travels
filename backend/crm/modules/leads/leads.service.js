@@ -893,10 +893,13 @@ function createLeadsService({ repository, logger, events }) {
       address_line: payload.addressLine || null,
       client_currency: payload.clientCurrency || null,
       destination_id: payload.destinationId || null,
+      travel_from: payload.travelFrom || null,
+      travel_to: payload.travelTo || payload.destinationName || payload.destination || null,
       nationality: payload.nationality || null,
       lead_country: leadCountry,
       country_id: payload.countryId || null,
       travel_date: payload.travelDate || null,
+      travel_end_date: payload.travelEndDate || null,
       budget: payload.budget ?? null,
       adults_count: payload.adultsCount ?? 1,
       children_count: payload.childrenCount ?? 0,
@@ -965,6 +968,17 @@ function createLeadsService({ repository, logger, events }) {
     if (payload.destinationId !== undefined) {
       mapped.destination_id = payload.destinationId;
     }
+    if (payload.travelFrom !== undefined) {
+      mapped.travel_from = payload.travelFrom || null;
+    }
+    if (
+      payload.travelTo !== undefined ||
+      payload.destinationName !== undefined ||
+      payload.destination !== undefined
+    ) {
+      mapped.travel_to =
+        payload.travelTo ?? payload.destinationName ?? payload.destination ?? null;
+    }
     if (payload.leadCountry !== undefined || payload.country !== undefined) {
       mapped.lead_country = payload.leadCountry ?? payload.country ?? null;
     }
@@ -976,6 +990,9 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.travelDate !== undefined) {
       mapped.travel_date = payload.travelDate;
+    }
+    if (payload.travelEndDate !== undefined) {
+      mapped.travel_end_date = payload.travelEndDate;
     }
     if (payload.budget !== undefined) {
       mapped.budget = payload.budget;

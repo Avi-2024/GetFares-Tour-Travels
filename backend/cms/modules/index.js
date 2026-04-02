@@ -17,4 +17,26 @@ function createCmsModules({ db }) {
   };
 }
 
-export { createCmsModules };
+function registerModules(app, dependencies) {
+  const mountedModules = {};
+
+  const landing = createLandingModule({ db: dependencies.db });
+  mountedModules.landing = landing;
+  app.use("/cms", landing.routes);
+
+  const destinations = createDestinationsModule({ db: dependencies.db });
+  mountedModules.destinations = destinations;
+  app.use("/cms/destinations", destinations.routes);
+
+  const packages = createCmsPackagesModule({ db: dependencies.db });
+  mountedModules.packages = packages;
+  app.use("/cms/packages", packages.routes);
+
+  const visa = createVisaModule({ db: dependencies.db });
+  mountedModules.visa = visa;
+  app.use("/cms/visa", visa.routes);
+
+  return mountedModules;
+}
+
+export { createCmsModules, registerModules };

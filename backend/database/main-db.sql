@@ -286,7 +286,10 @@ CREATE TABLE leads (
 
     nationality VARCHAR(80),
     lead_country VARCHAR(100),
+    travel_from VARCHAR(150),
+    travel_to VARCHAR(150),
     travel_date DATE,
+    travel_end_date DATE,
     budget NUMERIC(12,2) CHECK (budget >= 0),
     adults_count INT DEFAULT 1 CHECK (adults_count >= 0),
     children_count INT DEFAULT 0 CHECK (children_count >= 0),

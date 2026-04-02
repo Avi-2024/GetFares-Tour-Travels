@@ -2073,10 +2073,15 @@ const BookingsPage: React.FC = () => {
     }
   };
 
-  const handleApproveBooking = async (bookingId: string) => {
+  const handleApproveBooking = async (booking: Booking) => {
+    if (booking.status === "confirmed") {
+      showToast("Booking is already approved", "info");
+      return;
+    }
+
     setLoading(true);
     try {
-      await bookingsService.approve(bookingId);
+      await bookingsService.approve(booking.id);
       await fetchBookings();
       showToast("Booking approved successfully", "success");
     } catch (error) {
@@ -2930,7 +2935,9 @@ const BookingsPage: React.FC = () => {
         : <>
             {/* Mobile View - Cards */}
             <div className="block lg:hidden divide-y divide-gray-100 dark:divide-gray-800">
-              {rows.map((booking, index) => (
+              {rows.map((booking, index) => {
+                const isApproved = booking.status === "confirmed";
+                return (
                 <div
                   key={booking.id}
                   className={`p-4 space-y-3 hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors ${
@@ -3020,10 +3027,14 @@ const BookingsPage: React.FC = () => {
                       <FaEye className="text-sm" />
                     </button>
                     <button
-                      className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
-                      onClick={() => handleApproveBooking(booking.id)}
-                      disabled={loading}
-                      title="Approve Booking"
+                      className={`p-2.5 rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isApproved ?
+                          "border-green-200 bg-green-50 text-green-500 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
+                        : "border-gray-200 text-emerald-600 hover:bg-emerald-50 dark:border-gray-700 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                      }`}
+                      onClick={() => handleApproveBooking(booking)}
+                      disabled={loading || isApproved}
+                      title={isApproved ? "Already Approved" : "Approve Booking"}
                     >
                       <FaCircleCheck className="text-sm" />
                     </button>
@@ -3043,7 +3054,8 @@ const BookingsPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Desktop View - Table */}
@@ -3072,7 +3084,9 @@ const BookingsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {rows.map((booking) => (
+                  {rows.map((booking) => {
+                    const isApproved = booking.status === "confirmed";
+                    return (
                     <tr
                       key={booking.id}
                       className="group transition-all duration-200 hover:bg-blue-50/30 dark:hover:bg-gray-800/40"
@@ -3166,10 +3180,14 @@ const BookingsPage: React.FC = () => {
                             <FaEye />
                           </button>
                           <button
-                            onClick={() => handleApproveBooking(booking.id)}
-                            disabled={loading}
-                            className="rounded-lg border border-gray-200 p-2 text-emerald-600 hover:bg-emerald-50 dark:border-gray-700 dark:hover:bg-emerald-900/20 disabled:opacity-50"
-                            title="Approve Booking"
+                            onClick={() => handleApproveBooking(booking)}
+                            disabled={loading || isApproved}
+                            className={`rounded-lg border p-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                              isApproved ?
+                                "border-green-200 bg-green-50 text-green-500 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300"
+                              : "border-gray-200 text-emerald-600 hover:bg-emerald-50 dark:border-gray-700 dark:hover:bg-emerald-900/20"
+                            }`}
+                            title={isApproved ? "Already Approved" : "Approve Booking"}
                           >
                             <FaCircleCheck />
                           </button>
@@ -3191,7 +3209,8 @@ const BookingsPage: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

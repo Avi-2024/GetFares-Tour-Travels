@@ -101,7 +101,6 @@ type ServiceCostRow = ServiceDefinition & {
 type AddOnService = {
   id: string
   name: string
-  weight: number
   baseCost: number
   markup: number
   sellValue: number
@@ -116,7 +115,6 @@ type PricingCosts = {
 }
 
 type ServiceOverrideValue = {
-  weight?: string
   baseCost?: string
   markupPercent?: string
   sellValue?: string
@@ -442,7 +440,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const [addOnServices, setAddOnServices] = useState<AddOnService[]>([])
   const [addOnDraft, setAddOnDraft] = useState({
     name: '',
-    weight: '',
     baseCost: '',
     markup: '',
     sellValue: ''
@@ -710,14 +707,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }, 0)
     const remainingCost = Math.max(0, globalSupplierCost - overriddenTotal)
 
-    // Keep displayed weights stable even when base cost is overridden.
-    const effectiveWeights = activeDefinitions.map(def => {
-      const overrideWeight = debouncedServiceOverrides[def.key]?.weight
-      if (overrideWeight !== undefined && overrideWeight !== '') {
-        return Number(overrideWeight)
-      }
-      return def.weight
-    })
+    // Keep a stable internal weight mix, but hide weight editing from UI.
+    const baseWeights = activeDefinitions.map(def =>
+      Math.max(0, Number(def.weight) || 0)
+    )
+    const baseWeightTotal = baseWeights.reduce((sum, weight) => sum + weight, 0)
+    const effectiveWeights =
+      baseWeightTotal > 0
+        ? baseWeights.map(weight => (weight / baseWeightTotal) * 100)
+        : activeDefinitions.map(() => 100 / activeDefinitions.length)
+
     const distributableWeight = activeDefinitions.reduce(
       (sum, definition, index) => {
         if (overriddenKeys.has(definition.key)) return sum
@@ -1403,7 +1402,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 return {
                   id: String(service?.id ?? `saved-addon-${index + 1}`),
                   name: toTrimmedString(service?.name) || `Add-on ${index + 1}`,
-                  weight: Math.max(0, toFiniteNumber(service?.weight, 0)),
                   baseCost,
                   markup: toFiniteNumber(service?.markup, sellValue - baseCost),
                   sellValue
@@ -1424,10 +1422,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             const key = normalizeServiceKey(row?.key)
             if (!key) return
             nextOverrides[key] = {
-              weight:
-                row?.weight !== undefined && row?.weight !== null
-                  ? String(row.weight)
-                  : undefined,
               baseCost:
                 row?.baseCost !== undefined && row?.baseCost !== null
                   ? String(row.baseCost)
@@ -1734,14 +1728,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
   const addAddOnService = () => {
     const name = addOnDraft.name.trim()
-    const weight = Number(addOnDraft.weight)
     const baseCost = Number(addOnDraft.baseCost)
     const markup = Number(addOnDraft.markup)
     const sellValue = Number(addOnDraft.sellValue)
     if (
       !name ||
-      !Number.isFinite(weight) ||
-      weight < 0 ||
       !Number.isFinite(baseCost) ||
       baseCost < 0 ||
       !Number.isFinite(markup) ||
@@ -1759,7 +1750,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             ? {
                 id: s.id,
                 name,
-                weight,
                 baseCost,
                 markup,
                 sellValue
@@ -1774,7 +1764,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         {
           id: `addon-${Date.now()}`,
           name,
-          weight,
           baseCost,
           markup,
           sellValue
@@ -1783,7 +1772,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }
     setAddOnDraft({
       name: '',
-      weight: '',
       baseCost: '',
       markup: '',
       sellValue: ''
@@ -1795,7 +1783,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     setEditingAddOnId(service.id)
     setAddOnDraft({
       name: service.name,
-      weight: String(service.weight),
       baseCost: String(service.baseCost),
       markup: String(service.markup),
       sellValue: String(service.sellValue)
@@ -1865,10 +1852,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const errors: PricingFieldErrors = {}
     selectedServiceDefinitions.forEach(definition => {
       const override = serviceOverrides[definition.key] ?? {}
-      const weightError = getNumericOverrideError(override.weight, {
-        min: 0,
-        max: 100
-      })
       const baseCostError = getNumericOverrideError(override.baseCost, {
         min: 0
       })
@@ -1877,35 +1860,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         max: 100
       })
       const sellError = getNumericOverrideError(override.sellValue, { min: 0 })
-      if (weightError) errors[`${definition.key}.weight`] = weightError
       if (baseCostError) errors[`${definition.key}.baseCost`] = baseCostError
       if (markupError) errors[`${definition.key}.markupPercent`] = markupError
       if (sellError) errors[`${definition.key}.sellValue`] = sellError
     })
     return errors
   }, [selectedServiceDefinitions, serviceOverrides])
-
-  const totalServiceWeight = useMemo(
-    () =>
-      Number(
-        serviceCostRows
-          .reduce((sum, row) => sum + (Number(row.weight) || 0), 0)
-          .toFixed(2)
-      ),
-    [serviceCostRows]
-  )
-
-  const weightValidationMessage = useMemo(() => {
-    if (!serviceCostRows.length) return ''
-    if (Math.abs(totalServiceWeight - 100) <= 0.05) return ''
-    return `Total weight must equal 100%. Current total: ${totalServiceWeight.toFixed(
-      1
-    )}%.`
-  }, [serviceCostRows.length, totalServiceWeight])
-
-  const hasPricingErrors =
-    Boolean(weightValidationMessage) ||
-    Object.keys(pricingFieldErrors).length > 0
+  const hasPricingErrors = Object.keys(pricingFieldErrors).length > 0
   const inclusionLines = useMemo(
     () => toBulletList(form.inclusions),
     [form.inclusions]
@@ -2217,10 +2178,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           key: row.key,
           label: row.label,
           itemType: row.itemType,
-          weight:
-            override.weight !== undefined && override.weight !== ''
-              ? Number(override.weight)
-              : row.weight,
+          weight: row.weight,
           baseCost:
             override.baseCost !== undefined && override.baseCost !== ''
               ? Number(override.baseCost)
@@ -2241,7 +2199,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       addOnServices: addOnServices.map(service => ({
         id: service.id,
         name: service.name,
-        weight: Number(service.weight) || 0,
         baseCost: Number(service.baseCost) || 0,
         markup: Number(service.markup) || 0,
         sellValue: Number(service.sellValue) || 0
@@ -2919,7 +2876,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     Step 1: Cost Split
                   </p>
                   <p className='mt-1'>
-                    Supplier cost is distributed to selected services by weight.
+                    Supplier cost is distributed automatically across selected
+                    services.
                   </p>
                 </div>
                 <div className='rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900'>
@@ -2950,8 +2908,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     onUpdateField={updateServiceOverrideField}
                     onClearField={clearServiceOverrideField}
                     onCellKeyDown={focusNextPricingInput}
-                    totalWeight={totalServiceWeight}
-                    weightError={weightValidationMessage}
                     totalSellValue={serviceChargesTotal}
                   />
                   <div className='rounded-xl border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
@@ -2968,9 +2924,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     </div>
                     {addOnServices.length ? (
                       <div className='space-y-2 text-xs text-gray-600 dark:text-gray-300'>
-                        <div className='grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                        <div className='grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
                           <span>Service</span>
-                          <span className='text-right w-16'>Weight</span>
                           <span className='text-right w-20'>Base Cost</span>
                           <span className='text-right w-20'>Markup</span>
                           <span className='text-right w-20'>Sell Value</span>
@@ -2979,12 +2934,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         {addOnServices.map(service => (
                           <div
                             key={service.id}
-                            className='grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-2'
+                            className='grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-2'
                           >
                             <span>{service.name}</span>
-                            <span className='text-right w-16'>
-                              {Number(service.weight || 0).toFixed(1)}%
-                            </span>
                             <span className='text-right w-20'>
                               {money(Number(service.baseCost) || 0)}
                             </span>
@@ -3657,36 +3609,21 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     placeholder='Airport pickup / Cruise / Extra nights'
                   />
                 </div>
-                <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-                  <div>
-                    <label className='field-label'>Weight (%)</label>
-                    <input
-                      type='number'
-                      min='0'
-                      className='field-input'
-                      value={addOnDraft.weight}
-                      onChange={e =>
-                        setAddOnDraft(p => ({ ...p, weight: e.target.value }))
-                      }
-                      placeholder='0'
-                    />
-                  </div>
-                  <div>
-                    <label className='field-label'>Base Cost</label>
-                    <input
-                      type='number'
-                      min='0'
-                      className='field-input'
-                      value={addOnDraft.baseCost}
-                      onChange={e =>
-                        setAddOnDraft(p => ({
-                          ...p,
-                          baseCost: e.target.value
-                        }))
-                      }
-                      placeholder='0.00'
-                    />
-                  </div>
+                <div>
+                  <label className='field-label'>Base Cost</label>
+                  <input
+                    type='number'
+                    min='0'
+                    className='field-input'
+                    value={addOnDraft.baseCost}
+                    onChange={e =>
+                      setAddOnDraft(p => ({
+                        ...p,
+                        baseCost: e.target.value
+                      }))
+                    }
+                    placeholder='0.00'
+                  />
                 </div>
                 <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
                   <div>
@@ -3770,9 +3707,7 @@ const PricingTable = ({
   onClearField,
   onCellKeyDown,
   money,
-  totalWeight,
-  totalSellValue,
-  weightError
+  totalSellValue
 }: {
   rows: ServiceCostRow[]
   overrides: ServiceOverridesState
@@ -3786,9 +3721,7 @@ const PricingTable = ({
   onClearField: (rowKey: ServiceKey, field: PricingField) => void
   onCellKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
   money: (value: number) => string
-  totalWeight: number
   totalSellValue: number
-  weightError: string
 }) => {
   return (
     <div className='space-y-3'>
@@ -3826,15 +3759,6 @@ const PricingTable = ({
                 <div className='mt-2 flex items-center gap-4'>
                   <div>
                     <p className='text-xs text-blue-600 dark:text-blue-400'>
-                      Weight Distribution
-                    </p>
-                    <p className='text-lg font-bold tabular-nums text-blue-900 dark:text-blue-100'>
-                      {totalWeight.toFixed(1)}%
-                    </p>
-                  </div>
-                  <div className='h-8 w-px bg-blue-300 dark:bg-blue-700' />
-                  <div>
-                    <p className='text-xs text-blue-600 dark:text-blue-400'>
                       Total Sell Value
                     </p>
                     <p className='text-lg font-bold tabular-nums text-blue-900 dark:text-blue-100'>
@@ -3843,19 +3767,11 @@ const PricingTable = ({
                   </div>
                 </div>
               </div>
-              {weightError ? (
-                <div className='rounded-lg border border-red-300 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-900/30'>
-                  <p className='text-xs font-semibold text-red-700 dark:text-red-300'>
-                    ⚠ {weightError}
-                  </p>
-                </div>
-              ) : (
-                <div className='rounded-lg border border-green-300 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-900/30'>
-                  <p className='text-xs font-semibold text-green-700 dark:text-green-300'>
-                    ✓ Validated
-                  </p>
-                </div>
-              )}
+              <div className='rounded-lg border border-green-300 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-900/30'>
+                <p className='text-xs font-semibold text-green-700 dark:text-green-300'>
+                  Auto-allocated
+                </p>
+              </div>
             </div>
           </div>
         </>
@@ -3888,14 +3804,10 @@ const PricingRow = ({
   onCellKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
   money: (value: number) => string
 }) => {
-  const hasWeightOverride = override.weight !== undefined
   const hasBaseCostOverride = override.baseCost !== undefined
   const hasMarkupOverride = override.markupPercent !== undefined
   const hasSellOverride = override.sellValue !== undefined
 
-  const displayWeight = hasWeightOverride
-    ? String(override.weight)
-    : row.weight.toFixed(1)
   const displayBaseCost = hasBaseCostOverride
     ? String(override.baseCost)
     : row.baseCost.toFixed(2)
@@ -3925,9 +3837,7 @@ const PricingRow = ({
     value: string
   ) => {
     const options =
-      field === 'weight'
-        ? { min: 0, max: 100, precision: 1 }
-        : field === 'markupPercent'
+      field === 'markupPercent'
         ? { min: 0, max: 100, precision: 1 }
         : { min: 0, precision: 2 }
     const normalized = normalizeNumericOverride(value, options)
@@ -3960,33 +3870,7 @@ const PricingRow = ({
         </div>
       </div>
 
-      <div className='grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4'>
-        <div>
-          <label className='mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-300'>
-            Weight %
-          </label>
-          <input
-            data-pricing-input='true'
-            type='number'
-            min='0'
-            max='100'
-            step='0.1'
-            value={displayWeight}
-            onFocus={event => event.currentTarget.select()}
-            onKeyDown={onCellKeyDown}
-            onChange={event =>
-              onUpdateField(row.key, 'weight', event.target.value)
-            }
-            onBlur={event => normalizeOnBlur('weight', event.target.value)}
-            className={fieldClass('weight')}
-          />
-          {fieldErrors[`${row.key}.weight`] ? (
-            <p className='mt-1 text-[10px] text-red-600'>
-              {fieldErrors[`${row.key}.weight`]}
-            </p>
-          ) : null}
-        </div>
-
+      <div className='grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3'>
         <div>
           <label className='mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-300'>
             Base Cost
