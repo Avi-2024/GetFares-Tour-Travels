@@ -6,91 +6,110 @@ import axios, {
   type InternalAxiosRequestConfig,
   isAxiosError,
 } from "axios";
+import { IHttpClient, IRequestOptions, type RequestBody, type QueryParams } from "../interfaces/IHttp.interface";
+import { tokenStorage } from "./storage.service";
 
-type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-type Primitive = string | number | boolean | null | undefined;
-type QueryParams = Record<string, Primitive>;
-type RequestBody = Record<string, unknown> | FormData | unknown[];
 interface ApiErrorResponse {
   message?: string;
   errors?: Record<string, string[]>;
 }
-interface RequestOptions {
-  headers?: Record<string, string>;
-  params?: QueryParams;
-  body?: RequestBody;
-  signal?: AbortSignal;
-  timeout?: number;
+
+class AuthInterceptor {
+  public onRequest(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
+    const token = tokenStorage.loadToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  }
+
+  public onRequestError(error: unknown): Promise<never> {
+    return Promise.reject(error);
+  }
 }
 
-class ApiService {
-  private readonly client: AxiosInstance;
+class ErrorInterceptor {
+  public onResponse(response: AxiosResponse): AxiosResponse {
+    return response;
+  }
 
-  constructor() {
+  public onResponseError(error: unknown): Promise<never> {
+    if (isAxiosError<ApiErrorResponse>(error)) {
+      const axiosError = error as AxiosError<ApiErrorResponse>;
+      const message =
+        axiosError.response?.data?.message ||
+        axiosError.message ||
+        "Something went wrong.";
+      return Promise.reject(new Error(message));
+    }
+    return Promise.reject(
+      error instanceof Error ? error : new Error("Unexpected error occurred.")
+    );
+  }
+}
+
+class HttpClient implements IHttpClient {
+  private static instance: HttpClient;
+  private readonly client: AxiosInstance;
+  private readonly authInterceptor: AuthInterceptor;
+  private readonly errorInterceptor: ErrorInterceptor;
+
+  private constructor(
+    baseURL: string,
+    timeout: number = 15000,
+    authInterceptor: AuthInterceptor = new AuthInterceptor(),
+    errorInterceptor: ErrorInterceptor = new ErrorInterceptor()
+  ) {
+    this.authInterceptor = authInterceptor;
+    this.errorInterceptor = errorInterceptor;
+    
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL ?? "",
+      baseURL,
       withCredentials: true,
-      timeout: 15000,
+      timeout,
       headers: {
         Accept: "application/json",
       },
     });
 
+    this.setupInterceptors();
+  }
+
+  public static getInstance(
+    baseURL: string = import.meta.env.VITE_API_BASE_URL ?? "",
+    timeout?: number
+  ): HttpClient {
+    if (!HttpClient.instance) {
+      HttpClient.instance = new HttpClient(baseURL, timeout);
+    }
+    return HttpClient.instance;
+  }
+
+  private setupInterceptors(): void {
     this.client.interceptors.request.use(
-      (config: InternalAxiosRequestConfig) => {
-        const token = this.getAuthToken();
-
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-
-        return config;
-      },
-      (error: unknown) => Promise.reject(error),
+      (config) => this.authInterceptor.onRequest(config),
+      (error) => this.authInterceptor.onRequestError(error)
     );
 
     this.client.interceptors.response.use(
-      (response: AxiosResponse) => response,
-      (error: unknown) => {
-        if (isAxiosError<ApiErrorResponse>(error)) {
-          const axiosError = error as AxiosError<ApiErrorResponse>;
-
-          const message =
-            axiosError.response?.data?.message ||
-            axiosError.message ||
-            "Something went wrong.";
-
-          return Promise.reject(new Error(message));
-        }
-
-        return Promise.reject(
-          error instanceof Error ? error : (
-            new Error("Unexpected error occurred.")
-          ),
-        );
-      },
+      (response) => this.errorInterceptor.onResponse(response),
+      (error) => this.errorInterceptor.onResponseError(error)
     );
   }
 
-  private getAuthToken(): string | null {
-    if (typeof window === "undefined") return null;
-
-    return localStorage.getItem("token");
-  }
 
   private cleanParams(params?: QueryParams): QueryParams | undefined {
     if (!params) return undefined;
-
     return Object.fromEntries(
       Object.entries(params).filter(
-        ([, value]) => value !== null && value !== undefined,
-      ),
+        ([, value]) => value !== null && value !== undefined
+      )
     );
   }
 
   private buildConfig(
     body?: RequestBody,
-    options: RequestOptions = {},
+    options: IRequestOptions = {}
   ): AxiosRequestConfig {
     const resolvedBody = body ?? options.body;
     const isFormData = resolvedBody instanceof FormData;
@@ -111,10 +130,10 @@ class ApiService {
   }
 
   private async send<T>(
-    method: HttpMethod,
+    method: string,
     path: string,
     body?: RequestBody,
-    options: RequestOptions = {},
+    options: IRequestOptions = {}
   ): Promise<T> {
     const config = this.buildConfig(body, options);
 
@@ -127,14 +146,14 @@ class ApiService {
     return response.data;
   }
 
-  public get<T>(path: string, options?: RequestOptions): Promise<T> {
+  public get<T>(path: string, options?: IRequestOptions): Promise<T> {
     return this.send<T>("GET", path, undefined, options);
   }
 
   public post<T>(
     path: string,
     body?: RequestBody,
-    options?: RequestOptions,
+    options?: IRequestOptions
   ): Promise<T> {
     return this.send<T>("POST", path, body, options);
   }
@@ -142,7 +161,7 @@ class ApiService {
   public put<T>(
     path: string,
     body?: RequestBody,
-    options?: RequestOptions,
+    options?: IRequestOptions
   ): Promise<T> {
     return this.send<T>("PUT", path, body, options);
   }
@@ -150,16 +169,15 @@ class ApiService {
   public patch<T>(
     path: string,
     body?: RequestBody,
-    options?: RequestOptions,
+    options?: IRequestOptions
   ): Promise<T> {
     return this.send<T>("PATCH", path, body, options);
   }
 
-  public delete<T>(path: string, options?: RequestOptions): Promise<T> {
+  public delete<T>(path: string, options?: IRequestOptions): Promise<T> {
     return this.send<T>("DELETE", path, undefined, options);
   }
 }
 
-const apiService = new ApiService();
-
-export default apiService;
+export const apiService = HttpClient.getInstance();
+export { HttpClient, AuthInterceptor, ErrorInterceptor };
