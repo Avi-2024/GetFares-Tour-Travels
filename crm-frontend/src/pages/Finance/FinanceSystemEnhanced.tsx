@@ -1,29 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React  from 'react'
 import {
   FaBuilding,
   FaUser,
   FaCreditCard,
-  FaPlus,
-  FaTrash,
-  FaSearch,
-  FaChevronLeft,
-  FaChevronRight,
-  FaBars,
+
   FaDownload,
   FaCheckCircle,
   FaExclamationTriangle,
   FaInfoCircle
 } from 'react-icons/fa'
-import { FaXmark, FaPenToSquare, FaPercent, FaRotate, FaMoneyBillTrendUp } from 'react-icons/fa6'
+import { FaXmark,  FaRotate, FaMoneyBillTrendUp } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
-import EmptyState from '../../components/ui/EmptyState'
-import SearchableDropdown from '../../components/ui/SearchableDropdown'
-import { customersApi } from '../../api/customers'
-import { suppliersApi } from '../../api/suppliers'
-import { paymentsApi } from '../../api/payments'
-import { bookingsApi } from '../../api/bookings'
-import { reportsApi } from '../../api/reports'
-import { getApiErrorMessage } from '../../api/apiClient'
 
 // Enhanced Stats Card Component
 const StatsCard = ({ 

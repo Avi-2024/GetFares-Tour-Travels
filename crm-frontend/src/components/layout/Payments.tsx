@@ -32,6 +32,7 @@ import { leadsApi } from "../../api/leads";
 import { customersApi } from "../../api/customers";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useLeadsService } from "../../hooks/useLeadsService";
+import { getCurrencyOptions,  formatCurrency } from "../../utils/currency";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
 type PaymentMode = "bank" | "card" | "cash" | "cheque" | "online";
@@ -93,6 +94,7 @@ interface Transaction {
   bookingId: string;
   bookingLabel?: string;
   amount: number;
+  currency?: string;
   mode: PaymentMode;
   status: TxStatus;
   paidAt?: string;
@@ -407,6 +409,7 @@ const mapPaymentToTransaction = (row: any): Transaction => {
     bookingId,
     bookingLabel: bookingId,
     amount: toNumber(row?.amount, 0),
+    currency: row?.currency || 'INR',
     mode: mapApiModeToTx(row?.paymentMode ?? row?.payment_mode),
     status: mapApiStatusToTx(row?.status),
     paidAt: paidAt ?? undefined,
@@ -626,7 +629,7 @@ const VerifyModal = ({
             <div className="flex justify-between">
               <span className="text-sm text-gray-500">Amount</span>
               <span className="text-sm font-bold text-gray-900">
-                ${Math.abs(transaction.amount).toLocaleString()}
+                {formatCurrency(Math.abs(transaction.amount), transaction.currency || 'INR')}
               </span>
             </div>
             <div className="flex justify-between">
@@ -785,6 +788,7 @@ const PaymentFormModal = ({
 
   const [formData, setFormData] = useState(() => buildFormData(transaction));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [currency, setCurrency] = useState(transaction?.currency || 'INR');
   const [customers, setCustomers] = useState<
     Array<{ id: string; name: string; email?: string }>
   >([]);
@@ -805,6 +809,7 @@ const PaymentFormModal = ({
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofUploadError, setProofUploadError] = useState("");
   const proofInputRef = useRef<HTMLInputElement | null>(null);
+  const currencyOptions = useMemo(() => getCurrencyOptions(false), []);
   const customerDropdownOptions = useMemo(
     () => [
       {
@@ -1234,7 +1239,7 @@ const PaymentFormModal = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="field-label">Amount *</label>
               <input
@@ -1259,6 +1264,15 @@ const PaymentFormModal = ({
                   Max payable amount: {selectedBookingTotal.toLocaleString()}
                 </p>
               )}
+            </div>
+            <div>
+              <label className="field-label">Currency</label>
+              <SearchableDropdown
+                value={currency}
+                options={currencyOptions}
+                onChange={(value) => setCurrency(value)}
+                searchPlaceholder="Search currency..."
+              />
             </div>
             <div>
               <label className="field-label">Payment Mode</label>
@@ -1589,8 +1603,8 @@ const DetailsModal = ({
                   transaction.amount < 0 ? "text-red-600" : "text-gray-900"
                 }`}
               >
-                {transaction.amount < 0 ? "-" : ""}$
-                {Math.abs(transaction.amount).toLocaleString()}
+                {transaction.amount < 0 ? "-" : ""}
+                {formatCurrency(Math.abs(transaction.amount), transaction.currency || 'INR')}
               </p>
             </div>
           </div>
@@ -3148,8 +3162,8 @@ const Payments: React.FC = () => {
                         : "text-gray-900 dark:text-gray-100"
                       }`}
                     >
-                      {tx.amount < 0 ? "-" : ""}$
-                      {Math.abs(tx.amount).toLocaleString()}
+                      {tx.amount < 0 ? "-" : ""}
+                      {formatCurrency(Math.abs(tx.amount), tx.currency || 'INR')}
                     </p>
                   </div>
 
@@ -3233,8 +3247,8 @@ const Payments: React.FC = () => {
                           : "text-gray-900 dark:text-gray-100"
                         }`}
                       >
-                        {tx.amount < 0 ? "-" : ""}$
-                        {Math.abs(tx.amount).toFixed(2)}
+                        {tx.amount < 0 ? "-" : ""}
+                        {formatCurrency(Math.abs(tx.amount), tx.currency || 'INR')}
                       </td>
                       <td className="px-5 py-4">
                         <span className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">

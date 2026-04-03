@@ -97,6 +97,13 @@ function createReportsRoutes({
     validateRequest(validation.financeCostBreakup),
     asyncHandler(controller.financeCostBreakup),
   );
+  router.get(
+    "/finance/supplier-services",
+    requireAuth,
+    authorize("reports:read"),
+    validateRequest(validation.financeSupplierServices),
+    asyncHandler(controller.financeSupplierServices),
+  );
 
   router.get(
     "/visa/summary",

@@ -1,526 +1,423 @@
-import React, { useState, useEffect } from 'react'
-import { FaBuilding, FaSearch, FaFilter, FaDownload, FaChevronDown, FaChevronUp } from 'react-icons/fa'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { FaBuilding, FaDownload, FaSearch } from 'react-icons/fa'
+import { FaRotate } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import { reportsApi } from '../../api/reports'
+import { getApiErrorMessage } from '../../api/apiClient'
 
-// Types
-interface SupplierServiceRow {
-  id: string
-  quotationId: string
-  quoteNumber: string
-  leadName: string
-  supplierName: string
-  supplierId: string
-  serviceType: string // HOTEL, FLIGHT, TOUR, INSURANCE, etc.
-  serviceName: string
-  baseCost: number
-  markup: number
-  markupPercent: number
-  finalSellValue: number
-  currency: string
-  createdAt: string
-  status: string
+type SupplierServiceBreakdownProps = {
+  refreshKey?: number
 }
 
-interface SupplierSummary {
+type SupplierServiceRow = {
+  id: string
+  quotationId: string
+  bookingId: string
+  bookingNumber: string
+  bookingStatus: string
+  paymentStatus: string
+  advanceReceived: number
+  leadName: string
+  quoteNumber: string
+  serviceLabel: string
   supplierId: string
   supplierName: string
-  totalServices: number
-  totalBaseCost: number
-  totalMarkup: number
-  totalSellValue: number
+  basePrice: number
   currency: string
-  services: {
-    [serviceType: string]: {
-      count: number
-      baseCost: number
-      markup: number
-      sellValue: number
-    }
+  quotationStatus: string
+  createdAt: string
+}
+
+type Pagination = {
+  page: number
+  limit: number
+  totalItems: number
+  totalPages: number
+}
+
+const unwrapData = (response: unknown): any =>
+  (response as { data?: unknown })?.data ?? response
+
+const toNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const formatLabel = (value: string) =>
+  value
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, char => char.toUpperCase())
+
+const formatCurrency = (amount: number, currency = 'INR') => {
+  try {
+    return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount)
+  } catch (_error) {
+    return `${toNumber(amount, 0).toFixed(2)} ${currency}`
   }
 }
 
-const SupplierServiceBreakdown: React.FC = () => {
-  const [data, setData] = useState<SupplierServiceRow[]>([])
-  const [supplierSummaries, setSupplierSummaries] = useState<SupplierSummary[]>([])
+const formatDateTime = (value: string) => {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return parsed.toLocaleString()
+}
+
+const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({
+  refreshKey = 0
+}) => {
+  const [rows, setRows] = useState<SupplierServiceRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({
-    supplier: '',
-    serviceType: '',
-    currency: '',
-    from: '',
-    to: '',
-    status: ''
+  const [supplierFilter, setSupplierFilter] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    limit: 20,
+    totalItems: 0,
+    totalPages: 1
   })
-  const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set())
 
-  // Mock data - Replace with actual API call
-  useEffect(() => {
-    fetchSupplierServiceData()
-  }, [filters])
-
-  const fetchSupplierServiceData = async () => {
+  const fetchRows = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
-      // TODO: Replace with actual API call
-      // const response = await reportsApi.supplierServiceBreakdown(filters)
-      
-      // Mock data for demonstration
-      const mockData: SupplierServiceRow[] = [
-        {
-          id: '1',
-          quotationId: 'qt-001',
-          quoteNumber: 'QT-20240115-123456',
-          leadName: 'John Doe',
-          supplierName: 'Maldives Resorts',
-          supplierId: 'sup-001',
-          serviceType: 'HOTEL',
-          serviceName: 'Accommodation - 5N Hotel',
-          baseCost: 5000,
-          markup: 500,
-          markupPercent: 10,
-          finalSellValue: 5500,
-          currency: 'USD',
-          createdAt: '2024-01-15T10:30:00Z',
-          status: 'APPROVED'
-        },
-        {
-          id: '2',
-          quotationId: 'qt-001',
-          quoteNumber: 'QT-20240115-123456',
-          leadName: 'John Doe',
-          supplierName: 'Emirates Airlines',
-          supplierId: 'sup-002',
-          serviceType: 'FLIGHT',
-          serviceName: 'Round Trip Flight',
-          baseCost: 6000,
-          markup: 900,
-          markupPercent: 15,
-          finalSellValue: 6900,
-          currency: 'USD',
-          createdAt: '2024-01-15T10:30:00Z',
-          status: 'APPROVED'
-        },
-        {
-          id: '3',
-          quotationId: 'qt-002',
-          quoteNumber: 'QT-20240116-789012',
-          leadName: 'Jane Smith',
-          supplierName: 'Maldives Resorts',
-          supplierId: 'sup-001',
-          serviceType: 'HOTEL',
-          serviceName: 'Accommodation - 3N Hotel',
-          baseCost: 3000,
-          markup: 300,
-          markupPercent: 10,
-          finalSellValue: 3300,
-          currency: 'USD',
-          createdAt: '2024-01-16T14:20:00Z',
-          status: 'SENT'
-        }
-      ]
+      const params: Record<string, string | number | boolean> = {
+        page: pagination.page,
+        limit: pagination.limit
+      }
+      if (supplierFilter) params.supplierId = supplierFilter
+      if (fromDate) params.from = fromDate
+      if (toDate) params.to = toDate
 
-      setData(mockData)
-      calculateSupplierSummaries(mockData)
-    } catch (error) {
-      console.error('Failed to fetch supplier service data:', error)
+      const response = await reportsApi.financeSupplierServices(params)
+      const data = unwrapData(response)
+      const rawRows = Array.isArray(data?.rows) ? data.rows : []
+
+      const mappedRows: SupplierServiceRow[] = rawRows.map((row: any, index: number) => ({
+        id: String(row?.id ?? `supplier-service-${index}`),
+        quotationId: String(row?.quotationId ?? ''),
+        bookingId: String(row?.bookingId ?? ''),
+        bookingNumber: String(row?.bookingNumber ?? '-'),
+        bookingStatus: String(row?.bookingStatus ?? '').toUpperCase(),
+        paymentStatus: String(row?.paymentStatus ?? '').toUpperCase(),
+        advanceReceived: toNumber(row?.advanceReceived, 0),
+        leadName: String(row?.leadName ?? 'Unknown lead'),
+        quoteNumber: String(row?.quoteNumber ?? '-'),
+        serviceLabel: String(row?.serviceLabel ?? 'OTHER'),
+        supplierId: String(row?.supplierId ?? ''),
+        supplierName: String(row?.supplierName ?? 'Not selected'),
+        basePrice: toNumber(row?.basePrice, 0),
+        currency: String(row?.currency ?? 'INR').toUpperCase(),
+        quotationStatus: String(row?.quotationStatus ?? '').toUpperCase(),
+        createdAt: String(row?.createdAt ?? '')
+      }))
+
+      setRows(mappedRows)
+      setPagination({
+        page: toNumber(data?.pagination?.page, pagination.page),
+        limit: toNumber(data?.pagination?.limit, pagination.limit),
+        totalItems: toNumber(data?.pagination?.totalItems, 0),
+        totalPages: Math.max(1, toNumber(data?.pagination?.totalPages, 1))
+      })
+    } catch (err) {
+      setRows([])
+      setError(
+        getApiErrorMessage(
+          err,
+          'Failed to load supplier-service data from backend report'
+        )
+      )
     } finally {
       setLoading(false)
     }
-  }
+  }, [fromDate, pagination.limit, pagination.page, supplierFilter, toDate])
 
-  const calculateSupplierSummaries = (rows: SupplierServiceRow[]) => {
-    const summaryMap = new Map<string, SupplierSummary>()
+  useEffect(() => {
+    void fetchRows()
+  }, [fetchRows, refreshKey])
 
-    rows.forEach(row => {
-      if (!summaryMap.has(row.supplierId)) {
-        summaryMap.set(row.supplierId, {
-          supplierId: row.supplierId,
-          supplierName: row.supplierName,
-          totalServices: 0,
-          totalBaseCost: 0,
-          totalMarkup: 0,
-          totalSellValue: 0,
-          currency: row.currency,
-          services: {}
-        })
-      }
+  useEffect(() => {
+    setPagination(prev => ({ ...prev, page: 1 }))
+  }, [supplierFilter, fromDate, toDate])
 
-      const summary = summaryMap.get(row.supplierId)!
-      summary.totalServices += 1
-      summary.totalBaseCost += row.baseCost
-      summary.totalMarkup += row.markup
-      summary.totalSellValue += row.finalSellValue
+  const supplierOptions = useMemo(
+    () => [
+      { value: '', label: 'All Suppliers' },
+      ...Array.from(
+        new Map(
+          rows
+            .filter(row => row.supplierId && row.supplierId !== 'UNASSIGNED')
+            .map(row => [
+              row.supplierId,
+              { value: row.supplierId, label: row.supplierName }
+            ])
+        ).values()
+      )
+    ],
+    [rows]
+  )
 
-      if (!summary.services[row.serviceType]) {
-        summary.services[row.serviceType] = {
-          count: 0,
-          baseCost: 0,
-          markup: 0,
-          sellValue: 0
-        }
-      }
-
-      summary.services[row.serviceType].count += 1
-      summary.services[row.serviceType].baseCost += row.baseCost
-      summary.services[row.serviceType].markup += row.markup
-      summary.services[row.serviceType].sellValue += row.finalSellValue
+  const searchedRows = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return rows
+    return rows.filter(row => {
+      const haystack = [
+        row.leadName,
+        row.quoteNumber,
+        row.bookingNumber,
+        row.serviceLabel,
+        row.supplierName,
+        row.quotationStatus,
+        row.bookingStatus,
+        row.paymentStatus
+      ]
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(query)
     })
+  }, [rows, search])
 
-    setSupplierSummaries(Array.from(summaryMap.values()))
-  }
-
-  const toggleSupplierExpansion = (supplierId: string) => {
-    setExpandedSuppliers(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(supplierId)) {
-        newSet.delete(supplierId)
-      } else {
-        newSet.add(supplierId)
-      }
-      return newSet
-    })
-  }
-
-  const formatCurrency = (amount: number, currency: string = 'USD') => {
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(amount)
-    } catch {
-      return `${amount.toFixed(2)} ${currency}`
-    }
-  }
-
-  const formatDateTime = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleString()
-    } catch {
-      return dateStr
-    }
-  }
-
-  const filteredData = data.filter(row => {
-    const searchLower = search.toLowerCase()
-    const matchesSearch = !search || 
-      row.supplierName.toLowerCase().includes(searchLower) ||
-      row.serviceName.toLowerCase().includes(searchLower) ||
-      row.quoteNumber.toLowerCase().includes(searchLower) ||
-      row.leadName.toLowerCase().includes(searchLower)
-
-    const matchesSupplier = !filters.supplier || row.supplierId === filters.supplier
-    const matchesServiceType = !filters.serviceType || row.serviceType === filters.serviceType
-    const matchesCurrency = !filters.currency || row.currency === filters.currency
-    const matchesStatus = !filters.status || row.status === filters.status
-
-    return matchesSearch && matchesSupplier && matchesServiceType && matchesCurrency && matchesStatus
-  })
-
-  const exportToCSV = () => {
-    const headers = ['Quote Number', 'Lead Name', 'Supplier', 'Service Type', 'Service Name', 'Base Cost', 'Markup %', 'Markup Amount', 'Final Sell Value', 'Currency', 'Status', 'Created At']
-    const rows = filteredData.map(row => [
-      row.quoteNumber,
+  const exportCsv = () => {
+    if (!searchedRows.length) return
+    const headers = [
+      'Lead Name',
+      'Booking #',
+      'Quote #',
+      'Service',
+      'Selected Supplier',
+      'Supplier Base Price',
+      'Currency',
+      'Booking Status',
+      'Payment Status',
+      'Advance Received',
+      'Quotation Status',
+      'Date'
+    ]
+    const csvRows = searchedRows.map(row => [
       row.leadName,
+      row.bookingNumber,
+      row.quoteNumber,
+      row.serviceLabel,
       row.supplierName,
-      row.serviceType,
-      row.serviceName,
-      row.baseCost,
-      row.markupPercent,
-      row.markup,
-      row.finalSellValue,
+      row.basePrice,
       row.currency,
-      row.status,
+      row.bookingStatus,
+      row.paymentStatus,
+      row.advanceReceived,
+      row.quotationStatus,
       formatDateTime(row.createdAt)
     ])
-
-    const csv = [headers, ...rows]
-      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    const csv = [headers, ...csvRows]
+      .map(row =>
+        row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')
+      )
       .join('\n')
-
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `supplier-service-breakdown-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `supplier-service-confirmed-paid-${new Date().toISOString().slice(0, 10)}.csv`
+    anchor.click()
     URL.revokeObjectURL(url)
   }
 
   return (
-    <div className='space-y-6'>
-      {/* Header */}
-      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
-        <div>
-          <h2 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-            Supplier-wise Service Breakdown
-          </h2>
-          <p className='text-sm text-gray-600 dark:text-gray-400 mt-1'>
-            Track which supplier is providing which service and at what cost
-          </p>
-        </div>
-        <button
-          onClick={exportToCSV}
-          disabled={filteredData.length === 0}
-          className='inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed'
-        >
-          <FaDownload /> Export CSV
-        </button>
-      </div>
-
-      {/* Info Banner */}
-      <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>
-        <div className='flex items-start gap-3'>
-          <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
-            <FaBuilding className='text-blue-600 dark:text-blue-400' />
+    <div className='space-y-4'>
+      <SurfaceCard className='border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-900/20'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div className='flex items-start gap-3'>
+            <div className='rounded-full bg-blue-100 p-2 dark:bg-blue-900/60'>
+              <FaBuilding className='text-blue-600 dark:text-blue-300' />
+            </div>
+            <div>
+              <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100'>
+                Backend Filtered Supplier Services
+              </h3>
+              <p className='text-sm text-blue-800 dark:text-blue-200'>
+                Data comes from backend only: bookings confirmed or payment received.
+              </p>
+            </div>
           </div>
-          <div className='flex-1'>
-            <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>
-              Supplier Service Allocation
-            </h3>
-            <p className='text-sm text-blue-800 dark:text-blue-200'>
-              This report shows which supplier is selected for each service in quotations. Base cost, markup percentage, and final sell value are tracked per service.
-            </p>
-          </div>
-        </div>
-      </SurfaceCard>
-
-      {/* Filters */}
-      <SurfaceCard className='p-4 border border-gray-200 dark:border-gray-800'>
-        <div className='flex items-center gap-2 mb-4'>
-          <FaFilter className='text-gray-500' />
-          <h3 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>Filters</h3>
-        </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
-          <div>
-            <label className='field-label'>Supplier</label>
-            <SearchableDropdown
-              value={filters.supplier}
-              onChange={value => setFilters({ ...filters, supplier: value })}
-              options={[
-                { value: '', label: 'All Suppliers' },
-                { value: 'sup-001', label: 'Maldives Resorts' },
-                { value: 'sup-002', label: 'Emirates Airlines' }
-              ]}
-              placeholder='Select supplier'
-              className='w-full'
-            />
-          </div>
-          <div>
-            <label className='field-label'>Service Type</label>
-            <SearchableDropdown
-              value={filters.serviceType}
-              onChange={value => setFilters({ ...filters, serviceType: value })}
-              options={[
-                { value: '', label: 'All Services' },
-                { value: 'HOTEL', label: 'Hotel' },
-                { value: 'FLIGHT', label: 'Flight' },
-                { value: 'TOUR', label: 'Tours & Activities' },
-                { value: 'INSURANCE', label: 'Insurance' },
-                { value: 'TRANSFER', label: 'Transfer' }
-              ]}
-              placeholder='Select service type'
-              className='w-full'
-            />
-          </div>
-          <div>
-            <label className='field-label'>Currency</label>
-            <SearchableDropdown
-              value={filters.currency}
-              onChange={value => setFilters({ ...filters, currency: value })}
-              options={[
-                { value: '', label: 'All Currencies' },
-                { value: 'USD', label: 'USD' },
-                { value: 'EUR', label: 'EUR' },
-                { value: 'INR', label: 'INR' }
-              ]}
-              placeholder='Select currency'
-              className='w-full'
-            />
-          </div>
-          <div>
-            <label className='field-label'>Status</label>
-            <SearchableDropdown
-              value={filters.status}
-              onChange={value => setFilters({ ...filters, status: value })}
-              options={[
-                { value: '', label: 'All Status' },
-                { value: 'DRAFT', label: 'Draft' },
-                { value: 'SENT', label: 'Sent' },
-                { value: 'APPROVED', label: 'Approved' }
-              ]}
-              placeholder='Select status'
-              className='w-full'
-            />
-          </div>
-        </div>
-      </SurfaceCard>
-
-      {/* Search */}
-      <div className='relative'>
-        <FaSearch className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm' />
-        <input
-          type='text'
-          placeholder='Search by supplier, service, quote number, or lead name...'
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className='w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800'
-        />
-      </div>
-
-      {/* Supplier Summaries */}
-      <div className='space-y-4'>
-        <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-          Supplier Summaries
-        </h3>
-        {supplierSummaries.map(summary => (
-          <SurfaceCard key={summary.supplierId} className='border border-gray-200 dark:border-gray-800 overflow-hidden'>
-            <div 
-              className='p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50'
-              onClick={() => toggleSupplierExpansion(summary.supplierId)}
+          <div className='flex items-center gap-2'>
+            <button
+              onClick={() => void fetchRows()}
+              disabled={loading}
+              className='inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
             >
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-3'>
-                  <div className='w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
-                    <FaBuilding className='text-blue-600 dark:text-blue-400' />
-                  </div>
-                  <div>
-                    <h4 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-                      {summary.supplierName}
-                    </h4>
-                    <p className='text-xs text-gray-500 dark:text-gray-400'>
-                      {summary.totalServices} services • {summary.currency}
-                    </p>
-                  </div>
-                </div>
-                <div className='flex items-center gap-6'>
-                  <div className='text-right'>
-                    <p className='text-xs text-gray-500 dark:text-gray-400'>Base Cost</p>
-                    <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                      {formatCurrency(summary.totalBaseCost, summary.currency)}
-                    </p>
-                  </div>
-                  <div className='text-right'>
-                    <p className='text-xs text-gray-500 dark:text-gray-400'>Markup</p>
-                    <p className='text-sm font-semibold text-green-600 dark:text-green-400'>
-                      {formatCurrency(summary.totalMarkup, summary.currency)}
-                    </p>
-                  </div>
-                  <div className='text-right'>
-                    <p className='text-xs text-gray-500 dark:text-gray-400'>Total Sell</p>
-                    <p className='text-base font-bold text-blue-600 dark:text-blue-400'>
-                      {formatCurrency(summary.totalSellValue, summary.currency)}
-                    </p>
-                  </div>
-                  {expandedSuppliers.has(summary.supplierId) ? 
-                    <FaChevronUp className='text-gray-400' />
-                  : <FaChevronDown className='text-gray-400' />
+              <FaRotate className={loading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+            <button
+              onClick={exportCsv}
+              disabled={!searchedRows.length}
+              className='inline-flex items-center gap-2 rounded-lg border border-green-500 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-100 dark:hover:bg-gray-800'
+            >
+              <FaDownload />
+              Export
+            </button>
+          </div>
+        </div>
+      </SurfaceCard>
+
+      {error ? (
+        <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'>
+          {error}
+        </div>
+      ) : null}
+
+      <SurfaceCard className='border border-gray-200 p-4 dark:border-gray-800'>
+        <div className='grid grid-cols-1 gap-3 lg:grid-cols-4'>
+          <div className='relative lg:col-span-2'>
+            <FaSearch className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
+            <input
+              type='text'
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              className='field-input !pl-9'
+              placeholder='Search lead, booking, quote, service, supplier...'
+            />
+          </div>
+          <div>
+            <SearchableDropdown
+              value={supplierFilter}
+              onChange={setSupplierFilter}
+              options={supplierOptions}
+              placeholder='All Suppliers'
+              className='w-full'
+            />
+          </div>
+          <div className='grid grid-cols-2 gap-2'>
+            <input
+              type='date'
+              value={fromDate}
+              onChange={event => setFromDate(event.target.value)}
+              className='field-input'
+              title='From date'
+            />
+            <input
+              type='date'
+              value={toDate}
+              onChange={event => setToDate(event.target.value)}
+              className='field-input'
+              title='To date'
+            />
+          </div>
+        </div>
+      </SurfaceCard>
+
+      <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+        {!searchedRows.length ? (
+          <div className='p-6'>
+            <EmptyState
+              title={loading ? 'Loading supplier-service rows...' : 'No rows found'}
+              description='No confirmed/paid bookings with supplier services in this filter.'
+              icon={<FaBuilding className='text-4xl' />}
+            />
+          </div>
+        ) : (
+          <>
+            <div className='overflow-x-auto'>
+              <table className='w-full'>
+                <thead className='bg-gray-50 dark:bg-gray-800/60'>
+                  <tr>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
+                      Lead Name
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
+                      Booking #
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
+                      Service
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
+                      Selected Supplier
+                    </th>
+                    <th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>
+                      Base Price
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
+                      Booking / Payment
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
+                      Date
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                  {searchedRows.map(row => (
+                    <tr key={row.id} className='hover:bg-gray-50 dark:hover:bg-gray-800/40'>
+                      <td className='px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100'>
+                        {row.leadName}
+                      </td>
+                      <td className='px-4 py-3 text-sm text-blue-600'>
+                        {row.bookingNumber}
+                      </td>
+                      <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
+                        {row.serviceLabel}
+                      </td>
+                      <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
+                        {row.supplierName}
+                      </td>
+                      <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                        {formatCurrency(row.basePrice, row.currency)}
+                      </td>
+                      <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
+                        <p>{formatLabel(row.bookingStatus || 'PENDING')}</p>
+                        <p className='text-xs text-gray-500'>
+                          {formatLabel(row.paymentStatus || 'PENDING')} • Adv:{' '}
+                          {formatCurrency(row.advanceReceived, row.currency)}
+                        </p>
+                      </td>
+                      <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
+                        {formatDateTime(row.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className='flex flex-col items-start justify-between gap-3 border-t border-gray-200 px-4 py-3 dark:border-gray-800 sm:flex-row sm:items-center'>
+              <p className='text-xs text-gray-500'>
+                Page {pagination.page} of {pagination.totalPages} • Total{' '}
+                {pagination.totalItems}
+              </p>
+              <div className='flex items-center gap-2'>
+                <button
+                  onClick={() =>
+                    setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))
                   }
-                </div>
+                  disabled={pagination.page <= 1 || loading}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300'
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() =>
+                    setPagination(prev => ({
+                      ...prev,
+                      page: Math.min(prev.totalPages, prev.page + 1)
+                    }))
+                  }
+                  disabled={pagination.page >= pagination.totalPages || loading}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300'
+                >
+                  Next
+                </button>
               </div>
             </div>
-
-            {expandedSuppliers.has(summary.supplierId) && (
-              <div className='border-t border-gray-200 dark:border-gray-800 p-4 bg-gray-50 dark:bg-gray-800/30'>
-                <h5 className='text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3'>
-                  Service Breakdown
-                </h5>
-                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
-                  {Object.entries(summary.services).map(([serviceType, serviceData]) => (
-                    <div key={serviceType} className='p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700'>
-                      <p className='text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2'>
-                        {serviceType}
-                      </p>
-                      <div className='space-y-1 text-xs'>
-                        <div className='flex justify-between'>
-                          <span className='text-gray-500'>Count:</span>
-                          <span className='font-medium'>{serviceData.count}</span>
-                        </div>
-                        <div className='flex justify-between'>
-                          <span className='text-gray-500'>Base:</span>
-                          <span className='font-medium'>{formatCurrency(serviceData.baseCost, summary.currency)}</span>
-                        </div>
-                        <div className='flex justify-between'>
-                          <span className='text-gray-500'>Markup:</span>
-                          <span className='font-medium text-green-600'>{formatCurrency(serviceData.markup, summary.currency)}</span>
-                        </div>
-                        <div className='flex justify-between border-t border-gray-200 dark:border-gray-700 pt-1'>
-                          <span className='text-gray-700 dark:text-gray-300 font-semibold'>Total:</span>
-                          <span className='font-semibold text-blue-600'>{formatCurrency(serviceData.sellValue, summary.currency)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Detailed Rows for this Supplier */}
-                <div className='mt-4'>
-                  <h6 className='text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide'>
-                    Detailed Services
-                  </h6>
-                  <div className='overflow-x-auto'>
-                    <table className='w-full text-sm'>
-                      <thead className='bg-gray-100 dark:bg-gray-800'>
-                        <tr>
-                          <th className='px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400'>Quote</th>
-                          <th className='px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400'>Lead</th>
-                          <th className='px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400'>Service</th>
-                          <th className='px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400'>Base Cost</th>
-                          <th className='px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400'>Markup %</th>
-                          <th className='px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400'>Markup</th>
-                          <th className='px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400'>Sell Value</th>
-                          <th className='px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400'>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className='divide-y divide-gray-200 dark:divide-gray-700'>
-                        {filteredData
-                          .filter(row => row.supplierId === summary.supplierId)
-                          .map(row => (
-                            <tr key={row.id} className='hover:bg-gray-50 dark:hover:bg-gray-800/50'>
-                              <td className='px-3 py-2 text-xs'>{row.quoteNumber}</td>
-                              <td className='px-3 py-2 text-xs'>{row.leadName}</td>
-                              <td className='px-3 py-2 text-xs'>
-                                <div>
-                                  <p className='font-medium'>{row.serviceType}</p>
-                                  <p className='text-gray-500'>{row.serviceName}</p>
-                                </div>
-                              </td>
-                              <td className='px-3 py-2 text-xs text-right'>{formatCurrency(row.baseCost, row.currency)}</td>
-                              <td className='px-3 py-2 text-xs text-right'>{row.markupPercent}%</td>
-                              <td className='px-3 py-2 text-xs text-right text-green-600'>{formatCurrency(row.markup, row.currency)}</td>
-                              <td className='px-3 py-2 text-xs text-right font-semibold'>{formatCurrency(row.finalSellValue, row.currency)}</td>
-                              <td className='px-3 py-2 text-xs'>
-                                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                                  row.status === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                                  row.status === 'SENT' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
-                                  'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                                }`}>
-                                  {row.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-          </SurfaceCard>
-        ))}
-
-        {supplierSummaries.length === 0 && (
-          <EmptyState
-            title='No supplier data found'
-            description='No services have been allocated to suppliers yet'
-            icon={<FaBuilding className='text-4xl' />}
-          />
+          </>
         )}
-      </div>
+      </SurfaceCard>
     </div>
   )
 }

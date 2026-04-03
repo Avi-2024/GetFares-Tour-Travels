@@ -553,6 +553,179 @@ function createReportsRepository({ db, schema }) {
       };
     },
 
+    async getFinanceSupplierServices(filters = {}) {
+      const page = Math.max(toNumber(filters.page, 1), 1);
+      const limit = Math.min(Math.max(toNumber(filters.limit, 20), 1), 200);
+      const offset = (page - 1) * limit;
+      const params = [];
+      const where = [];
+
+      if (filters.from) {
+        params.push(filters.from);
+        where.push(`q.created_at >= $${params.length}`);
+      }
+      if (filters.to) {
+        params.push(filters.to);
+        where.push(`q.created_at <= $${params.length}`);
+      }
+      if (filters.supplierId) {
+        params.push(String(filters.supplierId).trim());
+        where.push(`service_rows.supplier_id = $${params.length}`);
+      }
+
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+      const baseSql = `
+        WITH eligible_bookings AS (
+          SELECT
+            b.id,
+            b.quotation_id,
+            b.booking_number,
+            b.status AS booking_status,
+            b.payment_status,
+            COALESCE(b.advance_received, 0) AS advance_received
+          FROM ${schema.bookingsTable} b
+          WHERE COALESCE(b.is_deleted, FALSE) = FALSE
+            AND (
+              UPPER(COALESCE(NULLIF(TRIM(b.status::text), ''), '')) = 'CONFIRMED'
+              OR COALESCE(b.advance_received, 0) > 0
+              OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status::text), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
+            )
+        ),
+        quotation_snapshot AS (
+          SELECT
+            q.id AS quotation_id,
+            q.quote_number,
+            q.created_at,
+            q.status AS quotation_status,
+            q.lead_id,
+            q.client_currency,
+            q.cost_currency,
+            q.supplier_currency,
+            COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) AS snapshot_json
+          FROM ${schema.quotationsTable} q
+          INNER JOIN eligible_bookings eb ON eb.quotation_id = q.id
+        ),
+        service_rows AS (
+          SELECT
+            qs.quotation_id,
+            qs.quote_number,
+            qs.created_at,
+            qs.quotation_status,
+            qs.lead_id,
+            qs.client_currency,
+            qs.cost_currency,
+            qs.supplier_currency,
+            COALESCE(
+              NULLIF(TRIM(srv.item ->> 'supplierId'), ''),
+              NULLIF(TRIM(qs.snapshot_json -> 'supplierDetails' ->> 'supplierId'), ''),
+              'UNASSIGNED'
+            ) AS supplier_id,
+            COALESCE(
+              NULLIF(TRIM(srv.item ->> 'supplierName'), ''),
+              NULLIF(TRIM(qs.snapshot_json -> 'supplierDetails' ->> 'supplierName'), ''),
+              'Not selected'
+            ) AS supplier_name,
+            COALESCE(
+              NULLIF(TRIM(srv.item ->> 'label'), ''),
+              NULLIF(TRIM(srv.item ->> 'serviceName'), ''),
+              NULLIF(TRIM(srv.item ->> 'itemType'), ''),
+              NULLIF(TRIM(srv.item ->> 'key'), ''),
+              'OTHER'
+            ) AS service_label,
+            CASE
+              WHEN COALESCE(srv.item ->> 'baseCost', '') ~ '^-?\\d+(\\.\\d+)?$'
+              THEN (srv.item ->> 'baseCost')::numeric(14,2)
+              ELSE 0::numeric(14,2)
+            END AS base_price
+          FROM quotation_snapshot qs
+          CROSS JOIN LATERAL jsonb_array_elements(
+            CASE
+              WHEN jsonb_typeof(qs.snapshot_json -> 'serviceRows') = 'array'
+              THEN qs.snapshot_json -> 'serviceRows'
+              WHEN jsonb_typeof(qs.snapshot_json -> 'builderSnapshot' -> 'serviceRows') = 'array'
+              THEN qs.snapshot_json -> 'builderSnapshot' -> 'serviceRows'
+              ELSE '[]'::jsonb
+            END
+          ) AS srv(item)
+        )
+        SELECT
+          service_rows.quotation_id,
+          COALESCE(NULLIF(TRIM(service_rows.quote_number), ''), LEFT(service_rows.quotation_id::text, 8)) AS quote_number,
+          COALESCE(NULLIF(TRIM(l.full_name), ''), 'Unknown lead') AS lead_name,
+          service_rows.service_label,
+          service_rows.supplier_id,
+          COALESCE(NULLIF(TRIM(s.name), ''), service_rows.supplier_name) AS supplier_name,
+          service_rows.base_price,
+          COALESCE(
+            NULLIF(TRIM(service_rows.client_currency), ''),
+            NULLIF(TRIM(service_rows.cost_currency), ''),
+            NULLIF(TRIM(service_rows.supplier_currency), ''),
+            'INR'
+          ) AS currency,
+          service_rows.quotation_status,
+          service_rows.created_at,
+          eb.id AS booking_id,
+          eb.booking_number,
+          eb.booking_status,
+          eb.payment_status,
+          eb.advance_received
+        FROM service_rows
+        LEFT JOIN ${schema.leadsTable} l ON l.id = service_rows.lead_id
+        LEFT JOIN ${schema.suppliersTable} s ON s.id::text = service_rows.supplier_id
+        LEFT JOIN eligible_bookings eb ON eb.quotation_id = service_rows.quotation_id
+      `;
+
+      const countRows = await queryRows(
+        `
+          SELECT COUNT(*)::int AS total_items
+          FROM (${baseSql} ${whereSql}) AS filtered
+        `,
+        params,
+      );
+
+      const listParams = [...params, limit, offset];
+      const rows = await queryRows(
+        `
+          ${baseSql}
+          ${whereSql}
+          ORDER BY created_at DESC, quote_number ASC
+          LIMIT $${listParams.length - 1}
+          OFFSET $${listParams.length}
+        `,
+        listParams,
+      );
+
+      const totalItems = toNumber(countRows[0]?.total_items, 0);
+
+      return {
+        rows: rows.map((row, index) => ({
+          id: `${row.quotation_id}-${index}`,
+          quotationId: row.quotation_id,
+          bookingId: row.booking_id,
+          bookingNumber: row.booking_number,
+          bookingStatus: row.booking_status,
+          paymentStatus: row.payment_status,
+          advanceReceived: toNumber(row.advance_received, 0),
+          quoteNumber: row.quote_number,
+          leadName: row.lead_name,
+          serviceLabel: row.service_label,
+          supplierId: row.supplier_id,
+          supplierName: row.supplier_name,
+          basePrice: toNumber(row.base_price, 0),
+          currency: row.currency || "INR",
+          quotationStatus: row.quotation_status,
+          createdAt: row.created_at,
+        })),
+        pagination: {
+          page,
+          limit,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+        },
+      };
+    },
+
     async getVisaSummary(filters = {}) {
       const range = buildDateRangeClause("vc.created_at", filters);
       const rows = await queryRows(

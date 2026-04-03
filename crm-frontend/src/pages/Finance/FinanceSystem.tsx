@@ -15,6 +15,7 @@ import { FaXmark, FaPenToSquare, FaPercent, FaRotate } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import SupplierServiceBreakdown from './SupplierServiceBreakdown'
 import { customersApi } from '../../api/customers'
 import { suppliersApi } from '../../api/suppliers'
 import { paymentsApi } from '../../api/payments'
@@ -89,6 +90,9 @@ type BookingLookup = {
   id: string
   bookingNumber: string
   customer?: string
+  currency?: string
+  totalAmount?: number
+  paidAmount?: number
 }
 
 type CostBreakupRow = {
@@ -207,7 +211,7 @@ const createPaymentFormData = () => ({
   amount: '',
   date: new Date().toISOString().split('T')[0],
   reference: '',
-  currency: 'USD'
+  currency: 'INR'
 })
 
 // Modal Components
@@ -590,18 +594,92 @@ const SupplierModal = ({
 const PaymentModal = ({
   isOpen,
   onClose,
-  onSave
+  onSave,
+  bookings = []
 }: {
   isOpen: boolean
   onClose: () => void
   onSave: (data: any) => void
+  bookings?: BookingLookup[]
 }) => {
   const [formData, setFormData] = useState(createPaymentFormData)
+  const [bookingError, setBookingError] = useState('')
+
+  const bookingOptions = useMemo(
+    () => [
+      {
+        value: '',
+        label: bookings.length ? 'Select booking' : 'No bookings found'
+      },
+      ...bookings.map(booking => ({
+        value: booking.id,
+        label: booking.customer
+          ? `${booking.bookingNumber} - ${booking.customer}`
+          : booking.bookingNumber,
+        searchText: `${booking.bookingNumber} ${booking.customer || ''} ${
+          booking.id
+        }`
+      }))
+    ],
+    [bookings]
+  )
+
+  const selectedBooking = useMemo(
+    () => bookings.find(booking => booking.id === formData.bookingId) || null,
+    [bookings, formData.bookingId]
+  )
+
+  const currencyOptions = useMemo(() => {
+    const defaults = ['USD', 'EUR', 'GBP', 'INR', 'AED']
+    const bookingCurrency = String(selectedBooking?.currency || '')
+      .trim()
+      .toUpperCase()
+    const merged = bookingCurrency ? [bookingCurrency, ...defaults] : defaults
+    return Array.from(new Set(merged)).map(currency => ({
+      value: currency,
+      label: currency
+    }))
+  }, [selectedBooking?.currency])
+
+  const formatMoney = useCallback((amount: number, currency: string) => {
+    const normalizedCurrency = String(currency || 'INR').toUpperCase()
+    try {
+      return new Intl.NumberFormat(
+        normalizedCurrency === 'INR' ? 'en-IN' : 'en-US',
+        {
+          style: 'currency',
+          currency: normalizedCurrency,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }
+      ).format(amount)
+    } catch (_error) {
+      return `${toNumber(amount, 0).toFixed(2)} ${normalizedCurrency}`
+    }
+  }, [])
+
+  const outstandingAmount = selectedBooking
+    ? Math.max(
+        toNumber(selectedBooking.totalAmount, 0) -
+          toNumber(selectedBooking.paidAmount, 0),
+        0
+      )
+    : null
+
+  useEffect(() => {
+    if (!isOpen) return
+    setBookingError('')
+    setFormData(createPaymentFormData())
+  }, [isOpen])
 
   if (!isOpen) return null
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!formData.bookingId.trim()) {
+      setBookingError('Please select a booking')
+      return
+    }
     onSave({
       ...formData,
       amount: toNumber(formData.amount, 0),
@@ -628,15 +706,46 @@ const PaymentModal = ({
         <form onSubmit={handleSubmit} className='p-6 space-y-4'>
           <div>
             <label className='field-label'>Booking *</label>
+            <SearchableDropdown
+              value={formData.bookingId}
+              onChange={value => {
+                const matchedBooking =
+                  bookings.find(booking => booking.id === value) || null
+                setFormData(prev => ({
+                  ...prev,
+                  bookingId: value,
+                  currency:
+                    matchedBooking?.currency?.toUpperCase() || prev.currency
+                }))
+                setBookingError('')
+              }}
+              options={bookingOptions}
+              hasError={Boolean(bookingError)}
+              searchPlaceholder='Search booking number or customer...'
+              placeholder='Select booking'
+              className='w-full'
+            />
+            {bookingError ? (
+              <p className='mt-1 text-xs text-red-500'>{bookingError}</p>
+            ) : null}
+            {selectedBooking ? (
+              <p className='mt-1 text-xs text-gray-500'>
+                Outstanding:{' '}
+                {formatMoney(
+                  outstandingAmount ?? 0,
+                  formData.currency || selectedBooking.currency || 'INR'
+                )}
+              </p>
+            ) : null}
             <input
               type='text'
               required
+              readOnly
+              tabIndex={-1}
+              aria-hidden='true'
               value={formData.bookingId}
-              onChange={e =>
-                setFormData({ ...formData, bookingId: e.target.value })
-              }
-              className='field-input'
-              placeholder='e.g. 27fb60d8-b432-4cbf-85d2-f08469e874a8'
+              onChange={() => {}}
+              className='sr-only'
             />
           </div>
 
@@ -705,13 +814,7 @@ const PaymentModal = ({
             <SearchableDropdown
               value={formData.currency}
               onChange={value => setFormData({ ...formData, currency: value })}
-              options={[
-                { value: 'USD', label: 'USD' },
-                { value: 'EUR', label: 'EUR' },
-                { value: 'GBP', label: 'GBP' },
-                { value: 'INR', label: 'INR' },
-                { value: 'AED', label: 'AED' }
-              ]}
+              options={currencyOptions}
               placeholder='Select currency'
               className='w-full'
             />
@@ -772,6 +875,7 @@ const FinanceSystem: React.FC = () => {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [page, setPage] = useState(1)
+  const [supplierServicesRefreshKey, setSupplierServicesRefreshKey] = useState(0)
   const pageSize = 5
   const menuRef = useRef<HTMLDivElement | null>(null)
 
@@ -978,7 +1082,29 @@ const FinanceSystem: React.FC = () => {
             booking?.customer_name ??
             booking?.leadName ??
             booking?.lead_name ??
-            ''
+            '',
+          currency: String(
+            booking?.clientCurrency ??
+              booking?.client_currency ??
+              booking?.currency ??
+              'INR'
+          ).toUpperCase(),
+          totalAmount: toNumber(
+            booking?.totalAmount ??
+              booking?.total_amount ??
+              booking?.amount ??
+              booking?.amount_total,
+            0
+          ),
+          paidAmount: toNumber(
+            booking?.paidAmount ??
+              booking?.paid_amount ??
+              booking?.paid ??
+              booking?.amountPaid ??
+              booking?.advanceReceived ??
+              booking?.advance_received,
+            0
+          )
         }))
       )
     } catch (lookupError) {
@@ -1503,6 +1629,7 @@ const FinanceSystem: React.FC = () => {
               <button
                 onClick={exportCurrentTable}
                 disabled={
+                  activeTab === 'supplier-services' ||
                   (activeTab === 'clients' && paginatedClients.length === 0) ||
                   (activeTab === 'suppliers' && paginatedSuppliers.length === 0) ||
                   (activeTab === 'payments' && paginatedPayments.length === 0) ||
@@ -1526,6 +1653,10 @@ const FinanceSystem: React.FC = () => {
                   }
                   if (activeTab === 'payments') {
                     void fetchPayments()
+                    return
+                  }
+                  if (activeTab === 'supplier-services') {
+                    setSupplierServicesRefreshKey(prev => prev + 1)
                     return
                   }
                   void fetchCostBreakup()
@@ -2918,49 +3049,8 @@ const FinanceSystem: React.FC = () => {
 
           {/* Supplier Services Tab */}
           {activeTab === 'supplier-services' && (
-            <div className='space-y-4'>
-              <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>
-                <div className='flex items-start gap-3'>
-                  <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
-                    <FaBuilding className='text-blue-600 dark:text-blue-400' />
-                  </div>
-                  <div className='flex-1'>
-                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Supplier Service Allocation</h3>
-                    <p className='text-sm text-blue-800 dark:text-blue-200'>
-                      Track which supplier is providing which service (Hotel, Flight, Tours, Insurance) with base cost, markup percentage, and final sell value per service.
-                    </p>
-                  </div>
-                </div>
-              </SurfaceCard>
-              
-              <SurfaceCard className='p-6 border border-gray-200 dark:border-gray-800'>
-                <div className='text-center py-12'>
-                  <FaBuilding className='mx-auto text-6xl text-gray-300 dark:text-gray-700 mb-4' />
-                  <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2'>
-                    Supplier Service Breakdown
-                  </h3>
-                  <p className='text-sm text-gray-600 dark:text-gray-400 mb-4'>
-                    This feature will show detailed breakdown of services allocated to each supplier from quotations.
-                  </p>
-                  <div className='max-w-2xl mx-auto text-left bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4'>
-                    <p className='text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2'>What you'll see here:</p>
-                    <ul className='text-xs text-gray-600 dark:text-gray-400 space-y-1'>
-                      <li>• Supplier-wise service allocation (Hotel, Flight, Tours, Insurance, Transfer)</li>
-                      <li>• Base cost provided by each supplier for each service</li>
-                      <li>• Markup percentage and amount applied on each service</li>
-                      <li>• Final sell value to customer per service</li>
-                      <li>• Quotation-level tracking with lead information</li>
-                      <li>• Export capability for finance reconciliation</li>
-                    </ul>
-                    <p className='text-xs text-amber-600 dark:text-amber-400 mt-3'>
-                      <strong>Note:</strong> Backend API integration required. Data will be populated from quotation builder where suppliers are selected for each service.
-                    </p>
-                  </div>
-                </div>
-              </SurfaceCard>
-            </div>
+            <SupplierServiceBreakdown refreshKey={supplierServicesRefreshKey} />
           )}
-
           {/* Pagination */}
           {(activeTab === 'clients' && filteredClients.length > pageSize) ||
           (activeTab === 'suppliers' && filteredSuppliers.length > pageSize) ||
@@ -3048,6 +3138,7 @@ const FinanceSystem: React.FC = () => {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         onSave={handleAddPayment}
+        bookings={bookingLookups}
       />
 
       <style>{`
