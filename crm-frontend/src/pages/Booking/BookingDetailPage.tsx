@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   FaFileInvoice,
@@ -18,6 +18,7 @@ import { bookingsApi } from "../../api/bookings";
 import { paymentsApi } from "../../api/payments";
 import { quotationsApi } from "../../api/quotations";
 import { getApiErrorMessage } from "../../api/apiClient";
+import SearchableDropdown from "../../components/ui/SearchableDropdown";
 
 // Types
 type DeadlineRiskLevel = "SAFE" | "D2_DUE" | "DEADLINE_DUE" | "OVERDUE";
@@ -90,6 +91,77 @@ interface Payment {
   reference?: string;
   status: "pending" | "completed" | "failed";
 }
+
+interface CreatePaymentFormPayload {
+  amount: number;
+  mode: "bank" | "card" | "cash" | "cheque" | "online";
+  status: "completed" | "pending" | "failed" | "refunded";
+  referenceId?: string;
+  notes?: string;
+  invoiceAttachment?: {
+    name: string;
+    type: string;
+    size: number;
+    data: string;
+  };
+  proofAttachment?: {
+    name: string;
+    type: string;
+    size: number;
+    data: string;
+  };
+}
+
+const PAYMENT_MODE_OPTIONS: Array<{
+  value: CreatePaymentFormPayload["mode"];
+  label: string;
+}> = [
+  { value: "bank", label: "Bank Transfer" },
+  { value: "card", label: "Card" },
+  { value: "cash", label: "Cash" },
+  { value: "cheque", label: "Cheque" },
+  { value: "online", label: "Online" },
+];
+
+const PAYMENT_STATUS_OPTIONS: Array<{
+  value: CreatePaymentFormPayload["status"];
+  label: string;
+}> = [
+  { value: "pending", label: "Pending" },
+  { value: "completed", label: "Completed" },
+  { value: "failed", label: "Failed" },
+  { value: "refunded", label: "Refunded" },
+];
+
+const MAX_INVOICE_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+const formatFileSize = (bytes: number) => {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const power = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
+  const value = bytes / Math.pow(1024, power);
+  return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[power]}`;
+};
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        const commaIndex = result.indexOf(",");
+        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+      } else {
+        reject(new Error("Unable to read file"));
+      }
+    };
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
 
 function unwrapData<T>(response: unknown): T | null {
   if (!response) return null;
@@ -201,6 +273,39 @@ const normalizePaymentMode = (value?: string): Payment["mode"] => {
   }
 };
 
+const mapPaymentModeToApi = (
+  mode: CreatePaymentFormPayload["mode"],
+): "CASH" | "CARD" | "BANK_TRANSFER" | "PAYMENT_GATEWAY" => {
+  switch (mode) {
+    case "cash":
+      return "CASH";
+    case "card":
+      return "CARD";
+    case "online":
+      return "PAYMENT_GATEWAY";
+    case "cheque":
+      return "BANK_TRANSFER";
+    case "bank":
+    default:
+      return "BANK_TRANSFER";
+  }
+};
+
+const mapPaymentStatusToApi = (
+  value: CreatePaymentFormPayload["status"],
+): "PENDING" | "FULL" | "REFUNDED" => {
+  switch (value) {
+    case "completed":
+      return "FULL";
+    case "refunded":
+      return "REFUNDED";
+    case "failed":
+    case "pending":
+    default:
+      return "PENDING";
+  }
+};
+
 const mapBookingFromApi = (raw: any): Booking => {
   const totalAmount = toNumber(raw?.totalAmount ?? raw?.total_amount, 0);
   const costAmount = toNumber(raw?.costAmount ?? raw?.cost_amount, 0);
@@ -209,11 +314,10 @@ const mapBookingFromApi = (raw: any): Booking => {
     toNumber(raw?.advanceRequired ?? raw?.advance_required, 0),
     0,
   );
-  const rawAdvanceReceived = Math.max(
+  const advanceReceived = Math.max(
     toNumber(raw?.advanceReceived ?? raw?.advance_received, 0),
     0,
   );
-  const advanceReceived = Math.min(rawAdvanceReceived, advanceRequired);
   const deadlineInfo =
     raw?.deadlineTracking ??
     raw?.deadline_tracking ??
@@ -758,15 +862,30 @@ const InvoiceDetailsModal = ({
 const PaymentDetailsModal = ({
   isOpen,
   payments,
+  currency,
+  totalPaid,
+  remainingAmount,
   onClose,
   onAddPayment,
 }: {
   isOpen: boolean;
   payments: Payment[];
+  currency: string;
+  totalPaid: number;
+  remainingAmount: number;
   onClose: () => void;
   onAddPayment: () => void;
 }) => {
   if (!isOpen) return null;
+
+  const formatAmount = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "INR",
+      currencyDisplay: "code",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -784,6 +903,25 @@ const PaymentDetailsModal = ({
         </div>
 
         <div className="p-6">
+          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Total Paid
+              </p>
+              <p className="mt-1 text-sm font-semibold text-green-700 dark:text-green-300">
+                {formatAmount(totalPaid)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Remaining
+              </p>
+              <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {formatAmount(remainingAmount)}
+              </p>
+            </div>
+          </div>
+
           {payments.length === 0 ?
             <div className="text-center py-8">
               <p className="text-gray-500">No payments recorded yet</p>
@@ -794,18 +932,16 @@ const PaymentDetailsModal = ({
                   key={payment.id}
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: "USD",
-                      }).format(payment.amount)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(payment.date).toLocaleString()} • {payment.mode}{" "}
-                      • Ref: {payment.reference}
-                    </p>
-                  </div>
+	                  <div>
+	                    <p className="text-sm font-medium text-gray-900">
+	                      {formatAmount(payment.amount)}
+	                    </p>
+	                    <p className="text-xs text-gray-500">
+	                      {new Date(payment.date).toLocaleString()} •{" "}
+	                      {payment.mode}
+	                      {payment.reference ? ` • Ref: ${payment.reference}` : ""}
+	                    </p>
+	                  </div>
                   <span
                     className={`px-2 py-1 rounded-full text-xs font-medium ${
                       payment.status === "completed" ?
@@ -826,9 +962,496 @@ const PaymentDetailsModal = ({
         <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end">
           <button
             onClick={onAddPayment}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            disabled={remainingAmount <= 0}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
           >
-            <FaPlus /> Add Payment
+            <FaPlus /> {remainingAmount > 0 ? "Make Payment" : "Fully Paid"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AddPaymentModal = ({
+  isOpen,
+  booking,
+  maxPayable,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  booking: Booking | null;
+  maxPayable: number;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: (payload: CreatePaymentFormPayload) => void;
+}) => {
+  const [formData, setFormData] = useState(() => ({
+    customer: booking?.customerName || "",
+    bookingId: booking?.bookingNumber || "",
+    amount: "",
+    mode: "bank" as CreatePaymentFormPayload["mode"],
+    referenceId: "",
+    status: "completed" as CreatePaymentFormPayload["status"],
+    notes: "",
+  }));
+  const [errors, setErrors] = useState<{
+    customer?: string;
+    bookingId?: string;
+    amount?: string;
+  }>({});
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoiceUploadError, setInvoiceUploadError] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofUploadError, setProofUploadError] = useState("");
+  const invoiceInputRef = useRef<HTMLInputElement | null>(null);
+  const proofInputRef = useRef<HTMLInputElement | null>(null);
+
+  const clearInvoiceSelection = useCallback(() => {
+    setInvoiceFile(null);
+    setInvoiceUploadError("");
+    if (invoiceInputRef.current) {
+      invoiceInputRef.current.value = "";
+    }
+  }, []);
+
+  const clearProofSelection = useCallback(() => {
+    setProofFile(null);
+    setProofUploadError("");
+    if (proofInputRef.current) {
+      proofInputRef.current.value = "";
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setFormData({
+      customer: booking?.customerName || "",
+      bookingId: booking?.bookingNumber || "",
+      amount: "",
+      mode: "bank",
+      referenceId: "",
+      status: "completed",
+      notes: "",
+    });
+    setErrors({});
+    clearInvoiceSelection();
+    clearProofSelection();
+  }, [isOpen, booking?.id, maxPayable, clearInvoiceSelection, clearProofSelection]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      clearInvoiceSelection();
+      clearProofSelection();
+    }
+  }, [isOpen, clearInvoiceSelection, clearProofSelection]);
+
+  const handleInvoiceFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.type.startsWith("image/")) {
+      setInvoiceUploadError("Upload a PDF or image for invoice");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_INVOICE_FILE_SIZE) {
+      setInvoiceUploadError("Invoice must be 5 MB or smaller");
+      event.target.value = "";
+      return;
+    }
+
+    setInvoiceUploadError("");
+    setInvoiceFile(file);
+  };
+
+  const handleProofFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.type.startsWith("image/")) {
+      setProofUploadError("Upload a PDF or image as proof");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_INVOICE_FILE_SIZE) {
+      setProofUploadError("Proof must be 5 MB or smaller");
+      event.target.value = "";
+      return;
+    }
+
+    setProofUploadError("");
+    setProofFile(file);
+  };
+
+  if (!isOpen || !booking) return null;
+
+  const formatAmount = (value: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: booking.clientCurrency || "INR",
+      currencyDisplay: "code",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+
+  const validate = () => {
+    const nextErrors: { customer?: string; bookingId?: string; amount?: string } =
+      {};
+    const parsedAmount = Number(formData.amount);
+    if (!formData.customer.trim()) {
+      nextErrors.customer = "Customer is required";
+    }
+    if (!formData.bookingId.trim()) {
+      nextErrors.bookingId = "Booking ID is required";
+    }
+    if (!formData.amount.trim()) {
+      nextErrors.amount = "Amount is required";
+    } else if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      nextErrors.amount = "Amount must be greater than 0";
+    } else if (parsedAmount > maxPayable) {
+      nextErrors.amount = `Amount cannot exceed ${formatAmount(maxPayable)}`;
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    let invoiceAttachment:
+      | {
+          name: string;
+          type: string;
+          size: number;
+          data: string;
+        }
+      | undefined;
+    let proofAttachment:
+      | {
+          name: string;
+          type: string;
+          size: number;
+          data: string;
+        }
+      | undefined;
+
+    if (invoiceFile) {
+      try {
+        const base64 = await fileToBase64(invoiceFile);
+        invoiceAttachment = {
+          name: invoiceFile.name,
+          type: invoiceFile.type,
+          size: invoiceFile.size,
+          data: base64,
+        };
+      } catch (error) {
+        console.error("Failed to process invoice PDF", error);
+        setInvoiceUploadError("Unable to read the invoice PDF. Please try again.");
+        return;
+      }
+    }
+
+    if (proofFile) {
+      try {
+        const base64 = await fileToBase64(proofFile);
+        proofAttachment = {
+          name: proofFile.name,
+          type: proofFile.type,
+          size: proofFile.size,
+          data: base64,
+        };
+      } catch (error) {
+        console.error("Failed to process payment proof", error);
+        setProofUploadError("Unable to read the proof file. Please try again.");
+        return;
+      }
+    }
+
+    onSubmit({
+      amount: Number(formData.amount),
+      mode: formData.mode,
+      status: formData.status,
+      referenceId: formData.referenceId.trim() || undefined,
+      notes: formData.notes.trim() || undefined,
+      invoiceAttachment,
+      proofAttachment,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Add New Payment
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <FaXmark className="text-xl" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="field-label">Customer *</label>
+              <input
+                type="text"
+                value={formData.customer}
+                readOnly
+                className={`field-input ${
+                  errors.customer ? "border-red-500" : ""
+                } bg-gray-100 dark:bg-gray-800`}
+                placeholder="Customer"
+              />
+              {errors.customer && (
+                <p className="text-xs text-red-500 mt-1">{errors.customer}</p>
+              )}
+            </div>
+            <div>
+              <label className="field-label">Booking ID *</label>
+              <input
+                type="text"
+                value={formData.bookingId}
+                readOnly
+                className={`field-input ${
+                  errors.bookingId ? "border-red-500" : ""
+                } bg-gray-100 dark:bg-gray-800`}
+                placeholder="Booking ID"
+              />
+              {errors.bookingId && (
+                <p className="text-xs text-red-500 mt-1">{errors.bookingId}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 space-y-2">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              {booking.customerName || "Unknown"} • #{booking.bookingNumber}
+            </p>
+            <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
+              <span>Total Amount</span>
+              <span className="font-semibold">
+                {formatAmount(booking.totalAmount)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
+              <span>Remaining</span>
+              <span className="font-semibold">{formatAmount(maxPayable)}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="field-label">Amount *</label>
+              <input
+                type="number"
+                value={formData.amount}
+                onChange={(event) =>
+                  setFormData({ ...formData, amount: event.target.value })
+                }
+                className={`field-input ${errors.amount ? "border-red-500" : ""}`}
+                placeholder="0.00"
+                min="0"
+                max={maxPayable}
+                step="0.01"
+              />
+              {errors.amount ? (
+                <p className="text-xs text-red-500 mt-1">{errors.amount}</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Max payable amount: {maxPayable.toLocaleString()}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="field-label">Payment Mode</label>
+              <SearchableDropdown
+                value={formData.mode}
+                options={PAYMENT_MODE_OPTIONS}
+                onChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    mode: value as CreatePaymentFormPayload["mode"],
+                  })
+                }
+                searchPlaceholder="Search payment mode..."
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="field-label">Reference ID</label>
+              <input
+                type="text"
+                value={formData.referenceId}
+                onChange={(event) =>
+                  setFormData({ ...formData, referenceId: event.target.value })
+                }
+                className="field-input"
+                placeholder="TRX-XXXX"
+              />
+            </div>
+            <div>
+              <label className="field-label">Status</label>
+              <SearchableDropdown
+                value={formData.status}
+                options={PAYMENT_STATUS_OPTIONS}
+                onChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    status: value as CreatePaymentFormPayload["status"],
+                  })
+                }
+                searchPlaceholder="Search payment status..."
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="field-label">Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={(event) =>
+                setFormData({ ...formData, notes: event.target.value })
+              }
+              rows={3}
+              className="field-input"
+              placeholder="Additional notes..."
+            />
+          </div>
+
+          <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              Attachments
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-gray-800 mb-2">
+                  Invoice Attachment
+                </p>
+                <div className="space-y-3">
+                  {invoiceFile ?
+                    <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {invoiceFile.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(invoiceFile.size)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-red-600 hover:underline"
+                        onClick={clearInvoiceSelection}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  : <p className="text-sm text-gray-500">
+                      Upload the finalized invoice file (PDF or image, max 5 MB).
+                    </p>
+                  }
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label
+                      htmlFor="booking-invoice-upload"
+                      className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                    >
+                      Upload File
+                    </label>
+                    <input
+                      id="booking-invoice-upload"
+                      ref={invoiceInputRef}
+                      type="file"
+                      accept="application/pdf,image/*"
+                      className="hidden"
+                      onChange={handleInvoiceFileChange}
+                    />
+                  </div>
+
+                  {invoiceUploadError && (
+                    <p className="text-xs text-red-500">{invoiceUploadError}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-gray-800 mb-2">
+                  Payment Proof
+                </p>
+                <div className="space-y-3">
+                  {proofFile ?
+                    <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {proofFile.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(proofFile.size)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-red-600 hover:underline"
+                        onClick={clearProofSelection}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  : <p className="text-sm text-gray-500">
+                      Upload payment proof (PDF or image, max 5 MB).
+                    </p>
+                  }
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label
+                      htmlFor="booking-proof-upload"
+                      className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
+                    >
+                      Upload Proof
+                    </label>
+                    <input
+                      id="booking-proof-upload"
+                      ref={proofInputRef}
+                      type="file"
+                      accept="application/pdf,image/*"
+                      className="hidden"
+                      onChange={handleProofFileChange}
+                    />
+                  </div>
+
+                  {proofUploadError && (
+                    <p className="text-xs text-red-500">{proofUploadError}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              void handleSubmit();
+            }}
+            disabled={submitting || maxPayable <= 0}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? "Saving..." : "Add Payment"}
           </button>
         </div>
       </div>
@@ -867,6 +1490,8 @@ const BookingDetailPage: React.FC = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
+  const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ show: true, message, type });
@@ -1192,23 +1817,21 @@ const BookingDetailPage: React.FC = () => {
     if (!booking || !id) return;
     const invoice = invoices.find((item) => item.id === invoiceId);
     if (!invoice) return;
-    const remainingAdvance = Math.max(
-      booking.advanceRequired - booking.advanceReceived,
-      0,
-    );
-    if (remainingAdvance <= 0) {
-      showToast("Advance already meets the required amount", "info");
+    const remainingAmount = Math.max(booking.totalAmount - booking.advanceReceived, 0);
+    if (remainingAmount <= 0) {
+      showToast("Booking is already fully paid", "info");
       return;
     }
 
-    const payableAmount = Math.min(invoice.amount, remainingAdvance);
+    const payableAmount = Math.min(invoice.amount, remainingAmount);
     try {
       setLoading(true);
       await paymentsApi.create({
         bookingId: id,
         amount: payableAmount,
+        currency: booking.clientCurrency,
         paymentMode: "CASH",
-        status: payableAmount >= remainingAdvance ? "FULL" : "PARTIAL",
+        status: payableAmount >= remainingAmount ? "FULL" : "PARTIAL",
         isVerified: true,
         paidAt: new Date().toISOString(),
       });
@@ -1216,7 +1839,7 @@ const BookingDetailPage: React.FC = () => {
       setShowInvoiceModal(false);
       showToast(
         payableAmount < invoice.amount ?
-          "Payment capped to remaining advance required"
+          "Payment capped to remaining booking amount"
         : "Invoice marked as paid",
         "success",
       );
@@ -1230,34 +1853,63 @@ const BookingDetailPage: React.FC = () => {
     }
   };
 
-  const handleAddPayment = async () => {
+  const handleOpenAddPayment = () => {
+    if (!booking) return;
+    const remainingAmount = Math.max(booking.totalAmount - booking.advanceReceived, 0);
+    if (remainingAmount <= 0) {
+      showToast("Booking is already fully paid", "info");
+      return;
+    }
+    setShowPaymentsModal(false);
+    setShowAddPaymentModal(true);
+  };
+
+  const handleAddPayment = async (payload: CreatePaymentFormPayload) => {
     if (!booking || !id) return;
-    const remainingAdvance = Math.max(
-      booking.advanceRequired - booking.advanceReceived,
-      0,
-    );
-    if (remainingAdvance <= 0) {
-      showToast("Advance already meets the required amount", "info");
+    const remainingAmount = Math.max(booking.totalAmount - booking.advanceReceived, 0);
+    if (remainingAmount <= 0) {
+      showToast("Booking is already fully paid", "info");
+      return;
+    }
+    if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
+      showToast("Please enter a valid payment amount", "error");
+      return;
+    }
+    if (payload.amount > remainingAmount) {
+      showToast(
+        `Payment amount cannot exceed remaining ${formatCurrency(
+          remainingAmount,
+          booking.clientCurrency,
+        )}`,
+        "error",
+      );
       return;
     }
 
-    const paymentAmount = Math.min(500, remainingAdvance);
+    const remainingAfterPayment = Math.max(remainingAmount - payload.amount, 0);
+    const apiStatus = mapPaymentStatusToApi(payload.status);
+    const isVerified = payload.status === "completed";
     try {
-      setLoading(true);
+      setSavingPayment(true);
       await paymentsApi.create({
         bookingId: id,
-        amount: paymentAmount,
-        paymentMode: "CASH",
-        status: paymentAmount >= remainingAdvance ? "FULL" : "PARTIAL",
-        isVerified: true,
-        paidAt: new Date().toISOString(),
+        amount: payload.amount,
+        currency: booking.clientCurrency,
+        paymentMode: mapPaymentModeToApi(payload.mode),
+        paymentReference: payload.referenceId,
+        status:
+          apiStatus === "FULL" && remainingAfterPayment > 0 ? "PARTIAL"
+          : apiStatus,
+        isVerified,
+        paidAt: isVerified ? new Date().toISOString() : undefined,
       });
       await fetchBookingData();
-      showToast("Payment added successfully", "success");
+      setShowAddPaymentModal(false);
+      showToast("Payment recorded successfully", "success");
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to add payment"), "error");
+      showToast(getApiErrorMessage(err, "Failed to record payment"), "error");
     } finally {
-      setLoading(false);
+      setSavingPayment(false);
     }
   };
 
@@ -1863,14 +2515,19 @@ const BookingDetailPage: React.FC = () => {
     );
   }
 
-  const paymentProgress =
-    booking.advanceRequired > 0 ?
-      Math.min((booking.advanceReceived / booking.advanceRequired) * 100, 100)
-    : 0;
-  const remainingAdvance = Math.max(
-    booking.advanceRequired - booking.advanceReceived,
+  const totalPaidAmount = Math.max(booking.advanceReceived, 0);
+  const remainingPaymentAmount = Math.max(
+    booking.totalAmount - totalPaidAmount,
     0,
   );
+  const remainingAdvanceRequirement = Math.max(
+    booking.advanceRequired - totalPaidAmount,
+    0,
+  );
+  const paymentProgress =
+    booking.totalAmount > 0 ?
+      Math.min((totalPaidAmount / booking.totalAmount) * 100, 100)
+    : 0;
 
   return (
     <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
@@ -1909,8 +2566,22 @@ const BookingDetailPage: React.FC = () => {
       <PaymentDetailsModal
         isOpen={showPaymentsModal}
         payments={payments}
+        currency={booking.clientCurrency}
+        totalPaid={totalPaidAmount}
+        remainingAmount={remainingPaymentAmount}
         onClose={() => setShowPaymentsModal(false)}
-        onAddPayment={handleAddPayment}
+        onAddPayment={handleOpenAddPayment}
+      />
+
+      <AddPaymentModal
+        isOpen={showAddPaymentModal}
+        booking={booking}
+        maxPayable={remainingPaymentAmount}
+        submitting={savingPayment}
+        onClose={() => setShowAddPaymentModal(false)}
+        onSubmit={(payload) => {
+          void handleAddPayment(payload);
+        }}
       />
 
       <div className="max-w-7xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8">
@@ -2469,33 +3140,54 @@ const BookingDetailPage: React.FC = () => {
                       <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                         Payment Details
                       </h3>
-                      <button
-                        onClick={() => setShowPaymentsModal(true)}
-                        className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1"
-                      >
-                        <FaEye /> View All
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleOpenAddPayment}
+                          disabled={remainingPaymentAmount <= 0}
+                          className="px-3 py-1.5 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-1"
+                        >
+                          <FaPlus />{" "}
+                          {remainingPaymentAmount > 0 ? "Make Payment" : "Fully Paid"}
+                        </button>
+                        <button
+                          onClick={() => setShowPaymentsModal(true)}
+                          className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center gap-1"
+                        >
+                          <FaEye /> View All
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                          Advance Required
+                          Booking Total
                         </p>
                         <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
                           {formatCurrency(
-                            booking.advanceRequired,
+                            booking.totalAmount,
                             booking.clientCurrency,
                           )}
                         </p>
                       </div>
                       <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                          Advance Received
+                          Total Paid
                         </p>
                         <p className="text-xl font-bold text-green-600 dark:text-green-400">
                           {formatCurrency(
-                            booking.advanceReceived,
+                            totalPaidAmount,
+                            booking.clientCurrency,
+                          )}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                          Remaining
+                        </p>
+                        <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                          {formatCurrency(
+                            remainingPaymentAmount,
                             booking.clientCurrency,
                           )}
                         </p>
@@ -2511,7 +3203,7 @@ const BookingDetailPage: React.FC = () => {
                           <p className="text-xs text-blue-700 dark:text-blue-400">
                             Remaining:{" "}
                             {formatCurrency(
-                              remainingAdvance,
+                              remainingPaymentAmount,
                               booking.clientCurrency,
                             )}
                           </p>
@@ -2536,33 +3228,40 @@ const BookingDetailPage: React.FC = () => {
 
                     {/* Recent Payments */}
                     <div className="space-y-2">
-                      {payments.slice(0, 2).map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
-                        >
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {formatCurrency(
-                                payment.amount,
-                                booking.clientCurrency,
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatDateTime(payment.date)} • {payment.mode}
-                            </p>
-                          </div>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              payment.status === "completed" ?
-                                "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                            }`}
+                      {payments.length === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 px-1 py-2">
+                          No payments recorded yet.
+                        </p>
+                      ) : (
+                        payments.slice(0, 3).map((payment) => (
+                          <div
+                            key={payment.id}
+                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
                           >
-                            {payment.status}
-                          </span>
-                        </div>
-                      ))}
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {formatCurrency(
+                                  payment.amount,
+                                  booking.clientCurrency,
+                                )}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatDateTime(payment.date)} • {payment.mode}
+                                {payment.reference ? ` • ${payment.reference}` : ""}
+                              </p>
+                            </div>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                payment.status === "completed" ?
+                                  "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                              }`}
+                            >
+                              {payment.status}
+                            </span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
@@ -2631,29 +3330,7 @@ const BookingDetailPage: React.FC = () => {
               <div className="p-5 space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Advance Required
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    {formatCurrency(
-                      booking.advanceRequired,
-                      booking.clientCurrency,
-                    )}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Advance Received
-                  </span>
-                  <span className="text-sm font-semibold text-green-600 dark:text-green-400">
-                    {formatCurrency(
-                      booking.advanceReceived,
-                      booking.clientCurrency,
-                    )}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Total
+                    Total Amount
                   </span>
                   <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
                     {formatCurrency(
@@ -2668,7 +3345,40 @@ const BookingDetailPage: React.FC = () => {
                   </span>
                   <span className="text-sm font-semibold text-green-600 dark:text-green-400">
                     {formatCurrency(
-                      booking.advanceReceived,
+                      totalPaidAmount,
+                      booking.clientCurrency,
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Remaining
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    {formatCurrency(
+                      remainingPaymentAmount,
+                      booking.clientCurrency,
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Advance Required
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    {formatCurrency(
+                      booking.advanceRequired,
+                      booking.clientCurrency,
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Advance Pending
+                  </span>
+                  <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                    {formatCurrency(
+                      remainingAdvanceRequirement,
                       booking.clientCurrency,
                     )}
                   </span>
@@ -2680,6 +3390,14 @@ const BookingDetailPage: React.FC = () => {
                 >
                   <FaCreditCard /> {booking.paymentStatus}
                 </span>
+                <button
+                  onClick={handleOpenAddPayment}
+                  disabled={remainingPaymentAmount <= 0}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FaPlus />
+                  {remainingPaymentAmount > 0 ? "Make Payment" : "Booking Fully Paid"}
+                </button>
               </div>
             </div>
 

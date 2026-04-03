@@ -17,6 +17,7 @@ import { Country } from 'country-state-city'
 import {
   getCurrencyLocaleByCode
 } from '../../utils/currency'
+import { getNationalityOptions } from '../../utils/nationality'
 
 type LeadType = 'HOLIDAY' | 'VISA' | null
 
@@ -26,6 +27,7 @@ type FormState = {
   email: string
   phone: string
   leadCountry: string
+  nationality: string
   clientCurrency: string
   location: string
   destinationName: string
@@ -43,7 +45,7 @@ type FormState = {
 }
 
 const HIDDEN_FIELDS_BY_TYPE: Record<NonNullable<LeadType>, string[]> = {
-  VISA: ['leadSource', 'preferredHotelCategory', 'campaignId', 'visaRequired', 'travelPurpose'],
+  VISA: ['leadSource', 'preferredHotelCategory', 'visaRequired', 'travelPurpose'],
   HOLIDAY: []
 }
 
@@ -53,6 +55,7 @@ const initialForm: FormState = {
   email: '',
   phone: '',
   leadCountry: '',
+  nationality: '',
   clientCurrency: 'INR',
   location: '',
   destinationName: '',
@@ -188,6 +191,7 @@ const createInitialFormState = (): FormState => {
   return {
     ...initialForm,
     leadCountry: matchedCountry?.name || '',
+    nationality: matchedCountry?.name || '',
     clientCurrency: resolvedCurrency
   }
 }
@@ -331,6 +335,7 @@ const CreateLead: React.FC = () => {
       email: !email || !EMAIL_PATTERN.test(email),
       phone: !phoneLooksValid,
       leadCountry: !form.leadCountry,
+      nationality: !form.nationality,
       clientCurrency: !form.clientCurrency.trim(),
       destinationName: !form.destinationName.trim(),
       travelDate: !form.travelDate || isTravelStartDateInPast,
@@ -492,6 +497,8 @@ const CreateLead: React.FC = () => {
     [allCountryNames]
   )
 
+  const nationalityOptions = useMemo(() => getNationalityOptions(), [])
+
   const countryMetaByName = useMemo(() => {
     const map = new Map<
       string,
@@ -558,7 +565,14 @@ const CreateLead: React.FC = () => {
   const handleLeadCountryChange = (countryName: string) => {
     const meta = countryMetaByName.get(countryName)
     if (!meta) {
-      setForm(prev => ({ ...prev, leadCountry: countryName }))
+      setForm(prev => ({
+        ...prev,
+        leadCountry: countryName,
+        nationality:
+          !prev.nationality || prev.nationality === prev.leadCountry
+            ? countryName
+            : prev.nationality
+      }))
       return
     }
 
@@ -566,6 +580,10 @@ const CreateLead: React.FC = () => {
     setForm(prev => ({
       ...prev,
       leadCountry: countryName,
+      nationality:
+        !prev.nationality || prev.nationality === prev.leadCountry
+          ? countryName
+          : prev.nationality,
       clientCurrency: meta.currency || prev.clientCurrency || 'INR'
     }))
   }
@@ -586,6 +604,10 @@ const CreateLead: React.FC = () => {
       ...prev,
       phone,
       leadCountry: mappedCountryName || prev.leadCountry,
+      nationality:
+        !prev.nationality || prev.nationality === prev.leadCountry
+          ? mappedCountryName || prev.nationality
+          : prev.nationality,
       clientCurrency: resolveCurrencyForIso2(iso2)
     }))
   }
@@ -625,6 +647,7 @@ const CreateLead: React.FC = () => {
         email: form.email.trim(),
         phone: normalizedPhone,
         leadCountry: form.leadCountry,
+        nationality: form.nationality.trim(),
         addressLine: form.location.trim() || undefined,
         clientCurrency: form.clientCurrency.trim().toUpperCase(),
         destinationName: form.destinationName.trim(),
@@ -828,6 +851,18 @@ const CreateLead: React.FC = () => {
               hasError={fieldError('leadCountry')}
               searchPlaceholder='Search country...'
               onChange={handleLeadCountryChange}
+            />
+          </div>
+          <div>
+            <label className='field-label'>Nationality *</label>
+            <SearchableDropdown
+              value={form.nationality}
+              options={nationalityOptions}
+              hasError={fieldError('nationality')}
+              searchPlaceholder='Search nationality...'
+              onChange={value =>
+                setForm(prev => ({ ...prev, nationality: value }))
+              }
             />
           </div>
           <div>
@@ -1068,7 +1103,7 @@ const CreateLead: React.FC = () => {
               />
             </div>
           )}
-          {isFieldVisible('campaignId') && (
+          {isFieldVisible('leadSource') && (
             <div>
               <label className='field-label'>Campaign</label>
               <SearchableDropdown
@@ -1081,6 +1116,7 @@ const CreateLead: React.FC = () => {
               />
             </div>
           )}
+        
           <div className='md:col-span-2'>
             <label className='field-label'>Notes</label>
             <textarea

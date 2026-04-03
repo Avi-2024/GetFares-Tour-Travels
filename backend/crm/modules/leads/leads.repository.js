@@ -49,6 +49,129 @@ function createLeadsRepository({ db, logger, schema }) {
     return normalized || null;
   }
 
+  const LEAD_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+  function normalizeLeadCode(value) {
+    const raw = String(value || "").trim().toUpperCase();
+    return raw || null;
+  }
+
+  function formatLeadCode(serialValue) {
+    let serial = Number(serialValue);
+    if (!Number.isFinite(serial) || serial <= 0) {
+      serial = 1;
+    }
+    let n = Math.floor(serial) - 1;
+
+    const d3 = n % 10;
+    n = Math.floor(n / 10);
+    const l3 = n % 26;
+    n = Math.floor(n / 26);
+
+    const d2 = n % 10;
+    n = Math.floor(n / 10);
+    const l2 = n % 26;
+    n = Math.floor(n / 26);
+
+    const d1 = n % 10;
+    n = Math.floor(n / 10);
+    const l1 = n % 26;
+
+    return `${LEAD_CODE_ALPHABET[l1]}${d1}${LEAD_CODE_ALPHABET[l2]}${d2}${LEAD_CODE_ALPHABET[l3]}${d3}`;
+  }
+
+  function parseLeadCodeSerial(value) {
+    const normalized = normalizeLeadCode(value);
+    if (!normalized) {
+      return null;
+    }
+    const match = /^([A-Z])(\d)([A-Z])(\d)([A-Z])(\d)$/.exec(normalized);
+    if (!match) {
+      return null;
+    }
+    const l1 = LEAD_CODE_ALPHABET.indexOf(match[1]);
+    const d1 = Number(match[2]);
+    const l2 = LEAD_CODE_ALPHABET.indexOf(match[3]);
+    const d2 = Number(match[4]);
+    const l3 = LEAD_CODE_ALPHABET.indexOf(match[5]);
+    const d3 = Number(match[6]);
+    if (
+      l1 < 0 ||
+      l2 < 0 ||
+      l3 < 0 ||
+      !Number.isFinite(d1) ||
+      !Number.isFinite(d2) ||
+      !Number.isFinite(d3)
+    ) {
+      return null;
+    }
+    return (((((l1 * 10 + d1) * 26 + l2) * 10 + d2) * 26 + l3) * 10 + d3) + 1;
+  }
+
+  async function reserveNextLeadCodeSerial() {
+    if (db.adapter === "postgres" && typeof db.query === "function") {
+      try {
+        const result = await db.query(
+          `SELECT nextval('leads_lead_code_seq') AS serial`,
+        );
+        const serial = Number(result.rows?.[0]?.serial ?? 0);
+        if (Number.isFinite(serial) && serial > 0) {
+          return serial;
+        }
+      } catch (_error) {
+        // Fallback below when sequence is unavailable.
+      }
+    }
+
+    const rows = await db.findMany(schema.tableName, {});
+    const maxSerial = rows.reduce((currentMax, row) => {
+      const serial = parseLeadCodeSerial(row?.lead_code ?? row?.leadCode ?? null);
+      if (serial === null) {
+        return currentMax;
+      }
+      return Math.max(currentMax, serial);
+    }, 0);
+    return maxSerial + 1;
+  }
+
+  async function assignLeadCode(leadId) {
+    if (!leadId) {
+      return null;
+    }
+
+    const existing = await db.findById(schema.tableName, leadId);
+    if (!existing) {
+      return null;
+    }
+
+    const existingLeadCode = normalizeLeadCode(
+      existing.lead_code ?? existing.leadCode,
+    );
+    if (existingLeadCode) {
+      return mapRowToDomain(existing);
+    }
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const candidate = formatLeadCode(await reserveNextLeadCodeSerial());
+      try {
+        const updated = await db.update(schema.tableName, leadId, {
+          lead_code: candidate,
+        });
+        return mapRowToDomain(updated);
+      } catch (error) {
+        if (error?.code === "23505") {
+          continue;
+        }
+        if (error?.code === "42703") {
+          return mapRowToDomain(existing);
+        }
+        throw error;
+      }
+    }
+
+    return mapRowToDomain(existing);
+  }
+
   function normalizeTextArray(value) {
     if (Array.isArray(value)) {
       return value.map((item) => String(item).trim()).filter(Boolean);
@@ -206,6 +329,15 @@ function createLeadsRepository({ db, logger, schema }) {
 
     return {
       id: row.id,
+      leadId:
+        row.lead_code ??
+        row.leadCode ??
+        row.meta_lead_id ??
+        row.metaLeadId ??
+        row.lead_id ??
+        row.leadId ??
+        null,
+      leadCode: row.lead_code ?? row.leadCode ?? null,
       customerId,
       fullName: customer?.fullName ?? row.full_name ?? row.fullName ?? null,
       phone: customer?.phone ?? row.phone ?? null,
@@ -851,7 +983,7 @@ function createLeadsRepository({ db, logger, schema }) {
           if (leadId) {
             params.push(leadId);
             where.push(
-              `(LOWER(l.id::text) = LOWER($${params.length}) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER($${params.length}))`,
+              `(LOWER(l.id::text) = LOWER($${params.length}) OR LOWER(COALESCE(l.lead_code, '')) = LOWER($${params.length}) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER($${params.length}))`,
             );
           }
         }
@@ -869,6 +1001,7 @@ function createLeadsRepository({ db, logger, schema }) {
               `LOWER(COALESCE(d.name, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(l.source, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(l.id::text, '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(l.lead_code, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(l.meta_lead_id, '')) LIKE $${textParamIndex}`,
             ];
             const phoneSearch = rawSearch.replace(/\D/g, "");
@@ -981,8 +1114,9 @@ function createLeadsRepository({ db, logger, schema }) {
         const leadId = String(filters.leadId).trim().toLowerCase();
         items = items.filter((item) => {
           const id = String(item.id || "").toLowerCase();
+          const leadCode = String(item.leadCode || "").toLowerCase();
           const metaLeadId = String(item.metaLeadId || "").toLowerCase();
-          return id === leadId || metaLeadId === leadId;
+          return id === leadId || leadCode === leadId || metaLeadId === leadId;
         });
       }
 
@@ -997,6 +1131,7 @@ function createLeadsRepository({ db, logger, schema }) {
               item.destinationName,
               item.source,
               item.id,
+              item.leadCode,
               item.metaLeadId,
             ]
               .filter(Boolean)
@@ -1828,6 +1963,10 @@ function createLeadsRepository({ db, logger, schema }) {
       const sanitized = await sanitizeForTable(schema.tableName, payload);
       const row = await db.insert(schema.tableName, sanitized);
       return mapRowToDomain(row);
+    },
+
+    async ensureLeadCode(leadId) {
+      return assignLeadCode(leadId);
     },
 
     async update(id, payload) {

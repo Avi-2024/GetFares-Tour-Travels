@@ -343,6 +343,7 @@ const Leads: React.FC = () => {
       "Lead ID",
       "Contact",
       "Destination",
+      "Lead Country",
       "Visa/Holidays",
       "Status",
       "SLA",
@@ -371,6 +372,7 @@ const Leads: React.FC = () => {
         lead.leadId ?? "",
         `${lead.email ?? ""} ${lead.phone ? `| ${lead.phone}` : ""}`.trim(),
         lead.destination ?? "",
+        lead.leadCountry ?? "",
         getVisaHolidayLabel(lead),
         toStatusLabelText(lead.statusLabel),
         lead.slaBreached ? "Breached" : (lead.sla ?? ""),
@@ -688,17 +690,18 @@ const Leads: React.FC = () => {
           ) : (
             <>
               <div className="hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll">
-                <table className="min-w-[1080px] w-full table-fixed">
+                <table className="min-w-[1180px] w-full table-fixed">
                   <colgroup>
+                    <col className="w-[9%]" />
+                    <col className="w-[15%]" />
                     <col className="w-[10%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[19%]" />
-                    <col className="w-[13%]" />
+                    <col className="w-[17%]" />
                     <col className="w-[11%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
                     <col className="w-[7%]" />
-                    <col className="w-[7%]" />
-                    <col className="w-[8%]" />
+                    <col className="w-[6%]" />
+                    <col className="w-[5%]" />
                   </colgroup>
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
@@ -719,6 +722,9 @@ const Leads: React.FC = () => {
                       </th>
                       <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Visa/Holidays
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Lead Country
                       </th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Status
@@ -786,6 +792,11 @@ const Leads: React.FC = () => {
                             {getVisaHolidayLabel(lead)}
                           </span>
                         </td>
+                        <td className="px-3 py-2.5 text-left leading-tight">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {lead.leadCountry || "-"}
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5 text-center leading-tight">
                           <StatusBadge status={lead.statusLabel} />
                         </td>
@@ -849,6 +860,10 @@ const Leads: React.FC = () => {
                     <p className="text-xs text-gray-600 dark:text-gray-300">
                       <span className="text-gray-500">Visa/Holidays:</span>{" "}
                       {getVisaHolidayLabel(lead)}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                      <span className="text-gray-500">Lead Country:</span>{" "}
+                      {lead.leadCountry || "-"}
                     </p>
                     <div className="flex items-center justify-between">
                       <p

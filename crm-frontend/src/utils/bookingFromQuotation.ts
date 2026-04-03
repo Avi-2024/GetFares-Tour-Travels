@@ -179,6 +179,22 @@ export function buildBookingCreatePayloadFromQuotation(
     .trim()
     .toUpperCase()
 
+  const supplierCurrencyFromQuote = String(
+    quote.supplierCurrency ?? quote.supplier_currency ?? ''
+  )
+    .trim()
+    .toUpperCase()
+
+  const exchangeRateRaw =
+    quote.exchangeRate ??
+    quote.exchange_rate ??
+    (quote.pricing as Record<string, unknown> | undefined)?.exchangeRate ??
+    (quote.pricing as Record<string, unknown> | undefined)?.exchange_rate
+  const exchangeRate =
+    exchangeRateRaw !== undefined && exchangeRateRaw !== null
+      ? Number(exchangeRateRaw)
+      : null
+
   const quotationId = String(quote.id ?? quote.quotationId ?? '').trim()
   if (!quotationId) {
     return { payload: null, error: 'Invalid quotation reference.' }
@@ -191,6 +207,20 @@ export function buildBookingCreatePayloadFromQuotation(
     totalAmount,
     costAmount,
     clientCurrency
+  }
+
+  if (
+    supplierCurrencyFromQuote &&
+    supplierCurrencyFromQuote !== clientCurrency &&
+    exchangeRate &&
+    Number.isFinite(exchangeRate) &&
+    exchangeRate > 0
+  ) {
+    payload.supplierCurrency = supplierCurrencyFromQuote
+    payload.exchangeRate = Number(exchangeRate.toFixed(6))
+  } else {
+    // Keep single-currency booking flow unless an explicit valid FX rate is present.
+    payload.supplierCurrency = clientCurrency
   }
 
   if (supplierId || supplierName) {

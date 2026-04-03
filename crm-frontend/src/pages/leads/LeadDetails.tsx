@@ -9,6 +9,7 @@ import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
 import { usersApi } from '../../api/users'
 import { useLeadsService } from '../../hooks/useLeadsService'
+import { useCampaignsService } from '../../hooks/useCampaignsService'
 import {
   buildBookingCreatePayloadFromQuotation,
   quotationWasSentToLead
@@ -23,34 +24,46 @@ import {
   toStatusLabelText,
   type SopStatusLabel
 } from '../../utils/leadStatus'
+import { Country } from 'country-state-city'
 import { getCurrencyOptions } from '../../utils/currency'
+import { getNationalityOptions } from '../../utils/nationality'
 
 type QualificationForm = {
   panNumber: string
   addressLine: string
+  leadCountry: string
+  nationality: string
   clientCurrency: string
   destinationName: string
   travelDate: string
+  travelEndDate: string
   adultsCount: string
   childrenCount: string
   budget: string
   visaRequired: 'YES' | 'NO' | ''
   preferredHotelCategory: '3_STAR' | '4_STAR' | '5_STAR' | 'ANY' | ''
   travelPurpose: string
+  leadSource: string
+  campaignId: string
 }
 
 const emptyQualification: QualificationForm = {
   panNumber: '',
   addressLine: '',
+  leadCountry: '',
+  nationality: '',
   clientCurrency: 'INR',
   destinationName: '',
   travelDate: '',
+  travelEndDate: '',
   adultsCount: '2',
   childrenCount: '0',
   budget: '',
   visaRequired: '',
   preferredHotelCategory: '',
-  travelPurpose: ''
+  travelPurpose: '',
+  leadSource: 'Website',
+  campaignId: ''
 }
 
 const REQUIRED_COMPLIANCE = {
@@ -80,6 +93,7 @@ const LeadDetails: React.FC = () => {
   const navigate = useNavigate()
   const { id } = useParams()
   const leadsService = useLeadsService()
+  const campaignsService = useCampaignsService()
   const { hasPermission } = useAuth()
   const { parseApiDateTime, formatDate, formatDateTime } =
     useDateTimePreferences()
@@ -108,7 +122,6 @@ const LeadDetails: React.FC = () => {
     notes: ''
   })
   const [followupSaving, setFollowupSaving] = useState(false)
-  const [opsRunning, setOpsRunning] = useState(false)
   const [callsButtonDisabled, setCallsButtonDisabled] = useState(false)
   const [showDisablePopup, setShowDisablePopup] = useState(false)
   const [leadQuotations, setLeadQuotations] = useState<LeadQuotationOption[]>(
@@ -130,6 +143,7 @@ const LeadDetails: React.FC = () => {
   >([{ value: '', label: 'Select assignee' }])
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('')
   const [assigning, setAssigning] = useState(false)
+  const [campaigns, setCampaigns] = useState<any[]>([])
 
   const createdAtLabel = useMemo(() => {
     const raw =
@@ -189,14 +203,25 @@ const LeadDetails: React.FC = () => {
     setQualification({
       panNumber: item?.panNumber ?? item?.pan_number ?? '',
       addressLine: item?.addressLine ?? item?.address_line ?? '',
+      leadCountry: item?.leadCountry ?? item?.lead_country ?? item?.country ?? '',
+      nationality: item?.nationality ?? '',
       clientCurrency: item?.clientCurrency ?? item?.client_currency ?? 'INR',
       destinationName:
         (typeof item?.destination === 'object'
           ? item?.destination?.name
           : item?.destination) ??
+        item?.travelTo ??
+        item?.travel_to ??
         item?.destinationName ??
         '',
-      travelDate: item?.travelDate?.slice?.(0, 10) || '',
+      travelDate:
+        item?.travelDate?.slice?.(0, 10) ||
+        item?.travel_date?.slice?.(0, 10) ||
+        '',
+      travelEndDate:
+        item?.travelEndDate?.slice?.(0, 10) ||
+        item?.travel_end_date?.slice?.(0, 10) ||
+        '',
       adultsCount: String(item?.adultsCount ?? 2),
       childrenCount: String(nextChildrenCount),
       budget:
@@ -210,7 +235,9 @@ const LeadDetails: React.FC = () => {
             : 'NO'
           : '',
       preferredHotelCategory: item?.preferredHotelCategory ?? '',
-      travelPurpose: item?.travelPurpose ?? ''
+      travelPurpose: item?.travelPurpose ?? '',
+      leadSource: item?.source ?? 'Website',
+      campaignId: item?.campaignId ?? item?.campaign_id ?? ''
     })
     setChildAges(
       Array.from({ length: nextChildrenCount }, (_, index) => {
@@ -258,6 +285,17 @@ const LeadDetails: React.FC = () => {
       setLoadingFollowups(false)
     }
   }, [id, leadsService])
+
+  const loadCampaigns = useCallback(async () => {
+    try {
+      const response = await campaignsService.list({ status: 'ACTIVE' })
+      const rows =
+        (response as any)?.data?.data ?? (response as any)?.data ?? response
+      setCampaigns(Array.isArray(rows) ? rows : [])
+    } catch {
+      setCampaigns([])
+    }
+  }, [campaignsService])
 
   const loadLeadQuotationsForLead = useCallback(async () => {
     if (!id) return
@@ -355,8 +393,17 @@ const LeadDetails: React.FC = () => {
     void loadAssigneeOptions()
   }, [loadAssigneeOptions])
 
+  React.useEffect(() => {
+    void loadCampaigns()
+  }, [loadCampaigns])
+
   const visibleHistoryFollowups = useMemo(
     () => followups.filter(item => !item?.isScheduleOnly),
+    [followups]
+  )
+
+  const visibleScheduledFollowups = useMemo(
+    () => followups.filter(item => item?.isScheduleOnly),
     [followups]
   )
 
@@ -499,6 +546,45 @@ const LeadDetails: React.FC = () => {
     []
   )
 
+  const leadSourceOptions = useMemo(
+    () => [
+      { value: 'Website', label: 'Website' },
+      { value: 'Phone', label: 'Phone' },
+      { value: 'Referral', label: 'Referral' },
+      { value: 'Social', label: 'Social' },
+      { value: 'WalkIn', label: 'WalkIn' }
+    ],
+    []
+  )
+
+  const campaignOptions = useMemo(
+    () => [
+      { value: '', label: 'Select campaign (optional)' },
+      ...campaigns.map(campaign => ({
+        value: String(campaign.id),
+        label: String(campaign.name ?? campaign.title ?? campaign.id)
+      }))
+    ],
+    [campaigns]
+  )
+
+  const countryOptions = useMemo(
+    () => [
+      { value: '', label: 'Select country' },
+      ...Country.getAllCountries()
+        .map(country => String(country.name || '').trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b))
+        .map(name => ({
+          value: name,
+          label: name
+        }))
+    ],
+    []
+  )
+
+  const nationalityOptions = useMemo(() => getNationalityOptions(), [])
+
   const isCallsDisabled =
     lead?.callsDisabled || lead?.calls_disabled || callsButtonDisabled
 
@@ -558,15 +644,22 @@ const LeadDetails: React.FC = () => {
 
   const qualificationMissing = useMemo(() => {
     const missing: string[] = []
+    if (!qualification.leadCountry.trim()) missing.push('leadCountry')
+    if (!qualification.nationality.trim()) missing.push('nationality')
     if (!qualification.clientCurrency.trim()) missing.push('clientCurrency')
     if (!qualification.destinationName.trim()) missing.push('destination')
     if (!qualification.travelDate) missing.push('travelDate')
-    if (!qualification.budget || Number(qualification.budget) <= 0)
-      missing.push('budget')
-    if (qualification.visaRequired === '') missing.push('visaRequired')
-    if (!qualification.preferredHotelCategory)
-      missing.push('preferredHotelCategory')
-    if (!qualification.travelPurpose.trim()) missing.push('travelPurpose')
+    if (!qualification.travelEndDate) missing.push('travelEndDate')
+    if (
+      qualification.travelDate &&
+      qualification.travelEndDate &&
+      qualification.travelEndDate < qualification.travelDate
+    ) {
+      missing.push('travelDateRange')
+    }
+  
+    
+   
 
     const adults = Number(qualification.adultsCount)
     const children = Number(qualification.childrenCount)
@@ -616,9 +709,12 @@ const LeadDetails: React.FC = () => {
       await leadsService.updateLead(id, {
         panNumber: qualification.panNumber.trim() || undefined,
         addressLine: qualification.addressLine.trim() || undefined,
+        leadCountry: qualification.leadCountry.trim() || undefined,
+        nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim(),
         travelDate: qualification.travelDate,
+        travelEndDate: qualification.travelEndDate,
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
         childAges: cleanChildAges,
@@ -626,6 +722,8 @@ const LeadDetails: React.FC = () => {
         visaRequired: qualification.visaRequired === 'YES',
         preferredHotelCategory: qualification.preferredHotelCategory,
         travelPurpose: qualification.travelPurpose.trim(),
+        source: qualification.leadSource.trim() || undefined,
+        campaignId: qualification.campaignId || undefined,
         qualificationCompleted: true
       })
       await loadLead()
@@ -707,9 +805,12 @@ const LeadDetails: React.FC = () => {
             : undefined,
         panNumber: qualification.panNumber.trim() || undefined,
         addressLine: qualification.addressLine.trim() || undefined,
+        leadCountry: qualification.leadCountry.trim() || undefined,
+        nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim(),
         travelDate: qualification.travelDate,
+        travelEndDate: qualification.travelEndDate,
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
         childAges: cleanChildAges,
@@ -717,6 +818,8 @@ const LeadDetails: React.FC = () => {
         visaRequired: qualification.visaRequired === 'YES',
         preferredHotelCategory: qualification.preferredHotelCategory,
         travelPurpose: qualification.travelPurpose.trim(),
+        source: qualification.leadSource.trim() || undefined,
+        campaignId: qualification.campaignId || undefined,
         qualificationCompleted: STATUS_REQUIRING_QUALIFICATION.has(
           conversion.canonical
         )
@@ -877,32 +980,6 @@ const LeadDetails: React.FC = () => {
     }
   }
 
-  const runAutomation = async (
-    fn:
-      | 'processSlaBreaches'
-      | 'processCadenceAutomation'
-      | 'processNonResponsive'
-  ) => {
-    setOpsRunning(true)
-    setStatusError('')
-    try {
-      if (fn === 'processSlaBreaches') {
-        await leadsService.processSlaBreaches()
-      } else if (fn === 'processCadenceAutomation') {
-        await leadsService.processCadenceAutomation()
-      } else {
-        await leadsService.processNonResponsive()
-      }
-      await loadLead()
-      await loadFollowups()
-    } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Automation action failed.'))
-    } finally {
-      setOpsRunning(false)
-    }
-  }
-
-  const canRunOps = hasPermission('leads:update')
   const canAssignLead = hasPermission('leads:update')
   const canReadQuotations = hasPermission('quotations:read')
   const canCreateQuotation = hasPermission('quotations:create')
@@ -1045,6 +1122,11 @@ const LeadDetails: React.FC = () => {
                       {lead.leadCountry || lead.country}
                     </p>
                   ) : null}
+                  {lead.nationality ? (
+                    <p className='mt-0.5 text-xs font-medium text-blue-600 dark:text-blue-400'>
+                      Nationality: {lead.nationality}
+                    </p>
+                  ) : null}
                 </div>
                 <StatusBadge
                   status={deriveSopStatusLabel(
@@ -1144,6 +1226,34 @@ const LeadDetails: React.FC = () => {
                     />
                   </div>
                   <div>
+                    <label className='field-label'>Lead Country</label>
+                    <SearchableDropdown
+                      value={qualification.leadCountry}
+                      options={countryOptions}
+                      searchPlaceholder='Search country...'
+                      onChange={value =>
+                        setQualification(prev => ({
+                          ...prev,
+                          leadCountry: value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Nationality</label>
+                    <SearchableDropdown
+                      value={qualification.nationality}
+                      options={nationalityOptions}
+                      searchPlaceholder='Search nationality...'
+                      onChange={value =>
+                        setQualification(prev => ({
+                          ...prev,
+                          nationality: value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
                     <label className='field-label'>Client Currency</label>
                     <SearchableDropdown
                       value={qualification.clientCurrency}
@@ -1187,7 +1297,7 @@ const LeadDetails: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className='field-label'>Travel Date</label>
+                    <label className='field-label'>Travel Start Date</label>
                     <input
                       type='date'
                       className='field-input'
@@ -1196,6 +1306,21 @@ const LeadDetails: React.FC = () => {
                         setQualification(prev => ({
                           ...prev,
                           travelDate: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Travel End Date</label>
+                    <input
+                      type='date'
+                      min={qualification.travelDate || undefined}
+                      className='field-input'
+                      value={qualification.travelEndDate}
+                      onChange={event =>
+                        setQualification(prev => ({
+                          ...prev,
+                          travelEndDate: event.target.value
                         }))
                       }
                     />
@@ -1347,6 +1472,35 @@ const LeadDetails: React.FC = () => {
                       }
                     />
                   </div>
+                  <div>
+                    <label className='field-label'>Lead Source</label>
+                    <SearchableDropdown
+                      value={qualification.leadSource}
+                      options={leadSourceOptions}
+                      searchPlaceholder='Search source...'
+                      onChange={value =>
+                        setQualification(prev => ({
+                          ...prev,
+                          leadSource: value
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Campaign</label>
+                    <SearchableDropdown
+                      value={qualification.campaignId}
+                      options={campaignOptions}
+                      searchPlaceholder='Search campaign...'
+                      onChange={value =>
+                        setQualification(prev => ({
+                          ...prev,
+                          campaignId: value
+                        }))
+                      }
+                    />
+                  </div>
+             
                 </div>
                 <div className='mt-2 flex items-center justify-between'>
                   <p className='text-xs text-gray-500'>
@@ -1817,130 +1971,154 @@ const LeadDetails: React.FC = () => {
               </button>
             </div>
           </div>
-
-          {canRunOps ? (
-            <div className='mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
-              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                Automation Actions
-              </p>
-              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                Scheduler automation is enabled. Use these buttons only for
-                manual replay/troubleshooting.
-              </p>
-              <div className='mt-2 space-y-2'>
-                <div>
-                  <button
-                    disabled={opsRunning}
-                    onClick={() => void runAutomation('processSlaBreaches')}
-                    className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                  >
-                    Run Late Response Check
-                  </button>
-                  <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
-                    Flags leads where assigned agents have not responded within
-                    the SLA deadline.
-                  </p>
-                </div>
-                <div>
-                  <button
-                    disabled={opsRunning}
-                    onClick={() =>
-                      void runAutomation('processCadenceAutomation')
-                    }
-                    className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                  >
-                    Run Cadence Automation
-                  </button>
-                  <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
-                    Triggers the next scheduled follow-up (call / WhatsApp)
-                    based on the SOP cadence timeline.
-                  </p>
-                </div>
-                <div>
-                  <button
-                    disabled={opsRunning}
-                    onClick={() => void runAutomation('processNonResponsive')}
-                    className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                  >
-                    Run Non-Responsive Check
-                  </button>
-                  <p className='mt-0.5 text-[10px] text-gray-400 dark:text-gray-500'>
-                    Marks leads as NON_RESPONSIVE if all follow-up attempts (6
-                    calls + 7 WhatsApp + 1 final reminder) are exhausted.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </SurfaceCard>
       </div>
 
-      <SurfaceCard>
-        <div className='flex items-center justify-between'>
-          <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-            Follow-up History
-          </h3>
-          <span className='text-xs text-gray-500'>
-            {visibleHistoryFollowups.length} item(s)
-          </span>
-        </div>
-        {loadingFollowups ? (
-          <p className='mt-3 text-sm text-gray-500'>Loading follow-ups...</p>
-        ) : visibleHistoryFollowups.length === 0 ? (
-          <p className='mt-3 text-sm text-gray-500'>No follow-ups yet.</p>
-        ) : (
-          <div className='mt-3 space-y-2'>
-            {visibleHistoryFollowups
-              .slice()
-              .sort((a, b) => {
-                const left = parseApiDateTime(a.followupDate)?.getTime() || 0
-                const right = parseApiDateTime(b.followupDate)?.getTime() || 0
-                return right - left
-              })
-              .map(item => (
-                <div
-                  key={item.id}
-                  className='rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700'
-                >
-                  <div className='flex flex-wrap items-center justify-between gap-2'>
-                    <div className='inline-flex items-center gap-2'>
-                      <StatusBadge
-                        status={String(
-                          item.statusSnapshot || item.followupType || 'CALL'
-                        )}
-                      />
-                      {item.statusSnapshot && item.followupType ? (
-                        <span className='rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
-                          {String(item.followupType).replace(/_/g, ' ')}
-                        </span>
-                      ) : null}
-                      {item.cadenceCode ? (
-                        <span className='rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
-                          {item.cadenceCode}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
-                      <FaClock />
-                      {item.followupDate
-                        ? formatDateTime(item.followupDate, String(item.followupDate))
-                        : 'No date'}
-                    </span>
-                  </div>
-                  {item.notes ? (
-                    <p className='mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300'>
-                      {item.notes}
-                    </p>
-                  ) : (
-                    <p className='mt-2 text-xs text-gray-400 dark:text-gray-500'>
-                      No notes
-                    </p>
-                  )}
-                </div>
-              ))}
+      <div className='grid grid-cols-1 gap-6 lg:grid-cols-2'>
+        <SurfaceCard className='h-full'>
+          <div className='flex items-center justify-between'>
+            <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+              Scheduled Follow-ups
+            </h3>
+            <span className='text-xs text-gray-500'>
+              {visibleScheduledFollowups.length} item(s)
+            </span>
           </div>
-        )}
-      </SurfaceCard>
+          {loadingFollowups ? (
+            <p className='mt-3 text-sm text-gray-500'>
+              Loading scheduled follow-ups...
+            </p>
+          ) : visibleScheduledFollowups.length === 0 ? (
+            <p className='mt-3 text-sm text-gray-500'>
+              No scheduled follow-ups yet.
+            </p>
+          ) : (
+            <div className='mt-3 space-y-2'>
+              {visibleScheduledFollowups
+                .slice()
+                .sort((a, b) => {
+                  const left = parseApiDateTime(a.followupDate)?.getTime() || 0
+                  const right = parseApiDateTime(b.followupDate)?.getTime() || 0
+                  return left - right
+                })
+                .map(item => (
+                  <div
+                    key={item.id}
+                    className='rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700'
+                  >
+                    <div className='flex flex-wrap items-center justify-between gap-2'>
+                      <div className='inline-flex items-center gap-2'>
+                        <StatusBadge status={String(item.followupType || 'CALL')} />
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${
+                            item.isCompleted
+                              ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                          }`}
+                        >
+                          {item.isCompleted ? 'Completed' : 'Scheduled'}
+                        </span>
+                        {item.cadenceCode ? (
+                          <span className='rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+                            {item.cadenceCode}
+                          </span>
+                        ) : null}
+                      </div>
+                      <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
+                        <FaClock />
+                        {item.followupDate
+                          ? formatDateTime(
+                              item.followupDate,
+                              String(item.followupDate)
+                            )
+                          : 'No date'}
+                      </span>
+                    </div>
+                    {item.notes ? (
+                      <p className='mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300'>
+                        {item.notes}
+                      </p>
+                    ) : (
+                      <p className='mt-2 text-xs text-gray-400 dark:text-gray-500'>
+                        No notes
+                      </p>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+        </SurfaceCard>
+
+        <SurfaceCard className='h-full'>
+          <div className='flex items-center justify-between'>
+            <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+              Follow-up History
+            </h3>
+            <span className='text-xs text-gray-500'>
+              {visibleHistoryFollowups.length} item(s)
+            </span>
+          </div>
+          {loadingFollowups ? (
+            <p className='mt-3 text-sm text-gray-500'>Loading follow-ups...</p>
+          ) : visibleHistoryFollowups.length === 0 ? (
+            <p className='mt-3 text-sm text-gray-500'>No follow-ups yet.</p>
+          ) : (
+            <div className='mt-3 space-y-2'>
+              {visibleHistoryFollowups
+                .slice()
+                .sort((a, b) => {
+                  const left = parseApiDateTime(a.followupDate)?.getTime() || 0
+                  const right = parseApiDateTime(b.followupDate)?.getTime() || 0
+                  return right - left
+                })
+                .map(item => (
+                  <div
+                    key={item.id}
+                    className='rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700'
+                  >
+                    <div className='flex flex-wrap items-center justify-between gap-2'>
+                      <div className='inline-flex items-center gap-2'>
+                        <StatusBadge
+                          status={String(
+                            item.statusSnapshot || item.followupType || 'CALL'
+                          )}
+                        />
+                        {item.statusSnapshot && item.followupType ? (
+                          <span className='rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+                            {String(item.followupType).replace(/_/g, ' ')}
+                          </span>
+                        ) : null}
+                        {item.cadenceCode ? (
+                          <span className='rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+                            {item.cadenceCode}
+                          </span>
+                        ) : null}
+                      </div>
+                      <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
+                        <FaClock />
+                        {item.followupDate
+                          ? formatDateTime(
+                              item.followupDate,
+                              String(item.followupDate)
+                            )
+                          : 'No date'}
+                      </span>
+                    </div>
+                    {item.notes ? (
+                      <p className='mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300'>
+                        {item.notes}
+                      </p>
+                    ) : (
+                      <p className='mt-2 text-xs text-gray-400 dark:text-gray-500'>
+                        No notes
+                      </p>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+        </SurfaceCard>
+      </div>
 
       <style>{`
         .no-spinner::-webkit-outer-spin-button,

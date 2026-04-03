@@ -27,6 +27,7 @@ interface Quotation {
   id: string
   leadId?: string | null
   sourcePackageId?: string | null
+  currency?: string | null
   quoteNumber: string
   customer: string
   email: string
@@ -129,6 +130,30 @@ const toIsoDate = (value?: string | null) => {
   return parsed.toISOString().split('T')[0]
 }
 
+const normalizeCurrencyCode = (value: unknown) => {
+  const normalized = String(value ?? '')
+    .trim()
+    .toUpperCase()
+  return /^[A-Z]{3}$/.test(normalized) ? normalized : 'INR'
+}
+
+const formatAmountByCurrency = (amount: number, currency: unknown) => {
+  const safeAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0
+  const code = normalizeCurrencyCode(currency)
+  const locale = code === 'INR' ? 'en-IN' : 'en-US'
+
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(safeAmount)
+  } catch {
+    return `${code} ${safeAmount.toFixed(2)}`
+  }
+}
+
 const matchesQuickFilter = (quickFilter: QuickFilter, status: Status) => {
   switch (quickFilter) {
     case 'ALL':
@@ -183,6 +208,7 @@ const QuotationsPage: React.FC = () => {
       destination: quotation.destination,
       details: quotation.details,
       total: quotation.total,
+      currency: quotation.currency,
       margin: quotation.margin,
       status: quotation.status,
       templateName: quotation.templateName,
@@ -257,6 +283,20 @@ const QuotationsPage: React.FC = () => {
                   templateData?.name || templateSnapshot?.name || null
                 const templateCode =
                   templateData?.code || templateSnapshot?.code || null
+                const quotationCurrency = normalizeCurrencyCode(
+                  q.clientCurrency ||
+                    q.client_currency ||
+                    q.costCurrency ||
+                    q.cost_currency ||
+                    q.supplierCurrency ||
+                    q.supplier_currency ||
+                    templateSnapshot?.currency ||
+                    templateSnapshot?.builderSnapshot?.currency ||
+                    templateSnapshot?.pricing?.clientCurrency ||
+                    templateSnapshot?.pricing?.costCurrency ||
+                    leadData?.clientCurrency ||
+                    leadData?.client_currency
+                )
 
                 const sentAt = q.sentAt || q.sent_at
                 const sentDate = sentAt
@@ -272,6 +312,7 @@ const QuotationsPage: React.FC = () => {
                   leadId,
                   sourcePackageId:
                     q.sourcePackageId || q.source_package_id || null,
+                  currency: quotationCurrency,
                   quoteNumber: q.quoteNumber || q.quote_number || 'N/A',
                   customer: customerName,
                   email: customerEmail,
@@ -1191,7 +1232,7 @@ const QuotationsPage: React.FC = () => {
                   <div className='flex items-center justify-between'>
                     <div>
                       <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                        ${(q.total || 0).toLocaleString()}
+                        {formatAmountByCurrency(q.total || 0, q.currency)}
                       </p>
                       <p className='text-xs text-green-600 dark:text-green-400'>
                         Margin {q.margin || 0}%
@@ -1303,7 +1344,7 @@ const QuotationsPage: React.FC = () => {
                       </td>
                       <td className='px-3 xl:px-5 py-4 text-right whitespace-nowrap'>
                         <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                          ${(q.total || 0).toFixed(2)}
+                          {formatAmountByCurrency(q.total || 0, q.currency)}
                         </p>
                         <p className='text-xs text-green-600 dark:text-green-400'>
                           Margin {q.margin || 0}%

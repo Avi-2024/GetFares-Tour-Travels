@@ -31,6 +31,7 @@ import { useLeadsService } from "../../hooks/useLeadsService";
 import { quotationsApi } from "../../api/quotations";
 import { suppliersApi } from "../../api/suppliers";
 import { getApiErrorMessage } from "../../api/apiClient";
+import { getCurrencyOptions } from "../../utils/currency";
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -93,10 +94,12 @@ interface Booking {
   startDate?: string
   endDate?: string
   createdAt?: string | null
+  leadCreatedAt?: string | null
   status: BookingStatus
   payment: PaymentStatus
   paid: number
   total: number
+  currency?: string
   documentsReady: number
   documentsTotal: number
   deadlineRiskLevel?: DeadlineRiskLevel
@@ -122,6 +125,7 @@ interface NewBookingData {
   blockingDeadlineAt: string;
   supplierPaymentDeadlineAt: string;
   cancellationDeadlineAt: string;
+  currency?: string;
   notes?: string;
 }
 
@@ -187,6 +191,54 @@ const toIsoDate = (value?: string | null) => {
   if (Number.isNaN(parsed.getTime())) return ''
   return parsed.toISOString().split('T')[0]
 }
+
+const normalizeCurrencyCode = (currency?: string | null) => {
+  const code = String(currency ?? "INR")
+    .trim()
+    .toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : "INR";
+};
+
+const toAmountNumber = (value: unknown, fallback = 0) => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : fallback;
+  }
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").trim();
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+};
+
+const formatMoney = (amount: number, currency?: string | null) => {
+  const code = normalizeCurrencyCode(currency);
+  const value = Number.isFinite(amount) ? amount : 0;
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "code",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return `${code} ${value.toLocaleString("en-IN")}`;
+  }
+};
+
+const formatPaidVsTotal = (
+  paidAmount: number,
+  totalAmount: number,
+  currency?: string | null,
+) => `${formatMoney(paidAmount, currency)} / ${formatMoney(totalAmount, currency)}`;
+
+const getPaymentProgress = (paidAmount: number, totalAmount: number) => {
+  if (!Number.isFinite(paidAmount) || !Number.isFinite(totalAmount) || totalAmount <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.min((paidAmount / totalAmount) * 100, 100));
+};
 
 const matchesQuickFilter = (quickFilter: QuickFilter, booking: Booking) => {
   switch (quickFilter) {
@@ -295,6 +347,7 @@ const CreateBookingModal = ({
     blockingDeadlineAt: "",
     supplierPaymentDeadlineAt: "",
     cancellationDeadlineAt: "",
+    currency: "INR",
     notes: "",
   });
   const [errors, setErrors] = useState<
@@ -632,6 +685,8 @@ const CreateBookingModal = ({
     [supplierLoading, supplierOptions],
   );
 
+  const currencyOptions = useMemo(() => getCurrencyOptions(false), []);
+
   const handleSupplierChange = (supplierId: string) => {
     const selectedSupplier = supplierOptions.find(
       (item) => item.id === supplierId,
@@ -666,7 +721,23 @@ const CreateBookingModal = ({
       } else {
         setQuotationError("Selected quotation has no valid UUID");
       }
+      
+      // Extract currency from quotation
+      const quoteCurrency = String(
+        quote?.clientCurrency ??
+          quote?.client_currency ??
+          quote?.costCurrency ??
+          quote?.cost_currency ??
+          quote?.currency ??
+          ""
+      ).trim().toUpperCase();
+      
       applyQuotationToForm(quote);
+      
+      // Set currency if valid
+      if (/^[A-Z]{3}$/.test(quoteCurrency)) {
+        setFormData((prev) => ({ ...prev, currency: quoteCurrency }));
+      }
 
       const leadId =
         quote?.leadId ??
@@ -792,6 +863,7 @@ const CreateBookingModal = ({
       blockingDeadlineAt: "",
       supplierPaymentDeadlineAt: "",
       cancellationDeadlineAt: "",
+      currency: "INR",
       notes: "",
     });
     setErrors({});
@@ -1069,10 +1141,21 @@ const CreateBookingModal = ({
             </div>
           </div>
 
-          {/* Amounts */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Currency and Amounts */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="field-label">Total Amount ($) *</label>
+              <label className="field-label">Currency *</label>
+              <SearchableDropdown
+                value={formData.currency || "INR"}
+                onChange={(value) =>
+                  setFormData({ ...formData, currency: value })
+                }
+                options={currencyOptions}
+                searchPlaceholder="Search currency..."
+              />
+            </div>
+            <div>
+              <label className="field-label">Total Amount *</label>
               <input
                 type="number"
                 value={formData.totalAmount || ""}
@@ -1096,7 +1179,7 @@ const CreateBookingModal = ({
               )}
             </div>
             <div>
-              <label className="field-label">Cost Amount ($) *</label>
+              <label className="field-label">Cost Amount *</label>
               <input
                 type="number"
                 value={formData.costAmount || ""}
@@ -1119,28 +1202,28 @@ const CreateBookingModal = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="field-label">Advance Required ($)</label>
-              <input
-                type="number"
-                value={formData.advanceRequired || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    advanceRequired: parseFloat(e.target.value) || 0,
-                  })
-                }
-                className="field-input no-spinner"
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Leave as 0 to let the system auto-calculate the minimum advance.
-              </p>
-            </div>
+          <div>
+            <label className="field-label">Advance Required</label>
+            <input
+              type="number"
+              value={formData.advanceRequired || ""}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  advanceRequired: parseFloat(e.target.value) || 0,
+                })
+              }
+              className="field-input no-spinner"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Leave as 0 to let the system auto-calculate the minimum advance.
+            </p>
           </div>
+
+
 
           {/* Notes */}
           <div>
@@ -1216,9 +1299,10 @@ const RecordPaymentModal = ({
     if (formData.amount <= 0)
       newErrors.amount = "Amount must be greater than 0";
     if (formData.amount > booking.total - booking.paid) {
-      newErrors.amount = `Amount cannot exceed remaining balance $${(
-        booking.total - booking.paid
-      ).toLocaleString()}`;
+      newErrors.amount = `Amount cannot exceed remaining balance ${formatMoney(
+        booking.total - booking.paid,
+        booking.currency,
+      )}`;
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -1259,19 +1343,21 @@ const RecordPaymentModal = ({
             </p>
             <div className="flex justify-between text-xs mt-2">
               <span className="text-gray-500">
-                Total: ${booking.total.toLocaleString()}
+                Total: {formatMoney(booking.total, booking.currency)}
               </span>
               <span className="text-gray-500">
-                Paid: ${booking.paid.toLocaleString()}
+                Paid: {formatMoney(booking.paid, booking.currency)}
               </span>
               <span className="text-green-600 font-medium">
-                Due: ${remainingAmount.toLocaleString()}
+                Due: {formatMoney(remainingAmount, booking.currency)}
               </span>
             </div>
           </div>
 
           <div>
-            <label className="field-label">Amount ($) *</label>
+            <label className="field-label">
+              Amount ({normalizeCurrencyCode(booking?.currency)}) *
+            </label>
             <input
               type="number"
               value={formData.amount || ""}
@@ -1428,7 +1514,7 @@ const GenerateInvoiceModal = ({
           </div>
 
           <div>
-            <label className="field-label">Invoice Amount ($) *</label>
+            <label className="field-label">Invoice Amount *</label>
             <input
               type="number"
               value={formData.amount || ""}
@@ -1791,6 +1877,12 @@ const BookingsPage: React.FC = () => {
       lead?.consultantName ??
       lead?.consultant ??
       "";
+    const leadCreatedAt = pickFirstDate(
+      lead?.createdAt,
+      lead?.created_at,
+      lead?.createdDate,
+      lead?.created_date
+    );
 
     return {
       id: String(b.id ?? idx),
@@ -1812,17 +1904,45 @@ const BookingsPage: React.FC = () => {
         leadDestination ??
         "N/A",
       dates: formatDateRange(
-        b.travelStartDate ?? b.travelStart,
-        b.travelEndDate ?? b.travelEnd,
+        b.travelStartDate ??
+          b.travel_start_date ??
+          b.travelStart ??
+          b.travel_start,
+        b.travelEndDate ?? b.travel_end_date ?? b.travelEnd ?? b.travel_end,
         b.dates,
       ),
-      startDate: b.travelStartDate ?? b.travelStart,
-      endDate: b.travelEndDate ?? b.travelEnd,
+      startDate:
+        b.travelStartDate ??
+        b.travel_start_date ??
+        b.travelStart ??
+        b.travel_start,
+      endDate:
+        b.travelEndDate ?? b.travel_end_date ?? b.travelEnd ?? b.travel_end,
       createdAt: b.createdAt ?? b.created_at ?? null,
+      leadCreatedAt,
       status: normalizeStatus(b.status),
       payment: normalizePayment(b.paymentStatus ?? b.payment_status),
-      paid: Number(b.paid ?? b.paidAmount ?? b.advanceReceived ?? 0),
-      total: Number(b.total ?? b.totalAmount ?? 0),
+      paid: toAmountNumber(
+        b.paid ??
+          b.paidAmount ??
+          b.paid_amount ??
+          b.advanceReceived ??
+          b.advance_received ??
+          b.amountPaid ??
+          b.amount_paid,
+        0,
+      ),
+      total: toAmountNumber(
+        b.total ?? b.totalAmount ?? b.total_amount ?? b.amount ?? b.amount_total,
+        0,
+      ),
+      currency: normalizeCurrencyCode(
+        b.currency ??
+          b.clientCurrency ??
+          b.client_currency ??
+          b.supplierCurrency ??
+          b.supplier_currency,
+      ),
       documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
       documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0),
       // deadlineRiskLevel: normalizeDeadlineRisk(
@@ -2154,6 +2274,7 @@ const BookingsPage: React.FC = () => {
           data.supplierPaymentDeadlineAt,
         ),
         cancellationDeadlineAt: toIsoDateTime(data.cancellationDeadlineAt),
+        currency: data.currency || "INR",
         supplierDetails:
           data.supplierId || data.supplierName ?
             {
@@ -2475,10 +2596,20 @@ const BookingsPage: React.FC = () => {
       "Payment",
       "Paid",
       "Total",
-      "Created At",
+      "Enquiry Date",
+      "Booking Date",
     ];
 
     const escapeCsv = (value: string) => `"${value.replace(/\"/g, '\"\"')}"`;
+
+    const formatDate = (dateValue?: string | null) => {
+      if (!dateValue) return "";
+      try {
+        return new Date(dateValue).toLocaleDateString();
+      } catch {
+        return "";
+      }
+    };
 
     const dataRows = rows.map((booking) => [
       booking.bookingId ?? "",
@@ -2489,7 +2620,8 @@ const BookingsPage: React.FC = () => {
       booking.payment ?? "",
       booking.paid ?? 0,
       booking.total ?? 0,
-      booking.createdAt ?? "",
+      formatDate(booking.leadCreatedAt),
+      formatDate(booking.createdAt),
     ]);
 
     const csv = [headers, ...dataRows]
@@ -2625,11 +2757,11 @@ const BookingsPage: React.FC = () => {
               <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 truncate">
                 Pending Payments
               </p>
-              <p className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
-                {statsLoading ?
-                  <span className="inline-block h-6 w-20 rounded bg-gray-200 animate-pulse" />
-                : `$${stats.pendingPaymentsAmount.toLocaleString()}`}
-              </p>
+	            <p className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">
+	              {statsLoading ?
+	                <span className="inline-block h-6 w-20 rounded bg-gray-200 animate-pulse" />
+	                : stats.pendingPaymentsAmount.toLocaleString("en-IN")}
+	            </p>
               <p className="mt-1 text-xs text-gray-500">
                 {statsLoading ?
                   "Loading..."
@@ -2998,12 +3130,15 @@ const BookingsPage: React.FC = () => {
                       >
                         {booking.payment}
                       </span>
-                      <p className="text-xs text-gray-500 mt-1">
-                        ${booking.paid.toLocaleString()} / $
-                        {booking.total.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
+	                      <p className="text-xs text-gray-500 mt-1">
+	                        {formatPaidVsTotal(
+	                          booking.paid,
+	                          booking.total,
+	                          booking.currency,
+	                        )}
+	                      </p>
+	                    </div>
+	                  </div>
 
                   {/* Actions */}
                   <div className="flex justify-end gap-2 pt-2">
@@ -3144,18 +3279,24 @@ const BookingsPage: React.FC = () => {
                             </button>
                           )}
                         </div>
-                        <p className="mt-1 text-xs text-gray-500">
-                          ${booking.paid.toLocaleString()} / $
-                          {booking.total.toLocaleString()}
-                        </p>
-                        <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
-                          <div
-                            className="bg-green-600 h-1.5 rounded-full"
-                            style={{
-                              width: `${(booking.paid / booking.total) * 100}%`,
-                            }}
-                          />
-                        </div>
+	                        <p className="mt-1 text-xs text-gray-500">
+	                          {formatPaidVsTotal(
+	                            booking.paid,
+	                            booking.total,
+	                            booking.currency,
+	                          )}
+	                        </p>
+	                        <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
+	                          <div
+	                            className="bg-green-600 h-1.5 rounded-full"
+	                            style={{
+	                              width: `${getPaymentProgress(
+	                                booking.paid,
+	                                booking.total,
+	                              )}%`,
+	                            }}
+	                          />
+	                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-1 transition-all duration-200">

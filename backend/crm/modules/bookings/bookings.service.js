@@ -588,12 +588,10 @@ function createBookingsService({ repository, logger, events, config }) {
       );
     }
 
-    const clientCurrency = payload.clientCurrency
-      ? toUpperText(payload.clientCurrency)
-      : "INR";
-    const supplierCurrency = payload.supplierCurrency
-      ? toUpperText(payload.supplierCurrency)
-      : "INR";
+    const clientCurrency =
+      toUpperText(payload.clientCurrency) || "INR";
+    const supplierCurrency =
+      toUpperText(payload.supplierCurrency) || clientCurrency;
     const exchangeRate =
       payload.exchangeRate !== undefined
         ? toNumber(payload.exchangeRate, null)
@@ -852,7 +850,9 @@ function createBookingsService({ repository, logger, events, config }) {
       const nextClientCurrency =
         updatePayload.client_currency ?? existing.clientCurrency ?? "INR";
       const nextSupplierCurrency =
-        updatePayload.supplier_currency ?? existing.supplierCurrency ?? "INR";
+        updatePayload.supplier_currency ??
+        existing.supplierCurrency ??
+        nextClientCurrency;
       const nextExchangeRate =
         updatePayload.exchange_rate ?? existing.exchangeRate ?? null;
       if (toNumber(nextCostAmount, 0) > toNumber(nextTotalAmount, 0)) {

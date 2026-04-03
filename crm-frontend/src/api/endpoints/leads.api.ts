@@ -18,8 +18,18 @@ export interface CreateLeadPayload {
   email?: string;
   phone: string;
   destinationId?: string;
+  destinationName?: string;
+  leadCountry?: string;
+  nationality?: string;
   budget?: number;
   travelDate?: string;
+  travelEndDate?: string;
+  adultsCount?: number;
+  childrenCount?: number;
+  childAges?: number[];
+  leadSource?: string;
+  campaignId?: string;
+  travelPurpose?: string;
   notes?: string;
 }
 
@@ -27,11 +37,24 @@ export interface UpdateLeadPayload {
   fullName?: string;
   email?: string;
   phone?: string;
+  destinationId?: string;
+  destinationName?: string;
+  leadCountry?: string;
+  nationality?: string;
+  budget?: number;
+  travelDate?: string;
+  travelEndDate?: string;
+  adultsCount?: number;
+  childrenCount?: number;
+  childAges?: number[];
+  travelPurpose?: string;
+  leadSource?: string;
+  campaignId?: string;
+  notes?: string;
   status?: string;
   subStatus?: string;
   followupType?: 'CALL' | 'WHATSAPP' | 'EMAIL' | 'FINAL_REMINDER' | 'TASK';
   temperature?: string;
-  notes?: string;
   closedReason?: string;
 }
 

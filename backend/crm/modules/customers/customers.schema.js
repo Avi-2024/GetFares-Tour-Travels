@@ -1,6 +1,9 @@
 const CustomersSchema = Object.freeze({
   tableName: "customers",
-  leadsTable: "customer_leads",
+  customerLeadsTable: "customer_leads",
+  leadsTable: "leads",
+  quotationsTable: "quotations",
+  bookingsTable: "bookings",
   entityName: "Customers",
 });
 
