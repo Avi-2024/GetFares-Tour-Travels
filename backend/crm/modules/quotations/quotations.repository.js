@@ -326,6 +326,14 @@ function createQuotationsRepository({ db, logger, schema }) {
 
     return {
       id: row.id,
+      leadCode: row.lead_code ?? row.leadCode ?? null,
+      leadId:
+        row.lead_code ??
+        row.leadCode ??
+        row.meta_lead_id ??
+        row.metaLeadId ??
+        null,
+      metaLeadId: row.meta_lead_id ?? row.metaLeadId ?? null,
       fullName: row.full_name ?? row.fullName ?? null,
       phone: row.phone ?? null,
       email: row.email ?? null,

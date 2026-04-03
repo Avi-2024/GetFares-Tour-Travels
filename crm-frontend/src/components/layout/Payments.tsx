@@ -908,8 +908,8 @@ const PaymentFormModal = ({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== "application/pdf") {
-      setInvoiceUploadError("Only PDF invoices are supported");
+    if (file.type !== "application/pdf" && !file.type.startsWith("image/")) {
+      setInvoiceUploadError("Upload a PDF or image for invoice");
       event.target.value = "";
       return;
     }
@@ -1322,7 +1322,7 @@ const PaymentFormModal = ({
                           {invoiceFile.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          PDF · {formatFileSize(invoiceFile.size)}
+                          {formatFileSize(invoiceFile.size)}
                         </p>
                       </div>
                       <button
@@ -1334,14 +1334,14 @@ const PaymentFormModal = ({
                       </button>
                     </div>
                   : <p className="text-sm text-gray-500">
-                      Upload the finalized invoice PDF (max 5 MB).
+                      Upload the finalized invoice file (PDF or image, max 5 MB).
                     </p>
                   }
 
                   {currentInvoiceLink && !invoiceFile && (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                       <p className="font-medium">
-                        Invoice PDF already uploaded.
+                        Invoice file already uploaded.
                       </p>
                       <p className="text-xs text-amber-700">
                         Replace it with a new PDF?
@@ -1360,7 +1360,7 @@ const PaymentFormModal = ({
                           className="text-xs font-semibold text-amber-900 hover:underline"
                           onClick={() => invoiceInputRef.current?.click()}
                         >
-                          Upload new PDF
+                          Upload new file
                         </button>
                       </div>
                     </div>
@@ -1371,13 +1371,13 @@ const PaymentFormModal = ({
                       htmlFor="invoice-upload"
                       className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-blue-500 hover:text-blue-600"
                     >
-                      Upload PDF
+                      Upload File
                     </label>
                     <input
                       id="invoice-upload"
                       ref={invoiceInputRef}
                       type="file"
-                      accept="application/pdf"
+                      accept="application/pdf,image/*"
                       className="hidden"
                       onChange={handleInvoiceFileChange}
                     />

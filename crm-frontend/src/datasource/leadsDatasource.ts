@@ -34,6 +34,10 @@ export type LeadApiRecord = {
   destination?: LeadDestinationRecord;
   destinationId?: string | null;
   destinationName?: string | null;
+  leadCode?: string | null;
+  lead_code?: string | null;
+  metaLeadId?: string | null;
+  meta_lead_id?: string | null;
   travelFrom?: string | null;
   travel_from?: string | null;
   travelTo?: string | null;
@@ -66,6 +70,10 @@ export type LeadApiRecord = {
   visaRequired?: boolean | null;
   preferredHotelCategory?: string | null;
   travelPurpose?: string | null;
+  source?: string | null;
+  leadSource?: string | null;
+  utmSource?: string | null;
+  utm_source?: string | null;
   qualificationCompleted?: boolean | null;
   followupAttempts?: number | null;
   finalReminderAt?: string | null;

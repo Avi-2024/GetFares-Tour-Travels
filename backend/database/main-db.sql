@@ -307,6 +307,7 @@ CREATE TABLE leads (
     utm_medium VARCHAR(100),
     utm_campaign VARCHAR(100),
     meta_lead_id VARCHAR(120),
+    lead_code VARCHAR(20),
 
     lead_score INT DEFAULT 0 CHECK (lead_score >= 0),
 
@@ -936,6 +937,7 @@ CREATE INDEX idx_leads_temperature ON leads(temperature);
 CREATE INDEX idx_leads_sub_status ON leads(sub_status);
 CREATE INDEX idx_leads_pan_number ON leads(pan_number);
 CREATE UNIQUE INDEX idx_leads_meta_lead_id ON leads(meta_lead_id);
+CREATE UNIQUE INDEX idx_leads_lead_code_unique ON leads(lead_code);
 CREATE INDEX idx_followups_lead_id ON followups(lead_id);
 CREATE INDEX idx_followups_due_open ON followups(followup_date, is_completed);
 CREATE INDEX idx_lead_activities_lead_user_created

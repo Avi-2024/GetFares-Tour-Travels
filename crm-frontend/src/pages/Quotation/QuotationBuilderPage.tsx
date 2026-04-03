@@ -21,6 +21,8 @@ import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { getCurrencyOptions } from '../../utils/currency'
+import { getNationalityOptions } from '../../utils/nationality'
+import { Country } from 'country-state-city'
 
 type Currency = string
 type SavedQuote = {
@@ -45,6 +47,12 @@ interface Item {
 
 type LeadOption = {
   id: string
+  leadId?: string | null
+  leadCode?: string | null
+  lead_code?: string | null
+  metaLeadId?: string | null
+  meta_lead_id?: string | null
+  code?: string | null
   fullName?: string | null
   email?: string | null
   phone?: string | null
@@ -57,6 +65,15 @@ type LeadOption = {
   adultsCount?: number | null
   childrenCount?: number | null
   travelPurpose?: string | null
+  leadCountry?: string | null
+  country?: string | null
+  nationality?: string | null
+  addressLine?: string | null
+  address_line?: string | null
+  panNumber?: string | null
+  pan_number?: string | null
+  budget?: number | null
+  childAges?: number[] | null
 }
 
 type TemplateType = 'READY_PACKAGE' | 'VISA' | 'CUSTOM_ITINERARY'
@@ -119,6 +136,8 @@ type ServiceOverrideValue = {
   markupPercent?: string
   sellValue?: string
   paymentTerms?: string
+  supplierId?: string
+  supplierName?: string
 }
 
 type ServiceOverridesState = Record<string, ServiceOverrideValue>
@@ -130,7 +149,8 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   { key: 'flights', label: 'Flights', itemType: 'FLIGHT', weight: 25 },
   { key: 'tours', label: 'Tours & Activities', itemType: 'OTHER', weight: 15 },
   { key: 'visa', label: 'Visa Services', itemType: 'VISA', weight: 5 },
-  { key: 'insurance', label: 'Insurance', itemType: 'INSURANCE', weight: 8 }
+  { key: 'insurance', label: 'Insurance', itemType: 'INSURANCE', weight: 8 },
+  { key: 'insurance2', label: 'Land Arrangement', itemType: 'TRANSFER', weight: 7 }
 ]
 
 const UUID_REGEX =
@@ -161,6 +181,24 @@ function firstNonEmptyString (...values: unknown[]): string {
     if (text.trim()) return text
   }
   return ''
+}
+
+function resolveLeadDisplayId (
+  lead:
+    | Pick<
+        LeadOption,
+        'leadId' | 'leadCode' | 'lead_code' | 'code' | 'id'
+      >
+    | null
+): string {
+  if (!lead) return ''
+  return firstNonEmptyString(
+    lead.leadId,
+    lead.leadCode,
+    lead.lead_code,
+    lead.code,
+    lead.id
+  )
 }
 
 function toFiniteNumber (value: unknown, fallback = 0): number {
@@ -390,12 +428,26 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     quotationTitle: '',
     customer: '',
     email: '',
+    phone: '',
+    leadCountry: '',
+    nationality: '',
+    addressLine: '',
+    panNumber: '',
+    budget: '',
     destination: '',
     startDate: '',
+    endDate: '',
     nights: 1,
     durationDays: '2',
     adults: 1,
+    visaRequired: '',
+    preferredHotelCategory: '',
+    travelPurpose: '',
+    leadSource: '',
+    campaignId: '',
     validUntil: '',
+    children: 0,
+    childAges: [] as string[],
     inclusions: '',
     exclusions: '',
     headerBranding: '',
@@ -467,6 +519,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     [leads, selectedLeadId]
   )
 
+  const selectedLeadDisplayId = useMemo(
+    () => resolveLeadDisplayId(selectedLead),
+    [selectedLead]
+  )
+
   const selectedLeadCurrency = useMemo(() => {
     const normalized = toTrimmedString(
       selectedLead?.clientCurrency ?? selectedLead?.client_currency
@@ -525,10 +582,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const leadDropdownOptions = useMemo(
     () => [
       { value: '', label: 'Select a lead' },
-      ...leads.map(lead => ({
-        value: lead.id,
-        label: lead.fullName || lead.email || lead.phone || lead.id
-      }))
+      ...leads.map(lead => {
+        const leadLabel = lead.fullName || lead.email || lead.phone || lead.id
+        const leadDisplayId = resolveLeadDisplayId(lead)
+        return {
+          value: lead.id,
+          label: leadDisplayId ? `${leadLabel} (${leadDisplayId})` : leadLabel
+        }
+      })
     ],
     [leads]
   )
@@ -565,6 +626,67 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   )
 
   const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
+
+  const countryOptions = useMemo(
+    () => [
+      { value: '', label: 'Select country' },
+      ...Country.getAllCountries()
+        .map(country => String(country.name || '').trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b))
+        .map(name => ({
+          value: name,
+          label: name
+        }))
+    ],
+    []
+  )
+
+  const nationalityOptions = useMemo(() => getNationalityOptions(), [])
+
+  const visaOptions = useMemo(
+    () => [
+      { value: '', label: 'Visa Required' },
+      { value: 'YES', label: 'Yes' },
+      { value: 'NO', label: 'No' }
+    ],
+    []
+  )
+
+  const hotelCategoryOptions = useMemo(
+    () => [
+      { value: '', label: 'Hotel Category' },
+      { value: '3_STAR', label: '3 Star' },
+      { value: '4_STAR', label: '4 Star' },
+      { value: '5_STAR', label: '5 Star' },
+      { value: 'ANY', label: 'Any' }
+    ],
+    []
+  )
+
+  const leadSourceOptions = useMemo(
+    () => [
+      { value: 'Website', label: 'Website' },
+      { value: 'Phone', label: 'Phone' },
+      { value: 'Referral', label: 'Referral' },
+      { value: 'Social', label: 'Social' },
+      { value: 'WalkIn', label: 'WalkIn' }
+    ],
+    []
+  )
+
+  const [campaigns] = useState<any[]>([])
+
+  const campaignOptions = useMemo(
+    () => [
+      { value: '', label: 'Select campaign (optional)' },
+      ...campaigns.map(campaign => ({
+        value: String(campaign.id),
+        label: String(campaign.name ?? campaign.title ?? campaign.id)
+      }))
+    ],
+    [campaigns]
+  )
 
   const applyTemplateDefaults = (template: TemplateOption | null) => {
     if (!template) return
@@ -1664,11 +1786,21 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       ...prev,
       customer: selectedLead.fullName || prev.customer,
       email: selectedLead.email || prev.email,
+      phone: selectedLead.phone || prev.phone,
+      leadCountry: selectedLead.leadCountry || selectedLead.country || prev.leadCountry,
+      nationality: selectedLead.nationality || prev.nationality,
+      addressLine: selectedLead.addressLine || selectedLead.address_line || prev.addressLine,
+      panNumber: selectedLead.panNumber || selectedLead.pan_number || prev.panNumber,
+      budget: selectedLead.budget !== undefined && selectedLead.budget !== null ? String(selectedLead.budget) : prev.budget,
       destination: destinationName,
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
         : prev.startDate,
-      adults: Number(selectedLead.adultsCount || prev.adults || 1)
+      adults: Number(selectedLead.adultsCount || prev.adults || 1),
+      children: Number(selectedLead.childrenCount || prev.children || 0),
+      childAges: Array.isArray(selectedLead.childAges)
+        ? selectedLead.childAges.map(age => String(age))
+        : prev.childAges
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
@@ -1796,38 +1928,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }
   }
 
-  const computed = useMemo(() => {
-    const supplier = Number(costs.supplierCost) || 0
-    const markupVal = supplier * ((Number(costs.markupPercent) || 0) / 100)
-    const serviceFee = Number(costs.serviceFee) || 0
-    const preTax = supplier + markupVal + serviceFee + addOnTotal
-    const taxVal = preTax * ((Number(costs.taxPercent) || 0) / 100)
-    const discount = Number(costs.discount) || 0
-    const totalPrice = Math.max(preTax + taxVal - discount, 0)
-    const profit = totalPrice - supplier - taxVal
-    const margin = totalPrice ? (profit / totalPrice) * 100 : 0
-    return {
-      supplier,
-      markupVal,
-      serviceFee,
-      addOnTotal,
-      taxVal,
-      discount,
-      totalPrice,
-      profit,
-      margin
-    }
-  }, [addOnTotal, costs])
-
-  const subtotal =
-    computed.supplier +
-    computed.markupVal +
-    computed.serviceFee +
-    computed.addOnTotal
-  const taxes = computed.taxVal
-  const total = computed.totalPrice
-  const quoteDisplayNumber = form.quote.trim() || 'AUTO-GENERATED'
-
   const totalMarkupFromServices = useMemo(
     () =>
       Number(
@@ -1837,6 +1937,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       ),
     [serviceCostRows]
   )
+  
   const serviceChargesTotal = useMemo(
     () =>
       Number(
@@ -1847,6 +1948,42 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       ),
     [serviceCostRows, addOnTotal]
   )
+
+  const computed = useMemo(() => {
+    const supplier = Number(costs.supplierCost) || 0
+    const serviceFee = Number(costs.serviceFee) || 0
+    const taxPercent = Number(costs.taxPercent) || 0
+    const discount = Number(costs.discount) || 0
+
+    // Calculate from service rows instead of global markup
+    const servicesMarkup = serviceCostRows.reduce((sum, row) => sum + row.markupAmount, 0)
+    const servicesSellTotal = serviceCostRows.reduce((sum, row) => sum + row.sellValue, 0)
+
+    const preTax = Number((servicesSellTotal + addOnTotal + serviceFee).toFixed(2))
+    const taxVal = Number((preTax * (taxPercent / 100)).toFixed(2))
+    const totalPrice = Math.max(Number((preTax + taxVal - discount).toFixed(2)), 0)
+    const profit = Number((servicesMarkup + addOnMarkupTotal).toFixed(2))
+    const margin = totalPrice ? Number(((profit / totalPrice) * 100).toFixed(2)) : 0
+
+    return {
+      supplier,
+      markupVal: servicesMarkup,
+      serviceFee,
+      addOnTotal,
+      taxVal,
+      discount,
+      totalPrice,
+      profit,
+      margin
+    }
+  }, [addOnTotal, costs, serviceCostRows, addOnMarkupTotal])
+
+  const subtotal = Number(
+    (serviceChargesTotal + computed.serviceFee).toFixed(2)
+  )
+  const taxes = computed.taxVal
+  const total = computed.totalPrice
+  const quoteDisplayNumber = form.quote.trim() || 'AUTO-GENERATED'
 
   const pricingFieldErrors = useMemo<PricingFieldErrors>(() => {
     const errors: PricingFieldErrors = {}
@@ -1900,27 +2037,38 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   }
 
   const autofillCustomer = () => {
-    if (selectedLead) {
-      setForm(p => ({
-        ...p,
-        customer: selectedLead.fullName || p.customer,
-        email: selectedLead.email || p.email,
-        destination:
-          (selectedLead.destinationId &&
-            destinationMap[selectedLead.destinationId]) ||
-          p.destination,
-        startDate: selectedLead.travelDate
-          ? selectedLead.travelDate.slice(0, 10)
-          : p.startDate,
-        adults: Number(selectedLead.adultsCount || p.adults || 1)
-      }))
-      if (selectedLeadCurrency) {
-        setCurrency(selectedLeadCurrency)
-      }
-      setSaveError('')
-      return
+    if (!selectedLead) return
+
+    const resolvedDestination =
+      typeof selectedLead.destination === 'string'
+        ? selectedLead.destination
+        : selectedLead.destination?.name ?? selectedLead.destinationName ?? ''
+    const destinationName = selectedLead.destinationId
+      ? destinationMap[selectedLead.destinationId] ||
+        resolvedDestination ||
+        form.destination
+      : resolvedDestination || form.destination
+
+    setForm(prev => ({
+      ...prev,
+      customer: selectedLead.fullName || prev.customer,
+      email: selectedLead.email || prev.email,
+      phone: selectedLead.phone || prev.phone,
+      leadCountry: selectedLead.leadCountry || selectedLead.country || prev.leadCountry,
+      nationality: selectedLead.nationality || prev.nationality,
+      addressLine: selectedLead.addressLine || selectedLead.address_line || prev.addressLine,
+      panNumber: selectedLead.panNumber || selectedLead.pan_number || prev.panNumber,
+      budget: selectedLead.budget !== undefined && selectedLead.budget !== null ? String(selectedLead.budget) : prev.budget,
+      destination: destinationName,
+      startDate: selectedLead.travelDate
+        ? selectedLead.travelDate.slice(0, 10)
+        : prev.startDate,
+      adults: Number(selectedLead.adultsCount || prev.adults || 1)
+    }))
+    if (selectedLeadCurrency) {
+      setCurrency(selectedLeadCurrency)
     }
-    setSaveError('Select a lead to auto-fill.')
+    setSaveError('')
   }
 
   const addItineraryItem = () => {
@@ -2072,7 +2220,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         form.durationDays || 'N/A'
       }\nDuration: ${previewDurationLabel || 'N/A'}\nAdults: ${
         form.adults
-      }\nPackage Type: ${packageType}${
+      }\nChildren: ${form.children}\n${
+        Array.isArray(form.childAges) && form.childAges.length
+          ? `Child Ages: ${form.childAges
+              .filter(age => String(age).trim())
+              .join(', ')}`
+          : ''
+      }Package Type: ${packageType}${
         sourcePackageName ? `\nSelected Package: ${sourcePackageName}` : ''
       }${supplierName ? `\nSupplier: ${supplierName}` : ''}`,
       enabledServices ? `Enabled Services:\n${enabledServices}` : '',
@@ -2112,6 +2266,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       quotationTitle: form.quotationTitle.trim() || null,
       lead: {
         id: selectedLeadId || null,
+        leadId: selectedLeadDisplayId || null,
+        leadCode: selectedLeadDisplayId || null,
+        metaLeadId:
+          toTrimmedString(
+            selectedLead?.metaLeadId ?? selectedLead?.meta_lead_id
+          ) || null,
         fullName: form.customer.trim() || selectedLead?.fullName || null,
         email: form.email.trim() || selectedLead?.email || null,
         phone: selectedLead?.phone || null,
@@ -2121,7 +2281,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           (selectedLead?.destinationId
             ? destinationMap[selectedLead.destinationId]
             : null) ||
-          null
+          null,
+        childrenCount: Number(form.children) || 0,
+        childAges: (Array.isArray(form.childAges) ? form.childAges : [])
+          .map(age => Number(age))
+          .filter(age => Number.isFinite(age))
       },
       customerName: form.customer.trim() || null,
       customerEmail: form.email.trim() || null,
@@ -2133,6 +2297,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       durationDays: parseDayCount(form.durationDays) || 0,
       durationLabel: previewDurationLabel || null,
       adults: Number(form.adults) || 0,
+      children: Number(form.children) || 0,
+      childAges: (Array.isArray(form.childAges) ? form.childAges : [])
+        .map(age => Number(age))
+        .filter(age => Number.isFinite(age)),
       validUntil: form.validUntil || null,
       packageType,
       currency,
@@ -2193,7 +2361,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             override.sellValue !== undefined && override.sellValue !== ''
               ? Number(override.sellValue)
               : row.sellValue,
-          paymentTerms: override.paymentTerms?.trim() || null
+          paymentTerms: override.paymentTerms?.trim() || null,
+          supplierId: override.supplierId?.trim() || null,
+          supplierName: override.supplierName?.trim() || null
         }
       }),
       addOnServices: addOnServices.map(service => ({
@@ -2297,9 +2467,47 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         return
       }
 
-      if (!isEditMode && !selectedLeadId) {
-        setSaveError('Please select a lead before saving.')
-        return
+      let quoteLeadId = selectedLeadId
+
+      const cleanChildAges = (Array.isArray(form.childAges) ? form.childAges : [])
+        .map(age => Number(age))
+        .filter(age => Number.isFinite(age) && age >= 0 && age <= 18)
+
+      const leadPayload = {
+        fullName: (form.customer || '').trim() || 'Unknown Customer',
+        email: (form.email || '').trim() || undefined,
+        phone: (form.phone || '').trim(),
+        destinationName: (form.destination || '').trim() || undefined,
+        travelDate: form.startDate || undefined,
+        travelEndDate: form.endDate || undefined,
+        adultsCount: Math.max(1, Number(form.adults) || 1),
+        childrenCount: Math.max(0, Number(form.children) || 0),
+        childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
+        leadCountry: (form.leadCountry || '').trim() || undefined,
+        nationality: (form.nationality || '').trim() || undefined,
+        budget: Number(form.budget) ? Number(form.budget) : undefined,
+        travelPurpose: (form.travelPurpose || '').trim() || undefined,
+        source: (form.leadSource || '').trim() || 'Quotation Builder',
+        campaignId: form.campaignId || undefined,
+        notes:
+          form.quotationTitle?.trim()
+            ? `Quotation: ${form.quotationTitle.trim()}`
+            : undefined
+      }
+
+      if (!isEditMode) {
+        if (!quoteLeadId) {
+          const newLead = await leadsService.createLead(leadPayload)
+          const createdLead = unwrapApiData(newLead) || newLead || {}
+          quoteLeadId =
+            String((createdLead as any).id || (createdLead as any).leadId || '')
+          if (!quoteLeadId) {
+            throw new Error('Failed to create lead for quotation.')
+          }
+          setSelectedLeadId(quoteLeadId)
+        } else {
+          await leadsService.updateLead(quoteLeadId, leadPayload)
+        }
       }
 
       const supplier = Number(costs.supplierCost) || 0
@@ -2326,7 +2534,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               form.destination ? ` - ${form.destination}` : ''
             }${override.paymentTerms ? ` (${override.paymentTerms})` : ''}`,
             cost: row.baseCost,
-            sellValue: effectiveSell
+            sellValue: effectiveSell,
+            supplierId: override.supplierId?.trim() || null,
+            supplierName: override.supplierName?.trim() || null
           }
         }),
         ...addOnServices.map(service => ({
@@ -2373,7 +2583,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       } else {
         await quotationsApi.create({
           ...basePayload,
-          leadId: selectedLeadId
+          leadId: quoteLeadId
         })
       }
       setShowSaved(true)
@@ -2522,6 +2732,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     <p className='mt-1 text-xs text-red-600'>{leadsError}</p>
                   ) : null}
                 </div>
+                <div>
+                  <label className='field-label'>Lead ID</label>
+                  <input
+                    type='text'
+                    className='field-input'
+                    value={selectedLeadDisplayId}
+                    placeholder='Select lead to view ID'
+                    readOnly
+                  />
+                </div>
                 <div className='md:col-span-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700'>
                   <div className='grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end'>
                     <div>
@@ -2616,7 +2836,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   onChange={v => setForm(p => ({ ...p, quotationTitle: v }))}
                 />
                 <Field
-                  label='Customer'
+                  label='Customer Name'
                   value={form.customer}
                   onChange={v => setForm(p => ({ ...p, customer: v }))}
                 />
@@ -2625,11 +2845,123 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   value={form.email}
                   onChange={v => setForm(p => ({ ...p, email: v }))}
                 />
+                <div>
+                  <label className='field-label'>Phone</label>
+                  <input
+                    type='tel'
+                    className='field-input'
+                    value={form.phone || ''}
+                    onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                    placeholder='Customer phone number'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Lead Country</label>
+                  <SearchableDropdown
+                    value={form.leadCountry || ''}
+                    options={countryOptions}
+                    searchPlaceholder='Search country...'
+                    onChange={value => setForm(p => ({ ...p, leadCountry: value }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Nationality</label>
+                  <SearchableDropdown
+                    value={form.nationality || ''}
+                    options={nationalityOptions}
+                    searchPlaceholder='Search nationality...'
+                    onChange={value => setForm(p => ({ ...p, nationality: value }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Client Currency</label>
+                  <SearchableDropdown
+                    value={currency}
+                    options={currencyOptions}
+                    searchPlaceholder='Search currency...'
+                    onChange={value => setCurrency(String(value || 'INR').toUpperCase())}
+                  />
+                </div>
                 <Field
                   label='Destination'
                   value={form.destination}
                   onChange={v => setForm(p => ({ ...p, destination: v }))}
                 />
+                <div className='md:col-span-2'>
+                  <label className='field-label'>Address / Location</label>
+                  <textarea
+                    className='field-input'
+                    rows={2}
+                    placeholder='Enter customer address or location'
+                    value={form.addressLine || ''}
+                    onChange={e => setForm(p => ({ ...p, addressLine: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>PAN Number (optional)</label>
+                  <input
+                    className='field-input'
+                    placeholder='Enter PAN number'
+                    value={form.panNumber || ''}
+                    onChange={e => setForm(p => ({ ...p, panNumber: e.target.value.toUpperCase() }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Budget</label>
+                  <input
+                    type='number'
+                    min='0'
+                    className='field-input'
+                    placeholder='Customer budget'
+                    value={form.budget || ''}
+                    onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Visa Requirement</label>
+                  <SearchableDropdown
+                    value={form.visaRequired}
+                    options={visaOptions}
+                    searchPlaceholder='Search visa requirement...'
+                    onChange={value => setForm(p => ({ ...p, visaRequired: value }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Preferred Hotel Category</label>
+                  <SearchableDropdown
+                    value={form.preferredHotelCategory}
+                    options={hotelCategoryOptions}
+                    searchPlaceholder='Search hotel category...'
+                    onChange={value => setForm(p => ({ ...p, preferredHotelCategory: value }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Travel Purpose</label>
+                  <input
+                    className='field-input'
+                    placeholder='Travel purpose'
+                    value={form.travelPurpose}
+                    onChange={e => setForm(p => ({ ...p, travelPurpose: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Lead Source</label>
+                  <SearchableDropdown
+                    value={form.leadSource}
+                    options={leadSourceOptions}
+                    searchPlaceholder='Search source...'
+                    onChange={value => setForm(p => ({ ...p, leadSource: value }))}
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Campaign</label>
+                  <SearchableDropdown
+                    value={form.campaignId}
+                    options={campaignOptions}
+                    searchPlaceholder='Search campaign...'
+                    onChange={value => setForm(p => ({ ...p, campaignId: value }))}
+                  />
+                </div>
                 <Field
                   label='Quote Reference'
                   value={form.quote}
@@ -2650,6 +2982,18 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       Using lead travel date: {toDateInputString(selectedLead.travelDate)}
                     </p>
                   ) : null}
+                </div>
+                <div>
+                  <label className='field-label'>End Date</label>
+                  <input
+                    type='date'
+                    className='field-input'
+                    min={form.startDate || undefined}
+                    value={form.endDate}
+                    onChange={e =>
+                      setForm(p => ({ ...p, endDate: e.target.value }))
+                    }
+                  />
                 </div>
                 <div>
                   <label className='field-label'>Valid Until</label>
@@ -2708,20 +3052,80 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <label className='field-label'>Adults</label>
                   <input
                     type='number'
+                    min='1'
                     className='field-input'
                     value={form.adults}
                     onChange={e =>
                       setForm(p => ({
                         ...p,
-                        adults: Number(e.target.value || 1)
+                        adults: Math.max(1, Number(e.target.value || 1))
                       }))
                     }
                   />
                 </div>
+                <div>
+                  <label className='field-label'>Children</label>
+                  <input
+                    type='number'
+                    min='0'
+                    className='field-input'
+                    value={form.children}
+                    onChange={e => {
+                      const nextChildren = Math.max(0, Number(e.target.value || 0))
+                      setForm(prev => {
+                        const currentAges = Array.isArray(prev.childAges)
+                          ? prev.childAges
+                          : []
+                        const nextAges = Array.from({ length: nextChildren }, (_, i) =>
+                          currentAges[i] ?? ''
+                        )
+                        return {
+                          ...prev,
+                          children: nextChildren,
+                          childAges: nextAges
+                        }
+                      })
+                    }}
+                  />
+                </div>
+                {Number(form.children) > 0 ? (
+                  <div className='col-span-1 md:col-span-2'>
+                    <label className='field-label'>Child Ages</label>
+                    <div className='grid grid-cols-2 gap-2'>
+                      {Array.from({ length: Number(form.children) }).map((_, index) => (
+                        <input
+                          key={index}
+                          type='number'
+                          min='0'
+                          max='18'
+                          className='field-input'
+                          placeholder={`Age ${index + 1}`}
+                          value={form.childAges?.[index] ?? ''}
+                          onChange={e => {
+                            const nextValue = e.target.value
+                            setForm(prev => {
+                              const currentAges = Array.isArray(prev.childAges)
+                                ? [...prev.childAges]
+                                : []
+                              currentAges[index] = nextValue
+                              return {
+                                ...prev,
+                                childAges: currentAges
+                              }
+                            })
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <p className='mt-1 text-xs text-gray-500'>
+                      Enter age for each child (0-18). Leave blank to skip.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </SurfaceCard>
 
-            <SurfaceCard>
+            {/* <SurfaceCard>
               <div className='mb-3 flex items-center justify-between'>
                 <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
                   Cost & Profit
@@ -2782,20 +3186,19 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   tone='purple'
                 />
               </div>
-            </SurfaceCard>
+            </SurfaceCard> */}
             <SurfaceCard>
               <div className='mb-4'>
                 <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
                   Itinerary Items
                 </h2>
                 <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                  Day fields are created automatically from the quotation `Days`
-                  value.
+                  Day fields are created automatically from the quotation Days value.
                 </p>
               </div>
               {parseDayCount(form.durationDays) <= 0 ? (
                 <div className='rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-3 py-4 text-sm text-gray-500 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-gray-400'>
-                  Enter the total `Days` in duration to generate itinerary
+                  Enter the total Days in duration to generate itinerary
                   fields.
                 </div>
               ) : (
@@ -2909,6 +3312,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     onClearField={clearServiceOverrideField}
                     onCellKeyDown={focusNextPricingInput}
                     totalSellValue={serviceChargesTotal}
+                    suppliers={suppliers}
+                    suppliersLoading={suppliersLoading}
                   />
                   <div className='rounded-xl border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
                     <div className='mb-2 flex items-center justify-between'>
@@ -3262,6 +3667,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         </p>
                         <p className='text-xs text-gray-500 break-words'>
                           {form.email || 'guest@email.com'}
+                        </p>
+                        <p className='mt-1 text-xs text-gray-500 break-words'>
+                          Lead ID:{' '}
+                          <span className='font-medium text-gray-700'>
+                            {selectedLeadDisplayId || 'N/A'}
+                          </span>
                         </p>
                       </div>
                       <div className='min-w-0 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 sm:text-right dark:bg-gray-800/40'>
@@ -3707,7 +4118,9 @@ const PricingTable = ({
   onClearField,
   onCellKeyDown,
   money,
-  totalSellValue
+  totalSellValue,
+  suppliers,
+  suppliersLoading
 }: {
   rows: ServiceCostRow[]
   overrides: ServiceOverridesState
@@ -3722,6 +4135,8 @@ const PricingTable = ({
   onCellKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
   money: (value: number) => string
   totalSellValue: number
+  suppliers: Array<{ id: string; name: string }>
+  suppliersLoading: boolean
 }) => {
   return (
     <div className='space-y-3'>
@@ -3747,6 +4162,8 @@ const PricingTable = ({
                 onClearField={onClearField}
                 onCellKeyDown={onCellKeyDown}
                 money={money}
+                suppliers={suppliers}
+                suppliersLoading={suppliersLoading}
               />
             ))}
           </div>
@@ -3788,7 +4205,9 @@ const PricingRow = ({
   onUpdateField,
   onClearField,
   onCellKeyDown,
-  money
+  money,
+  suppliers,
+  suppliersLoading
 }: {
   row: ServiceCostRow
   rowIndex: number
@@ -3803,10 +4222,33 @@ const PricingRow = ({
   onClearField: (rowKey: ServiceKey, field: PricingField) => void
   onCellKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
   money: (value: number) => string
+  suppliers: Array<{ id: string; name: string }>
+  suppliersLoading: boolean
 }) => {
   const hasBaseCostOverride = override.baseCost !== undefined
   const hasMarkupOverride = override.markupPercent !== undefined
   const hasSellOverride = override.sellValue !== undefined
+
+  const supplierDropdownOptions = useMemo(
+    () => [
+      { value: '', label: 'No supplier selected' },
+      ...suppliers.map(supplier => ({
+        value: supplier.id,
+        label: supplier.name
+      }))
+    ],
+    [suppliers]
+  )
+
+  const handleSupplierChange = (supplierId: string) => {
+    const selectedSupplier = suppliers.find(s => s.id === supplierId)
+    onUpdateField(row.key, 'supplierId', supplierId)
+    if (selectedSupplier) {
+      onUpdateField(row.key, 'supplierName', selectedSupplier.name)
+    } else {
+      onClearField(row.key, 'supplierName')
+    }
+  }
 
   const displayBaseCost = hasBaseCostOverride
     ? String(override.baseCost)
@@ -3852,7 +4294,7 @@ const PricingRow = ({
   return (
     <div className='rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-gray-700 dark:bg-gray-900'>
       <div className='mb-3 flex items-start justify-between'>
-        <div>
+        <div className='flex-1'>
           <h4 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
             {row.label}
           </h4>
@@ -3868,6 +4310,31 @@ const PricingRow = ({
             Sell Value
           </p>
         </div>
+      </div>
+
+      <div className='mb-3 rounded-lg border border-purple-200 bg-purple-50/30 p-3 dark:border-purple-800 dark:bg-purple-900/10'>
+        <label className='mb-1.5 block text-xs font-semibold text-purple-700 dark:text-purple-300'>
+          🏢 Supplier for this service
+        </label>
+        <SearchableDropdown
+          value={override.supplierId ?? ''}
+          options={supplierDropdownOptions}
+          onChange={handleSupplierChange}
+          disabled={suppliersLoading}
+          searchPlaceholder='Search supplier...'
+        />
+        {suppliersLoading ? (
+          <p className='mt-1 text-[10px] text-gray-500'>Loading suppliers...</p>
+        ) : null}
+        {override.supplierId && override.supplierName ? (
+          <p className='mt-1.5 text-xs font-medium text-purple-700 dark:text-purple-300'>
+            ✓ Selected: {override.supplierName}
+          </p>
+        ) : (
+          <p className='mt-1.5 text-[10px] text-gray-500 dark:text-gray-400'>
+            No supplier assigned to this service
+          </p>
+        )}
       </div>
 
       <div className='grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3'>
@@ -4100,6 +4567,19 @@ const SummaryPanel = ({
             />
           </div>
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+            <span className='text-xs text-gray-500'>Markup %</span>
+            <input
+              type='number'
+              min='0'
+              max='100'
+              step='0.1'
+              value={costs.markupPercent}
+              onFocus={event => event.currentTarget.select()}
+              onChange={event => updateCost('markupPercent', event.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Discount</span>
             <input
               type='number'
@@ -4110,6 +4590,12 @@ const SummaryPanel = ({
               onChange={event => updateCost('discount', event.target.value)}
               className={inputClass}
             />
+          </div>
+          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+            <span className='text-xs text-gray-500 font-medium'>Profit (Auto)</span>
+            <div className='h-10 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300'>
+              {money(totalMarkup + addOnTotal - (costs.serviceFee || 0))}
+            </div>
           </div>
           <div className='space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
             <div className='flex items-center justify-between'>
@@ -4134,6 +4620,7 @@ const SummaryPanel = ({
               <span>Tax Amount</span>
               <span className='font-medium tabular-nums'>{money(taxes)}</span>
             </div>
+            
           </div>
           <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
             <p className='text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300'>

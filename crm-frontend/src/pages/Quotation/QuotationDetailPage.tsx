@@ -812,63 +812,6 @@ const QuotationDetailPage: React.FC = () => {
           >
             <FaFilePdf className='mr-2' /> PDF
           </button>
-
-          <div className='relative shrink-0'>
-            <button
-              onClick={() => setShowSendDropdown(prev => !prev)}
-              className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center whitespace-nowrap'
-              disabled={savingStatus}
-            >
-              <FaPaperPlane className='mr-2' /> Send
-            </button>
-
-            {showSendDropdown && (
-              <>
-                <div
-                  className='fixed inset-0 z-10'
-                  onClick={() => setShowSendDropdown(false)}
-                />
-                <div className='absolute right-0 mt-1 w-44 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1'>
-                  <button
-                    onClick={() => void handleSend('email')}
-                    className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2'
-                  >
-                    <FaEnvelope className='text-gray-500' /> Email
-                  </button>
-                  <button
-                    onClick={() => void handleSend('whatsapp')}
-                    className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2'
-                  >
-                    <FaPaperPlane className='text-green-500' /> WhatsApp
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          <button
-            onClick={() => void handleApprove()}
-            disabled={savingStatus || isApproved}
-            className={`h-9 px-4 rounded-lg text-sm font-medium text-white transition-colors inline-flex items-center whitespace-nowrap shrink-0 disabled:opacity-60 ${
-              isApproved
-                ? 'bg-green-600 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            <FaCheck className='mr-2' /> Approve
-          </button>
-
-          <button
-            onClick={() => setShowRejectModal(true)}
-            disabled={savingStatus || isRejected}
-            className={`h-9 px-4 rounded-lg text-sm transition-colors inline-flex items-center whitespace-nowrap shrink-0 disabled:opacity-60 ${
-              isRejected
-                ? 'bg-red-600 text-white border border-red-600 cursor-not-allowed'
-                : 'border border-red-200 text-red-600 hover:bg-red-50'
-            }`}
-          >
-            <FaXmark className='mr-2' /> Reject
-          </button>
         </div>
       </div>
 
@@ -907,32 +850,63 @@ const QuotationDetailPage: React.FC = () => {
         </SurfaceCard>
       </div>
 
-      <div ref={pdfExportRef} className='space-y-4 sm:space-y-6'>
-        <SurfaceCard className='p-4 sm:p-5'>
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-            <div>
-              <p className='text-xs uppercase tracking-wide text-gray-500'>
-                Customer
-              </p>
-              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {displayCustomerName}
-              </p>
-              <p className='text-xs text-gray-500'>{displayCustomerEmail}</p>
-              <p className='text-xs text-gray-500'>{displayCustomerPhone}</p>
-            </div>
+      <div className='relative grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.85fr)_minmax(320px,1fr)]'>
+        {/* Left Column - Scrollable */}
+        <div ref={pdfExportRef} className='space-y-4 sm:space-y-6 overflow-y-auto max-h-[calc(100vh-200px)] pr-2 scrollbar-hide'>
+          <SurfaceCard className='p-4 sm:p-5'>
+            <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4'>
+              Lead Details
+            </h2>
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+              <div>
+                <p className='text-xs uppercase tracking-wide text-gray-500'>
+                  Customer
+                </p>
+                <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  {displayCustomerName}
+                </p>
+                <p className='text-xs text-gray-500'>{displayCustomerEmail}</p>
+                <p className='text-xs text-gray-500'>{displayCustomerPhone}</p>
+              </div>
 
-            <div>
-              <p className='text-xs uppercase tracking-wide text-gray-500'>
-                Destination
-              </p>
-              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {displayDestinationName}
-              </p>
-              <p className='text-xs text-gray-500'>
-                {displayDestinationCountry}
-              </p>
-            </div>
+              <div>
+                <p className='text-xs uppercase tracking-wide text-gray-500'>
+                  Destination
+                </p>
+                <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  {displayDestinationName}
+                </p>
+                <p className='text-xs text-gray-500'>
+                  {displayDestinationCountry}
+                </p>
+              </div>
 
+              <div>
+                <p className='text-xs uppercase tracking-wide text-gray-500'>
+                  Travel Plan
+                </p>
+                <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                  {displayDuration}
+                </p>
+                <p className='text-xs text-gray-500'>{displayTravellerSummary}</p>
+                <p className='text-xs text-gray-500'>
+                  Travel Date {formatDateOnly(displayTravelStartDate)}
+                  {displayTravelEndDate
+                    ? ` to ${formatDateOnly(displayTravelEndDate)}`
+                    : ''}
+                </p>
+                <p className='text-xs text-gray-500'>
+                  Valid Until {formatDate(displayValidUntil)}
+                </p>
+              </div>
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className='p-4 sm:p-5'>
+            <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4'>
+              Package & Template Details
+            </h2>
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
             <div>
               <p className='text-xs uppercase tracking-wide text-gray-500'>
                 Quotation Title
@@ -947,25 +921,6 @@ const QuotationDetailPage: React.FC = () => {
               </p>
               <p className='text-xs text-gray-500'>
                 {displayPackageKind || 'Quotation-owned trip content'}
-              </p>
-            </div>
-
-            <div>
-              <p className='text-xs uppercase tracking-wide text-gray-500'>
-                Travel Plan
-              </p>
-              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {displayDuration}
-              </p>
-              <p className='text-xs text-gray-500'>{displayTravellerSummary}</p>
-              <p className='text-xs text-gray-500'>
-                Travel Date {formatDateOnly(displayTravelStartDate)}
-                {displayTravelEndDate
-                  ? ` to ${formatDateOnly(displayTravelEndDate)}`
-                  : ''}
-              </p>
-              <p className='text-xs text-gray-500'>
-                Valid Until {formatDate(displayValidUntil)}
               </p>
             </div>
 
@@ -1007,37 +962,6 @@ const QuotationDetailPage: React.FC = () => {
 
             <div>
               <p className='text-xs uppercase tracking-wide text-gray-500'>
-                Linked Booking
-              </p>
-              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {booking?.bookingNumber || 'N/A'}
-              </p>
-              <p className='text-xs text-gray-500'>
-                {booking
-                  ? `${booking.status || 'N/A'} / ${
-                      booking.paymentStatus || 'N/A'
-                    }`
-                  : 'N/A'}
-              </p>
-            </div>
-
-            <div>
-              <p className='text-xs uppercase tracking-wide text-gray-500'>
-                Pricing Reference
-              </p>
-              <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {pricing?.id || quotation.pricingId || 'N/A'}
-              </p>
-              <p className='text-xs text-gray-500'>
-                Base{' '}
-                {pricing
-                  ? formatMoney(toNumber(pricing.baseCost, 0), displayCurrency)
-                  : 'N/A'}
-              </p>
-            </div>
-
-            <div>
-              <p className='text-xs uppercase tracking-wide text-gray-500'>
                 Sent By
               </p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
@@ -1060,9 +984,9 @@ const QuotationDetailPage: React.FC = () => {
               </p>
             </div>
           </div>
-        </SurfaceCard>
+          </SurfaceCard>
 
-        <SurfaceCard className='p-4 sm:p-5'>
+          <SurfaceCard className='p-4 sm:p-5'>
           <div className='flex flex-wrap items-center justify-between gap-2'>
             <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500'>
               Commercial Breakdown
@@ -1119,9 +1043,9 @@ const QuotationDetailPage: React.FC = () => {
               </span>
             </div>
           </div>
-        </SurfaceCard>
+          </SurfaceCard>
 
-        {itineraryItems.length ||
+          {itineraryItems.length ||
         noteSections.length ||
         contentTemplate?.headerBranding ||
         contentTemplate?.hotelDetails ||
@@ -1257,9 +1181,9 @@ const QuotationDetailPage: React.FC = () => {
               </div>
             ) : null}
           </SurfaceCard>
-        ) : null}
+          ) : null}
 
-        <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+          <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
           <div className='border-b border-gray-200 dark:border-gray-800 p-3 sm:p-4'>
             <div className='sm:hidden'>
               <select
@@ -1430,7 +1354,111 @@ const QuotationDetailPage: React.FC = () => {
               </div>
             )}
           </div>
-        </SurfaceCard>
+          </SurfaceCard>
+        </div>
+
+        {/* Right Column - Fixed Send Actions & Summary */}
+        <div className='xl:block xl:overflow-y-auto xl:max-h-[calc(100vh-200px)] xl:pr-2 scrollbar-hide'>
+          <SurfaceCard className='p-4 sm:p-5 sticky top-0'>
+            <h2 className='text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4'>
+              Actions
+            </h2>
+            <div className='space-y-3'>
+              <div className='relative'>
+                <button
+                  onClick={() => setShowSendDropdown(prev => !prev)}
+                  className='w-full h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-flex items-center justify-center gap-2 font-medium'
+                  disabled={savingStatus}
+                >
+                  <FaPaperPlane /> Send Quotation
+                </button>
+
+                {showSendDropdown && (
+                  <>
+                    <div
+                      className='fixed inset-0 z-10'
+                      onClick={() => setShowSendDropdown(false)}
+                    />
+                    <div className='absolute right-0 mt-1 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1'>
+                      <button
+                        onClick={() => void handleSend('email')}
+                        className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2'
+                      >
+                        <FaEnvelope className='text-gray-500' /> Email
+                      </button>
+                      <button
+                        onClick={() => void handleSend('whatsapp')}
+                        className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2'
+                      >
+                        <FaPaperPlane className='text-green-500' /> WhatsApp
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <button
+                onClick={() => void handleApprove()}
+                disabled={savingStatus || isApproved}
+                className={`w-full h-10 px-4 rounded-lg text-sm font-medium text-white transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60 ${
+                  isApproved
+                    ? 'bg-green-600 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                <FaCheck /> {isApproved ? 'Approved' : 'Approve'}
+              </button>
+
+              <button
+                onClick={() => setShowRejectModal(true)}
+                disabled={savingStatus || isRejected}
+                className={`w-full h-10 px-4 rounded-lg text-sm transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60 ${
+                  isRejected
+                    ? 'bg-red-600 text-white border border-red-600 cursor-not-allowed'
+                    : 'border border-red-200 text-red-600 hover:bg-red-50'
+                }`}
+              >
+                <FaXmark /> {isRejected ? 'Rejected' : 'Reject'}
+              </button>
+            </div>
+
+            <div className='mt-6 pt-6 border-t border-gray-200 dark:border-gray-700'>
+              <h3 className='text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3'>
+                Quick Summary
+              </h3>
+              <div className='space-y-2 text-sm'>
+                <div className='flex items-center justify-between'>
+                  <span className='text-gray-600 dark:text-gray-400'>Status</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    status === 'APPROVED'
+                      ? 'bg-green-100 text-green-700'
+                      : status === 'REJECTED'
+                      ? 'bg-red-100 text-red-700'
+                      : status === 'SENT'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {status}
+                  </span>
+                </div>
+                <div className='flex items-center justify-between'>
+                  <span className='text-gray-600 dark:text-gray-400'>Final Amount</span>
+                  <span className='font-semibold text-blue-600 dark:text-blue-400'>
+                    {formatMoney(commercial.finalAmount, displayCurrency)}
+                  </span>
+                </div>
+                <div className='flex items-center justify-between'>
+                  <span className='text-gray-600 dark:text-gray-400'>Margin</span>
+                  <span className='font-semibold'>{commercial.marginPercent}%</span>
+                </div>
+                <div className='flex items-center justify-between'>
+                  <span className='text-gray-600 dark:text-gray-400'>Views</span>
+                  <span className='font-semibold'>{toNumber(quotation.viewCount, 0)}</span>
+                </div>
+              </div>
+            </div>
+          </SurfaceCard>
+        </div>
       </div>
 
       {showRejectModal && (

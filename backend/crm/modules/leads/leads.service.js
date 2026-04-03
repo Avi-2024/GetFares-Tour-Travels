@@ -573,6 +573,12 @@ function createLeadsService({ repository, logger, events }) {
 
   function getMissingQualificationFields(input = {}) {
     const missing = [];
+    if (!input.leadCountry && !input.country) {
+      missing.push("leadCountry");
+    }
+    if (!input.nationality) {
+      missing.push("nationality");
+    }
     const hasDestination = Boolean(
       input.destinationId || input.destinationName || input.destination,
     );
@@ -582,18 +588,24 @@ function createLeadsService({ repository, logger, events }) {
     if (!input.travelDate) {
       missing.push("travelDate");
     }
+    if (!input.travelEndDate) {
+      missing.push("travelEndDate");
+    }
+    if (input.travelDate && input.travelEndDate) {
+      const start = new Date(input.travelDate);
+      const end = new Date(input.travelEndDate);
+      if (
+        !Number.isNaN(start.getTime()) &&
+        !Number.isNaN(end.getTime()) &&
+        end.getTime() < start.getTime()
+      ) {
+        missing.push("travelDateRange(travelEndDate>=travelDate)");
+      }
+    }
     if (input.adultsCount === undefined || input.childrenCount === undefined) {
       missing.push("paxSplit(adultsCount,childrenCount)");
     }
-    if (input.budget === undefined || input.budget === null) {
-      missing.push("budget");
-    }
-    if (typeof input.visaRequired !== "boolean") {
-      missing.push("visaRequired");
-    }
-    if (!input.travelPurpose) {
-      missing.push("travelPurpose");
-    }
+   
     return missing;
   }
 
@@ -810,6 +822,7 @@ function createLeadsService({ repository, logger, events }) {
     item = {},
     lead = {},
     preferences = DEFAULT_SYSTEM_DATE_TIME_PREFERENCES,
+    lookaheadMinutes = 2,
   ) {
     const followupType = String(item.followupType || "").trim().toUpperCase();
     const followupLabel = formatFollowupDateTime(item.followupDate, preferences);
@@ -822,11 +835,11 @@ function createLeadsService({ repository, logger, events }) {
     if (followupType === "EMAIL") actionLabel = "email follow-up";
     if (followupType === "FINAL_REMINDER") actionLabel = "final reminder";
 
-    let message = `${leadLabel}: ${actionLabel} reminder`;
+    let message = `${leadLabel}: ${actionLabel} is scheduled`;
     if (followupLabel) {
       message += ` at ${followupLabel}`;
     }
-    message += ".";
+    message += `. Please be ready in about ${Math.max(1, lookaheadMinutes)} minute(s).`;
 
     const note = String(item.notes || "").trim();
     if (note) {
@@ -1548,6 +1561,22 @@ function createLeadsService({ repository, logger, events }) {
   async function create(payload, context = {}) {
     const normalizedStatus = normalizeLeadStatus(payload.status);
     payload.status = normalizedStatus;
+    if (context.user?.id) {
+      if (!payload.leadCountry && !payload.country) {
+        throw new AppError(
+          400,
+          "leadCountry is required",
+          "LEAD_COUNTRY_REQUIRED",
+        );
+      }
+      if (!payload.nationality) {
+        throw new AppError(
+          400,
+          "nationality is required",
+          "LEAD_NATIONALITY_REQUIRED",
+        );
+      }
+    }
     if (payload.qualificationCompleted === true) {
       payload.qualificationCompleted =
         getMissingQualificationFields(payload).length === 0;
@@ -1589,6 +1618,15 @@ function createLeadsService({ repository, logger, events }) {
       }),
     );
 
+    let createdWithLeadCode = created;
+    if (
+      created?.id &&
+      !created?.leadCode &&
+      typeof repository.ensureLeadCode === "function"
+    ) {
+      createdWithLeadCode = await repository.ensureLeadCode(created.id);
+    }
+
     if (payload.notes) {
       await repository.createActivity({
         leadId: created.id,
@@ -1598,7 +1636,7 @@ function createLeadsService({ repository, logger, events }) {
       });
     }
 
-    let lead = withTemperature(created, {
+    let lead = withTemperature(createdWithLeadCode || created, {
       respondedPositively: payload.respondedPositively,
     });
     events.emitCreated(lead);
@@ -1923,6 +1961,27 @@ function createLeadsService({ repository, logger, events }) {
         isScheduleOnly: true,
         countsTowardCompliance: false,
       });
+      const dateTimePreferences = await resolveSystemDateTimePreferences();
+      const typeLabel = String(followup.followupType || normalizedType || "FOLLOW_UP")
+        .trim()
+        .toUpperCase()
+        .replace(/_/g, " ");
+      const followupLabel =
+        formatFollowupDateTime(followup.followupDate, dateTimePreferences) ||
+        String(followup.followupDate || "").trim();
+      const note = String(payload.notes || "").trim();
+
+      await repository.createActivity({
+        leadId: lead.id,
+        userId: context.user?.id || followup.userId || null,
+        activityType: "FOLLOWUP_SCHEDULED",
+        notes: [
+          `Scheduled ${typeLabel} follow-up${followupLabel ? ` for ${followupLabel}` : ""}.`,
+          note && !note.startsWith("AUTO_CADENCE:") ? `Note: ${note}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      });
 
       const followupDate = new Date(followup.followupDate);
       const updatePayload = {};
@@ -2000,7 +2059,14 @@ function createLeadsService({ repository, logger, events }) {
           referenceDate: referenceDate.toISOString(),
         })
       ).filter(
-        (item) => String(item.followupType || "").trim().toUpperCase() === "CALL",
+        (item) => {
+          const type = String(item.followupType || "").trim().toUpperCase();
+          return type === "CALL" || type === "WHATSAPP";
+        },
+      );
+      const lookaheadMinutes = Math.max(
+        1,
+        Math.round(lookaheadMs / (60 * 1000)),
       );
 
       const summary = {
@@ -2052,6 +2118,7 @@ function createLeadsService({ repository, logger, events }) {
             item,
             lead || {},
             dateTimePreferences,
+            lookaheadMinutes,
           ),
           followupLabel: formatFollowupDateTime(
             item.followupDate,
@@ -2388,9 +2455,12 @@ function createLeadsService({ repository, logger, events }) {
         STATUS_REQUIRING_QUALIFICATION.has(nextStatus)
       ) {
         assertQualificationCaptured({
+          leadCountry: payload.leadCountry ?? existing.leadCountry ?? existing.country,
+          nationality: payload.nationality ?? existing.nationality,
           destinationId: payload.destinationId ?? existing.destinationId,
           destinationName: payload.destinationName ?? existing.destinationName,
           travelDate: payload.travelDate ?? existing.travelDate,
+          travelEndDate: payload.travelEndDate ?? existing.travelEndDate,
           adultsCount: payload.adultsCount ?? existing.adultsCount,
           childrenCount: payload.childrenCount ?? existing.childrenCount,
           budget: payload.budget ?? existing.budget,

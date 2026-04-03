@@ -31,6 +31,17 @@ interface Client {
   phone: string
   name?: string
   currency: string
+  leadId?: string
+  leadCode?: string
+  nationality?: string
+  country?: string
+  travelDate?: string
+  destination?: string
+  adultsCount?: number
+  childrenCount?: number
+  budget?: number
+  travelPurpose?: string
+  source?: string
 }
 
 interface Supplier {
@@ -252,10 +263,9 @@ const ClientModal = ({
               />
             </div>
             <div>
-              <label className='field-label'>PAN *</label>
+              <label className='field-label'>PAN</label>
               <input
                 type='text'
-                required
                 value={formData.pan}
                 onChange={e =>
                   setFormData({
@@ -397,10 +407,9 @@ const SupplierModal = ({
               />
             </div>
             <div>
-              <label className='field-label'>PAN *</label>
+              <label className='field-label'>PAN</label>
               <input
                 type='text'
-                required
                 value={formData.pan}
                 onChange={e =>
                   setFormData({
@@ -731,7 +740,7 @@ const PaymentModal = ({
 
 const FinanceSystem: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
-    'clients' | 'suppliers' | 'cost' | 'payments'
+    'clients' | 'suppliers' | 'cost' | 'payments' | 'supplier-services'
   >('clients')
   const [clients, setClients] = useState<Client[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -767,18 +776,19 @@ const FinanceSystem: React.FC = () => {
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   const tabItems: Array<{
-    id: 'clients' | 'suppliers' | 'cost' | 'payments'
+    id: 'clients' | 'suppliers' | 'cost' | 'payments' | 'supplier-services'
     label: string
     icon: React.ComponentType<{ className?: string }>
   }> = [
     { id: 'clients', label: 'Client Onboarding', icon: FaUser },
     { id: 'suppliers', label: 'Supplier Onboarding', icon: FaBuilding },
+    { id: 'supplier-services', label: 'Supplier Services', icon: FaBuilding },
     { id: 'cost', label: 'Cost Break-up', icon: FaPercent },
     { id: 'payments', label: 'Payments', icon: FaCreditCard }
   ]
 
   const handleTabSelection = (
-    tabId: 'clients' | 'suppliers' | 'cost' | 'payments'
+    tabId: 'clients' | 'suppliers' | 'cost' | 'payments' | 'supplier-services'
   ) => {
     setActiveTab(tabId)
     setPage(1)
@@ -797,7 +807,18 @@ const FinanceSystem: React.FC = () => {
     email: raw?.email ?? '',
     phone: raw?.phone ?? '',
     name: raw?.fullName ?? raw?.full_name ?? '',
-    currency: raw?.clientCurrency ?? raw?.client_currency ?? 'INR'
+    currency: raw?.clientCurrency ?? raw?.client_currency ?? 'INR',
+    leadId: raw?.leadId ?? raw?.lead_id ?? '',
+    leadCode: raw?.leadCode ?? raw?.lead_code ?? '',
+    nationality: raw?.nationality ?? '',
+    country: raw?.leadCountry ?? raw?.country ?? '',
+    travelDate: raw?.travelDate ?? raw?.travel_date ?? '',
+    destination: raw?.destinationName ?? raw?.destination ?? '',
+    adultsCount: raw?.adultsCount ?? raw?.adults_count ?? 0,
+    childrenCount: raw?.childrenCount ?? raw?.children_count ?? 0,
+    budget: raw?.budget ?? 0,
+    travelPurpose: raw?.travelPurpose ?? raw?.travel_purpose ?? '',
+    source: raw?.source ?? raw?.leadSource ?? ''
   })
 
   const mapSupplier = (raw: any): Supplier => {
@@ -1265,7 +1286,7 @@ const FinanceSystem: React.FC = () => {
     try {
       await customersApi.create({
         fullName: data.name,
-        panNumber: data.pan,
+        ...(data.pan ? { panNumber: data.pan } : {}),
         email: data.email,
         phone: data.phone,
         addressLine: data.address,
@@ -1289,7 +1310,7 @@ const FinanceSystem: React.FC = () => {
     try {
       await customersApi.update(editingClient.id, {
         fullName: data.name,
-        panNumber: data.pan,
+        ...(data.pan ? { panNumber: data.pan } : {}),
         email: data.email,
         phone: data.phone,
         addressLine: data.address,
@@ -1330,7 +1351,7 @@ const FinanceSystem: React.FC = () => {
     try {
       await suppliersApi.create({
         name: data.name,
-        panNumber: data.pan,
+        ...(data.pan ? { panNumber: data.pan } : {}),
         gstNumber: data.gst || undefined,
         email: data.email,
         phone: data.phone,
@@ -1360,7 +1381,7 @@ const FinanceSystem: React.FC = () => {
     try {
       await suppliersApi.update(editingSupplier.id, {
         name: data.name,
-        panNumber: data.pan,
+        ...(data.pan ? { panNumber: data.pan } : {}),
         gstNumber: data.gst || undefined,
         email: data.email,
         phone: data.phone,
@@ -1590,7 +1611,7 @@ const FinanceSystem: React.FC = () => {
         </div>
 
         {/* Search and Actions */}
-        {activeTab !== 'cost' && (
+        {activeTab !== 'cost' && activeTab !== 'supplier-services' && (
           <div className='px-0 sm:px-0 lg:px-0 mb-6'>
             <div className='flex flex-col sm:flex-row gap-3'>
               <div className='flex-1 relative'>
@@ -1658,11 +1679,25 @@ const FinanceSystem: React.FC = () => {
           {activeTab === 'clients' && (
             <>
               <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20 mb-4'>
-                <p className='text-sm text-blue-800 dark:text-blue-200'>
-                  Required capture at lead onboarding: PAN, Address, Email, and
-                  Contact Number. This client register keeps that finance KYC
-                  data aligned.
-                </p>
+                <div className='flex items-start gap-3'>
+                  <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
+                    <FaUser className='text-blue-600 dark:text-blue-400' />
+                  </div>
+                  <div className='flex-1'>
+                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Client KYC Information</h3>
+                    <p className='text-sm text-blue-800 dark:text-blue-200'>
+                      Required at lead onboarding: PAN, Address, Email, and Contact Number. This register maintains finance KYC compliance.
+                    </p>
+                    <div className='mt-2 flex flex-wrap gap-2'>
+                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/50 text-xs font-medium text-blue-700 dark:text-blue-300'>
+                        {clients.length} Clients
+                      </span>
+                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-green-100 dark:bg-green-900/50 text-xs font-medium text-green-700 dark:text-green-300'>
+                        {filteredClients.length} Filtered
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </SurfaceCard>
               <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
                 {paginatedClients.length === 0 ? (
@@ -1684,19 +1719,25 @@ const FinanceSystem: React.FC = () => {
                               Name
                             </th>
                             <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              PAN
+                              Lead ID
                             </th>
                             <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Email
+                              Contact
                             </th>
                             <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Phone
+                              Destination
                             </th>
                             <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Address
+                              Travel Date
                             </th>
                             <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Currency
+                              Travelers
+                            </th>
+                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
+                              Budget
+                            </th>
+                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
+                              Country/Nationality
                             </th>
                             <th className='px-6 py-3 text-right text-xs font-semibold text-gray-500'>
                               Actions
@@ -1709,25 +1750,33 @@ const FinanceSystem: React.FC = () => {
                               key={client.id}
                               className='hover:bg-gray-50 dark:hover:bg-gray-800/50'
                             >
-                              <td className='px-6 py-4 text-sm text-gray-900 dark:text-gray-100'>
-                                {client.name}
+                              <td className='px-6 py-4 text-sm'>
+                                <p className='font-medium text-gray-900 dark:text-gray-100'>{client.name}</p>
+                                <p className='text-xs text-gray-500'>PAN: {client.pan || '-'}</p>
+                                <p className='text-xs text-gray-500'>Source: {client.source || '-'}</p>
                               </td>
                               <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.pan}
+                                {client.leadCode || client.leadId || '-'}
+                              </td>
+                              <td className='px-6 py-4 text-sm'>
+                                <p className='text-gray-700 dark:text-gray-300'>{client.email}</p>
+                                <p className='text-xs text-gray-500'>{client.phone}</p>
                               </td>
                               <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.email}
+                                {client.destination || '-'}
                               </td>
                               <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.phone}
-                              </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-sm'>
-                                <p className='truncate' title={client.address}>
-                                  {client.address || '-'}
-                                </p>
+                                {client.travelDate ? new Date(client.travelDate).toLocaleDateString() : '-'}
                               </td>
                               <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.currency}
+                                {client.adultsCount || 0} Adults, {client.childrenCount || 0} Children
+                              </td>
+                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
+                                {client.budget ? formatCurrency(client.budget, client.currency) : '-'}
+                              </td>
+                              <td className='px-6 py-4 text-sm'>
+                                <p className='text-gray-700 dark:text-gray-300'>{client.country || '-'}</p>
+                                <p className='text-xs text-gray-500'>{client.nationality || '-'}</p>
                               </td>
                               <td className='px-6 py-4 text-right'>
                                 <div className='flex justify-end gap-2'>
@@ -1761,14 +1810,14 @@ const FinanceSystem: React.FC = () => {
                     {/* Mobile Cards */}
                     <div className='md:hidden divide-y divide-gray-100 dark:divide-gray-800'>
                       {paginatedClients.map(client => (
-                        <div key={client.id} className='p-4 space-y-2'>
+                        <div key={client.id} className='p-4 space-y-3'>
                           <div className='flex items-start justify-between'>
                             <div>
                               <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                                 {client.name}
                               </p>
                               <p className='text-xs text-gray-500'>
-                                PAN: {client.pan}
+                                Lead: {client.leadCode || client.leadId || '-'}
                               </p>
                             </div>
                             <div className='flex gap-1'>
@@ -1789,18 +1838,66 @@ const FinanceSystem: React.FC = () => {
                               </button>
                             </div>
                           </div>
-                          <p className='text-xs text-gray-600'>
-                            {client.email}
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            {client.phone}
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            Address: {client.address || '-'}
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            Currency: {client.currency}
-                          </p>
+                          <div className='grid grid-cols-2 gap-2 text-xs'>
+                            <div>
+                              <p className='text-gray-500'>Email</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.email}</p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Phone</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.phone}</p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Destination</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.destination || '-'}</p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Travel Date</p>
+                              <p className='text-gray-700 dark:text-gray-300'>
+                                {client.travelDate ? new Date(client.travelDate).toLocaleDateString() : '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Travelers</p>
+                              <p className='text-gray-700 dark:text-gray-300'>
+                                {client.adultsCount || 0}A, {client.childrenCount || 0}C
+                              </p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Budget</p>
+                              <p className='text-gray-700 dark:text-gray-300'>
+                                {client.budget ? formatCurrency(client.budget, client.currency) : '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Country</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.country || '-'}</p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Nationality</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.nationality || '-'}</p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>PAN</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.pan || '-'}</p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Source</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.source || '-'}</p>
+                            </div>
+                            <div className='col-span-2'>
+                              <p className='text-gray-500'>Address</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.address || '-'}</p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Purpose</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.travelPurpose || '-'}</p>
+                            </div>
+                            <div>
+                              <p className='text-gray-500'>Currency</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.currency}</p>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1814,11 +1911,28 @@ const FinanceSystem: React.FC = () => {
           {activeTab === 'suppliers' && (
             <>
               <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20 mb-4'>
-                <p className='text-sm text-blue-800 dark:text-blue-200'>
-                  Supplier onboarding must include PAN, GST (if applicable),
-                  address, contact details, and invoice/bank details for payment
-                  processing.
-                </p>
+                <div className='flex items-start gap-3'>
+                  <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
+                    <FaBuilding className='text-blue-600 dark:text-blue-400' />
+                  </div>
+                  <div className='flex-1'>
+                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Supplier Payment Details</h3>
+                    <p className='text-sm text-blue-800 dark:text-blue-200'>
+                      Complete supplier registration with PAN, GST, address, contact details, and invoice/bank information for payment processing.
+                    </p>
+                    <div className='mt-2 flex flex-wrap gap-2'>
+                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/50 text-xs font-medium text-blue-700 dark:text-blue-300'>
+                        {suppliers.length} Suppliers
+                      </span>
+                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-green-100 dark:bg-green-900/50 text-xs font-medium text-green-700 dark:text-green-300'>
+                        {suppliers.filter(s => s.isActive !== false).length} Active
+                      </span>
+                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-medium text-gray-700 dark:text-gray-300'>
+                        {suppliers.filter(s => s.isActive === false).length} Inactive
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </SurfaceCard>
               <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
                 {paginatedSuppliers.length === 0 ? (
@@ -2021,11 +2135,25 @@ const FinanceSystem: React.FC = () => {
           {activeTab === 'cost' && (
             <div className='space-y-4'>
               <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>
-                <p className='text-sm text-blue-800 dark:text-blue-200'>
-                  Finance Data Source: Cost break-up is auto-calculated from
-                  quotation finance fields (supplier cost/tax, markup, service
-                  fee, GST, TCS, total sale value). This tab is read-only.
-                </p>
+                <div className='flex items-start gap-3'>
+                  <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
+                    <FaPercent className='text-blue-600 dark:text-blue-400' />
+                  </div>
+                  <div className='flex-1'>
+                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Financial Analysis Dashboard</h3>
+                    <p className='text-sm text-blue-800 dark:text-blue-200'>
+                      Auto-calculated from quotation finance fields: supplier cost/tax, markup, service fee, GST, TCS, and total sale value. This view is read-only.
+                    </p>
+                    <div className='mt-2 flex flex-wrap gap-2'>
+                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/50 text-xs font-medium text-blue-700 dark:text-blue-300'>
+                        {costBreakup.totalQuotes || 0} Quotations
+                      </span>
+                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-purple-100 dark:bg-purple-900/50 text-xs font-medium text-purple-700 dark:text-purple-300'>
+                        {currencyBreakup.length} {currencyBreakup.length === 1 ? 'Currency' : 'Currencies'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </SurfaceCard>
 
               {hasMixedCostCurrencies ? (
@@ -2786,6 +2914,51 @@ const FinanceSystem: React.FC = () => {
                 </>
               )}
             </SurfaceCard>
+          )}
+
+          {/* Supplier Services Tab */}
+          {activeTab === 'supplier-services' && (
+            <div className='space-y-4'>
+              <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>
+                <div className='flex items-start gap-3'>
+                  <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
+                    <FaBuilding className='text-blue-600 dark:text-blue-400' />
+                  </div>
+                  <div className='flex-1'>
+                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Supplier Service Allocation</h3>
+                    <p className='text-sm text-blue-800 dark:text-blue-200'>
+                      Track which supplier is providing which service (Hotel, Flight, Tours, Insurance) with base cost, markup percentage, and final sell value per service.
+                    </p>
+                  </div>
+                </div>
+              </SurfaceCard>
+              
+              <SurfaceCard className='p-6 border border-gray-200 dark:border-gray-800'>
+                <div className='text-center py-12'>
+                  <FaBuilding className='mx-auto text-6xl text-gray-300 dark:text-gray-700 mb-4' />
+                  <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2'>
+                    Supplier Service Breakdown
+                  </h3>
+                  <p className='text-sm text-gray-600 dark:text-gray-400 mb-4'>
+                    This feature will show detailed breakdown of services allocated to each supplier from quotations.
+                  </p>
+                  <div className='max-w-2xl mx-auto text-left bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4'>
+                    <p className='text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2'>What you'll see here:</p>
+                    <ul className='text-xs text-gray-600 dark:text-gray-400 space-y-1'>
+                      <li>• Supplier-wise service allocation (Hotel, Flight, Tours, Insurance, Transfer)</li>
+                      <li>• Base cost provided by each supplier for each service</li>
+                      <li>• Markup percentage and amount applied on each service</li>
+                      <li>• Final sell value to customer per service</li>
+                      <li>• Quotation-level tracking with lead information</li>
+                      <li>• Export capability for finance reconciliation</li>
+                    </ul>
+                    <p className='text-xs text-amber-600 dark:text-amber-400 mt-3'>
+                      <strong>Note:</strong> Backend API integration required. Data will be populated from quotation builder where suppliers are selected for each service.
+                    </p>
+                  </div>
+                </div>
+              </SurfaceCard>
+            </div>
           )}
 
           {/* Pagination */}

@@ -31,6 +31,7 @@ interface Customer {
   createdAt?: string
   totalBookings?: number
   lastBookingDate?: string
+  lastBookingNumber?: string
 }
 
 const CustomersPage: React.FC = () => {
@@ -157,6 +158,7 @@ const CustomersPage: React.FC = () => {
         getSegmentLabel(customer.segment),
         customer.totalBookings?.toString(),
         customer.lifetimeValue?.toString(),
+        customer.lastBookingNumber,
         createdAtLocal,
         createdAtIso,
         lastBookingLocal,
@@ -214,14 +216,26 @@ const CustomersPage: React.FC = () => {
     page * pageSize
   )
 
-  const formatCurrency = (amount?: number) => {
+  const formatCurrency = (amount?: number, currency = 'USD') => {
     const safeAmount = Number.isFinite(amount) ? (amount as number) : 0
+    const normalizedCurrency = String(currency || 'USD')
+      .trim()
+      .toUpperCase()
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: /^[A-Z]{3}$/.test(normalizedCurrency)
+        ? normalizedCurrency
+        : 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(safeAmount)
+  }
+
+  const formatDateLabel = (value?: string | null) => {
+    if (!value) return ''
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return String(value)
+    return parsed.toLocaleDateString('en-GB')
   }
 
   const normalizeCustomers = (response: unknown): Customer[] => {
@@ -230,7 +244,49 @@ const CustomersPage: React.FC = () => {
       (payload as { data?: unknown })?.data ??
       (payload as { items?: unknown })?.items ??
       payload
-    return Array.isArray(data) ? (data as Customer[]) : []
+    if (!Array.isArray(data)) return []
+
+    return data
+      .map(raw => {
+        const item = (raw ?? {}) as Record<string, unknown>
+        const id = String(item.id ?? '').trim()
+        if (!id) return null
+
+        const clientCurrency = String(
+          item.clientCurrency ?? item.client_currency ?? 'USD'
+        )
+          .trim()
+          .toUpperCase()
+        const totalBookingsRaw =
+          item.totalBookings ?? item.total_bookings ?? 0
+        const totalBookings = Number(totalBookingsRaw)
+
+        return {
+          id,
+          fullName: String(
+            item.fullName ?? item.full_name ?? 'Unknown Customer'
+          ),
+          phone: String(item.phone ?? ''),
+          email: String(item.email ?? ''),
+          preferences: String(item.preferences ?? ''),
+          lifetimeValue: Number(item.lifetimeValue ?? item.lifetime_value ?? 0),
+          segment: String(item.segment ?? 'NEW'),
+          panNumber: String(item.panNumber ?? item.pan_number ?? ''),
+          addressLine: String(item.addressLine ?? item.address_line ?? ''),
+          clientCurrency: /^[A-Z]{3}$/.test(clientCurrency)
+            ? clientCurrency
+            : 'USD',
+          createdAt: String(item.createdAt ?? item.created_at ?? '') || undefined,
+          totalBookings: Number.isFinite(totalBookings) ? totalBookings : 0,
+          lastBookingDate:
+            String(item.lastBookingDate ?? item.last_booking_date ?? '') ||
+            undefined,
+          lastBookingNumber: String(
+            item.lastBookingNumber ?? item.last_booking_number ?? ''
+          )
+        } as Customer
+      })
+      .filter(Boolean) as Customer[]
   }
 
   const loadCustomers = useCallback(async () => {
@@ -381,6 +437,7 @@ const CustomersPage: React.FC = () => {
       'Phone',
       'Segment',
       'Total Bookings',
+      'Last Booking Date',
       'Lifetime Value',
       'Created At'
     ]
@@ -393,6 +450,8 @@ const CustomersPage: React.FC = () => {
       customer.phone ?? '',
       getSegmentLabel(customer.segment),
       customer.totalBookings ?? 0,
+      customer.lastBookingNumber ?? '',
+      customer.lastBookingDate ?? '',
       customer.lifetimeValue ?? 0,
       customer.createdAt ?? ''
     ])
@@ -624,8 +683,9 @@ const CustomersPage: React.FC = () => {
                     Bookings
                   </th>
                   <th className='hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                    Last Booking
+                    Last Booking Date
                   </th>
+                 
                   <th className='px-3 sm:px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Actions
                   </th>
@@ -670,7 +730,10 @@ const CustomersPage: React.FC = () => {
                     </td>
                     <td className='hidden md:table-cell px-3 sm:px-6 py-4'>
                       <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                        {formatCurrency(customer.lifetimeValue)}
+                        {formatCurrency(
+                          customer.lifetimeValue,
+                          customer.clientCurrency
+                        )}
                       </p>
                     </td>
                     <td className='px-3 sm:px-6 py-4'>
@@ -680,9 +743,10 @@ const CustomersPage: React.FC = () => {
                     </td>
                     <td className='hidden lg:table-cell px-3 sm:px-6 py-4'>
                       <p className='text-sm text-gray-700 dark:text-gray-300'>
-                        {customer.lastBookingDate ?? 'N/A'}
+                        {formatDateLabel(customer.lastBookingDate) || 'N/A'}
                       </p>
                     </td>
+                
                     <td className='px-3 sm:px-6 py-4'>
                       <div
                         className='flex justify-end gap-1 sm:gap-2'
@@ -761,7 +825,10 @@ const CustomersPage: React.FC = () => {
                   <div>
                     <p className='text-xs text-gray-500'>Lifetime Value</p>
                     <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                      {formatCurrency(customer.lifetimeValue)}
+                      {formatCurrency(
+                        customer.lifetimeValue,
+                        customer.clientCurrency
+                      )}
                     </p>
                   </div>
                   <div>
@@ -773,11 +840,19 @@ const CustomersPage: React.FC = () => {
                 </div>
 
                 {/* Last Booking */}
-                <div>
-                  <p className='text-xs text-gray-500'>Last Booking</p>
-                  <p className='text-sm text-gray-700 dark:text-gray-300'>
-                    {customer.lastBookingDate ?? 'N/A'}
-                  </p>
+                <div className='grid grid-cols-2 gap-2'>
+                  <div>
+                    <p className='text-xs text-gray-500'>Last Booking Date</p>
+                    <p className='text-sm text-gray-700 dark:text-gray-300'>
+                      {formatDateLabel(customer.lastBookingDate) || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-xs text-gray-500'>Last Bookings</p>
+                    <p className='text-sm text-gray-700 dark:text-gray-300'>
+                      {customer.lastBookingNumber || 'N/A'}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Actions */}

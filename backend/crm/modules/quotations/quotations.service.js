@@ -708,6 +708,12 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       const customerPhone = snapshotLead.phone || lead.phone || "-";
       const customerEmail =
         templateSnapshot.customerEmail || snapshotLead.email || lead.email || "-";
+      const leadDisplayId =
+        normalizeText(snapshotLead.leadCode) ||
+        normalizeText(snapshotLead.leadId) ||
+        normalizeText(lead.leadCode) ||
+        normalizeText(lead.leadId) ||
+        "-";
       const destinationName =
         quotation.tripDestination ||
         quotation.destination?.name ||
@@ -760,6 +766,7 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       doc.fontSize(13).text("Customer Details", { underline: true });
       doc.fontSize(11);
       doc.text(`Name: ${customerName}`);
+      doc.text(`Lead ID: ${leadDisplayId}`);
       doc.text(`Phone: ${customerPhone}`);
       doc.text(`Email: ${customerEmail}`);
       doc.text(`Destination: ${destinationName}`);

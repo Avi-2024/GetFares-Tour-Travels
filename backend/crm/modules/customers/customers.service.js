@@ -39,23 +39,27 @@ function mapUpdatePayload(payload) {
   };
 }
 
-function toCustomer(entity) {
+function toCustomer(entity, bookingSummary = null) {
   if (!entity) {
     return null;
   }
 
   return {
     id: entity.id,
-    fullName: entity.full_name,
-    phone: entity.phone,
-    email: entity.email,
-    preferences: entity.preferences,
-    lifetimeValue: entity.lifetime_value,
-    segment: entity.segment,
-    panNumber: entity.pan_number,
-    addressLine: entity.address_line,
-    clientCurrency: entity.client_currency,
-    createdAt: entity.created_at,
+    fullName: entity.full_name ?? entity.fullName ?? null,
+    phone: entity.phone ?? null,
+    email: entity.email ?? null,
+    preferences: entity.preferences ?? null,
+    lifetimeValue: entity.lifetime_value ?? entity.lifetimeValue ?? 0,
+    segment: entity.segment ?? "NEW",
+    panNumber: entity.pan_number ?? entity.panNumber ?? null,
+    addressLine: entity.address_line ?? entity.addressLine ?? null,
+    clientCurrency:
+      entity.client_currency ?? entity.clientCurrency ?? "INR",
+    createdAt: entity.created_at ?? entity.createdAt ?? null,
+    totalBookings: Number(bookingSummary?.totalBookings ?? 0),
+    lastBookingDate: bookingSummary?.lastBookingDate ?? null,
+    lastBookingNumber: bookingSummary?.lastBookingNumber ?? null,
   };
 }
 
@@ -72,7 +76,13 @@ function createCustomersService({ repository, logger, events }) {
     );
     const rows = await repository.findAll(mappedFilters);
     const activeRows = rows.filter((row) => !(row.is_deleted ?? row.isDeleted));
-    return activeRows.map(toCustomer);
+    const bookingSummaryByCustomerId =
+      await repository.findBookingSummaryByCustomerIds(
+        activeRows.map((row) => row.id),
+      );
+    return activeRows.map((row) =>
+      toCustomer(row, bookingSummaryByCustomerId.get(String(row.id)) || null),
+    );
   }
 
   async function getById(id, context = {}) {
@@ -86,7 +96,12 @@ function createCustomersService({ repository, logger, events }) {
       throw new AppError(404, "Customers not found", "CUSTOMERS_NOT_FOUND");
     }
 
-    return toCustomer(item);
+    const bookingSummaryByCustomerId =
+      await repository.findBookingSummaryByCustomerIds([id]);
+    return toCustomer(
+      item,
+      bookingSummaryByCustomerId.get(String(item.id ?? id)) || null,
+    );
   }
 
   async function create(payload) {

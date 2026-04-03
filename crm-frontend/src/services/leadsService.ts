@@ -23,6 +23,7 @@ export type LeadListItem = {
   name: string;
   email: string;
   phone: string;
+  leadCountry: string;
   destination: string;
   adultsCount: number;
   childrenCount: number;
@@ -301,15 +302,25 @@ const normalizeCanonicalStatus = (value: unknown): CanonicalLeadStatus => {
 const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
   const status = normalizeCanonicalStatus(lead.status);
   const statusLabel = deriveSopStatusLabel(lead.status, lead.subStatus, lead.statusLabel);
+  const leadIdFromBackend = toPlainText(
+    lead.leadId ??
+      (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
+        .leadCode ??
+      (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
+        .lead_code ??
+      lead.code ??
+      "",
+    "",
+  );
 
   return {
     id: lead.id ?? index,
-    leadId:
-      lead.leadId ?? lead.code ?? `#LD-${String(index + 1).padStart(3, "0")}`,
+    leadId: leadIdFromBackend || "N/A",
     createdAt: lead.createdAt ?? lead.created_at ?? null,
     name: lead.name ?? lead.fullName ?? lead.customerName ?? "Unknown",
     email: lead.email ?? "N/A",
     phone: lead.phone ?? lead.mobile ?? "N/A",
+    leadCountry: toPlainText(lead.leadCountry ?? lead.country ?? "N/A", "N/A"),
     destination: normalizeDestination(
       lead.destination,
       lead.destinationName,
