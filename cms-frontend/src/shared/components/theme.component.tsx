@@ -1,10 +1,8 @@
 import { Component } from "react";
+import { MoonStar, SunMedium } from "lucide-react";
+import { motion } from "framer-motion";
 import { ThemeContext, type IThemeContext } from "../contexts/ThemeContext";
 
-/**
- * Theme Toggle Component
- * Single Responsibility: Display and handle theme toggle UI
- */
 class ThemeToggle extends Component {
   static contextType = ThemeContext;
   declare context: IThemeContext;
@@ -14,56 +12,22 @@ class ThemeToggle extends Component {
   };
 
   render() {
-    const { theme } = this.context;
-    const isDark = theme === "dark";
+    const isDark = this.context.theme === "dark";
 
     return (
-      <button
+      <motion.button
         type="button"
+        whileTap={{ scale: 0.96 }}
+        whileHover={{ y: -1 }}
         onClick={this.handleToggle}
-        className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-        aria-label="Toggle theme"
+        className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-soft)] transition-colors"
+        aria-label="Toggle color theme"
       >
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-          {isDark ?
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
-            </svg>
-          : <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2" />
-              <path d="M12 20v2" />
-              <path d="M4.93 4.93l1.41 1.41" />
-              <path d="M17.66 17.66l1.41 1.41" />
-              <path d="M2 12h2" />
-              <path d="M20 12h2" />
-              <path d="M4.93 19.07l1.41-1.41" />
-              <path d="M17.66 6.34l1.41-1.41" />
-            </svg>
-          }
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-[var(--primary)]">
+          {isDark ? <MoonStar size={14} /> : <SunMedium size={14} />}
         </span>
-        {isDark ? "Dark" : "Light"}
-      </button>
+        <span className="text-[var(--text-secondary)]">{isDark ? "Dark" : "Light"}</span>
+      </motion.button>
     );
   }
 }

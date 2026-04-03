@@ -5,7 +5,10 @@ class ApiConfig implements IApiConfig {
   public readonly endpoints: ApiEndpoints;
 
   constructor(
-    baseURL: string = (import.meta as ImportMeta).env?.VITE_API_BASE_URL ?? "https://localhost:3000",
+    baseURL: string =
+      (import.meta as ImportMeta).env?.VITE_API_BASE_URL ??
+      (import.meta as ImportMeta).env?.VITE_BACKEND_URL ??
+      "http://localhost:3000",
     endpoints: ApiEndpoints = {
       login: "/auth/login",
       logout: "/auth/logout",

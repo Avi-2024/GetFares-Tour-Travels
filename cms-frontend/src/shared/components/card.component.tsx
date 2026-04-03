@@ -6,7 +6,7 @@ export type CardProps = HTMLAttributes<HTMLDivElement>;
 
 class CardStyle {
   public static readonly base =
-    "rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900";
+    "surface-card rounded-[var(--radius-lg)] p-6";
 }
 
 export class Card extends Component<CardProps> {

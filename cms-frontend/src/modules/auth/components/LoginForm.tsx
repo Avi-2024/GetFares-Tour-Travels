@@ -283,7 +283,7 @@ export class LoginForm extends Component<LoginFormProps> {
                   />
                   Remember me
                 </label>
-                <a href="/forgot-password" className={themeTokens.link()}>
+                <a href="#" className={themeTokens.link()}>
                   Forgot password?
                 </a>
               </div>

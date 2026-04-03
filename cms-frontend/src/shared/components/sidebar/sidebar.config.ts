@@ -1,38 +1,87 @@
+import {
+  Compass,
+  FolderKanban,
+  Globe2,
+  MapPinned,
+  PackageSearch,
+  Rows3,
+  Sparkles,
+  TicketCheck,
+  WandSparkles,
+} from "lucide-react";
 import { SidebarItem, SidebarSection } from "./sidebar.models";
 
 class SidebarConfig {
   public static readonly sections: SidebarSection[] = [
-    new SidebarSection("Content", [
+    new SidebarSection("CMS Content", [
       new SidebarItem(
+        "landing-places",
         "Landing Places",
         "/cms/landing-places",
-        "Hero carousel entries",
+        "Hero cards & carousel blocks",
+        Sparkles,
       ),
       new SidebarItem(
+        "destinations",
         "Destinations",
         "/cms/destinations",
-        "Destinations, media, seasons",
+        "Regions, tags, media & SEO",
+        Compass,
       ),
     ]),
     new SidebarSection("Packages", [
       new SidebarItem(
+        "published-packages",
         "Published Packages",
         "/cms/packages/published",
-        "CRM published packages",
+        "Synced from CRM catalog",
+        PackageSearch,
       ),
-      new SidebarItem("Main Packages", "/cms/packages/main", "CMS curated"),
-      new SidebarItem("Sub Packages", "/cms/packages/sub", "Nested packages"),
+      new SidebarItem(
+        "main-packages",
+        "Main Packages",
+        "/cms/packages/main",
+        "Primary curated offers",
+        FolderKanban,
+      ),
+      new SidebarItem(
+        "sub-packages",
+        "Sub Packages",
+        "/cms/packages/sub",
+        "Nested itinerary units",
+        Rows3,
+      ),
     ]),
     new SidebarSection("Visa", [
       new SidebarItem(
+        "visa-destinations",
         "Visa Destinations",
         "/cms/visa-destinations",
-        "Countries & regions",
+        "Country and region matrix",
+        Globe2,
       ),
       new SidebarItem(
+        "visa-details",
         "Visa Details",
         "/cms/visa-details",
-        "Overview, notes, facts",
+        "Requirements, notes & uploads",
+        TicketCheck,
+      ),
+    ]),
+    new SidebarSection("Experience", [
+      new SidebarItem(
+        "creative-kit",
+        "Creative Toolkit",
+        "/cms/creative-toolkit",
+        "Brand assets and templates",
+        WandSparkles,
+      ),
+      new SidebarItem(
+        "destination-map",
+        "Destination Map",
+        "/cms/destination-map",
+        "Geo preview and clusters",
+        MapPinned,
       ),
     ]),
   ];

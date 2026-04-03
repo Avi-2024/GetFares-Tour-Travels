@@ -1,10 +1,10 @@
-import express from 'express';
-import cors from 'cors';
-import { Configuration } from './core/config/Configuration.js';
-import { createDatabaseConnection } from '../crm/core/database/connection.js';
-import { createLogger } from '../crm/core/logger/logger.js';
-import { ErrorHandler } from './core/errors/Errors.js';
-import { LandingPlacesModule } from './modules/landing/LandingPlaces.module.js';
+import express from "express";
+import cors from "cors";
+import { Configuration } from "./core/config/Configuration.js";
+import { createDatabaseConnection } from "../crm/core/database/connection.js";
+import { createLogger } from "../crm/core/logger/logger.js";
+import { ErrorHandler } from "./core/errors/Errors.js";
+import { LandingPlacesModule } from "./modules/landing/LandingPlaces.module.js";
 
 /**
  * CMS Application Class
@@ -27,13 +27,13 @@ export class CmsApplication {
    */
   async initialize() {
     if (this._isInitialized) {
-      throw new Error('Application already initialized');
+      throw new Error("Application already initialized");
     }
 
     // Validate configuration
     const validation = this._config.validate();
     if (!validation.isValid) {
-      throw new Error(`Configuration errors: ${validation.errors.join(', ')}`);
+      throw new Error(`Configuration errors: ${validation.errors.join(", ")}`);
     }
 
     // Setup components
@@ -45,14 +45,14 @@ export class CmsApplication {
     this._setupErrorHandling();
 
     this._isInitialized = true;
-    this._logger.info('CMS Application initialized successfully');
+    this._logger.info("CMS Application initialized successfully");
   }
 
   /**
    * Setup logger
    */
   _setupLogger() {
-    this._logger = createLogger({ name: 'cms' });
+    this._logger = createLogger({ name: "cms" });
   }
 
   /**
@@ -70,9 +70,9 @@ export class CmsApplication {
     // Test connection
     try {
       await this._database.healthCheck({ timeoutMs: 5000 });
-      this._logger.info('Database connection established');
+      this._logger.info("Database connection established");
     } catch (error) {
-      this._logger.error('Database connection failed', error);
+      this._logger.error("Database connection failed", error);
       throw error;
     }
   }
@@ -85,8 +85,8 @@ export class CmsApplication {
     this._app.use(cors(this._config.cors));
 
     // Body parsers
-    this._app.use(express.json({ limit: '10mb' }));
-    this._app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    this._app.use(express.json({ limit: "10mb" }));
+    this._app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
     // Request logging
     this._app.use((req, res, next) => {
@@ -106,7 +106,7 @@ export class CmsApplication {
   _setupModules() {
     this._modules.landing = LandingPlacesModule.create(
       this._database,
-      this._logger
+      this._logger,
     );
 
     // Add more modules here as they are created
@@ -120,13 +120,16 @@ export class CmsApplication {
    */
   _setupRoutes() {
     // Health check
-    this._app.get('/health', this._handleHealthCheck.bind(this));
+    this._app.get("/health", this._handleHealthCheck.bind(this));
 
     // CMS API Routes
-    this._app.use('/api/cms/landing-places', this._modules.landing.routes);
+    this._app.use("/api/cms/landing-places", this._modules.landing.routes);
 
     // Public API Routes
-    this._app.get('/api/public/landing/places', this._handlePublicLandingPlaces.bind(this));
+    this._app.get(
+      "/api/public/landing/places",
+      this._handlePublicLandingPlaces.bind(this),
+    );
   }
 
   /**
@@ -145,14 +148,14 @@ export class CmsApplication {
       const dbHealth = await this._database.healthCheck({ timeoutMs: 5000 });
       res.json({
         success: true,
-        status: 'healthy',
+        status: "healthy",
         database: dbHealth,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(503).json({
         success: false,
-        status: 'unhealthy',
+        status: "unhealthy",
         error: error.message,
         timestamp: new Date().toISOString(),
       });
@@ -186,7 +189,9 @@ export class CmsApplication {
       const server = this._app.listen(this._config.port, () => {
         this._logger.info(`CMS API running on port ${this._config.port}`);
         this._logger.info(`Environment: ${this._config.env}`);
-        this._logger.info(`Health check: http://localhost:${this._config.port}/health`);
+        this._logger.info(
+          `Health check: http://localhost:${this._config.port}/health`,
+        );
         resolve(server);
       });
     });
@@ -196,14 +201,14 @@ export class CmsApplication {
    * Shutdown gracefully
    */
   async shutdown() {
-    this._logger.info('Shutting down CMS Application...');
-    
+    this._logger.info("Shutting down CMS Application...");
+
     if (this._database) {
       await this._database.close();
-      this._logger.info('Database connection closed');
+      this._logger.info("Database connection closed");
     }
 
-    this._logger.info('CMS Application shutdown complete');
+    this._logger.info("CMS Application shutdown complete");
   }
 
   // Getters

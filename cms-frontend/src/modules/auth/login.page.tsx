@@ -1,4 +1,5 @@
 import { Component } from "react";
+import { Navigate } from "react-router-dom";
 
 import { LoginForm } from "./components/LoginForm";
 import { LoginSidebar } from "./components/LoginSidebar";
@@ -15,6 +16,7 @@ interface LoginPageState {
   showPassword: boolean;
   remember: boolean;
   error: string;
+  redirectToCms: boolean;
 }
 
 class LoginPage extends Component<object, LoginPageState> {
@@ -29,6 +31,7 @@ class LoginPage extends Component<object, LoginPageState> {
     showPassword: false,
     remember: false,
     error: "",
+    redirectToCms: false,
   };
 
   private _setState = <K extends keyof LoginPageState>(
@@ -51,6 +54,7 @@ class LoginPage extends Component<object, LoginPageState> {
       const result = await this.authService.login(username, password);
       if (result === true) {
         this._setState("error", "");
+        this._setState("redirectToCms", true);
       } else {
         this._setState("error", result || "Unable to sign in.");
       }
@@ -64,9 +68,20 @@ class LoginPage extends Component<object, LoginPageState> {
   };
 
   render() {
-    const { username, password, showPassword, remember, loading, error } =
-      this.state;
+    const {
+      username,
+      password,
+      showPassword,
+      remember,
+      loading,
+      error,
+      redirectToCms,
+    } = this.state;
     const { theme } = this.context;
+
+    if (redirectToCms) {
+      return <Navigate to="/cms/landing-places" replace />;
+    }
 
     return (
       <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">

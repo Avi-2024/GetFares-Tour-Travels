@@ -1,5 +1,5 @@
 import type User from "../models/user.model";
-import { IStorage, IThemeStorage, IUserStorage, ITokenStorage } from "../interfaces/IStorage.interface";
+import type { IStorage, IThemeStorage, IUserStorage, ITokenStorage } from "../interfaces/IStorage.interface";
 import { LocalStorage } from "../core/BaseStorage";
 
 class ThemeStorageService implements IThemeStorage {

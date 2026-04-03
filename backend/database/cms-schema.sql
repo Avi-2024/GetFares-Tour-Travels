@@ -27,7 +27,7 @@ CREATE INDEX idx_landing_places_active_order ON landing_places(is_active, displa
 -- =========================================
 -- 2. DESTINATIONS MANAGEMENT
 -- =========================================
-
+ 
 -- Main destinations table (shared with CRM)
 CREATE TABLE destinations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

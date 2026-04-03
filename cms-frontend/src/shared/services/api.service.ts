@@ -7,12 +7,12 @@ import axios, {
   isAxiosError,
 } from "axios";
 import type { IApiConfig } from "../interfaces/IApiConfig.interface";
-import {
+import type {
   IHttpClient,
   IHttpInterceptor,
   IRequestOptions,
-  type RequestBody,
-  type QueryParams,
+  RequestBody,
+  QueryParams,
 } from "../interfaces/IHttp.interface";
 import { apiConfig } from "../core/api.config";
 import type { ITokenStorage } from "../interfaces/IStorage.interface";
