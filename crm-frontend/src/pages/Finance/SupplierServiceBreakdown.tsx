@@ -1,24 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { FaBuilding, FaDownload, FaSearch } from 'react-icons/fa'
-import { FaRotate } from 'react-icons/fa6'
+import { FaArrowLeft, FaBuilding, FaDownload, FaRotate, FaXmark } from 'react-icons/fa6'
+import { FaSearch } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { reportsApi } from '../../api/reports'
+import { suppliersApi } from '../../api/suppliers'
 import { getApiErrorMessage } from '../../api/apiClient'
 
-type SupplierServiceBreakdownProps = {
-  refreshKey?: number
-}
+type SupplierServiceBreakdownProps = { refreshKey?: number }
 
-type SupplierServiceRow = {
+type Row = {
   id: string
-  quotationId: string
   bookingId: string
   bookingNumber: string
   bookingStatus: string
   paymentStatus: string
-  advanceReceived: number
   leadName: string
   quoteNumber: string
   serviceLabel: string
@@ -26,31 +23,80 @@ type SupplierServiceRow = {
   supplierName: string
   basePrice: number
   currency: string
-  quotationStatus: string
   createdAt: string
 }
 
-type Pagination = {
-  page: number
-  limit: number
-  totalItems: number
-  totalPages: number
+type Payable = {
+  id: string
+  bookingId: string
+  supplierId: string
+  payableAmount: number
+  paidAmount: number
+  pendingAmount: number
+  status: string
 }
 
-const unwrapData = (response: unknown): any =>
-  (response as { data?: unknown })?.data ?? response
+type Settlement = {
+  id: string
+  bookingNumber: string
+  settlementAmount: number
+  paymentMode: string
+  settlementDate: string
+  reference: string
+}
 
+type Group = {
+  supplierId: string
+  supplierName: string
+  currency: string
+  serviceCount: number
+  bookingCount: number
+  serviceMix: string[]
+  baseTotal: number
+  payableTotal: number
+  paidTotal: number
+  pendingTotal: number
+  rows: Row[]
+}
+
+type Pagination = { page: number; limit: number; totalItems: number; totalPages: number }
+
+type CreateState = {
+  row: Row
+  payableAmount: string
+  dueDate: string
+  paymentReference: string
+  error: string
+}
+
+type SettleState = {
+  row: Row
+  payable: Payable
+  amount: string
+  paymentMode: string
+  settlementDate: string
+  reference: string
+  notes: string
+  error: string
+}
+
+const unwrapData = (response: unknown): any => (response as { data?: unknown })?.data ?? response
 const toNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
 }
-
+const toUpper = (value: unknown, fallback = '') => String(value ?? fallback).trim().toUpperCase()
 const formatLabel = (value: string) =>
   value
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, char => char.toUpperCase())
-
+const formatDateTime = (value: string) => {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return parsed.toLocaleString()
+}
 const formatCurrency = (amount: number, currency = 'INR') => {
   try {
     return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
@@ -59,70 +105,85 @@ const formatCurrency = (amount: number, currency = 'INR') => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount)
-  } catch (_error) {
+  } catch (_err) {
     return `${toNumber(amount, 0).toFixed(2)} ${currency}`
   }
 }
 
-const formatDateTime = (value: string) => {
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return '-'
-  return parsed.toLocaleString()
+const mapPayable = (item: any): Payable => {
+  const payableAmount = toNumber(item?.payableAmount ?? item?.payable_amount, 0)
+  const paidAmount = toNumber(item?.paidAmount ?? item?.paid_amount, 0)
+  return {
+    id: String(item?.id ?? ''),
+    bookingId: String(item?.bookingId ?? item?.booking_id ?? ''),
+    supplierId: String(item?.supplierId ?? item?.supplier_id ?? ''),
+    payableAmount,
+    paidAmount,
+    pendingAmount: toNumber(item?.pendingAmount ?? item?.pending_amount, Math.max(0, payableAmount - paidAmount)),
+    status: toUpper(item?.status, 'PENDING')
+  }
 }
 
-const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({
-  refreshKey = 0
-}) => {
-  const [rows, setRows] = useState<SupplierServiceRow[]>([])
+const mapSettlement = (item: any): Settlement => ({
+  id: String(item?.id ?? ''),
+  bookingNumber: String(item?.bookingNumber ?? item?.booking_number ?? '-'),
+  settlementAmount: toNumber(item?.settlementAmount ?? item?.settlement_amount, 0),
+  paymentMode: toUpper(item?.paymentMode ?? item?.payment_mode, 'BANK_TRANSFER'),
+  settlementDate: String(item?.settlementDate ?? item?.settlement_date ?? ''),
+  reference: String(item?.reference ?? '')
+})
+
+const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ refreshKey = 0 }) => {
+  const [rows, setRows] = useState<Row[]>([])
+  const [payablesBySupplier, setPayablesBySupplier] = useState<Record<string, Payable[]>>({})
+  const [ledgerRows, setLedgerRows] = useState<Settlement[]>([])
+  const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [loading, setLoading] = useState(false)
+  const [payablesLoading, setPayablesLoading] = useState(false)
+  const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
-  const [pagination, setPagination] = useState<Pagination>({
-    page: 1,
-    limit: 20,
-    totalItems: 0,
-    totalPages: 1
-  })
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, totalItems: 0, totalPages: 1 })
+  const [createModal, setCreateModal] = useState<CreateState | null>(null)
+  const [settleModal, setSettleModal] = useState<SettleState | null>(null)
+
+  const paymentModes = useMemo(
+    () => ['BANK_TRANSFER', 'UPI', 'CASH', 'CARD', 'CHEQUE', 'OTHER'],
+    []
+  )
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const params: Record<string, string | number | boolean> = {
-        page: pagination.page,
-        limit: pagination.limit
-      }
+      const params: Record<string, string | number | boolean> = { page: pagination.page, limit: pagination.limit }
       if (supplierFilter) params.supplierId = supplierFilter
       if (fromDate) params.from = fromDate
       if (toDate) params.to = toDate
-
       const response = await reportsApi.financeSupplierServices(params)
       const data = unwrapData(response)
-      const rawRows = Array.isArray(data?.rows) ? data.rows : []
-
-      const mappedRows: SupplierServiceRow[] = rawRows.map((row: any, index: number) => ({
-        id: String(row?.id ?? `supplier-service-${index}`),
-        quotationId: String(row?.quotationId ?? ''),
-        bookingId: String(row?.bookingId ?? ''),
-        bookingNumber: String(row?.bookingNumber ?? '-'),
-        bookingStatus: String(row?.bookingStatus ?? '').toUpperCase(),
-        paymentStatus: String(row?.paymentStatus ?? '').toUpperCase(),
-        advanceReceived: toNumber(row?.advanceReceived, 0),
-        leadName: String(row?.leadName ?? 'Unknown lead'),
-        quoteNumber: String(row?.quoteNumber ?? '-'),
-        serviceLabel: String(row?.serviceLabel ?? 'OTHER'),
-        supplierId: String(row?.supplierId ?? ''),
-        supplierName: String(row?.supplierName ?? 'Not selected'),
-        basePrice: toNumber(row?.basePrice, 0),
-        currency: String(row?.currency ?? 'INR').toUpperCase(),
-        quotationStatus: String(row?.quotationStatus ?? '').toUpperCase(),
-        createdAt: String(row?.createdAt ?? '')
-      }))
-
-      setRows(mappedRows)
+      const list = Array.isArray(data?.rows) ? data.rows : []
+      setRows(
+        list.map((item: any, index: number) => ({
+          id: String(item?.id ?? `row-${index}`),
+          bookingId: String(item?.bookingId ?? ''),
+          bookingNumber: String(item?.bookingNumber ?? '-'),
+          bookingStatus: toUpper(item?.bookingStatus, ''),
+          paymentStatus: toUpper(item?.paymentStatus, ''),
+          leadName: String(item?.leadName ?? 'Unknown lead'),
+          quoteNumber: String(item?.quoteNumber ?? '-'),
+          serviceLabel: String(item?.serviceLabel ?? 'OTHER'),
+          supplierId: String(item?.supplierId ?? ''),
+          supplierName: String(item?.supplierName ?? 'Not selected'),
+          basePrice: toNumber(item?.basePrice, 0),
+          currency: toUpper(item?.currency, 'INR'),
+          createdAt: String(item?.createdAt ?? '')
+        }))
+      )
       setPagination({
         page: toNumber(data?.pagination?.page, pagination.page),
         limit: toNumber(data?.pagination?.limit, pagination.limit),
@@ -131,103 +192,262 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({
       })
     } catch (err) {
       setRows([])
-      setError(
-        getApiErrorMessage(
-          err,
-          'Failed to load supplier-service data from backend report'
-        )
-      )
+      setError(getApiErrorMessage(err, 'Failed to load supplier-service rows'))
     } finally {
       setLoading(false)
     }
   }, [fromDate, pagination.limit, pagination.page, supplierFilter, toDate])
 
+  const fetchPayables = useCallback(async (targetRows: Row[]) => {
+    const supplierIds = Array.from(
+      new Set(targetRows.map(row => row.supplierId).filter(id => Boolean(id) && id !== 'UNASSIGNED'))
+    )
+    if (!supplierIds.length) {
+      setPayablesBySupplier({})
+      return
+    }
+    setPayablesLoading(true)
+    try {
+      const pairs = await Promise.all(
+        supplierIds.map(async supplierId => {
+          const response = await suppliersApi.listPayables(supplierId, { page: 1, limit: 500 })
+          const data = unwrapData(response)
+          const list = Array.isArray(data) ? data : []
+          return [supplierId, list.map(mapPayable)] as const
+        })
+      )
+      setPayablesBySupplier(Object.fromEntries(pairs))
+    } catch (err) {
+      setPayablesBySupplier({})
+      setError(getApiErrorMessage(err, 'Failed to load supplier payables'))
+    } finally {
+      setPayablesLoading(false)
+    }
+  }, [])
+
+  const fetchLedger = useCallback(
+    async (supplierId: string) => {
+      if (!supplierId) {
+        setLedgerRows([])
+        return
+      }
+      setLedgerLoading(true)
+      try {
+        const response = await suppliersApi.listSupplierSettlements(supplierId, { page: 1, limit: 120 })
+        const data = unwrapData(response)
+        const list = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : []
+        setLedgerRows(list.map(mapSettlement))
+      } catch (err) {
+        const payables = payablesBySupplier[supplierId] || []
+        if (!payables.length) {
+          setLedgerRows([])
+          setError(getApiErrorMessage(err, 'Failed to load settlement history'))
+        } else {
+          const settled = await Promise.allSettled(
+            payables.map(payable => suppliersApi.listPayableSettlements(payable.id, { page: 1, limit: 50 }))
+          )
+          const fallbackRows = settled.flatMap(result => {
+            if (result.status !== 'fulfilled') return []
+            const payload = unwrapData(result.value)
+            const list = Array.isArray(payload?.rows) ? payload.rows : Array.isArray(payload) ? payload : []
+            return list
+          })
+          setLedgerRows(fallbackRows.map(mapSettlement))
+        }
+      } finally {
+        setLedgerLoading(false)
+      }
+    },
+    [payablesBySupplier]
+  )
+
   useEffect(() => {
     void fetchRows()
   }, [fetchRows, refreshKey])
-
+  useEffect(() => {
+    void fetchPayables(rows)
+  }, [fetchPayables, rows])
   useEffect(() => {
     setPagination(prev => ({ ...prev, page: 1 }))
   }, [supplierFilter, fromDate, toDate])
+  useEffect(() => {
+    void fetchLedger(selectedSupplierId)
+  }, [fetchLedger, selectedSupplierId])
+
+  const getPayable = useCallback(
+    (row: Row) => (payablesBySupplier[row.supplierId] || []).find(item => item.bookingId === row.bookingId) || null,
+    [payablesBySupplier]
+  )
 
   const supplierOptions = useMemo(
     () => [
       { value: '', label: 'All Suppliers' },
       ...Array.from(
-        new Map(
-          rows
-            .filter(row => row.supplierId && row.supplierId !== 'UNASSIGNED')
-            .map(row => [
-              row.supplierId,
-              { value: row.supplierId, label: row.supplierName }
-            ])
-        ).values()
+        new Map(rows.filter(row => row.supplierId && row.supplierId !== 'UNASSIGNED').map(row => [row.supplierId, { value: row.supplierId, label: row.supplierName }])).values()
       )
     ],
     [rows]
   )
 
-  const searchedRows = useMemo(() => {
+  const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
     if (!query) return rows
-    return rows.filter(row => {
-      const haystack = [
-        row.leadName,
-        row.quoteNumber,
-        row.bookingNumber,
-        row.serviceLabel,
-        row.supplierName,
-        row.quotationStatus,
-        row.bookingStatus,
-        row.paymentStatus
-      ]
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(query)
-    })
+    return rows.filter(row =>
+      [row.leadName, row.bookingNumber, row.quoteNumber, row.serviceLabel, row.supplierName].join(' ').toLowerCase().includes(query)
+    )
   }, [rows, search])
 
-  const exportCsv = () => {
-    if (!searchedRows.length) return
-    const headers = [
-      'Lead Name',
-      'Booking #',
-      'Quote #',
-      'Service',
-      'Selected Supplier',
-      'Supplier Base Price',
-      'Currency',
-      'Booking Status',
-      'Payment Status',
-      'Advance Received',
-      'Quotation Status',
-      'Date'
-    ]
-    const csvRows = searchedRows.map(row => [
-      row.leadName,
-      row.bookingNumber,
-      row.quoteNumber,
-      row.serviceLabel,
-      row.supplierName,
-      row.basePrice,
-      row.currency,
-      row.bookingStatus,
-      row.paymentStatus,
-      row.advanceReceived,
-      row.quotationStatus,
-      formatDateTime(row.createdAt)
-    ])
-    const csv = [headers, ...csvRows]
-      .map(row =>
-        row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')
+  const groups = useMemo(() => {
+    const map = new Map<string, Group>()
+    filteredRows.forEach(row => {
+      if (!row.supplierId || row.supplierId === 'UNASSIGNED') return
+      if (!map.has(row.supplierId)) {
+        map.set(row.supplierId, {
+          supplierId: row.supplierId,
+          supplierName: row.supplierName || 'Unknown Supplier',
+          currency: row.currency || 'INR',
+          serviceCount: 0,
+          bookingCount: 0,
+          serviceMix: [],
+          baseTotal: 0,
+          payableTotal: 0,
+          paidTotal: 0,
+          pendingTotal: 0,
+          rows: []
+        })
+      }
+      const group = map.get(row.supplierId)!
+      group.rows.push(row)
+      group.serviceCount += 1
+      group.baseTotal += row.basePrice
+      if (!group.serviceMix.includes(row.serviceLabel)) group.serviceMix.push(row.serviceLabel)
+      const payable = getPayable(row)
+      if (payable) {
+        group.payableTotal += payable.payableAmount
+        group.paidTotal += payable.paidAmount
+        group.pendingTotal += payable.pendingAmount
+      }
+    })
+    map.forEach(group => {
+      group.bookingCount = new Set(group.rows.map(item => item.bookingId)).size
+      group.rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      group.serviceMix.sort((a, b) => a.localeCompare(b))
+    })
+    return Array.from(map.values()).sort((a, b) => a.supplierName.localeCompare(b.supplierName))
+  }, [filteredRows, getPayable])
+
+  const selectedGroup = useMemo(
+    () => groups.find(group => group.supplierId === selectedSupplierId) || null,
+    [groups, selectedSupplierId]
+  )
+
+  const openCreateModal = (row: Row) => {
+    setCreateModal({
+      row,
+      payableAmount: String(row.basePrice || ''),
+      dueDate: '',
+      paymentReference: '',
+      error: ''
+    })
+  }
+
+  const openSettleModal = (row: Row, payable: Payable) => {
+    setSettleModal({
+      row,
+      payable,
+      amount: String(payable.pendingAmount || ''),
+      paymentMode: 'BANK_TRANSFER',
+      settlementDate: new Date().toISOString().slice(0, 16),
+      reference: '',
+      notes: '',
+      error: ''
+    })
+  }
+
+  const saveCreate = async () => {
+    if (!createModal) return
+    const amount = Number(createModal.payableAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setCreateModal(prev =>
+        prev ? { ...prev, error: 'Payable amount must be greater than 0.' } : prev
       )
-      .join('\n')
+      return
+    }
+    if (!createModal.row.supplierId || createModal.row.supplierId === 'UNASSIGNED' || !createModal.row.bookingId) {
+      setCreateModal(prev =>
+        prev ? { ...prev, error: 'Valid supplier and booking are required.' } : prev
+      )
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      await suppliersApi.createPayable(createModal.row.supplierId, {
+        bookingId: createModal.row.bookingId,
+        payableAmount: amount,
+        dueDate: createModal.dueDate || undefined,
+        paymentReference: createModal.paymentReference || undefined
+      })
+      setCreateModal(null)
+      await fetchPayables(rows)
+      if (selectedSupplierId) {
+        await fetchLedger(selectedSupplierId)
+      }
+    } catch (err) {
+      setCreateModal(prev =>
+        prev ? { ...prev, error: getApiErrorMessage(err, 'Failed to create payable') } : prev
+      )
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const saveSettle = async () => {
+    if (!settleModal) return
+    const amount = Number(settleModal.amount)
+    if (!Number.isFinite(amount) || amount <= 0 || amount > settleModal.payable.pendingAmount) {
+      setSettleModal(prev =>
+        prev
+          ? { ...prev, error: 'Settlement amount must be > 0 and <= pending.' }
+          : prev
+      )
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      await suppliersApi.settlePayable(settleModal.payable.id, {
+        amount,
+        paymentMode: settleModal.paymentMode,
+        settlementDate: settleModal.settlementDate
+          ? new Date(settleModal.settlementDate).toISOString()
+          : undefined,
+        reference: settleModal.reference || undefined,
+        notes: settleModal.notes || undefined
+      })
+      setSettleModal(null)
+      await fetchPayables(rows)
+      await fetchLedger(settleModal.row.supplierId || selectedSupplierId)
+    } catch (err) {
+      setSettleModal(prev =>
+        prev ? { ...prev, error: getApiErrorMessage(err, 'Failed to settle payable') } : prev
+      )
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const exportCsv = () => {
+    if (!groups.length) return
+    const header = ['Supplier', 'Currency', 'Services', 'Bookings', 'Service Mix', 'Base Total', 'Payable', 'Settled', 'Pending']
+    const lines = groups.map(group => [group.supplierName, group.currency, group.serviceCount, group.bookingCount, group.serviceMix.join(' | '), group.baseTotal, group.payableTotal, group.paidTotal, group.pendingTotal])
+    const csv = [header, ...lines].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `supplier-service-confirmed-paid-${new Date().toISOString().slice(0, 10)}.csv`
-    anchor.click()
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `supplier-accounting-grouped-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -235,189 +455,359 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({
     <div className='space-y-4'>
       <SurfaceCard className='border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-900/20'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-          <div className='flex items-start gap-3'>
-            <div className='rounded-full bg-blue-100 p-2 dark:bg-blue-900/60'>
-              <FaBuilding className='text-blue-600 dark:text-blue-300' />
-            </div>
-            <div>
-              <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100'>
-                Backend Filtered Supplier Services
-              </h3>
-              <p className='text-sm text-blue-800 dark:text-blue-200'>
-                Data comes from backend only: bookings confirmed or payment received.
-              </p>
-            </div>
+          <div>
+            <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100'>Supplier Services - Grouped Accountant View</h3>
+            <p className='text-sm text-blue-800 dark:text-blue-200'>Supplier-wise grouping. Click a supplier row to open full service pricing + settlement ledger page.</p>
           </div>
           <div className='flex items-center gap-2'>
-            <button
-              onClick={() => void fetchRows()}
-              disabled={loading}
-              className='inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
-            >
-              <FaRotate className={loading ? 'animate-spin' : ''} />
-              Refresh
-            </button>
-            <button
-              onClick={exportCsv}
-              disabled={!searchedRows.length}
-              className='inline-flex items-center gap-2 rounded-lg border border-green-500 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-100 dark:hover:bg-gray-800'
-            >
-              <FaDownload />
-              Export
-            </button>
+            <button onClick={() => void fetchRows()} disabled={loading} className='inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50'><FaRotate className={loading ? 'animate-spin' : ''} />Refresh</button>
+            <button onClick={exportCsv} disabled={!groups.length} className='inline-flex items-center gap-2 rounded-lg border border-green-500 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50'><FaDownload />Export</button>
           </div>
         </div>
       </SurfaceCard>
 
-      {error ? (
-        <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'>
-          {error}
-        </div>
-      ) : null}
+      {error ? <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>{error}</div> : null}
 
-      <SurfaceCard className='border border-gray-200 p-4 dark:border-gray-800'>
-        <div className='grid grid-cols-1 gap-3 lg:grid-cols-4'>
-          <div className='relative lg:col-span-2'>
-            <FaSearch className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
-            <input
-              type='text'
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-              className='field-input !pl-9'
-              placeholder='Search lead, booking, quote, service, supplier...'
-            />
-          </div>
-          <div>
-            <SearchableDropdown
-              value={supplierFilter}
-              onChange={setSupplierFilter}
-              options={supplierOptions}
-              placeholder='All Suppliers'
-              className='w-full'
-            />
-          </div>
-          <div className='grid grid-cols-2 gap-2'>
-            <input
-              type='date'
-              value={fromDate}
-              onChange={event => setFromDate(event.target.value)}
-              className='field-input'
-              title='From date'
-            />
-            <input
-              type='date'
-              value={toDate}
-              onChange={event => setToDate(event.target.value)}
-              className='field-input'
-              title='To date'
-            />
-          </div>
-        </div>
-      </SurfaceCard>
+      {!selectedGroup ? (
+        <>
+          <SurfaceCard className='border border-gray-200 p-4 dark:border-gray-800'>
+            <div className='grid grid-cols-1 gap-3 lg:grid-cols-4'>
+              <div className='relative lg:col-span-2'>
+                <FaSearch className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400' />
+                <input type='text' value={search} onChange={e => setSearch(e.target.value)} className='field-input !pl-9' placeholder='Search supplier, lead, booking, service...' />
+              </div>
+              <SearchableDropdown value={supplierFilter} onChange={setSupplierFilter} options={supplierOptions} placeholder='All Suppliers' className='w-full' />
+              <div className='grid grid-cols-2 gap-2'>
+                <input type='date' value={fromDate} onChange={e => setFromDate(e.target.value)} className='field-input' />
+                <input type='date' value={toDate} onChange={e => setToDate(e.target.value)} className='field-input' />
+              </div>
+            </div>
+          </SurfaceCard>
 
-      <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
-        {!searchedRows.length ? (
-          <div className='p-6'>
-            <EmptyState
-              title={loading ? 'Loading supplier-service rows...' : 'No rows found'}
-              description='No confirmed/paid bookings with supplier services in this filter.'
-              icon={<FaBuilding className='text-4xl' />}
-            />
-          </div>
-        ) : (
-          <>
-            <div className='overflow-x-auto'>
-              <table className='w-full'>
-                <thead className='bg-gray-50 dark:bg-gray-800/60'>
-                  <tr>
-                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
-                      Lead Name
-                    </th>
-                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
-                      Booking #
-                    </th>
-                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
-                      Service
-                    </th>
-                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
-                      Selected Supplier
-                    </th>
-                    <th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>
-                      Base Price
-                    </th>
-                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
-                      Booking / Payment
-                    </th>
-                    <th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>
-                      Date
-                    </th>
-                  </tr>
-                </thead>
+          <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+            {!groups.length ? (
+              <div className='p-6'><EmptyState title={loading ? 'Loading...' : 'No suppliers found'} description='No grouped supplier service data found for this filter.' icon={<FaBuilding className='text-4xl' />} /></div>
+            ) : (
+              <div className='w-full max-w-full overflow-x-auto'>
+                <table className='w-full min-w-[980px]'>
+                  <thead className='bg-gray-50 dark:bg-gray-800/60'><tr><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Supplier</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Services / Mix</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Bookings</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Base</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Payable</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Settled</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Pending</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Open</th></tr></thead>
+                  <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                    {groups.map(group => (
+                      <tr key={group.supplierId} className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40' onClick={() => setSelectedSupplierId(group.supplierId)}>
+                        <td className='px-4 py-3 text-sm'><p className='font-semibold'>{group.supplierName}</p><p className='text-xs text-gray-500'>{group.currency}</p></td>
+                        <td className='px-4 py-3 text-sm'><p>{group.serviceCount} services</p><p className='line-clamp-2 text-xs text-gray-500'>{group.serviceMix.join(', ')}</p></td>
+                        <td className='px-4 py-3 text-right text-sm'>{group.bookingCount}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold'>{formatCurrency(group.baseTotal, group.currency)}</td>
+                        <td className='px-4 py-3 text-right text-sm'>{formatCurrency(group.payableTotal, group.currency)}</td>
+                        <td className='px-4 py-3 text-right text-sm text-green-700'>{formatCurrency(group.paidTotal, group.currency)}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>{formatCurrency(group.pendingTotal, group.currency)}</td>
+                        <td className='px-4 py-3 text-sm'><button className='rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50' onClick={e => { e.stopPropagation(); setSelectedSupplierId(group.supplierId) }}>Open Accountant Page</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className='flex items-center justify-between border-t border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-800'>
+              <p>Page {pagination.page} of {pagination.totalPages} | Total {pagination.totalItems}{payablesLoading ? ' | Loading payables...' : ''}</p>
+              <div className='flex items-center gap-2'>
+                <button onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))} disabled={pagination.page <= 1 || loading} className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40'>Previous</button>
+                <button onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))} disabled={pagination.page >= pagination.totalPages || loading} className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40'>Next</button>
+              </div>
+            </div>
+          </SurfaceCard>
+        </>
+      ) : (
+        <>
+          <SurfaceCard className='border border-gray-200 p-4 dark:border-gray-800'>
+            <button onClick={() => setSelectedSupplierId('')} className='inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100'><FaArrowLeft />Back To Groups</button>
+            <div className='mt-3'>
+              <h3 className='text-base font-semibold text-gray-900 dark:text-gray-100'>{selectedGroup.supplierName}</h3>
+              <p className='text-xs text-gray-500'>Currency: {selectedGroup.currency} | Services: {selectedGroup.serviceCount}</p>
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+            <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold dark:border-gray-800'>Service & Price Details</div>
+            <div className='w-full max-w-full overflow-x-auto'>
+              <table className='w-full min-w-[960px]'>
+                <thead className='bg-gray-50 dark:bg-gray-800/60'><tr><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Lead</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Booking</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Service</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Base Price</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Payable</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Paid</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Pending</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Status</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Action</th></tr></thead>
                 <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                  {searchedRows.map(row => (
-                    <tr key={row.id} className='hover:bg-gray-50 dark:hover:bg-gray-800/40'>
-                      <td className='px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100'>
-                        {row.leadName}
-                      </td>
-                      <td className='px-4 py-3 text-sm text-blue-600'>
-                        {row.bookingNumber}
-                      </td>
-                      <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
-                        {row.serviceLabel}
-                      </td>
-                      <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
-                        {row.supplierName}
-                      </td>
-                      <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                        {formatCurrency(row.basePrice, row.currency)}
-                      </td>
-                      <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
-                        <p>{formatLabel(row.bookingStatus || 'PENDING')}</p>
-                        <p className='text-xs text-gray-500'>
-                          {formatLabel(row.paymentStatus || 'PENDING')} • Adv:{' '}
-                          {formatCurrency(row.advanceReceived, row.currency)}
-                        </p>
-                      </td>
-                      <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
-                        {formatDateTime(row.createdAt)}
-                      </td>
-                    </tr>
-                  ))}
+                  {selectedGroup.rows.map(row => {
+                    const payable = getPayable(row)
+                    return (
+                      <tr key={row.id}>
+                        <td className='px-4 py-3 text-sm'><p className='font-medium'>{row.leadName}</p><p className='text-xs text-gray-500'>{row.quoteNumber}</p></td>
+                        <td className='px-4 py-3 text-sm'><p>{row.bookingNumber}</p><p className='text-xs text-gray-500'>{formatLabel(row.bookingStatus || 'PENDING')} | {formatLabel(row.paymentStatus || 'PENDING')}</p></td>
+                        <td className='px-4 py-3 text-sm'>{row.serviceLabel}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold'>{formatCurrency(row.basePrice, row.currency)}</td>
+                        <td className='px-4 py-3 text-right text-sm'>{payable ? formatCurrency(payable.payableAmount, row.currency) : '-'}</td>
+                        <td className='px-4 py-3 text-right text-sm text-green-700'>{payable ? formatCurrency(payable.paidAmount, row.currency) : '-'}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>{payable ? formatCurrency(payable.pendingAmount, row.currency) : '-'}</td>
+                        <td className='px-4 py-3 text-sm'>{payable ? formatLabel(payable.status) : 'Not Created'}</td>
+                        <td className='px-4 py-3 text-sm'>
+                          {!payable ? (
+                            <button
+                              onClick={() => openCreateModal(row)}
+                              disabled={actionLoading}
+                              className='rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40'
+                            >
+                              Create Payable
+                            </button>
+                          ) : payable.pendingAmount > 0 ? (
+                            <button
+                              onClick={() => openSettleModal(row, payable)}
+                              disabled={actionLoading}
+                              className='rounded-lg border border-green-500 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-40'
+                            >
+                              Settle Payment
+                            </button>
+                          ) : (
+                            <span className='rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700'>
+                              Settled
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
-            <div className='flex flex-col items-start justify-between gap-3 border-t border-gray-200 px-4 py-3 dark:border-gray-800 sm:flex-row sm:items-center'>
-              <p className='text-xs text-gray-500'>
-                Page {pagination.page} of {pagination.totalPages} • Total{' '}
-                {pagination.totalItems}
-              </p>
-              <div className='flex items-center gap-2'>
-                <button
-                  onClick={() =>
-                    setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))
-                  }
-                  disabled={pagination.page <= 1 || loading}
-                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300'
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() =>
-                    setPagination(prev => ({
-                      ...prev,
-                      page: Math.min(prev.totalPages, prev.page + 1)
-                    }))
-                  }
-                  disabled={pagination.page >= pagination.totalPages || loading}
-                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300'
-                >
-                  Next
-                </button>
+          </SurfaceCard>
+
+          <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+            <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold dark:border-gray-800'>Settlement Ledger</div>
+            {ledgerLoading ? (
+              <div className='p-4 text-sm text-gray-500'>Loading settlement history...</div>
+            ) : !ledgerRows.length ? (
+              <div className='p-4 text-sm text-gray-500'>No settlement history.</div>
+            ) : (
+              <div className='max-h-[380px] overflow-auto'>
+                <table className='w-full min-w-[700px]'>
+                  <thead className='sticky top-0 bg-gray-50 dark:bg-gray-800/60'><tr><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Date</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Booking</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Amount</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Mode</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Reference</th></tr></thead>
+                  <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                    {ledgerRows.map(item => (
+                      <tr key={item.id}>
+                        <td className='px-4 py-3 text-sm'>{formatDateTime(item.settlementDate)}</td>
+                        <td className='px-4 py-3 text-sm'>{item.bookingNumber}</td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-green-700'>{formatCurrency(item.settlementAmount, selectedGroup.currency)}</td>
+                        <td className='px-4 py-3 text-sm'>{formatLabel(item.paymentMode)}</td>
+                        <td className='px-4 py-3 text-sm'>{item.reference || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+            )}
+          </SurfaceCard>
+        </>
+      )}
+
+      {createModal ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'>
+          <div className='w-full max-w-lg rounded-xl bg-white shadow-2xl dark:bg-gray-900'>
+            <div className='flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800'>
+              <div>
+                <h3 className='text-base font-semibold'>Create Supplier Payable</h3>
+                <p className='text-xs text-gray-500'>
+                  {createModal.row.supplierName} | {createModal.row.bookingNumber}
+                </p>
+              </div>
+              <button
+                onClick={() => setCreateModal(null)}
+                className='text-gray-500 hover:text-gray-700'
+              >
+                <FaXmark />
+              </button>
             </div>
-          </>
-        )}
-      </SurfaceCard>
+            <div className='space-y-3 px-5 py-4'>
+              <div>
+                <label className='field-label'>Payable Amount *</label>
+                <input
+                  type='number'
+                  min='0'
+                  step='0.01'
+                  value={createModal.payableAmount}
+                  onChange={event =>
+                    setCreateModal(prev =>
+                      prev
+                        ? { ...prev, payableAmount: event.target.value, error: '' }
+                        : prev
+                    )
+                  }
+                  className='field-input'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Due Date</label>
+                <input
+                  type='date'
+                  value={createModal.dueDate}
+                  onChange={event =>
+                    setCreateModal(prev =>
+                      prev ? { ...prev, dueDate: event.target.value } : prev
+                    )
+                  }
+                  className='field-input'
+                />
+              </div>
+              <div>
+                <label className='field-label'>Payment Reference</label>
+                <input
+                  type='text'
+                  value={createModal.paymentReference}
+                  onChange={event =>
+                    setCreateModal(prev =>
+                      prev
+                        ? { ...prev, paymentReference: event.target.value, error: '' }
+                        : prev
+                    )
+                  }
+                  className='field-input'
+                />
+              </div>
+              {createModal.error ? (
+                <p className='rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700'>
+                  {createModal.error}
+                </p>
+              ) : null}
+            </div>
+            <div className='flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800'>
+              <button
+                onClick={() => setCreateModal(null)}
+                className='rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void saveCreate()}
+                disabled={actionLoading}
+                className='rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50'
+              >
+                {actionLoading ? 'Saving...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {settleModal ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'>
+          <div className='w-full max-w-xl rounded-xl bg-white shadow-2xl dark:bg-gray-900'>
+            <div className='flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800'>
+              <div>
+                <h3 className='text-base font-semibold'>Settle Supplier Payment</h3>
+                <p className='text-xs text-gray-500'>
+                  Pending:{' '}
+                  {formatCurrency(settleModal.payable.pendingAmount, settleModal.row.currency)}
+                </p>
+              </div>
+              <button
+                onClick={() => setSettleModal(null)}
+                className='text-gray-500 hover:text-gray-700'
+              >
+                <FaXmark />
+              </button>
+            </div>
+            <div className='space-y-3 px-5 py-4'>
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <div>
+                  <label className='field-label'>Settlement Amount *</label>
+                  <input
+                    type='number'
+                    min='0'
+                    step='0.01'
+                    value={settleModal.amount}
+                    onChange={event =>
+                      setSettleModal(prev =>
+                        prev ? { ...prev, amount: event.target.value, error: '' } : prev
+                      )
+                    }
+                    className='field-input'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Payment Mode *</label>
+                  <SearchableDropdown
+                    value={settleModal.paymentMode}
+                    onChange={value =>
+                      setSettleModal(prev =>
+                        prev ? { ...prev, paymentMode: value } : prev
+                      )
+                    }
+                    options={paymentModes.map(mode => ({
+                      value: mode,
+                      label: formatLabel(mode)
+                    }))}
+                    placeholder='Select mode'
+                    className='w-full'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Settlement Date</label>
+                  <input
+                    type='datetime-local'
+                    value={settleModal.settlementDate}
+                    onChange={event =>
+                      setSettleModal(prev =>
+                        prev ? { ...prev, settlementDate: event.target.value } : prev
+                      )
+                    }
+                    className='field-input'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>Reference</label>
+                  <input
+                    type='text'
+                    value={settleModal.reference}
+                    onChange={event =>
+                      setSettleModal(prev =>
+                        prev ? { ...prev, reference: event.target.value } : prev
+                      )
+                    }
+                    className='field-input'
+                  />
+                </div>
+              </div>
+              <div>
+                <label className='field-label'>Notes</label>
+                <textarea
+                  rows={3}
+                  value={settleModal.notes}
+                  onChange={event =>
+                    setSettleModal(prev =>
+                      prev ? { ...prev, notes: event.target.value } : prev
+                    )
+                  }
+                  className='field-input'
+                />
+              </div>
+              {settleModal.error ? (
+                <p className='rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700'>
+                  {settleModal.error}
+                </p>
+              ) : null}
+            </div>
+            <div className='flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800'>
+              <button
+                onClick={() => setSettleModal(null)}
+                className='rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void saveSettle()}
+                disabled={actionLoading}
+                className='rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50'
+              >
+                {actionLoading ? 'Settling...' : 'Settle'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

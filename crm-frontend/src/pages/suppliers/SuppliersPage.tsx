@@ -1,16 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  FaBell,
   FaCircleCheck,
   FaPenToSquare,
   FaPlus,
   FaRotate,
-  FaWallet
+  FaEye,
+  FaSort,
+  FaChevronLeft,
+  FaChevronRight,
+  FaXmark
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
-import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { suppliersApi } from '../../api/suppliers'
 import { getApiErrorMessage } from '../../api/apiClient'
+
 
 interface Supplier {
   id: string
@@ -27,18 +31,6 @@ interface Supplier {
   isActive?: boolean
 }
 
-interface SupplierPayable {
-  id: string
-  supplierId: string
-  bookingId: string
-  payableAmount: number
-  paidAmount: number
-  dueDate?: string
-  dueInDays?: number | null
-  status: 'PENDING' | 'PARTIAL' | 'PAID'
-  paymentReference?: string
-}
-
 type SupplierForm = {
   name: string
   contactPerson: string
@@ -51,15 +43,6 @@ type SupplierForm = {
   paymentDeadlineDate: string
   productionCommitment: string
   isActive: boolean
-}
-
-type PayableForm = {
-  bookingId: string
-  payableAmount: string
-  paidAmount: string
-  dueDate: string
-  status: 'PENDING' | 'PARTIAL' | 'PAID'
-  paymentReference: string
 }
 
 const emptySupplierForm: SupplierForm = {
@@ -76,31 +59,11 @@ const emptySupplierForm: SupplierForm = {
   isActive: true
 }
 
-const emptyPayableForm: PayableForm = {
-  bookingId: '',
-  payableAmount: '',
-  paidAmount: '0',
-  dueDate: '',
-  status: 'PENDING',
-  paymentReference: ''
-}
-
 const normalizeDate = (value?: string | null) => {
   if (!value) return ''
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return ''
   return parsed.toISOString().slice(0, 10)
-}
-
-const formatDate = (value?: string | null) => {
-  const date = normalizeDate(value)
-  if (!date) return 'Not set'
-  return new Date(`${date}T00:00:00`).toLocaleDateString()
-}
-
-const toNumber = (value: unknown, fallback = 0) => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
 }
 
 const unwrapList = (payload: unknown): any[] => {
@@ -135,170 +98,79 @@ const mapSupplier = (raw: any): Supplier => ({
   isActive: raw?.isActive ?? raw?.is_active ?? true
 })
 
-const mapPayable = (raw: any): SupplierPayable => ({
-  id: String(raw?.id ?? ''),
-  supplierId: String(raw?.supplierId ?? raw?.supplier_id ?? ''),
-  bookingId: String(raw?.bookingId ?? raw?.booking_id ?? ''),
-  payableAmount: toNumber(raw?.payableAmount ?? raw?.payable_amount, 0),
-  paidAmount: toNumber(raw?.paidAmount ?? raw?.paid_amount, 0),
-  dueDate: raw?.dueDate ?? raw?.due_date ?? '',
-  dueInDays:
-    raw?.dueInDays === null || raw?.dueInDays === undefined
-      ? null
-      : toNumber(raw?.dueInDays, 0),
-  status: String(
-    raw?.status ?? 'PENDING'
-  ).toUpperCase() as SupplierPayable['status'],
-  paymentReference: raw?.paymentReference ?? raw?.payment_reference ?? ''
-})
-
-const dueBadgeClass = (payable: SupplierPayable) => {
-  if (payable.status === 'PAID') {
-    return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900'
-  }
-  if (typeof payable.dueInDays === 'number' && payable.dueInDays < 0) {
-    return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900'
-  }
-  if (typeof payable.dueInDays === 'number' && payable.dueInDays <= 2) {
-    return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900'
-  }
-  return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900'
-}
-
-const dueLabel = (payable: SupplierPayable) => {
-  if (payable.status === 'PAID') return 'Paid'
-  if (typeof payable.dueInDays !== 'number') return 'No due date'
-  if (payable.dueInDays < 0)
-    return `Overdue by ${Math.abs(payable.dueInDays)} day(s)`
-  if (payable.dueInDays === 0) return 'Due today'
-  return `Due in ${payable.dueInDays} day(s)`
-}
-
 const SuppliersPage: React.FC = () => {
+  const navigate = useNavigate()
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
-  const [loadingPayables, setLoadingPayables] = useState(false)
   const [savingSupplier, setSavingSupplier] = useState(false)
-  const [savingPayable, setSavingPayable] = useState(false)
-  const [runningAlerts, setRunningAlerts] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [payables, setPayables] = useState<SupplierPayable[]>([])
-  const [selectedSupplierId, setSelectedSupplierId] = useState<string>('')
-  const [editingSupplierId, setEditingSupplierId] = useState<string>('')
   const [supplierSearch, setSupplierSearch] = useState('')
-  const [supplierStatusFilter, setSupplierStatusFilter] = useState<
-    'ALL' | 'ACTIVE' | 'INACTIVE'
-  >('ALL')
-  const [payableStatusFilter, setPayableStatusFilter] = useState<
-    'ALL' | SupplierPayable['status']
-  >('ALL')
-  const [supplierForm, setSupplierForm] =
-    useState<SupplierForm>(emptySupplierForm)
-  const [payableForm, setPayableForm] = useState<PayableForm>(emptyPayableForm)
+  const [supplierStatusFilter, setSupplierStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
+  const [countryFilter, setCountryFilter] = useState<string>('ALL')
+  const [sortBy, setSortBy] = useState<'name' | 'country'>('name')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(10)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingSupplierId, setEditingSupplierId] = useState<string>('')
+  const [supplierForm, setSupplierForm] = useState<SupplierForm>(emptySupplierForm)
 
-  const selectedSupplier = useMemo(
-    () => suppliers.find(item => item.id === selectedSupplierId) || null,
-    [suppliers, selectedSupplierId]
-  )
+  const countries = useMemo(() => {
+    const uniqueCountries = new Set(suppliers.map(s => s.country).filter(Boolean))
+    return Array.from(uniqueCountries).sort()
+  }, [suppliers])
 
-  const filteredSuppliers = useMemo(() => {
+  const filteredAndSortedSuppliers = useMemo(() => {
     const query = supplierSearch.trim().toLowerCase()
-    return suppliers.filter(supplier => {
+    let filtered = suppliers.filter(supplier => {
       const statusMatch =
         supplierStatusFilter === 'ALL' ||
         (supplierStatusFilter === 'ACTIVE' && supplier.isActive !== false) ||
         (supplierStatusFilter === 'INACTIVE' && supplier.isActive === false)
-      if (!statusMatch) return false
-      if (!query) return true
-      const text =
-        `${supplier.name} ${supplier.contactPerson} ${supplier.email} ${supplier.country}`.toLowerCase()
-      return text.includes(query)
+      const countryMatch = countryFilter === 'ALL' || supplier.country === countryFilter
+      const searchMatch = !query || `${supplier.name} ${supplier.contactPerson} ${supplier.email} ${supplier.country}`.toLowerCase().includes(query)
+      return statusMatch && countryMatch && searchMatch
     })
-  }, [suppliers, supplierSearch, supplierStatusFilter])
 
-  const filteredPayables = useMemo(() => {
-    if (payableStatusFilter === 'ALL') return payables
-    return payables.filter(item => item.status === payableStatusFilter)
-  }, [payables, payableStatusFilter])
+    filtered.sort((a, b) => {
+      let comparison = 0
+      if (sortBy === 'name') {
+        comparison = a.name.localeCompare(b.name)
+      } else if (sortBy === 'country') {
+        comparison = (a.country || '').localeCompare(b.country || '')
+      }
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
 
-  const payableFormStatusOptions = [
-    { value: 'PENDING', label: 'PENDING' },
-    { value: 'PARTIAL', label: 'PARTIAL' },
-    { value: 'PAID', label: 'PAID' }
-  ]
+    return filtered
+  }, [suppliers, supplierSearch, supplierStatusFilter, countryFilter, sortBy, sortOrder])
 
-  const supplierStats = useMemo(
-    () => ({
-      total: suppliers.length,
-      active: suppliers.filter(item => item.isActive !== false).length,
-      inactive: suppliers.filter(item => item.isActive === false).length
-    }),
-    [suppliers]
-  )
+  const paginatedSuppliers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredAndSortedSuppliers.slice(startIndex, endIndex)
+  }, [filteredAndSortedSuppliers, currentPage, itemsPerPage])
 
-  const payableStats = useMemo(() => {
-    const totalPayable = payables.reduce(
-      (sum, row) => sum + row.payableAmount,
-      0
-    )
-    const totalPaid = payables.reduce((sum, row) => sum + row.paidAmount, 0)
-    const pending = totalPayable - totalPaid
-    const dueSoon = payables.filter(
-      row =>
-        row.status !== 'PAID' &&
-        typeof row.dueInDays === 'number' &&
-        row.dueInDays >= 0 &&
-        row.dueInDays <= 2
-    ).length
-    const overdue = payables.filter(
-      row =>
-        row.status !== 'PAID' &&
-        typeof row.dueInDays === 'number' &&
-        row.dueInDays < 0
-    ).length
-    return { totalPayable, totalPaid, pending, dueSoon, overdue }
-  }, [payables])
+  const totalPages = Math.ceil(filteredAndSortedSuppliers.length / itemsPerPage)
+
+  const supplierStats = useMemo(() => ({
+    total: suppliers.length,
+    active: suppliers.filter(item => item.isActive !== false).length,
+    inactive: suppliers.filter(item => item.isActive === false).length
+  }), [suppliers])
 
   const loadSuppliers = async () => {
     setLoadingSuppliers(true)
     setError('')
     try {
-      const response = await suppliersApi.list({ page: 1, limit: 200 })
+      const response = await suppliersApi.list({ page: 1, limit: 500 })
       const rows = unwrapList(response).map(mapSupplier)
       setSuppliers(rows)
-
-      if (!rows.length) {
-        setSelectedSupplierId('')
-      } else if (!rows.some(row => row.id === selectedSupplierId)) {
-        setSelectedSupplierId(rows[0].id)
-      }
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load suppliers'))
     } finally {
       setLoadingSuppliers(false)
-    }
-  }
-
-  const loadPayables = async (supplierId: string) => {
-    if (!supplierId) {
-      setPayables([])
-      return
-    }
-
-    setLoadingPayables(true)
-    setError('')
-    try {
-      const response = await suppliersApi.listPayables(supplierId, {
-        page: 1,
-        limit: 200
-      })
-      setPayables(unwrapList(response).map(mapPayable))
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load payables'))
-      setPayables([])
-    } finally {
-      setLoadingPayables(false)
     }
   }
 
@@ -307,21 +179,17 @@ const SuppliersPage: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    if (!selectedSupplierId) {
-      setPayables([])
-      return
-    }
-    void loadPayables(selectedSupplierId)
-  }, [selectedSupplierId])
+    setCurrentPage(1)
+  }, [supplierSearch, supplierStatusFilter, countryFilter])
 
   const resetSupplierForm = () => {
     setSupplierForm(emptySupplierForm)
     setEditingSupplierId('')
+    setShowCreateModal(false)
   }
 
   const handleEditSupplier = (supplier: Supplier) => {
     setEditingSupplierId(supplier.id)
-    setSelectedSupplierId(supplier.id)
     setSupplierForm({
       name: supplier.name || '',
       contactPerson: supplier.contactPerson || '',
@@ -335,6 +203,7 @@ const SuppliersPage: React.FC = () => {
       productionCommitment: supplier.productionCommitment || '',
       isActive: supplier.isActive !== false
     })
+    setShowCreateModal(true)
   }
 
   const handleSaveSupplier = async () => {
@@ -358,24 +227,20 @@ const SuppliersPage: React.FC = () => {
         contractUrl: supplierForm.contractUrl.trim() || undefined,
         rateValidUntil: supplierForm.rateValidUntil || undefined,
         paymentDeadlineDate: supplierForm.paymentDeadlineDate || undefined,
-        productionCommitment:
-          supplierForm.productionCommitment.trim() || undefined,
+        productionCommitment: supplierForm.productionCommitment.trim() || undefined,
         isActive: supplierForm.isActive
       }
 
       if (editingSupplierId) {
         const updated = await suppliersApi.update(editingSupplierId, payload)
         const row = mapSupplier(unwrapObject(updated))
-        setSuppliers(prev =>
-          prev.map(item => (item.id === row.id ? row : item))
-        )
-        setNotice('Supplier updated')
+        setSuppliers(prev => prev.map(item => (item.id === row.id ? row : item)))
+        setNotice('Supplier updated successfully')
       } else {
         const created = await suppliersApi.create(payload)
         const row = mapSupplier(unwrapObject(created))
         setSuppliers(prev => [row, ...prev])
-        setSelectedSupplierId(row.id)
-        setNotice('Supplier created')
+        setNotice('Supplier created successfully')
       }
 
       resetSupplierForm()
@@ -386,89 +251,12 @@ const SuppliersPage: React.FC = () => {
     }
   }
 
-  const handleCreatePayable = async () => {
-    if (!selectedSupplierId) {
-      setError('Select a supplier first')
-      return
-    }
-    if (!payableForm.bookingId.trim()) {
-      setError('Booking ID is required')
-      return
-    }
-    if (toNumber(payableForm.payableAmount, 0) <= 0) {
-      setError('Payable amount must be greater than 0')
-      return
-    }
-
-    setSavingPayable(true)
-    setError('')
-    setNotice('')
-
-    try {
-      await suppliersApi.createPayable(selectedSupplierId, {
-        bookingId: payableForm.bookingId.trim(),
-        payableAmount: toNumber(payableForm.payableAmount, 0),
-        paidAmount: toNumber(payableForm.paidAmount, 0),
-        dueDate: payableForm.dueDate || undefined,
-        status: payableForm.status,
-        paymentReference: payableForm.paymentReference.trim() || undefined
-      })
-      setPayableForm(emptyPayableForm)
-      setNotice('Payable created')
-      await loadPayables(selectedSupplierId)
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to create payable'))
-    } finally {
-      setSavingPayable(false)
-    }
-  }
-
-  const handleMarkPayablePaid = async (payable: SupplierPayable) => {
-    setSavingPayable(true)
-    setError('')
-    setNotice('')
-
-    try {
-      await suppliersApi.updatePayable(payable.id, {
-        paidAmount: payable.payableAmount,
-        status: 'PAID'
-      })
-      setNotice('Payable marked as paid')
-      await loadPayables(selectedSupplierId)
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to update payable'))
-    } finally {
-      setSavingPayable(false)
-    }
-  }
-
-  const handleRunDeadlineAlerts = async () => {
-    setRunningAlerts(true)
-    setError('')
-    setNotice('')
-
-    try {
-      const response = await suppliersApi.processPayableDeadlineAlerts({
-        lookaheadDays: 2,
-        limit: 300
-      })
-      const summary = unwrapObject(response) as {
-        processed?: number
-        triggered?: number
-      }
-      setNotice(
-        `Deadline alerts checked ${toNumber(
-          summary.processed,
-          0
-        )} payables and triggered ${toNumber(summary.triggered, 0)} alert(s).`
-      )
-      if (selectedSupplierId) {
-        await loadPayables(selectedSupplierId)
-      }
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to process deadline alerts'))
-    } finally {
-      setRunningAlerts(false)
+  const handleSort = (field: 'name' | 'country') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
     }
   }
 
@@ -477,527 +265,350 @@ const SuppliersPage: React.FC = () => {
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <div>
           <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
-            Supplier Operations
+            Supplier Management
           </h1>
           <p className='text-sm text-gray-500 dark:text-gray-400'>
-            Clear workflow for supplier profile, contract validity, and payable
-            deadlines.
+            Manage suppliers, contracts, and business relationships
           </p>
         </div>
-        <button
-          onClick={() => void loadSuppliers()}
-          className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-        >
-          <FaRotate /> Refresh
-        </button>
+        <div className='flex gap-2'>
+          <button
+            onClick={() => void loadSuppliers()}
+            className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+          >
+            <FaRotate /> Refresh
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700'
+          >
+            <FaPlus /> Add Supplier
+          </button>
+        </div>
       </div>
 
-      {error ? (
+      {error && (
         <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300'>
           {error}
         </div>
-      ) : null}
-      {notice ? (
+      )}
+      {notice && (
         <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900 dark:bg-green-900/30 dark:text-green-300'>
           {notice}
         </div>
-      ) : null}
+      )}
 
-      <SurfaceCard className='p-4'>
-        <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-          How To Use This Page
-        </h2>
-        <p className='mt-2 text-sm text-gray-600 dark:text-gray-300'>
-          1) Select or create supplier. 2) Keep contract and rate validity
-          updated. 3) Add payables with due dates. 4) Track due risk and run
-          alerts when needed.
-        </p>
-      </SurfaceCard>
-
-      <div className='grid grid-cols-1 gap-4 lg:grid-cols-5'>
-        <Metric
-          title='Total'
-          value={String(supplierStats.total)}
-          tone='slate'
-        />
-        <Metric
-          title='Active'
-          value={String(supplierStats.active)}
-          tone='green'
-        />
-        <Metric
-          title='Inactive'
-          value={String(supplierStats.inactive)}
-          tone='slate'
-        />
-        <Metric
-          title='Due Soon'
-          value={String(payableStats.dueSoon)}
-          tone='amber'
-        />
-        <Metric
-          title='Overdue'
-          value={String(payableStats.overdue)}
-          tone='red'
-        />
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-3'>
+        <StatCard title='Total Suppliers' value={supplierStats.total} color='blue' />
+        <StatCard title='Active' value={supplierStats.active} color='green' />
+        <StatCard title='Inactive' value={supplierStats.inactive} color='gray' />
       </div>
 
-      <div className='grid grid-cols-1 gap-5 xl:grid-cols-[340px_1fr] xl:gap-6 xl:overflow-hidden'>
-        <SurfaceCard className='flex flex-col overflow-hidden p-0 xl:h-[calc(100vh-320px)]'>
-          <div className='border-b border-gray-200 p-4 dark:border-gray-800'>
-            <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-              Supplier Directory
-            </h2>
+      <SurfaceCard className='p-0'>
+        <div className='border-b border-gray-200 p-4 dark:border-gray-700'>
+          <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
             <input
               value={supplierSearch}
-              onChange={event => setSupplierSearch(event.target.value)}
-              className='field-input mt-3'
-              placeholder='Search supplier'
+              onChange={e => setSupplierSearch(e.target.value)}
+              className='field-input max-w-md'
+              placeholder='Search suppliers...'
             />
-            <div className='mt-2 grid grid-cols-3 gap-2'>
-              {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map(status => (
-                <button
-                  key={status}
-                  onClick={() => setSupplierStatusFilter(status)}
-                  className={`rounded-md border px-2 py-1 text-xs ${
-                    supplierStatusFilter === status
-                      ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+            <div className='flex flex-wrap gap-2'>
+              <select
+                value={supplierStatusFilter}
+                onChange={e => setSupplierStatusFilter(e.target.value as any)}
+                className='field-input'
+              >
+                <option value='ALL'>All Status</option>
+                <option value='ACTIVE'>Active</option>
+                <option value='INACTIVE'>Inactive</option>
+              </select>
+              <select
+                value={countryFilter}
+                onChange={e => setCountryFilter(e.target.value)}
+                className='field-input'
+              >
+                <option value='ALL'>All Countries</option>
+                {countries.map(country => (
+                  <option key={country} value={country}>{country}</option>
+                ))}
+              </select>
             </div>
           </div>
-          <div className='flex-1 overflow-y-auto scrollbar-hide'>
-            {loadingSuppliers ? (
-              <div className='p-4 text-sm text-gray-500'>
-                Loading suppliers...
-              </div>
-            ) : filteredSuppliers.length ? (
-              <div className='divide-y divide-gray-100 dark:divide-gray-800'>
-                {filteredSuppliers.map(supplier => (
-                  <button
-                    key={supplier.id}
-                    onClick={() => setSelectedSupplierId(supplier.id)}
-                    className={`w-full px-4 py-3 text-left transition-colors ${
-                      supplier.id === selectedSupplierId
-                        ? 'bg-blue-50 dark:bg-blue-900/20'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                    }`}
-                  >
-                    <div className='flex items-start justify-between gap-2'>
-                      <div>
-                        <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                          {supplier.name}
-                        </p>
-                        <p className='text-xs text-gray-500 dark:text-gray-400'>
-                          {supplier.country || 'No country'} |{' '}
-                          {supplier.supplierCurrency || 'INR'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={event => {
-                          event.stopPropagation()
-                          handleEditSupplier(supplier)
-                        }}
-                        className='inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                      >
-                        <FaPenToSquare /> Edit
-                      </button>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className='p-4 text-sm text-gray-500'>
-                No suppliers found.
-              </div>
-            )}
-          </div>
-        </SurfaceCard>
+        </div>
 
-        <div className='xl:flex xl:h-[calc(100vh-320px)] xl:flex-col xl:overflow-hidden'>
-          <div className='space-y-5 xl:flex-1 xl:overflow-y-auto xl:pr-1 scrollbar-thin-muted'>
-            <SurfaceCard className='p-4'>
-              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                  {editingSupplierId ? 'Edit Supplier' : 'Create Supplier'}
-                </h2>
-                <div className='flex gap-2'>
-                  <button
-                    onClick={() => void handleSaveSupplier()}
-                    disabled={savingSupplier}
-                    className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60'
+        <div className='overflow-x-auto'>
+          {loadingSuppliers ? (
+            <div className='flex items-center justify-center py-12'>
+              <FaRotate className='h-8 w-8 animate-spin text-blue-600' />
+            </div>
+          ) : paginatedSuppliers.length ? (
+            <table className='w-full'>
+              <thead className='bg-gray-50 dark:bg-gray-800/50'>
+                <tr className='border-b border-gray-200 dark:border-gray-700'>
+                  <th className='px-4 py-3 text-left'>
+                    <button
+                      onClick={() => handleSort('name')}
+                      className='inline-flex items-center gap-1 text-xs font-semibold uppercase text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+                    >
+                      Supplier Name
+                      {sortBy === 'name' && <FaSort />}
+                    </button>
+                  </th>
+                  <th className='px-4 py-3 text-left'>
+                    <button
+                      onClick={() => handleSort('country')}
+                      className='inline-flex items-center gap-1 text-xs font-semibold uppercase text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+                    >
+                      Country
+                      {sortBy === 'country' && <FaSort />}
+                    </button>
+                  </th>
+                  <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Currency</th>
+                  <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Contact Person</th>
+                  <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Phone</th>
+                  <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Email</th>
+                  <th className='px-4 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Status</th>
+                  <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Actions</th>
+                </tr>
+              </thead>
+              <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                {paginatedSuppliers.map(supplier => (
+                  <tr
+                    key={supplier.id}
+                    onClick={() => navigate(`/suppliers/${supplier.id}`)}
+                    className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50'
                   >
-                    <FaCircleCheck /> {editingSupplierId ? 'Update' : 'Create'}
-                  </button>
-                  <button
-                    onClick={resetSupplierForm}
-                    className='rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
-              <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
+                    <td className='px-4 py-3'>
+                      <p className='font-semibold text-gray-900 dark:text-gray-100'>{supplier.name}</p>
+                    </td>
+                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{supplier.country || '-'}</td>
+                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{supplier.supplierCurrency}</td>
+                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{supplier.contactPerson || '-'}</td>
+                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{supplier.phone || '-'}</td>
+                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{supplier.email || '-'}</td>
+                    <td className='px-4 py-3 text-center'>
+                      {supplier.isActive !== false ? (
+                        <span className='inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300'>
+                          <FaCircleCheck /> Active
+                        </span>
+                      ) : (
+                        <span className='inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+                          Inactive
+                        </span>
+                      )}
+                    </td>
+                    <td className='px-4 py-3 text-right'>
+                      <div className='flex items-center justify-end gap-2'>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            navigate(`/suppliers/${supplier.id}`)
+                          }}
+                          className='inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-300'
+                        >
+                          <FaEye /> View
+                        </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            handleEditSupplier(supplier)
+                          }}
+                          className='inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                        >
+                          <FaPenToSquare /> Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className='py-12 text-center'>
+              <p className='text-sm text-gray-500'>No suppliers found</p>
+            </div>
+          )}
+        </div>
+
+        {totalPages > 1 && (
+          <div className='flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-700'>
+            <p className='text-sm text-gray-600 dark:text-gray-400'>
+              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedSuppliers.length)} of {filteredAndSortedSuppliers.length} suppliers
+            </p>
+            <div className='flex gap-2'>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className='inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1 text-sm disabled:opacity-50 dark:border-gray-700'
+              >
+                <FaChevronLeft /> Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className='inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1 text-sm disabled:opacity-50 dark:border-gray-700'
+              >
+                Next <FaChevronRight />
+              </button>
+            </div>
+          </div>
+        )}
+      </SurfaceCard>
+
+      {showCreateModal && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
+          <div className='w-full max-w-2xl rounded-lg bg-white p-6 dark:bg-gray-900'>
+            <div className='mb-4 flex items-center justify-between'>
+              <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+                {editingSupplierId ? 'Edit Supplier' : 'Create Supplier'}
+              </h2>
+              <button onClick={resetSupplierForm} className='text-gray-500 hover:text-gray-700'>
+                <FaXmark />
+              </button>
+            </div>
+
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+              <div className='md:col-span-2'>
+                <label className='field-label'>Supplier Name *</label>
                 <input
                   value={supplierForm.name}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      name: event.target.value
-                    }))
-                  }
-                  className='field-input md:col-span-2'
-                  placeholder='Supplier name *'
+                  onChange={e => setSupplierForm(prev => ({ ...prev, name: e.target.value }))}
+                  className='field-input'
+                  placeholder='Enter supplier name'
                 />
+              </div>
+              <div>
+                <label className='field-label'>Contact Person</label>
                 <input
                   value={supplierForm.contactPerson}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      contactPerson: event.target.value
-                    }))
-                  }
+                  onChange={e => setSupplierForm(prev => ({ ...prev, contactPerson: e.target.value }))}
                   className='field-input'
-                  placeholder='Contact person'
+                  placeholder='Enter contact person'
                 />
+              </div>
+              <div>
+                <label className='field-label'>Phone</label>
                 <input
                   value={supplierForm.phone}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      phone: event.target.value
-                    }))
-                  }
+                  onChange={e => setSupplierForm(prev => ({ ...prev, phone: e.target.value }))}
                   className='field-input'
-                  placeholder='Phone'
+                  placeholder='Enter phone number'
                 />
+              </div>
+              <div>
+                <label className='field-label'>Email</label>
                 <input
                   value={supplierForm.email}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      email: event.target.value
-                    }))
-                  }
+                  onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
                   className='field-input'
-                  placeholder='Email'
+                  placeholder='Enter email address'
                 />
+              </div>
+              <div>
+                <label className='field-label'>Country</label>
                 <input
                   value={supplierForm.country}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      country: event.target.value
-                    }))
-                  }
+                  onChange={e => setSupplierForm(prev => ({ ...prev, country: e.target.value }))}
                   className='field-input'
-                  placeholder='Country'
+                  placeholder='Enter country'
                 />
+              </div>
+              <div>
+                <label className='field-label'>Supplier Currency</label>
                 <input
                   value={supplierForm.supplierCurrency}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      supplierCurrency: event.target.value.toUpperCase()
-                    }))
-                  }
+                  onChange={e => setSupplierForm(prev => ({ ...prev, supplierCurrency: e.target.value.toUpperCase() }))}
                   className='field-input'
-                  placeholder='Currency'
+                  placeholder='INR / USD / AED'
                 />
+              </div>
+              <div>
+                <label className='field-label'>Rate Valid Until</label>
                 <input
                   type='date'
                   value={supplierForm.rateValidUntil}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      rateValidUntil: event.target.value
-                    }))
-                  }
+                  onChange={e => setSupplierForm(prev => ({ ...prev, rateValidUntil: e.target.value }))}
                   className='field-input'
                 />
+              </div>
+              <div>
+                <label className='field-label'>Payment Deadline</label>
                 <input
                   type='date'
                   value={supplierForm.paymentDeadlineDate}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      paymentDeadlineDate: event.target.value
-                    }))
-                  }
+                  onChange={e => setSupplierForm(prev => ({ ...prev, paymentDeadlineDate: e.target.value }))}
                   className='field-input'
                 />
+              </div>
+              <div className='md:col-span-2'>
+                <label className='field-label'>Contract URL</label>
                 <input
                   value={supplierForm.contractUrl}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      contractUrl: event.target.value
-                    }))
-                  }
-                  className='field-input md:col-span-2'
-                  placeholder='Contract URL'
+                  onChange={e => setSupplierForm(prev => ({ ...prev, contractUrl: e.target.value }))}
+                  className='field-input'
+                  placeholder='https://...'
                 />
+              </div>
+              <div className='md:col-span-2'>
+                <label className='field-label'>Production Commitment</label>
                 <textarea
                   rows={3}
                   value={supplierForm.productionCommitment}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      productionCommitment: event.target.value
-                    }))
-                  }
-                  className='field-input md:col-span-2'
-                  placeholder='Production commitment'
+                  onChange={e => setSupplierForm(prev => ({ ...prev, productionCommitment: e.target.value }))}
+                  className='field-input'
+                  placeholder='Write production commitment details'
                 />
               </div>
+            </div>
 
-              <div className='mt-3 flex items-center gap-2'>
-                <input
-                  id='supplier-active'
-                  type='checkbox'
-                  checked={supplierForm.isActive}
-                  onChange={event =>
-                    setSupplierForm(prev => ({
-                      ...prev,
-                      isActive: event.target.checked
-                    }))
-                  }
-                />
-                <label
-                  htmlFor='supplier-active'
-                  className='text-sm text-gray-700 dark:text-gray-300'
-                >
-                  Supplier is active
-                </label>
-              </div>
-            </SurfaceCard>
+            <div className='mt-3 flex items-center gap-2'>
+              <input
+                id='supplier-active-modal'
+                type='checkbox'
+                checked={supplierForm.isActive}
+                onChange={e => setSupplierForm(prev => ({ ...prev, isActive: e.target.checked }))}
+              />
+              <label htmlFor='supplier-active-modal' className='text-sm text-gray-700 dark:text-gray-300'>
+                Supplier is active
+              </label>
+            </div>
 
-            <SurfaceCard className='p-4'>
-              <div className='flex items-center justify-between gap-3'>
-                <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                  Supplier Payables
-                </h2>
-                <button
-                  onClick={() => void handleRunDeadlineAlerts()}
-                  disabled={runningAlerts}
-                  className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                >
-                  <FaBell /> {runningAlerts ? 'Running...' : 'Run Alerts'}
-                </button>
-              </div>
-
-              <div className='mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3'>
-                <Info
-                  label='Total Payable'
-                  value={payableStats.totalPayable.toLocaleString()}
-                />
-                <Info
-                  label='Total Paid'
-                  value={payableStats.totalPaid.toLocaleString()}
-                />
-                <Info
-                  label='Pending'
-                  value={payableStats.pending.toLocaleString()}
-                />
-              </div>
-
-              <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-2'>
-                <input
-                  value={payableForm.bookingId}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      bookingId: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Booking ID (UUID) *'
-                />
-                <input
-                  value={payableForm.paymentReference}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      paymentReference: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Payment reference'
-                />
-                <input
-                  type='number'
-                  min='0'
-                  value={payableForm.payableAmount}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      payableAmount: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Payable amount *'
-                />
-                <input
-                  type='number'
-                  min='0'
-                  value={payableForm.paidAmount}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      paidAmount: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                  placeholder='Paid amount'
-                />
-                <input
-                  type='date'
-                  value={payableForm.dueDate}
-                  onChange={event =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      dueDate: event.target.value
-                    }))
-                  }
-                  className='field-input'
-                />
-                <SearchableDropdown
-                  value={payableForm.status}
-                  options={payableFormStatusOptions}
-                  onChange={value =>
-                    setPayableForm(prev => ({
-                      ...prev,
-                      status: value as PayableForm['status']
-                    }))
-                  }
-                  searchPlaceholder='Search payable status...'
-                />
-              </div>
-
+            <div className='mt-6 flex gap-2'>
               <button
-                onClick={() => void handleCreatePayable()}
-                disabled={savingPayable || !selectedSupplier}
-                className='mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60'
+                onClick={() => void handleSaveSupplier()}
+                disabled={savingSupplier}
+                className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60'
               >
-                <FaPlus /> Add Payable
+                <FaCircleCheck /> {editingSupplierId ? 'Update' : 'Create'}
               </button>
-
-              <div className='mt-3 flex flex-wrap gap-2'>
-                {(['ALL', 'PENDING', 'PARTIAL', 'PAID'] as const).map(
-                  status => (
-                    <button
-                      key={status}
-                      onClick={() => setPayableStatusFilter(status)}
-                      className={`rounded-full border px-3 py-1 text-xs ${
-                        payableStatusFilter === status
-                          ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-300'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  )
-                )}
-              </div>
-
-              <div className='mt-3 space-y-2'>
-                {loadingPayables ? (
-                  <p className='text-sm text-gray-500'>Loading payables...</p>
-                ) : filteredPayables.length ? (
-                  filteredPayables.map(payable => (
-                    <div
-                      key={payable.id}
-                      className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'
-                    >
-                      <div className='flex items-start justify-between gap-3'>
-                        <div>
-                          <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                            Booking {payable.bookingId}
-                          </p>
-                          <p className='text-xs text-gray-500 dark:text-gray-400'>
-                            Due: {formatDate(payable.dueDate)} | Ref:{' '}
-                            {payable.paymentReference || 'N/A'}
-                          </p>
-                        </div>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${dueBadgeClass(
-                            payable
-                          )}`}
-                        >
-                          {dueLabel(payable)}
-                        </span>
-                      </div>
-                      <div className='mt-2 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300'>
-                        <span>
-                          Payable: {payable.payableAmount.toLocaleString()}
-                        </span>
-                        <span>Paid: {payable.paidAmount.toLocaleString()}</span>
-                      </div>
-                      {payable.status !== 'PAID' ? (
-                        <button
-                          onClick={() => void handleMarkPayablePaid(payable)}
-                          className='mt-2 inline-flex items-center gap-2 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                        >
-                          <FaWallet /> Mark Paid
-                        </button>
-                      ) : null}
-                    </div>
-                  ))
-                ) : (
-                  <p className='text-sm text-gray-500'>No payables found.</p>
-                )}
-              </div>
-            </SurfaceCard>
+              <button
+                onClick={resetSupplierForm}
+                className='rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
 
-const Metric = ({
-  title,
-  value,
-  tone
-}: {
-  title: string
-  value: string
-  tone: 'green' | 'amber' | 'red' | 'slate'
-}) => {
-  const toneClass = {
-    green:
-      'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20',
-    amber:
-      'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/20',
-    red: 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-900/20',
-    slate: 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60'
-  }[tone]
+const StatCard = ({ title, value, color }: { title: string; value: number; color: 'blue' | 'green' | 'gray' }) => {
+  const colorClasses = {
+    blue: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-300',
+    green: 'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300',
+    gray: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300'
+  }
 
   return (
-    <div className={`rounded-xl border px-4 py-3 ${toneClass}`}>
-      <p className='text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400'>
-        {title}
-      </p>
-      <p className='mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100'>
-        {value}
-      </p>
+    <div className={`rounded-xl border p-4 ${colorClasses[color]}`}>
+      <p className='text-xs font-medium uppercase tracking-wide opacity-75'>{title}</p>
+      <p className='mt-1 text-3xl font-bold'>{value}</p>
     </div>
   )
 }
-
-const Info = ({ label, value }: { label: string; value: string }) => (
-  <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-    <p className='text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400'>
-      {label}
-    </p>
-    <p className='mt-1 break-words text-sm font-medium text-gray-900 dark:text-gray-100'>
-      {value}
-    </p>
-  </div>
-)
 
 export default SuppliersPage

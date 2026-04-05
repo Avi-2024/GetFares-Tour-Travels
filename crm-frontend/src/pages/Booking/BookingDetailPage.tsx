@@ -89,7 +89,17 @@ interface Payment {
   date: string;
   mode: "cash" | "card" | "bank" | "gateway";
   reference?: string;
+  proofUrl?: string;
+  invoiceUrl?: string;
   status: "pending" | "completed" | "failed";
+}
+
+type AttachmentType = "invoice" | "proof";
+
+interface AttachmentPreview {
+  url: string;
+  title: string;
+  kind: "image" | "pdf" | "other";
 }
 
 interface CreatePaymentFormPayload {
@@ -98,18 +108,8 @@ interface CreatePaymentFormPayload {
   status: "completed" | "pending" | "failed" | "refunded";
   referenceId?: string;
   notes?: string;
-  invoiceAttachment?: {
-    name: string;
-    type: string;
-    size: number;
-    data: string;
-  };
-  proofAttachment?: {
-    name: string;
-    type: string;
-    size: number;
-    data: string;
-  };
+  invoiceFile?: File;
+  proofFile?: File;
 }
 
 const PAYMENT_MODE_OPTIONS: Array<{
@@ -145,23 +145,6 @@ const formatFileSize = (bytes: number) => {
   const value = bytes / Math.pow(1024, power);
   return `${value % 1 === 0 ? value : value.toFixed(1)} ${units[power]}`;
 };
-
-const fileToBase64 = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result === "string") {
-        const commaIndex = result.indexOf(",");
-        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
-      } else {
-        reject(new Error("Unable to read file"));
-      }
-    };
-    reader.onerror = () =>
-      reject(reader.error ?? new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
 
 function unwrapData<T>(response: unknown): T | null {
   if (!response) return null;
@@ -304,6 +287,41 @@ const mapPaymentStatusToApi = (
     default:
       return "PENDING";
   }
+};
+
+const getPaymentModeLabel = (mode: Payment["mode"]) => {
+  switch (mode) {
+    case "cash":
+      return "Cash";
+    case "card":
+      return "Card";
+    case "gateway":
+      return "Online / Gateway";
+    case "bank":
+    default:
+      return "Bank Transfer";
+  }
+};
+
+const getAttachmentPreviewKind = (
+  url: string,
+): AttachmentPreview["kind"] => {
+  const normalized = url.toLowerCase();
+  if (
+    normalized.startsWith("data:image/") ||
+    /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/.test(normalized)
+  ) {
+    return "image";
+  }
+
+  if (
+    normalized.startsWith("data:application/pdf") ||
+    /\.pdf(\?|$)/.test(normalized)
+  ) {
+    return "pdf";
+  }
+
+  return "other";
 };
 
 const mapBookingFromApi = (raw: any): Booking => {
@@ -506,6 +524,8 @@ const mapPaymentFromApi = (raw: any): Payment => {
       raw?.gatewayPaymentId ??
       raw?.gateway_payment_id ??
       undefined,
+    proofUrl: raw?.proofUrl ?? raw?.proof_url ?? undefined,
+    invoiceUrl: raw?.invoiceUrl ?? raw?.invoice_url ?? undefined,
     status,
   };
 };
@@ -594,6 +614,60 @@ const Toast = ({
     </div>
   </div>
 );
+
+const AttachmentPreviewModal = ({
+  preview,
+  onClose,
+}: {
+  preview: AttachmentPreview | null;
+  onClose: () => void;
+}) => {
+  if (!preview) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate pr-4">
+            {preview.title}
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+            aria-label="Close preview"
+          >
+            <FaXmark className="text-xl" />
+          </button>
+        </div>
+        <div className="p-4 bg-gray-100 dark:bg-gray-950">
+          {preview.kind === "image" && (
+            <div className="h-[70vh] overflow-auto flex items-center justify-center">
+              <img
+                src={preview.url}
+                alt={preview.title}
+                className="max-h-full max-w-full rounded-lg shadow"
+              />
+            </div>
+          )}
+          {preview.kind === "pdf" && (
+            <iframe
+              src={preview.url}
+              title={preview.title}
+              className="w-full h-[70vh] rounded-lg bg-white"
+            />
+          )}
+          {preview.kind === "other" && (
+            <div className="h-[70vh] flex items-center justify-center text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Preview is not available for this file type.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Invoice Details Modal
 const InvoiceDetailsModal = ({
@@ -867,6 +941,8 @@ const PaymentDetailsModal = ({
   remainingAmount,
   onClose,
   onAddPayment,
+  onPreviewAttachment,
+  onDownloadAttachment,
 }: {
   isOpen: boolean;
   payments: Payment[];
@@ -875,6 +951,12 @@ const PaymentDetailsModal = ({
   remainingAmount: number;
   onClose: () => void;
   onAddPayment: () => void;
+  onPreviewAttachment: (url: string, title: string) => void;
+  onDownloadAttachment: (
+    paymentId: string,
+    attachmentType: AttachmentType,
+    fileName: string,
+  ) => Promise<void> | void;
 }) => {
   if (!isOpen) return null;
 
@@ -930,29 +1012,97 @@ const PaymentDetailsModal = ({
               {payments.map((payment) => (
                 <div
                   key={payment.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4"
                 >
-	                  <div>
-	                    <p className="text-sm font-medium text-gray-900">
-	                      {formatAmount(payment.amount)}
-	                    </p>
-	                    <p className="text-xs text-gray-500">
-	                      {new Date(payment.date).toLocaleString()} •{" "}
-	                      {payment.mode}
-	                      {payment.reference ? ` • Ref: ${payment.reference}` : ""}
-	                    </p>
-	                  </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      payment.status === "completed" ?
-                        "bg-green-100 text-green-800"
-                      : payment.status === "pending" ?
-                        "bg-yellow-100 text-yellow-800"
-                      : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {payment.status}
-                  </span>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {formatAmount(payment.amount)}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Payment Type: {getPaymentModeLabel(payment.mode)}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Payment Date: {new Date(payment.date).toLocaleString()}
+                      </p>
+                      {payment.reference && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Reference: {payment.reference}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                        payment.status === "completed" ?
+                          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                        : payment.status === "pending" ?
+                          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+                        : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                      }`}
+                    >
+                      {payment.status}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {payment.invoiceUrl && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onPreviewAttachment(
+                              payment.invoiceUrl as string,
+                              `Invoice - ${payment.reference || payment.id}`,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                        >
+                          <FaEye /> View Invoice
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onDownloadAttachment(
+                              payment.id,
+                              "invoice",
+                              `invoice-${payment.reference || payment.id}`,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                        >
+                          <FaDownload /> Download Invoice
+                        </button>
+                      </>
+                    )}
+                    {payment.proofUrl && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onPreviewAttachment(
+                              payment.proofUrl as string,
+                              `Payment Proof - ${payment.reference || payment.id}`,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                        >
+                          <FaEye /> View Proof
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onDownloadAttachment(
+                              payment.id,
+                              "proof",
+                              `proof-${payment.reference || payment.id}`,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                        >
+                          <FaDownload /> Download Proof
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1121,57 +1271,8 @@ const AddPaymentModal = ({
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!validate()) return;
-
-    let invoiceAttachment:
-      | {
-          name: string;
-          type: string;
-          size: number;
-          data: string;
-        }
-      | undefined;
-    let proofAttachment:
-      | {
-          name: string;
-          type: string;
-          size: number;
-          data: string;
-        }
-      | undefined;
-
-    if (invoiceFile) {
-      try {
-        const base64 = await fileToBase64(invoiceFile);
-        invoiceAttachment = {
-          name: invoiceFile.name,
-          type: invoiceFile.type,
-          size: invoiceFile.size,
-          data: base64,
-        };
-      } catch (error) {
-        console.error("Failed to process invoice PDF", error);
-        setInvoiceUploadError("Unable to read the invoice PDF. Please try again.");
-        return;
-      }
-    }
-
-    if (proofFile) {
-      try {
-        const base64 = await fileToBase64(proofFile);
-        proofAttachment = {
-          name: proofFile.name,
-          type: proofFile.type,
-          size: proofFile.size,
-          data: base64,
-        };
-      } catch (error) {
-        console.error("Failed to process payment proof", error);
-        setProofUploadError("Unable to read the proof file. Please try again.");
-        return;
-      }
-    }
 
     onSubmit({
       amount: Number(formData.amount),
@@ -1179,8 +1280,8 @@ const AddPaymentModal = ({
       status: formData.status,
       referenceId: formData.referenceId.trim() || undefined,
       notes: formData.notes.trim() || undefined,
-      invoiceAttachment,
-      proofAttachment,
+      invoiceFile: invoiceFile || undefined,
+      proofFile: proofFile || undefined,
     });
   };
 
@@ -1492,6 +1593,8 @@ const BookingDetailPage: React.FC = () => {
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [attachmentPreview, setAttachmentPreview] =
+    useState<AttachmentPreview | null>(null);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ show: true, message, type });
@@ -1499,6 +1602,53 @@ const BookingDetailPage: React.FC = () => {
       () => setToast({ show: false, message: "", type: "success" }),
       3000,
     );
+  };
+
+  const handlePreviewAttachment = (url: string, title: string) => {
+    if (!url) {
+      showToast("File is not available for preview", "info");
+      return;
+    }
+
+    setAttachmentPreview({
+      url,
+      title,
+      kind: getAttachmentPreviewKind(url),
+    });
+  };
+
+  const handleDownloadAttachment = async (
+    paymentId: string,
+    attachmentType: AttachmentType,
+    fileName: string,
+  ) => {
+    try {
+      const blob = (await paymentsApi.downloadAttachment(
+        paymentId,
+        attachmentType,
+      )) as Blob;
+
+      if (!(blob instanceof Blob)) {
+        throw new Error("Invalid download response");
+      }
+
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      showToast(
+        getApiErrorMessage(
+          error,
+          `Failed to download ${attachmentType === "invoice" ? "invoice" : "proof"}`,
+        ),
+        "error",
+      );
+    }
   };
 
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -1704,10 +1854,30 @@ const BookingDetailPage: React.FC = () => {
         Array.isArray(invoiceData) ? invoiceData : []).map((row) =>
         mapInvoiceFromApi(row, resolvedBooking),
       );
+      const invoiceUrlByNumber = new Map<string, string>();
+      for (const invoice of mappedInvoices) {
+        const normalizedInvoiceNumber = String(invoice.invoiceNumber || "")
+          .trim()
+          .toUpperCase();
+        if (normalizedInvoiceNumber && invoice.pdfUrl) {
+          invoiceUrlByNumber.set(normalizedInvoiceNumber, invoice.pdfUrl);
+        }
+      }
+
       const mappedPayments = (
-        Array.isArray(paymentData) ? paymentData : []).map((row) =>
-        mapPaymentFromApi(row),
-      );
+        Array.isArray(paymentData) ? paymentData : []).map((row) => {
+        const payment = mapPaymentFromApi(row);
+        const referenceKey = String(payment.reference || "")
+          .trim()
+          .toUpperCase();
+        const fallbackInvoiceUrl =
+          (referenceKey && invoiceUrlByNumber.get(referenceKey)) ||
+          (mappedInvoices.length === 1 ? mappedInvoices[0].pdfUrl : undefined);
+        return {
+          ...payment,
+          invoiceUrl: payment.invoiceUrl || fallbackInvoiceUrl || undefined,
+        };
+      });
       const mappedHistory = buildHistory(
         Array.isArray(statusData) ? statusData : [],
         mappedInvoices,
@@ -1889,20 +2059,52 @@ const BookingDetailPage: React.FC = () => {
     const remainingAfterPayment = Math.max(remainingAmount - payload.amount, 0);
     const apiStatus = mapPaymentStatusToApi(payload.status);
     const isVerified = payload.status === "completed";
+    const normalizedStatus =
+      apiStatus === "FULL" && remainingAfterPayment > 0 ? "PARTIAL" : apiStatus;
+    const normalizedMode = mapPaymentModeToApi(payload.mode);
+    const paymentReference = payload.referenceId?.trim() || undefined;
+    const paidAt = isVerified ? new Date().toISOString() : undefined;
+    const hasAttachment = Boolean(payload.invoiceFile || payload.proofFile);
     try {
       setSavingPayment(true);
-      await paymentsApi.create({
-        bookingId: id,
-        amount: payload.amount,
-        currency: booking.clientCurrency,
-        paymentMode: mapPaymentModeToApi(payload.mode),
-        paymentReference: payload.referenceId,
-        status:
-          apiStatus === "FULL" && remainingAfterPayment > 0 ? "PARTIAL"
-          : apiStatus,
-        isVerified,
-        paidAt: isVerified ? new Date().toISOString() : undefined,
-      });
+      if (hasAttachment) {
+        const formData = new FormData();
+        formData.append("bookingId", id);
+        formData.append("amount", String(payload.amount));
+        formData.append("currency", booking.clientCurrency || "INR");
+        formData.append("paymentMode", normalizedMode);
+        formData.append("status", normalizedStatus);
+        formData.append("isVerified", String(isVerified));
+        if (paymentReference) {
+          formData.append("paymentReference", paymentReference);
+        }
+        if (paidAt) {
+          formData.append("paidAt", paidAt);
+        }
+        if (payload.proofFile) {
+          formData.append("proofFile", payload.proofFile, payload.proofFile.name);
+        }
+        if (payload.invoiceFile) {
+          formData.append(
+            "invoiceFile",
+            payload.invoiceFile,
+            payload.invoiceFile.name,
+          );
+        }
+
+        await paymentsApi.create(formData);
+      } else {
+        await paymentsApi.create({
+          bookingId: id,
+          amount: payload.amount,
+          currency: booking.clientCurrency,
+          paymentMode: normalizedMode,
+          paymentReference,
+          status: normalizedStatus,
+          isVerified,
+          paidAt,
+        });
+      }
       await fetchBookingData();
       setShowAddPaymentModal(false);
       showToast("Payment recorded successfully", "success");
@@ -2115,7 +2317,16 @@ const BookingDetailPage: React.FC = () => {
     );
   };
 
-  const renderSegmentsTable = (value: unknown, emptyLabel: string) => {
+  type SegmentTableOptions = {
+    preferredColumns?: string[];
+    excludeColumns?: string[];
+  };
+
+  const renderSegmentsTable = (
+    value: unknown,
+    emptyLabel: string,
+    options: SegmentTableOptions = {},
+  ) => {
     const rows = toRecordArray(value);
     if (!rows.length) {
       return (
@@ -2123,12 +2334,44 @@ const BookingDetailPage: React.FC = () => {
       );
     }
 
-    const columns = Array.from(
+    const excludeColumns = new Set(
+      (options.excludeColumns || []).map((column) => column.toLowerCase()),
+    );
+    const preferredColumns = (options.preferredColumns || []).map((column) =>
+      column.toLowerCase(),
+    );
+
+    const allColumns = Array.from(
       rows.reduce((set, row) => {
         Object.keys(row).forEach((key) => set.add(key));
         return set;
       }, new Set<string>()),
     );
+
+    const filteredColumns = allColumns.filter(
+      (column) => !excludeColumns.has(column.toLowerCase()),
+    );
+
+    const preferredResolved = preferredColumns
+      .map((preferred) =>
+        filteredColumns.find((column) => column.toLowerCase() === preferred),
+      )
+      .filter(Boolean) as string[];
+
+    const remainingColumns = filteredColumns
+      .filter(
+        (column) =>
+          !preferredResolved.some(
+            (selected) => selected.toLowerCase() === column.toLowerCase(),
+          ),
+      )
+      .sort((left, right) =>
+        toLabel(left).localeCompare(toLabel(right), undefined, {
+          sensitivity: "base",
+        }),
+      );
+
+    const columns = [...preferredResolved, ...remainingColumns];
 
     if (!columns.length) {
       return (
@@ -2571,6 +2814,13 @@ const BookingDetailPage: React.FC = () => {
         remainingAmount={remainingPaymentAmount}
         onClose={() => setShowPaymentsModal(false)}
         onAddPayment={handleOpenAddPayment}
+        onPreviewAttachment={handlePreviewAttachment}
+        onDownloadAttachment={handleDownloadAttachment}
+      />
+
+      <AttachmentPreviewModal
+        preview={attachmentPreview}
+        onClose={() => setAttachmentPreview(null)}
       />
 
       <AddPaymentModal
@@ -3026,6 +3276,43 @@ const BookingDetailPage: React.FC = () => {
                               {renderSegmentsTable(
                                 quotationServiceRows,
                                 "No service rows saved",
+                                {
+                                  preferredColumns: [
+                                    "label",
+                                    "serviceName",
+                                    "description",
+                                    "supplierName",
+                                    "baseCost",
+                                    "markupPercentage",
+                                    "markup_percent",
+                                    "markupPercent",
+                                    "markupValue",
+                                    "markupAmount",
+                                    "markup_value",
+                                    "markup_amount",
+                                    "cost",
+                                    "quantity",
+                                    "qty",
+                                    "totalCost",
+                                    "total",
+                                    "notes",
+                                  ],
+                                  excludeColumns: [
+                                    "id",
+                                    "key",
+                                    "itemType",
+                                    "item_type",
+                                    "paymentTerms",
+                                    "payment_terms",
+                                    "supplierId",
+                                    "supplier_id",
+                                    "weight",
+                                    "enabled",
+                                    "isEnabled",
+                                    "createdAt",
+                                    "updatedAt",
+                                  ],
+                                },
                               )}
                             </div>
                           : null}
@@ -3236,29 +3523,98 @@ const BookingDetailPage: React.FC = () => {
                         payments.slice(0, 3).map((payment) => (
                           <div
                             key={payment.id}
-                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                            className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3"
                           >
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                {formatCurrency(
-                                  payment.amount,
-                                  booking.clientCurrency,
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 space-y-1">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency(
+                                    payment.amount,
+                                    booking.clientCurrency,
+                                  )}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  Payment Type: {getPaymentModeLabel(payment.mode)}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  Payment Date: {formatDateTime(payment.date)}
+                                </p>
+                                {payment.reference && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Reference: {payment.reference}
+                                  </p>
                                 )}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatDateTime(payment.date)} • {payment.mode}
-                                {payment.reference ? ` • ${payment.reference}` : ""}
-                              </p>
+                              </div>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                                  payment.status === "completed" ?
+                                    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                }`}
+                              >
+                                {payment.status}
+                              </span>
                             </div>
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                payment.status === "completed" ?
-                                  "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                              }`}
-                            >
-                              {payment.status}
-                            </span>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {payment.invoiceUrl && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handlePreviewAttachment(
+                                        payment.invoiceUrl as string,
+                                        `Invoice - ${payment.reference || payment.id}`,
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                                  >
+                                    <FaEye /> View Invoice
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDownloadAttachment(
+                                        payment.id,
+                                        "invoice",
+                                        `invoice-${payment.reference || payment.id}`,
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                                  >
+                                    <FaDownload /> Download Invoice
+                                  </button>
+                                </>
+                              )}
+                              {payment.proofUrl && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handlePreviewAttachment(
+                                        payment.proofUrl as string,
+                                        `Payment Proof - ${payment.reference || payment.id}`,
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                                  >
+                                    <FaEye /> View Proof
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDownloadAttachment(
+                                        payment.id,
+                                        "proof",
+                                        `proof-${payment.reference || payment.id}`,
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800"
+                                  >
+                                    <FaDownload /> Download Proof
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         ))
                       )}

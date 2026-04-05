@@ -22,6 +22,17 @@ function createSuppliersEvents({ eventBus, logger }) {
       );
       eventBus.emit("suppliers.payable_updated", payload);
     },
+    emitPayableSettled(payload) {
+      logger.info(
+        {
+          payableId: payload.payable?.id,
+          settlementId: payload.settlement?.id,
+          supplierId: payload.payable?.supplierId,
+        },
+        "suppliers.payable_settled",
+      );
+      eventBus.emit("suppliers.payable_settled", payload);
+    },
     emitPayableDeadlineAlert(payload) {
       logger.warn(
         {

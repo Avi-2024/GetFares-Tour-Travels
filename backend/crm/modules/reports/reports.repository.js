@@ -629,9 +629,27 @@ function createReportsRepository({ db, schema }) {
             COALESCE(
               NULLIF(TRIM(srv.item ->> 'label'), ''),
               NULLIF(TRIM(srv.item ->> 'serviceName'), ''),
+              CASE LOWER(COALESCE(NULLIF(TRIM(srv.item ->> 'key'), ''), ''))
+                WHEN 'hotel' THEN 'Accommodation'
+                WHEN 'flights' THEN 'Flights'
+                WHEN 'tours' THEN 'Tours & Activities'
+                WHEN 'visa' THEN 'Visa Services'
+                WHEN 'insurance' THEN 'Insurance'
+                WHEN 'insurance2' THEN 'Land Arrangement'
+                ELSE NULL
+              END,
+              CASE UPPER(COALESCE(NULLIF(TRIM(srv.item ->> 'itemType'), ''), ''))
+                WHEN 'HOTEL' THEN 'Accommodation'
+                WHEN 'FLIGHT' THEN 'Flights'
+                WHEN 'TRANSFER' THEN 'Land Arrangement'
+                WHEN 'VISA' THEN 'Visa Services'
+                WHEN 'INSURANCE' THEN 'Insurance'
+                WHEN 'OTHER' THEN 'Other'
+                ELSE NULL
+              END,
               NULLIF(TRIM(srv.item ->> 'itemType'), ''),
               NULLIF(TRIM(srv.item ->> 'key'), ''),
-              'OTHER'
+              'Other'
             ) AS service_label,
             CASE
               WHEN COALESCE(srv.item ->> 'baseCost', '') ~ '^-?\\d+(\\.\\d+)?$'

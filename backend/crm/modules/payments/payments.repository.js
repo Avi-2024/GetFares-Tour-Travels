@@ -71,6 +71,7 @@ function createPaymentsRepository({ db, logger, schema }) {
       gatewaySignature: row.gateway_signature ?? row.gatewaySignature ?? null,
       paymentReference: row.payment_reference ?? row.paymentReference ?? null,
       proofUrl: row.proof_url ?? row.proofUrl ?? null,
+      invoiceUrl: row.invoice_url ?? row.invoiceUrl ?? null,
       status: row.status ?? "PENDING",
       isVerified: toBoolean(row.is_verified ?? row.isVerified, false),
       verifiedBy: row.verified_by ?? row.verifiedBy ?? null,
@@ -153,6 +154,22 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
 
     return columns.has(columnName);
+  }
+
+  async function hasColumnFresh(tableName, columnName) {
+    let exists = await hasColumn(tableName, columnName);
+    if (exists) {
+      return true;
+    }
+
+    if (!canUseRawQuery()) {
+      return exists;
+    }
+
+    // Column metadata can become stale when migrations run while server is live.
+    columnCache.delete(tableName);
+    exists = await hasColumn(tableName, columnName);
+    return exists;
   }
 
   function mapListFilters(filters = {}) {
@@ -451,13 +468,39 @@ function createPaymentsRepository({ db, logger, schema }) {
 
     async create(payload) {
       logger.debug({ module: "payments", payload }, "Creating payment");
-      const row = await db.insert(schema.tableName, payload);
+      const normalizedPayload = { ...payload };
+      let hasInvoiceUrlColumn = true;
+      try {
+        hasInvoiceUrlColumn = await hasColumnFresh(
+          schema.tableName,
+          "invoice_url",
+        );
+      } catch (_error) {
+        hasInvoiceUrlColumn = true;
+      }
+      if (!hasInvoiceUrlColumn) {
+        delete normalizedPayload.invoice_url;
+      }
+      const row = await db.insert(schema.tableName, normalizedPayload);
       return toPayment(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: "payments", id, payload }, "Updating payment");
-      const row = await db.update(schema.tableName, id, payload);
+      const normalizedPayload = { ...payload };
+      let hasInvoiceUrlColumn = true;
+      try {
+        hasInvoiceUrlColumn = await hasColumnFresh(
+          schema.tableName,
+          "invoice_url",
+        );
+      } catch (_error) {
+        hasInvoiceUrlColumn = true;
+      }
+      if (!hasInvoiceUrlColumn) {
+        delete normalizedPayload.invoice_url;
+      }
+      const row = await db.update(schema.tableName, id, normalizedPayload);
       return toPayment(row);
     },
 

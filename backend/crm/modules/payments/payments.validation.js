@@ -28,9 +28,10 @@ const createPayload = z.object({
   gatewaySignature: z.string().trim().min(2).max(4000).optional(),
   paymentReference: z.string().trim().min(2).max(100).optional(),
   proofUrl: z.string().url().max(2000).optional(),
+  invoiceUrl: z.string().url().max(2000).optional(),
   status: paymentStatus.optional(),
   paidAt: dateTimeString.optional(),
-  isVerified: z.boolean().optional(),
+  isVerified: z.coerce.boolean().optional(),
 });
 
 const updatePayload = z
@@ -44,9 +45,10 @@ const updatePayload = z
     gatewaySignature: z.string().trim().min(2).max(4000).optional(),
     paymentReference: z.string().trim().min(2).max(100).optional(),
     proofUrl: z.string().url().max(2000).optional(),
+    invoiceUrl: z.string().url().max(2000).optional(),
     status: paymentStatus.optional(),
     paidAt: dateTimeString.optional(),
-    isVerified: z.boolean().optional(),
+    isVerified: z.coerce.boolean().optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,
@@ -59,6 +61,7 @@ const verifyPayload = z.object({
       paidAt: dateTimeString.optional(),
       status: paymentStatus.optional(),
       proofUrl: z.string().url().max(2000).optional(),
+      invoiceUrl: z.string().url().max(2000).optional(),
       paymentReference: z.string().trim().min(2).max(100).optional(),
       gatewayPaymentId: z.string().trim().min(2).max(150).optional(),
     })
@@ -82,6 +85,17 @@ const update = z.object({
 const byId = z.object({
   body: z.object({}).optional(),
   params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const attachmentType = z.enum(["invoice", "proof"]);
+
+const downloadAttachment = z.object({
+  body: z.object({}).optional(),
+  params: z.object({
+    id: z.string().uuid(),
+    attachmentType,
+  }),
   query: z.object({}).optional(),
 });
 
@@ -113,6 +127,7 @@ const PaymentsValidation = {
   list,
   stats,
   verify: verifyPayload,
+  downloadAttachment,
 };
 
 export { PaymentsValidation };

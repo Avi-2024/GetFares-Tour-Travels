@@ -38,6 +38,7 @@ import ProfilePage from "./pages/profile/ProfilePage";
 import PackagesPage from "./pages/packages/PackagesPage";
 import DestinationsPage from "./pages/destinations/DestinationsPage";
 import SuppliersPage from "./pages/suppliers/SuppliersPage";
+import SupplierDetailPage from "./pages/suppliers/SupplierDetailPage";
 
 function App() {
   return (
@@ -139,6 +140,7 @@ function App() {
 
             <Route element={<PermissionRoute permission="suppliers:read" />}>
               <Route path="/suppliers" element={<SuppliersPage />} />
+              <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
             </Route>
 
             <Route element={<PermissionRoute permission="notifications:read" />}>

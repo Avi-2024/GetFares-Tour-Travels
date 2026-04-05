@@ -1056,8 +1056,30 @@ const FinanceSystem: React.FC = () => {
   const fetchPayments = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await paymentsApi.list({ page: 1, limit: 300 })
-      setPayments(unwrapList(response).map(mapPayment))
+      const pageSize = 300
+      const firstResponse = await paymentsApi.list({ page: 1, limit: pageSize })
+      const firstPayload = unwrapData(firstResponse)
+      const firstRows = Array.isArray(firstPayload?.rows)
+        ? firstPayload.rows
+        : unwrapList(firstResponse)
+      const totalPages = Math.max(1, toNumber(firstPayload?.pagination?.totalPages, 1))
+
+      if (totalPages <= 1) {
+        setPayments(firstRows.map(mapPayment))
+        return
+      }
+
+      const remainingResponses = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_item, idx) =>
+          paymentsApi.list({ page: idx + 2, limit: pageSize })
+        )
+      )
+      const remainingRows = remainingResponses.flatMap(response => {
+        const payload = unwrapData(response)
+        if (Array.isArray(payload?.rows)) return payload.rows
+        return unwrapList(response)
+      })
+      setPayments([...firstRows, ...remainingRows].map(mapPayment))
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load payments'))
     } finally {
@@ -1613,7 +1635,7 @@ const FinanceSystem: React.FC = () => {
 
   return (
     <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
-      <div className='mx-auto w-full max-w-9xl overflow-x-hidden px-0 py-4 sm:px-0 sm:py-6 lg:px-0 lg:py-8'>
+      <div className='mx-auto w-full max-w-full px-4 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8'>
         {/* Header */}
         <div className='mb-4 -mt-2 sm:-mt-8'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
@@ -1720,7 +1742,7 @@ const FinanceSystem: React.FC = () => {
 
         {/* Tabs */}
         <div className='mb-6 hidden sm:block'>
-          <div className='flex min-w-max gap-2 overflow-x-auto border-b border-gray-200 pb-2 dark:border-gray-800'>
+          <div className='flex w-full flex-wrap gap-2 border-b border-gray-200 pb-2 dark:border-gray-800'>
             {tabItems.map(tab => {
               const Icon = tab.icon
               return (
@@ -2903,7 +2925,7 @@ const FinanceSystem: React.FC = () => {
                 <>
                   {/* Desktop Table */}
                   <div className='hidden md:block overflow-x-auto'>
-                    <table className='w-full'>
+                    <table className='w-full min-w-[980px]'>
                       <thead className='bg-gray-50 dark:bg-gray-800/50'>
                         <tr>
                           <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>

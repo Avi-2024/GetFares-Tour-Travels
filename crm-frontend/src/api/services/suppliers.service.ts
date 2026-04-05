@@ -3,7 +3,12 @@
  * Business logic layer for supplier and payables management
  */
 
-import { suppliersEndpoints, type CreateSupplierPayload, type CreatePayablePayload } from '../endpoints/suppliers.api';
+import {
+  suppliersEndpoints,
+  type CreateSupplierPayload,
+  type CreatePayablePayload,
+  type SettlePayablePayload,
+} from '../endpoints/suppliers.api';
 
 export class SuppliersService {
   async list(params?: Record<string, any>) {
@@ -52,6 +57,14 @@ export class SuppliersService {
 
   async updatePayable(payableId: string, payload: Partial<CreatePayablePayload>) {
     const response = await suppliersEndpoints.updatePayable(payableId, payload);
+    return response.data;
+  }
+
+  async settlePayable(payableId: string, payload: SettlePayablePayload) {
+    if (payload.amount <= 0) {
+      throw new Error('Settlement amount must be greater than 0');
+    }
+    const response = await suppliersEndpoints.settlePayable(payableId, payload);
     return response.data;
   }
 
