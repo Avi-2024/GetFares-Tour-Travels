@@ -38,7 +38,6 @@ function createLandingService({ repository }) {
     },
 
     async create(data) {
-      // Validate max 4 places
       const existing = await repository.findAll({ is_active: true });
       if (existing.length >= 4) {
         throw new AppError(
@@ -80,8 +79,10 @@ function createLandingService({ repository }) {
       if (data.tag !== undefined) updates.tag = normalizeText(data.tag);
       if (data.imageUrl !== undefined)
         updates.image_url = normalizeText(data.imageUrl);
-      if (data.ctaText !== undefined) updates.cta_text = normalizeText(data.ctaText);
-      if (data.ctaUrl !== undefined) updates.cta_url = normalizeText(data.ctaUrl);
+      if (data.ctaText !== undefined)
+        updates.cta_text = normalizeText(data.ctaText);
+      if (data.ctaUrl !== undefined)
+        updates.cta_url = normalizeText(data.ctaUrl);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
       if (data.isActive !== undefined) updates.is_active = data.isActive;

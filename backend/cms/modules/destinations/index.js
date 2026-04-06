@@ -1,8 +1,8 @@
-import { DestinationsSchema } from './destinations.schema.js';
-import { createDestinationsRepository } from './destinations.repository.js';
-import { createDestinationsService } from './destinations.service.js';
-import { createDestinationsController } from './destinations.controller.js';
-import { createDestinationsRoutes } from './destinations.routes.js';
+import { DestinationsSchema } from "./destinations.schema.js";
+import { createDestinationsRepository } from "./destinations.repository.js";
+import { createDestinationsService } from "./destinations.service.js";
+import { createDestinationsController } from "./destinations.controller.js";
+import { createDestinationsRoutes } from "./destinations.routes.js";
 
 function createDestinationsModule({ db }) {
   const repository = createDestinationsRepository({

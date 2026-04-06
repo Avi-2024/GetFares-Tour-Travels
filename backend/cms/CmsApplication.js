@@ -6,11 +6,6 @@ import { createLogger } from "../crm/core/logger/logger.js";
 import { ErrorHandler } from "./core/errors/Errors.js";
 import { LandingPlacesModule } from "./modules/landing/LandingPlaces.module.js";
 
-/**
- * CMS Application Class
- * Single Responsibility: Application composition and lifecycle
- * Implements Dependency Injection for all modules
- */
 export class CmsApplication {
   constructor() {
     this._config = Configuration.getInstance();
@@ -21,22 +16,16 @@ export class CmsApplication {
     this._isInitialized = false;
   }
 
-  /**
-   * Initialize application
-   * Template method pattern
-   */
   async initialize() {
     if (this._isInitialized) {
       throw new Error("Application already initialized");
     }
 
-    // Validate configuration
     const validation = this._config.validate();
     if (!validation.isValid) {
       throw new Error(`Configuration errors: ${validation.errors.join(", ")}`);
     }
 
-    // Setup components
     this._setupLogger();
     await this._setupDatabase();
     this._setupMiddleware();
@@ -48,16 +37,10 @@ export class CmsApplication {
     this._logger.info("CMS Application initialized successfully");
   }
 
-  /**
-   * Setup logger
-   */
   _setupLogger() {
     this._logger = createLogger({ name: "cms" });
   }
 
-  /**
-   * Setup database connection
-   */
   async _setupDatabase() {
     this._database = createDatabaseConnection({
       config: {
@@ -67,7 +50,6 @@ export class CmsApplication {
       logger: this._logger,
     });
 
-    // Test connection
     try {
       await this._database.healthCheck({ timeoutMs: 5000 });
       this._logger.info("Database connection established");
@@ -77,18 +59,10 @@ export class CmsApplication {
     }
   }
 
-  /**
-   * Setup Express middleware
-   */
   _setupMiddleware() {
-    // CORS
     this._app.use(cors(this._config.cors));
-
-    // Body parsers
     this._app.use(express.json({ limit: "10mb" }));
     this._app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
-    // Request logging
     this._app.use((req, res, next) => {
       this._logger.info({
         method: req.method,
@@ -99,50 +73,27 @@ export class CmsApplication {
     });
   }
 
-  /**
-   * Setup all modules
-   * Dependency Injection
-   */
   _setupModules() {
     this._modules.landing = LandingPlacesModule.create(
       this._database,
       this._logger,
     );
-
-    // Add more modules here as they are created
-    // this._modules.destinations = DestinationsModule.create(this._database, this._logger);
-    // this._modules.packages = PackagesModule.create(this._database, this._logger);
-    // this._modules.visa = VisaModule.create(this._database, this._logger);
   }
 
-  /**
-   * Setup routes
-   */
   _setupRoutes() {
-    // Health check
     this._app.get("/health", this._handleHealthCheck.bind(this));
-
-    // CMS API Routes
     this._app.use("/api/cms/landing-places", this._modules.landing.routes);
-
-    // Public API Routes
     this._app.get(
       "/api/public/landing/places",
       this._handlePublicLandingPlaces.bind(this),
     );
   }
 
-  /**
-   * Setup error handling
-   */
   _setupErrorHandling() {
     this._app.use(ErrorHandler.notFound);
     this._app.use(ErrorHandler.handle);
   }
 
-  /**
-   * Health check handler
-   */
   async _handleHealthCheck(req, res) {
     try {
       const dbHealth = await this._database.healthCheck({ timeoutMs: 5000 });
@@ -162,9 +113,6 @@ export class CmsApplication {
     }
   }
 
-  /**
-   * Public landing places handler
-   */
   async _handlePublicLandingPlaces(req, res, next) {
     try {
       const places = await this._modules.landing.service.listActive();
@@ -177,9 +125,6 @@ export class CmsApplication {
     }
   }
 
-  /**
-   * Start server
-   */
   async start() {
     if (!this._isInitialized) {
       await this.initialize();
@@ -197,9 +142,6 @@ export class CmsApplication {
     });
   }
 
-  /**
-   * Shutdown gracefully
-   */
   async shutdown() {
     this._logger.info("Shutting down CMS Application...");
 
@@ -211,7 +153,6 @@ export class CmsApplication {
     this._logger.info("CMS Application shutdown complete");
   }
 
-  // Getters
   get app() {
     return this._app;
   }
@@ -236,9 +177,6 @@ export class CmsApplication {
     return this._isInitialized;
   }
 
-  /**
-   * Static factory method
-   */
   static create() {
     return new CmsApplication();
   }

@@ -43,7 +43,7 @@ export class TextField extends Component<TextFieldProps> {
       >
         <label
           className={ClassNameBuilder.join(
-            "text-sm font-medium text-[var(--text-primary)]",
+            "text-sm font-medium text-(--text-primary)",
             labelClassName,
           )}
           htmlFor={id}
@@ -53,7 +53,7 @@ export class TextField extends Component<TextFieldProps> {
         <div className="relative flex items-center">
           {startIcon && (
             <span
-              className="absolute left-4 text-[var(--text-secondary)]"
+              className="absolute left-4 text-(--text-secondary)"
               aria-hidden="true"
             >
               {startIcon}
@@ -62,7 +62,7 @@ export class TextField extends Component<TextFieldProps> {
           <input
             id={id}
             className={ClassNameBuilder.join(
-              "h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] transition focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]",
+              "h-11 w-full rounded-xl border border-(--border) bg-(--surface) text-sm text-(--text-primary) placeholder:text-(--text-secondary) transition focus:border-(--primary) focus:outline-none focus:ring-2 focus:ring-(--ring)",
               inputPadding,
               inputClassName,
             )}

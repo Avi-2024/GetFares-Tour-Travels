@@ -1,7 +1,15 @@
 import dotenv from "dotenv";
 import { Client } from "pg";
+import bcrypt from "bcryptjs";
 
 dotenv.config();
+
+const CMS_ADMIN_USER = Object.freeze({
+  fullName: "CMS Admin",
+  email: "admin@travel-cms.com",
+  password: "admin@123",
+  role: "CMS_ACCESS",
+});
 
 function q(identifier) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
@@ -121,6 +129,63 @@ async function ensureSchema(client) {
     CREATE UNIQUE INDEX IF NOT EXISTS ux_cms_media_assets_entity_url
       ON cms_media_assets(entity_type, entity_id, media_url);
   `);
+}
+
+async function ensureCmsAccessUser(client) {
+  const roleResult = await client.query(
+    `
+      INSERT INTO roles (name, description, is_active)
+      VALUES ($1, $2, TRUE)
+      ON CONFLICT (name)
+      DO UPDATE SET
+        description = EXCLUDED.description,
+        is_active = TRUE,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING id, name
+    `,
+    [CMS_ADMIN_USER.role, "CMS-only access role"],
+  );
+
+  const roleId = roleResult.rows?.[0]?.id;
+  if (!roleId) {
+    throw new Error("Failed to resolve CMS_ACCESS role.");
+  }
+
+  const passwordHash = await bcrypt.hash(CMS_ADMIN_USER.password, 12);
+
+  await client.query(
+    `
+      INSERT INTO users (full_name, email, phone, password_hash, role_id, is_active)
+      VALUES ($1, $2, $3, $4, $5, TRUE)
+      ON CONFLICT (email)
+      DO UPDATE SET
+        full_name = EXCLUDED.full_name,
+        password_hash = EXCLUDED.password_hash,
+        role_id = EXCLUDED.role_id,
+        is_active = TRUE,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING id, email
+    `,
+    [
+      CMS_ADMIN_USER.fullName,
+      CMS_ADMIN_USER.email,
+      null,
+      passwordHash,
+      roleId,
+    ],
+  );
+
+  await client.query(
+    `
+      UPDATE users
+      SET
+        is_active = FALSE,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE role_id = $1
+        AND email <> $2
+    `,
+    [roleId, CMS_ADMIN_USER.email],
+  );
 }
 
 function seedData() {
@@ -399,6 +464,7 @@ async function runSeed(client) {
   }
 
   return {
+    cmsAuth: 1,
     landing: landingRows.length,
     destinations: destinationsBySlug.size,
     packages: packagesBySlug.size,
@@ -425,11 +491,12 @@ async function main() {
   try {
     await client.query("BEGIN");
     await ensureSchema(client);
+    await ensureCmsAccessUser(client);
     const counts = await runSeed(client);
     await client.query("COMMIT");
     console.log("cms-seed completed successfully.");
     console.log(
-      `landing=${counts.landing}, destinations=${counts.destinations}, packages=${counts.packages}, visa=${counts.visa}, featured=${counts.featured}, media=${counts.media}`,
+      `cmsAuth=${counts.cmsAuth}, landing=${counts.landing}, destinations=${counts.destinations}, packages=${counts.packages}, visa=${counts.visa}, featured=${counts.featured}, media=${counts.media}`,
     );
   } catch (error) {
     await client.query("ROLLBACK");

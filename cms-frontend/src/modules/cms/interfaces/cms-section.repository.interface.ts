@@ -43,6 +43,7 @@ interface ICmsSectionRepository {
     },
   ): Promise<void>;
   deleteMedia(mediaId: string): Promise<void>;
+  uploadMedia(file: File): Promise<string>;
   listDestinationPackages(destinationId: string): Promise<DestinationPackageMapping[]>;
   mapDestinationPackage(
     destinationId: string,

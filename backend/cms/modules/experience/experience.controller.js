@@ -76,7 +76,10 @@ function createExperienceController({ service }) {
     }),
 
     upsertHeroSection: asyncHandler(async (req, res) => {
-      const row = await service.upsertHeroSection(req.params.sectionKey, req.body);
+      const row = await service.upsertHeroSection(
+        req.params.sectionKey,
+        req.body,
+      );
       res.json({ success: true, data: row });
     }),
   });

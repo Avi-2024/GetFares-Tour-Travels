@@ -1,5 +1,5 @@
-import { Component } from "react";
-import { ArrowDown, ArrowUp, ImagePlus, Star, Trash2 } from "lucide-react";
+import { Component, type ChangeEvent } from "react";
+import { ArrowDown, ArrowUp, ImagePlus, Star, Trash2, Upload } from "lucide-react";
 
 interface CmsEntityMediaEditorItem {
   id: string | null;
@@ -17,9 +17,12 @@ interface CmsEntityMediaEditorProps {
   mediaTitleDraft: string;
   mediaAltDraft: string;
   mediaErrorMessage: string;
+  mediaInfoMessage?: string;
+  isMediaUploading?: boolean;
   onMediaUrlDraftChange: (value: string) => void;
   onMediaTitleDraftChange: (value: string) => void;
   onMediaAltDraftChange: (value: string) => void;
+  onUploadMedia: (file: File) => Promise<void> | void;
   onAddMedia: () => void;
   onSetCoverMedia: (clientId: string) => void;
   onMoveMediaUp: (index: number) => void;
@@ -28,6 +31,14 @@ interface CmsEntityMediaEditorProps {
 }
 
 class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps> {
+  private handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
+    if (file) {
+      void this.props.onUploadMedia(file);
+    }
+    event.currentTarget.value = "";
+  };
+
   render() {
     const {
       mediaItems,
@@ -35,6 +46,8 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
       mediaTitleDraft,
       mediaAltDraft,
       mediaErrorMessage,
+      mediaInfoMessage,
+      isMediaUploading = false,
       onMediaUrlDraftChange,
       onMediaTitleDraftChange,
       onMediaAltDraftChange,
@@ -48,6 +61,23 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
     return (
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
         <h4 className="text-sm font-semibold text-[var(--text-primary)]">Media</h4>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
+            <Upload size={13} />
+            {isMediaUploading ? "Uploading..." : "Upload Image"}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={this.handleFileChange}
+              disabled={isMediaUploading}
+              className="hidden"
+            />
+          </label>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Upload a local image, or paste a media URL manually.
+          </p>
+        </div>
+
         <div className="mt-3 grid gap-2 md:grid-cols-[1.5fr_1fr_1fr_auto]">
           <input
             type="url"
@@ -73,12 +103,17 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
           <button
             type="button"
             onClick={onAddMedia}
+            disabled={isMediaUploading}
             className="inline-flex h-10 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] px-3 text-xs font-semibold text-white"
           >
             <ImagePlus size={13} />
             Add
           </button>
         </div>
+
+        {mediaInfoMessage && !mediaErrorMessage && (
+          <p className="mt-2 text-xs text-[var(--success)]">{mediaInfoMessage}</p>
+        )}
 
         {mediaErrorMessage && (
           <p className="mt-2 text-xs text-[var(--danger)]">{mediaErrorMessage}</p>

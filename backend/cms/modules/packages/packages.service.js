@@ -57,7 +57,6 @@ function createCmsPackagesService({ repository }) {
   }
 
   return Object.freeze({
-    // List published packages from CRM
     async listPublished() {
       const rows = await repository.findPublishedPackages();
       return rows.map(toPackage);
@@ -71,7 +70,6 @@ function createCmsPackagesService({ repository }) {
       return toPackage(row);
     },
 
-    // Main packages
     async listMainPackages() {
       const rows = await repository.findAllMainPackages();
       return rows.map(toMainPackage);
@@ -86,7 +84,6 @@ function createCmsPackagesService({ repository }) {
     },
 
     async createMainPackage(data) {
-      // Verify package exists and is published
       const pkg = await repository.findPackageById(data.packageId);
       if (!pkg) {
         throw new AppError(404, "Package not found", "NOT_FOUND");
@@ -146,7 +143,6 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
-    // Sub packages
     async listSubPackages(mainPackageId) {
       const mainPackage = await repository.findMainPackageById(mainPackageId);
       if (!mainPackage) {
@@ -158,7 +154,6 @@ function createCmsPackagesService({ repository }) {
     },
 
     async createSubPackage(data) {
-      // Verify main package exists
       const mainPackage = await repository.findMainPackageById(
         data.mainPackageId,
       );
@@ -166,7 +161,6 @@ function createCmsPackagesService({ repository }) {
         throw new AppError(404, "Main package not found", "NOT_FOUND");
       }
 
-      // Verify package exists and is published
       const pkg = await repository.findPackageById(data.packageId);
       if (!pkg) {
         throw new AppError(404, "Package not found", "NOT_FOUND");

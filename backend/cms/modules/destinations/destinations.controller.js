@@ -1,4 +1,4 @@
-import { asyncHandler } from '../../core/utils/index.js';
+import { asyncHandler } from "../../core/utils/index.js";
 
 function createDestinationsController({ service }) {
   return Object.freeze({
@@ -7,9 +7,9 @@ function createDestinationsController({ service }) {
       if (req.query.region) filters.region = req.query.region;
       if (req.query.category) filters.category = req.query.category;
       if (req.query.isActive !== undefined)
-        filters.is_active = req.query.isActive === 'true';
+        filters.is_active = req.query.isActive === "true";
       if (req.query.isPopular !== undefined)
-        filters.is_popular = req.query.isPopular === 'true';
+        filters.is_popular = req.query.isPopular === "true";
 
       const destinations = await service.list(filters);
       res.json({
@@ -124,7 +124,7 @@ function createDestinationsController({ service }) {
       const result = await service.mapPackage(
         req.params.id,
         mainPackageId,
-        displayOrder
+        displayOrder,
       );
       res.status(201).json({
         success: true,

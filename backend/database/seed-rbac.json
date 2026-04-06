@@ -7,7 +7,8 @@
     { "name": "visa_executive", "description": "System role: visa_executive" },
     { "name": "accounts", "description": "System role: accounts" },
     { "name": "marketing", "description": "System role: marketing" },
-    { "name": "management", "description": "System role: management" }
+    { "name": "management", "description": "System role: management" },
+    { "name": "CMS_ACCESS", "description": "CMS-only access role" }
   ],
   "permissions": [
     { "key": "*", "description": "All permissions", "isActive": true },
@@ -144,6 +145,7 @@
       "suppliers:read",
       "notifications:read",
       "notifications:update"
-    ]
+    ],
+    "CMS_ACCESS": []
   }
 }

@@ -122,6 +122,36 @@ class CmsMediaDatasource {
       .catch(() => this.httpClient.delete(`/cms/media/${mediaId}`));
   }
 
+  public async uploadMedia(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const payload = await this.httpClient
+      .post<unknown>("/api/cms/media/upload", formData)
+      .catch(() => this.httpClient.post<unknown>("/cms/media/upload", formData));
+
+    const record = this.accessor.toRecord(payload);
+    if (!record) {
+      throw new Error("Upload failed: empty response payload.");
+    }
+
+    const uploadedUrl = this.accessor.getText(
+      record,
+      "url",
+      "mediaUrl",
+      "media_url",
+      "fileUrl",
+      "file_url",
+      "path",
+    );
+
+    if (!uploadedUrl || uploadedUrl === "--") {
+      throw new Error("Upload failed: media URL not returned by server.");
+    }
+
+    return uploadedUrl;
+  }
+
   public async listDestinationPackages(
     destinationId: string,
   ): Promise<DestinationPackageMapping[]> {

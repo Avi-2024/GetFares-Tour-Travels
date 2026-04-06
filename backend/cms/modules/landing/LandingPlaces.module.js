@@ -1,20 +1,14 @@
-import { LandingPlacesRepository } from './LandingPlaces.repository.js';
-import { LandingPlacesService } from './LandingPlaces.service.js';
-import { LandingPlacesController } from './LandingPlaces.controller.js';
-import { LandingPlacesRouter } from './LandingPlaces.routes.js';
+import { LandingPlacesRepository } from "./LandingPlaces.repository.js";
+import { LandingPlacesService } from "./LandingPlaces.service.js";
+import { LandingPlacesController } from "./LandingPlaces.controller.js";
+import { LandingPlacesRouter } from "./LandingPlaces.routes.js";
 
-/**
- * Landing Places Module Factory
- * Implements Dependency Injection pattern
- * Single Responsibility: Module composition
- */
 export class LandingPlacesModule {
   constructor(database, logger = null) {
     if (!database) {
-      throw new Error('Database instance is required');
+      throw new Error("Database instance is required");
     }
 
-    // Create instances with dependency injection
     this._repository = new LandingPlacesRepository(database);
     this._service = new LandingPlacesService(this._repository, logger);
     this._controller = new LandingPlacesController(this._service);
@@ -41,9 +35,6 @@ export class LandingPlacesModule {
     return this._router.router;
   }
 
-  /**
-   * Static factory method
-   */
   static create(database, logger = null) {
     return new LandingPlacesModule(database, logger);
   }

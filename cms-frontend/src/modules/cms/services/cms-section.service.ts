@@ -82,6 +82,10 @@ class CmsSectionService implements ICmsSectionService {
     return this.repository.deleteMedia(mediaId);
   }
 
+  public uploadMedia(file: File): Promise<string> {
+    return this.repository.uploadMedia(file);
+  }
+
   public listDestinationPackages(
     destinationId: string,
   ): Promise<DestinationPackageMapping[]> {
