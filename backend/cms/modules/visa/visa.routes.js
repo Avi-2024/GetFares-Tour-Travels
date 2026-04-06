@@ -4,18 +4,13 @@ function createVisaRoutes({ controller }) {
   const router = express.Router();
 
   // Visa destination routes
-  router.get("/", controller.list);
-  router.get("/slug/:slug", controller.getBySlug);
-  router.get("/:id", controller.getById);
-  router.post("/", controller.create);
-  router.put("/:id", controller.update);
-  router.delete("/:id", controller.delete);
+  router.route("/").get(controller.list).post(controller.create);
+  router.route("/slug/:slug").get(controller.getBySlug);
+  router.route("/:id").get(controller.getById).put(controller.update).delete(controller.delete);
 
   // Details routes
-  router.get("/:id/details", controller.getDetails);
-  router.post("/:id/details", controller.addDetail);
-  router.put("/:id/details/:detailId", controller.updateDetail);
-  router.delete("/:id/details/:detailId", controller.deleteDetail);
+  router.route("/:id/details").get(controller.getDetails).post(controller.addDetail);
+  router.route("/:id/details/:detailId").put(controller.updateDetail).delete(controller.deleteDetail);
 
   return router;
 }

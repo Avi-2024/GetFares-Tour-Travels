@@ -17,7 +17,8 @@ function createExperienceService({ repository }) {
       rating: row.rating ? Number(row.rating) : 0,
       badgeText: row.badge_text,
       originalPrice: row.original_price ? Number(row.original_price) : null,
-      discountedPrice: row.discounted_price ? Number(row.discounted_price) : null,
+      discountedPrice:
+        row.discounted_price ? Number(row.discounted_price) : null,
       duration: row.duration,
       description: row.description,
       imageUrl: row.image_url,
@@ -117,7 +118,9 @@ function createExperienceService({ repository }) {
         tags: Array.isArray(data.tags) ? data.tags : [],
         highlights: Array.isArray(data.highlights) ? data.highlights : [],
         metadata:
-          data.metadata && typeof data.metadata === "object" ? data.metadata : {},
+          data.metadata && typeof data.metadata === "object" ?
+            data.metadata
+          : {},
         display_order: toNumber(data.displayOrder, 0),
         is_active: data.isActive !== false,
       });
@@ -137,7 +140,8 @@ function createExperienceService({ repository }) {
       if (data.subtitle !== undefined) {
         updates.subtitle = normalizeText(data.subtitle);
       }
-      if (data.category !== undefined) updates.category = normalizeText(data.category);
+      if (data.category !== undefined)
+        updates.category = normalizeText(data.category);
       if (data.campaignType !== undefined) {
         updates.campaign_type = normalizeText(data.campaignType);
       }
@@ -147,7 +151,8 @@ function createExperienceService({ repository }) {
       if (data.referenceId !== undefined) {
         updates.reference_id = normalizeText(data.referenceId);
       }
-      if (data.country !== undefined) updates.country = normalizeText(data.country);
+      if (data.country !== undefined)
+        updates.country = normalizeText(data.country);
       if (data.rating !== undefined) updates.rating = toNumber(data.rating, 0);
       if (data.badgeText !== undefined) {
         updates.badge_text = normalizeText(data.badgeText);
@@ -158,7 +163,8 @@ function createExperienceService({ repository }) {
       if (data.discountedPrice !== undefined) {
         updates.discounted_price = toNumber(data.discountedPrice, null);
       }
-      if (data.duration !== undefined) updates.duration = normalizeText(data.duration);
+      if (data.duration !== undefined)
+        updates.duration = normalizeText(data.duration);
       if (data.description !== undefined) {
         updates.description = normalizeText(data.description);
       }
@@ -168,9 +174,12 @@ function createExperienceService({ repository }) {
       if (data.buttonText !== undefined) {
         updates.button_text = normalizeText(data.buttonText);
       }
-      if (data.ctaUrl !== undefined) updates.cta_url = normalizeText(data.ctaUrl);
-      if (data.expiresOn !== undefined) updates.expires_on = data.expiresOn || null;
-      if (data.tags !== undefined && Array.isArray(data.tags)) updates.tags = data.tags;
+      if (data.ctaUrl !== undefined)
+        updates.cta_url = normalizeText(data.ctaUrl);
+      if (data.expiresOn !== undefined)
+        updates.expires_on = data.expiresOn || null;
+      if (data.tags !== undefined && Array.isArray(data.tags))
+        updates.tags = data.tags;
       if (data.highlights !== undefined && Array.isArray(data.highlights)) {
         updates.highlights = data.highlights;
       }
@@ -241,7 +250,8 @@ function createExperienceService({ repository }) {
       if (data.fromMonth !== undefined) {
         updates.from_month = normalizeText(data.fromMonth);
       }
-      if (data.toMonth !== undefined) updates.to_month = normalizeText(data.toMonth);
+      if (data.toMonth !== undefined)
+        updates.to_month = normalizeText(data.toMonth);
       if (data.description !== undefined) {
         updates.description = normalizeText(data.description);
       }
@@ -255,7 +265,8 @@ function createExperienceService({ repository }) {
       if (data.iconColor !== undefined) {
         updates.icon_color = normalizeText(data.iconColor);
       }
-      if (data.bgColor !== undefined) updates.bg_color = normalizeText(data.bgColor);
+      if (data.bgColor !== undefined)
+        updates.bg_color = normalizeText(data.bgColor);
       if (data.displayOrder !== undefined) {
         updates.display_order = toNumber(data.displayOrder, 0);
       }

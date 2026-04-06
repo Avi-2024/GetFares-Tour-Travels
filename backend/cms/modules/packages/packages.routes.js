@@ -3,22 +3,25 @@ import express from "express";
 function createCmsPackagesRoutes({ controller }) {
   const router = express.Router();
 
-  // Published packages from CRM
-  router.get("/published", controller.listPublished);
-  router.get("/published/:id", controller.getPackageById);
+  router.route("/published").get(controller.listPublished);
+  router.route("/published/:id").get(controller.getPackageById);
 
-  // Main packages
-  router.get("/main", controller.listMainPackages);
-  router.get("/main/:id", controller.getMainPackageById);
-  router.post("/main", controller.createMainPackage);
-  router.put("/main/:id", controller.updateMainPackage);
-  router.delete("/main/:id", controller.deleteMainPackage);
+  router
+    .route("/main")
+    .get(controller.listMainPackages)
+    .post(controller.createMainPackage);
+  router
+    .route("/main/:id")
+    .get(controller.getMainPackageById)
+    .put(controller.updateMainPackage)
+    .delete(controller.deleteMainPackage);
 
-  // Sub packages
-  router.get("/main/:mainPackageId/sub", controller.listSubPackages);
-  router.post("/sub", controller.createSubPackage);
-  router.put("/sub/:id", controller.updateSubPackage);
-  router.delete("/sub/:id", controller.deleteSubPackage);
+  router.route("/main/:mainPackageId/sub").get(controller.listSubPackages);
+  router.route("/sub").post(controller.createSubPackage);
+  router
+    .route("/sub/:id")
+    .put(controller.updateSubPackage)
+    .delete(controller.deleteSubPackage);
 
   return router;
 }

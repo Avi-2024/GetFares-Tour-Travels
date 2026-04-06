@@ -1,5 +1,5 @@
-import { AppError } from '../../core/middlewares/errorHandler.js';
-import { normalizeText, toNumber, toSlug } from '../../core/utils/index.js';
+import { AppError } from "../../core/middlewares/errorHandler.js";
+import { normalizeText, toNumber, toSlug } from "../../core/utils/index.js";
 
 function createDestinationsService({ repository }) {
   function toDestination(row) {
@@ -73,7 +73,7 @@ function createDestinationsService({ repository }) {
     async getById(id) {
       const row = await repository.findById(id);
       if (!row) {
-        throw new AppError(404, 'Destination not found', 'NOT_FOUND');
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
       }
       return toDestination(row);
     },
@@ -81,7 +81,7 @@ function createDestinationsService({ repository }) {
     async getBySlug(slug) {
       const row = await repository.findBySlug(slug);
       if (!row) {
-        throw new AppError(404, 'Destination not found', 'NOT_FOUND');
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
       }
       return toDestination(row);
     },
@@ -89,10 +89,13 @@ function createDestinationsService({ repository }) {
     async create(data) {
       const slug = data.slug || toSlug(data.name);
 
-      // Check if slug exists
       const existing = await repository.findBySlug(slug);
       if (existing) {
-        throw new AppError(400, 'Destination slug already exists', 'DUPLICATE_SLUG');
+        throw new AppError(
+          400,
+          "Destination slug already exists",
+          "DUPLICATE_SLUG",
+        );
       }
 
       const row = await repository.create({
@@ -121,7 +124,7 @@ function createDestinationsService({ repository }) {
     async update(id, data) {
       const existing = await repository.findById(id);
       if (!existing) {
-        throw new AppError(404, 'Destination not found', 'NOT_FOUND');
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
       }
 
       const updates = {};
@@ -130,7 +133,7 @@ function createDestinationsService({ repository }) {
         const slug = toSlug(data.slug);
         const slugExists = await repository.findBySlug(slug);
         if (slugExists && slugExists.id !== id) {
-          throw new AppError(400, 'Slug already exists', 'DUPLICATE_SLUG');
+          throw new AppError(400, "Slug already exists", "DUPLICATE_SLUG");
         }
         updates.slug = slug;
       }
@@ -138,9 +141,12 @@ function createDestinationsService({ repository }) {
         updates.description = normalizeText(data.description);
       if (data.shortDescription !== undefined)
         updates.short_description = normalizeText(data.shortDescription);
-      if (data.country !== undefined) updates.country = normalizeText(data.country);
-      if (data.region !== undefined) updates.region = normalizeText(data.region);
-      if (data.category !== undefined) updates.category = normalizeText(data.category);
+      if (data.country !== undefined)
+        updates.country = normalizeText(data.country);
+      if (data.region !== undefined)
+        updates.region = normalizeText(data.region);
+      if (data.category !== undefined)
+        updates.category = normalizeText(data.category);
       if (data.rating !== undefined) updates.rating = toNumber(data.rating);
       if (data.heroImageUrl !== undefined)
         updates.hero_image_url = normalizeText(data.heroImageUrl);
@@ -150,7 +156,8 @@ function createDestinationsService({ repository }) {
       if (data.isNew !== undefined) updates.is_new = data.isNew;
       if (data.travelType !== undefined)
         updates.travel_type = normalizeText(data.travelType);
-      if (data.season !== undefined) updates.season = normalizeText(data.season);
+      if (data.season !== undefined)
+        updates.season = normalizeText(data.season);
       if (data.metaTitle !== undefined)
         updates.meta_title = normalizeText(data.metaTitle);
       if (data.metaDescription !== undefined)
@@ -161,9 +168,8 @@ function createDestinationsService({ repository }) {
       return toDestination(updated);
     },
 
-    // Media methods
     async getMedia(destinationId) {
-      await this.getById(destinationId); // Verify destination exists
+      await this.getById(destinationId);
       const rows = await repository.findMedia(destinationId);
       return rows.map(toMedia).sort((a, b) => {
         if (a.isFeatured !== b.isFeatured) return b.isFeatured ? 1 : -1;
@@ -172,11 +178,11 @@ function createDestinationsService({ repository }) {
     },
 
     async addMedia(destinationId, data) {
-      await this.getById(destinationId); // Verify destination exists
+      await this.getById(destinationId);
 
       const row = await repository.createMedia({
         destination_id: destinationId,
-        media_type: data.mediaType || 'image',
+        media_type: data.mediaType || "image",
         media_url: normalizeText(data.mediaUrl),
         thumbnail_url: normalizeText(data.thumbnailUrl),
         title: normalizeText(data.title),
@@ -191,7 +197,7 @@ function createDestinationsService({ repository }) {
     async updateMedia(mediaId, data) {
       const existing = await repository.findMediaById(mediaId);
       if (!existing) {
-        throw new AppError(404, 'Media not found', 'NOT_FOUND');
+        throw new AppError(404, "Media not found", "NOT_FOUND");
       }
 
       const updates = {};
@@ -200,7 +206,8 @@ function createDestinationsService({ repository }) {
       if (data.thumbnailUrl !== undefined)
         updates.thumbnail_url = normalizeText(data.thumbnailUrl);
       if (data.title !== undefined) updates.title = normalizeText(data.title);
-      if (data.caption !== undefined) updates.caption = normalizeText(data.caption);
+      if (data.caption !== undefined)
+        updates.caption = normalizeText(data.caption);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
       if (data.isFeatured !== undefined) updates.is_featured = data.isFeatured;
@@ -212,22 +219,21 @@ function createDestinationsService({ repository }) {
     async deleteMedia(mediaId) {
       const existing = await repository.findMediaById(mediaId);
       if (!existing) {
-        throw new AppError(404, 'Media not found', 'NOT_FOUND');
+        throw new AppError(404, "Media not found", "NOT_FOUND");
       }
 
       await repository.deleteMedia(mediaId);
       return { success: true };
     },
 
-    // Season methods
     async getSeasons(destinationId) {
-      await this.getById(destinationId); // Verify destination exists
+      await this.getById(destinationId);
       const rows = await repository.findSeasons(destinationId);
       return rows.map(toSeason).sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
     async addSeason(destinationId, data) {
-      await this.getById(destinationId); // Verify destination exists
+      await this.getById(destinationId);
 
       const row = await repository.createSeason({
         destination_id: destinationId,
@@ -248,7 +254,7 @@ function createDestinationsService({ repository }) {
     async updateSeason(seasonId, data) {
       const existing = await repository.findSeasonById(seasonId);
       if (!existing) {
-        throw new AppError(404, 'Season card not found', 'NOT_FOUND');
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
       }
 
       const updates = {};
@@ -276,16 +282,15 @@ function createDestinationsService({ repository }) {
     async deleteSeason(seasonId) {
       const existing = await repository.findSeasonById(seasonId);
       if (!existing) {
-        throw new AppError(404, 'Season card not found', 'NOT_FOUND');
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
       }
 
       await repository.deleteSeason(seasonId);
       return { success: true };
     },
 
-    // Package mapping methods
     async getPackages(destinationId) {
-      await this.getById(destinationId); // Verify destination exists
+      await this.getById(destinationId);
       const rows = await repository.findPackageMaps(destinationId);
       return rows.map((row) => ({
         id: row.id,
@@ -300,7 +305,7 @@ function createDestinationsService({ repository }) {
     },
 
     async mapPackage(destinationId, mainPackageId, displayOrder = 0) {
-      await this.getById(destinationId); // Verify destination exists
+      await this.getById(destinationId);
 
       const row = await repository.createPackageMap({
         destination_id: destinationId,

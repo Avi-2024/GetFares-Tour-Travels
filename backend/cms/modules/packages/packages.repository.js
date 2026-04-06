@@ -1,6 +1,5 @@
 function createCmsPackagesRepository({ db, schema }) {
   return Object.freeze({
-    // Get published packages from CRM
     async findPublishedPackages(filters = {}) {
       const result = await db.query(
         `SELECT * FROM ${schema.packagesTable}
@@ -15,7 +14,6 @@ function createCmsPackagesRepository({ db, schema }) {
       return db.findById(schema.packagesTable, id);
     },
 
-    // Main packages
     async findAllMainPackages() {
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
@@ -48,7 +46,6 @@ function createCmsPackagesRepository({ db, schema }) {
       return result.rows[0] || null;
     },
 
-    // Sub packages
     async findSubPackages(mainPackageId) {
       const result = await db.query(
         `SELECT sp.*, p.name, p.starting_price, p.duration, p.banner_image_url
@@ -56,6 +53,7 @@ function createCmsPackagesRepository({ db, schema }) {
          JOIN ${schema.packagesTable} p ON sp.package_id = p.id
          WHERE sp.main_package_id = $1
            AND p.is_deleted = false
+           AND p.publish_to_website = true
          ORDER BY sp.display_order`,
         [mainPackageId],
       );

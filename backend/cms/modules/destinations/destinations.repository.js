@@ -81,6 +81,8 @@ function createDestinationsRepository({ db, schema }) {
          JOIN main_packages mp ON dpm.main_package_id = mp.id
          JOIN packages p ON mp.package_id = p.id
          WHERE dpm.destination_id = $1
+           AND p.publish_to_website = true
+           AND p.is_deleted = false
          ORDER BY dpm.display_order`,
         [destinationId],
       );

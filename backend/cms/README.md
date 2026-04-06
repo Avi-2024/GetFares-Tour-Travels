@@ -100,12 +100,25 @@ DELETE /api/cms/visa-destinations/:id/details/:detailId
 ### Public API (Website - No Auth)
 
 ```
-GET /api/public/landing/places
-GET /api/public/destinations
-GET /api/public/destinations/:slug
-GET /api/public/visa/destinations
-GET /api/public/visa/:slug
+GET /public/cms/home
+GET /public/cms/landing-places
+GET /public/cms/destinations
+GET /public/cms/destinations/:slug
+GET /public/cms/destinations/:slug/media
+GET /public/cms/destinations/:slug/season-cards
+GET /public/cms/destinations/:slug/packages
+GET /public/cms/packages/published
+GET /public/cms/packages/main
+GET /public/cms/packages/main/:mainPackageId/sub
+GET /public/cms/visa-destinations
+GET /public/cms/visa-destinations/:slug
+GET /public/cms/visa-destinations/:slug/details
+GET /public/cms/featured-picks
+GET /public/cms/season-cards
+GET /public/cms/hero-sections
 ```
+
+Alias prefix also available: `/api/public/cms/*`
 
 ## Usage
 
@@ -174,7 +187,8 @@ curl http://localhost:3000/api/public/landing/places
 
 ## Notes
 
-- All CMS routes require authentication (to be implemented)
+- All `/cms/*` routes require authentication and `CMS_ACCESS` role
+- CMS users are stored in the shared CRM `users` table
 - Public API routes are open for website consumption
 - Uses existing CRM database connection
 - Compatible with CRM package system

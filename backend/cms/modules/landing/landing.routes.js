@@ -2,13 +2,15 @@ import express from "express";
 
 function createLandingRoutes({ controller }) {
   const router = express.Router();
+  const uuidParam = ":id([0-9a-fA-F-]{36})";
 
-  router.get("/", controller.list);
-  router.get("/:id", controller.getById);
-  router.post("/", controller.create);
-  router.put("/:id", controller.update);
-  router.delete("/:id", controller.delete);
-  router.patch("/reorder", controller.reorder);
+  router.route("/").get(controller.list).post(controller.create);
+  router.route("/reorder").patch(controller.reorder);
+  router
+    .route(`/${uuidParam}`)
+    .get(controller.getById)
+    .put(controller.update)
+    .delete(controller.delete);
 
   return router;
 }

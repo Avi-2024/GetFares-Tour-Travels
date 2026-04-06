@@ -1,7 +1,3 @@
-/**
- * Landing Place Entity
- * Represents a landing place domain object
- */
 export class LandingPlace {
   constructor(data) {
     this.id = data.id;
@@ -10,7 +6,8 @@ export class LandingPlace {
     this.tag = data.tag;
     this.imageUrl = data.imageUrl || data.image_url;
     this.displayOrder = data.displayOrder || data.display_order || 0;
-    this.isActive = data.isActive !== undefined ? data.isActive : data.is_active !== false;
+    this.isActive =
+      data.isActive !== undefined ? data.isActive : data.is_active !== false;
     this.createdAt = data.createdAt || data.created_at;
     this.updatedAt = data.updatedAt || data.updated_at;
   }
@@ -59,19 +56,19 @@ export class LandingPlace {
     const errors = [];
 
     if (!this.name || this.name.trim().length === 0) {
-      errors.push('Name is required');
+      errors.push("Name is required");
     }
 
     if (!this.description || this.description.trim().length === 0) {
-      errors.push('Description is required');
+      errors.push("Description is required");
     }
 
     if (!this.imageUrl || this.imageUrl.trim().length === 0) {
-      errors.push('Image URL is required');
+      errors.push("Image URL is required");
     }
 
     if (this.displayOrder < 0) {
-      errors.push('Display order must be non-negative');
+      errors.push("Display order must be non-negative");
     }
 
     return {

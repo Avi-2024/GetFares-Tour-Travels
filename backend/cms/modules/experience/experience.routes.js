@@ -3,20 +3,30 @@ import express from "express";
 function createExperienceRoutes({ controller }) {
   const router = express.Router();
 
-  router.get("/featured-picks", controller.listFeaturedPicks);
-  router.get("/featured-picks/:id", controller.getFeaturedPickById);
-  router.post("/featured-picks", controller.createFeaturedPick);
-  router.put("/featured-picks/:id", controller.updateFeaturedPick);
-  router.delete("/featured-picks/:id", controller.deleteFeaturedPick);
+  router
+    .route("/featured-picks")
+    .get(controller.listFeaturedPicks)
+    .post(controller.createFeaturedPick);
 
-  router.get("/season-cards", controller.listSeasonCards);
-  router.get("/season-cards/:id", controller.getSeasonCardById);
-  router.post("/season-cards", controller.createSeasonCard);
-  router.put("/season-cards/:id", controller.updateSeasonCard);
-  router.delete("/season-cards/:id", controller.deleteSeasonCard);
+  router
+    .route("/featured-picks/:id")
+    .get(controller.getFeaturedPickById)
+    .put(controller.updateFeaturedPick)
+    .delete(controller.deleteFeaturedPick);
 
-  router.get("/hero-sections", controller.listHeroSections);
-  router.put("/hero-sections/:sectionKey", controller.upsertHeroSection);
+  router
+    .route("/season-cards")
+    .get(controller.listSeasonCards)
+    .post(controller.createSeasonCard);
+
+  router
+    .route("/season-cards/:id")
+    .get(controller.getSeasonCardById)
+    .put(controller.updateSeasonCard)
+    .delete(controller.deleteSeasonCard);
+
+  router.route("/hero-sections").get(controller.listHeroSections);
+  router.route("/hero-sections/:sectionKey").put(controller.upsertHeroSection);
 
   return router;
 }
