@@ -25,9 +25,9 @@ class SidebarComponent extends Component<object, SidebarState> {
       <motion.aside
         animate={{ width: collapsed ? 88 : 316 }}
         transition={{ type: "spring", stiffness: 220, damping: 30 }}
-        className="sticky top-0 z-30 flex h-screen shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface-muted)] px-3 py-4 backdrop-blur-xl"
+        className="sticky top-0 z-30 flex h-screen shrink-0 flex-col border-r  border-[var(--border)] bg-[var(--surface-muted)] px-3 py-4  backdrop-blur-xl"
       >
-        <div className="mb-4 flex items-center justify-between gap-2 px-2">
+        <div className="mb-4 flex items-center  justify-between gap-2 px-2">
           <div className="flex items-center gap-3 overflow-hidden">
             {collapsed ?
               <img
@@ -52,7 +52,7 @@ class SidebarComponent extends Component<object, SidebarState> {
           </button>
         </div>
 
-        <div className="space-y-5 overflow-y-auto pb-3 pr-1">
+        <div className="space-y-5 overflow-y-auto hide-scrollbar pb-3 pr-1">
           {SidebarConfig.sections.map((section) => (
             <div key={section.title}>
               {!collapsed && (
