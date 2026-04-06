@@ -4,6 +4,9 @@ function createExperienceController({ service, uploadService }) {
   return Object.freeze({
     listFeaturedPicks: asyncHandler(async (req, res) => {
       const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
       if (req.query.isActive !== undefined) {
         filters.is_active = req.query.isActive === "true";
       }
@@ -25,6 +28,9 @@ function createExperienceController({ service, uploadService }) {
 
     createFeaturedPick: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       if (req.file) {
         const uploaded = await uploadService.uploadSingle({
           file: req.file,
@@ -40,6 +46,9 @@ function createExperienceController({ service, uploadService }) {
 
     updateFeaturedPick: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       if (req.file) {
         const uploaded = await uploadService.uploadSingle({
           file: req.file,
@@ -60,6 +69,9 @@ function createExperienceController({ service, uploadService }) {
 
     listSeasonCards: asyncHandler(async (req, res) => {
       const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
       if (req.query.destinationId) {
         filters.destinationId = req.query.destinationId;
       }
@@ -110,13 +122,24 @@ function createExperienceController({ service, uploadService }) {
       res.json(result);
     }),
 
-    listHeroSections: asyncHandler(async (_req, res) => {
-      const rows = await service.listHeroSections();
+    listHeroSections: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      if (req.query.isActive !== undefined) {
+        filters.is_active = req.query.isActive === "true";
+      }
+
+      const rows = await service.listHeroSections(filters);
       res.json({ success: true, data: rows });
     }),
 
     upsertHeroSection: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       if (req.file) {
         const uploaded = await uploadService.uploadSingle({
           file: req.file,

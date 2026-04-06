@@ -29,6 +29,7 @@ function createDestinationsController({ service, uploadService }) {
   return Object.freeze({
     list: asyncHandler(async (req, res) => {
       const filters = {};
+      if (req.query.country) filters.country = req.query.country;
       if (req.query.region) filters.region = req.query.region;
       if (req.query.category) filters.category = req.query.category;
       if (req.query.isActive !== undefined)
@@ -61,6 +62,9 @@ function createDestinationsController({ service, uploadService }) {
 
     create: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       const bannerFile = req.files?.bannerImage?.[0] || null;
       const galleryFiles = req.files?.gallery || [];
 
@@ -93,6 +97,9 @@ function createDestinationsController({ service, uploadService }) {
 
     update: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       const bannerFile = req.files?.bannerImage?.[0] || null;
       const galleryFiles = req.files?.gallery || [];
 

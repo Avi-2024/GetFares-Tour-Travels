@@ -134,6 +134,7 @@ class CmsEntityFormCatalog {
       ],
       fields: [
         { key: "name", label: "Title", type: "text", required: true, groupKey: "basic" },
+        { key: "country", label: "Country", type: "text", required: true, groupKey: "basic" },
         { key: "tag", label: "Tag", type: "text", groupKey: "basic" },
         { key: "imageUrl", label: "Img", type: "url", required: true, groupKey: "basic" },
         { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "status" },
@@ -252,6 +253,7 @@ class CmsEntityFormCatalog {
       ],
       fields: [
         { key: "packageId", label: "Published Package", type: "searchable-select", relationSource: "published-packages", required: true, groupKey: "basic" },
+        { key: "country", label: "Country", type: "text", required: true, groupKey: "basic" },
         { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "status" },
         { key: "isFeatured", label: "Featured", type: "switch", groupKey: "status" },
       ],
@@ -320,6 +322,7 @@ class CmsEntityFormCatalog {
       fields: [
         { key: "title", label: "Country / Destination", type: "text", required: true, groupKey: "basic" },
         { key: "slug", label: "Slug", type: "text", required: true, groupKey: "basic", autoSlugSource: "title" },
+        { key: "country", label: "Country", type: "text", required: true, groupKey: "basic" },
         { key: "subtitle", label: "Subtitle", type: "text", groupKey: "basic" },
         { key: "processingTime", label: "Processing Time", type: "text", required: true, groupKey: "content" },
         { key: "supportInfo", label: "Support Info", type: "textarea", groupKey: "content" },

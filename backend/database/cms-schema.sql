@@ -10,6 +10,7 @@
 CREATE TABLE landing_places (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
+    country VARCHAR(100),
     tag VARCHAR(50),
     image_url TEXT NOT NULL,
     display_order INT DEFAULT 0,
@@ -19,6 +20,7 @@ CREATE TABLE landing_places (
 );
 
 CREATE INDEX idx_landing_places_active_order ON landing_places(is_active, display_order);
+CREATE INDEX idx_landing_places_country_active_order ON landing_places(country, is_active, display_order);
 
 -- =========================================
 -- 2. DESTINATIONS MANAGEMENT
@@ -108,6 +110,7 @@ CREATE INDEX idx_season_cards_destination ON season_cards(destination_id, displa
 CREATE TABLE main_packages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     package_id UUID NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    country VARCHAR(100),
     display_order INT DEFAULT 0,
     is_featured BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -117,6 +120,7 @@ CREATE TABLE main_packages (
 
 CREATE INDEX idx_main_packages_package ON main_packages(package_id);
 CREATE INDEX idx_main_packages_featured ON main_packages(is_featured, display_order);
+CREATE INDEX idx_main_packages_country_featured ON main_packages(country, is_featured, display_order);
 
 -- Map destinations to main packages
 CREATE TABLE destination_package_map (
@@ -152,6 +156,7 @@ CREATE INDEX idx_sub_packages_package ON sub_packages(package_id);
 
 CREATE TABLE visa_destinations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    country VARCHAR(100),
     title VARCHAR(150) NOT NULL,
     slug VARCHAR(180) UNIQUE NOT NULL,
     subtitle VARCHAR(200),
@@ -168,6 +173,7 @@ CREATE TABLE visa_destinations (
 
 CREATE INDEX idx_visa_destinations_active ON visa_destinations(is_active, display_order);
 CREATE INDEX idx_visa_destinations_slug ON visa_destinations(slug);
+CREATE INDEX idx_visa_destinations_country_active ON visa_destinations(country, is_active, display_order);
 
 -- Visa destination details (facts, requirements, etc.)
 CREATE TABLE visa_destination_details (
@@ -241,7 +247,8 @@ CREATE INDEX idx_cms_activity_entity ON cms_activity_log(entity_type, entity_id,
 
 CREATE TABLE IF NOT EXISTS landing_hero_sections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    section_key VARCHAR(100) UNIQUE NOT NULL,
+    country VARCHAR(100) NOT NULL DEFAULT 'GLOBAL',
+    section_key VARCHAR(100) NOT NULL,
     eyebrow_text VARCHAR(200),
     heading_line_1 VARCHAR(255),
     heading_line_2 VARCHAR(255),
@@ -257,6 +264,23 @@ CREATE TABLE IF NOT EXISTS landing_hero_sections (
 );
 
 -- Existing table extensions for richer website cards
+ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+ALTER TABLE main_packages ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+ALTER TABLE visa_destinations ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+ALTER TABLE landing_hero_sections ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+UPDATE landing_hero_sections SET country = 'GLOBAL' WHERE country IS NULL;
+ALTER TABLE landing_hero_sections ALTER COLUMN country SET DEFAULT 'GLOBAL';
+ALTER TABLE landing_hero_sections ALTER COLUMN country SET NOT NULL;
+ALTER TABLE landing_hero_sections DROP CONSTRAINT IF EXISTS landing_hero_sections_section_key_key;
+
+CREATE INDEX IF NOT EXISTS idx_destinations_country_active ON destinations(country, is_active);
+CREATE INDEX IF NOT EXISTS idx_landing_places_country_active_order ON landing_places(country, is_active, display_order);
+CREATE INDEX IF NOT EXISTS idx_main_packages_country_featured ON main_packages(country, is_featured, display_order);
+CREATE INDEX IF NOT EXISTS idx_visa_destinations_country_active ON visa_destinations(country, is_active, display_order);
+CREATE INDEX IF NOT EXISTS idx_featured_picks_country_active ON featured_picks(country, is_active, display_order);
+CREATE INDEX IF NOT EXISTS idx_landing_hero_sections_country_active ON landing_hero_sections(country, is_active, section_key);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_landing_hero_sections_country_section
+  ON landing_hero_sections(country, section_key);
 
 ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS slug VARCHAR(180);
 ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS campaign_type VARCHAR(50) DEFAULT 'featured';

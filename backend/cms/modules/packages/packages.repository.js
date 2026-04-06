@@ -1,11 +1,35 @@
 function createCmsPackagesRepository({ db, schema }) {
+  function normalizeCountry(country) {
+    return typeof country === "string" ? country.trim() : "";
+  }
+
   return Object.freeze({
     async findPublishedPackages(filters = {}) {
+      const values = [];
+      const clauses = [
+        "p.publish_to_website = true",
+        "p.is_deleted = false",
+      ];
+
+      const country = normalizeCountry(filters.country);
+      if (country) {
+        values.push(country);
+        clauses.push(
+          `EXISTS (
+            SELECT 1
+            FROM ${schema.mainPackagesTable} mp
+            WHERE mp.package_id = p.id
+              AND LOWER(mp.country) = LOWER($${values.length})
+          )`,
+        );
+      }
+
       const result = await db.query(
-        `SELECT * FROM ${schema.packagesTable}
-         WHERE publish_to_website = true
-           AND is_deleted = false
-         ORDER BY created_at DESC`,
+        `SELECT p.*
+         FROM ${schema.packagesTable} p
+         WHERE ${clauses.join(" AND ")}
+         ORDER BY p.created_at DESC`,
+        values,
       );
       return result.rows;
     },
@@ -18,20 +42,44 @@ function createCmsPackagesRepository({ db, schema }) {
       return db.update(schema.packagesTable, id, data);
     },
 
-    async findAllMainPackages() {
+    async findAllMainPackages(filters = {}) {
+      const values = [];
+      const clauses = ["p.is_deleted = false"];
+
+      const country = normalizeCountry(filters.country);
+      if (country) {
+        values.push(country);
+        clauses.push(`LOWER(mp.country) = LOWER($${values.length})`);
+      }
+
+      if (filters.is_featured !== undefined) {
+        values.push(filters.is_featured);
+        clauses.push(`mp.is_featured = $${values.length}`);
+      }
+
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
                 p.banner_image_url, p.publish_to_website
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
-         WHERE p.is_deleted = false
+         WHERE ${clauses.join(" AND ")}
          ORDER BY mp.display_order`,
+        values,
       );
       return result.rows;
     },
 
     async findMainPackageById(id) {
-      return db.findById(schema.mainPackagesTable, id);
+      const result = await db.query(
+        `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
+                p.banner_image_url, p.publish_to_website
+         FROM ${schema.mainPackagesTable} mp
+         JOIN ${schema.packagesTable} p ON mp.package_id = p.id
+         WHERE mp.id = $1
+         LIMIT 1`,
+        [id],
+      );
+      return result.rows[0] || null;
     },
 
     async createMainPackage(data) {

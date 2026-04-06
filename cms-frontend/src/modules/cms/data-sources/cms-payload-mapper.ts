@@ -8,6 +8,7 @@ class CmsPayloadMapper {
       return {
         title,
         name: title,
+        country: payload.country,
         tag: payload.tag,
         image: payload.image ?? payload.imageUrl,
         imageUrl: payload.imageUrl,
@@ -39,6 +40,7 @@ class CmsPayloadMapper {
     if (sectionKey === "main-packages") {
       return {
         packageId: payload.packageId,
+        country: payload.country,
         displayOrder: payload.displayOrder,
         isFeatured: payload.isFeatured,
       };
@@ -52,6 +54,7 @@ class CmsPayloadMapper {
     }
     if (sectionKey === "visa-destinations") {
       return {
+        country: payload.country,
         title: payload.title,
         slug: payload.slug,
         subtitle: payload.subtitle,

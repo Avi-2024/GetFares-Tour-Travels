@@ -25,9 +25,37 @@ class CmsDatasource {
     this.mediaDatasource = new CmsMediaDatasource(this.httpClient, this.accessor);
   }
 
+  private getCountryParam(): string | null {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const urlCountry = new URLSearchParams(window.location.search).get("country");
+    const normalized = (urlCountry || "").trim();
+    return normalized || null;
+  }
+
+  private withCountryParams(
+    params: Record<string, string | number | boolean> = {},
+  ): { params: Record<string, string | number | boolean> } | undefined {
+    const country = this.getCountryParam();
+    if (!country && !Object.keys(params).length) {
+      return undefined;
+    }
+    return {
+      params: {
+        ...(country ? { country } : {}),
+        ...params,
+      },
+    };
+  }
+
   public async list(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
     if (sectionKey === "landing-places") {
-      const payload = await this.httpClient.get<unknown>("/cms");
+      const payload = await this.httpClient.get<unknown>(
+        "/cms",
+        this.withCountryParams(),
+      );
       return this.sectionEntryMapper.mapLandingEntries(
         this.accessor.toArray(payload),
         "/cms",
@@ -35,7 +63,10 @@ class CmsDatasource {
     }
 
     if (sectionKey === "destinations") {
-      const payload = await this.httpClient.get<unknown>("/cms/destinations");
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/destinations",
+        this.withCountryParams(),
+      );
       return this.sectionEntryMapper.mapDestinationEntries(
         this.accessor.toArray(payload),
         "/cms/destinations",
@@ -43,12 +74,18 @@ class CmsDatasource {
     }
 
     if (sectionKey === "published-packages") {
-      const payload = await this.httpClient.get<unknown>("/cms/packages/published");
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/packages/published",
+        this.withCountryParams(),
+      );
       return this.sectionEntryMapper.mapPublishedEntries(this.accessor.toArray(payload));
     }
 
     if (sectionKey === "main-packages") {
-      const payload = await this.httpClient.get<unknown>("/cms/packages/main");
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/packages/main",
+        this.withCountryParams(),
+      );
       return this.sectionEntryMapper.mapMainPackageEntries(
         this.accessor.toArray(payload),
         "/cms/packages/main",
@@ -56,11 +93,17 @@ class CmsDatasource {
     }
 
     if (sectionKey === "sub-packages") {
-      return this.sectionEntryMapper.mapSubPackageEntries("/cms/packages/main");
+      return this.sectionEntryMapper.mapSubPackageEntries(
+        "/cms/packages/main",
+        this.getCountryParam(),
+      );
     }
 
     if (sectionKey === "visa-destinations") {
-      const payload = await this.httpClient.get<unknown>("/cms/visa");
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/visa",
+        this.withCountryParams(),
+      );
       return this.sectionEntryMapper.mapVisaDestinationEntries(
         this.accessor.toArray(payload),
         "/cms/visa",
@@ -68,12 +111,16 @@ class CmsDatasource {
     }
 
     if (sectionKey === "visa-details") {
-      return this.sectionEntryMapper.mapVisaDetailEntries("/cms/visa");
+      return this.sectionEntryMapper.mapVisaDetailEntries(
+        "/cms/visa",
+        this.getCountryParam(),
+      );
     }
 
     if (sectionKey === "creative-toolkit") {
       const payload = await this.httpClient.get<unknown>(
         "/cms/experience/featured-picks",
+        this.withCountryParams(),
       );
       return this.sectionEntryMapper.mapFeaturedEntries(
         this.accessor.toArray(payload),
@@ -82,7 +129,10 @@ class CmsDatasource {
     }
 
     if (sectionKey === "destination-map") {
-      const payload = await this.httpClient.get<unknown>("/cms/experience/season-cards");
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/experience/season-cards",
+        this.withCountryParams(),
+      );
       return this.sectionEntryMapper.mapSeasonCardEntries(
         this.accessor.toArray(payload),
         "/cms/experience",
@@ -97,29 +147,46 @@ class CmsDatasource {
     payload: JsonRecord,
   ): Promise<JsonRecord | null> {
     const mappedPayload = this.payloadMapper.mapForSection(sectionKey, payload);
+    const countryOptions = this.withCountryParams();
 
     if (sectionKey === "landing-places") {
-      const response = await this.httpClient.post("/cms", mappedPayload);
+      const response = await this.httpClient.post("/cms", mappedPayload, countryOptions);
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "destinations") {
-      const response = await this.httpClient.post("/cms/destinations", mappedPayload);
+      const response = await this.httpClient.post(
+        "/cms/destinations",
+        mappedPayload,
+        countryOptions,
+      );
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "main-packages") {
-      const response = await this.httpClient.post("/cms/packages/main", mappedPayload);
+      const response = await this.httpClient.post(
+        "/cms/packages/main",
+        mappedPayload,
+        countryOptions,
+      );
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "sub-packages") {
-      const response = await this.httpClient.post("/cms/packages/sub", mappedPayload);
+      const response = await this.httpClient.post(
+        "/cms/packages/sub",
+        mappedPayload,
+        countryOptions,
+      );
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "visa-destinations") {
-      const response = await this.httpClient.post("/cms/visa", mappedPayload);
+      const response = await this.httpClient.post(
+        "/cms/visa",
+        mappedPayload,
+        countryOptions,
+      );
       return this.accessor.toRecord(response);
     }
 
@@ -134,6 +201,7 @@ class CmsDatasource {
       const response = await this.httpClient.post(
         `/cms/visa/${visaDestinationId}/details`,
         mappedPayload,
+        countryOptions,
       );
       return this.accessor.toRecord(response);
     }
@@ -142,6 +210,7 @@ class CmsDatasource {
       const response = await this.httpClient.post(
         "/cms/experience/featured-picks",
         mappedPayload,
+        countryOptions,
       );
       return this.accessor.toRecord(response);
     }
@@ -150,6 +219,7 @@ class CmsDatasource {
       const response = await this.httpClient.post(
         "/cms/experience/season-cards",
         mappedPayload,
+        countryOptions,
       );
       return this.accessor.toRecord(response);
     }
@@ -172,8 +242,13 @@ class CmsDatasource {
           [entry.editableField ?? "name"]: payload,
         })
       : this.payloadMapper.mapForSection(sectionKey, payload);
+    const countryOptions = this.withCountryParams();
 
-    const response = await this.httpClient.put(entry.updatePath, normalizedPayload);
+    const response = await this.httpClient.put(
+      entry.updatePath,
+      normalizedPayload,
+      countryOptions,
+    );
     return this.accessor.toRecord(response);
   }
 

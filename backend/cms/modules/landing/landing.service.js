@@ -11,6 +11,7 @@ function createLandingService({ repository }) {
     return {
       id: row.id,
       title: row.name,
+      country: row.country,
       tag: row.tag,
       image: row.image_url,
       displayOrder: row.display_order,
@@ -37,11 +38,20 @@ function createLandingService({ repository }) {
     },
 
     async create(data) {
-      const existing = await repository.findAll({ is_active: true });
+      const country = normalizeText(data.country);
+      if (!country) {
+        throw new AppError(
+          400,
+          "Country is required for landing place",
+          "COUNTRY_REQUIRED",
+        );
+      }
+
+      const existing = await repository.findAll({ is_active: true, country });
       if (existing.length >= 4) {
         throw new AppError(
           400,
-          "Maximum 4 landing places allowed",
+          `Maximum 4 landing places allowed per country (${country})`,
           "MAX_LIMIT_REACHED",
         );
       }
@@ -49,6 +59,7 @@ function createLandingService({ repository }) {
       const title = normalizeText(data.title ?? data.name);
       const row = await repository.create({
         name: title,
+        country,
         tag: normalizeText(data.tag),
         image_url: normalizeText(data.image ?? data.imageUrl),
         display_order: toNumber(data.displayOrder, existing.length),
@@ -67,6 +78,23 @@ function createLandingService({ repository }) {
       const updates = {};
       if (data.name !== undefined || data.title !== undefined) {
         updates.name = normalizeText(data.title ?? data.name);
+      }
+      if (data.country !== undefined) {
+        const country = normalizeText(data.country);
+        if (!country) {
+          throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
+        }
+        if (String(existing.country || "").toLowerCase() !== country.toLowerCase()) {
+          const countryPlaces = await repository.findAll({ is_active: true, country });
+          if (countryPlaces.length >= 4) {
+            throw new AppError(
+              400,
+              `Maximum 4 landing places allowed per country (${country})`,
+              "MAX_LIMIT_REACHED",
+            );
+          }
+        }
+        updates.country = country;
       }
       if (data.tag !== undefined) updates.tag = normalizeText(data.tag);
       if (data.imageUrl !== undefined || data.image !== undefined)

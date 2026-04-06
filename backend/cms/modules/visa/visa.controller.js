@@ -4,6 +4,9 @@ function createVisaController({ service, uploadService }) {
   return Object.freeze({
     list: asyncHandler(async (req, res) => {
       const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
       if (req.query.isActive !== undefined)
         filters.is_active = req.query.isActive === "true";
 
@@ -32,6 +35,9 @@ function createVisaController({ service, uploadService }) {
 
     create: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       if (req.file) {
         const uploaded = await uploadService.uploadSingle({
           file: req.file,
@@ -52,6 +58,9 @@ function createVisaController({ service, uploadService }) {
 
     update: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       if (req.file) {
         const uploaded = await uploadService.uploadSingle({
           file: req.file,

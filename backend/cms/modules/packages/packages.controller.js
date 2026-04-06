@@ -3,7 +3,12 @@ import { asyncHandler } from "../../core/utils/index.js";
 function createCmsPackagesController({ service, uploadService }) {
   return Object.freeze({
     listPublished: asyncHandler(async (req, res) => {
-      const packages = await service.listPublished();
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+
+      const packages = await service.listPublished(filters);
       res.json({
         success: true,
         data: packages,
@@ -40,7 +45,15 @@ function createCmsPackagesController({ service, uploadService }) {
 
     // Main packages
     listMainPackages: asyncHandler(async (req, res) => {
-      const packages = await service.listMainPackages();
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      if (req.query.isFeatured !== undefined) {
+        filters.is_featured = req.query.isFeatured === "true";
+      }
+
+      const packages = await service.listMainPackages(filters);
       res.json({
         success: true,
         data: packages,
@@ -56,7 +69,12 @@ function createCmsPackagesController({ service, uploadService }) {
     }),
 
     createMainPackage: asyncHandler(async (req, res) => {
-      const pkg = await service.createMainPackage(req.body);
+      const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
+
+      const pkg = await service.createMainPackage(payload);
       res.status(201).json({
         success: true,
         data: pkg,
@@ -64,7 +82,12 @@ function createCmsPackagesController({ service, uploadService }) {
     }),
 
     updateMainPackage: asyncHandler(async (req, res) => {
-      const pkg = await service.updateMainPackage(req.params.id, req.body);
+      const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
+
+      const pkg = await service.updateMainPackage(req.params.id, payload);
       res.json({
         success: true,
         data: pkg,
@@ -78,7 +101,12 @@ function createCmsPackagesController({ service, uploadService }) {
 
     // Sub packages
     listSubPackages: asyncHandler(async (req, res) => {
-      const packages = await service.listSubPackages(req.params.mainPackageId);
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+
+      const packages = await service.listSubPackages(req.params.mainPackageId, filters);
       res.json({
         success: true,
         data: packages,

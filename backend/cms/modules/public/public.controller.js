@@ -8,17 +8,39 @@ function createPublicCmsController({
   visaService,
   experienceService,
 }) {
-  async function resolveActiveDestination(slug) {
+  function parseCountry(value) {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const normalized = value.trim();
+    return normalized ? normalized : null;
+  }
+
+  function isCountryMismatch(expectedCountry, actualCountry) {
+    if (!expectedCountry) {
+      return false;
+    }
+
+    return (
+      String(expectedCountry).trim().toLowerCase() !==
+      String(actualCountry || "").trim().toLowerCase()
+    );
+  }
+
+  async function resolveActiveDestination(slug, country = null) {
     const destination = await destinationsService.getBySlug(slug);
-    if (!destination?.isActive) {
+    if (!destination?.isActive || isCountryMismatch(country, destination.country)) {
       throw new AppError(404, "Destination not found", "NOT_FOUND");
     }
     return destination;
   }
 
-  async function resolveActiveVisaDestination(slug) {
+  async function resolveActiveVisaDestination(slug, country = null) {
     const visaDestination = await visaService.getBySlug(slug);
-    if (!visaDestination?.isActive) {
+    if (
+      !visaDestination?.isActive ||
+      isCountryMismatch(country, visaDestination.country)
+    ) {
       throw new AppError(404, "Visa destination not found", "NOT_FOUND");
     }
     return visaDestination;
@@ -30,7 +52,8 @@ function createPublicCmsController({
   }
 
   return Object.freeze({
-    home: asyncHandler(async (_req, res) => {
+    home: asyncHandler(async (req, res) => {
+      const country = parseCountry(req.query.country);
       const [
         heroSections,
         landingPlaces,
@@ -39,12 +62,18 @@ function createPublicCmsController({
         visaDestinations,
         mainPackages,
       ] = await Promise.all([
-        experienceService.listHeroSections(),
-        landingService.list({ active: true }),
-        experienceService.listFeaturedPicks({ is_active: true }),
-        destinationsService.list({ is_active: true }),
-        visaService.list({ is_active: true }),
-        packagesService.listMainPackages(),
+        experienceService.listHeroSections({
+          is_active: true,
+          ...(country ? { country } : {}),
+        }),
+        landingService.list({ active: true, ...(country ? { country } : {}) }),
+        experienceService.listFeaturedPicks({
+          is_active: true,
+          ...(country ? { country } : {}),
+        }),
+        destinationsService.list({ is_active: true, ...(country ? { country } : {}) }),
+        visaService.list({ is_active: true, ...(country ? { country } : {}) }),
+        packagesService.listMainPackages(country ? { country } : {}),
       ]);
 
       res.json({
@@ -60,13 +89,19 @@ function createPublicCmsController({
       });
     }),
 
-    listLandingPlaces: asyncHandler(async (_req, res) => {
-      const places = await landingService.list({ active: true });
+    listLandingPlaces: asyncHandler(async (req, res) => {
+      const country = parseCountry(req.query.country);
+      const places = await landingService.list({
+        active: true,
+        ...(country ? { country } : {}),
+      });
       res.json({ success: true, data: places });
     }),
 
     listDestinations: asyncHandler(async (req, res) => {
       const filters = { is_active: true };
+      const country = parseCountry(req.query.country);
+      if (country) filters.country = country;
       if (req.query.region) filters.region = req.query.region;
       if (req.query.category) filters.category = req.query.category;
 
@@ -80,38 +115,49 @@ function createPublicCmsController({
     }),
 
     getDestinationBySlug: asyncHandler(async (req, res) => {
-      const destination = await resolveActiveDestination(req.params.slug);
+      const country = parseCountry(req.query.country);
+      const destination = await resolveActiveDestination(req.params.slug, country);
       res.json({ success: true, data: destination });
     }),
 
     getDestinationMediaBySlug: asyncHandler(async (req, res) => {
-      const destination = await resolveActiveDestination(req.params.slug);
+      const country = parseCountry(req.query.country);
+      const destination = await resolveActiveDestination(req.params.slug, country);
       const media = await destinationsService.getMedia(destination.id);
       res.json({ success: true, data: media });
     }),
 
     getDestinationSeasonCardsBySlug: asyncHandler(async (req, res) => {
-      const destination = await resolveActiveDestination(req.params.slug);
+      const country = parseCountry(req.query.country);
+      const destination = await resolveActiveDestination(req.params.slug, country);
       const seasons = await experienceService.listSeasonCards({
         destinationId: destination.id,
         isActive: true,
+        ...(country ? { country } : {}),
       });
       res.json({ success: true, data: seasons });
     }),
 
     getDestinationPackagesBySlug: asyncHandler(async (req, res) => {
-      const destination = await resolveActiveDestination(req.params.slug);
+      const country = parseCountry(req.query.country);
+      const destination = await resolveActiveDestination(req.params.slug, country);
       const packages = await destinationsService.getPackages(destination.id);
       res.json({ success: true, data: packages });
     }),
 
-    listPublishedPackages: asyncHandler(async (_req, res) => {
-      const packages = await packagesService.listPublished();
+    listPublishedPackages: asyncHandler(async (req, res) => {
+      const country = parseCountry(req.query.country);
+      const packages = await packagesService.listPublished(
+        country ? { country } : {},
+      );
       res.json({ success: true, data: packages });
     }),
 
-    listMainPackages: asyncHandler(async (_req, res) => {
-      const packages = await packagesService.listMainPackages();
+    listMainPackages: asyncHandler(async (req, res) => {
+      const country = parseCountry(req.query.country);
+      const packages = await packagesService.listMainPackages(
+        country ? { country } : {},
+      );
       res.json({
         success: true,
         data: packages.filter((pkg) => pkg.publishToWebsite),
@@ -119,22 +165,38 @@ function createPublicCmsController({
     }),
 
     listSubPackages: asyncHandler(async (req, res) => {
-      const packages = await packagesService.listSubPackages(req.params.mainPackageId);
+      const country = parseCountry(req.query.country);
+      const packages = await packagesService.listSubPackages(
+        req.params.mainPackageId,
+        country ? { country } : {},
+      );
       res.json({ success: true, data: packages });
     }),
 
-    listVisaDestinations: asyncHandler(async (_req, res) => {
-      const visaDestinations = await visaService.list({ is_active: true });
+    listVisaDestinations: asyncHandler(async (req, res) => {
+      const country = parseCountry(req.query.country);
+      const visaDestinations = await visaService.list({
+        is_active: true,
+        ...(country ? { country } : {}),
+      });
       res.json({ success: true, data: visaDestinations });
     }),
 
     getVisaDestinationBySlug: asyncHandler(async (req, res) => {
-      const visaDestination = await resolveActiveVisaDestination(req.params.slug);
+      const country = parseCountry(req.query.country);
+      const visaDestination = await resolveActiveVisaDestination(
+        req.params.slug,
+        country,
+      );
       res.json({ success: true, data: visaDestination });
     }),
 
     getVisaDetailsBySlug: asyncHandler(async (req, res) => {
-      const visaDestination = await resolveActiveVisaDestination(req.params.slug);
+      const country = parseCountry(req.query.country);
+      const visaDestination = await resolveActiveVisaDestination(
+        req.params.slug,
+        country,
+      );
       const details = await visaService.getDetails(
         visaDestination.id,
         req.query.sectionType || null,
@@ -150,6 +212,10 @@ function createPublicCmsController({
       if (req.query.sectionKey) {
         filters.section_key = req.query.sectionKey;
       }
+      const country = parseCountry(req.query.country);
+      if (country) {
+        filters.country = country;
+      }
 
       const picks = await experienceService.listFeaturedPicks(filters);
       res.json({ success: true, data: picks });
@@ -157,11 +223,18 @@ function createPublicCmsController({
 
     listSeasonCards: asyncHandler(async (req, res) => {
       const filters = { isActive: true };
+      const country = parseCountry(req.query.country);
+      if (country) {
+        filters.country = country;
+      }
 
       if (req.query.destinationId) {
         filters.destinationId = req.query.destinationId;
       } else if (req.query.destinationSlug) {
-        const destination = await resolveActiveDestination(req.query.destinationSlug);
+        const destination = await resolveActiveDestination(
+          req.query.destinationSlug,
+          country,
+        );
         filters.destinationId = destination.id;
       }
 
@@ -169,12 +242,13 @@ function createPublicCmsController({
       res.json({ success: true, data: cards });
     }),
 
-    listHeroSections: asyncHandler(async (_req, res) => {
-      const sections = await experienceService.listHeroSections();
-      res.json({
-        success: true,
-        data: sections.filter((section) => section.isActive),
+    listHeroSections: asyncHandler(async (req, res) => {
+      const country = parseCountry(req.query.country);
+      const sections = await experienceService.listHeroSections({
+        is_active: true,
+        ...(country ? { country } : {}),
       });
+      res.json({ success: true, data: sections.filter((section) => section.isActive) });
     }),
   });
 }

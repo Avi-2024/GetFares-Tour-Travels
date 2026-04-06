@@ -63,6 +63,7 @@ function createExperienceService({ repository }) {
     if (!row) return null;
     return {
       id: row.id,
+      country: row.country,
       sectionKey: row.section_key,
       eyebrowText: row.eyebrow_text,
       headingLine1: row.heading_line_1,
@@ -96,6 +97,15 @@ function createExperienceService({ repository }) {
     },
 
     async createFeaturedPick(data) {
+      const country = normalizeText(data.country);
+      if (!country) {
+        throw new AppError(
+          400,
+          "Country is required for featured pick",
+          "COUNTRY_REQUIRED",
+        );
+      }
+
       const row = await repository.createFeaturedPick({
         slug: normalizeText(data.slug),
         title: normalizeText(data.title),
@@ -104,7 +114,7 @@ function createExperienceService({ repository }) {
         campaign_type: normalizeText(data.campaignType || "featured"),
         section_key: normalizeText(data.sectionKey || "featured-hot-picks"),
         reference_id: normalizeText(data.referenceId),
-        country: normalizeText(data.country),
+        country,
         rating: toNumber(data.rating, 0),
         badge_text: normalizeText(data.badgeText),
         original_price: toNumber(data.originalPrice, null),
@@ -151,8 +161,13 @@ function createExperienceService({ repository }) {
       if (data.referenceId !== undefined) {
         updates.reference_id = normalizeText(data.referenceId);
       }
-      if (data.country !== undefined)
-        updates.country = normalizeText(data.country);
+      if (data.country !== undefined) {
+        const country = normalizeText(data.country);
+        if (!country) {
+          throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
+        }
+        updates.country = country;
+      }
       if (data.rating !== undefined) updates.rating = toNumber(data.rating, 0);
       if (data.badgeText !== undefined) {
         updates.badge_text = normalizeText(data.badgeText);
@@ -289,13 +304,23 @@ function createExperienceService({ repository }) {
       return { success: true };
     },
 
-    async listHeroSections() {
-      const rows = await repository.findHeroSections();
+    async listHeroSections(filters = {}) {
+      const rows = await repository.findHeroSections(filters);
       return rows.map(toHeroSection);
     },
 
     async upsertHeroSection(sectionKey, data) {
+      const country = normalizeText(data.country);
+      if (!country) {
+        throw new AppError(
+          400,
+          "Country is required for hero section",
+          "COUNTRY_REQUIRED",
+        );
+      }
+
       const row = await repository.upsertHeroSection(sectionKey, {
+        country,
         eyebrow_text: normalizeText(data.eyebrowText),
         heading_line_1: normalizeText(data.headingLine1),
         heading_line_2: normalizeText(data.headingLine2),
