@@ -140,7 +140,7 @@ const ModalComponent = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[150]">
+        <div className="fixed inset-0 z-150">
           <motion.div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             initial={{ opacity: 0 }}
@@ -163,20 +163,20 @@ const ModalComponent = ({
               exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className={ClassName.merge(
-                "relative z-10 flex w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_95%,transparent)] shadow-2xl",
+                "relative z-10 flex w-full flex-col overflow-hidden rounded-2xl border border-(--border) bg-[color-mix(in_srgb,var(--surface)_95%,transparent)] shadow-2xl",
                 sizeClass,
                 className,
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8">
+              <header className="sticky top-0 z-20 border-b border-(--border) bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 id={titleId} className="font-display text-xl font-semibold text-[var(--text-primary)]">
+                    <h2 id={titleId} className="font-display text-xl font-semibold text-(--text-primary) ">
                       {title}
                     </h2>
                     {description && (
-                      <p id={descriptionId} className="mt-1 text-sm text-[var(--text-secondary)]">
+                      <p id={descriptionId} className="mt-1 text-sm text-(--text-secondary)">
                         {description}
                       </p>
                     )}
@@ -184,7 +184,7 @@ const ModalComponent = ({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] transition hover:bg-[var(--background-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-(--border) bg-(--surface) text-(--text-secondary) transition hover:bg-(--background-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring)"
                     aria-label="Close modal"
                   >
                     <span aria-hidden="true">&times;</span>
@@ -202,7 +202,7 @@ const ModalComponent = ({
               </div>
 
               {footer && (
-                <footer className="sticky bottom-0 z-20 border-t border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8">
+                <footer className="sticky bottom-0 z-20 border-t border-(--border) bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8">
                   {footer}
                 </footer>
               )}

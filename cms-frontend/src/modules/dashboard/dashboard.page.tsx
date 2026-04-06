@@ -37,20 +37,20 @@ class DashboardPage extends Component {
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,color-mix(in_srgb,var(--accent)_16%,transparent),transparent_58%),radial-gradient(circle_at_bottom_left,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_50%)]" />
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--text-secondary)]">
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-(--text-secondary)">
                 CMS Command Center
               </p>
-              <h2 className="mt-2 font-display text-3xl font-semibold text-[var(--text-primary)]">
+              <h2 className="mt-2 font-display text-3xl font-semibold text-(--text-primary)">
                 Build Faster Campaign Operations
               </h2>
-              <p className="mt-2 max-w-2xl text-sm text-[var(--text-secondary)]">
+              <p className="mt-2 max-w-2xl text-sm text-(--text-secondary)">
                 Manage destinations, packages, visa content, and media rollout from one cohesive workspace.
                 Your current publishing velocity is 18% faster than last quarter.
               </p>
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-soft)]"
+              className="inline-flex items-center gap-2 rounded-full bg-linear-to-r from-(--primary) to-(--accent) px-4 py-2.5 text-sm font-semibold text-white shadow-(--shadow-soft)"
             >
               Launch Campaign
               <ArrowUpRight size={16} />
@@ -76,12 +76,12 @@ class DashboardPage extends Component {
             title="Revenue Momentum"
             subtitle="Monthly performance with smooth growth curve"
             rightSlot={
-              <span className="rounded-full bg-[color-mix(in_srgb,var(--success)_18%,transparent)] px-2 py-1 text-xs font-semibold text-[var(--success)]">
+              <span className="rounded-full bg-[color-mix(in_srgb,var(--success)_18%,transparent)] px-2 py-1 text-xs font-semibold text-(--success)">
                 +14.3%
               </span>
             }
           >
-            <div className="h-[280px]">
+            <div className="h-70">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={DashboardData.revenue}>
                   <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" vertical={false} />
@@ -101,7 +101,7 @@ class DashboardPage extends Component {
           </SurfaceCardComponent>
 
           <SurfaceCardComponent title="Lead Sources" subtitle="Current pipeline mix">
-            <div className="h-[240px]">
+            <div className="h-60">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -121,7 +121,7 @@ class DashboardPage extends Component {
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
               {DashboardData.source.map((source) => (
-                <div key={source.name} className="flex items-center gap-2 text-[var(--text-secondary)]">
+                <div key={source.name} className="flex items-center gap-2 text-(--text-secondary)">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: source.color }} />
                   {source.name}
                 </div>
@@ -133,8 +133,8 @@ class DashboardPage extends Component {
         <section className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
           <SurfaceCardComponent title="Recent Leads" subtitle="Top active opportunities in CRM">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+              <table className="w-full min-w-140 text-left text-sm">
+                <thead className="text-xs uppercase tracking-[0.16em] text-(--text-secondary)">
                   <tr>
                     <th className="px-3 py-3 font-semibold">Customer</th>
                     <th className="px-3 py-3 font-semibold">Source</th>
@@ -144,15 +144,15 @@ class DashboardPage extends Component {
                 </thead>
                 <tbody>
                   {DashboardData.recentLeads.map((lead) => (
-                    <tr key={lead.name} className="border-t border-[var(--border)] transition hover:bg-[var(--surface)]">
-                      <td className="px-3 py-3 font-medium text-[var(--text-primary)]">{lead.name}</td>
-                      <td className="px-3 py-3 text-[var(--text-secondary)]">{lead.source}</td>
+                    <tr key={lead.name} className="border-t border-(--border) transition hover:bg-(--surface)">
+                      <td className="px-3 py-3 font-medium text-(--text-primary)">{lead.name}</td>
+                      <td className="px-3 py-3 text-(--text-secondary)">{lead.source}</td>
                       <td className="px-3 py-3">
-                        <span className="rounded-full bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] px-2 py-1 text-xs font-semibold text-[var(--primary)]">
+                        <span className="rounded-full bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] px-2 py-1 text-xs font-semibold text-(--primary)">
                           {lead.status}
                         </span>
                       </td>
-                      <td className="px-3 py-3 font-semibold text-[var(--text-primary)]">{lead.amount}</td>
+                      <td className="px-3 py-3 font-semibold text-(--text-primary)">{lead.amount}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,7 +162,7 @@ class DashboardPage extends Component {
 
           <div className="space-y-4">
             <SurfaceCardComponent title="Lead Velocity" subtitle="Organic vs referral by week">
-              <div className="h-[180px]">
+              <div className="h-45">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={DashboardData.leads}>
                     <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" vertical={false} />
@@ -178,26 +178,26 @@ class DashboardPage extends Component {
 
             <SurfaceCardComponent title="Upcoming Follow-Ups">
               <div className="space-y-3 text-sm">
-                <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
-                  <BellRing size={16} className="text-[var(--warning)]" />
+                <div className="flex items-center gap-3 rounded-2xl border border-(--border) bg-(--surface) p-3">
+                  <BellRing size={16} className="text-(--warning)" />
                   <div>
-                    <p className="font-semibold text-[var(--text-primary)]">Maldives group package review</p>
-                    <p className="text-xs text-[var(--text-secondary)]">Today at 4:00 PM</p>
+                    <p className="font-semibold text-(--text-primary)">Maldives group package review</p>
+                    <p className="text-xs text-(--text-secondary)">Today at 4:00 PM</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
-                  <LayoutGrid size={16} className="text-[var(--primary)]" />
+                <div className="flex items-center gap-3 rounded-2xl border border-(--border) bg-(--surface) p-3">
+                  <LayoutGrid size={16} className="text-(--primary)" />
                   <div>
-                    <p className="font-semibold text-[var(--text-primary)]">Visa document audit</p>
-                    <p className="text-xs text-[var(--text-secondary)]">Tomorrow at 11:30 AM</p>
+                    <p className="font-semibold text-(--text-primary)">Visa document audit</p>
+                    <p className="text-xs text-(--text-secondary)">Tomorrow at 11:30 AM</p>
                   </div>
                 </div>
-                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center">
-                  <CircleDashed size={20} className="mx-auto text-[var(--text-secondary)]" />
-                  <p className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
+                <div className="rounded-2xl border border-dashed border-(--border) bg-(--surface) p-6 text-center">
+                  <CircleDashed size={20} className="mx-auto text-(--text-secondary)" />
+                  <p className="mt-2 text-sm font-semibold text-(--text-primary)">
                     No blocked approvals right now
                   </p>
-                  <p className="text-xs text-[var(--text-secondary)]">
+                  <p className="text-xs text-(--text-secondary)">
                     Add a new reminder to keep your team on track.
                   </p>
                 </div>
