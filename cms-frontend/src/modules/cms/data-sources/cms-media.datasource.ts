@@ -45,13 +45,9 @@ class CmsMediaDatasource {
   }
 
   public async listMedia(entityType: string, entityId: string): Promise<CmsMediaAsset[]> {
-    const payload = await this.httpClient
-      .get<unknown>(`/api/cms/media?entityType=${entityType}&entityId=${entityId}`)
-      .catch(() =>
-        this.httpClient.get<unknown>(
-          `/cms/media?entityType=${entityType}&entityId=${entityId}`,
-        ),
-      );
+    const payload = await this.httpClient.get<unknown>(
+      `/cms/media?entityType=${entityType}&entityId=${entityId}`,
+    );
 
     return this.accessor.toArray(payload).map((record) => ({
       id: this.accessor.getText(record, "id"),
@@ -93,9 +89,7 @@ class CmsMediaDatasource {
       displayOrder: payload.displayOrder ?? 0,
     };
 
-    await this.httpClient
-      .post("/api/cms/media", body)
-      .catch(() => this.httpClient.post("/cms/media", body));
+    await this.httpClient.post("/cms/media", body);
   }
 
   public async updateMedia(
@@ -111,24 +105,18 @@ class CmsMediaDatasource {
       isActive?: boolean;
     },
   ): Promise<void> {
-    await this.httpClient
-      .put(`/api/cms/media/${mediaId}`, payload)
-      .catch(() => this.httpClient.put(`/cms/media/${mediaId}`, payload));
+    await this.httpClient.put(`/cms/media/${mediaId}`, payload);
   }
 
   public async deleteMedia(mediaId: string): Promise<void> {
-    await this.httpClient
-      .delete(`/api/cms/media/${mediaId}`)
-      .catch(() => this.httpClient.delete(`/cms/media/${mediaId}`));
+    await this.httpClient.delete(`/cms/media/${mediaId}`);
   }
 
   public async uploadMedia(file: File): Promise<string> {
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("media", file);
 
-    const payload = await this.httpClient
-      .post<unknown>("/api/cms/media/upload", formData)
-      .catch(() => this.httpClient.post<unknown>("/cms/media/upload", formData));
+    const payload = await this.httpClient.post<unknown>("/cms/media/upload", formData);
 
     const record = this.accessor.toRecord(payload);
     if (!record) {
@@ -155,11 +143,9 @@ class CmsMediaDatasource {
   public async listDestinationPackages(
     destinationId: string,
   ): Promise<DestinationPackageMapping[]> {
-    const payload = await this.httpClient
-      .get<unknown>(`/api/cms/destinations/${destinationId}/packages`)
-      .catch(() =>
-        this.httpClient.get<unknown>(`/cms/destinations/${destinationId}/packages`),
-      );
+    const payload = await this.httpClient.get<unknown>(
+      `/cms/destinations/${destinationId}/packages`,
+    );
 
     return this.accessor.toArray(payload).map((record) => ({
       id: this.accessor.getText(record, "id"),
@@ -174,22 +160,16 @@ class CmsMediaDatasource {
     displayOrder: number,
   ): Promise<void> {
     const body = { mainPackageId, displayOrder };
-    await this.httpClient
-      .post(`/api/cms/destinations/${destinationId}/packages`, body)
-      .catch(() =>
-        this.httpClient.post(`/cms/destinations/${destinationId}/packages`, body),
-      );
+    await this.httpClient.post(`/cms/destinations/${destinationId}/packages`, body);
   }
 
   public async unmapDestinationPackage(
     destinationId: string,
     mappingId: string,
   ): Promise<void> {
-    await this.httpClient
-      .delete(`/api/cms/destinations/${destinationId}/packages/${mappingId}`)
-      .catch(() =>
-        this.httpClient.delete(`/cms/destinations/${destinationId}/packages/${mappingId}`),
-      );
+    await this.httpClient.delete(
+      `/cms/destinations/${destinationId}/packages/${mappingId}`,
+    );
   }
 }
 

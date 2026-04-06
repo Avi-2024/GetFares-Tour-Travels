@@ -2,6 +2,24 @@ import { asyncHandler } from "../../core/utils/index.js";
 
 function createCmsMediaController({ service, uploadService }) {
   return Object.freeze({
+    upload: asyncHandler(async (req, res) => {
+      const uploaded = await uploadService.uploadSingle({
+        file: req.file,
+        prefix: "cms/media-assets",
+        allowVideo: true,
+        required: true,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          url: uploaded.url,
+          mediaType: uploaded.mediaType,
+          originalName: uploaded.originalName,
+        },
+      });
+    }),
+
     list: asyncHandler(async (req, res) => {
       const filters = {};
       if (req.query.entityType) filters.entity_type = req.query.entityType;

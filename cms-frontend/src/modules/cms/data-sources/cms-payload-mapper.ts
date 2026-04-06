@@ -4,10 +4,12 @@ import type { JsonRecord } from "../types/json-record.type";
 class CmsPayloadMapper {
   public mapForSection(sectionKey: CmsSectionKey, payload: JsonRecord): JsonRecord {
     if (sectionKey === "landing-places") {
+      const title = payload.title ?? payload.name;
       return {
-        name: payload.name,
-        description: payload.description ?? payload.name,
+        title,
+        name: title,
         tag: payload.tag,
+        image: payload.image ?? payload.imageUrl,
         imageUrl: payload.imageUrl,
         displayOrder: payload.displayOrder,
         isActive: payload.isActive,

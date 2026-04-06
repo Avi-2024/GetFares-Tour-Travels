@@ -3,6 +3,7 @@ import type { CmsTableEntry } from "../types/cms-table-entry.type";
 class CmsEntryMediaResolver {
   public getImageUrlFromEntry(entry: CmsTableEntry): string | null {
     const preferredKeys = [
+      "image",
       "imageUrl",
       "image_url",
       "heroImageUrl",

@@ -1,5 +1,9 @@
 export default interface User {
-  name: string;
+  id: string;
+  fullName: string;
   email: string;
-  token: string;
+  role: string;
+  roleId: string | null;
+  isActive: boolean;
+  token?: string;
 }

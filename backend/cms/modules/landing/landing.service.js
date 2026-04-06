@@ -3,7 +3,6 @@ import {
   normalizeText,
   toBoolean,
   toNumber,
-  toSlug,
 } from "../../core/utils/index.js";
 
 function createLandingService({ repository }) {
@@ -11,30 +10,13 @@ function createLandingService({ repository }) {
     if (!row) return null;
     return {
       id: row.id,
-      name: row.name,
-      slug: row.slug,
-      subtitle: row.subtitle,
-      description: row.description,
+      title: row.name,
       tag: row.tag,
-      imageUrl: row.image_url,
-      ctaText: row.cta_text,
-      ctaUrl: row.cta_url,
+      image: row.image_url,
       displayOrder: row.display_order,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-    };
-  }
-
-  function toLandingPlaceOverview(row) {
-    if (!row) return null;
-    return {
-      id: row.id,
-      title: row.name,
-      image: row.image_url,
-      tag: row.tag,
-      displayOrder: row.display_order,
-      isActive: row.is_active,
     };
   }
 
@@ -43,13 +25,6 @@ function createLandingService({ repository }) {
       const rows = await repository.findAll(filters);
       return rows
         .map(toLandingPlace)
-        .sort((a, b) => a.displayOrder - b.displayOrder);
-    },
-
-    async listOverview(filters = {}) {
-      const rows = await repository.findAll(filters);
-      return rows
-        .map(toLandingPlaceOverview)
         .sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
@@ -74,13 +49,8 @@ function createLandingService({ repository }) {
       const title = normalizeText(data.title ?? data.name);
       const row = await repository.create({
         name: title,
-        slug: toSlug(data.slug || title),
-        subtitle: normalizeText(data.subtitle),
-        description: normalizeText(data.description),
         tag: normalizeText(data.tag),
         image_url: normalizeText(data.image ?? data.imageUrl),
-        cta_text: normalizeText(data.ctaText),
-        cta_url: normalizeText(data.ctaUrl),
         display_order: toNumber(data.displayOrder, existing.length),
         is_active: toBoolean(data.isActive, true),
       });
@@ -98,18 +68,9 @@ function createLandingService({ repository }) {
       if (data.name !== undefined || data.title !== undefined) {
         updates.name = normalizeText(data.title ?? data.name);
       }
-      if (data.slug !== undefined) updates.slug = toSlug(data.slug);
-      if (data.subtitle !== undefined)
-        updates.subtitle = normalizeText(data.subtitle);
-      if (data.description !== undefined)
-        updates.description = normalizeText(data.description);
       if (data.tag !== undefined) updates.tag = normalizeText(data.tag);
       if (data.imageUrl !== undefined || data.image !== undefined)
         updates.image_url = normalizeText(data.image ?? data.imageUrl);
-      if (data.ctaText !== undefined)
-        updates.cta_text = normalizeText(data.ctaText);
-      if (data.ctaUrl !== undefined)
-        updates.cta_url = normalizeText(data.ctaUrl);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
       if (data.isActive !== undefined)

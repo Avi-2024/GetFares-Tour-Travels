@@ -13,6 +13,14 @@ import {
   FaPencil,
   FaTrash
 } from 'react-icons/fa6'
+import {
+  FaPlane,
+  FaHotel,
+  FaCarSide,
+  FaShieldAlt,
+  FaMapMarkedAlt
+} from 'react-icons/fa'
+import type { IconType } from 'react-icons'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { suppliersApi } from '../../api/suppliers'
@@ -134,6 +142,7 @@ type PricingCosts = {
 type ServiceOverrideValue = {
   baseCost?: string
   markupPercent?: string
+  serviceCharge?: string
   sellValue?: string
   paymentTerms?: string
   supplierId?: string
@@ -142,7 +151,15 @@ type ServiceOverrideValue = {
 
 type ServiceOverridesState = Record<string, ServiceOverrideValue>
 type PricingField = keyof ServiceOverrideValue
+type NumericPricingField = 'baseCost' | 'markupPercent' | 'serviceCharge' | 'sellValue'
 type PricingFieldErrors = Record<string, string>
+
+type InclusionShortcut = {
+  key: string
+  label: string
+  icon: IconType
+  line: string
+}
 
 const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   { key: 'hotel', label: 'Accommodation', itemType: 'HOTEL', weight: 40 },
@@ -151,6 +168,39 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
   { key: 'visa', label: 'Visa Services', itemType: 'VISA', weight: 5 },
   { key: 'insurance', label: 'Insurance', itemType: 'INSURANCE', weight: 8 },
   { key: 'insurance2', label: 'Land Arrangement', itemType: 'TRANSFER', weight: 7 }
+]
+
+const INCLUSION_SHORTCUTS: InclusionShortcut[] = [
+  {
+    key: 'flights',
+    label: 'Flights',
+    icon: FaPlane,
+    line: 'Return flight tickets'
+  },
+  {
+    key: 'hotel',
+    label: 'Hotel',
+    icon: FaHotel,
+    line: 'Hotel accommodation'
+  },
+  {
+    key: 'transfer',
+    label: 'Transfer',
+    icon: FaCarSide,
+    line: 'Airport and local transfers'
+  },
+  {
+    key: 'insurance',
+    label: 'Insurance',
+    icon: FaShieldAlt,
+    line: 'Travel insurance coverage'
+  },
+  {
+    key: 'tours',
+    label: 'Tour & Sightseeing',
+    icon: FaMapMarkedAlt,
+    line: 'Tour and sightseeing services'
+  }
 ]
 
 const UUID_REGEX =
@@ -869,6 +919,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     return activeDefinitions.map((definition, index) => {
       const override = serviceOverrides[definition.key] ?? {}
       const effectiveWeight = effectiveWeights[index]
+      const isFlightService = definition.key === 'flights'
 
       const overrideMarkup = override.markupPercent
       const effectiveMarkup =
@@ -894,22 +945,43 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         allocatedRemainder = Number((allocatedRemainder + baseCost).toFixed(2))
       }
 
-      const markupAmount = Number(
-        ((baseCost * effectiveMarkup) / 100).toFixed(2)
-      )
-      const computedSell = Number((baseCost + markupAmount).toFixed(2))
-
       const overrideSell = override.sellValue
+      const overrideServiceCharge =
+        override.serviceCharge !== undefined && override.serviceCharge !== ''
+          ? Number(override.serviceCharge)
+          : null
+      const fallbackFlightChargeFromMarkupPercent =
+        overrideServiceCharge === null &&
+        overrideMarkup !== undefined &&
+        overrideMarkup !== ''
+          ? Number(((baseCost * Number(overrideMarkup)) / 100).toFixed(2))
+          : null
+
+      const computedMarkupAmount = isFlightService
+        ? Number(
+            (
+              overrideServiceCharge ??
+              fallbackFlightChargeFromMarkupPercent ??
+              0
+            ).toFixed(2)
+          )
+        : Number(((baseCost * effectiveMarkup) / 100).toFixed(2))
+      const computedSell = Number((baseCost + computedMarkupAmount).toFixed(2))
       const finalSell =
         overrideSell !== undefined && overrideSell !== ''
           ? Number(overrideSell)
           : computedSell
+      const markupAmount = Number((finalSell - baseCost).toFixed(2))
+      const markupPercent =
+        baseCost > 0
+          ? Number(((markupAmount / baseCost) * 100).toFixed(2))
+          : 0
 
       return {
         ...definition,
         weight: effectiveWeight,
         baseCost,
-        markupPercent: effectiveMarkup,
+        markupPercent,
         markupAmount,
         sellValue: finalSell
       }
@@ -1566,6 +1638,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 row?.markupPercent !== undefined && row?.markupPercent !== null
                   ? String(row.markupPercent)
                   : undefined,
+              serviceCharge:
+                row?.serviceCharge !== undefined && row?.serviceCharge !== null
+                  ? String(row.serviceCharge)
+                  : key === 'flights' &&
+                      row?.markupAmount !== undefined &&
+                      row?.markupAmount !== null
+                    ? String(row.markupAmount)
+                    : undefined,
               sellValue:
                 row?.sellValue !== undefined && row?.sellValue !== null
                   ? String(row.sellValue)
@@ -2142,16 +2222,21 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const errors: PricingFieldErrors = {}
     selectedServiceDefinitions.forEach(definition => {
       const override = serviceOverrides[definition.key] ?? {}
+      const isFlightService = definition.key === 'flights'
       const baseCostError = getNumericOverrideError(override.baseCost, {
         min: 0
       })
-      const markupError = getNumericOverrideError(override.markupPercent, {
-        min: 0,
-        max: 100
-      })
+      const markupError = isFlightService
+        ? getNumericOverrideError(override.serviceCharge, { min: 0 })
+        : getNumericOverrideError(override.markupPercent, {
+            min: 0,
+            max: 100
+          })
       const sellError = getNumericOverrideError(override.sellValue, { min: 0 })
       if (baseCostError) errors[`${definition.key}.baseCost`] = baseCostError
-      if (markupError) errors[`${definition.key}.markupPercent`] = markupError
+      if (markupError)
+        errors[`${definition.key}.${isFlightService ? 'serviceCharge' : 'markupPercent'}`] =
+          markupError
       if (sellError) errors[`${definition.key}.sellValue`] = sellError
     })
     return errors
@@ -2161,10 +2246,32 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     () => toBulletList(form.inclusions),
     [form.inclusions]
   )
+  const inclusionLineSet = useMemo(
+    () => new Set(inclusionLines.map(line => line.toLowerCase())),
+    [inclusionLines]
+  )
   const exclusionLines = useMemo(
     () => toBulletList(form.exclusions),
     [form.exclusions]
   )
+
+  const toggleInclusionShortcut = useCallback((line: string) => {
+    setForm(prev => {
+      const currentLines = toBulletList(prev.inclusions)
+      const matchIndex = currentLines.findIndex(
+        existing => existing.toLowerCase() === line.toLowerCase()
+      )
+      if (matchIndex >= 0) {
+        currentLines.splice(matchIndex, 1)
+      } else {
+        currentLines.push(line)
+      }
+      return {
+        ...prev,
+        inclusions: currentLines.join('\n')
+      }
+    })
+  }, [])
 
   const money = (v: number) => {
     const locale = currency === 'INR' ? 'en-IN' : 'en-US'
@@ -2514,6 +2621,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             override.markupPercent !== ''
               ? Number(override.markupPercent)
               : row.markupPercent,
+          serviceCharge:
+            row.key === 'flights'
+              ? override.serviceCharge !== undefined &&
+                override.serviceCharge !== ''
+                ? Number(override.serviceCharge)
+                : row.markupAmount
+              : undefined,
           markupAmount: row.markupAmount,
           sellValue:
             override.sellValue !== undefined && override.sellValue !== ''
@@ -3385,7 +3499,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     Step 2: Markup
                   </p>
                   <p className='mt-1'>
-                    Markup percent is applied on each service allocated cost.
+                    Markup percent is applied per service. Flights use fixed
+                    service charge instead of percentage.
                   </p>
                 </div>
                 <div className='rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900'>
@@ -3509,6 +3624,32 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 <h3 className='mb-2 text-sm font-semibold text-green-700'>
                   Inclusions
                 </h3>
+                <p className='mb-2 text-[11px] text-gray-500 dark:text-gray-400'>
+                  Tap icons to add/remove common inclusion lines quickly.
+                </p>
+                <div className='mb-3 flex flex-wrap gap-2'>
+                  {INCLUSION_SHORTCUTS.map(shortcut => {
+                    const Icon = shortcut.icon
+                    const isActive = inclusionLineSet.has(
+                      shortcut.line.toLowerCase()
+                    )
+                    return (
+                      <button
+                        key={shortcut.key}
+                        type='button'
+                        onClick={() => toggleInclusionShortcut(shortcut.line)}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                          isActive
+                            ? 'border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-300'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-blue-700 dark:hover:text-blue-300'
+                        }`}
+                      >
+                        <Icon className='text-xs' />
+                        <span>{shortcut.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
                 <textarea
                   rows={5}
                   value={form.inclusions}
@@ -4324,8 +4465,14 @@ const PricingRow = ({
   suppliers: Array<{ id: string; name: string }>
   suppliersLoading: boolean
 }) => {
+  const isFlightService = row.key === 'flights'
+  const markupFieldKey: 'markupPercent' | 'serviceCharge' = isFlightService
+    ? 'serviceCharge'
+    : 'markupPercent'
   const hasBaseCostOverride = override.baseCost !== undefined
-  const hasMarkupOverride = override.markupPercent !== undefined
+  const hasMarkupOverride = isFlightService
+    ? override.serviceCharge !== undefined
+    : override.markupPercent !== undefined
   const hasSellOverride = override.sellValue !== undefined
 
   const supplierDropdownOptions = useMemo(
@@ -4353,8 +4500,12 @@ const PricingRow = ({
     ? String(override.baseCost)
     : row.baseCost.toFixed(2)
   const displayMarkup = hasMarkupOverride
-    ? String(override.markupPercent)
-    : row.markupPercent.toFixed(1)
+    ? String(
+        isFlightService ? override.serviceCharge : override.markupPercent
+      )
+    : isFlightService
+      ? row.markupAmount.toFixed(2)
+      : row.markupPercent.toFixed(1)
   const displaySell = hasSellOverride
     ? String(override.sellValue)
     : row.sellValue.toFixed(2)
@@ -4362,7 +4513,7 @@ const PricingRow = ({
   const sharedInputClass =
     'h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-right tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 
-  const fieldClass = (field: Exclude<PricingField, 'paymentTerms'>) => {
+  const fieldClass = (field: NumericPricingField) => {
     const key = `${row.key}.${field}`
     const hasError = Boolean(fieldErrors[key])
     const changed = Boolean(changedCells[key])
@@ -4374,7 +4525,7 @@ const PricingRow = ({
   }
 
   const normalizeOnBlur = (
-    field: Exclude<PricingField, 'paymentTerms'>,
+    field: NumericPricingField,
     value: string
   ) => {
     const options =
@@ -4464,32 +4615,32 @@ const PricingRow = ({
 
         <div>
           <label className='mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-300'>
-            Markup %
+            {isFlightService ? 'Service Charge' : 'Markup %'}
           </label>
           <input
             data-pricing-input='true'
             type='number'
             min='0'
-            max='100'
-            step='0.1'
+            max={isFlightService ? undefined : '100'}
+            step={isFlightService ? '0.01' : '0.1'}
             value={displayMarkup}
             onFocus={event => event.currentTarget.select()}
             onKeyDown={onCellKeyDown}
             onChange={event =>
-              onUpdateField(row.key, 'markupPercent', event.target.value)
+              onUpdateField(row.key, markupFieldKey, event.target.value)
             }
             onBlur={event =>
-              normalizeOnBlur('markupPercent', event.target.value)
+              normalizeOnBlur(markupFieldKey, event.target.value)
             }
-            className={fieldClass('markupPercent')}
+            className={fieldClass(markupFieldKey)}
           />
-          {fieldErrors[`${row.key}.markupPercent`] ? (
+          {fieldErrors[`${row.key}.${markupFieldKey}`] ? (
             <p className='mt-1 text-[10px] text-red-600'>
-              {fieldErrors[`${row.key}.markupPercent`]}
+              {fieldErrors[`${row.key}.${markupFieldKey}`]}
             </p>
           ) : null}
           <p className='mt-1 text-[10px] text-gray-500 dark:text-gray-400'>
-            Markup: {money(row.markupAmount)}
+            {isFlightService ? 'Service Charge' : 'Markup'}: {money(row.markupAmount)}
           </p>
         </div>
 
@@ -4669,7 +4820,7 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+          {/* <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Default Markup %</span>
             <input
               type='number'
@@ -4681,7 +4832,7 @@ const SummaryPanel = ({
               onChange={event => updateCost('markupPercent', event.target.value)}
               className={inputClass}
             />
-          </div>
+          </div> */}
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Effective Markup %</span>
             <div className='h-10 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>

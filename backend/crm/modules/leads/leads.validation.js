@@ -73,6 +73,7 @@ const create = z.object({
       phone: z.string().trim().min(6).max(20),
       email: z.string().email(),
       autoAssign: z.boolean().optional(),
+      allowDuplicate: z.boolean().optional(),
     }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
