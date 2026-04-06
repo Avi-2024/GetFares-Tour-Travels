@@ -10,8 +10,8 @@ class ApiConfig implements IApiConfig {
       (import.meta as ImportMeta).env?.VITE_BACKEND_URL ??
       "http://localhost:3000",
     endpoints: ApiEndpoints = {
-      login: "/auth/login",
-      logout: "/auth/logout",
+      login: "/api/auth/login",
+      logout: "/api/auth/logout",
     },
   ) {
     this.baseURL = baseURL;

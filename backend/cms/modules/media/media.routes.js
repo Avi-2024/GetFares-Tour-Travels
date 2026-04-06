@@ -3,6 +3,8 @@ import express from "express";
 function createCmsMediaRoutes({ controller, upload }) {
   const router = express.Router();
 
+  router.route("/upload").post(upload.single("media"), controller.upload);
+
   router
     .route("/")
     .get(controller.list)

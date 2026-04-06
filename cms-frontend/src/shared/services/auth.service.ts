@@ -10,6 +10,22 @@ import type {
 import { apiService } from "./api.service";
 import { userStorage, tokenStorage } from "./storage.service";
 
+interface LoginResponsePayload {
+  accessToken?: string;
+  user?: {
+    id?: string;
+    fullName?: string;
+    email?: string;
+    role?: string;
+    roleId?: string | null;
+    isActive?: boolean;
+  };
+}
+
+interface LoginResponseEnvelope {
+  data?: LoginResponsePayload;
+}
+
 class AuthService implements IAuthService<User> {
   private static instance: AuthService;
   private readonly httpClient: IHttpClient;
@@ -51,32 +67,37 @@ class AuthService implements IAuthService<User> {
     password: string,
   ): Promise<boolean | string> {
     try {
-      const response = await this.httpClient.post<User>(
+      const response = await this.httpClient.post<LoginResponseEnvelope>(
         this.apiConfig.endpoints.login,
         { email, password },
       );
 
-      this.userStorage.saveUser(response);
-      if (response.token) {
-        this.tokenStorage.saveToken(response.token);
+      const payload = response?.data;
+      const accessToken = payload?.accessToken || "";
+      const user = payload?.user;
+
+      if (!accessToken || !user?.id || !user?.email || !user?.fullName) {
+        return "Invalid login response from server.";
       }
 
+      const normalizedRole = String(user.role || "").trim().toLowerCase();
+      if (normalizedRole !== "cms_full_access") {
+        return "You do not have CMS access permission.";
+      }
+
+      this.userStorage.saveUser({
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role || "",
+        roleId: user.roleId ?? null,
+        isActive: Boolean(user.isActive),
+        token: accessToken,
+      });
+      this.tokenStorage.saveToken(accessToken);
       return true;
-    } catch {
-      // Local demo fallback for UI environments without auth API availability.
-      if (email === "admin@travel-cms.com" && password === "admin@123") {
-        const demoUser: User = {
-          name: "CMS Admin",
-          email: "admin@travel-cms.com",
-          token: "demo-token",
-        };
-
-        this.userStorage.saveUser(demoUser);
-        this.tokenStorage.saveToken(demoUser.token);
-        return true;
-      }
-
-      return "Invalid email or password";
+    } catch (error) {
+      return error instanceof Error ? error.message : "Invalid email or password";
     }
   }
 

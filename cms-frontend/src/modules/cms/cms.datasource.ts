@@ -1,7 +1,6 @@
 import { serviceContainer } from "../../shared/core/service.container";
 import type { IHttpClient } from "../../shared/interfaces/IHttp.interface";
 import type { CmsSectionKey } from "./models/cms-section-key.type";
-import { CmsEndpointResolver } from "./data-sources/cms-endpoint-resolver";
 import { CmsMediaDatasource } from "./data-sources/cms-media.datasource";
 import { CmsPayloadMapper } from "./data-sources/cms-payload-mapper";
 import { CmsRecordAccessor } from "./data-sources/cms-record-accessor";
@@ -14,7 +13,6 @@ import type { JsonRecord } from "./types/json-record.type";
 class CmsDatasource {
   private readonly httpClient: IHttpClient;
   private readonly accessor: CmsRecordAccessor;
-  private readonly endpointResolver: CmsEndpointResolver;
   private readonly payloadMapper: CmsPayloadMapper;
   private readonly sectionEntryMapper: CmsSectionEntryMapper;
   private readonly mediaDatasource: CmsMediaDatasource;
@@ -22,119 +20,76 @@ class CmsDatasource {
   constructor(httpClient: IHttpClient = serviceContainer.getHttpClient()) {
     this.httpClient = httpClient;
     this.accessor = new CmsRecordAccessor();
-    this.endpointResolver = new CmsEndpointResolver(this.httpClient, this.accessor);
     this.payloadMapper = new CmsPayloadMapper();
     this.sectionEntryMapper = new CmsSectionEntryMapper(this.httpClient, this.accessor);
     this.mediaDatasource = new CmsMediaDatasource(this.httpClient, this.accessor);
   }
 
   public async list(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
-    try {
-      if (sectionKey === "landing-places") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/landing-places",
-          "/cms/landing-places",
-          "/cms",
-        ]);
-        if (result) {
-          return this.sectionEntryMapper.mapLandingEntries(result.data, result.path);
-        }
-      }
-
-      if (sectionKey === "destinations") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/destinations",
-          "/cms/destinations",
-        ]);
-        if (result) {
-          return this.sectionEntryMapper.mapDestinationEntries(result.data, result.path);
-        }
-      }
-
-      if (sectionKey === "published-packages") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/packages/published",
-          "/cms/packages/published",
-        ]);
-        if (result) {
-          return this.sectionEntryMapper.mapPublishedEntries(result.data);
-        }
-      }
-
-      if (sectionKey === "main-packages") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/packages/main",
-          "/cms/packages/main",
-        ]);
-        if (result) {
-          return this.sectionEntryMapper.mapMainPackageEntries(result.data, result.path);
-        }
-      }
-
-      if (sectionKey === "sub-packages") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/packages/main",
-          "/cms/packages/main",
-        ]);
-        if (result) {
-          return this.sectionEntryMapper.mapSubPackageEntries(result.path);
-        }
-      }
-
-      if (sectionKey === "visa-destinations") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/visa-destinations",
-          "/cms/visa-destinations",
-          "/cms/visa",
-        ]);
-        if (result) {
-          return this.sectionEntryMapper.mapVisaDestinationEntries(result.data, result.path);
-        }
-      }
-
-      if (sectionKey === "visa-details") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/visa-destinations",
-          "/cms/visa-destinations",
-          "/cms/visa",
-        ]);
-        if (result) {
-          return this.sectionEntryMapper.mapVisaDetailEntries(result.path);
-        }
-      }
-
-      if (sectionKey === "creative-toolkit") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/experience/featured-picks",
-          "/cms/experience/featured-picks",
-        ]);
-        if (result) {
-          const basePath =
-            result.path.startsWith("/api/") ?
-              "/api/cms/experience"
-            : "/cms/experience";
-          return this.sectionEntryMapper.mapFeaturedEntries(result.data, basePath);
-        }
-      }
-
-      if (sectionKey === "destination-map") {
-        const result = await this.endpointResolver.tryGetFirst([
-          "/api/cms/experience/season-cards",
-          "/cms/experience/season-cards",
-        ]);
-        if (result) {
-          const basePath =
-            result.path.startsWith("/api/") ?
-              "/api/cms/experience"
-            : "/cms/experience";
-          return this.sectionEntryMapper.mapSeasonCardEntries(result.data, basePath);
-        }
-      }
-    } catch {
-      // fallback to static rows when API is unreachable
+    if (sectionKey === "landing-places") {
+      const payload = await this.httpClient.get<unknown>("/cms");
+      return this.sectionEntryMapper.mapLandingEntries(
+        this.accessor.toArray(payload),
+        "/cms",
+      );
     }
 
-    return this.sectionEntryMapper.fallbackEntries(sectionKey);
+    if (sectionKey === "destinations") {
+      const payload = await this.httpClient.get<unknown>("/cms/destinations");
+      return this.sectionEntryMapper.mapDestinationEntries(
+        this.accessor.toArray(payload),
+        "/cms/destinations",
+      );
+    }
+
+    if (sectionKey === "published-packages") {
+      const payload = await this.httpClient.get<unknown>("/cms/packages/published");
+      return this.sectionEntryMapper.mapPublishedEntries(this.accessor.toArray(payload));
+    }
+
+    if (sectionKey === "main-packages") {
+      const payload = await this.httpClient.get<unknown>("/cms/packages/main");
+      return this.sectionEntryMapper.mapMainPackageEntries(
+        this.accessor.toArray(payload),
+        "/cms/packages/main",
+      );
+    }
+
+    if (sectionKey === "sub-packages") {
+      return this.sectionEntryMapper.mapSubPackageEntries("/cms/packages/main");
+    }
+
+    if (sectionKey === "visa-destinations") {
+      const payload = await this.httpClient.get<unknown>("/cms/visa");
+      return this.sectionEntryMapper.mapVisaDestinationEntries(
+        this.accessor.toArray(payload),
+        "/cms/visa",
+      );
+    }
+
+    if (sectionKey === "visa-details") {
+      return this.sectionEntryMapper.mapVisaDetailEntries("/cms/visa");
+    }
+
+    if (sectionKey === "creative-toolkit") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/experience/featured-picks",
+      );
+      return this.sectionEntryMapper.mapFeaturedEntries(
+        this.accessor.toArray(payload),
+        "/cms/experience",
+      );
+    }
+
+    if (sectionKey === "destination-map") {
+      const payload = await this.httpClient.get<unknown>("/cms/experience/season-cards");
+      return this.sectionEntryMapper.mapSeasonCardEntries(
+        this.accessor.toArray(payload),
+        "/cms/experience",
+      );
+    }
+
+    throw new Error(`Unsupported section key: ${sectionKey}`);
   }
 
   public async create(
@@ -144,45 +99,27 @@ class CmsDatasource {
     const mappedPayload = this.payloadMapper.mapForSection(sectionKey, payload);
 
     if (sectionKey === "landing-places") {
-      const response = await this.httpClient
-        .post("/api/cms/landing-places", mappedPayload)
-        .catch(() =>
-          this.httpClient.post("/cms/landing-places", mappedPayload).catch(() =>
-            this.httpClient.post("/cms", mappedPayload),
-          ),
-        );
+      const response = await this.httpClient.post("/cms", mappedPayload);
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "destinations") {
-      const response = await this.httpClient
-        .post("/api/cms/destinations", mappedPayload)
-        .catch(() => this.httpClient.post("/cms/destinations", mappedPayload));
+      const response = await this.httpClient.post("/cms/destinations", mappedPayload);
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "main-packages") {
-      const response = await this.httpClient
-        .post("/api/cms/packages/main", mappedPayload)
-        .catch(() => this.httpClient.post("/cms/packages/main", mappedPayload));
+      const response = await this.httpClient.post("/cms/packages/main", mappedPayload);
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "sub-packages") {
-      const response = await this.httpClient
-        .post("/api/cms/packages/sub", mappedPayload)
-        .catch(() => this.httpClient.post("/cms/packages/sub", mappedPayload));
+      const response = await this.httpClient.post("/cms/packages/sub", mappedPayload);
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "visa-destinations") {
-      const response = await this.httpClient
-        .post("/api/cms/visa-destinations", mappedPayload)
-        .catch(() =>
-          this.httpClient.post("/cms/visa-destinations", mappedPayload).catch(() =>
-            this.httpClient.post("/cms/visa", mappedPayload),
-          ),
-        );
+      const response = await this.httpClient.post("/cms/visa", mappedPayload);
       return this.accessor.toRecord(response);
     }
 
@@ -194,31 +131,26 @@ class CmsDatasource {
         throw new Error("visaDestinationId is required in payload.");
       }
 
-      const response = await this.httpClient
-        .post(`/api/cms/visa-destinations/${visaDestinationId}/details`, mappedPayload)
-        .catch(() =>
-          this.httpClient
-            .post(`/cms/visa-destinations/${visaDestinationId}/details`, mappedPayload)
-            .catch(() =>
-              this.httpClient.post(`/cms/visa/${visaDestinationId}/details`, mappedPayload),
-            ),
-        );
+      const response = await this.httpClient.post(
+        `/cms/visa/${visaDestinationId}/details`,
+        mappedPayload,
+      );
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "creative-toolkit") {
-      const response = await this.httpClient
-        .post("/api/cms/experience/featured-picks", mappedPayload)
-        .catch(() =>
-          this.httpClient.post("/cms/experience/featured-picks", mappedPayload),
-        );
+      const response = await this.httpClient.post(
+        "/cms/experience/featured-picks",
+        mappedPayload,
+      );
       return this.accessor.toRecord(response);
     }
 
     if (sectionKey === "destination-map") {
-      const response = await this.httpClient
-        .post("/api/cms/experience/season-cards", mappedPayload)
-        .catch(() => this.httpClient.post("/cms/experience/season-cards", mappedPayload));
+      const response = await this.httpClient.post(
+        "/cms/experience/season-cards",
+        mappedPayload,
+      );
       return this.accessor.toRecord(response);
     }
 
