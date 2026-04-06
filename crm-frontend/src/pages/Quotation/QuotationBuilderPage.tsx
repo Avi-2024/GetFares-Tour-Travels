@@ -521,8 +521,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   })
   const [serviceOverrides, setServiceOverrides] =
     useState<ServiceOverridesState>({})
-  const [debouncedServiceOverrides, setDebouncedServiceOverrides] =
-    useState<ServiceOverridesState>({})
   const [changedPricingCells, setChangedPricingCells] = useState<
     Record<string, boolean>
   >({})
@@ -755,46 +753,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     [services]
   )
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedServiceOverrides(serviceOverrides)
-    }, 140)
-    return () => window.clearTimeout(timer)
-  }, [serviceOverrides])
-  
-  // Auto-calculate finance breakdown when costs or service rows change
-  useEffect(() => {
-    const totalSupplierCost = Number(costs.supplierCost) || 0
-    const supplierTaxAmount = (totalSupplierCost * finance.supplierTaxPercent) / 100
-    const markupAmount = (totalSupplierCost * (Number(costs.markupPercent) || 0)) / 100
-    const serviceFeeAmount = Number(costs.serviceFee) || 0
-    const subtotal = totalSupplierCost + supplierTaxAmount + markupAmount + serviceFeeAmount
-    const gstAmount = (subtotal * finance.gstPercent) / 100
-    const tcsAmount = (subtotal * finance.tcsPercent) / 100
-    const discount = Number(costs.discount) || 0
-    const totalSaleValue = subtotal + gstAmount + tcsAmount - discount
-    const taxAmount = supplierTaxAmount + gstAmount + tcsAmount
-    
-    setFinance(prev => ({
-      ...prev,
-      supplierTaxAmount: Number(supplierTaxAmount.toFixed(2)),
-      gstAmount: Number(gstAmount.toFixed(2)),
-      tcsAmount: Number(tcsAmount.toFixed(2)),
-      totalSaleValue: Number(Math.max(0, totalSaleValue).toFixed(2)),
-      subtotal: Number(subtotal.toFixed(2)),
-      taxAmount: Number(taxAmount.toFixed(2)),
-      totalMarkup: Number(markupAmount.toFixed(2))
-    }))
-  }, [
-    costs.supplierCost,
-    costs.markupPercent,
-    costs.serviceFee,
-    costs.discount,
-    finance.supplierTaxPercent,
-    finance.gstPercent,
-    finance.tcsPercent
-  ])
-
   const flagPricingCellChange = useCallback((cellId: string) => {
     setChangedPricingCells(prev => ({ ...prev, [cellId]: true }))
     window.setTimeout(() => {
@@ -869,7 +827,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const overriddenKeys = new Set(
       activeDefinitions
         .filter(def => {
-          const val = debouncedServiceOverrides[def.key]?.baseCost
+          const val = serviceOverrides[def.key]?.baseCost
           return (
             val !== undefined &&
             val !== '' &&
@@ -881,7 +839,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     )
     const overriddenTotal = activeDefinitions.reduce((sum, def) => {
       if (!overriddenKeys.has(def.key)) return sum
-      return sum + (Number(debouncedServiceOverrides[def.key]?.baseCost) || 0)
+      return sum + (Number(serviceOverrides[def.key]?.baseCost) || 0)
     }, 0)
     const remainingCost = Math.max(0, globalSupplierCost - overriddenTotal)
 
@@ -909,7 +867,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     )
 
     return activeDefinitions.map((definition, index) => {
-      const override = debouncedServiceOverrides[definition.key] ?? {}
+      const override = serviceOverrides[definition.key] ?? {}
       const effectiveWeight = effectiveWeights[index]
 
       const overrideMarkup = override.markupPercent
@@ -960,7 +918,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     costs.markupPercent,
     costs.supplierCost,
     selectedServiceDefinitions,
-    debouncedServiceOverrides
+    serviceOverrides
   ])
 
   useEffect(() => {
@@ -1961,6 +1919,63 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     [addOnServices]
   )
 
+  // Auto-calculate finance breakdown from service rows + add-ons
+  useEffect(() => {
+    const serviceBaseTotal = Number(
+      serviceCostRows
+        .reduce((sum, row) => sum + (Number(row.baseCost) || 0), 0)
+        .toFixed(2)
+    )
+    const serviceSellTotal = Number(
+      serviceCostRows
+        .reduce((sum, row) => sum + (Number(row.sellValue) || 0), 0)
+        .toFixed(2)
+    )
+    const serviceMarkupTotal = Number(
+      serviceCostRows
+        .reduce(
+          (sum, row) =>
+            sum + ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
+          0
+        )
+        .toFixed(2)
+    )
+    const totalSupplierCost = Number(
+      (serviceBaseTotal + addOnBaseCostTotal).toFixed(2)
+    )
+    const supplierTaxAmount =
+      (totalSupplierCost * finance.supplierTaxPercent) / 100
+    const markupAmount = Number((serviceMarkupTotal + addOnMarkupTotal).toFixed(2))
+    const serviceFeeAmount = Number(costs.serviceFee) || 0
+    const subtotal = serviceSellTotal + addOnTotal + serviceFeeAmount + supplierTaxAmount
+    const gstAmount = (subtotal * finance.gstPercent) / 100
+    const tcsAmount = (subtotal * finance.tcsPercent) / 100
+    const discount = Number(costs.discount) || 0
+    const totalSaleValue = subtotal + gstAmount + tcsAmount - discount
+    const taxAmount = supplierTaxAmount + gstAmount + tcsAmount
+
+    setFinance(prev => ({
+      ...prev,
+      supplierTaxAmount: Number(supplierTaxAmount.toFixed(2)),
+      gstAmount: Number(gstAmount.toFixed(2)),
+      tcsAmount: Number(tcsAmount.toFixed(2)),
+      totalSaleValue: Number(Math.max(0, totalSaleValue).toFixed(2)),
+      subtotal: Number(subtotal.toFixed(2)),
+      taxAmount: Number(taxAmount.toFixed(2)),
+      totalMarkup: Number(markupAmount.toFixed(2))
+    }))
+  }, [
+    addOnBaseCostTotal,
+    addOnMarkupTotal,
+    addOnTotal,
+    costs.serviceFee,
+    costs.discount,
+    finance.supplierTaxPercent,
+    finance.gstPercent,
+    finance.tcsPercent,
+    serviceCostRows
+  ])
+
   const [editingAddOnId, setEditingAddOnId] = useState<string | null>(null)
 
   const addAddOnService = () => {
@@ -2033,15 +2048,36 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }
   }
 
-  const totalMarkupFromServices = useMemo(
+  const serviceBaseCostTotal = useMemo(
     () =>
       Number(
         serviceCostRows
-          .reduce((sum, row) => sum + row.markupAmount, 0)
+          .reduce((sum, row) => sum + (Number(row.baseCost) || 0), 0)
           .toFixed(2)
       ),
     [serviceCostRows]
   )
+
+  const totalMarkupFromServices = useMemo(
+    () =>
+      Number(
+        serviceCostRows
+          .reduce(
+            (sum, row) =>
+              sum + ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
+            0
+          )
+          .toFixed(2)
+      ),
+    [serviceCostRows]
+  )
+
+  const effectiveMarkupPercent = useMemo(() => {
+    if (!serviceBaseCostTotal) return 0
+    return Number(
+      ((totalMarkupFromServices / serviceBaseCostTotal) * 100).toFixed(2)
+    )
+  }, [serviceBaseCostTotal, totalMarkupFromServices])
   
   const serviceChargesTotal = useMemo(
     () =>
@@ -2054,14 +2090,26 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     [serviceCostRows, addOnTotal]
   )
 
+  // Keep supplier cost aligned with manually edited service base costs.
+  useEffect(() => {
+    setCosts(prev => {
+      const current = Number(prev.supplierCost) || 0
+      if (Math.abs(current - serviceBaseCostTotal) < 0.01) return prev
+      return {
+        ...prev,
+        supplierCost: serviceBaseCostTotal
+      }
+    })
+  }, [serviceBaseCostTotal])
+
   const computed = useMemo(() => {
-    const supplier = Number(costs.supplierCost) || 0
+    const supplier = serviceBaseCostTotal
     const serviceFee = Number(costs.serviceFee) || 0
     const taxPercent = Number(costs.taxPercent) || 0
     const discount = Number(costs.discount) || 0
 
-    // Calculate from service rows instead of global markup
-    const servicesMarkup = serviceCostRows.reduce((sum, row) => sum + row.markupAmount, 0)
+    // Calculate from effective sell values so manual overrides are reflected.
+    const servicesMarkup = totalMarkupFromServices
     const servicesSellTotal = serviceCostRows.reduce((sum, row) => sum + row.sellValue, 0)
 
     const preTax = Number((servicesSellTotal + addOnTotal + serviceFee).toFixed(2))
@@ -2620,16 +2668,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         }
       }
 
-      const supplier = Number(costs.supplierCost) || 0
       const serviceFee = Number(costs.serviceFee) || 0
       const totalSupplierCost = Number(
-        (supplier + addOnBaseCostTotal).toFixed(2)
+        (serviceBaseCostTotal + addOnBaseCostTotal).toFixed(2)
       )
       const markupAmount = Number(
-        (
-          supplier * ((Number(costs.markupPercent) || 0) / 100) +
-          addOnMarkupTotal
-        ).toFixed(2)
+        (totalMarkupFromServices + addOnMarkupTotal).toFixed(2)
       )
       const components = [
         ...serviceCostRows.map(row => {
@@ -2685,7 +2729,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         supplierTaxAmount: finance.supplierTaxAmount,
         gstAmount: finance.gstAmount,
         tcsAmount: finance.tcsAmount,
-        totalSaleValue: finance.totalSaleValue,
+        totalSaleValue: Number(computed.totalPrice) || 0,
         // Currency fields
         costCurrency: currencies.costCurrency,
         clientCurrency: currencies.clientCurrency,
@@ -3450,6 +3494,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   costs={costs}
                   setCosts={setCosts}
                   addOnTotal={addOnTotal}
+                  addOnMarkup={addOnMarkupTotal}
+                  effectiveMarkupPercent={effectiveMarkupPercent}
                   subtotal={subtotal}
                   taxes={taxes}
                   total={total}
@@ -4502,6 +4548,8 @@ const SummaryPanel = ({
   costs,
   setCosts,
   addOnTotal,
+  addOnMarkup,
+  effectiveMarkupPercent,
   subtotal,
   taxes,
   total,
@@ -4519,6 +4567,8 @@ const SummaryPanel = ({
   costs: PricingCosts
   setCosts: React.Dispatch<React.SetStateAction<PricingCosts>>
   addOnTotal: number
+  addOnMarkup: number
+  effectiveMarkupPercent: number
   subtotal: number
   taxes: number
   total: number
@@ -4620,7 +4670,7 @@ const SummaryPanel = ({
             />
           </div>
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Markup %</span>
+            <span className='text-xs text-gray-500'>Default Markup %</span>
             <input
               type='number'
               min='0'
@@ -4631,6 +4681,12 @@ const SummaryPanel = ({
               onChange={event => updateCost('markupPercent', event.target.value)}
               className={inputClass}
             />
+          </div>
+          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+            <span className='text-xs text-gray-500'>Effective Markup %</span>
+            <div className='h-10 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
+              {effectiveMarkupPercent.toFixed(2)}
+            </div>
           </div>
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Discount</span>
@@ -4647,7 +4703,7 @@ const SummaryPanel = ({
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500 font-medium'>Profit (Auto)</span>
             <div className='h-10 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300'>
-              {money(totalMarkup + addOnTotal - (costs.serviceFee || 0))}
+              {money(totalMarkup + addOnMarkup)}
             </div>
           </div>
           <div className='space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
