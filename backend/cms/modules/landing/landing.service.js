@@ -26,11 +26,30 @@ function createLandingService({ repository }) {
     };
   }
 
+  function toLandingPlaceOverview(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      title: row.name,
+      image: row.image_url,
+      tag: row.tag,
+      displayOrder: row.display_order,
+      isActive: row.is_active,
+    };
+  }
+
   return Object.freeze({
     async list(filters = {}) {
       const rows = await repository.findAll(filters);
       return rows
         .map(toLandingPlace)
+        .sort((a, b) => a.displayOrder - b.displayOrder);
+    },
+
+    async listOverview(filters = {}) {
+      const rows = await repository.findAll(filters);
+      return rows
+        .map(toLandingPlaceOverview)
         .sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
@@ -52,13 +71,14 @@ function createLandingService({ repository }) {
         );
       }
 
+      const title = normalizeText(data.title ?? data.name);
       const row = await repository.create({
-        name: normalizeText(data.name),
-        slug: toSlug(data.slug || data.name),
+        name: title,
+        slug: toSlug(data.slug || title),
         subtitle: normalizeText(data.subtitle),
         description: normalizeText(data.description),
         tag: normalizeText(data.tag),
-        image_url: normalizeText(data.imageUrl),
+        image_url: normalizeText(data.image ?? data.imageUrl),
         cta_text: normalizeText(data.ctaText),
         cta_url: normalizeText(data.ctaUrl),
         display_order: toNumber(data.displayOrder, existing.length),
@@ -75,15 +95,17 @@ function createLandingService({ repository }) {
       }
 
       const updates = {};
-      if (data.name !== undefined) updates.name = normalizeText(data.name);
+      if (data.name !== undefined || data.title !== undefined) {
+        updates.name = normalizeText(data.title ?? data.name);
+      }
       if (data.slug !== undefined) updates.slug = toSlug(data.slug);
       if (data.subtitle !== undefined)
         updates.subtitle = normalizeText(data.subtitle);
       if (data.description !== undefined)
         updates.description = normalizeText(data.description);
       if (data.tag !== undefined) updates.tag = normalizeText(data.tag);
-      if (data.imageUrl !== undefined)
-        updates.image_url = normalizeText(data.imageUrl);
+      if (data.imageUrl !== undefined || data.image !== undefined)
+        updates.image_url = normalizeText(data.image ?? data.imageUrl);
       if (data.ctaText !== undefined)
         updates.cta_text = normalizeText(data.ctaText);
       if (data.ctaUrl !== undefined)
