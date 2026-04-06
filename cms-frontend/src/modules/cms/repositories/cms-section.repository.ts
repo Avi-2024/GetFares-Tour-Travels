@@ -81,6 +81,10 @@ class CmsSectionRepository implements ICmsSectionRepository {
     return this.datasource.deleteMedia(mediaId);
   }
 
+  public uploadMedia(file: File): Promise<string> {
+    return this.datasource.uploadMedia(file);
+  }
+
   public listDestinationPackages(
     destinationId: string,
   ): Promise<DestinationPackageMapping[]> {

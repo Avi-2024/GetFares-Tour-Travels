@@ -28,6 +28,7 @@ interface CmsEntityEditorModalProps {
 interface CmsEntityEditorModalState {
   isBootstrapping: boolean;
   isSubmitting: boolean;
+  isMediaUploading: boolean;
   formValues: Record<string, unknown>;
   formErrors: Record<string, string>;
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
@@ -38,6 +39,7 @@ interface CmsEntityEditorModalState {
   mediaTitleDraft: string;
   mediaAltDraft: string;
   mediaErrorMessage: string;
+  mediaInfoMessage: string;
   slugTouched: boolean;
   destinationPackageMapByMainId: Record<string, string>;
 }
@@ -52,6 +54,7 @@ class CmsEntityEditorModalComponent extends Component<
   state: CmsEntityEditorModalState = {
     isBootstrapping: false,
     isSubmitting: false,
+    isMediaUploading: false,
     formValues: {},
     formErrors: {},
     relationOptions: {
@@ -68,6 +71,7 @@ class CmsEntityEditorModalComponent extends Component<
     mediaTitleDraft: "",
     mediaAltDraft: "",
     mediaErrorMessage: "",
+    mediaInfoMessage: "",
     slugTouched: false,
     destinationPackageMapByMainId: {},
   };
@@ -101,6 +105,14 @@ class CmsEntityEditorModalComponent extends Component<
 
   private createClientId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private toDefaultMediaLabel(fileName: string): string {
+    const withoutExt = fileName.replace(/\.[^/.]+$/, "");
+    return withoutExt
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   private getRawValue(entry: CmsTableEntry, key: string): unknown {
@@ -193,11 +205,13 @@ class CmsEntityEditorModalComponent extends Component<
 
     this.setState({
       isBootstrapping: true,
+      isMediaUploading: false,
       formValues,
       formErrors: {},
       mediaItems: [],
       removedMediaIds: [],
       mediaErrorMessage: "",
+      mediaInfoMessage: "",
       destinationPackageMapByMainId: {},
       slugTouched: false,
     });
@@ -385,21 +399,70 @@ class CmsEntityEditorModalComponent extends Component<
   };
 
   private onMediaUrlDraftChange = (value: string): void => {
-    this.setState({ mediaUrlDraft: value });
+    this.setState({ mediaUrlDraft: value, mediaErrorMessage: "", mediaInfoMessage: "" });
   };
 
   private onMediaTitleDraftChange = (value: string): void => {
-    this.setState({ mediaTitleDraft: value });
+    this.setState({ mediaTitleDraft: value, mediaErrorMessage: "", mediaInfoMessage: "" });
   };
 
   private onMediaAltDraftChange = (value: string): void => {
-    this.setState({ mediaAltDraft: value });
+    this.setState({ mediaAltDraft: value, mediaErrorMessage: "", mediaInfoMessage: "" });
+  };
+
+  private onUploadMedia = async (file: File): Promise<void> => {
+    if (!file.type.startsWith("image/")) {
+      this.setState({
+        mediaErrorMessage: "Only image files are supported for media upload.",
+        mediaInfoMessage: "",
+      });
+      return;
+    }
+
+    this.setState({
+      isMediaUploading: true,
+      mediaErrorMessage: "",
+      mediaInfoMessage: "",
+    });
+
+    try {
+      const uploadedUrl = await this.cmsService.uploadMedia(file);
+      const defaultLabel = this.toDefaultMediaLabel(file.name);
+
+      this.setState((prev) => ({
+        isMediaUploading: false,
+        mediaItems: [
+          ...prev.mediaItems,
+          {
+            id: null,
+            clientId: this.createClientId(),
+            mediaUrl: uploadedUrl,
+            thumbnailUrl: uploadedUrl,
+            title: defaultLabel,
+            altText: defaultLabel,
+            isPrimary: prev.mediaItems.length === 0,
+          },
+        ],
+        mediaErrorMessage: "",
+        mediaInfoMessage: `${file.name} uploaded successfully.`,
+      }));
+    } catch (error) {
+      this.setState({
+        isMediaUploading: false,
+        mediaInfoMessage: "",
+        mediaErrorMessage:
+          error instanceof Error ? error.message : "Media upload failed.",
+      });
+    }
   };
 
   private onAddMedia = (): void => {
     const url = this.state.mediaUrlDraft.trim();
     if (!url) {
-      this.setState({ mediaErrorMessage: "Media URL is required." });
+      this.setState({
+        mediaErrorMessage: "Media URL is required.",
+        mediaInfoMessage: "",
+      });
       return;
     }
 
@@ -419,6 +482,7 @@ class CmsEntityEditorModalComponent extends Component<
       mediaTitleDraft: "",
       mediaAltDraft: "",
       mediaErrorMessage: "",
+      mediaInfoMessage: "",
     }));
   };
 
@@ -474,7 +538,7 @@ class CmsEntityEditorModalComponent extends Component<
         size={this.props.mode === "create" ? definition.createSize : definition.editSize}
         confirmLabel={this.props.mode === "create" ? "Create Record" : "Save Changes"}
         isSubmitting={this.state.isSubmitting}
-        confirmDisabled={this.state.isBootstrapping}
+        confirmDisabled={this.state.isBootstrapping || this.state.isMediaUploading}
         onConfirm={() => void this.onSubmit()}
         onCancel={this.props.onClose}
       >
@@ -500,9 +564,12 @@ class CmsEntityEditorModalComponent extends Component<
               mediaTitleDraft={this.state.mediaTitleDraft}
               mediaAltDraft={this.state.mediaAltDraft}
               mediaErrorMessage={this.state.mediaErrorMessage}
+              mediaInfoMessage={this.state.mediaInfoMessage}
+              isMediaUploading={this.state.isMediaUploading}
               onMediaUrlDraftChange={this.onMediaUrlDraftChange}
               onMediaTitleDraftChange={this.onMediaTitleDraftChange}
               onMediaAltDraftChange={this.onMediaAltDraftChange}
+              onUploadMedia={this.onUploadMedia}
               onAddMedia={this.onAddMedia}
               onSetCoverMedia={this.onSetCoverMedia}
               onMoveMediaUp={this.onMoveMediaUp}
