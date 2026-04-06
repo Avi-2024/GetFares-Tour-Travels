@@ -2,6 +2,7 @@ import { Component, type ReactNode } from "react";
 import { ThemeContext, type Theme, type IThemeContext } from "./ThemeContext";
 import type { IThemeStorage } from "../interfaces/IStorage.interface";
 import { themeStorage } from "../services/storage.service";
+import { SystemThemeResolver } from "./system-theme.resolver";
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -11,16 +12,6 @@ interface ThemeProviderProps {
 
 interface ThemeProviderState {
   theme: Theme;
-}
-
-class SystemThemeResolver {
-  public resolve(defaultTheme: Theme): Theme {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return defaultTheme;
-    }
-
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
 }
 
 export class ThemeProvider extends Component<ThemeProviderProps, ThemeProviderState> {

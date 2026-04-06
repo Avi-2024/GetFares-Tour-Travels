@@ -14,6 +14,9 @@ function createVisaService({ repository }) {
       heroImageUrl: row.hero_image_url,
       processingTime: row.processing_time,
       supportInfo: row.support_info,
+      iconName: row.icon_name,
+      highlights: row.highlights || [],
+      ctaText: row.cta_text,
       displayOrder: row.display_order,
       isActive: row.is_active,
       createdAt: row.created_at,
@@ -81,6 +84,9 @@ function createVisaService({ repository }) {
         hero_image_url: normalizeText(data.heroImageUrl),
         processing_time: normalizeText(data.processingTime),
         support_info: normalizeText(data.supportInfo),
+        icon_name: normalizeText(data.iconName),
+        highlights: Array.isArray(data.highlights) ? data.highlights : [],
+        cta_text: normalizeText(data.ctaText),
         display_order: toNumber(data.displayOrder, 0),
         is_active: data.isActive !== false,
       });
@@ -116,6 +122,12 @@ function createVisaService({ repository }) {
         updates.processing_time = normalizeText(data.processingTime);
       if (data.supportInfo !== undefined)
         updates.support_info = normalizeText(data.supportInfo);
+      if (data.iconName !== undefined)
+        updates.icon_name = normalizeText(data.iconName);
+      if (data.highlights !== undefined && Array.isArray(data.highlights))
+        updates.highlights = data.highlights;
+      if (data.ctaText !== undefined)
+        updates.cta_text = normalizeText(data.ctaText);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
       if (data.isActive !== undefined) updates.is_active = data.isActive;

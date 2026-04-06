@@ -20,7 +20,6 @@ function createDestinationsRepository({ db, schema }) {
       return db.update(schema.tableName, id, data);
     },
 
-    // Media methods
     async findMedia(destinationId, filters = {}) {
       return db.findMany(schema.mediaTable, {
         destination_id: destinationId,
@@ -41,12 +40,17 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async deleteMedia(mediaId) {
-      return db.update(schema.mediaTable, mediaId, { is_deleted: true });
+      const result = await db.query(
+        `DELETE FROM ${schema.mediaTable} WHERE id = $1 RETURNING *`,
+        [mediaId],
+      );
+      return result.rows[0] || null;
     },
 
-    // Season cards methods
     async findSeasons(destinationId) {
-      return db.findMany(schema.seasonsTable, { destination_id: destinationId });
+      return db.findMany(schema.seasonsTable, {
+        destination_id: destinationId,
+      });
     },
 
     async findSeasonById(seasonId) {
@@ -64,12 +68,11 @@ function createDestinationsRepository({ db, schema }) {
     async deleteSeason(seasonId) {
       const result = await db.query(
         `DELETE FROM ${schema.seasonsTable} WHERE id = $1 RETURNING *`,
-        [seasonId]
+        [seasonId],
       );
       return result.rows[0] || null;
     },
 
-    // Package mapping methods
     async findPackageMaps(destinationId) {
       const result = await db.query(
         `SELECT dpm.*, mp.display_order as package_display_order, mp.is_featured,
@@ -79,7 +82,7 @@ function createDestinationsRepository({ db, schema }) {
          JOIN packages p ON mp.package_id = p.id
          WHERE dpm.destination_id = $1
          ORDER BY dpm.display_order`,
-        [destinationId]
+        [destinationId],
       );
       return result.rows;
     },
@@ -91,7 +94,7 @@ function createDestinationsRepository({ db, schema }) {
     async deletePackageMap(id) {
       const result = await db.query(
         `DELETE FROM ${schema.packagesMapTable} WHERE id = $1 RETURNING *`,
-        [id]
+        [id],
       );
       return result.rows[0] || null;
     },

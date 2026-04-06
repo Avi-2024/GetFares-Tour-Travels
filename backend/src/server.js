@@ -42,23 +42,13 @@ httpServer.listen(container.config.app.port, () => {
 let shuttingDown = false;
 
 async function closeDependencies() {
-  if (typeof automationRuntime?.stop === "function") {
-    automationRuntime.stop();
-  }
-
-  if (typeof socketServer?.close === "function") {
-    socketServer.close();
-  }
-
-  if (typeof container.db?.close === "function") {
-    await container.db.close();
-  }
+  if (typeof automationRuntime?.stop === "function") automationRuntime.stop();
+  if (typeof socketServer?.close === "function") socketServer.close();
+  if (typeof container.db?.close === "function") await container.db.close();
 }
 
 function initiateShutdown(signal) {
-  if (shuttingDown) {
-    return;
-  }
+  if (shuttingDown) return;
 
   shuttingDown = true;
   runtime.isShuttingDown = true;

@@ -4,10 +4,7 @@ import { ClassNameBuilder } from "../utils/class-name.builder";
 
 export type CardProps = HTMLAttributes<HTMLDivElement>;
 
-class CardStyle {
-  public static readonly base =
-    "surface-card rounded-[var(--radius-lg)] p-6";
-}
+const CARD_BASE_CLASSES = "surface-card rounded-[var(--radius-lg)] p-6";
 
 export class Card extends Component<CardProps> {
   render() {
@@ -15,7 +12,7 @@ export class Card extends Component<CardProps> {
 
     return (
       <div
-        className={ClassNameBuilder.join(CardStyle.base, className)}
+        className={ClassNameBuilder.join(CARD_BASE_CLASSES, className)}
         {...props}
       />
     );

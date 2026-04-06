@@ -77,6 +77,8 @@ CREATE TABLE destination_media (
 
 CREATE INDEX idx_destination_media_destination ON destination_media(destination_id, display_order);
 CREATE INDEX idx_destination_media_featured ON destination_media(destination_id, is_featured);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_destination_media_destination_url
+  ON destination_media(destination_id, media_url);
 
 -- =========================================
 -- 4. SEASON CARDS (Best Time to Visit)
@@ -185,6 +187,8 @@ CREATE TABLE visa_destination_details (
 );
 
 CREATE INDEX idx_visa_details_destination ON visa_destination_details(visa_destination_id, section_type, display_order);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_visa_details_destination_section_label
+  ON visa_destination_details(visa_destination_id, section_type, label);
 
 -- =========================================
 -- 7. FEATURED/HOT PICKS (Optional)
@@ -235,3 +239,73 @@ CREATE TABLE cms_activity_log (
 
 CREATE INDEX idx_cms_activity_user ON cms_activity_log(user_id, created_at DESC);
 CREATE INDEX idx_cms_activity_entity ON cms_activity_log(entity_type, entity_id, created_at DESC);
+
+-- =========================================
+-- 9. CMS HOMEPAGE HERO CONTENT
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS landing_hero_sections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    section_key VARCHAR(100) UNIQUE NOT NULL,
+    eyebrow_text VARCHAR(200),
+    heading_line_1 VARCHAR(255),
+    heading_line_2 VARCHAR(255),
+    description TEXT,
+    primary_cta_label VARCHAR(100),
+    primary_cta_url TEXT,
+    secondary_cta_label VARCHAR(100),
+    secondary_cta_url TEXT,
+    background_image_url TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Existing table extensions for richer website cards
+ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS slug VARCHAR(180);
+ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS subtitle VARCHAR(180);
+ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS cta_text VARCHAR(100);
+ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS cta_url TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_landing_places_slug ON landing_places(slug);
+
+ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS slug VARCHAR(180);
+ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS campaign_type VARCHAR(50) DEFAULT 'featured';
+ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS section_key VARCHAR(80) DEFAULT 'featured-hot-picks';
+ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS highlights TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS expires_on DATE;
+ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS cta_url TEXT;
+ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_featured_picks_slug ON featured_picks(slug);
+
+ALTER TABLE season_cards ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE season_cards ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+ALTER TABLE visa_destinations ADD COLUMN IF NOT EXISTS icon_name VARCHAR(80);
+ALTER TABLE visa_destinations ADD COLUMN IF NOT EXISTS highlights TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE visa_destinations ADD COLUMN IF NOT EXISTS cta_text VARCHAR(50) DEFAULT 'View Details';
+
+-- =========================================
+-- 10. GENERIC MEDIA ASSETS FOR CMS ENTITIES
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS cms_media_assets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_type VARCHAR(100) NOT NULL,
+    entity_id UUID NOT NULL,
+    media_kind VARCHAR(20) NOT NULL DEFAULT 'image',
+    media_url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    title VARCHAR(200),
+    alt_text VARCHAR(250),
+    display_order INT DEFAULT 0,
+    is_primary BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cms_media_assets_entity
+  ON cms_media_assets(entity_type, entity_id, display_order);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_cms_media_assets_entity_url
+  ON cms_media_assets(entity_type, entity_id, media_url);

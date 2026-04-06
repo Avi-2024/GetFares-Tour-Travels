@@ -13,6 +13,7 @@
     "dev": "nodemon src/server.js",
     "lint": "node ./node_modules/eslint/bin/eslint.js .",
     "db:migrate": "node scripts/migrate.js",
+    "cms-seed": "node scripts/cms-seed.js",
     "db:seed:rbac": "node scripts/seed-rbac.js",
     "db:backup": "node scripts/backup-db.js",
     "db:restore": "node scripts/restore-db.js",
