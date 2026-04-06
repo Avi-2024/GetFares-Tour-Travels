@@ -429,6 +429,14 @@ function createLeadsRepository({ db, logger, schema }) {
       id: row.id,
       leadId: row.lead_id ?? row.leadId,
       userId: row.user_id ?? row.userId ?? null,
+      userFullName:
+        row.user_full_name ??
+        row.userFullName ??
+        row.user_name ??
+        row.userName ??
+        row.actor_name ??
+        row.actorName ??
+        null,
       followupType: FOLLOWUP_TYPE_FROM_DB[followupType] || "CALL",
       followupTypeCode: followupType,
       followupDate: row.followup_date ?? row.followupDate ?? null,
@@ -2065,7 +2073,18 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async listFollowupsByLeadId(leadId) {
       const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
-      return rows.map((row) => toFollowupDomain(row));
+      const followups = rows
+        .map((row) => toFollowupDomain(row))
+        .filter(Boolean);
+      const userMap = await loadUsersByIds(
+        followups.map((item) => item.userId),
+      );
+
+      return followups.map((item) => ({
+        ...item,
+        userFullName:
+          item.userFullName || userMap.get(item.userId)?.fullName || null,
+      }));
     },
 
     async findPendingScheduleOnlyFollowupByLeadId(

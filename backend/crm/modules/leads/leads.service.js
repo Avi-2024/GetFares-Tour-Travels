@@ -1953,7 +1953,7 @@ function createLeadsService({ repository, logger, events }) {
 
       const followup = await repository.createFollowup({
         leadId: lead.id,
-        userId: payload.userId || lead.assignedTo || context.user?.id || null,
+        userId: payload.userId || context.user?.id || lead.assignedTo || null,
         followupType: normalizedType,
         followupDate: payload.followupDate,
         cadenceCode: payload.cadenceCode || null,
@@ -2573,7 +2573,7 @@ function createLeadsService({ repository, logger, events }) {
       if (shouldCreateWorkflowHistory && workflowFollowupType && workflowRecordedAt) {
         await repository.createFollowup({
           leadId: id,
-          userId: updated?.assignedTo || existing.assignedTo || context.user?.id || null,
+          userId: context.user?.id || updated?.assignedTo || existing.assignedTo || null,
           followupType: workflowFollowupType,
           followupDate: workflowRecordedAt,
           statusSnapshot: workflowStatusSnapshot,

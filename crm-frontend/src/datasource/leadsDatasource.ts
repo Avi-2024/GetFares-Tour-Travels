@@ -84,6 +84,9 @@ export type LeadFollowupRecord = {
   id?: string;
   leadId?: string;
   userId?: string | null;
+  userFullName?: string | null;
+  userName?: string | null;
+  actorName?: string | null;
   followupType?: "CALL" | "WHATSAPP" | "EMAIL" | "FINAL_REMINDER" | "TASK";
   followupTypeCode?: number;
   followupDate?: string | null;

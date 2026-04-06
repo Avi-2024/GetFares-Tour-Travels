@@ -170,6 +170,19 @@ const LeadDetails: React.FC = () => {
     return formatDateTime(dates[0], 'N/A')
   }, [followups, formatDateTime, parseApiDateTime])
 
+  const resolveFollowupActorName = useCallback((item: any) => {
+    const name = String(
+      item?.userFullName ??
+        item?.user_full_name ??
+        item?.userName ??
+        item?.user_name ??
+        item?.actorName ??
+        item?.actor_name ??
+        ''
+    ).trim()
+    return name || 'System'
+  }, [])
+
   const qualificationChildrenCount = useMemo(() => {
     const numericValue = Number(qualification.childrenCount || 0)
     if (!Number.isFinite(numericValue)) return 0
@@ -2034,6 +2047,12 @@ const LeadDetails: React.FC = () => {
                           : 'No date'}
                       </span>
                     </div>
+                    <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
+                      Action by:{' '}
+                      <span className='font-medium text-gray-700 dark:text-gray-200'>
+                        {resolveFollowupActorName(item)}
+                      </span>
+                    </p>
                     {item.notes ? (
                       <p className='mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300'>
                         {item.notes}
@@ -2104,6 +2123,12 @@ const LeadDetails: React.FC = () => {
                           : 'No date'}
                       </span>
                     </div>
+                    <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
+                      Action by:{' '}
+                      <span className='font-medium text-gray-700 dark:text-gray-200'>
+                        {resolveFollowupActorName(item)}
+                      </span>
+                    </p>
                     {item.notes ? (
                       <p className='mt-2 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300'>
                         {item.notes}
