@@ -1,16 +1,23 @@
 import express from "express";
 
-function createDestinationsRoutes({ controller }) {
+function createDestinationsRoutes({ controller, upload }) {
   const router = express.Router();
+  const destinationUpload = upload.fields([
+    { name: "bannerImage", maxCount: 1 },
+    { name: "gallery", maxCount: 50 },
+  ]);
 
-  router.route("/").get(controller.list).post(controller.create);
+  router.route("/").get(controller.list).post(destinationUpload, controller.create);
   router.route("/slug/:slug").get(controller.getBySlug);
-  router.route("/:id").get(controller.getById).put(controller.update);
+  router.route("/:id").get(controller.getById).put(destinationUpload, controller.update);
 
-  router.route("/:id/media").get(controller.getMedia).post(controller.addMedia);
+  router
+    .route("/:id/media")
+    .get(controller.getMedia)
+    .post(upload.single("media"), controller.addMedia);
   router
     .route("/:id/media/:mediaId")
-    .put(controller.updateMedia)
+    .put(upload.single("media"), controller.updateMedia)
     .delete(controller.deleteMedia);
 
   router

@@ -1,5 +1,5 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { toNumber } from "../../core/utils/index.js";
+import { toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createCmsPackagesService({ repository }) {
   function toPackage(row) {
@@ -70,6 +70,31 @@ function createCmsPackagesService({ repository }) {
       return toPackage(row);
     },
 
+    async updatePublishedPackage(id, data) {
+      const existing = await repository.findPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Package not found", "NOT_FOUND");
+      }
+
+      const updates = {};
+      if (data.bannerImageUrl !== undefined) {
+        updates.banner_image_url = data.bannerImageUrl;
+      }
+      if (data.galleryImageUrls !== undefined && Array.isArray(data.galleryImageUrls)) {
+        updates.gallery_image_urls = data.galleryImageUrls;
+      }
+      if (data.publishToWebsite !== undefined) {
+        updates.publish_to_website = toBoolean(data.publishToWebsite, true);
+      }
+
+      if (!Object.keys(updates).length) {
+        return toPackage(existing);
+      }
+
+      const updated = await repository.updatePackageById(id, updates);
+      return toPackage(updated);
+    },
+
     async listMainPackages() {
       const rows = await repository.findAllMainPackages();
       return rows.map(toMainPackage);
@@ -99,7 +124,7 @@ function createCmsPackagesService({ repository }) {
       const row = await repository.createMainPackage({
         package_id: data.packageId,
         display_order: toNumber(data.displayOrder, 0),
-        is_featured: data.isFeatured || false,
+        is_featured: toBoolean(data.isFeatured, false),
       });
 
       return {
@@ -121,7 +146,8 @@ function createCmsPackagesService({ repository }) {
       const updates = {};
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
-      if (data.isFeatured !== undefined) updates.is_featured = data.isFeatured;
+      if (data.isFeatured !== undefined)
+        updates.is_featured = toBoolean(data.isFeatured, false);
 
       const updated = await repository.updateMainPackage(id, updates);
       return {

@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../core/utils/index.js";
 
-function createCmsPackagesController({ service }) {
+function createCmsPackagesController({ service, uploadService }) {
   return Object.freeze({
     listPublished: asyncHandler(async (req, res) => {
       const packages = await service.listPublished();
@@ -12,6 +12,26 @@ function createCmsPackagesController({ service }) {
 
     getPackageById: asyncHandler(async (req, res) => {
       const pkg = await service.getPackageById(req.params.id);
+      res.json({
+        success: true,
+        data: pkg,
+      });
+    }),
+
+    updatePublishedPackage: asyncHandler(async (req, res) => {
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/packages/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.bannerImageUrl = uploaded?.url || payload.bannerImageUrl;
+        payload.galleryImageUrls = payload.bannerImageUrl ? [payload.bannerImageUrl] : payload.galleryImageUrls;
+      }
+
+      const pkg = await service.updatePublishedPackage(req.params.id, payload);
       res.json({
         success: true,
         data: pkg,

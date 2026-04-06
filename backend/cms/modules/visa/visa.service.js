@@ -1,5 +1,10 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { normalizeText, toNumber, toSlug } from "../../core/utils/index.js";
+import {
+  normalizeText,
+  toBoolean,
+  toNumber,
+  toSlug,
+} from "../../core/utils/index.js";
 
 function createVisaService({ repository }) {
   function toVisaDestination(row) {
@@ -88,7 +93,7 @@ function createVisaService({ repository }) {
         highlights: Array.isArray(data.highlights) ? data.highlights : [],
         cta_text: normalizeText(data.ctaText),
         display_order: toNumber(data.displayOrder, 0),
-        is_active: data.isActive !== false,
+        is_active: toBoolean(data.isActive, true),
       });
 
       return toVisaDestination(row);
@@ -130,7 +135,8 @@ function createVisaService({ repository }) {
         updates.cta_text = normalizeText(data.ctaText);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
-      if (data.isActive !== undefined) updates.is_active = data.isActive;
+      if (data.isActive !== undefined)
+        updates.is_active = toBoolean(data.isActive, true);
 
       const updated = await repository.update(id, updates);
       return toVisaDestination(updated);

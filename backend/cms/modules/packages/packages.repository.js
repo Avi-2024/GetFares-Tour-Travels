@@ -14,6 +14,10 @@ function createCmsPackagesRepository({ db, schema }) {
       return db.findById(schema.packagesTable, id);
     },
 
+    async updatePackageById(id, data) {
+      return db.update(schema.packagesTable, id, data);
+    },
+
     async findAllMainPackages() {
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,

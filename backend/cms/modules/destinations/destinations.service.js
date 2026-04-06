@@ -1,5 +1,10 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { normalizeText, toNumber, toSlug } from "../../core/utils/index.js";
+import {
+  normalizeText,
+  toBoolean,
+  toNumber,
+  toSlug,
+} from "../../core/utils/index.js";
 
 function createDestinationsService({ repository }) {
   function toDestination(row) {
@@ -109,13 +114,13 @@ function createDestinationsService({ repository }) {
         rating: toNumber(data.rating, 0),
         hero_image_url: normalizeText(data.heroImageUrl),
         thumbnail_url: normalizeText(data.thumbnailUrl),
-        is_popular: data.isPopular || false,
-        is_new: data.isNew || false,
+        is_popular: toBoolean(data.isPopular, false),
+        is_new: toBoolean(data.isNew, false),
         travel_type: normalizeText(data.travelType),
         season: normalizeText(data.season),
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
-        is_active: data.isActive !== false,
+        is_active: toBoolean(data.isActive, true),
       });
 
       return toDestination(row);
@@ -152,8 +157,9 @@ function createDestinationsService({ repository }) {
         updates.hero_image_url = normalizeText(data.heroImageUrl);
       if (data.thumbnailUrl !== undefined)
         updates.thumbnail_url = normalizeText(data.thumbnailUrl);
-      if (data.isPopular !== undefined) updates.is_popular = data.isPopular;
-      if (data.isNew !== undefined) updates.is_new = data.isNew;
+      if (data.isPopular !== undefined)
+        updates.is_popular = toBoolean(data.isPopular, false);
+      if (data.isNew !== undefined) updates.is_new = toBoolean(data.isNew, false);
       if (data.travelType !== undefined)
         updates.travel_type = normalizeText(data.travelType);
       if (data.season !== undefined)
@@ -162,7 +168,8 @@ function createDestinationsService({ repository }) {
         updates.meta_title = normalizeText(data.metaTitle);
       if (data.metaDescription !== undefined)
         updates.meta_description = normalizeText(data.metaDescription);
-      if (data.isActive !== undefined) updates.is_active = data.isActive;
+      if (data.isActive !== undefined)
+        updates.is_active = toBoolean(data.isActive, true);
 
       const updated = await repository.update(id, updates);
       return toDestination(updated);
@@ -188,7 +195,7 @@ function createDestinationsService({ repository }) {
         title: normalizeText(data.title),
         caption: normalizeText(data.caption),
         display_order: toNumber(data.displayOrder, 0),
-        is_featured: data.isFeatured || false,
+        is_featured: toBoolean(data.isFeatured, false),
       });
 
       return toMedia(row);
@@ -201,6 +208,8 @@ function createDestinationsService({ repository }) {
       }
 
       const updates = {};
+      if (data.mediaType !== undefined)
+        updates.media_type = normalizeText(data.mediaType);
       if (data.mediaUrl !== undefined)
         updates.media_url = normalizeText(data.mediaUrl);
       if (data.thumbnailUrl !== undefined)
@@ -210,7 +219,8 @@ function createDestinationsService({ repository }) {
         updates.caption = normalizeText(data.caption);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
-      if (data.isFeatured !== undefined) updates.is_featured = data.isFeatured;
+      if (data.isFeatured !== undefined)
+        updates.is_featured = toBoolean(data.isFeatured, false);
 
       const updated = await repository.updateMedia(mediaId, updates);
       return toMedia(updated);

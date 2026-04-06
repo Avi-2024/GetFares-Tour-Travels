@@ -1,5 +1,10 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { normalizeText, toNumber, toSlug } from "../../core/utils/index.js";
+import {
+  normalizeText,
+  toBoolean,
+  toNumber,
+  toSlug,
+} from "../../core/utils/index.js";
 
 function createLandingService({ repository }) {
   function toLandingPlace(row) {
@@ -57,7 +62,7 @@ function createLandingService({ repository }) {
         cta_text: normalizeText(data.ctaText),
         cta_url: normalizeText(data.ctaUrl),
         display_order: toNumber(data.displayOrder, existing.length),
-        is_active: data.isActive !== false,
+        is_active: toBoolean(data.isActive, true),
       });
 
       return toLandingPlace(row);
@@ -85,7 +90,8 @@ function createLandingService({ repository }) {
         updates.cta_url = normalizeText(data.ctaUrl);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
-      if (data.isActive !== undefined) updates.is_active = data.isActive;
+      if (data.isActive !== undefined)
+        updates.is_active = toBoolean(data.isActive, true);
 
       const updated = await repository.update(id, updates);
       return toLandingPlace(updated);

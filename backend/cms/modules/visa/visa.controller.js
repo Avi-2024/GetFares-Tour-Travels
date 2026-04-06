@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../core/utils/index.js";
 
-function createVisaController({ service }) {
+function createVisaController({ service, uploadService }) {
   return Object.freeze({
     list: asyncHandler(async (req, res) => {
       const filters = {};
@@ -31,7 +31,19 @@ function createVisaController({ service }) {
     }),
 
     create: asyncHandler(async (req, res) => {
-      const visaDestination = await service.create(req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/visa/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.imageUrl = uploaded?.url || payload.imageUrl;
+        payload.heroImageUrl = uploaded?.url || payload.heroImageUrl;
+      }
+
+      const visaDestination = await service.create(payload);
       res.status(201).json({
         success: true,
         data: visaDestination,
@@ -39,7 +51,19 @@ function createVisaController({ service }) {
     }),
 
     update: asyncHandler(async (req, res) => {
-      const visaDestination = await service.update(req.params.id, req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/visa/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.imageUrl = uploaded?.url || payload.imageUrl;
+        payload.heroImageUrl = uploaded?.url || payload.heroImageUrl;
+      }
+
+      const visaDestination = await service.update(req.params.id, payload);
       res.json({
         success: true,
         data: visaDestination,

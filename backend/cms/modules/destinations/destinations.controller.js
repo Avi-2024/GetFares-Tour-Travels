@@ -1,6 +1,31 @@
 import { asyncHandler } from "../../core/utils/index.js";
 
-function createDestinationsController({ service }) {
+function createDestinationsController({ service, uploadService }) {
+  async function attachGalleryMedia({ destinationId, files, startingOrder = 0 }) {
+    const uploadedFiles = await uploadService.uploadMany({
+      files,
+      prefix: "cms/destinations/gallery",
+      allowVideo: true,
+      maxCount: 50,
+    });
+
+    const createdMedia = [];
+    for (let index = 0; index < uploadedFiles.length; index += 1) {
+      const uploaded = uploadedFiles[index];
+      const media = await service.addMedia(destinationId, {
+        mediaType: uploaded.mediaType,
+        mediaUrl: uploaded.url,
+        thumbnailUrl: uploaded.mediaType === "image" ? uploaded.url : null,
+        title: uploaded.originalName,
+        caption: null,
+        displayOrder: startingOrder + index,
+        isFeatured: false,
+      });
+      createdMedia.push(media);
+    }
+    return createdMedia;
+  }
+
   return Object.freeze({
     list: asyncHandler(async (req, res) => {
       const filters = {};
@@ -35,18 +60,67 @@ function createDestinationsController({ service }) {
     }),
 
     create: asyncHandler(async (req, res) => {
-      const destination = await service.create(req.body);
+      const payload = { ...req.body };
+      const bannerFile = req.files?.bannerImage?.[0] || null;
+      const galleryFiles = req.files?.gallery || [];
+
+      if (bannerFile) {
+        const bannerUpload = await uploadService.uploadSingle({
+          file: bannerFile,
+          prefix: "cms/destinations/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.heroImageUrl = bannerUpload?.url || payload.heroImageUrl;
+        payload.thumbnailUrl = bannerUpload?.url || payload.thumbnailUrl;
+      }
+
+      const destination = await service.create(payload);
+      const gallery = await attachGalleryMedia({
+        destinationId: destination.id,
+        files: galleryFiles,
+        startingOrder: 0,
+      });
+
       res.status(201).json({
         success: true,
         data: destination,
+        included: {
+          galleryCount: gallery.length,
+        },
       });
     }),
 
     update: asyncHandler(async (req, res) => {
-      const destination = await service.update(req.params.id, req.body);
+      const payload = { ...req.body };
+      const bannerFile = req.files?.bannerImage?.[0] || null;
+      const galleryFiles = req.files?.gallery || [];
+
+      if (bannerFile) {
+        const bannerUpload = await uploadService.uploadSingle({
+          file: bannerFile,
+          prefix: "cms/destinations/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.heroImageUrl = bannerUpload?.url || payload.heroImageUrl;
+        payload.thumbnailUrl = bannerUpload?.url || payload.thumbnailUrl;
+      }
+
+      const destination = await service.update(req.params.id, payload);
+      const existingMedia = await service.getMedia(req.params.id);
+      const gallery = await attachGalleryMedia({
+        destinationId: req.params.id,
+        files: galleryFiles,
+        startingOrder: existingMedia.length,
+      });
+
       res.json({
         success: true,
         data: destination,
+        included: {
+          galleryCount: gallery.length,
+        },
       });
     }),
 
@@ -60,7 +134,21 @@ function createDestinationsController({ service }) {
     }),
 
     addMedia: asyncHandler(async (req, res) => {
-      const media = await service.addMedia(req.params.id, req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/destinations/gallery",
+          allowVideo: true,
+          required: false,
+        });
+        payload.mediaType = uploaded?.mediaType || payload.mediaType;
+        payload.mediaUrl = uploaded?.url || payload.mediaUrl;
+        payload.thumbnailUrl =
+          uploaded?.mediaType === "image" ? uploaded.url : payload.thumbnailUrl;
+      }
+
+      const media = await service.addMedia(req.params.id, payload);
       res.status(201).json({
         success: true,
         data: media,
@@ -68,7 +156,21 @@ function createDestinationsController({ service }) {
     }),
 
     updateMedia: asyncHandler(async (req, res) => {
-      const media = await service.updateMedia(req.params.mediaId, req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/destinations/gallery",
+          allowVideo: true,
+          required: false,
+        });
+        payload.mediaType = uploaded?.mediaType || payload.mediaType;
+        payload.mediaUrl = uploaded?.url || payload.mediaUrl;
+        payload.thumbnailUrl =
+          uploaded?.mediaType === "image" ? uploaded.url : payload.thumbnailUrl;
+      }
+
+      const media = await service.updateMedia(req.params.mediaId, payload);
       res.json({
         success: true,
         data: media,

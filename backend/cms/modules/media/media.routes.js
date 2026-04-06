@@ -1,16 +1,17 @@
 import express from "express";
-import { createMemoryUpload } from "../../../crm/core/uploads/index.js";
 
-function createCmsMediaRoutes({ controller }) {
+function createCmsMediaRoutes({ controller, upload }) {
   const router = express.Router();
-  const upload = createMemoryUpload({ maxFileSizeMb: 10 });
 
-  router.get("/", controller.list);
-  router.post("/upload", upload.single("file"), controller.upload);
-  router.get("/:id", controller.getById);
-  router.post("/", controller.create);
-  router.put("/:id", controller.update);
-  router.delete("/:id", controller.delete);
+  router
+    .route("/")
+    .get(controller.list)
+    .post(upload.single("media"), controller.create);
+  router
+    .route("/:id")
+    .get(controller.getById)
+    .put(upload.single("media"), controller.update)
+    .delete(controller.delete);
 
   return router;
 }

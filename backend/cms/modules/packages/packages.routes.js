@@ -1,10 +1,13 @@
 import express from "express";
 
-function createCmsPackagesRoutes({ controller }) {
+function createCmsPackagesRoutes({ controller, upload }) {
   const router = express.Router();
 
   router.route("/published").get(controller.listPublished);
-  router.route("/published/:id").get(controller.getPackageById);
+  router
+    .route("/published/:id")
+    .get(controller.getPackageById)
+    .put(upload.single("bannerImage"), controller.updatePublishedPackage);
 
   router
     .route("/main")

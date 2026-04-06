@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../core/utils/index.js";
 
-function createExperienceController({ service }) {
+function createExperienceController({ service, uploadService }) {
   return Object.freeze({
     listFeaturedPicks: asyncHandler(async (req, res) => {
       const filters = {};
@@ -24,12 +24,32 @@ function createExperienceController({ service }) {
     }),
 
     createFeaturedPick: asyncHandler(async (req, res) => {
-      const row = await service.createFeaturedPick(req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/featured-picks/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.imageUrl = uploaded?.url || payload.imageUrl;
+      }
+      const row = await service.createFeaturedPick(payload);
       res.status(201).json({ success: true, data: row });
     }),
 
     updateFeaturedPick: asyncHandler(async (req, res) => {
-      const row = await service.updateFeaturedPick(req.params.id, req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/featured-picks/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.imageUrl = uploaded?.url || payload.imageUrl;
+      }
+      const row = await service.updateFeaturedPick(req.params.id, payload);
       res.json({ success: true, data: row });
     }),
 
@@ -56,12 +76,32 @@ function createExperienceController({ service }) {
     }),
 
     createSeasonCard: asyncHandler(async (req, res) => {
-      const row = await service.createSeasonCard(req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/season-cards/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.imageUrl = uploaded?.url || payload.imageUrl;
+      }
+      const row = await service.createSeasonCard(payload);
       res.status(201).json({ success: true, data: row });
     }),
 
     updateSeasonCard: asyncHandler(async (req, res) => {
-      const row = await service.updateSeasonCard(req.params.id, req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/season-cards/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.imageUrl = uploaded?.url || payload.imageUrl;
+      }
+      const row = await service.updateSeasonCard(req.params.id, payload);
       res.json({ success: true, data: row });
     }),
 
@@ -76,9 +116,20 @@ function createExperienceController({ service }) {
     }),
 
     upsertHeroSection: asyncHandler(async (req, res) => {
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/hero-sections/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.backgroundImageUrl =
+          uploaded?.url || payload.backgroundImageUrl;
+      }
       const row = await service.upsertHeroSection(
         req.params.sectionKey,
-        req.body,
+        payload,
       );
       res.json({ success: true, data: row });
     }),

@@ -1,0 +1,916 @@
+{
+  "info": {
+    "_postman_id": "baf44639-0286-4578-9c55-8eb6b7914ea2",
+    "name": "CMS",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "cms",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{cmsToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Login (Get CMS Token)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{cmsEmail}}\",\n  \"password\": \"{{cmsPassword}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        },
+        {
+          "name": "List Landing Places",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms"
+          }
+        },
+        {
+          "name": "Get Landing Place By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/{{landingPlaceId}}"
+          }
+        },
+        {
+          "name": "Create Landing Place",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update Landing Place",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/{{landingPlaceId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Landing Place",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/{{landingPlaceId}}"
+          }
+        },
+        {
+          "name": "Reorder Landing Places",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/cms/reorder",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "List Destinations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/destinations"
+          }
+        },
+        {
+          "name": "Get Destination By Slug",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/destinations/slug/{{destinationSlug}}"
+          }
+        },
+        {
+          "name": "Get Destination By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}"
+          }
+        },
+        {
+          "name": "Create Destination",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/destinations",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update Destination",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "List Destination Media",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/media"
+          }
+        },
+        {
+          "name": "Add Destination Media",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update Destination Media",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Destination Media",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}"
+          }
+        },
+        {
+          "name": "List Destination Seasons",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons"
+          }
+        },
+        {
+          "name": "Add Destination Season",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update Destination Season",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Destination Season",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}"
+          }
+        },
+        {
+          "name": "List Destination Package Mapping",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages"
+          }
+        },
+        {
+          "name": "Map Main Package To Destination",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Unmap Main Package From Destination",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages/{{destinationMapId}}"
+          }
+        },
+        {
+          "name": "List Published CRM Packages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/packages/published"
+          }
+        },
+        {
+          "name": "Get Published Package By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/packages/published/{{packageId}}"
+          }
+        },
+        {
+          "name": "List Main Packages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/packages/main"
+          }
+        },
+        {
+          "name": "Get Main Package By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}"
+          }
+        },
+        {
+          "name": "Create Main Package",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/packages/main",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update Main Package",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Main Package",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}"
+          }
+        },
+        {
+          "name": "List Sub Packages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub"
+          }
+        },
+        {
+          "name": "Create Sub Package",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/packages/sub",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update Sub Package",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Sub Package",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}"
+          }
+        },
+        {
+          "name": "List Visa Destinations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/visa"
+          }
+        },
+        {
+          "name": "Get Visa Destination By Slug",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/visa/slug/{{visaSlug}}"
+          }
+        },
+        {
+          "name": "Get Visa Destination By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}"
+          }
+        },
+        {
+          "name": "Create Visa Destination",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/visa",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update Visa Destination",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Visa Destination",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}"
+          }
+        },
+        {
+          "name": "List Visa Details",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details"
+          }
+        },
+        {
+          "name": "Add Visa Detail",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update Visa Detail",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Visa Detail",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}"
+          }
+        },
+        {
+          "name": "List Featured Picks",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/experience/featured-picks"
+          }
+        },
+        {
+          "name": "Create Featured Pick",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/experience/featured-picks",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Get Featured Pick By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}"
+          }
+        },
+        {
+          "name": "Update Featured Pick",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Featured Pick",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}"
+          }
+        },
+        {
+          "name": "List Season Cards",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/experience/season-cards"
+          }
+        },
+        {
+          "name": "Create Season Card",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/experience/season-cards",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Get Season Card By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}"
+          }
+        },
+        {
+          "name": "Update Season Card",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete Season Card",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}"
+          }
+        },
+        {
+          "name": "List Hero Sections",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/experience/hero-sections"
+          }
+        },
+        {
+          "name": "Upsert Hero Section",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/experience/hero-sections/{{heroSectionKey}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "List CMS Media Assets",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/media"
+          }
+        },
+        {
+          "name": "Get CMS Media Asset By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cms/media/{{mediaAssetId}}"
+          }
+        },
+        {
+          "name": "Create CMS Media Asset",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cms/media",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Update CMS Media Asset",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete CMS Media Asset",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cms/media/{{mediaAssetId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "website",
+      "item": [
+        {
+          "name": "Home Composite",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/home"
+          }
+        },
+        {
+          "name": "Landing Places (Active)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/landing-places"
+          }
+        },
+        {
+          "name": "Destinations (Active)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/destinations"
+          }
+        },
+        {
+          "name": "Destination By Slug (Active)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}"
+          }
+        },
+        {
+          "name": "Destination Media",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/media"
+          }
+        },
+        {
+          "name": "Destination Season Cards",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/season-cards"
+          }
+        },
+        {
+          "name": "Destination Packages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/packages"
+          }
+        },
+        {
+          "name": "Published Packages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/packages/published"
+          }
+        },
+        {
+          "name": "Main Packages",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/packages/main"
+          }
+        },
+        {
+          "name": "Sub Packages By Main",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/packages/main/{{mainPackageId}}/sub"
+          }
+        },
+        {
+          "name": "Visa Destinations (Active)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/visa-destinations"
+          }
+        },
+        {
+          "name": "Visa Destination By Slug",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}"
+          }
+        },
+        {
+          "name": "Visa Details By Slug",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}/details"
+          }
+        },
+        {
+          "name": "Featured Picks (Active)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/featured-picks"
+          }
+        },
+        {
+          "name": "Season Cards (Active)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/season-cards"
+          }
+        },
+        {
+          "name": "Hero Sections (Active)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/cms/hero-sections"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "cmsEmail",
+      "value": "admin@travel-cms.com"
+    },
+    {
+      "key": "cmsPassword",
+      "value": "admin@123"
+    },
+    {
+      "key": "cmsToken",
+      "value": ""
+    },
+    {
+      "key": "landingPlaceId",
+      "value": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "key": "destinationId",
+      "value": "00000000-0000-0000-0000-000000000002"
+    },
+    {
+      "key": "destinationSlug",
+      "value": "maldives"
+    },
+    {
+      "key": "destinationMediaId",
+      "value": "00000000-0000-0000-0000-000000000003"
+    },
+    {
+      "key": "seasonCardId",
+      "value": "00000000-0000-0000-0000-000000000004"
+    },
+    {
+      "key": "destinationMapId",
+      "value": "00000000-0000-0000-0000-000000000005"
+    },
+    {
+      "key": "packageId",
+      "value": "00000000-0000-0000-0000-000000000006"
+    },
+    {
+      "key": "mainPackageId",
+      "value": "00000000-0000-0000-0000-000000000007"
+    },
+    {
+      "key": "subPackageId",
+      "value": "00000000-0000-0000-0000-000000000008"
+    },
+    {
+      "key": "visaDestinationId",
+      "value": "00000000-0000-0000-0000-000000000009"
+    },
+    {
+      "key": "visaSlug",
+      "value": "schengen-visa"
+    },
+    {
+      "key": "visaDetailId",
+      "value": "00000000-0000-0000-0000-000000000010"
+    },
+    {
+      "key": "featuredPickId",
+      "value": "00000000-0000-0000-0000-000000000011"
+    },
+    {
+      "key": "heroSectionKey",
+      "value": "home-hero"
+    },
+    {
+      "key": "mediaAssetId",
+      "value": "00000000-0000-0000-0000-000000000012"
+    }
+  ]
+}

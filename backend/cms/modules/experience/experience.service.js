@@ -1,5 +1,5 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { normalizeText, toNumber } from "../../core/utils/index.js";
+import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createExperienceService({ repository }) {
   function toFeaturedPick(row) {
@@ -122,7 +122,7 @@ function createExperienceService({ repository }) {
             data.metadata
           : {},
         display_order: toNumber(data.displayOrder, 0),
-        is_active: data.isActive !== false,
+        is_active: toBoolean(data.isActive, true),
       });
 
       return toFeaturedPick(row);
@@ -189,7 +189,8 @@ function createExperienceService({ repository }) {
       if (data.displayOrder !== undefined) {
         updates.display_order = toNumber(data.displayOrder, 0);
       }
-      if (data.isActive !== undefined) updates.is_active = data.isActive;
+      if (data.isActive !== undefined)
+        updates.is_active = toBoolean(data.isActive, true);
 
       const row = await repository.updateFeaturedPick(id, updates);
       return toFeaturedPick(row);
@@ -231,7 +232,7 @@ function createExperienceService({ repository }) {
         icon_color: normalizeText(data.iconColor),
         bg_color: normalizeText(data.bgColor),
         display_order: toNumber(data.displayOrder, 0),
-        is_active: data.isActive !== false,
+        is_active: toBoolean(data.isActive, true),
       });
       return toSeasonCard(row);
     },
@@ -271,7 +272,7 @@ function createExperienceService({ repository }) {
         updates.display_order = toNumber(data.displayOrder, 0);
       }
       if (data.isActive !== undefined) {
-        updates.is_active = data.isActive;
+        updates.is_active = toBoolean(data.isActive, true);
       }
 
       const row = await repository.updateSeasonCard(id, updates);
@@ -304,7 +305,7 @@ function createExperienceService({ repository }) {
         secondary_cta_label: normalizeText(data.secondaryCtaLabel),
         secondary_cta_url: normalizeText(data.secondaryCtaUrl),
         background_image_url: normalizeText(data.backgroundImageUrl),
-        is_active: data.isActive !== false,
+        is_active: toBoolean(data.isActive, true),
       });
       return toHeroSection(row);
     },

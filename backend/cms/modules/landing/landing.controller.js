@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../core/utils/index.js";
 
-function createLandingController({ service }) {
+function createLandingController({ service, uploadService }) {
   return Object.freeze({
     list: asyncHandler(async (req, res) => {
       const filters = {};
@@ -24,7 +24,18 @@ function createLandingController({ service }) {
     }),
 
     create: asyncHandler(async (req, res) => {
-      const place = await service.create(req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/landing/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.imageUrl = uploaded?.url || payload.imageUrl;
+      }
+
+      const place = await service.create(payload);
       res.status(201).json({
         success: true,
         data: place,
@@ -32,7 +43,18 @@ function createLandingController({ service }) {
     }),
 
     update: asyncHandler(async (req, res) => {
-      const place = await service.update(req.params.id, req.body);
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/landing/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.imageUrl = uploaded?.url || payload.imageUrl;
+      }
+
+      const place = await service.update(req.params.id, payload);
       res.json({
         success: true,
         data: place,

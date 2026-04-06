@@ -189,6 +189,11 @@ curl http://localhost:3000/api/public/landing/places
 
 - All `/cms/*` routes require authentication and `CMS_ACCESS` role
 - CMS users are stored in the shared CRM `users` table
+- CMS media uploads now use `multipart/form-data` + S3 (via multer memory storage)
+- Field names:
+  - Destinations: `bannerImage` (single), `gallery` (multiple images/videos)
+  - Landing/Visa/Featured Picks/Season Cards/Hero Sections: `bannerImage` (single)
+  - CMS Media Assets: `media` (single image/video)
 - Public API routes are open for website consumption
 - Uses existing CRM database connection
 - Compatible with CRM package system

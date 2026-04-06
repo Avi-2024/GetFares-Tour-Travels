@@ -6,14 +6,33 @@ import { createExperienceModule } from "./experience/index.js";
 import { createCmsMediaModule } from "./media/index.js";
 import { createPublicCmsModule } from "./public/index.js";
 import { createCmsAccessMiddleware } from "../core/middlewares/cmsAccess.middleware.js";
+import { createMemoryUpload } from "../../crm/core/uploads/index.js";
 
-function createCmsModules({ db }) {
-  const landing = createLandingModule({ db });
-  const destinations = createDestinationsModule({ db });
-  const packages = createCmsPackagesModule({ db });
-  const visa = createVisaModule({ db });
-  const experience = createExperienceModule({ db });
-  const media = createCmsMediaModule({ db });
+function createCmsModules({ db, storage, logger, upload }) {
+  const uploadMiddleware =
+    upload || createMemoryUpload({ maxFileSizeMb: 10 });
+
+  const landing = createLandingModule({ db, storage, upload: uploadMiddleware, logger });
+  const destinations = createDestinationsModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
+  const packages = createCmsPackagesModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
+  const visa = createVisaModule({ db, storage, upload: uploadMiddleware, logger });
+  const experience = createExperienceModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
+  const media = createCmsMediaModule({ db, storage, upload: uploadMiddleware, logger });
   const publicCms = createPublicCmsModule({
     landingService: landing.service,
     destinationsService: destinations.service,
@@ -35,6 +54,11 @@ function createCmsModules({ db }) {
 
 function registerModules(app, dependencies, options = {}) {
   const mountedModules = {};
+  const upload =
+    options.upload ||
+    createMemoryUpload({
+      maxFileSizeMb: dependencies.config?.uploads?.maxFileSizeMb || 10,
+    });
   const requireAuth =
     options.requireAuth || dependencies.middlewares?.requireAuth;
   const requireCmsAccess =
@@ -49,22 +73,52 @@ function registerModules(app, dependencies, options = {}) {
       [requireAuth, requireCmsAccess]
     : [requireCmsAccess];
 
-  const landing = createLandingModule({ db: dependencies.db });
+  const landing = createLandingModule({
+    db: dependencies.db,
+    storage: dependencies.storage,
+    upload,
+    logger: dependencies.logger,
+  });
   mountedModules.landing = landing;
 
-  const destinations = createDestinationsModule({ db: dependencies.db });
+  const destinations = createDestinationsModule({
+    db: dependencies.db,
+    storage: dependencies.storage,
+    upload,
+    logger: dependencies.logger,
+  });
   mountedModules.destinations = destinations;
 
-  const packages = createCmsPackagesModule({ db: dependencies.db });
+  const packages = createCmsPackagesModule({
+    db: dependencies.db,
+    storage: dependencies.storage,
+    upload,
+    logger: dependencies.logger,
+  });
   mountedModules.packages = packages;
 
-  const visa = createVisaModule({ db: dependencies.db });
+  const visa = createVisaModule({
+    db: dependencies.db,
+    storage: dependencies.storage,
+    upload,
+    logger: dependencies.logger,
+  });
   mountedModules.visa = visa;
 
-  const experience = createExperienceModule({ db: dependencies.db });
+  const experience = createExperienceModule({
+    db: dependencies.db,
+    storage: dependencies.storage,
+    upload,
+    logger: dependencies.logger,
+  });
   mountedModules.experience = experience;
 
-  const media = createCmsMediaModule({ db: dependencies.db });
+  const media = createCmsMediaModule({
+    db: dependencies.db,
+    storage: dependencies.storage,
+    upload,
+    logger: dependencies.logger,
+  });
   mountedModules.media = media;
 
   const publicCms = createPublicCmsModule({

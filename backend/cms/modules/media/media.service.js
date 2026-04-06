@@ -1,5 +1,5 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { normalizeText, toNumber } from "../../core/utils/index.js";
+import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createCmsMediaService({ repository }) {
   function toMediaAsset(row) {
@@ -51,8 +51,8 @@ function createCmsMediaService({ repository }) {
         title: normalizeText(data.title),
         alt_text: normalizeText(data.altText),
         display_order: toNumber(data.displayOrder, 0),
-        is_primary: data.isPrimary === true,
-        is_active: data.isActive !== false,
+        is_primary: toBoolean(data.isPrimary, false),
+        is_active: toBoolean(data.isActive, true),
       });
       return toMediaAsset(row);
     },
@@ -83,10 +83,10 @@ function createCmsMediaService({ repository }) {
         updates.display_order = toNumber(data.displayOrder, 0);
       }
       if (data.isPrimary !== undefined) {
-        updates.is_primary = data.isPrimary;
+        updates.is_primary = toBoolean(data.isPrimary, false);
       }
       if (data.isActive !== undefined) {
-        updates.is_active = data.isActive;
+        updates.is_active = toBoolean(data.isActive, true);
       }
 
       const row = await repository.update(id, updates);
