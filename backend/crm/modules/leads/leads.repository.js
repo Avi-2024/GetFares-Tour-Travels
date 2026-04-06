@@ -13,6 +13,8 @@ function createLeadsRepository({ db, logger, schema }) {
     FINAL_REMINDER: 4,
     TASK: 4,
   });
+
+  const CLOSED_LEAD_STATUSES = new Set(["CONVERTED", "LOST", "NON_RESPONSIVE"]);
   const FOLLOWUP_TYPE_FROM_DB = Object.freeze({
     1: "CALL",
     2: "WHATSAPP",
@@ -1321,8 +1323,23 @@ function createLeadsRepository({ db, logger, schema }) {
           customer_id: customer.id,
         });
 
-        const activeCandidate = leadRows
-          .filter((row) => !(row.is_deleted ?? row.isDeleted ?? false))
+        const activeRows = leadRows.filter(
+          (row) => !(row.is_deleted ?? row.isDeleted ?? false),
+        );
+        const sortByNewest = (left, right) => {
+          const leftTs = toDate(left.created_at ?? left.createdAt)?.getTime() || 0;
+          const rightTs = toDate(right.created_at ?? right.createdAt)?.getTime() || 0;
+          return rightTs - leftTs;
+        };
+        const blockingCandidate = activeRows
+          .filter((row) => {
+            const status = String(row.status ?? "").toUpperCase();
+            return !CLOSED_LEAD_STATUSES.has(status);
+          })
+          .sort(sortByNewest)[0];
+        const activeCandidate =
+          blockingCandidate ||
+          activeRows
           .sort((left, right) => {
             const leftTs =
               toDate(left.created_at ?? left.createdAt)?.getTime() || 0;

@@ -128,7 +128,7 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     }),
   checkDuplicate: (email?: string, phone?: string) =>
     client.get<LeadsListResponse>("/api/leads", {
-      params: { email, phone, page: 1, limit: 1 },
+      params: { email, phone, page: 1, limit: 1, quickFilter: "ACTIVE" },
     }),
   getCampaigns: () => client.get("/api/campaigns", { params: { status: "ACTIVE" } }),
   getDestinations: () => client.get("/api/destinations"),

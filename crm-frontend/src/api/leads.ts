@@ -72,7 +72,13 @@ export const leadsApi = {
     }
 
     const response = await apiRequest<any>(
-      withQuery("/api/leads", { email, phone, page: 1, limit: 1 }),
+      withQuery("/api/leads", {
+        email,
+        phone,
+        page: 1,
+        limit: 1,
+        quickFilter: "ACTIVE",
+      }),
     );
     const matches = extractList(response);
     const isDuplicate = matches.length > 0;

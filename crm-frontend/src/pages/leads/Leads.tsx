@@ -7,6 +7,7 @@ import {
   FaDownload,
   FaEye,
   FaFire,
+  FaInfoCircle,
   FaPlus,
   FaSearch,
   FaUsers,
@@ -690,18 +691,18 @@ const Leads: React.FC = () => {
           ) : (
             <>
               <div className="hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll">
-                <table className="min-w-[1180px] w-full table-fixed">
+                <table className="min-w-[980px] w-full table-fixed">
                   <colgroup>
                     <col className="w-[9%]" />
                     <col className="w-[15%]" />
-                    <col className="w-[10%]" />
+                    <col className="w-[8%]" />
                     <col className="w-[17%]" />
                     <col className="w-[11%]" />
                     <col className="w-[10%]" />
                     <col className="w-[10%]" />
                     <col className="w-[7%]" />
                     <col className="w-[6%]" />
-                    <col className="w-[5%]" />
+                    <col className="w-[7%]" />
                   </colgroup>
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
@@ -753,6 +754,11 @@ const Leads: React.FC = () => {
                         <td className="px-3 py-2.5 leading-tight">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                             {lead.name}
+                            {lead.consultant && lead.consultant !== "Unassigned" && (
+                              <span className="ml-1.5 text-xs font-normal text-blue-600 dark:text-blue-400">
+                                ({lead.consultant})
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {formatPaxSummary(lead)}
@@ -769,12 +775,20 @@ const Leads: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-3 py-2.5 text-left leading-tight">
-                          <p
-                            className="max-w-full truncate text-sm font-medium text-gray-800 dark:text-gray-200"
-                            title={lead.email}
-                          >
-                            {truncateEmail(lead.email)}
-                          </p>
+                          <div className="flex items-center gap-1">
+                            <p
+                              className="max-w-full truncate text-sm font-medium text-gray-800 dark:text-gray-200"
+                              title={lead.email}
+                            >
+                              {truncateEmail(lead.email)}
+                            </p>
+                            {lead.email && lead.email.length > 26 && (
+                              <FaInfoCircle
+                                className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0"
+                                title={lead.email}
+                              />
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {lead.phone}
                           </p>
@@ -833,6 +847,11 @@ const Leads: React.FC = () => {
                       <div>
                         <p className="font-semibold text-gray-900 dark:text-gray-100">
                           {lead.name}
+                          {lead.consultant && lead.consultant !== "Unassigned" && (
+                            <span className="ml-1.5 text-xs font-normal text-blue-600 dark:text-blue-400">
+                              ({lead.consultant})
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-gray-500">
                           Lead ID: {lead.leadId}
@@ -849,10 +868,18 @@ const Leads: React.FC = () => {
                       <StatusBadge status={lead.statusLabel} />
                     </div>
                     <div className="grid grid-cols-1 gap-1.5">
-                      <p className="text-xs text-gray-600 dark:text-gray-300">
-                        <span className="text-gray-500">Contact:</span>{" "}
-                        {truncateEmail(lead.email, 22)} • {lead.phone}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-xs text-gray-600 dark:text-gray-300">
+                          <span className="text-gray-500">Contact:</span>{" "}
+                          {truncateEmail(lead.email, 22)} • {lead.phone}
+                        </p>
+                        {lead.email && lead.email.length > 22 && (
+                          <FaInfoCircle
+                            className="text-gray-400 text-xs flex-shrink-0"
+                            title={lead.email}
+                          />
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm text-gray-700 dark:text-gray-200">
                       {lead.destination}

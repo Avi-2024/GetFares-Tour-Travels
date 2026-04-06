@@ -288,11 +288,16 @@ const CreateLead: React.FC = () => {
           email || undefined,
           phone || undefined
         )
-        setDuplicateWarning(
-          (result as any).data.isDuplicate
-            ? (result as any).data.message ?? 'Similar lead already exists'
-            : ''
-        )
+        if ((result as any).data.isDuplicate) {
+          const matches = (result as any).data.matches || []
+          const leadIds = matches.map((m: any) => m.leadId || m.lead_id || m.id).filter(Boolean)
+          const leadIdText = leadIds.length > 0 ? ` (Lead ID: ${leadIds.join(', ')})` : ''
+          setDuplicateWarning(
+            `${(result as any).data.message ?? 'Similar lead already exists'}${leadIdText}. You may not have access to view it. Contact your manager if needed.`
+          )
+        } else {
+          setDuplicateWarning('')
+        }
       } catch {
         setDuplicateWarning('')
       }
@@ -674,7 +679,18 @@ const CreateLead: React.FC = () => {
       })
       navigate('/leads')
     } catch (error) {
-      setApiError(getApiErrorMessage(error, 'Could not create lead.'))
+      const errorMessage = getApiErrorMessage(error, 'Could not create lead.')
+      
+      // Check if it's a duplicate lead error
+      if (errorMessage.includes('Duplicate lead') || errorMessage.includes('LEAD_DUPLICATE')) {
+        setApiError(
+          'A lead with this email or phone already exists in the system. ' +
+          'Please contact your manager or admin to access the existing lead, ' +
+          'or use different contact details.'
+        )
+      } else {
+        setApiError(errorMessage)
+      }
       setLoading(false)
     }
   }

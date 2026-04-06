@@ -283,22 +283,6 @@ function createBookingsService({ repository, logger, events, config }) {
       booking.advanceRequired,
     );
 
-    if (!snapshot.meetsAdvance) {
-      throw new AppError(
-        409,
-        `Advance payment requirement not met. Required ${booking.advanceRequired}, received ${snapshot.paidAmount}.`,
-        "BOOKING_ADVANCE_NOT_MET",
-      );
-    }
-
-    if (!snapshot.hasProof) {
-      throw new AppError(
-        409,
-        "No verified payment proof found for confirmation.",
-        "BOOKING_PAYMENT_PROOF_REQUIRED",
-      );
-    }
-
     return snapshot;
   }
 

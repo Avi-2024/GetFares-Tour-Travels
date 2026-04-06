@@ -1395,7 +1395,17 @@ function createLeadsService({ repository, logger, events }) {
   }
 
   async function assignLead(leadId, payload = {}, context = {}) {
-    const existing = await getById(leadId, context);
+    const skipAccessCheck = payload.skipAccessCheck === true;
+    let existing;
+    if (skipAccessCheck) {
+      const rawLead = await repository.findById(leadId);
+      if (!rawLead) {
+        throw new AppError(404, "Lead not found", "LEAD_NOT_FOUND");
+      }
+      existing = withTemperature(rawLead);
+    } else {
+      existing = await getById(leadId, context);
+    }
 
     if (CLOSED_STATUSES.has(existing.status)) {
       return existing;
@@ -1593,10 +1603,15 @@ function createLeadsService({ repository, logger, events }) {
       phone: payload.phone,
     });
 
-    if (duplicate) {
-      throw new AppError(409, "Duplicate lead detected", "LEAD_DUPLICATE", {
-        existingLeadId: duplicate.id,
-      });
+    const allowDuplicate = Boolean(payload.allowDuplicate);
+    if (duplicate && !allowDuplicate) {
+      const duplicateStatus = String(duplicate.status || "").toUpperCase();
+      const duplicateIsClosed = CLOSED_STATUSES.has(duplicateStatus);
+      if (!duplicateIsClosed) {
+        throw new AppError(409, "Duplicate lead detected", "LEAD_DUPLICATE", {
+          existingLeadId: duplicate.id,
+        });
+      }
     }
 
     let customer = null;
@@ -1652,6 +1667,7 @@ function createLeadsService({ repository, logger, events }) {
           force: true,
           mode: "AUTO_CREATE",
           reason: "AUTO_ASSIGN_ON_CREATE",
+          skipAccessCheck: true,
         },
         context,
       );
