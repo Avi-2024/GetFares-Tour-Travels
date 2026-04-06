@@ -4,6 +4,7 @@ function createLandingRepository({ db, schema }) {
       const query = { ...filters };
       if (filters.active !== undefined) {
         query.is_active = filters.active;
+        delete query.active;
       }
       return db.findMany(schema.tableName, query);
     },

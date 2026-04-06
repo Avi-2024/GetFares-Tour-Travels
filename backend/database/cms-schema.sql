@@ -28,34 +28,33 @@ CREATE INDEX idx_landing_places_active_order ON landing_places(is_active, displa
 -- 2. DESTINATIONS MANAGEMENT
 -- =========================================
 
--- Main destinations table (shared with CRM)
-CREATE TABLE destinations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(150) UNIQUE NOT NULL,
-    slug VARCHAR(180) UNIQUE NOT NULL,
-    description TEXT,
-    short_description VARCHAR(300),
-    country VARCHAR(100),
-    region VARCHAR(50),
-    category VARCHAR(50),
-    rating DECIMAL(2,1) DEFAULT 0.0 CHECK (rating >= 0 AND rating <= 5),
-    hero_image_url TEXT,
-    thumbnail_url TEXT,
-    is_popular BOOLEAN DEFAULT FALSE,
-    is_new BOOLEAN DEFAULT FALSE,
-    travel_type VARCHAR(50),
-    season VARCHAR(50),
-    meta_title VARCHAR(180),
-    meta_description TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Main destinations table is created in main-db.sql (shared with CRM)
+-- Here we only extend it with CMS-specific columns.
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS slug VARCHAR(180);
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS short_description VARCHAR(300);
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS region VARCHAR(50);
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS category VARCHAR(50);
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS rating DECIMAL(2,1) DEFAULT 0.0;
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS hero_image_url TEXT;
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS is_popular BOOLEAN DEFAULT FALSE;
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS is_new BOOLEAN DEFAULT FALSE;
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS travel_type VARCHAR(50);
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS season VARCHAR(50);
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS meta_title VARCHAR(180);
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS meta_description TEXT;
+ALTER TABLE destinations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
-CREATE INDEX idx_destinations_active ON destinations(is_active);
-CREATE INDEX idx_destinations_slug ON destinations(slug);
-CREATE INDEX idx_destinations_popular ON destinations(is_popular, is_active);
-CREATE INDEX idx_destinations_region ON destinations(region, is_active);
+ALTER TABLE destinations DROP CONSTRAINT IF EXISTS destinations_rating_check;
+ALTER TABLE destinations ADD CONSTRAINT destinations_rating_check
+  CHECK (rating >= 0 AND rating <= 5);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_destinations_slug ON destinations(slug);
+CREATE INDEX IF NOT EXISTS idx_destinations_active ON destinations(is_active);
+CREATE INDEX IF NOT EXISTS idx_destinations_slug ON destinations(slug);
+CREATE INDEX IF NOT EXISTS idx_destinations_popular ON destinations(is_popular, is_active);
+CREATE INDEX IF NOT EXISTS idx_destinations_region ON destinations(region, is_active);
 
 -- =========================================
 -- 3. DESTINATION MEDIA GALLERY

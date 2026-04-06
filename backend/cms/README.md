@@ -187,7 +187,7 @@ curl http://localhost:3000/api/public/landing/places
 
 ## Notes
 
-- All `/cms/*` routes require authentication and `CMS_ACCESS` role
+- All `/cms/*` routes require authentication and `CMS_FULL_ACCESS` role
 - CMS users are stored in the shared CRM `users` table
 - CMS media uploads now use `multipart/form-data` + S3 (via multer memory storage)
 - Field names:

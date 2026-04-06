@@ -5,7 +5,11 @@ import { createVisaModule } from "./visa/index.js";
 import { createExperienceModule } from "./experience/index.js";
 import { createCmsMediaModule } from "./media/index.js";
 import { createPublicCmsModule } from "./public/index.js";
-import { createCmsAccessMiddleware } from "../core/middlewares/cmsAccess.middleware.js";
+import {
+  CMS_ROLE_ALIASES,
+  CMS_ROLE_NAME,
+  createCmsAccessMiddleware,
+} from "../core/middlewares/cmsAccess.middleware.js";
 import { createMemoryUpload } from "../../crm/core/uploads/index.js";
 
 function createCmsModules({ db, storage, logger, upload }) {
@@ -65,7 +69,8 @@ function registerModules(app, dependencies, options = {}) {
     options.requireCmsAccess ||
     createCmsAccessMiddleware({
       db: dependencies.db,
-      requiredRole: options.requiredRole || "CMS_ACCESS",
+      requiredRole: options.requiredRole || CMS_ROLE_NAME,
+      allowedRoles: options.allowedRoles || CMS_ROLE_ALIASES,
     });
 
   const cmsGuards =

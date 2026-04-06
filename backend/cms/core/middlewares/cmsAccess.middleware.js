@@ -1,6 +1,11 @@
 import { AppError } from "../../../crm/core/errors/index.js";
 
-const CMS_ROLE_NAME = "CMS_ACCESS";
+const CMS_ROLE_NAME = "CMS_FULL_ACCESS";
+const CMS_ROLE_ALIASES = Object.freeze([
+  "CMS_FULL_ACCESS",
+  "CMS_ACCESS",
+  "CRM_FULL_ACCESS",
+]);
 
 function normalizeRoleName(roleName) {
   return String(roleName || "")
@@ -8,8 +13,31 @@ function normalizeRoleName(roleName) {
     .toUpperCase();
 }
 
-function createCmsAccessMiddleware({ db, requiredRole = CMS_ROLE_NAME }) {
-  const normalizedRequiredRole = normalizeRoleName(requiredRole);
+function normalizeAllowedRoles(requiredRole, allowedRoles = []) {
+  const roleCandidates = [];
+
+  if (Array.isArray(requiredRole)) {
+    roleCandidates.push(...requiredRole);
+  } else {
+    roleCandidates.push(requiredRole);
+  }
+
+  roleCandidates.push(...allowedRoles);
+  roleCandidates.push(...CMS_ROLE_ALIASES);
+
+  return new Set(roleCandidates.map((roleName) => normalizeRoleName(roleName)));
+}
+
+function createCmsAccessMiddleware({
+  db,
+  requiredRole = CMS_ROLE_NAME,
+  allowedRoles = [],
+}) {
+  const normalizedAllowedRoles = normalizeAllowedRoles(
+    requiredRole,
+    allowedRoles,
+  );
+  const readableRoles = [...normalizedAllowedRoles].join(", ");
 
   async function resolveUserRole(userId, fallbackRoleName, fallbackRoleId) {
     if (!userId) {
@@ -91,11 +119,11 @@ function createCmsAccessMiddleware({ db, requiredRole = CMS_ROLE_NAME }) {
       }
 
       const resolvedRoleName = normalizeRoleName(roleContext.roleName);
-      if (resolvedRoleName !== normalizedRequiredRole) {
+      if (!normalizedAllowedRoles.has(resolvedRoleName)) {
         return next(
           new AppError(
             403,
-            `CMS access requires role: ${requiredRole}`,
+            `CMS access requires one of roles: ${readableRoles}`,
             "CMS_ROLE_REQUIRED",
           ),
         );
@@ -111,4 +139,4 @@ function createCmsAccessMiddleware({ db, requiredRole = CMS_ROLE_NAME }) {
   };
 }
 
-export { createCmsAccessMiddleware, CMS_ROLE_NAME };
+export { createCmsAccessMiddleware, CMS_ROLE_NAME, CMS_ROLE_ALIASES };

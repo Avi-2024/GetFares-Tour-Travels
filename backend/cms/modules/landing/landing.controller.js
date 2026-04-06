@@ -8,7 +8,7 @@ function createLandingController({ service, uploadService }) {
         filters.active = req.query.active === "true";
       }
 
-      const places = await service.list(filters);
+      const places = await service.listOverview(filters);
       res.json({
         success: true,
         data: places,
