@@ -6,13 +6,9 @@ class CmsPayloadMapper {
     if (sectionKey === "landing-places") {
       return {
         name: payload.name,
-        slug: payload.slug,
-        subtitle: payload.subtitle,
-        description: payload.description,
+        description: payload.description ?? payload.name,
         tag: payload.tag,
         imageUrl: payload.imageUrl,
-        ctaText: payload.ctaText,
-        ctaUrl: payload.ctaUrl,
         displayOrder: payload.displayOrder,
         isActive: payload.isActive,
       };

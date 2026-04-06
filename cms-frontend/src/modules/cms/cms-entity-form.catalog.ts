@@ -103,14 +103,6 @@ class CmsEntityFormCatalog {
     { label: "Adventure", value: "Adventure" },
   ];
 
-  private static landingTagOptions: CmsFieldOption[] = [
-    { label: "Luxury Escape", value: "Luxury Escape" },
-    { label: "Cultural Journey", value: "Cultural Journey" },
-    { label: "Family Favourite", value: "Family Favourite" },
-    { label: "Adventure & Culture", value: "Adventure & Culture" },
-    { label: "Trending", value: "Trending" },
-  ];
-
   private static sectionByKey: Record<CmsSectionKey, CmsEntityFormDefinition> = {
     "landing-places": {
       sectionKey: "landing-places",
@@ -121,39 +113,29 @@ class CmsEntityFormCatalog {
       supportsEdit: true,
       supportsDelete: true,
       titleKey: "name",
-      subtitleKey: "subtitle",
+      subtitleKey: "tag",
       statusKey: "isActive",
-      descriptionKey: "description",
-      mediaEnabled: true,
+      descriptionKey: "tag",
+      mediaEnabled: false,
       groups: [
         {
           key: "basic",
           title: "Basic Information",
-          description: "Landing place headline and CTA details.",
-          columns: 2,
-        },
-        {
-          key: "content",
-          title: "Content Details",
-          description: "Short content and hero messaging.",
+          description: "Landing place title, tag, and image details.",
           columns: 2,
         },
         {
           key: "status",
           title: "Status / Visibility",
-          description: "Publishing controls for website rendering.",
+          description: "Display order and publish controls.",
           columns: 2,
           collapsible: true,
         },
       ],
       fields: [
         { key: "name", label: "Title", type: "text", required: true, groupKey: "basic" },
-        { key: "slug", label: "Slug", type: "text", required: true, groupKey: "basic", autoSlugSource: "name" },
-        { key: "subtitle", label: "Subtitle", type: "text", groupKey: "content" },
-        { key: "tag", label: "Tag", type: "select", options: CmsEntityFormCatalog.landingTagOptions, groupKey: "content" },
-        { key: "description", label: "Description", type: "textarea", required: true, groupKey: "content" },
-        { key: "ctaText", label: "CTA Text", type: "text", groupKey: "content" },
-        { key: "ctaUrl", label: "CTA URL", type: "url", groupKey: "content" },
+        { key: "tag", label: "Tag", type: "text", groupKey: "basic" },
+        { key: "imageUrl", label: "Img", type: "url", required: true, groupKey: "basic" },
         { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "status" },
         { key: "isActive", label: "Active", type: "switch", groupKey: "status" },
       ],
