@@ -1,177 +1,218 @@
-import { Component, type ReactNode } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { ClassName } from "../../lib/cn";
 
-type ModalConfirmTone = "primary" | "danger";
-type ModalWidth = "md" | "lg";
+type ModalSize = "sm" | "md" | "lg";
 
 interface ModalComponentProps {
   isOpen: boolean;
+  onClose: () => void;
   title: string;
+  children: ReactNode;
+  size?: ModalSize;
   description?: string;
-  confirmLabel: string;
-  cancelLabel?: string;
-  confirmTone?: ModalConfirmTone;
-  isSubmitting?: boolean;
-  confirmDisabled?: boolean;
-  width?: ModalWidth;
-  showCancelButton?: boolean;
-  showFooter?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-  children?: ReactNode;
+  footer?: ReactNode;
+  className?: string;
+  contentClassName?: string;
+  closeOnBackdrop?: boolean;
+  closeOnEsc?: boolean;
 }
 
-class ModalComponent extends Component<ModalComponentProps> {
-  private readonly titleId = "app-modal-title";
-  private readonly descriptionId = "app-modal-description";
+let openModalCount = 0;
 
-  private readonly handleEscape = (event: KeyboardEvent): void => {
-    const { isOpen, isSubmitting, onCancel } = this.props;
-    if (event.key === "Escape" && isOpen && !isSubmitting) {
-      onCancel();
+const focusableSelector =
+  "a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
+
+const ModalComponent = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  size = "md",
+  description,
+  footer,
+  className,
+  contentClassName,
+  closeOnBackdrop = true,
+  closeOnEsc = true,
+}: ModalComponentProps) => {
+  const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  const sizeClass =
+    size === "sm" ? "max-w-lg"
+    : size === "md" ? "max-w-xl"
+    : "max-w-5xl";
+
+  const collectFocusableElements = (): HTMLElement[] => {
+    if (!dialogRef.current) {
+      return [];
     }
+
+    return Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector)).filter(
+      (element) => !element.hasAttribute("disabled") && !element.getAttribute("aria-hidden"),
+    );
   };
 
-  componentDidMount(): void {
-    if (typeof window !== "undefined") {
-      window.addEventListener("keydown", this.handleEscape);
-    }
-    this.updateBodyScrollLock(this.props.isOpen);
-  }
-
-  componentDidUpdate(previousProps: ModalComponentProps): void {
-    if (previousProps.isOpen !== this.props.isOpen) {
-      this.updateBodyScrollLock(this.props.isOpen);
-    }
-  }
-
-  componentWillUnmount(): void {
-    if (typeof window !== "undefined") {
-      window.removeEventListener("keydown", this.handleEscape);
-    }
-    this.updateBodyScrollLock(false);
-  }
-
-  private updateBodyScrollLock(shouldLock: boolean): void {
-    if (typeof document === "undefined") {
+  useEffect(() => {
+    if (!isOpen || typeof document === "undefined") {
       return;
     }
-    document.body.style.overflow = shouldLock ? "hidden" : "";
-  }
 
-  private getWidthClass(width: ModalWidth): string {
-    if (width === "md") {
-      return "max-w-xl";
-    }
-    return "max-w-2xl";
-  }
+    openModalCount += 1;
+    document.body.style.overflow = "hidden";
 
-  private getConfirmButtonClass(tone: ModalConfirmTone): string {
-    if (tone === "danger") {
-      return "bg-[color-mix(in_srgb,var(--danger)_88%,black_4%)] text-white shadow-[0_8px_24px_color-mix(in_srgb,var(--danger)_32%,transparent)] hover:brightness-105 focus-visible:ring-[color-mix(in_srgb,var(--danger)_35%,transparent)]";
-    }
-    return "bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white shadow-[0_8px_24px_color-mix(in_srgb,var(--primary)_30%,transparent)] hover:brightness-105 focus-visible:ring-[var(--ring)]";
-  }
+    return () => {
+      openModalCount = Math.max(0, openModalCount - 1);
+      if (openModalCount === 0) {
+        document.body.style.overflow = "auto";
+      }
+    };
+  }, [isOpen]);
 
-  render() {
-    const {
-      isOpen,
-      title,
-      description,
-      confirmLabel,
-      cancelLabel = "Cancel",
-      confirmTone = "primary",
-      isSubmitting = false,
-      confirmDisabled = false,
-      width = "md",
-      showCancelButton = true,
-      showFooter = true,
-      onConfirm,
-      onCancel,
-      children,
-    } = this.props;
-
-    if (!isOpen) {
-      return null;
+  useEffect(() => {
+    if (!isOpen || typeof document === "undefined" || typeof window === "undefined") {
+      return;
     }
 
-    return (
-      <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6">
-        <div
-          className="absolute inset-0 bg-[color-mix(in_srgb,#020617_55%,transparent)] backdrop-blur-[7px]"
-          role="presentation"
-          onClick={isSubmitting ? undefined : onCancel}
-        />
+    const frameId = window.requestAnimationFrame(() => {
+      const focusables = collectFocusableElements();
+      if (focusables.length > 0) {
+        focusables[0].focus();
+        return;
+      }
+      dialogRef.current?.focus();
+    });
 
-        <section
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={this.titleId}
-          aria-describedby={description ? this.descriptionId : undefined}
-          className={ClassName.merge(
-            "relative z-10 w-full overflow-hidden rounded-[26px] border border-[color-mix(in_srgb,var(--primary)_25%,var(--border))] bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] p-6 shadow-[0_40px_120px_rgba(2,6,23,0.45)] backdrop-blur-xl sm:p-7",
-            this.getWidthClass(width),
-          )}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div
-            className="pointer-events-none absolute -left-16 -top-14 h-44 w-44 rounded-full bg-[color-mix(in_srgb,var(--primary)_28%,transparent)] blur-3xl"
-            aria-hidden="true"
+    const handleKeydown = (event: KeyboardEvent): void => {
+      if (!dialogRef.current) {
+        return;
+      }
+
+      if (event.key === "Escape" && closeOnEsc) {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusables = collectFocusableElements();
+      if (focusables.length === 0) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const activeElement = document.activeElement as HTMLElement | null;
+
+      if (!activeElement || !dialogRef.current.contains(activeElement)) {
+        event.preventDefault();
+        first.focus();
+        return;
+      }
+
+      if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus();
+        return;
+      }
+
+      if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeydown);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      document.removeEventListener("keydown", handleKeydown);
+    };
+  }, [closeOnEsc, isOpen, onClose]);
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-150">
+          <motion.div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            onClick={closeOnBackdrop ? onClose : undefined}
           />
-          <div
-            className="pointer-events-none absolute -bottom-16 -right-14 h-44 w-44 rounded-full bg-[color-mix(in_srgb,var(--accent)_30%,transparent)] blur-3xl"
-            aria-hidden="true"
-          />
 
-          <header className="relative mb-4">
-            <h2
-              id={this.titleId}
-              className="font-display text-xl font-semibold tracking-[-0.02em] text-[var(--text-primary)]"
-            >
-              {title}
-            </h2>
-            {description && (
-              <p
-                id={this.descriptionId}
-                className="mt-1 text-sm text-[var(--text-secondary)]"
-              >
-                {description}
-              </p>
-            )}
-          </header>
-
-          {children && <div className="relative">{children}</div>}
-
-          {showFooter && (
-            <footer className="relative mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              {showCancelButton && (
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  disabled={isSubmitting}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--background-soft)] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {cancelLabel}
-                </button>
+          <div className="relative flex min-h-full items-center justify-center p-4 sm:p-6">
+            <motion.section
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
+              aria-describedby={description ? descriptionId : undefined}
+              tabIndex={-1}
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className={ClassName.merge(
+                "relative z-10 flex w-full flex-col overflow-hidden rounded-2xl border border-(--border) bg-[color-mix(in_srgb,var(--surface)_95%,transparent)] shadow-2xl",
+                sizeClass,
+                className,
               )}
-              <button
-                type="button"
-                onClick={onConfirm}
-                disabled={isSubmitting || confirmDisabled}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <header className="sticky top-0 z-20 border-b border-(--border) bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id={titleId} className="font-display text-xl font-semibold text-(--text-primary) ">
+                      {title}
+                    </h2>
+                    {description && (
+                      <p id={descriptionId} className="mt-1 text-sm text-(--text-secondary)">
+                        {description}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-(--border) bg-(--surface) text-(--text-secondary) transition hover:bg-(--background-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring)"
+                    aria-label="Close modal"
+                  >
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+              </header>
+
+              <div
                 className={ClassName.merge(
-                  "inline-flex h-10 min-w-[120px] items-center justify-center rounded-xl px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-70",
-                  this.getConfirmButtonClass(confirmTone),
+                  "hide-scrollbar max-h-[70vh] overflow-y-auto px-6 py-5 sm:px-8",
+                  contentClassName,
                 )}
               >
-                {isSubmitting ? "Working..." : confirmLabel}
-              </button>
-            </footer>
-          )}
-        </section>
-      </div>
-    );
-  }
-}
+                {children}
+              </div>
 
-export type { ModalConfirmTone, ModalWidth };
+              {footer && (
+                <footer className="sticky bottom-0 z-20 border-t border-(--border) bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8">
+                  {footer}
+                </footer>
+              )}
+            </motion.section>
+          </div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export type { ModalSize };
 export default ModalComponent;

@@ -304,6 +304,10 @@ class CmsDatasource {
     return this.mediaDatasource.deleteMedia(mediaId);
   }
 
+  public uploadMedia(file: File): Promise<string> {
+    return this.mediaDatasource.uploadMedia(file);
+  }
+
   public listDestinationPackages(
     destinationId: string,
   ): Promise<DestinationPackageMapping[]> {
