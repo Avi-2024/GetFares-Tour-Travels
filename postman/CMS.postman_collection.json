@@ -25,8 +25,22 @@
               "name": "Login (Get CMS Token)",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/api/auth/login",
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "login"
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
@@ -34,18 +48,64 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"{{cmsEmail}}\",\n  \"password\": \"{{cmsPassword}}\"\n}"
+                  "raw": "{\n  \"email\": \"{{cmsEmail}}\",\n  \"password\": \"{{cmsPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 },
                 "auth": {
                   "type": "noauth"
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Login succeeded\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                      "});",
+                      "const payload = pm.response.json?.() || {};",
+                      "const token = payload?.data?.accessToken || payload?.accessToken || null;",
+                      "const user = payload?.data?.user || payload?.user || null;",
+                      "if (token) {",
+                      "  pm.collectionVariables.set(\"cmsToken\", token);",
+                      "}",
+                      "if (user?.id) pm.collectionVariables.set(\"cmsUserId\", user.id);",
+                      "if (user?.role) pm.collectionVariables.set(\"cmsUserRole\", user.role);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Current User",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/api/auth/me"
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "me"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             }
           ]
@@ -57,47 +117,225 @@
               "name": "List Landing Places",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms?active=true",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms"
+                  ],
+                  "query": [
+                    {
+                      "key": "active",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"landingPlaceId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Landing Place By ID",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/{{landingPlaceId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "landingPlaceId",
+                      "value": "{{landingPlaceId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Create Landing Place",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms",
+                "url": {
+                  "raw": "{{baseUrl}}/cms",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms"
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "name",
+                      "value": "Maldives"
+                    },
+                    {
+                      "key": "slug",
+                      "value": "maldives-landing"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Luxury Escape"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Premium island experiences for UAE travellers."
+                    },
+                    {
+                      "key": "tag",
+                      "value": "Luxury Escape"
+                    },
+                    {
+                      "key": "ctaText",
+                      "value": "View Details"
+                    },
+                    {
+                      "key": "ctaUrl",
+                      "value": "/destinations/maldives"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"landingPlaceId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Landing Place",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "landingPlaceId",
+                      "value": "{{landingPlaceId}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Luxury Escape Updated"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Updated landing card copy for campaign."
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
               }
             },
@@ -105,23 +343,70 @@
               "name": "Delete Landing Place",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/{{landingPlaceId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "{{landingPlaceId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "landingPlaceId",
+                      "value": "{{landingPlaceId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Reorder Landing Places",
               "request": {
                 "method": "PATCH",
-                "url": "{{baseUrl}}/cms/reorder",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/reorder",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "reorder"
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"items\": [\n    {\n      \"id\": \"{{landingPlaceId}}\",\n      \"displayOrder\": 1\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
               }
             }
@@ -134,54 +419,327 @@
               "name": "List Destinations",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/destinations"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations?isActive=true&isPopular=true&region=Asia&category=Luxury",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations"
+                  ],
+                  "query": [
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "isPopular",
+                      "value": "true"
+                    },
+                    {
+                      "key": "region",
+                      "value": "Asia"
+                    },
+                    {
+                      "key": "category",
+                      "value": "Luxury"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"destinationId\", first.id);\nif (first?.slug) pm.collectionVariables.set(\"destinationSlug\", first.slug);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Destination By Slug",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/destinations/slug/{{destinationSlug}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/slug/{{destinationSlug}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "slug",
+                    "{{destinationSlug}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationSlug",
+                      "value": "{{destinationSlug}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Get Destination By ID",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Create Destination",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/destinations",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations"
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "gallery",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "gallery",
+                      "type": "file",
+                      "src": "{{sampleVideoPath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "name",
+                      "value": "Maldives"
+                    },
+                    {
+                      "key": "slug",
+                      "value": "maldives"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Overwater villas and crystal lagoons."
+                    },
+                    {
+                      "key": "shortDescription",
+                      "value": "Luxury island stays."
+                    },
+                    {
+                      "key": "country",
+                      "value": "Maldives"
+                    },
+                    {
+                      "key": "region",
+                      "value": "Asia"
+                    },
+                    {
+                      "key": "category",
+                      "value": "Luxury"
+                    },
+                    {
+                      "key": "rating",
+                      "value": "4.9"
+                    },
+                    {
+                      "key": "isPopular",
+                      "value": "true"
+                    },
+                    {
+                      "key": "isNew",
+                      "value": "false"
+                    },
+                    {
+                      "key": "travelType",
+                      "value": "Leisure"
+                    },
+                    {
+                      "key": "season",
+                      "value": "Dry"
+                    },
+                    {
+                      "key": "metaTitle",
+                      "value": "Maldives Holiday Packages"
+                    },
+                    {
+                      "key": "metaDescription",
+                      "value": "Premium Maldives packages for UAE travellers."
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "heroImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst data = payload?.data || {};\nif (data.id) pm.collectionVariables.set(\"destinationId\", data.id);\nif (data.slug) pm.collectionVariables.set(\"destinationSlug\", data.slug);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Destination",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "gallery",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "description",
+                      "value": "Updated destination copy for homepage cards."
+                    },
+                    {
+                      "key": "rating",
+                      "value": "4.8"
+                    },
+                    {
+                      "key": "isPopular",
+                      "value": "true"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "heroImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
               }
             },
@@ -189,40 +747,210 @@
               "name": "List Destination Media",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/media"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"destinationMediaId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Add Destination Media",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mediaType",
+                      "value": "image"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Lagoon Aerial"
+                    },
+                    {
+                      "key": "caption",
+                      "value": "Aerial destination gallery image."
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isFeatured",
+                      "value": "false"
+                    },
+                    {
+                      "key": "mediaUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"destinationMediaId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Destination Media",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media",
+                    "{{destinationMediaId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "destinationMediaId",
+                      "value": "{{destinationMediaId}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mediaType",
+                      "value": "image"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Lagoon Aerial Updated"
+                    },
+                    {
+                      "key": "caption",
+                      "value": "Updated gallery caption."
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2"
+                    },
+                    {
+                      "key": "isFeatured",
+                      "value": "true"
+                    },
+                    {
+                      "key": "mediaUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
               }
             },
@@ -230,47 +958,193 @@
               "name": "Delete Destination Media",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "media",
+                    "{{destinationMediaId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "destinationMediaId",
+                      "value": "{{destinationMediaId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "List Destination Seasons",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"seasonCardId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Add Destination Season",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"title\": \"Dry Season\",\n  \"fromMonth\": \"November\",\n  \"toMonth\": \"April\",\n  \"description\": \"Best weather for beach travel and water activities.\",\n  \"tag\": \"Best Time\",\n  \"iconName\": \"leaf\",\n  \"iconColor\": \"#16a34a\",\n  \"bgColor\": \"#d1fae5\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"seasonCardId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Destination Season",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons",
+                    "{{seasonCardId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "seasonCardId",
+                      "value": "{{seasonCardId}}"
+                    }
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"title\": \"Dry Season Updated\",\n  \"tag\": \"Peak / Premium\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
               }
             },
@@ -278,38 +1152,181 @@
               "name": "Delete Destination Season",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "seasons",
+                    "{{seasonCardId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "seasonCardId",
+                      "value": "{{seasonCardId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "List Destination Package Mapping",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "packages"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"destinationMapId\", first.id);\nif (first?.mainPackageId) pm.collectionVariables.set(\"mainPackageId\", first.mainPackageId);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Map Main Package To Destination",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "packages"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"mainPackageId\": \"{{mainPackageId}}\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"destinationMapId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Unmap Main Package From Destination",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages/{{destinationMapId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages/{{destinationMapId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "destinations",
+                    "{{destinationId}}",
+                    "packages",
+                    "{{destinationMapId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "destinationMapId",
+                      "value": "{{destinationMapId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             }
           ]
@@ -321,61 +1338,241 @@
               "name": "List Published CRM Packages",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/packages/published"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"packageId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Published Package By ID",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/packages/published/{{packageId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "{{packageId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "packageId",
+                      "value": "{{packageId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "List Main Packages",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/packages/main"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"mainPackageId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Main Package By ID",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "mainPackageId",
+                      "value": "{{mainPackageId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Create Main Package",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/packages/main",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main"
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"packageId\": \"{{packageId}}\",\n  \"displayOrder\": 1,\n  \"isFeatured\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"mainPackageId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Main Package",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "mainPackageId",
+                      "value": "{{mainPackageId}}"
+                    }
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"displayOrder\": 2,\n  \"isFeatured\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
               }
             },
@@ -383,47 +1580,177 @@
               "name": "Delete Main Package",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "mainPackageId",
+                      "value": "{{mainPackageId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "List Sub Packages",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}",
+                    "sub"
+                  ],
+                  "variable": [
+                    {
+                      "key": "mainPackageId",
+                      "value": "{{mainPackageId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"subPackageId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Create Sub Package",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/packages/sub",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub"
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"mainPackageId\": \"{{mainPackageId}}\",\n  \"packageId\": \"{{packageId}}\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"subPackageId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Sub Package",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "{{subPackageId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "subPackageId",
+                      "value": "{{subPackageId}}"
+                    }
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"displayOrder\": 2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
               }
             },
@@ -431,7 +1758,34 @@
               "name": "Delete Sub Package",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "{{subPackageId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "subPackageId",
+                      "value": "{{subPackageId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             }
           ]
@@ -443,54 +1797,273 @@
               "name": "List Visa Destinations",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/visa"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa?isActive=true",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa"
+                  ],
+                  "query": [
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"visaDestinationId\", first.id);\nif (first?.slug) pm.collectionVariables.set(\"visaSlug\", first.slug);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Visa Destination By Slug",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/visa/slug/{{visaSlug}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/slug/{{visaSlug}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "slug",
+                    "{{visaSlug}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaSlug",
+                      "value": "{{visaSlug}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Get Visa Destination By ID",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaDestinationId",
+                      "value": "{{visaDestinationId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Create Visa Destination",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/visa",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa"
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "title",
+                      "value": "Schengen Visa"
+                    },
+                    {
+                      "key": "slug",
+                      "value": "schengen-visa"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "For Europe itineraries"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Short-leisure and family travel support."
+                    },
+                    {
+                      "key": "processingTime",
+                      "value": "15-20 Working Days"
+                    },
+                    {
+                      "key": "supportInfo",
+                      "value": "Ideal for France, Italy and multi-country plans."
+                    },
+                    {
+                      "key": "iconName",
+                      "value": "earth"
+                    },
+                    {
+                      "key": "ctaText",
+                      "value": "View Details"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "heroImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst data = payload?.data || {};\nif (data.id) pm.collectionVariables.set(\"visaDestinationId\", data.id);\nif (data.slug) pm.collectionVariables.set(\"visaSlug\", data.slug);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Visa Destination",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaDestinationId",
+                      "value": "{{visaDestinationId}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "processingTime",
+                      "value": "12-18 Working Days"
+                    },
+                    {
+                      "key": "supportInfo",
+                      "value": "Updated support content."
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "heroImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
               }
             },
@@ -498,47 +2071,187 @@
               "name": "Delete Visa Destination",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaDestinationId",
+                      "value": "{{visaDestinationId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "List Visa Details",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}",
+                    "details"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaDestinationId",
+                      "value": "{{visaDestinationId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"visaDetailId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Add Visa Detail",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}",
+                    "details"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaDestinationId",
+                      "value": "{{visaDestinationId}}"
+                    }
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"sectionType\": \"requirement\",\n  \"label\": \"Processing Time\",\n  \"value\": \"15-20 Working Days\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"visaDetailId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Visa Detail",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}",
+                    "details",
+                    "{{visaDetailId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaDestinationId",
+                      "value": "{{visaDestinationId}}"
+                    },
+                    {
+                      "key": "visaDetailId",
+                      "value": "{{visaDetailId}}"
+                    }
+                  ]
+                },
                 "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
                   {
                     "key": "Content-Type",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{}"
+                  "raw": "{\n  \"label\": \"Processing Time\",\n  \"value\": \"12-18 Working Days\",\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
               }
             },
@@ -546,7 +2259,39 @@
               "name": "Delete Visa Detail",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "visa",
+                    "{{visaDestinationId}}",
+                    "details",
+                    "{{visaDetailId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaDestinationId",
+                      "value": "{{visaDestinationId}}"
+                    },
+                    {
+                      "key": "visaDetailId",
+                      "value": "{{visaDetailId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             }
           ]
@@ -558,47 +2303,259 @@
               "name": "List Featured Picks",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/experience/featured-picks"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "featured-picks"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"featuredPickId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Create Featured Pick",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/experience/featured-picks",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "featured-picks"
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "title",
+                      "value": "Maldives Luxury Escape"
+                    },
+                    {
+                      "key": "slug",
+                      "value": "featured-maldives-luxury-escape"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Maldives"
+                    },
+                    {
+                      "key": "category",
+                      "value": "package"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "featured"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "featured-hot-picks"
+                    },
+                    {
+                      "key": "country",
+                      "value": "Maldives"
+                    },
+                    {
+                      "key": "rating",
+                      "value": "4.9"
+                    },
+                    {
+                      "key": "badgeText",
+                      "value": "Hot Deal"
+                    },
+                    {
+                      "key": "originalPrice",
+                      "value": "3499"
+                    },
+                    {
+                      "key": "discountedPrice",
+                      "value": "2899"
+                    },
+                    {
+                      "key": "duration",
+                      "value": "6 Days / 5 Nights"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Handpicked Maldives package with premium stays."
+                    },
+                    {
+                      "key": "buttonText",
+                      "value": "Book Now"
+                    },
+                    {
+                      "key": "ctaUrl",
+                      "value": "/packages/maldives-luxury-escape"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"featuredPickId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Featured Pick By ID",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "featured-picks",
+                    "{{featuredPickId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "featuredPickId",
+                      "value": "{{featuredPickId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Update Featured Pick",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "featured-picks",
+                    "{{featuredPickId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "featuredPickId",
+                      "value": "{{featuredPickId}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "badgeText",
+                      "value": "Best Seller"
+                    },
+                    {
+                      "key": "discountedPrice",
+                      "value": "2799"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
               }
             },
@@ -606,54 +2563,265 @@
               "name": "Delete Featured Pick",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "featured-picks",
+                    "{{featuredPickId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "featuredPickId",
+                      "value": "{{featuredPickId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "List Season Cards",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/experience/season-cards"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"seasonCardId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Create Season Card",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/experience/season-cards",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards"
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Dry Season"
+                    },
+                    {
+                      "key": "fromMonth",
+                      "value": "November"
+                    },
+                    {
+                      "key": "toMonth",
+                      "value": "April"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Clear weather for beach days."
+                    },
+                    {
+                      "key": "tag",
+                      "value": "Best Time"
+                    },
+                    {
+                      "key": "iconName",
+                      "value": "leaf"
+                    },
+                    {
+                      "key": "iconColor",
+                      "value": "#16a34a"
+                    },
+                    {
+                      "key": "bgColor",
+                      "value": "#d1fae5"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"seasonCardId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Season Card By ID",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "seasonCardId",
+                      "value": "{{seasonCardId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Update Season Card",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "seasonCardId",
+                      "value": "{{seasonCardId}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "tag",
+                      "value": "Peak / Premium"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
               }
             },
@@ -661,30 +2829,157 @@
               "name": "Delete Season Card",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "season-cards",
+                    "{{seasonCardId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "seasonCardId",
+                      "value": "{{seasonCardId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "List Hero Sections",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/experience/hero-sections"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/hero-sections",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "hero-sections"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.sectionKey) pm.collectionVariables.set(\"heroSectionKey\", first.sectionKey);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Upsert Hero Section",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/experience/hero-sections/{{heroSectionKey}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/hero-sections/{{heroSectionKey}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "experience",
+                    "hero-sections",
+                    "{{heroSectionKey}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "heroSectionKey",
+                      "value": "{{heroSectionKey}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "eyebrowText",
+                      "value": "CRAFTED FOR THE GLOBAL TRAVELLER"
+                    },
+                    {
+                      "key": "headingLine1",
+                      "value": "Luxury Holidays,"
+                    },
+                    {
+                      "key": "headingLine2",
+                      "value": "Beyond Borders"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Discover world-class destinations, travel experiences and visa services."
+                    },
+                    {
+                      "key": "primaryCtaLabel",
+                      "value": "Explore Destinations"
+                    },
+                    {
+                      "key": "primaryCtaUrl",
+                      "value": "/destinations"
+                    },
+                    {
+                      "key": "secondaryCtaLabel",
+                      "value": "Check Visa Services"
+                    },
+                    {
+                      "key": "secondaryCtaUrl",
+                      "value": "/visa"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "backgroundImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
               }
             }
@@ -697,47 +2992,233 @@
               "name": "List CMS Media Assets",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/media"
-              }
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst first = Array.isArray(payload?.data) ? payload.data[0] : null;\nif (first?.id) pm.collectionVariables.set(\"mediaAssetId\", first.id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get CMS Media Asset By ID",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/cms/media/{{mediaAssetId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media",
+                    "{{mediaAssetId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "mediaAssetId",
+                      "value": "{{mediaAssetId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             },
             {
               "name": "Create CMS Media Asset",
               "request": {
                 "method": "POST",
-                "url": "{{baseUrl}}/cms/media",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media"
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "entityType",
+                      "value": "destination"
+                    },
+                    {
+                      "key": "entityId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "mediaKind",
+                      "value": "image"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Destination Banner"
+                    },
+                    {
+                      "key": "altText",
+                      "value": "Destination scenic view"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1"
+                    },
+                    {
+                      "key": "isPrimary",
+                      "value": "true"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "mediaUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// auto-var-sync\nconst payload = pm.response.json();\nconst id = payload?.data?.id;\nif (id) pm.collectionVariables.set(\"mediaAssetId\", id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update CMS Media Asset",
               "request": {
                 "method": "PUT",
-                "url": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media",
+                    "{{mediaAssetId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "mediaAssetId",
+                      "value": "{{mediaAssetId}}"
+                    }
+                  ]
+                },
                 "header": [
                   {
-                    "key": "Content-Type",
+                    "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{}"
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}",
+                      "disabled": true
+                    },
+                    {
+                      "key": "title",
+                      "value": "Destination Banner Updated"
+                    },
+                    {
+                      "key": "altText",
+                      "value": "Updated alt text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2"
+                    },
+                    {
+                      "key": "isPrimary",
+                      "value": "false"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "mediaUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    }
+                  ]
                 }
               }
             },
@@ -745,10 +3226,117 @@
               "name": "Delete CMS Media Asset",
               "request": {
                 "method": "DELETE",
-                "url": "{{baseUrl}}/cms/media/{{mediaAssetId}}"
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "media",
+                    "{{mediaAssetId}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "mediaAssetId",
+                      "value": "{{mediaAssetId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
               }
             }
           ]
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const requestName = pm.info.requestName || \"\";",
+              "const isLoginRequest = requestName === \"Login (Get CMS Token)\";",
+              "const token = pm.collectionVariables.get(\"cmsToken\");",
+              "",
+              "function decodeTokenExp(jwt) {",
+              "  try {",
+              "    const payloadPart = jwt.split(\".\")[1];",
+              "    if (!payloadPart) return null;",
+              "    const base64 = payloadPart.replace(/-/g, \"+\").replace(/_/g, \"/\");",
+              "    const padded = base64 + \"=\".repeat((4 - (base64.length % 4)) % 4);",
+              "    const payload = JSON.parse(atob(padded));",
+              "    return payload.exp || null;",
+              "  } catch (_e) {",
+              "    return null;",
+              "  }",
+              "}",
+              "",
+              "function setAuthHeader(jwt) {",
+              "  pm.request.headers.upsert({ key: \"Authorization\", value: `Bearer ${jwt}` });",
+              "}",
+              "",
+              "if (!isLoginRequest && token) {",
+              "  const exp = decodeTokenExp(token);",
+              "  const now = Math.floor(Date.now() / 1000);",
+              "  if (exp && exp <= now) {",
+              "    pm.collectionVariables.unset(\"cmsToken\");",
+              "  } else {",
+              "    setAuthHeader(token);",
+              "  }",
+              "}",
+              "",
+              "if (!isLoginRequest && !pm.collectionVariables.get(\"cmsToken\")) {",
+              "  const baseUrl = pm.collectionVariables.get(\"baseUrl\");",
+              "  const email = pm.collectionVariables.get(\"cmsEmail\");",
+              "  const password = pm.collectionVariables.get(\"cmsPassword\");",
+              "  pm.sendRequest({",
+              "    url: `${baseUrl}/api/auth/login`,",
+              "    method: \"POST\",",
+              "    header: { \"Content-Type\": \"application/json\" },",
+              "    body: { mode: \"raw\", raw: JSON.stringify({ email, password }) }",
+              "  }, (err, res) => {",
+              "    if (err) {",
+              "      console.log(\"Auto-login failed:\", err);",
+              "      return;",
+              "    }",
+              "    const data = res.json?.() || {};",
+              "    const newToken = data?.data?.accessToken || data?.accessToken || null;",
+              "    if (newToken) {",
+              "      pm.collectionVariables.set(\"cmsToken\", newToken);",
+              "      setAuthHeader(newToken);",
+              "      console.log(\"CMS token refreshed automatically.\");",
+              "    } else {",
+              "      console.log(\"Auto-login did not return access token.\");",
+              "    }",
+              "  });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response && pm.response.code === 401) {",
+              "  const body = pm.response.json?.() || {};",
+              "  const code = body?.error?.code || body?.code;",
+              "  if ([\"AUTH_TOKEN_REQUIRED\", \"AUTH_INVALID_TOKEN\", \"TOKEN_REVOKED\"].includes(code)) {",
+              "    pm.collectionVariables.unset(\"cmsToken\");",
+              "  }",
+              "}"
+            ]
+          }
         }
       ]
     },
@@ -762,7 +3350,23 @@
               "name": "Home Composite",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/home"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/home",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "home"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             }
           ]
@@ -774,7 +3378,23 @@
               "name": "Landing Places (Active)",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/landing-places"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/landing-places",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "landing-places"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             }
           ]
@@ -786,35 +3406,146 @@
               "name": "Destinations (Active)",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/destinations"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "destinations"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Destination By Slug (Active)",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "destinations",
+                    "{{destinationSlug}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationSlug",
+                      "value": "{{destinationSlug}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Destination Media",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/media"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/media",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "destinations",
+                    "{{destinationSlug}}",
+                    "media"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationSlug",
+                      "value": "{{destinationSlug}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Destination Season Cards",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/season-cards"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/season-cards",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "destinations",
+                    "{{destinationSlug}}",
+                    "season-cards"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationSlug",
+                      "value": "{{destinationSlug}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Destination Packages",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/packages"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/packages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "destinations",
+                    "{{destinationSlug}}",
+                    "packages"
+                  ],
+                  "variable": [
+                    {
+                      "key": "destinationSlug",
+                      "value": "{{destinationSlug}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             }
           ]
@@ -826,21 +3557,80 @@
               "name": "Published Packages",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/packages/published"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/packages/published",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "packages",
+                    "published"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Main Packages",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/packages/main"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/packages/main",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "packages",
+                    "main"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Sub Packages By Main",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/packages/main/{{mainPackageId}}/sub"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/packages/main/{{mainPackageId}}/sub",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "packages",
+                    "main",
+                    "{{mainPackageId}}",
+                    "sub"
+                  ],
+                  "variable": [
+                    {
+                      "key": "mainPackageId",
+                      "value": "{{mainPackageId}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             }
           ]
@@ -852,21 +3642,84 @@
               "name": "Visa Destinations (Active)",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/visa-destinations"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "visa-destinations"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Visa Destination By Slug",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "visa-destinations",
+                    "{{visaSlug}}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaSlug",
+                      "value": "{{visaSlug}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Visa Details By Slug",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}/details"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}/details",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "visa-destinations",
+                    "{{visaSlug}}",
+                    "details"
+                  ],
+                  "variable": [
+                    {
+                      "key": "visaSlug",
+                      "value": "{{visaSlug}}"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             }
           ]
@@ -878,21 +3731,69 @@
               "name": "Featured Picks (Active)",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/featured-picks"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/featured-picks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "featured-picks"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Season Cards (Active)",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/season-cards"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/season-cards",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "season-cards"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             },
             {
               "name": "Hero Sections (Active)",
               "request": {
                 "method": "GET",
-                "url": "{{baseUrl}}/public/cms/hero-sections"
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/hero-sections",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "cms",
+                    "hero-sections"
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
               }
             }
           ]
@@ -907,11 +3808,11 @@
     },
     {
       "key": "cmsEmail",
-      "value": "admin@travel-cms.com"
+      "value": "cms@gmail.com"
     },
     {
       "key": "cmsPassword",
-      "value": "admin@123"
+      "value": "12345678"
     },
     {
       "key": "cmsToken",
@@ -976,6 +3877,30 @@
     {
       "key": "mediaAssetId",
       "value": "00000000-0000-0000-0000-000000000012"
+    },
+    {
+      "key": "cmsUserId",
+      "value": ""
+    },
+    {
+      "key": "cmsUserRole",
+      "value": ""
+    },
+    {
+      "key": "sampleImagePath",
+      "value": "C:/path/to/sample-image.jpg"
+    },
+    {
+      "key": "sampleVideoPath",
+      "value": "C:/path/to/sample-video.mp4"
+    },
+    {
+      "key": "sampleImageUrl",
+      "value": "https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=1600"
+    },
+    {
+      "key": "sampleVideoUrl",
+      "value": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4"
     }
   ]
 }
