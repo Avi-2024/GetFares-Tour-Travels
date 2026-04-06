@@ -1,8 +1,6 @@
 import type { IHttpClient } from "../../../shared/interfaces/IHttp.interface";
-import { CmsSectionCatalog } from "../cms-section.catalog";
 import { CmsTableCell } from "../models/cms-table-cell.model";
 import { CmsTableRow } from "../models/cms-table-row.model";
-import type { CmsSectionKey } from "../models/cms-section-key.type";
 import type { CmsTableEntry } from "../types/cms-table-entry.type";
 import type { JsonRecord } from "../types/json-record.type";
 import { CmsRecordAccessor } from "./cms-record-accessor";
@@ -17,16 +15,6 @@ class CmsSectionEntryMapper {
   ) {
     this.httpClient = httpClient;
     this.accessor = accessor;
-  }
-
-  public fallbackEntries(sectionKey: CmsSectionKey): CmsTableEntry[] {
-    const section = CmsSectionCatalog.getByKey(sectionKey);
-    return section.rows.map((row) => ({
-      id: row.id,
-      row,
-      raw: {},
-      readOnly: true,
-    }));
   }
 
   public mapLandingEntries(data: JsonRecord[], basePath: string): CmsTableEntry[] {
@@ -45,7 +33,7 @@ class CmsSectionEntryMapper {
         id,
         raw: record,
         row: new CmsTableRow(id, {
-          name: new CmsTableCell(this.accessor.getText(record, "name")),
+          name: new CmsTableCell(this.accessor.getText(record, "title", "name")),
           tag: new CmsTableCell(this.accessor.getText(record, "tag")),
           displayOrder: new CmsTableCell(`#${displayOrder}`),
           isActive: new CmsTableCell(

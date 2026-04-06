@@ -1,6 +1,3 @@
-
---  add one column in user table with name of cms_access boolean for the  cms authentication. (@Avi-2024)
-
 -- =========================================
 -- CMS SCHEMA FOR GET2VACATION WEBSITE
 -- =========================================
@@ -13,7 +10,6 @@
 CREATE TABLE landing_places (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
-    description VARCHAR(200) NOT NULL,
     tag VARCHAR(50),
     image_url TEXT NOT NULL,
     display_order INT DEFAULT 0,
@@ -261,11 +257,6 @@ CREATE TABLE IF NOT EXISTS landing_hero_sections (
 );
 
 -- Existing table extensions for richer website cards
-ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS slug VARCHAR(180);
-ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS subtitle VARCHAR(180);
-ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS cta_text VARCHAR(100);
-ALTER TABLE landing_places ADD COLUMN IF NOT EXISTS cta_url TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS ux_landing_places_slug ON landing_places(slug);
 
 ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS slug VARCHAR(180);
 ALTER TABLE featured_picks ADD COLUMN IF NOT EXISTS campaign_type VARCHAR(50) DEFAULT 'featured';

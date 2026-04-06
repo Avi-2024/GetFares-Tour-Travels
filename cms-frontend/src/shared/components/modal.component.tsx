@@ -42,7 +42,7 @@ const ModalComponent = ({
 
   const sizeClass =
     size === "sm" ? "max-w-lg"
-    : size === "md" ? "max-w-xl"
+    : size === "md" ? "max-w-4xl"
     : "max-w-5xl";
 
   const collectFocusableElements = (): HTMLElement[] => {

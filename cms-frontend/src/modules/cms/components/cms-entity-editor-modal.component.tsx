@@ -29,8 +29,10 @@ interface CmsEntityEditorModalState {
   isBootstrapping: boolean;
   isSubmitting: boolean;
   isMediaUploading: boolean;
+  uploadingFieldKey: string | null;
   formValues: Record<string, unknown>;
   formErrors: Record<string, string>;
+  formUploadErrorMessage: string;
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
   relationSearch: Record<string, string>;
   mediaItems: CmsEntityMediaEditorItem[];
@@ -55,8 +57,10 @@ class CmsEntityEditorModalComponent extends Component<
     isBootstrapping: false,
     isSubmitting: false,
     isMediaUploading: false,
+    uploadingFieldKey: null,
     formValues: {},
     formErrors: {},
+    formUploadErrorMessage: "",
     relationOptions: {
       destinations: [],
       "published-packages": [],
@@ -105,6 +109,25 @@ class CmsEntityEditorModalComponent extends Component<
 
   private createClientId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private toBooleanValue(value: unknown): boolean {
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "true" || normalized === "1") {
+        return true;
+      }
+      if (normalized === "false" || normalized === "0" || normalized.length === 0) {
+        return false;
+      }
+    }
+    if (typeof value === "number") {
+      return value !== 0;
+    }
+    return Boolean(value);
   }
 
   private toDefaultMediaLabel(fileName: string): string {
@@ -196,7 +219,7 @@ class CmsEntityEditorModalComponent extends Component<
           return;
         }
         if (field.type === "switch") {
-          formValues[field.key] = Boolean(value);
+          formValues[field.key] = this.toBooleanValue(value);
           return;
         }
         formValues[field.key] = String(value);
@@ -206,8 +229,10 @@ class CmsEntityEditorModalComponent extends Component<
     this.setState({
       isBootstrapping: true,
       isMediaUploading: false,
+      uploadingFieldKey: null,
       formValues,
       formErrors: {},
+      formUploadErrorMessage: "",
       mediaItems: [],
       removedMediaIds: [],
       mediaErrorMessage: "",
@@ -268,7 +293,7 @@ class CmsEntityEditorModalComponent extends Component<
     });
   }
 
-  private onFieldChange(field: CmsEntityFieldDefinition, nextValue: unknown): void {
+  private onFieldChange = (field: CmsEntityFieldDefinition, nextValue: unknown): void => {
     this.setState((prev) => {
       const formValues = { ...prev.formValues, [field.key]: nextValue };
       if (!prev.slugTouched) {
@@ -282,10 +307,40 @@ class CmsEntityEditorModalComponent extends Component<
       return {
         formValues,
         formErrors: { ...prev.formErrors, [field.key]: "" },
+        formUploadErrorMessage: "",
         slugTouched: field.key === "slug" ? true : prev.slugTouched,
       };
     });
-  }
+  };
+
+  private onFieldFileUpload = async (
+    field: CmsEntityFieldDefinition,
+    file: File,
+  ): Promise<void> => {
+    if (!file.type.startsWith("image/")) {
+      this.setState({
+        formUploadErrorMessage: "Only image files are supported for upload.",
+      });
+      return;
+    }
+
+    this.setState({
+      uploadingFieldKey: field.key,
+      formUploadErrorMessage: "",
+    });
+
+    try {
+      const uploadedUrl = await this.cmsService.uploadMedia(file);
+      this.onFieldChange(field, uploadedUrl);
+      this.setState({ uploadingFieldKey: null });
+    } catch (error) {
+      this.setState({
+        uploadingFieldKey: null,
+        formUploadErrorMessage:
+          error instanceof Error ? error.message : "Image upload failed.",
+      });
+    }
+  };
 
   private validate(): boolean {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
@@ -538,11 +593,20 @@ class CmsEntityEditorModalComponent extends Component<
         size={this.props.mode === "create" ? definition.createSize : definition.editSize}
         confirmLabel={this.props.mode === "create" ? "Create Record" : "Save Changes"}
         isSubmitting={this.state.isSubmitting}
-        confirmDisabled={this.state.isBootstrapping || this.state.isMediaUploading}
+        confirmDisabled={
+          this.state.isBootstrapping ||
+          this.state.isMediaUploading ||
+          Boolean(this.state.uploadingFieldKey)
+        }
         onConfirm={() => void this.onSubmit()}
         onCancel={this.props.onClose}
       >
         <div className="space-y-4">
+          {this.state.formUploadErrorMessage && (
+            <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs text-[var(--danger)]">
+              {this.state.formUploadErrorMessage}
+            </div>
+          )}
           <CmsEntityFormGroupsComponent
             definition={definition}
             formValues={this.state.formValues}
@@ -550,6 +614,8 @@ class CmsEntityEditorModalComponent extends Component<
             relationOptions={this.state.relationOptions}
             relationSearch={this.state.relationSearch}
             onFieldChange={this.onFieldChange}
+            onFieldFileUpload={this.onFieldFileUpload}
+            uploadingFieldKey={this.state.uploadingFieldKey}
             onRelationSearchChange={(fieldKey, value) =>
               this.setState((prev) => ({
                 relationSearch: { ...prev.relationSearch, [fieldKey]: value },

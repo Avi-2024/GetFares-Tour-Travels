@@ -1,4 +1,4 @@
-import { Component } from "react";
+import { Component, type ChangeEvent } from "react";
 import type {
   CmsEntityFieldDefinition,
   CmsEntityFormDefinition,
@@ -14,14 +14,54 @@ interface CmsEntityFormGroupsProps {
   relationSearch: Record<string, string>;
   onFieldChange: (field: CmsEntityFieldDefinition, nextValue: unknown) => void;
   onRelationSearchChange: (fieldKey: string, value: string) => void;
+  onFieldFileUpload?: (
+    field: CmsEntityFieldDefinition,
+    file: File,
+  ) => Promise<void> | void;
+  uploadingFieldKey?: string | null;
 }
 
 class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
+  private parseSwitchValue(value: unknown): boolean {
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "true" || normalized === "1") {
+        return true;
+      }
+      if (normalized === "false" || normalized === "0" || normalized.length === 0) {
+        return false;
+      }
+    }
+    if (typeof value === "number") {
+      return value !== 0;
+    }
+    return Boolean(value);
+  }
+
+  private isImageField(field: CmsEntityFieldDefinition): boolean {
+    return /image|thumbnail|hero|banner/i.test(field.key);
+  }
+
+  private onFileChange = (
+    field: CmsEntityFieldDefinition,
+    event: ChangeEvent<HTMLInputElement>,
+  ): void => {
+    const file = event.target.files?.[0];
+    if (file && this.props.onFieldFileUpload) {
+      void this.props.onFieldFileUpload(field, file);
+    }
+    event.currentTarget.value = "";
+  };
+
   private renderInput(field: CmsEntityFieldDefinition) {
     const {
       formValues,
       relationOptions,
       relationSearch,
+      uploadingFieldKey = null,
       onFieldChange,
       onRelationSearchChange,
     } = this.props;
@@ -45,18 +85,59 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
     }
 
     if (field.type === "switch") {
+      const enabled = this.parseSwitchValue(value);
       return (
         <button
           type="button"
-          onClick={() => onFieldChange(field, !Boolean(value))}
-          className={`inline-flex h-10 items-center rounded-xl border px-3 text-sm font-semibold ${
-            Boolean(value) ?
-              "border-[color-mix(in_srgb,var(--success)_40%,transparent)] text-[var(--success)]"
-            : "border-[var(--border)] text-[var(--text-secondary)]"
+          role="switch"
+          aria-checked={enabled}
+          onClick={() => onFieldChange(field, !enabled)}
+          className={`inline-flex h-10 items-center  gap-3 rounded-xl border px-3 text-sm font-semibold transition ${
+            enabled ?
+              "border-[color-mix(in_srgb,var(--success)_40%,transparent)] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-[var(--success)]"
+            : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)]"
           }`}
         >
-          {Boolean(value) ? "Enabled" : "Disabled"}
+          <span>{enabled ? "Enabled" : "Disabled"}</span>
+          <span
+            className={`relative inline-flex h-5 w-10  items-center rounded-full transition ${
+              enabled ?
+                "bg-[color-mix(in_srgb,var(--success)_70%,white_30%)]"
+              : "bg-[color-mix(in_srgb,var(--text-secondary)_28%,transparent)]"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                enabled ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </span>
         </button>
+      );
+    }
+
+    if (field.type === "url" && this.isImageField(field)) {
+      return (
+        <div className="space-y-2">
+          <input
+            type="url"
+            value={String(value ?? "")}
+            onChange={(event) => onFieldChange(field, event.target.value)}
+            className={className}
+          />
+          {this.props.onFieldFileUpload && (
+            <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold normal-case tracking-normal text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
+              {uploadingFieldKey === field.key ? "Uploading..." : "Upload Image"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploadingFieldKey === field.key}
+                onChange={(event) => this.onFileChange(field, event)}
+              />
+            </label>
+          )}
+        </div>
       );
     }
 
@@ -169,9 +250,9 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
               {definition.fields
                 .filter((field) => field.groupKey === group.key)
                 .map((field) => (
-                  <label
+                  <div
                     key={field.key}
-                    className="space-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]"
+                    className="block space-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]"
                   >
                     <span>
                       {field.label}
@@ -181,7 +262,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                     <span className="text-[11px] normal-case tracking-normal text-[var(--danger)]">
                       {formErrors[field.key] || " "}
                     </span>
-                  </label>
+                  </div>
                 ))}
             </div>
           </section>
