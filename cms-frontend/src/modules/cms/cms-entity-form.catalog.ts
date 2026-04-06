@@ -225,8 +225,8 @@ class CmsEntityFormCatalog {
     },
     "main-packages": {
       sectionKey: "main-packages",
-      createSize: "2xl",
-      editSize: "2xl",
+      createSize: "4xl",
+      editSize: "4xl",
       viewSize: "4xl",
       supportsCreate: true,
       supportsEdit: true,
@@ -258,8 +258,8 @@ class CmsEntityFormCatalog {
     },
     "sub-packages": {
       sectionKey: "sub-packages",
-      createSize: "2xl",
-      editSize: "2xl",
+      createSize: "4xl",
+      editSize: "4xl",
       viewSize: "4xl",
       supportsCreate: true,
       supportsEdit: true,
@@ -333,8 +333,8 @@ class CmsEntityFormCatalog {
     },
     "visa-details": {
       sectionKey: "visa-details",
-      createSize: "2xl",
-      editSize: "2xl",
+      createSize: "4xl",
+      editSize: "4xl",
       viewSize: "4xl",
       supportsCreate: true,
       supportsEdit: true,
