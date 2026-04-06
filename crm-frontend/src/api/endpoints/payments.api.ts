@@ -23,6 +23,7 @@ export interface Payment {
   gatewaySignature?: string;
   paymentReference?: string;
   proofUrl?: string;
+  invoiceUrl?: string;
   isVerified?: boolean;
   verifiedBy?: string;
   verifiedAt?: string;
@@ -42,6 +43,7 @@ export interface CreatePaymentPayload {
   gatewaySignature?: string;
   paymentReference?: string;
   proofUrl?: string;
+  invoiceUrl?: string;
   status?: PaymentStatus;
   paidAt?: string;
   isVerified?: boolean;
@@ -55,6 +57,7 @@ export interface VerifyPaymentPayload {
   paidAt?: string;
   status?: PaymentStatus;
   proofUrl?: string;
+  invoiceUrl?: string;
   paymentReference?: string;
   gatewayPaymentId?: string;
 }

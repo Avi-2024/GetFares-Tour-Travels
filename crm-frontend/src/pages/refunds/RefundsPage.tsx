@@ -25,6 +25,7 @@ import { customersApi } from '../../api/customers'
 import { leadsApi } from '../../api/leads'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { useAuth } from '../../context/AuthContext'
+import { getCurrencyOptions, formatCurrency } from '../../utils/currency'
 
 type RefundStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED'
 
@@ -74,6 +75,7 @@ type RefundRow = {
   bookingId: string
   paymentId?: string
   refundAmount: number
+  currency?: string
   supplierPenalty: number
   serviceCharge: number
   netAmount: number
@@ -459,13 +461,13 @@ const DetailsModal = ({
             <div className='p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg'>
               <p className='text-xs text-gray-500 mb-1'>Refund Amount</p>
               <p className='text-xl font-bold text-gray-900 dark:text-gray-100'>
-                ${refund.refundAmount.toFixed(2)}
+                {formatCurrency(refund.refundAmount, refund.currency || 'INR')}
               </p>
             </div>
             <div className='p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg'>
               <p className='text-xs text-gray-500 mb-1'>Net Amount</p>
               <p className='text-xl font-bold text-green-600'>
-                ${refund.netAmount.toFixed(2)}
+                {formatCurrency(refund.netAmount, refund.currency || 'INR')}
               </p>
             </div>
           </div>
@@ -478,13 +480,13 @@ const DetailsModal = ({
             <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
               <span className='text-sm text-gray-600'>Supplier Penalty</span>
               <span className='text-sm font-medium text-gray-900'>
-                ${refund.supplierPenalty.toFixed(2)}
+                {formatCurrency(refund.supplierPenalty, refund.currency || 'INR')}
               </span>
             </div>
             <div className='flex justify-between py-2 border-b border-gray-100 dark:border-gray-800'>
               <span className='text-sm text-gray-600'>Service Charge</span>
               <span className='text-sm font-medium text-gray-900'>
-                ${refund.serviceCharge.toFixed(2)}
+                {formatCurrency(refund.serviceCharge, refund.currency || 'INR')}
               </span>
             </div>
             <div className='flex justify-between py-2'>
@@ -492,7 +494,7 @@ const DetailsModal = ({
                 Total Charges
               </span>
               <span className='text-sm font-medium text-red-600'>
-                ${(refund.supplierPenalty + refund.serviceCharge).toFixed(2)}
+                {formatCurrency(refund.supplierPenalty + refund.serviceCharge, refund.currency || 'INR')}
               </span>
             </div>
           </div>
@@ -592,6 +594,7 @@ const mapApiRefund = (refund: any): RefundRow => {
     bookingId: refund?.bookingId ?? refund?.booking_id ?? '',
     paymentId: refund?.paymentId ?? refund?.payment_id ?? undefined,
     refundAmount,
+    currency: refund?.currency || 'INR',
     supplierPenalty,
     serviceCharge,
     netAmount,
@@ -673,6 +676,7 @@ const RefundsPage = () => {
     bookingId: '',
     paymentId: '',
     refundAmount: '' as number | '',
+    currency: 'INR',
     supplierPenalty: '' as number | '',
     serviceCharge: '' as number | ''
   })
@@ -681,6 +685,7 @@ const RefundsPage = () => {
   const [payments, setPayments] = useState<PaymentLookup[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
   const [loadingPayments, setLoadingPayments] = useState(false)
+  const currencyOptions = useMemo(() => getCurrencyOptions(false), [])
 
   const bookingById = useMemo(
     () => new Map(bookings.map(booking => [booking.id, booking])),
@@ -1303,11 +1308,11 @@ const RefundsPage = () => {
         bookingId: '',
         paymentId: '',
         refundAmount: '',
+        currency: 'INR',
         supplierPenalty: '',
         serviceCharge: ''
       })
       setShowForm(false)
-      showToast('Refund created successfully', 'success')
     } catch (err) {
       console.error('Failed to create refund:', err)
       showToast(getApiErrorMessage(err, 'Failed to create refund'), 'error')
@@ -1560,6 +1565,19 @@ const RefundsPage = () => {
               }
               required
             />
+            <div>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                Currency
+              </label>
+              <SearchableDropdown
+                value={form.currency}
+                onChange={value =>
+                  setForm(current => ({ ...current, currency: value }))
+                }
+                options={currencyOptions}
+                searchPlaceholder='Search currency...'
+              />
+            </div>
             <CurrencyInput
               label='Supplier Penalty'
               value={form.supplierPenalty}
@@ -1896,16 +1914,15 @@ const RefundsPage = () => {
                       </td>
                       <td className='px-5 py-4 text-right'>
                         <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                          ${row.refundAmount.toFixed(2)}
+                          {formatCurrency(row.refundAmount, row.currency || 'INR')}
                         </p>
                         <p className='text-xs text-gray-500'>
-                          Charges: $
-                          {(row.supplierPenalty + row.serviceCharge).toFixed(2)}
+                          Charges: {formatCurrency(row.supplierPenalty + row.serviceCharge, row.currency || 'INR')}
                         </p>
                       </td>
                       <td className='px-5 py-4 text-right'>
                         <p className='text-sm font-semibold text-green-600'>
-                          ${row.netAmount.toFixed(2)}
+                          {formatCurrency(row.netAmount, row.currency || 'INR')}
                         </p>
                       </td>
                       <td className='px-5 py-4'>
@@ -1980,13 +1997,13 @@ const RefundsPage = () => {
                     <div>
                       <p className='text-xs text-gray-500'>Refund Amount</p>
                       <p className='text-sm font-semibold text-gray-900'>
-                        ${row.refundAmount.toFixed(2)}
+                        {formatCurrency(row.refundAmount, row.currency || 'INR')}
                       </p>
                     </div>
                     <div>
                       <p className='text-xs text-gray-500'>Net Amount</p>
                       <p className='text-sm font-semibold text-green-600'>
-                        ${row.netAmount.toFixed(2)}
+                        {formatCurrency(row.netAmount, row.currency || 'INR')}
                       </p>
                     </div>
                   </div>

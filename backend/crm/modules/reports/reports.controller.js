@@ -175,6 +175,14 @@ function createReportsController({ service }) {
       );
       res.status(200).json({ data: result });
     },
+
+    async financeSupplierServices(req, res) {
+      const result = await service.financeSupplierServices(
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
   });
 }
 

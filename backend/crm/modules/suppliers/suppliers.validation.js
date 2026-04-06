@@ -2,6 +2,14 @@ import { z } from "zod";
 
 const uuid = z.string().uuid();
 const payableStatus = z.enum(["PENDING", "PARTIAL", "PAID"]);
+const settlementPaymentMode = z.enum([
+  "BANK_TRANSFER",
+  "CASH",
+  "UPI",
+  "CARD",
+  "CHEQUE",
+  "OTHER",
+]);
 
 const supplierPayload = z.object({
   name: z.string().trim().min(2).max(150),
@@ -110,6 +118,69 @@ const listPayables = z.object({
     .optional(),
 });
 
+const settlePayable = z.object({
+  body: z.object({
+    amount: z.coerce.number().positive(),
+    paymentMode: settlementPaymentMode.optional(),
+    settlementDate: z
+      .string()
+      .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+        message: "Invalid settlementDate",
+      })
+      .optional(),
+    reference: z.string().trim().max(120).optional(),
+    notes: z.string().trim().max(2000).optional(),
+  }),
+  params: z.object({ payableId: uuid }),
+  query: z.object({}).optional(),
+});
+
+const listPayableSettlements = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ payableId: uuid }),
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().optional(),
+    })
+    .optional(),
+});
+
+const listSupplierSettlements = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: uuid }),
+  query: z
+    .object({
+      page: z.coerce.number().int().positive().optional(),
+      limit: z.coerce.number().int().positive().optional(),
+      bookingId: uuid.optional(),
+      payableId: uuid.optional(),
+      from: z
+        .string()
+        .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+          message: "Invalid from",
+        })
+        .optional(),
+      to: z
+        .string()
+        .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+          message: "Invalid to",
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+const listSupplierBookings = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: uuid }),
+  query: z
+    .object({
+      limit: z.coerce.number().int().positive().optional(),
+    })
+    .optional(),
+});
+
 const processPayableDeadlineAlerts = z.object({
   body: z
     .object({
@@ -135,6 +206,10 @@ const SuppliersValidation = {
   createPayable,
   updatePayable,
   listPayables,
+  settlePayable,
+  listPayableSettlements,
+  listSupplierSettlements,
+  listSupplierBookings,
   processPayableDeadlineAlerts,
 };
 

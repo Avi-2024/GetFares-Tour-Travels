@@ -14,6 +14,11 @@ function createPaymentsRoutes({
   const upload = createMemoryUpload({
     maxFileSizeMb: config?.uploads?.maxFileSizeMb,
   });
+  const paymentUploadFields = upload.fields([
+    { name: "file", maxCount: 1 }, // legacy proof field
+    { name: "proofFile", maxCount: 1 },
+    { name: "invoiceFile", maxCount: 1 },
+  ]);
 
   router.get(
     "/",
@@ -36,11 +41,18 @@ function createPaymentsRoutes({
     validateRequest(validation.byId),
     asyncHandler(controller.getById),
   );
+  router.get(
+    "/:id/attachments/:attachmentType",
+    requireAuth,
+    authorize("payments:read"),
+    validateRequest(validation.downloadAttachment),
+    asyncHandler(controller.downloadAttachment),
+  );
   router.post(
     "/",
     requireAuth,
     authorize("payments:create"),
-    upload.single("file"),
+    paymentUploadFields,
     validateRequest(validation.create),
     asyncHandler(controller.create),
   );
@@ -48,7 +60,7 @@ function createPaymentsRoutes({
     "/:id",
     requireAuth,
     authorize("payments:update"),
-    upload.single("file"),
+    paymentUploadFields,
     validateRequest(validation.update),
     asyncHandler(controller.update),
   );
@@ -56,7 +68,7 @@ function createPaymentsRoutes({
     "/:id/verify",
     requireAuth,
     authorize("payments:update"),
-    upload.single("file"),
+    paymentUploadFields,
     validateRequest(validation.verify),
     asyncHandler(controller.verify),
   );

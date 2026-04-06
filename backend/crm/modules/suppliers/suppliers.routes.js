@@ -33,6 +33,22 @@ function createSuppliersRoutes({
     asyncHandler(controller.updatePayable),
   );
 
+  router.get(
+    "/payables/:payableId/settlements",
+    requireAuth,
+    authorize("suppliers:read"),
+    validateRequest(validation.listPayableSettlements),
+    asyncHandler(controller.listPayableSettlements),
+  );
+
+  router.post(
+    "/payables/:payableId/settlements",
+    requireAuth,
+    authorize("suppliers:update"),
+    validateRequest(validation.settlePayable),
+    asyncHandler(controller.settlePayable),
+  );
+
   router.post(
     "/payables/process-deadline-alerts",
     requireAuth,
@@ -62,6 +78,22 @@ function createSuppliersRoutes({
     authorize("suppliers:read"),
     validateRequest(validation.listPayables),
     asyncHandler(controller.listPayables),
+  );
+
+  router.get(
+    "/:id/settlements",
+    requireAuth,
+    authorize("suppliers:read"),
+    validateRequest(validation.listSupplierSettlements),
+    asyncHandler(controller.listSupplierSettlements),
+  );
+
+  router.get(
+    "/:id/bookings",
+    requireAuth,
+    authorize("suppliers:read"),
+    validateRequest(validation.listSupplierBookings),
+    asyncHandler(controller.listSupplierBookings),
   );
 
   router.post(

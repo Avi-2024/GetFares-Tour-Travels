@@ -175,6 +175,14 @@ function createReportsService({ repository, logger }) {
       );
       return repository.getFinanceCostBreakup(filters);
     },
+
+    async financeSupplierServices(filters = {}, context = {}) {
+      logger.debug(
+        { module: "reports", requestId: context.requestId, filters },
+        "Finance supplier services report",
+      );
+      return repository.getFinanceSupplierServices(filters);
+    },
   });
 }
 

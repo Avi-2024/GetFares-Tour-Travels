@@ -44,6 +44,14 @@ export interface CreatePayablePayload {
   notes?: string;
 }
 
+export interface SettlePayablePayload {
+  amount: number;
+  paymentMode?: string;
+  settlementDate?: string;
+  reference?: string;
+  notes?: string;
+}
+
 export const suppliersEndpoints = {
   list: (params?: Record<string, any>) =>
     apiClient.get<{ data: Supplier[] }>(withQuery('/api/suppliers', params)),
@@ -65,6 +73,9 @@ export const suppliersEndpoints = {
 
   updatePayable: (payableId: string, payload: Partial<CreatePayablePayload>) =>
     apiClient.patch<{ data: Payable }>(`/api/suppliers/payables/${payableId}`, payload),
+
+  settlePayable: (payableId: string, payload: SettlePayablePayload) =>
+    apiClient.post<{ data: unknown }>(`/api/suppliers/payables/${payableId}/settlements`, payload),
 
   processPayableDeadlineAlerts: () =>
     apiClient.post('/api/suppliers/payables/process-deadline-alerts'),

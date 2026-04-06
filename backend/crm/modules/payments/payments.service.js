@@ -64,6 +64,30 @@ function createPaymentsService({ repository, logger, events }) {
     return date.toISOString();
   }
 
+  function safeFileToken(value) {
+    return String(value || "payment")
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "payment";
+  }
+
+  function inferExtensionFromUrl(url) {
+    try {
+      const parsed = new URL(String(url));
+      const fileName = parsed.pathname.split("/").pop() || "";
+      const dotIndex = fileName.lastIndexOf(".");
+      if (dotIndex > 0 && dotIndex < fileName.length - 1) {
+        const extension = fileName.slice(dotIndex + 1).toLowerCase();
+        if (/^[a-z0-9]{2,8}$/.test(extension)) {
+          return extension;
+        }
+      }
+    } catch (_error) {
+      // ignore parsing errors
+    }
+    return null;
+  }
+
   async function getById(id, context = {}) {
     logger.debug(
       { module: "payments", requestId: context.requestId, id },
@@ -143,6 +167,7 @@ function createPaymentsService({ repository, logger, events }) {
       gateway_signature: payload.gatewaySignature || null,
       payment_reference: payload.paymentReference || null,
       proof_url: payload.proofUrl || null,
+      invoice_url: payload.invoiceUrl || null,
       status: payload.status || PAYMENT_STATUS.PENDING,
       is_verified: isVerified,
       verified_by: isVerified ? context.user?.id || null : null,
@@ -227,6 +252,9 @@ function createPaymentsService({ repository, logger, events }) {
       if (payload.proofUrl !== undefined) {
         patch.proof_url = payload.proofUrl || null;
       }
+      if (payload.invoiceUrl !== undefined) {
+        patch.invoice_url = payload.invoiceUrl || null;
+      }
       if (payload.status !== undefined) {
         patch.status = payload.status;
       }
@@ -277,6 +305,9 @@ function createPaymentsService({ repository, logger, events }) {
       if (payload.proofUrl !== undefined) {
         patch.proof_url = payload.proofUrl || null;
       }
+      if (payload.invoiceUrl !== undefined) {
+        patch.invoice_url = payload.invoiceUrl || null;
+      }
       if (payload.paymentReference !== undefined) {
         patch.payment_reference = payload.paymentReference || null;
       }
@@ -298,6 +329,30 @@ function createPaymentsService({ repository, logger, events }) {
         ...updated,
         bookingPaymentStatus: booking?.paymentStatus || null,
         bookingAdvanceReceived: booking?.advanceReceived ?? null,
+      };
+    },
+
+    async getAttachmentDownload(id, attachmentType, context = {}) {
+      const payment = await getById(id, context);
+      const type = attachmentType === "invoice" ? "invoice" : "proof";
+      const url = type === "invoice" ? payment.invoiceUrl : payment.proofUrl;
+
+      if (!url) {
+        throw new AppError(
+          404,
+          `${type === "invoice" ? "Invoice" : "Proof"} file not found for this payment`,
+          "PAYMENT_ATTACHMENT_NOT_FOUND",
+        );
+      }
+
+      const extension = inferExtensionFromUrl(url) || "bin";
+      const token = safeFileToken(payment.paymentReference || payment.id);
+      const fileName = `${type}-${token}.${extension}`;
+
+      return {
+        url,
+        type,
+        fileName,
       };
     },
   });

@@ -57,6 +57,42 @@ function createSuppliersController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async settlePayable(req, res) {
+      const result = await service.settlePayable(
+        req.validated.params.payableId,
+        req.validated.body,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async listPayableSettlements(req, res) {
+      const result = await service.listPayableSettlements(
+        req.validated.params.payableId,
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async listSupplierSettlements(req, res) {
+      const result = await service.listSupplierSettlements(
+        req.validated.params.id,
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    async listSupplierBookings(req, res) {
+      const result = await service.listSupplierBookings(
+        req.validated.params.id,
+        req.validated?.query || req.query,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
     async processPayableDeadlineAlerts(req, res) {
       const result = await service.processPayableDeadlineAlerts(
         req.validated?.body || {},

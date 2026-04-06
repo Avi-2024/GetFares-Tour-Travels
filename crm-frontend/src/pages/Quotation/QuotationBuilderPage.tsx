@@ -489,6 +489,29 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     taxPercent: 0,
     discount: 0
   })
+  
+  // Finance breakdown state for detailed cost tracking
+  const [finance, setFinance] = useState({
+    supplierTaxPercent: 0,
+    supplierTaxAmount: 0,
+    gstPercent: 18,
+    gstAmount: 0,
+    tcsPercent: 5,
+    tcsAmount: 0,
+    totalSaleValue: 0,
+    // Additional fields for comprehensive tracking
+    addOns: 0,
+    subtotal: 0,
+    taxAmount: 0,
+    totalMarkup: 0
+  })
+  
+  // Currency state for multi-currency support
+  const [currencies, setCurrencies] = useState({
+    costCurrency: 'INR',
+    clientCurrency: 'INR',
+    supplierCurrency: 'INR'
+  })
   const [addOnServices, setAddOnServices] = useState<AddOnService[]>([])
   const [addOnDraft, setAddOnDraft] = useState({
     name: '',
@@ -738,6 +761,39 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }, 140)
     return () => window.clearTimeout(timer)
   }, [serviceOverrides])
+  
+  // Auto-calculate finance breakdown when costs or service rows change
+  useEffect(() => {
+    const totalSupplierCost = Number(costs.supplierCost) || 0
+    const supplierTaxAmount = (totalSupplierCost * finance.supplierTaxPercent) / 100
+    const markupAmount = (totalSupplierCost * (Number(costs.markupPercent) || 0)) / 100
+    const serviceFeeAmount = Number(costs.serviceFee) || 0
+    const subtotal = totalSupplierCost + supplierTaxAmount + markupAmount + serviceFeeAmount
+    const gstAmount = (subtotal * finance.gstPercent) / 100
+    const tcsAmount = (subtotal * finance.tcsPercent) / 100
+    const discount = Number(costs.discount) || 0
+    const totalSaleValue = subtotal + gstAmount + tcsAmount - discount
+    const taxAmount = supplierTaxAmount + gstAmount + tcsAmount
+    
+    setFinance(prev => ({
+      ...prev,
+      supplierTaxAmount: Number(supplierTaxAmount.toFixed(2)),
+      gstAmount: Number(gstAmount.toFixed(2)),
+      tcsAmount: Number(tcsAmount.toFixed(2)),
+      totalSaleValue: Number(Math.max(0, totalSaleValue).toFixed(2)),
+      subtotal: Number(subtotal.toFixed(2)),
+      taxAmount: Number(taxAmount.toFixed(2)),
+      totalMarkup: Number(markupAmount.toFixed(2))
+    }))
+  }, [
+    costs.supplierCost,
+    costs.markupPercent,
+    costs.serviceFee,
+    costs.discount,
+    finance.supplierTaxPercent,
+    finance.gstPercent,
+    finance.tcsPercent
+  ])
 
   const flagPricingCellChange = useCallback((cellId: string) => {
     setChangedPricingCells(prev => ({ ...prev, [cellId]: true }))
@@ -1732,6 +1788,50 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               )
             )
           }))
+          
+          setFinance(prev => ({
+            ...prev,
+            supplierTaxPercent: Math.max(
+              0,
+              toFiniteNumber(quotation.supplierTaxPercent ?? 0, 0)
+            ),
+            supplierTaxAmount: Math.max(
+              0,
+              toFiniteNumber(quotation.supplierTaxAmount ?? 0, 0)
+            ),
+            gstPercent: Math.max(
+              0,
+              toFiniteNumber(quotation.gstPercent ?? 18, 18)
+            ),
+            gstAmount: Math.max(
+              0,
+              toFiniteNumber(quotation.gstAmount ?? 0, 0)
+            ),
+            tcsPercent: Math.max(
+              0,
+              toFiniteNumber(quotation.tcsPercent ?? 5, 5)
+            ),
+            tcsAmount: Math.max(
+              0,
+              toFiniteNumber(quotation.tcsAmount ?? 0, 0)
+            ),
+            totalSaleValue: Math.max(
+              0,
+              toFiniteNumber(quotation.totalSaleValue ?? 0, 0)
+            )
+          }))
+          
+          setCurrencies(prev => ({
+            costCurrency: toTrimmedString(
+              quotation.costCurrency ?? prev.costCurrency
+            ).toUpperCase() || 'INR',
+            clientCurrency: toTrimmedString(
+              quotation.clientCurrency ?? prev.clientCurrency
+            ).toUpperCase() || 'INR',
+            supplierCurrency: toTrimmedString(
+              quotation.supplierCurrency ?? prev.supplierCurrency
+            ).toUpperCase() || 'INR'
+          }))
 
           const selectedCurrency = toTrimmedString(
             quotation.clientCurrency ??
@@ -1804,6 +1904,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
+      setCurrencies(prev => ({
+        ...prev,
+        clientCurrency: selectedLeadCurrency,
+        costCurrency: selectedLeadCurrency
+      }))
     }
   }, [
     selectedLead,
@@ -2067,6 +2172,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
+      setCurrencies(prev => ({
+        ...prev,
+        clientCurrency: selectedLeadCurrency,
+        costCurrency: selectedLeadCurrency
+      }))
     }
     setSaveError('')
   }
@@ -2571,9 +2681,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         markupAmount,
         serviceFeeAmount: serviceFee,
         taxAmount: Number(computed.taxVal) || 0,
-        costCurrency: currency,
-        clientCurrency: currency,
-        supplierCurrency: currency,
+        // Finance breakdown fields
+        supplierTaxAmount: finance.supplierTaxAmount,
+        gstAmount: finance.gstAmount,
+        tcsAmount: finance.tcsAmount,
+        totalSaleValue: finance.totalSaleValue,
+        // Currency fields
+        costCurrency: currencies.costCurrency,
+        clientCurrency: currencies.clientCurrency,
+        supplierCurrency: currencies.supplierCurrency,
         importantNotes: buildImportantNotes(),
         builderSnapshot: buildBuilderSnapshot(),
         ...(expiresInHours ? { expiresInHours } : {})
@@ -3124,69 +3240,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 ) : null}
               </div>
             </SurfaceCard>
-
-            {/* <SurfaceCard>
-              <div className='mb-3 flex items-center justify-between'>
-                <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-                  Cost & Profit
-                </h2>
-                <span className='text-xs text-gray-500 dark:text-gray-400'>
-                  Auto calculations
-                </span>
-              </div>
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-                <NumberField
-                  label='Supplier Cost'
-                  value={costs.supplierCost}
-                  onChange={v => setCosts(p => ({ ...p, supplierCost: v }))}
-                  prefix='$'
-                />
-                <NumberField
-                  label='Markup %'
-                  value={costs.markupPercent}
-                  onChange={v => setCosts(p => ({ ...p, markupPercent: v }))}
-                />
-                <NumberField
-                  label='Service Fee'
-                  value={costs.serviceFee}
-                  onChange={v => setCosts(p => ({ ...p, serviceFee: v }))}
-                  prefix='$'
-                />
-                <NumberField
-                  label='Tax %'
-                  value={costs.taxPercent}
-                  onChange={v => setCosts(p => ({ ...p, taxPercent: v }))}
-                />
-                <NumberField
-                  label='Discount'
-                  value={costs.discount}
-                  onChange={v => setCosts(p => ({ ...p, discount: v }))}
-                  prefix='$'
-                />
-              </div>
-              <div className='mt-4 grid grid-cols-1 md:grid-cols-4 gap-3'>
-                <SummaryTile
-                  label='Total Price'
-                  value={money(computed.totalPrice)}
-                  tone='blue'
-                />
-                <SummaryTile
-                  label='Profit'
-                  value={money(computed.profit)}
-                  tone='green'
-                />
-                <SummaryTile
-                  label='Margin'
-                  value={`${computed.margin.toFixed(1)}%`}
-                  tone='amber'
-                />
-                <SummaryTile
-                  label='Tax'
-                  value={money(computed.taxVal)}
-                  tone='purple'
-                />
-              </div>
-            </SurfaceCard> */}
             <SurfaceCard>
               <div className='mb-4'>
                 <h2 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
@@ -4675,61 +4728,61 @@ const Field = ({
   </div>
 )
 
-const NumberField = ({
-  label,
-  value,
-  onChange,
-  prefix
-}: {
-  label: string
-  value: number
-  onChange: (v: number) => void
-  prefix?: string
-}) => (
-  <div>
-    <label className='field-label'>{label}</label>
-    <div className='flex items-center gap-2'>
-      {prefix ? (
-        <span className='text-gray-500 dark:text-gray-400 text-sm'>
-          {prefix}
-        </span>
-      ) : null}
-      <input
-        type='number'
-        className='field-input'
-        value={value}
-        onChange={e => onChange(Number(e.target.value || 0))}
-      />
-    </div>
-  </div>
-)
+// const NumberField = ({
+//   label,
+//   value,
+//   onChange,
+//   prefix
+// }: {
+//   label: string
+//   value: number
+//   onChange: (v: number) => void
+//   prefix?: string
+// }) => (
+//   <div>
+//     <label className='field-label'>{label}</label>
+//     <div className='flex items-center gap-2'>
+//       {prefix ? (
+//         <span className='text-gray-500 dark:text-gray-400 text-sm'>
+//           {prefix}
+//         </span>
+//       ) : null}
+//       <input
+//         type='number'
+//         className='field-input'
+//         value={value}
+//         onChange={e => onChange(Number(e.target.value || 0))}
+//       />
+//     </div>
+//   </div>
+// )
 
-const SummaryTile = ({
-  label,
-  value,
-  tone
-}: {
-  label: string
-  value: string
-  tone: 'blue' | 'green' | 'amber' | 'purple'
-}) => {
-  const toneMap: Record<typeof tone, string> = {
-    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200',
-    green:
-      'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-200',
-    amber:
-      'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-200',
-    purple:
-      'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-200'
-  }
-  return (
-    <div
-      className={`rounded-xl border border-gray-200 dark:border-gray-700 p-3 ${toneMap[tone]}`}
-    >
-      <p className='text-xs uppercase tracking-wide font-semibold'>{label}</p>
-      <p className='text-lg font-bold mt-1'>{value}</p>
-    </div>
-  )
-}
+// const SummaryTile = ({
+//   label,
+//   value,
+//   tone
+// }: {
+//   label: string
+//   value: string
+//   tone: 'blue' | 'green' | 'amber' | 'purple'
+// }) => {
+//   const toneMap: Record<typeof tone, string> = {
+//     blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200',
+//     green:
+//       'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-200',
+//     amber:
+//       'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-200',
+//     purple:
+//       'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-200'
+//   }
+//   return (
+//     <div
+//       className={`rounded-xl border border-gray-200 dark:border-gray-700 p-3 ${toneMap[tone]}`}
+//     >
+//       <p className='text-xs uppercase tracking-wide font-semibold'>{label}</p>
+//       <p className='text-lg font-bold mt-1'>{value}</p>
+//     </div>
+//   )
+// }
 
 export default QuotationBuilderPage

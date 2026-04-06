@@ -12,4 +12,8 @@ export const paymentsApi = {
     apiRequest(`/api/payments/${id}`, { method: "PATCH", body: payload }),
   verify: (id: string, payload: unknown) =>
     apiRequest(`/api/payments/${id}/verify`, { method: "POST", body: payload }),
+  downloadAttachment: (id: string, attachmentType: "invoice" | "proof") =>
+    apiRequest(`/api/payments/${id}/attachments/${attachmentType}`, {
+      responseType: "blob",
+    }),
 };

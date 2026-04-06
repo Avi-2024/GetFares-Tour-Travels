@@ -977,6 +977,20 @@ async function seedDatabase() {
         email: "contact@balitoursandtravel.com",
         phone: "+62-274-555-123",
         country: "Indonesia",
+        supplier_currency: "IDR",
+        address: "Jl. Raya Ubud No. 88, Bali",
+        address_line: "Jl. Raya Ubud No. 88",
+        invoice_beneficiary_name: "Bali Tours & Travel",
+        invoice_bank_name: "Bank Mandiri",
+        invoice_account_number: "1370012345678",
+        invoice_ifsc_swift: "BMRIIDJA",
+        bank_name: "Bank Mandiri",
+        bank_account_number: "1370012345678",
+        ifsc_code: "BMRIIDJA",
+        contract_url: "https://example.com/contracts/bali-tours.pdf",
+        rate_valid_until: "2026-12-31",
+        payment_deadline_date: "2026-01-15",
+        production_commitment: "Confirmed bookings within 48 hours",
       },
       {
         name: "Maldives Resorts Ltd",
@@ -984,6 +998,20 @@ async function seedDatabase() {
         email: "bookings@maldivesresorts.mv",
         phone: "+960-330-5000",
         country: "Maldives",
+        supplier_currency: "USD",
+        address: "Male, Maldives",
+        address_line: "Male",
+        invoice_beneficiary_name: "Maldives Resorts Ltd",
+        invoice_bank_name: "Bank of Maldives",
+        invoice_account_number: "MV29BOMV0000000123456789",
+        invoice_ifsc_swift: "BOMVMVMV",
+        bank_name: "Bank of Maldives",
+        bank_account_number: "MV29BOMV0000000123456789",
+        ifsc_code: "BOMVMVMV",
+        contract_url: "https://example.com/contracts/maldives-resorts.pdf",
+        rate_valid_until: "2026-12-31",
+        payment_deadline_date: "2026-01-20",
+        production_commitment: "Luxury resort bookings confirmed within 24 hours",
       },
       {
         name: "Dubai Tourism Services",
@@ -991,6 +1019,65 @@ async function seedDatabase() {
         email: "info@dubaitourism.ae",
         phone: "+971-4-308-1111",
         country: "UAE",
+        supplier_currency: "AED",
+        address: "Sheikh Zayed Road, Dubai",
+        address_line: "Sheikh Zayed Road",
+        invoice_beneficiary_name: "Dubai Tourism Services LLC",
+        invoice_bank_name: "Emirates NBD",
+        invoice_account_number: "AE070331234567890123456",
+        invoice_ifsc_swift: "EBILAEAD",
+        bank_name: "Emirates NBD",
+        bank_account_number: "AE070331234567890123456",
+        ifsc_code: "EBILAEAD",
+        contract_url: "https://example.com/contracts/dubai-tourism.pdf",
+        rate_valid_until: "2026-12-31",
+        payment_deadline_date: "2026-01-10",
+        production_commitment: "All bookings confirmed same day",
+      },
+      {
+        name: "Singapore Tours",
+        contact_person: "Lee Wei Ming",
+        email: "hello@singaporetours.sg",
+        phone: "+65-6737-9110",
+        country: "Singapore",
+        supplier_currency: "SGD",
+        address: "Orchard Road, Singapore",
+        address_line: "Orchard Road",
+        invoice_beneficiary_name: "Singapore Tours Pte Ltd",
+        invoice_bank_name: "DBS Bank",
+        invoice_account_number: "SG1234567890",
+        invoice_ifsc_swift: "DBSSSGSG",
+        bank_name: "DBS Bank",
+        bank_account_number: "SG1234567890",
+        ifsc_code: "DBSSSGSG",
+        contract_url: "https://example.com/contracts/singapore-tours.pdf",
+        rate_valid_until: "2026-12-31",
+        payment_deadline_date: "2026-01-25",
+        production_commitment: "City tours confirmed within 12 hours",
+      },
+      {
+        name: "Goa Beach Resorts",
+        contact_person: "Ramesh Naik",
+        email: "reservations@goabeachresorts.com",
+        phone: "+91-832-2435-600",
+        country: "India",
+        supplier_currency: "INR",
+        pan_number: "ABCDE1234F",
+        gst_number: "27ABCDE1234F1Z5",
+        address: "Calangute Beach Road, Goa 403516",
+        address_line: "Calangute Beach Road",
+        invoice_beneficiary_name: "Goa Beach Resorts Pvt Ltd",
+        invoice_bank_name: "HDFC Bank",
+        invoice_account_number: "50200012345678",
+        invoice_ifsc_swift: "HDFC0001234",
+        invoice_upi_id: "goaresorts@upi",
+        bank_name: "HDFC Bank",
+        bank_account_number: "50200012345678",
+        ifsc_code: "HDFC0001234",
+        contract_url: "https://example.com/contracts/goa-resorts.pdf",
+        rate_valid_until: "2026-12-31",
+        payment_deadline_date: "2026-01-30",
+        production_commitment: "Beach resort bookings confirmed within 6 hours",
       },
     ];
 
@@ -998,10 +1085,6 @@ async function seedDatabase() {
     for (const supplier of suppliers) {
       const row = await upsertByUnique("suppliers", "email", {
         ...supplier,
-        pan_number: "AAAAA1234A",
-        gst_number: "27AAAAA1234A1Z5",
-        address_line: "Supplier address line",
-        supplier_currency: "INR",
         is_active: true,
       });
       if (row) {
@@ -1011,19 +1094,56 @@ async function seedDatabase() {
     }
 
     if (await hasTable("supplier_payables")) {
-      const supplierId = supplierIds.get("bookings@maldivesresorts.mv");
-      const bookingId = bookingIds.get("divya.nair@email.com");
-      if (supplierId && bookingId) {
+      console.log("Creating supplier payables...");
+      
+      // Payable 1: Maldives - Partial payment
+      const maldivesSupplier = supplierIds.get("bookings@maldivesresorts.mv");
+      const divyaBooking = bookingIds.get("divya.nair@email.com");
+      if (maldivesSupplier && divyaBooking) {
         await insertRow("supplier_payables", {
-          booking_id: bookingId,
-          supplier_id: supplierId,
-          payable_amount: 180000,
-          paid_amount: 90000,
-          due_date: "2026-06-15",
+          booking_id: divyaBooking,
+          supplier_id: maldivesSupplier,
+          payable_amount: 350000,
+          paid_amount: 175000,
+          due_date: addDays(toDateString(new Date()), 2),
           status: "PARTIAL",
-          payment_reference: "PAY-REF-001",
+          payment_reference: "PAY-2026-002",
           last_paid_at: new Date().toISOString(),
         });
+        console.log("  Created payable: Maldives (Partial)");
+      }
+      
+      // Payable 2: Bali - Fully paid
+      const baliSupplier = supplierIds.get("contact@balitoursandtravel.com");
+      const amitBooking = bookingIds.get("amit.kumar@email.com");
+      if (baliSupplier && amitBooking) {
+        await insertRow("supplier_payables", {
+          booking_id: amitBooking,
+          supplier_id: baliSupplier,
+          payable_amount: 150000,
+          paid_amount: 150000,
+          due_date: addDays(toDateString(new Date()), -5),
+          status: "PAID",
+          payment_reference: "PAY-2026-001",
+          last_paid_at: new Date().toISOString(),
+        });
+        console.log("  Created payable: Bali (Paid)");
+      }
+      
+      // Payable 3: Dubai - Pending (if we have a Dubai booking)
+      const dubaiSupplier = supplierIds.get("info@dubaitourism.ae");
+      if (dubaiSupplier && divyaBooking) {
+        await insertRow("supplier_payables", {
+          booking_id: divyaBooking,
+          supplier_id: dubaiSupplier,
+          payable_amount: 120000,
+          paid_amount: 0,
+          due_date: addDays(toDateString(new Date()), 7),
+          status: "PENDING",
+          payment_reference: "PAY-2026-003",
+          last_paid_at: null,
+        });
+        console.log("  Created payable: Dubai (Pending)");
       }
     }
 

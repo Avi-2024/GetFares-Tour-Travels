@@ -5,6 +5,8 @@ export type CurrencyOption = {
   label: string
 }
 
+export type CurrencyDisplayMode = 'symbol' | 'code'
+
 const fallbackCurrencies = ['INR', 'USD', 'EUR', 'GBP', 'AED']
 
 const currenciesFromCountries = Country.getAllCountries()
@@ -74,15 +76,33 @@ export const getCurrencySymbol = (currencyCode: string): string => {
   return code
 }
 
-export const formatCurrency = (amount: number | string, currencyCode: string): string => {
+export const formatCurrency = (
+  amount: number | string,
+  currencyCode: string,
+  display: CurrencyDisplayMode = 'code'
+): string => {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount
-  if (isNaN(numAmount)) return `${getCurrencySymbol(currencyCode)} 0`
-  
-  const symbol = getCurrencySymbol(currencyCode)
-  const formatted = numAmount.toLocaleString('en-IN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })
-  
-  return `${symbol} ${formatted}`
+  const normalizedCode = String(currencyCode || 'INR')
+    .trim()
+    .toUpperCase()
+    .slice(0, 3)
+
+  if (Number.isNaN(numAmount)) return `${normalizedCode} 0`
+
+  const locale = currencyLocaleMap.get(normalizedCode) || 'en-IN'
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: normalizedCode,
+      currencyDisplay: display,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(numAmount)
+  } catch (_err) {
+    const formatted = numAmount.toLocaleString('en-IN', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    })
+    return `${normalizedCode} ${formatted}`
+  }
 }

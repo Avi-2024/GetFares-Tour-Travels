@@ -26,12 +26,14 @@ import SurfaceCard from '../../components/ui/SurfaceCard'
 import { dashboardApi } from '../../api/dashboard'
 import { reportsApi } from '../../api/reports'
 import { useAuth } from '../../context/AuthContext'
+import { formatCurrency } from '../../utils/currency'
 
 // Type definitions
 interface DashboardStats {
   totalLeads: number
   totalLeadsChange: number
   revenue: number
+  currency?: string
   revenueChange: number
   pendingCalls: number
   pendingCallsChange: number
@@ -61,6 +63,7 @@ const EMPTY_STATS: DashboardStats = {
   totalLeads: 0,
   totalLeadsChange: 0,
   revenue: 0,
+  currency: 'INR',
   revenueChange: 0,
   pendingCalls: 0,
   pendingCallsChange: 0,
@@ -140,6 +143,7 @@ const Dashboard: React.FC = () => {
             totalLeads: Number(executive.totalLeads || 0),
             totalLeadsChange: 0,
             revenue: Number(executive.revenue || 0),
+            currency: executive.currency || 'INR',
             revenueChange: 0,
             pendingCalls,
             pendingCallsChange: 0,
@@ -272,7 +276,7 @@ const Dashboard: React.FC = () => {
         title: 'Revenue',
         value: formatStatNumber(
           dashboardStats.revenue,
-          num => `$${formatCompact(num)}`
+          num => formatCurrency(num, dashboardStats.currency || 'INR')
         ),
         trend: `${dashboardStats.revenueChange >= 0 ? '+' : ''}${
           dashboardStats.revenueChange

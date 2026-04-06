@@ -302,8 +302,8 @@ const QuotationDetailPage: React.FC = () => {
     quotation?.lead?.destination ??
     null
   const template = quotation?.template ?? quotation?.relations?.template ?? null
-  const pricing = quotation?.pricing ?? quotation?.relations?.pricing ?? null
-  const booking = quotation?.booking ?? quotation?.relations?.booking ?? null
+  // const pricing = quotation?.pricing ?? quotation?.relations?.pricing ?? null
+  // const booking = quotation?.booking ?? quotation?.relations?.booking ?? null
   const createdByUser =
     quotation?.createdByUser ?? quotation?.relations?.createdByUser ?? null
   const approvedByUser =
