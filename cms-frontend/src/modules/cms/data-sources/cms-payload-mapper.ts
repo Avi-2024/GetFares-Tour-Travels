@@ -9,6 +9,7 @@ class CmsPayloadMapper {
         title,
         name: title,
         country: payload.country,
+        description: payload.description,
         tag: payload.tag,
         image: payload.image ?? payload.imageUrl,
         imageUrl: payload.imageUrl,

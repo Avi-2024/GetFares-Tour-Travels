@@ -83,7 +83,7 @@ class CmsDatasource {
 
     if (sectionKey === "main-packages") {
       const payload = await this.httpClient.get<unknown>(
-        "/cms/packages/main",
+        "/public/cms/packages/main",
         this.withCountryParams(),
       );
       return this.sectionEntryMapper.mapMainPackageEntries(

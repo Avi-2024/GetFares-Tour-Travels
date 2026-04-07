@@ -115,7 +115,7 @@ class CmsEntityFormCatalog {
       titleKey: "name",
       subtitleKey: "tag",
       statusKey: "isActive",
-      descriptionKey: "tag",
+      descriptionKey: "description",
       mediaEnabled: false,
       groups: [
         {
@@ -123,6 +123,12 @@ class CmsEntityFormCatalog {
           title: "Basic Information",
           description: "Landing place title, tag, and image details.",
           columns: 2,
+        },
+        {
+          key: "content",
+          title: "Content",
+          description: "Short supporting copy for the landing tile.",
+          columns: 1,
         },
         {
           key: "status",
@@ -134,9 +140,10 @@ class CmsEntityFormCatalog {
       ],
       fields: [
         { key: "name", label: "Title", type: "text", required: true, groupKey: "basic" },
-        { key: "country", label: "Country", type: "text", required: true, groupKey: "basic" },
+        { key: "country", label: "Country", type: "text", groupKey: "basic", helperText: "Optional when landing places are not configured country-wise." },
         { key: "tag", label: "Tag", type: "text", groupKey: "basic" },
         { key: "imageUrl", label: "Img", type: "url", required: true, groupKey: "basic" },
+        { key: "description", label: "Description", type: "textarea", required: true, groupKey: "content" },
         { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "status" },
         { key: "isActive", label: "Active", type: "switch", groupKey: "status" },
       ],

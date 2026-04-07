@@ -1,4 +1,4 @@
-import { Component } from "react";
+import { Component, type ReactNode } from "react";
 import { CirclePlus, Eye, PencilLine, Trash2 } from "lucide-react";
 import SurfaceCardComponent from "../../../shared/components/cards/surface-card.component";
 import type { CmsTableEntry } from "../types/cms-table-entry.type";
@@ -24,6 +24,40 @@ interface CmsSectionTableProps {
 }
 
 class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
+  private renderActionButton({
+    label,
+    title,
+    disabled = false,
+    tone = "neutral",
+    onClick,
+    icon,
+  }: {
+    label: string;
+    title: string;
+    disabled?: boolean;
+    tone?: "neutral" | "danger";
+    onClick: () => void;
+    icon: ReactNode;
+  }) {
+    const toneClass =
+      tone === "danger" ?
+        "border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_16%,transparent)]"
+      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background-soft)]";
+
+    return (
+      <button
+        type="button"
+        title={title}
+        aria-label={label}
+        onClick={onClick}
+        disabled={disabled}
+        className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${toneClass} disabled:cursor-not-allowed disabled:opacity-50`}
+      >
+        {icon}
+      </button>
+    );
+  }
+
   private renderCell(entry: CmsTableEntry, column: { key: string; isHighlighted?: boolean }) {
     const { dateColumnKeys, getToneClass, formatDateValue } = this.props;
     const cell = entry.row.cells[column.key];
@@ -134,34 +168,29 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                           : <span className="text-xs text-[var(--text-secondary)]">--</span>}
                         </td>
                       )}
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onView(entry)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--background-soft)]"
-                          >
-                            <Eye size={12} />
-                            View
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onEdit(entry)}
-                            disabled={entry.readOnly}
-                            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--background-soft)] disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <PencilLine size={12} />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDelete(entry)}
-                            disabled={entry.readOnly}
-                            className="inline-flex items-center gap-1 rounded-lg border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Trash2 size={12} />
-                            Delete
-                          </button>
+                      <td className="w-[132px] px-4 py-3">
+                        <div className="inline-grid grid-cols-3 gap-1.5">
+                          {this.renderActionButton({
+                            label: `View ${entryLabel}`,
+                            title: "View",
+                            onClick: () => onView(entry),
+                            icon: <Eye size={14} />,
+                          })}
+                          {this.renderActionButton({
+                            label: `Edit ${entryLabel}`,
+                            title: "Edit",
+                            disabled: entry.readOnly,
+                            onClick: () => onEdit(entry),
+                            icon: <PencilLine size={14} />,
+                          })}
+                          {this.renderActionButton({
+                            label: `Delete ${entryLabel}`,
+                            title: "Delete",
+                            disabled: entry.readOnly,
+                            tone: "danger",
+                            onClick: () => onDelete(entry),
+                            icon: <Trash2 size={14} />,
+                          })}
                         </div>
                       </td>
                     </tr>

@@ -11,7 +11,8 @@ function createLandingService({ repository }) {
     return {
       id: row.id,
       title: row.name,
-      country: row.country,
+      country: row.country ?? null,
+      description: row.description,
       tag: row.tag,
       image: row.image_url,
       displayOrder: row.display_order,
@@ -39,7 +40,8 @@ function createLandingService({ repository }) {
 
     async create(data) {
       const country = normalizeText(data.country);
-      if (!country) {
+      const supportsCountry = await repository.supportsCountry();
+      if (supportsCountry && !country) {
         throw new AppError(
           400,
           "Country is required for landing place",
@@ -47,19 +49,33 @@ function createLandingService({ repository }) {
         );
       }
 
-      const existing = await repository.findAll({ is_active: true, country });
+      const existing = await repository.findAll(
+        supportsCountry && country ? { is_active: true, country } : { is_active: true },
+      );
       if (existing.length >= 4) {
         throw new AppError(
           400,
-          `Maximum 4 landing places allowed per country (${country})`,
+          supportsCountry && country ?
+            `Maximum 4 landing places allowed per country (${country})`
+          : "Maximum 4 landing places allowed.",
           "MAX_LIMIT_REACHED",
         );
       }
 
       const title = normalizeText(data.title ?? data.name);
+      const description = normalizeText(data.description ?? data.tag ?? title);
+      if (!description) {
+        throw new AppError(
+          400,
+          "Description is required for landing place",
+          "DESCRIPTION_REQUIRED",
+        );
+      }
+
       const row = await repository.create({
         name: title,
-        country,
+        ...(supportsCountry ? { country } : {}),
+        description,
         tag: normalizeText(data.tag),
         image_url: normalizeText(data.image ?? data.imageUrl),
         display_order: toNumber(data.displayOrder, existing.length),
@@ -76,10 +92,11 @@ function createLandingService({ repository }) {
       }
 
       const updates = {};
+      const supportsCountry = await repository.supportsCountry();
       if (data.name !== undefined || data.title !== undefined) {
         updates.name = normalizeText(data.title ?? data.name);
       }
-      if (data.country !== undefined) {
+      if (supportsCountry && data.country !== undefined) {
         const country = normalizeText(data.country);
         if (!country) {
           throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
@@ -95,6 +112,13 @@ function createLandingService({ repository }) {
           }
         }
         updates.country = country;
+      }
+      if (data.description !== undefined) {
+        const description = normalizeText(data.description);
+        if (!description) {
+          throw new AppError(400, "Description cannot be empty", "INVALID_DESCRIPTION");
+        }
+        updates.description = description;
       }
       if (data.tag !== undefined) updates.tag = normalizeText(data.tag);
       if (data.imageUrl !== undefined || data.image !== undefined)
