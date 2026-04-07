@@ -486,9 +486,12 @@ const Dashboard: React.FC = () => {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(v: number | string | undefined) =>
-                    `${Number(v ?? 0)}%`
-                  }
+                  formatter={(v: number | string | undefined) => {
+                    const count = Number(v ?? 0);
+                    const total = leadSources.reduce((sum, source) => sum + source.value, 0);
+                    const actualCount = Math.round((count / 100) * total);
+                    return [`${actualCount} (${count}%)`, ''];
+                  }}
                 />
                 <Legend iconType='circle' />
               </PieChart>

@@ -4328,16 +4328,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       </div>
 
       {showSaved && (
-        <div className='fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4'>
-          <div className='w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6 text-center'>
-            <div className='mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600'>
-              <FaCheck className='text-xl' />
-            </div>
-            <p className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-              {isEditMode ? 'Quotation updated' : 'Quotation saved'}
-            </p>
-            <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
-              Redirecting to quotations list...
+        <div className='fixed top-4 left-1/2 transform -translate-x-1/2 z-[60] animate-fadeIn'>
+          <div className='flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800'>
+            <FaCheck className='text-green-600 dark:text-green-400' />
+            <p className='text-sm font-medium text-green-800 dark:text-green-300'>
+              {isEditMode ? 'Quotation updated successfully' : 'Quotation saved successfully'}
             </p>
           </div>
         </div>

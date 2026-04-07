@@ -166,7 +166,7 @@ const Leads: React.FC = () => {
       : {}),
     ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
     ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
-    ...(appliedFilters.leadId.trim() ? { leadId: appliedFilters.leadId.trim() } : {}),
+    ...(appliedFilters.leadId.trim() ? { leadId: appliedFilters.leadId.trim().toUpperCase() } : {}),
     ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
     ...(appliedFilters.toDate ? { toDate: appliedFilters.toDate } : {}),
     ...(appliedFilters.destination

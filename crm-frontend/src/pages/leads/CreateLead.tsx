@@ -457,6 +457,7 @@ const CreateLead: React.FC = () => {
       { value: '3_STAR', label: '3 Star' },
       { value: '4_STAR', label: '4 Star' },
       { value: '5_STAR', label: '5 Star' },
+      { value: '7_STAR', label: '7 Star' },
       { value: 'ANY', label: 'Any' }
     ],
     []
