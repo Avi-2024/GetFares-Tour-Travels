@@ -334,6 +334,8 @@ class CmsEntityFormCatalog {
         { key: "processingTime", label: "Processing Time", type: "text", required: true, groupKey: "content" },
         { key: "supportInfo", label: "Support Info", type: "textarea", groupKey: "content" },
         { key: "description", label: "Description", type: "textarea", required: true, groupKey: "content" },
+        { key: "imageUrl", label: "Image URL", type: "url", groupKey: "content" },
+        { key: "heroImageUrl", label: "Hero Image URL", type: "url", groupKey: "content" },
         { key: "iconName", label: "Icon Name", type: "text", groupKey: "content" },
         { key: "highlights", label: "Highlights", type: "multi-select", groupKey: "content", options: [{ label: "Tourism", value: "Tourism" }, { label: "Family", value: "Family" }, { label: "Business", value: "Business" }, { label: "Express", value: "Express" }] },
         { key: "ctaText", label: "CTA Text", type: "text", groupKey: "content" },

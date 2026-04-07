@@ -138,6 +138,13 @@ class CmsEntityEditorModalComponent extends Component<
       .trim();
   }
 
+  private toNonEmptyString(value: unknown): string {
+    if (typeof value !== "string") {
+      return "";
+    }
+    return value.trim();
+  }
+
   private getRawValue(entry: CmsTableEntry, key: string): unknown {
     if (entry.raw[key] !== undefined) {
       return entry.raw[key];
@@ -179,15 +186,22 @@ class CmsEntityEditorModalComponent extends Component<
       "visa-destinations": "visa-destinations",
     };
     const rows = await this.cmsService.list(sectionMap[source]);
-    return rows.map((item) => ({
-      value: item.id,
-      label:
-        item.row.cells.destination?.value ||
-        item.row.cells.package?.value ||
-        item.row.cells.mainPackage?.value ||
-        item.row.cells.country?.value ||
-        item.id,
-    }));
+    return rows.map((item) => {
+      const titleFallback = this.toNonEmptyString(this.getRawValue(item, "title"));
+      const slugFallback = this.toNonEmptyString(this.getRawValue(item, "slug"));
+
+      return {
+        value: item.id,
+        label:
+          item.row.cells.destination?.value ||
+          item.row.cells.package?.value ||
+          item.row.cells.mainPackage?.value ||
+          item.row.cells.country?.value ||
+          titleFallback ||
+          slugFallback ||
+          item.id,
+      };
+    });
   }
 
   private async initialize(): Promise<void> {
@@ -423,9 +437,32 @@ class CmsEntityEditorModalComponent extends Component<
 
   private onSubmit = async (): Promise<void> => {
     if (!this.validate()) return;
+    const payload = this.createPayload();
+    const requiresPrimaryImageOnCreate =
+      this.props.mode === "create" &&
+      (this.props.sectionKey === "visa-destinations" ||
+        this.props.sectionKey === "creative-toolkit");
+
+    if (
+      requiresPrimaryImageOnCreate &&
+      this.toNonEmptyString(payload.imageUrl).length === 0
+    ) {
+      this.setState((prev) => ({
+        mediaErrorMessage:
+          "Primary image is required. Upload/add media or provide an image URL.",
+        formErrors:
+          this.props.sectionKey === "visa-destinations" ?
+            {
+              ...prev.formErrors,
+              imageUrl: "Image URL is required when no media is selected.",
+            }
+          : prev.formErrors,
+      }));
+      return;
+    }
+
     this.setState({ isSubmitting: true, mediaErrorMessage: "" });
     try {
-      const payload = this.createPayload();
       if (this.props.mode === "create") {
         const created = await this.cmsService.create(this.props.sectionKey, payload);
         const entityId =
