@@ -127,7 +127,7 @@ export function parseApiDateTime(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function getDateParts(date: Date, preferences: DateTimePreferences) {
+function getDateParts(date: Date) {
   // Extract date parts directly from the Date object without timezone conversion
   // This ensures we show the exact date from the backend
   const year = String(date.getFullYear()).padStart(4, '0');
@@ -145,7 +145,7 @@ export function formatDateWithPreferences(
   const date = parseApiDateTime(value);
   if (!date) return fallback;
 
-  const { year, month, day } = getDateParts(date, preferences);
+  const { year, month, day } = getDateParts(date);
   switch (preferences.dateFormat) {
     case "MM/DD/YYYY":
       return `${month}/${day}/${year}`;
