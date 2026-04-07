@@ -19,6 +19,7 @@ import SurfaceCard from "../../components/ui/SurfaceCard";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useLeadsService } from "../../hooks/useLeadsService";
+import { useDateTimePreferences } from "../../context/DateTimePreferencesContext";
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
 import { toStatusLabelText } from "../../utils/leadStatus";
 
@@ -102,6 +103,7 @@ const Leads: React.FC = () => {
   const pageSize = 15;
   const nav = useNavigate();
   const leadsService = useLeadsService();
+  const { formatDate } = useDateTimePreferences();
 
   const countryOptions = useMemo(
     () => [
@@ -748,9 +750,9 @@ const Leads: React.FC = () => {
                       >
                         <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                           {lead.createdAt
-  ? new Date(lead.createdAt).toLocaleDateString("en-GB")
-  : "-"}
+                            {lead.createdAt
+                              ? formatDate(lead.createdAt, "-")
+                              : "-"}
                           </p>
                         </td>
                         <td className="px-4 py-3 leading-tight">
