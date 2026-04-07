@@ -121,8 +121,16 @@ export function parseApiDateTime(value: unknown): Date | null {
   const raw = String(value).trim();
   if (!raw) return null;
 
-  // Parse the date string directly without timezone conversion
-  // This ensures the date shown matches exactly what's in the database
+  // Extract just the date part (YYYY-MM-DD) to avoid timezone conversion
+  // This ensures we show the exact date from the database
+  const dateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateMatch) {
+    const [, year, month, day] = dateMatch;
+    // Create date in local timezone without time component
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  }
+
+  // Fallback for other date formats
   const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
