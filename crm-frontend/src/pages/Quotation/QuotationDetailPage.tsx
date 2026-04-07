@@ -155,6 +155,16 @@ const mapChannel = (value?: string): 'email' | 'whatsapp' | 'manual' => {
   return 'manual'
 }
 
+const extractImportantNoteValue = (notes: unknown, label: string): string | null => {
+  const raw = String(notes ?? '')
+  if (!raw.trim()) return null
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pattern = new RegExp(`^${escapedLabel}:\\s*(.+)$`, 'mi')
+  const match = raw.match(pattern)
+  const value = match?.[1]?.trim() ?? ''
+  return value || null
+}
+
 const QuotationDetailPage: React.FC = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -293,6 +303,7 @@ const QuotationDetailPage: React.FC = () => {
 
   const lead = quotation?.lead ?? quotation?.relations?.lead ?? null
   const snapshot = quotation?.templateSnapshot ?? null
+  const snapshotBuilder = snapshot?.builderSnapshot ?? null
   const snapshotLead = snapshot?.lead ?? snapshot?.builderSnapshot?.lead ?? null
   const packageSnapshot =
     snapshot?.package ?? snapshot?.builderSnapshot?.package ?? null
@@ -351,15 +362,22 @@ const QuotationDetailPage: React.FC = () => {
   const displayCustomerEmail =
     snapshot?.customerEmail ?? snapshotLead?.email ?? lead?.email ?? 'N/A'
   const displayCustomerPhone = snapshotLead?.phone ?? lead?.phone ?? 'N/A'
+  const notedQuotationTitle = extractImportantNoteValue(
+    quotation?.importantNotes,
+    'Quotation Title'
+  )
   const displayQuotationTitle =
     quotation?.quotationTitle ??
     snapshot?.quotationTitle ??
+    snapshotBuilder?.quotationTitle ??
     packageSnapshot?.name ??
     packageSnapshot?.title ??
-    'N/A'
+    notedQuotationTitle ??
+    'Manual Quotation'
   const displayDestinationName =
     quotation?.tripDestination ??
     snapshot?.destination ??
+    snapshotBuilder?.destination ??
     destination?.name ??
     snapshotLead?.destination ??
     lead?.destinationName ??
@@ -367,6 +385,12 @@ const QuotationDetailPage: React.FC = () => {
   const displayDestinationCountry = destination?.country || 'N/A'
   const displayPackageName =
     packageSnapshot?.name ?? packageSnapshot?.title ?? null
+  const displayTemplateName =
+    quotation?.templateSnapshot?.name ??
+    template?.name ??
+    'Manual (No Template)'
+  const displayTemplateCode =
+    quotation?.templateSnapshot?.code ?? template?.code ?? 'CUSTOM'
   const displayPackageKind = String(
     packageSnapshot?.kind ??
       packageSnapshot?.packageKind ??
@@ -378,6 +402,7 @@ const QuotationDetailPage: React.FC = () => {
   const displayDuration =
     quotation?.durationLabel ??
     snapshot?.durationLabel ??
+    snapshotBuilder?.durationLabel ??
     (formatDurationLabel(
       packageSnapshot?.duration,
       toNumber(
@@ -389,16 +414,22 @@ const QuotationDetailPage: React.FC = () => {
     ) ||
       'N/A')
   const displayTravellerSummary = pluralize(
-    Math.max(0, toNumber(snapshot?.adults, 0)),
+    Math.max(0, toNumber(snapshot?.adults ?? snapshotBuilder?.adults, 0)),
     'adult'
   )
   const displayTravelStartDate =
     quotation?.travelStartDate ??
     snapshot?.travelStartDate ??
+    snapshotBuilder?.travelStartDate ??
     lead?.travelDate ??
     null
-  const displayTravelEndDate = snapshot?.travelEndDate ?? null
-  const displayValidUntil = snapshot?.validUntil ?? quotation?.expiresAt ?? null
+  const displayTravelEndDate =
+    snapshot?.travelEndDate ?? snapshotBuilder?.travelEndDate ?? null
+  const displayValidUntil =
+    snapshot?.validUntil ??
+    snapshotBuilder?.validUntil ??
+    quotation?.expiresAt ??
+    null
   const itineraryItems = useMemo(() => {
     const raw = quotation?.itinerary ?? snapshot?.itineraryItems ?? []
     if (!Array.isArray(raw)) return []
@@ -452,7 +483,23 @@ const QuotationDetailPage: React.FC = () => {
     const totalCost =
       toNumber(quotation?.totalCost, NaN) ||
       rows.reduce((sum, row) => sum + toNumber(row.cost, 0), 0)
-    const marginPercent = toNumber(quotation?.marginPercent, 0)
+    const persistedMarginPercent = toNumber(quotation?.marginPercent, NaN)
+    const markupAmount = Number.isFinite(toNumber(quotation?.markupAmount, NaN))
+      ? toNumber(quotation?.markupAmount, 0)
+      : Number(
+          (
+            totalCost *
+            (Number.isFinite(persistedMarginPercent) ? persistedMarginPercent : 0)
+          ).toFixed(2)
+        )
+    const derivedMarginPercent =
+      totalCost > 0
+        ? Number(((markupAmount / totalCost) * 100).toFixed(2))
+        : 0
+    const marginPercent =
+      Number.isFinite(persistedMarginPercent) && persistedMarginPercent > 0
+        ? persistedMarginPercent
+        : derivedMarginPercent
     const discount = toNumber(quotation?.discount, 0)
     const taxAmount = toNumber(quotation?.taxAmount ?? quotation?.tax, 0)
     const finalPrice = toNumber(
@@ -460,7 +507,7 @@ const QuotationDetailPage: React.FC = () => {
       totalCost - discount + taxAmount
     )
 
-    return { totalCost, marginPercent, discount, taxAmount, finalPrice }
+    return { totalCost, marginPercent, markupAmount, discount, taxAmount, finalPrice }
   }, [quotation, rows])
 
   const commercial = useMemo(() => {
@@ -471,11 +518,23 @@ const QuotationDetailPage: React.FC = () => {
       toNumber(quotation?.markupAmount, NaN) ||
       supplierCost * (toNumber(quotation?.marginPercent, 0) / 100)
     const serviceFeeAmount = toNumber(quotation?.serviceFeeAmount, 0)
-    const taxAmount = toNumber(quotation?.taxAmount ?? quotation?.tax, 0)
+    const baseTaxAmount = toNumber(quotation?.taxAmount ?? quotation?.tax, 0)
+    const supplierTaxAmount = toNumber(quotation?.supplierTaxAmount, 0)
+    const supplierTaxPercent = toNumber(quotation?.supplierTaxPercent, 0)
+    const gstAmount = toNumber(quotation?.gstAmount, 0)
+    const gstPercent = toNumber(quotation?.gstPercent, 0)
+    const tcsAmount = toNumber(quotation?.tcsAmount, 0)
+    const tcsPercent = toNumber(quotation?.tcsPercent, 0)
+    const taxAmount = Number(
+      (baseTaxAmount + supplierTaxAmount + gstAmount + tcsAmount).toFixed(2)
+    )
     const discount = toNumber(quotation?.discount, 0)
     const subtotal = supplierCost + markupAmount + serviceFeeAmount
+    const taxableBase = Math.max(subtotal - discount, 0)
+    const effectiveTaxPercent =
+      taxableBase > 0 ? Number(((taxAmount / taxableBase) * 100).toFixed(2)) : 0
     const finalAmount = toNumber(
-      quotation?.finalPrice ?? quotation?.totalSaleValue,
+      quotation?.totalSaleValue ?? quotation?.finalPrice,
       Math.max(subtotal + taxAmount - discount, 0)
     )
 
@@ -483,7 +542,16 @@ const QuotationDetailPage: React.FC = () => {
       supplierCost,
       markupAmount,
       serviceFeeAmount,
+      baseTaxAmount,
+      supplierTaxAmount,
+      supplierTaxPercent,
+      gstAmount,
+      gstPercent,
+      tcsAmount,
+      tcsPercent,
       taxAmount,
+      taxableBase,
+      effectiveTaxPercent,
       discount,
       subtotal,
       finalAmount,
@@ -815,7 +883,7 @@ const QuotationDetailPage: React.FC = () => {
         </div>
       </div>
 
-      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4'>
+      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-2 sm:gap-4'>
         <SurfaceCard className='p-4'>
           <p className='text-xs uppercase tracking-wide text-gray-500'>
             Total Cost
@@ -826,11 +894,18 @@ const QuotationDetailPage: React.FC = () => {
         </SurfaceCard>
         <SurfaceCard className='p-4'>
           <p className='text-xs uppercase tracking-wide text-gray-500'>
-            Margin
+            Markup
           </p>
           <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
-            {summary.marginPercent}%
+            {summary.marginPercent > 0
+              ? `${summary.marginPercent}%`
+              : formatMoney(summary.markupAmount, displayCurrency)}
           </p>
+          {summary.marginPercent > 0 ? (
+            <p className='text-xs mt-1 text-gray-500'>
+              {formatMoney(summary.markupAmount, displayCurrency)}
+            </p>
+          ) : null}
         </SurfaceCard>
         <SurfaceCard className='p-4'>
           <p className='text-xs uppercase tracking-wide text-gray-500'>
@@ -838,6 +913,22 @@ const QuotationDetailPage: React.FC = () => {
           </p>
           <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
             {formatMoney(summary.discount, displayCurrency)}
+          </p>
+        </SurfaceCard>
+        <SurfaceCard className='p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500'>
+            Service Fee
+          </p>
+          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+            {formatMoney(commercial.serviceFeeAmount, displayCurrency)}
+          </p>
+        </SurfaceCard>
+        <SurfaceCard className='p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500'>
+            Tax
+          </p>
+          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+            {formatMoney(commercial.taxAmount, displayCurrency)}
           </p>
         </SurfaceCard>
         <SurfaceCard className='p-4'>
@@ -929,10 +1020,10 @@ const QuotationDetailPage: React.FC = () => {
                 Template
               </p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                {quotation.templateSnapshot?.name || template?.name || 'N/A'}
+                {displayTemplateName}
               </p>
               <p className='text-xs text-gray-500'>
-                {quotation.templateSnapshot?.code || template?.code || 'N/A'}
+                {displayTemplateCode}
               </p>
             </div>
 
@@ -1021,12 +1112,26 @@ const QuotationDetailPage: React.FC = () => {
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
                 {formatMoney(commercial.taxAmount, displayCurrency)}
               </p>
+              <p className='mt-1 text-[11px] text-gray-500'>
+                {commercial.effectiveTaxPercent}% on{' '}
+                {formatMoney(commercial.taxableBase, displayCurrency)}
+              </p>
+              <p className='text-[11px] text-gray-500'>
+                GST ({commercial.gstPercent}%):{' '}
+                {formatMoney(commercial.gstAmount, displayCurrency)}
+              </p>
+              <p className='text-[11px] text-gray-500'>
+                TCS ({commercial.tcsPercent}%):{' '}
+                {formatMoney(commercial.tcsAmount, displayCurrency)}
+              </p>
+              <p className='text-[11px] text-gray-500'>
+                Supplier Tax ({commercial.supplierTaxPercent}%):{' '}
+                {formatMoney(commercial.supplierTaxAmount, displayCurrency)}
+              </p>
             </div>
           </div>
 
-          <div className='mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700'>
-            Final = Supplier Cost + Markup + Service Fee + Tax - Discount
-          </div>
+       
           <div className='mt-3 flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300'>
             <div className='flex items-center justify-between'>
               <span>Subtotal</span>
@@ -1035,6 +1140,10 @@ const QuotationDetailPage: React.FC = () => {
             <div className='flex items-center justify-between'>
               <span>Discount</span>
               <span>-{formatMoney(commercial.discount, displayCurrency)}</span>
+            </div>
+            <div className='flex items-center justify-between'>
+              <span>Tax</span>
+              <span>+{formatMoney(commercial.taxAmount, displayCurrency)}</span>
             </div>
             <div className='flex items-center justify-between border-t border-gray-200 pt-2 font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100'>
               <span>Final Amount</span>

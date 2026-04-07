@@ -40,7 +40,8 @@ function createLeadsRepository({ db, logger, schema }) {
     if (!email) {
       return null;
     }
-    return String(email).trim().toLowerCase();
+    // Keep case as entered so backend checks remain case-sensitive.
+    return String(email).trim();
   }
 
   function normalizePhone(phone) {

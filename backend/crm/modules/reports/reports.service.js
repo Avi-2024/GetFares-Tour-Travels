@@ -133,7 +133,11 @@ function createReportsService({ repository, logger }) {
         { module: "reports", requestId: context.requestId, filters },
         "Executive KPI dashboard pack",
       );
-      return repository.getExecutiveKpis(filters);
+      const enrichedFilters = {
+        ...filters,
+        userId: context.user?.id,
+      };
+      return repository.getExecutiveKpis(enrichedFilters);
     },
 
     async conversionFunnel(filters = {}, context = {}) {

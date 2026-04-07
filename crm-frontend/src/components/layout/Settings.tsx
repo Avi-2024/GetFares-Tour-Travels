@@ -121,7 +121,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
 ]
 
 const DEFAULT_SYSTEM: SystemSettingsForm = {
-  companyName: "Get2Vacations Travel CRM",
+  companyName: "Get2Vacations",
   supportEmail: "support@Get2Vacations.com",
   supportPhone: "",
   timezone: "Asia/Kolkata",
