@@ -140,7 +140,9 @@ class CmsSectionEntryMapper {
           ),
           syncAt: new CmsTableCell(this.accessor.getText(record, "updatedAt", "updated_at")),
         }),
-        readOnly: true,
+        updatePath: `/cms/packages/published/${id}`,
+        editableField: "publishToWebsite",
+        readOnly: false,
       });
     }
     return entries;
@@ -240,7 +242,9 @@ class CmsSectionEntryMapper {
                 this.accessor.getText(subPackage, "startingPrice", "starting_price"),
               ),
               displayOrder: new CmsTableCell(`#${displayOrder}`),
-              status: new CmsTableCell("Active", "success"),
+              updatedAt: new CmsTableCell(
+                this.accessor.getText(subPackage, "updatedAt", "updated_at"),
+              ),
             }),
             updatePath: `${mainPath.replace("/main", "/sub")}/${id}`,
             deletePath: `${mainPath.replace("/main", "/sub")}/${id}`,

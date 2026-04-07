@@ -179,6 +179,14 @@ class CmsEntityEditorModalComponent extends Component<
       ];
     }
 
+    if (source === "main-packages" && this.props.sectionKey === "sub-packages") {
+      const rows = await this.cmsService.listAdminMainPackages();
+      return rows.map((item) => ({
+        value: item.id,
+        label: item.row.cells.mainPackage?.value || item.id,
+      }));
+    }
+
     const sectionMap: Record<Exclude<RelationSourceKey, "featured-references">, CmsSectionKey> = {
       destinations: "destinations",
       "published-packages": "published-packages",

@@ -38,6 +38,12 @@ class CmsPayloadMapper {
         isActive: payload.isActive,
       };
     }
+    if (sectionKey === "published-packages") {
+      return {
+        bannerImageUrl: payload.bannerImageUrl,
+        publishToWebsite: payload.publishToWebsite,
+      };
+    }
     if (sectionKey === "main-packages") {
       return {
         packageId: payload.packageId,

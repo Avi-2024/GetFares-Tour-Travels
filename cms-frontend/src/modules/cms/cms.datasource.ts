@@ -184,6 +184,17 @@ class CmsDatasource {
     throw new Error(`Unsupported section key: ${sectionKey}`);
   }
 
+  public async listAdminMainPackages(): Promise<CmsTableEntry[]> {
+    const payload = await this.httpClient.get<unknown>(
+      "/cms/packages/main",
+      this.withCountryParams(),
+    );
+    return this.sectionEntryMapper.mapMainPackageEntries(
+      this.accessor.toArray(payload),
+      "/cms/packages/main",
+    );
+  }
+
   public async create(
     sectionKey: CmsSectionKey,
     payload: JsonRecord,
