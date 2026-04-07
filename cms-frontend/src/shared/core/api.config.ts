@@ -1,4 +1,7 @@
-import type { ApiEndpoints, IApiConfig } from "../interfaces/IApiConfig.interface";
+import type {
+  ApiEndpoints,
+  IApiConfig,
+} from "../interfaces/IApiConfig.interface";
 
 class ApiConfig implements IApiConfig {
   public readonly baseURL: string;
@@ -6,15 +9,15 @@ class ApiConfig implements IApiConfig {
 
   constructor(
     baseURL: string =
-      (import.meta as ImportMeta).env?.VITE_API_BASE_URL ??
-      (import.meta as ImportMeta).env?.VITE_BACKEND_URL ??
+      import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.BACKEND_URL ||
       "http://localhost:3000",
     endpoints: ApiEndpoints = {
       login: "/api/auth/login",
       logout: "/api/auth/logout",
     },
   ) {
-    this.baseURL = baseURL;
+    this.baseURL = String(baseURL || "").trim().replace(/\/+$/, "");
     this.endpoints = endpoints;
   }
 }
