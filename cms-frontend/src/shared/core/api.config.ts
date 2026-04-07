@@ -8,16 +8,15 @@ class ApiConfig implements IApiConfig {
   public readonly endpoints: ApiEndpoints;
 
   constructor(
-    baseURL: string =
-      import.meta.env.VITE_API_BASE_URL ||
-      import.meta.env.BACKEND_URL ||
-      "http://localhost:3000",
+    baseURL: string = import.meta.env.BACKEND_URL,
     endpoints: ApiEndpoints = {
       login: "/api/auth/login",
       logout: "/api/auth/logout",
     },
   ) {
-    this.baseURL = String(baseURL || "").trim().replace(/\/+$/, "");
+    this.baseURL = String(baseURL || "")
+      .trim()
+      .replace(/\/+$/, "");
     this.endpoints = endpoints;
   }
 }
