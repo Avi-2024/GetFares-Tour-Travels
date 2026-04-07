@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaCalendarPlus,
@@ -750,9 +750,9 @@ const Leads: React.FC = () => {
                       >
                         <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                            {lead.createdAt
-                              ? formatDate(lead.createdAt, "-")
-                              : "-"}
+                           {lead.createdAt
+  ? new Date(lead.createdAt).toLocaleDateString("en-GB")
+  : "-"}
                           </p>
                         </td>
                         <td className="px-4 py-3 leading-tight">
