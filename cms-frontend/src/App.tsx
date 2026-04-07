@@ -23,7 +23,6 @@ class App extends Component {
               path="/dashboard"
               element={<Navigate to="/cms/landing-places" replace />}
             />
-
             {cmsRouteDefinitions.map((route) => (
               <Route
                 key={route.path}
@@ -39,7 +38,6 @@ class App extends Component {
                 }
               />
             ))}
-
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </BrowserRouter>
