@@ -31,6 +31,8 @@ export interface CreateLeadPayload {
   campaignId?: string;
   travelPurpose?: string;
   notes?: string;
+  allowDuplicate?: boolean;
+  autoAssign?: boolean;
 }
 
 export interface UpdateLeadPayload {

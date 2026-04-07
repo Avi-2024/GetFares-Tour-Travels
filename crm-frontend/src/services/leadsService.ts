@@ -36,6 +36,7 @@ export type LeadListItem = {
   sla: string;
   slaBreached: boolean;
   consultant: string;
+  assignedBy: string | null;
 };
 
 export type LeadsPagination = {
@@ -346,6 +347,7 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     sla: lead.sla ?? lead.slaStatus ?? "N/A",
     slaBreached: Boolean(lead.slaBreached),
     consultant: lead.assignedUser?.fullName ?? "Unassigned",
+    assignedBy: lead.assignedByUser?.fullName ?? null,
   };
 };
 

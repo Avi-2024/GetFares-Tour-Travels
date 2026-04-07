@@ -1603,7 +1603,12 @@ function createLeadsService({ repository, logger, events }) {
       phone: payload.phone,
     });
 
-    const allowDuplicate = Boolean(payload.allowDuplicate);
+    // For authenticated CRM users, allow creating repeat leads by default
+    // (new lead lifecycle / lead code for the same customer contact).
+    // Public capture keeps strict duplicate protection unless explicitly allowed.
+    const allowDuplicate =
+      payload.allowDuplicate === true ||
+      (payload.allowDuplicate !== false && Boolean(context.user?.id));
     if (duplicate && !allowDuplicate) {
       const duplicateStatus = String(duplicate.status || "").toUpperCase();
       const duplicateIsClosed = CLOSED_STATUSES.has(duplicateStatus);
@@ -2644,3 +2649,4 @@ function createLeadsService({ repository, logger, events }) {
 }
 
 export { createLeadsService, LEAD_TEMPERATURE };
+

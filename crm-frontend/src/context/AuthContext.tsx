@@ -106,7 +106,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     promise: Promise<string[]>;
   } | null>(null);
   const isAdmin = useMemo(
-    () => String(user?.role ?? "").toLowerCase() === "admin",
+    () => {
+      const role = String(user?.role ?? "").toLowerCase();
+      return role === "admin" || role === "super_admin";
+    },
     [user?.role],
   );
 

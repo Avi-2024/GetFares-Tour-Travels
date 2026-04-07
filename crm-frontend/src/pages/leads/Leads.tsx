@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaCalendarPlus,
@@ -346,6 +346,8 @@ const Leads: React.FC = () => {
       "Destination",
       "Lead Country",
       "Visa/Holidays",
+      "Assignee",
+      "Assigned By",
       "Status",
       "SLA",
     ];
@@ -375,6 +377,8 @@ const Leads: React.FC = () => {
         lead.destination ?? "",
         lead.leadCountry ?? "",
         getVisaHolidayLabel(lead),
+        lead.consultant && lead.consultant !== "Unassigned" ? lead.consultant : "-",
+        lead.assignedBy ?? "-",
         toStatusLabelText(lead.statusLabel),
         lead.slaBreached ? "Breached" : (lead.sla ?? ""),
       ]);
@@ -754,11 +758,6 @@ const Leads: React.FC = () => {
                         <td className="px-3 py-2.5 leading-tight">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                             {lead.name}
-                            {lead.consultant && lead.consultant !== "Unassigned" && (
-                              <span className="ml-1.5 text-xs font-normal text-blue-600 dark:text-blue-400">
-                                ({lead.consultant})
-                              </span>
-                            )}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {formatPaxSummary(lead)}
@@ -768,6 +767,11 @@ const Leads: React.FC = () => {
                               {formatChildAges(lead)}
                             </p>
                           ) : null}
+                          {lead.assignedBy && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                              Assigned by: {lead.assignedBy}
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-left leading-tight whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -847,11 +851,6 @@ const Leads: React.FC = () => {
                       <div>
                         <p className="font-semibold text-gray-900 dark:text-gray-100">
                           {lead.name}
-                          {lead.consultant && lead.consultant !== "Unassigned" && (
-                            <span className="ml-1.5 text-xs font-normal text-blue-600 dark:text-blue-400">
-                              ({lead.consultant})
-                            </span>
-                          )}
                         </p>
                         <p className="text-xs text-gray-500">
                           Lead ID: {lead.leadId}
@@ -864,6 +863,11 @@ const Leads: React.FC = () => {
                             {formatChildAges(lead)}
                           </p>
                         ) : null}
+                        {lead.assignedBy && (
+                          <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                            Assigned by: {lead.assignedBy}
+                          </p>
+                        )}
                       </div>
                       <StatusBadge status={lead.statusLabel} />
                     </div>

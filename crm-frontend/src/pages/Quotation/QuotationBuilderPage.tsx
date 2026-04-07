@@ -2900,7 +2900,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           <div>
             <div className='flex items-center gap-3'>
               <button
-                onClick={() => navigate('/quotations')}
+                onClick={() => navigate(-1)}
                 className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
                 aria-label='Back to quotations'
                 title='Back to Quotations'

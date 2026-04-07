@@ -202,11 +202,12 @@ const CreateLead: React.FC = () => {
   const campaignsService = useCampaignsService()
   const [leadType, setLeadType] = useState<LeadType>(null)
   const [form, setForm] = useState<FormState>(() => createInitialFormState())
-  const [campaigns, setCampaigns] = useState<any[]>([])
+  // const [campaigns, setCampaigns] = useState<any[]>([])
   const [destinations, setDestinations] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState('')
   const [duplicateWarning, setDuplicateWarning] = useState('')
+  const [duplicateLead, setDuplicateLead] = useState<any>(null)
   const [showErrors, setShowErrors] = useState(false)
   const [childAges, setChildAges] = useState<string[]>([])
   const [phoneCountryIso2, setPhoneCountryIso2] = useState<CountryIso2>(() =>
@@ -240,16 +241,16 @@ const CreateLead: React.FC = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const [campaignsRes, destinationsRes] = await Promise.allSettled([
+      const [, destinationsRes] = await Promise.allSettled([
         campaignsService.list({ status: 'ACTIVE' }),
         leadsService.getDestinations()
       ])
 
-      if (campaignsRes.status === 'fulfilled') {
-        setCampaigns((campaignsRes.value as any).data || [])
-      } else {
-        setCampaigns([])
-      }
+      // if (campaignsRes.status === 'fulfilled') {
+      //   setCampaigns((campaignsRes.value as any).data || [])
+      // } else {
+      //   setCampaigns([])
+      // }
 
       if (destinationsRes.status === 'fulfilled') {
         const list = destinationsRes.value
@@ -266,20 +267,21 @@ const CreateLead: React.FC = () => {
       const email = form.email.trim()
       const phone = form.phone.replace(/\D/g, '')
       
-      // Only check if both email and phone have meaningful values
       if (!email && !phone) {
         setDuplicateWarning('')
+        setDuplicateLead(null)
         return
       }
       
-      // Don't check if email is invalid or phone is too short
       if (email && !EMAIL_PATTERN.test(email)) {
         setDuplicateWarning('')
+        setDuplicateLead(null)
         return
       }
       
       if (phone && phone.length < PHONE_E164_DIGITS_MIN) {
         setDuplicateWarning('')
+        setDuplicateLead(null)
         return
       }
       
@@ -290,16 +292,19 @@ const CreateLead: React.FC = () => {
         )
         if ((result as any).data.isDuplicate) {
           const matches = (result as any).data.matches || []
+          setDuplicateLead(matches[0] || null)
           const leadIds = matches.map((m: any) => m.leadId || m.lead_id || m.id).filter(Boolean)
           const leadIdText = leadIds.length > 0 ? ` (Lead ID: ${leadIds.join(', ')})` : ''
           setDuplicateWarning(
-            `${(result as any).data.message ?? 'Similar lead already exists'}${leadIdText}. You may not have access to view it. Contact your manager if needed.`
+            `Similar lead exists${leadIdText}. Click "Use Existing Data" to prefill the form.`
           )
         } else {
           setDuplicateWarning('')
+          setDuplicateLead(null)
         }
       } catch {
         setDuplicateWarning('')
+        setDuplicateLead(null)
       }
     }
 
@@ -480,16 +485,16 @@ const CreateLead: React.FC = () => {
     []
   )
 
-  const campaignOptions = useMemo(
-    () => [
-      { value: '', label: 'Select campaign (optional)' },
-      ...campaigns.map(campaign => ({
-        value: String(campaign.id),
-        label: campaign.name
-      }))
-    ],
-    [campaigns]
-  )
+  // const campaignOptions = useMemo(
+  //   () => [
+  //     { value: '', label: 'Select campaign (optional)' },
+  //     ...campaigns.map(campaign => ({
+  //       value: String(campaign.id),
+  //       label: campaign.name
+  //     }))
+  //   ],
+  //   [campaigns]
+  // )
 
   const countryOptions = useMemo(
     () => [
@@ -675,22 +680,13 @@ const CreateLead: React.FC = () => {
         notes: mergedNotes || undefined,
         leadType,
         status: 'OPEN',
-        qualificationCompleted: true
+        qualificationCompleted: true,
+        allowDuplicate: true
       })
       navigate('/leads')
     } catch (error) {
       const errorMessage = getApiErrorMessage(error, 'Could not create lead.')
-      
-      // Check if it's a duplicate lead error
-      if (errorMessage.includes('Duplicate lead') || errorMessage.includes('LEAD_DUPLICATE')) {
-        setApiError(
-          'A lead with this email or phone already exists in the system. ' +
-          'Please contact your manager or admin to access the existing lead, ' +
-          'or use different contact details.'
-        )
-      } else {
-        setApiError(errorMessage)
-      }
+      setApiError(errorMessage)
       setLoading(false)
     }
   }
@@ -797,8 +793,42 @@ const CreateLead: React.FC = () => {
       </div>
 
       {duplicateWarning ? (
-        <div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200'>
-          {duplicateWarning}
+        <div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200 flex items-center justify-between'>
+          <span>{duplicateWarning}</span>
+          {duplicateLead && (
+            <button
+              onClick={() => {
+                const lead = duplicateLead
+                const nameParts = (lead.fullName || lead.full_name || '').split(' ')
+                setForm({
+                  firstName: nameParts[0] || '',
+                  lastName: nameParts.slice(1).join(' ') || '',
+                  email: lead.email || '',
+                  phone: lead.phone || '',
+                  leadCountry: lead.leadCountry || lead.lead_country || '',
+                  nationality: lead.nationality || '',
+                  clientCurrency: lead.clientCurrency || lead.client_currency || 'INR',
+                  location: lead.addressLine || lead.address_line || '',
+                  destinationName: lead.destinationName || lead.destination_name || lead.destination || '',
+                  travelDate: lead.travelDate || lead.travel_date || '',
+                  travelEndDate: lead.travelEndDate || lead.travel_end_date || '',
+                  adultsCount: String(lead.adultsCount || lead.adults_count || '2'),
+                  childrenCount: String(lead.childrenCount || lead.children_count || '0'),
+                  budget: String(lead.budget || ''),
+                  visaRequired: lead.visaRequired ? 'YES' : lead.visaRequired === false ? 'NO' : '',
+                  preferredHotelCategory: lead.preferredHotelCategory || lead.preferred_hotel_category || '',
+                  travelPurpose: lead.travelPurpose || lead.travel_purpose || '',
+                  leadSource: lead.source || 'Website',
+                  campaignId: lead.campaignId || lead.campaign_id || '',
+                  notes: lead.notes || ''
+                })
+                setDuplicateWarning('')
+              }}
+              className='ml-3 rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700'
+            >
+              Use Existing Data
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -1119,7 +1149,7 @@ const CreateLead: React.FC = () => {
               />
             </div>
           )}
-          {isFieldVisible('leadSource') && (
+          {/* {isFieldVisible('leadSource') && (
             <div>
               <label className='field-label'>Campaign</label>
               <SearchableDropdown
@@ -1131,7 +1161,7 @@ const CreateLead: React.FC = () => {
                 }
               />
             </div>
-          )}
+          )} */}
         
           <div className='md:col-span-2'>
             <label className='field-label'>Notes</label>
