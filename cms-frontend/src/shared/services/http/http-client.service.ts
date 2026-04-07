@@ -49,22 +49,33 @@ class HttpClient implements IHttpClient {
   }
 
   private setupInterceptors(): void {
-    const onRequest = this.authInterceptor.onRequest ?? ((config: unknown) => config);
-    const onRequestError =
-      this.authInterceptor.onRequestError ??
-      ((error: unknown) => Promise.reject(error));
-    const onResponse = this.errorInterceptor.onResponse ?? ((response: unknown) => response);
-    const onResponseError =
-      this.errorInterceptor.onResponseError ??
-      ((error: unknown) => Promise.reject(error));
-
     this.client.interceptors.request.use(
-      (config) => onRequest(config),
-      (error) => onRequestError(error),
+      (config) => {
+        if (this.authInterceptor.onRequest) {
+          return this.authInterceptor.onRequest(config);
+        }
+        return config;
+      },
+      (error) => {
+        if (this.authInterceptor.onRequestError) {
+          return this.authInterceptor.onRequestError(error);
+        }
+        return Promise.reject(error);
+      },
     );
     this.client.interceptors.response.use(
-      (response) => onResponse(response),
-      (error) => onResponseError(error),
+      (response) => {
+        if (this.errorInterceptor.onResponse) {
+          return this.errorInterceptor.onResponse(response);
+        }
+        return response;
+      },
+      (error) => {
+        if (this.errorInterceptor.onResponseError) {
+          return this.errorInterceptor.onResponseError(error);
+        }
+        return Promise.reject(error);
+      },
     );
   }
 
