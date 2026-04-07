@@ -209,9 +209,11 @@ class CmsEntityViewModalComponent extends Component<
                   <p className="mt-1 text-sm text-[var(--text-secondary)]">{subtitle}</p>
                 )}
               </div>
-              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}>
-                {status.label}
-              </span>
+              {statusValue && statusValue !== "--" && (
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}>
+                  {status.label}
+                </span>
+              )}
             </div>
             {description !== "--" && (
               <p className="mt-3 text-sm text-[var(--text-secondary)]">{description}</p>

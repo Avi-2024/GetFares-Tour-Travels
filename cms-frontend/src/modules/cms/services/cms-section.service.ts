@@ -19,6 +19,10 @@ class CmsSectionService implements ICmsSectionService {
     return this.repository.list(sectionKey);
   }
 
+  public listAdminMainPackages(): Promise<CmsTableEntry[]> {
+    return this.repository.listAdminMainPackages();
+  }
+
   public create(
     sectionKey: CmsSectionKey,
     payload: Record<string, unknown>,

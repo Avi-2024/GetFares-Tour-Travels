@@ -116,7 +116,7 @@ class CmsSectionCatalog {
         new CmsTableColumn("duration", "Duration"),
         new CmsTableColumn("priceBand", "Price"),
         new CmsTableColumn("displayOrder", "Display Order"),
-        new CmsTableColumn("status", "Status"),
+        new CmsTableColumn("updatedAt", "Updated At"),
       ],
       "No sub packages found",
       "Create sub packages under main package groups.",
