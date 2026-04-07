@@ -8,7 +8,7 @@ class ApiConfig implements IApiConfig {
   public readonly endpoints: ApiEndpoints;
 
   constructor(
-    baseURL: string = import.meta.env.BACKEND_URL,
+    baseURL: string = import.meta.env.VITE_API_BASE_URL,
     endpoints: ApiEndpoints = {
       login: "/api/auth/login",
       logout: "/api/auth/logout",
