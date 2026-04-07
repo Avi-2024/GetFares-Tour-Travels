@@ -1,10 +1,43 @@
 function createLandingRepository({ db, schema }) {
+  let countryColumnSupported = null;
+
+  async function supportsCountryColumn() {
+    if (countryColumnSupported !== null) {
+      return countryColumnSupported;
+    }
+
+    if (typeof db?.query !== "function") {
+      countryColumnSupported = true;
+      return countryColumnSupported;
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = $1
+           AND column_name = 'country'
+         LIMIT 1`,
+        [schema.tableName],
+      );
+      countryColumnSupported = result.rowCount > 0;
+    } catch {
+      countryColumnSupported = false;
+    }
+
+    return countryColumnSupported;
+  }
+
   return Object.freeze({
     async findAll(filters = {}) {
       const query = { ...filters };
       if (filters.active !== undefined) {
         query.is_active = filters.active;
         delete query.active;
+      }
+      if (!(await supportsCountryColumn())) {
+        delete query.country;
       }
       return db.findMany(schema.tableName, query);
     },
@@ -14,11 +47,19 @@ function createLandingRepository({ db, schema }) {
     },
 
     async create(data) {
-      return db.insert(schema.tableName, data);
+      const payload = { ...data };
+      if (!(await supportsCountryColumn())) {
+        delete payload.country;
+      }
+      return db.insert(schema.tableName, payload);
     },
 
     async update(id, data) {
-      return db.update(schema.tableName, id, data);
+      const payload = { ...data };
+      if (!(await supportsCountryColumn())) {
+        delete payload.country;
+      }
+      return db.update(schema.tableName, id, payload);
     },
 
     async delete(id) {
@@ -30,6 +71,10 @@ function createLandingRepository({ db, schema }) {
         db.update(schema.tableName, id, { display_order: displayOrder }),
       );
       return Promise.all(promises);
+    },
+
+    async supportsCountry() {
+      return supportsCountryColumn();
     },
   });
 }

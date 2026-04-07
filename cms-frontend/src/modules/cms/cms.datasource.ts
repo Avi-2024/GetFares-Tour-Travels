@@ -35,16 +35,50 @@ class CmsDatasource {
     return normalized || null;
   }
 
+  private getVisaDestinationIdParam(): string | null {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const destinationId = new URLSearchParams(window.location.search).get(
+      "visaDestinationId",
+    );
+    const normalized = (destinationId || "").trim();
+    return normalized || null;
+  }
+
+  private getBooleanQueryParam(key: string): boolean | null {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const rawValue = new URLSearchParams(window.location.search).get(key);
+    const normalized = (rawValue || "").trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0") {
+      return false;
+    }
+    return null;
+  }
+
   private withCountryParams(
     params: Record<string, string | number | boolean> = {},
+    options: {
+      includeIsActive?: boolean;
+    } = {},
   ): { params: Record<string, string | number | boolean> } | undefined {
     const country = this.getCountryParam();
-    if (!country && !Object.keys(params).length) {
+    const isActive =
+      options.includeIsActive ? this.getBooleanQueryParam("isActive") : null;
+    if (!country && isActive === null && !Object.keys(params).length) {
       return undefined;
     }
     return {
       params: {
         ...(country ? { country } : {}),
+        ...(isActive === null ? {} : { isActive }),
         ...params,
       },
     };
@@ -83,7 +117,7 @@ class CmsDatasource {
 
     if (sectionKey === "main-packages") {
       const payload = await this.httpClient.get<unknown>(
-        "/cms/packages/main",
+        "/public/cms/packages/main",
         this.withCountryParams(),
       );
       return this.sectionEntryMapper.mapMainPackageEntries(
@@ -102,7 +136,7 @@ class CmsDatasource {
     if (sectionKey === "visa-destinations") {
       const payload = await this.httpClient.get<unknown>(
         "/cms/visa",
-        this.withCountryParams(),
+        this.withCountryParams({}, { includeIsActive: true }),
       );
       return this.sectionEntryMapper.mapVisaDestinationEntries(
         this.accessor.toArray(payload),
@@ -111,6 +145,14 @@ class CmsDatasource {
     }
 
     if (sectionKey === "visa-details") {
+      const visaDestinationId = this.getVisaDestinationIdParam();
+      if (visaDestinationId) {
+        return this.sectionEntryMapper.mapVisaDetailEntriesByDestination(
+          "/cms/visa",
+          visaDestinationId,
+          this.getCountryParam(),
+        );
+      }
       return this.sectionEntryMapper.mapVisaDetailEntries(
         "/cms/visa",
         this.getCountryParam(),
@@ -119,7 +161,7 @@ class CmsDatasource {
 
     if (sectionKey === "creative-toolkit") {
       const payload = await this.httpClient.get<unknown>(
-        "/cms/experience/featured-picks",
+        "/cms/experience/creative-toolkit",
         this.withCountryParams(),
       );
       return this.sectionEntryMapper.mapFeaturedEntries(
@@ -142,6 +184,17 @@ class CmsDatasource {
     throw new Error(`Unsupported section key: ${sectionKey}`);
   }
 
+  public async listAdminMainPackages(): Promise<CmsTableEntry[]> {
+    const payload = await this.httpClient.get<unknown>(
+      "/cms/packages/main",
+      this.withCountryParams(),
+    );
+    return this.sectionEntryMapper.mapMainPackageEntries(
+      this.accessor.toArray(payload),
+      "/cms/packages/main",
+    );
+  }
+
   public async create(
     sectionKey: CmsSectionKey,
     payload: JsonRecord,
@@ -157,6 +210,15 @@ class CmsDatasource {
     if (sectionKey === "destinations") {
       const response = await this.httpClient.post(
         "/cms/destinations",
+        mappedPayload,
+        countryOptions,
+      );
+      return this.accessor.toRecord(response);
+    }
+
+    if (sectionKey === "published-packages") {
+      const response = await this.httpClient.post(
+        "/cms/packages/published",
         mappedPayload,
         countryOptions,
       );
@@ -208,7 +270,7 @@ class CmsDatasource {
 
     if (sectionKey === "creative-toolkit") {
       const response = await this.httpClient.post(
-        "/cms/experience/featured-picks",
+        "/cms/experience/creative-toolkit",
         mappedPayload,
         countryOptions,
       );

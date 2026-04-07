@@ -1,7 +1,60 @@
+function isMissingColumnError(error) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const message = String(error.message || "");
+  return error.code === "42703" || /column\s+"[^"]+"\s+.*does not exist/i.test(message);
+}
+
+function getMissingColumnName(error) {
+  if (!isMissingColumnError(error)) {
+    return null;
+  }
+
+  const message = String(error.message || "");
+  const relationPattern = /column\s+"([^"]+)"\s+of relation\s+"[^"]+"\s+does not exist/i;
+  const genericPattern = /column\s+"([^"]+)"\s+does not exist/i;
+  const relationMatch = message.match(relationPattern);
+  if (relationMatch?.[1]) {
+    return relationMatch[1];
+  }
+  const genericMatch = message.match(genericPattern);
+  if (genericMatch?.[1]) {
+    return genericMatch[1];
+  }
+  return null;
+}
+
+async function runWithColumnFallback(input, runner) {
+  const mutableInput = { ...input };
+  const removedColumns = new Set();
+
+  while (true) {
+    try {
+      return await runner(mutableInput);
+    } catch (error) {
+      const missingColumn = getMissingColumnName(error);
+      if (!missingColumn) {
+        throw error;
+      }
+
+      if (!(missingColumn in mutableInput) || removedColumns.has(missingColumn)) {
+        throw error;
+      }
+
+      delete mutableInput[missingColumn];
+      removedColumns.add(missingColumn);
+    }
+  }
+}
+
 function createVisaRepository({ db, schema }) {
   return Object.freeze({
     async findAll(filters = {}) {
-      return db.findMany(schema.tableName, filters);
+      return runWithColumnFallback(filters, (safeFilters) =>
+        db.findMany(schema.tableName, safeFilters),
+      );
     },
 
     async findById(id) {
@@ -13,11 +66,15 @@ function createVisaRepository({ db, schema }) {
     },
 
     async create(data) {
-      return db.insert(schema.tableName, data);
+      return runWithColumnFallback(data, (safeData) =>
+        db.insert(schema.tableName, safeData),
+      );
     },
 
     async update(id, data) {
-      return db.update(schema.tableName, id, data);
+      return runWithColumnFallback(data, (safeData) =>
+        db.update(schema.tableName, id, safeData),
+      );
     },
 
     async delete(id) {

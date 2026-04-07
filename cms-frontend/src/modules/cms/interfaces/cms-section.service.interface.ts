@@ -7,6 +7,7 @@ import type { CmsSectionKey } from "../cms-section.models";
 
 interface ICmsSectionService {
   list(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]>;
+  listAdminMainPackages(): Promise<CmsTableEntry[]>;
   create(sectionKey: CmsSectionKey, payload: Record<string, unknown>): Promise<Record<string, unknown> | null>;
   update(
     sectionKey: CmsSectionKey,

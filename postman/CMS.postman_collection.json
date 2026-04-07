@@ -26,15 +26,17 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/api/auth/login",
+                  "raw": "http://localhost:3000/api/auth/login",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "api",
                     "auth",
                     "login"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -86,15 +88,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/api/auth/me",
+                  "raw": "http://localhost:3000/api/auth/me",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "api",
                     "auth",
                     "me"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -118,9 +122,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms?active=true",
+                  "raw": "http://localhost:3000/cms?active=true&country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms"
@@ -130,7 +134,9 @@
                       "key": "active",
                       "value": "true"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -160,9 +166,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "raw": "http://localhost:3000/cms/{{landingPlaceId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -173,7 +179,9 @@
                       "key": "landingPlaceId",
                       "value": "{{landingPlaceId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -192,13 +200,15 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms",
+                  "raw": "http://localhost:3000/cms",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -280,9 +290,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "raw": "http://localhost:3000/cms/{{landingPlaceId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -293,7 +303,9 @@
                       "key": "landingPlaceId",
                       "value": "{{landingPlaceId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -344,9 +356,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "raw": "http://localhost:3000/cms/{{landingPlaceId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -357,7 +369,9 @@
                       "key": "landingPlaceId",
                       "value": "{{landingPlaceId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -376,14 +390,16 @@
               "request": {
                 "method": "PATCH",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/reorder",
+                  "raw": "http://localhost:3000/cms/reorder",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "reorder"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -420,9 +436,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations?isActive=true&isPopular=true&region=Asia&category=Luxury",
+                  "raw": "http://localhost:3000/cms/destinations?isActive=true&isPopular=true&region=Asia&category=Luxury&country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -445,7 +461,9 @@
                       "key": "category",
                       "value": "Luxury"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -475,9 +493,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/slug/{{destinationSlug}}",
+                  "raw": "http://localhost:3000/cms/destinations/slug/{{destinationSlug}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -490,7 +508,9 @@
                       "key": "destinationSlug",
                       "value": "{{destinationSlug}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -509,9 +529,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -523,7 +543,9 @@
                       "key": "destinationId",
                       "value": "{{destinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -542,14 +564,16 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations",
+                  "raw": "http://localhost:3000/cms/destinations",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "destinations"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -672,9 +696,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -686,7 +710,9 @@
                       "key": "destinationId",
                       "value": "{{destinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -748,9 +774,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/media",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -763,7 +789,9 @@
                       "key": "destinationId",
                       "value": "{{destinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -793,9 +821,9 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/media",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -808,7 +836,9 @@
                       "key": "destinationId",
                       "value": "{{destinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -879,9 +909,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -899,7 +929,9 @@
                       "key": "destinationMediaId",
                       "value": "{{destinationMediaId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -959,9 +991,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/media/{{destinationMediaId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -979,7 +1011,9 @@
                       "key": "destinationMediaId",
                       "value": "{{destinationMediaId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -998,9 +1032,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/seasons",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1013,7 +1047,9 @@
                       "key": "destinationId",
                       "value": "{{destinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1043,9 +1079,9 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/seasons",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1058,7 +1094,9 @@
                       "key": "destinationId",
                       "value": "{{destinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1101,9 +1139,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1121,7 +1159,9 @@
                       "key": "seasonCardId",
                       "value": "{{seasonCardId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1153,9 +1193,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/seasons/{{seasonCardId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1173,7 +1213,9 @@
                       "key": "seasonCardId",
                       "value": "{{seasonCardId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1192,9 +1234,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/packages",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1207,7 +1249,9 @@
                       "key": "destinationId",
                       "value": "{{destinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1237,9 +1281,9 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/packages",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1252,7 +1296,9 @@
                       "key": "destinationId",
                       "value": "{{destinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1295,9 +1341,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/packages/{{destinationMapId}}",
+                  "raw": "http://localhost:3000/cms/destinations/{{destinationId}}/packages/{{destinationMapId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1315,7 +1361,9 @@
                       "key": "destinationMapId",
                       "value": "{{destinationMapId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1339,15 +1387,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/published",
+                  "raw": "http://localhost:3000/cms/packages/published?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "packages",
                     "published"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1377,9 +1427,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}",
+                  "raw": "http://localhost:3000/cms/packages/published/{{packageId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1392,7 +1442,9 @@
                       "key": "packageId",
                       "value": "{{packageId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1407,19 +1459,132 @@
               }
             },
             {
+              "name": "Update Published Package",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "http://localhost:3000/cms/packages/published/{{packageId}}?country={{country}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"startingPrice\": 2999,\n  \"publishToWebsite\": true,\n  \"isSoldOut\": false,\n  \"metaTitle\": \"Updated Maldives Signature Escape\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Published Package",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "http://localhost:3000/cms/packages/published/{{packageId}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Create Published Package",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "http://localhost:3000/cms/packages/published?country={{country}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Maldives Signature Escape\",\n  \"destination\": \"Maldives\",\n  \"duration\": \"5 Days / 4 Nights\",\n  \"startingPrice\": 2899,\n  \"packageCategory\": \"Luxury\",\n  \"inclusions\": \"Flights, hotel, transfers\",\n  \"exclusions\": \"Personal expenses\",\n  \"publishToWebsite\": true,\n  \"websiteSlug\": \"maldives-signature-escape\",\n  \"metaTitle\": \"Maldives Signature Escape\",\n  \"metaDescription\": \"Luxury Maldives package\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json?.() || {};",
+                      "const id = payload?.data?.id || null;",
+                      "if (id) pm.collectionVariables.set(\"packageId\", id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
               "name": "List Main Packages",
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main",
+                  "raw": "http://localhost:3000/cms/packages/main?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "packages",
                     "main"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1449,9 +1614,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "raw": "http://localhost:3000/cms/packages/main/{{mainPackageId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1464,7 +1629,9 @@
                       "key": "mainPackageId",
                       "value": "{{mainPackageId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1483,15 +1650,17 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main",
+                  "raw": "http://localhost:3000/cms/packages/main",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "packages",
                     "main"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1534,9 +1703,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "raw": "http://localhost:3000/cms/packages/main/{{mainPackageId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1549,7 +1718,9 @@
                       "key": "mainPackageId",
                       "value": "{{mainPackageId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1581,9 +1752,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "raw": "http://localhost:3000/cms/packages/main/{{mainPackageId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1596,7 +1767,9 @@
                       "key": "mainPackageId",
                       "value": "{{mainPackageId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1615,9 +1788,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub",
+                  "raw": "http://localhost:3000/cms/packages/main/{{mainPackageId}}/sub?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1631,7 +1804,9 @@
                       "key": "mainPackageId",
                       "value": "{{mainPackageId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1661,15 +1836,17 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/sub",
+                  "raw": "http://localhost:3000/cms/packages/sub",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "packages",
                     "sub"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1712,9 +1889,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                  "raw": "http://localhost:3000/cms/packages/sub/{{subPackageId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1727,7 +1904,9 @@
                       "key": "subPackageId",
                       "value": "{{subPackageId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1759,9 +1938,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                  "raw": "http://localhost:3000/cms/packages/sub/{{subPackageId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1774,7 +1953,9 @@
                       "key": "subPackageId",
                       "value": "{{subPackageId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1798,9 +1979,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa?isActive=true",
+                  "raw": "http://localhost:3000/cms/visa?isActive=true&country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1811,7 +1992,9 @@
                       "key": "isActive",
                       "value": "true"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1841,9 +2024,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/slug/{{visaSlug}}",
+                  "raw": "http://localhost:3000/cms/visa/slug/{{visaSlug}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1856,7 +2039,9 @@
                       "key": "visaSlug",
                       "value": "{{visaSlug}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1875,9 +2060,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "raw": "http://localhost:3000/cms/visa/{{visaDestinationId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -1889,7 +2074,9 @@
                       "key": "visaDestinationId",
                       "value": "{{visaDestinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -1908,14 +2095,16 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa",
+                  "raw": "http://localhost:3000/cms/visa",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "visa"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2006,9 +2195,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "raw": "http://localhost:3000/cms/visa/{{visaDestinationId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2020,7 +2209,9 @@
                       "key": "visaDestinationId",
                       "value": "{{visaDestinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2072,9 +2263,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "raw": "http://localhost:3000/cms/visa/{{visaDestinationId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2086,7 +2277,9 @@
                       "key": "visaDestinationId",
                       "value": "{{visaDestinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2105,9 +2298,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details",
+                  "raw": "http://localhost:3000/cms/visa/{{visaDestinationId}}/details",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2120,7 +2313,9 @@
                       "key": "visaDestinationId",
                       "value": "{{visaDestinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2150,9 +2345,9 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details",
+                  "raw": "http://localhost:3000/cms/visa/{{visaDestinationId}}/details",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2165,7 +2360,9 @@
                       "key": "visaDestinationId",
                       "value": "{{visaDestinationId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2208,9 +2405,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}",
+                  "raw": "http://localhost:3000/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2228,7 +2425,9 @@
                       "key": "visaDetailId",
                       "value": "{{visaDetailId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2260,9 +2459,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}",
+                  "raw": "http://localhost:3000/cms/visa/{{visaDestinationId}}/details/{{visaDetailId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2280,7 +2479,9 @@
                       "key": "visaDetailId",
                       "value": "{{visaDetailId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2304,15 +2505,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks",
+                  "raw": "http://localhost:3000/cms/experience/featured-picks?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "experience",
                     "featured-picks"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2338,19 +2541,167 @@
               ]
             },
             {
+              "name": "List Creative Toolkit",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "http://localhost:3000/cms/experience/creative-toolkit?country={{country}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Create Creative Toolkit",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "http://localhost:3000/cms/experience/creative-toolkit?country={{country}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"April Luxury Hot Pick\",\n  \"slug\": \"april-luxury-hot-pick\",\n  \"category\": \"package\",\n  \"campaignType\": \"featured\",\n  \"sectionKey\": \"featured-hot-picks\",\n  \"country\": \"{{country}}\",\n  \"rating\": 4.8,\n  \"badgeText\": \"Best Seller\",\n  \"discountedPrice\": 1299,\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Get Creative Toolkit By ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "http://localhost:3000/cms/experience/creative-toolkit/{{featuredPickId}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Update Creative Toolkit",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "http://localhost:3000/cms/experience/creative-toolkit/{{featuredPickId}}?country={{country}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated Creative Toolkit Card\",\n  \"country\": \"{{country}}\",\n  \"discountedPrice\": 1199\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Creative Toolkit",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "http://localhost:3000/cms/experience/creative-toolkit/{{featuredPickId}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              }
+            },
+            {
               "name": "Create Featured Pick",
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks",
+                  "raw": "http://localhost:3000/cms/experience/featured-picks",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "experience",
                     "featured-picks"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2464,9 +2815,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
+                  "raw": "http://localhost:3000/cms/experience/featured-picks/{{featuredPickId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2479,7 +2830,9 @@
                       "key": "featuredPickId",
                       "value": "{{featuredPickId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2498,9 +2851,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
+                  "raw": "http://localhost:3000/cms/experience/featured-picks/{{featuredPickId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2513,7 +2866,9 @@
                       "key": "featuredPickId",
                       "value": "{{featuredPickId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2564,9 +2919,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
+                  "raw": "http://localhost:3000/cms/experience/featured-picks/{{featuredPickId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2579,7 +2934,9 @@
                       "key": "featuredPickId",
                       "value": "{{featuredPickId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2598,15 +2955,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards",
+                  "raw": "http://localhost:3000/cms/experience/season-cards?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "experience",
                     "season-cards"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2636,15 +2995,17 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards",
+                  "raw": "http://localhost:3000/cms/experience/season-cards",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "experience",
                     "season-cards"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2734,9 +3095,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "raw": "http://localhost:3000/cms/experience/season-cards/{{seasonCardId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2749,7 +3110,9 @@
                       "key": "seasonCardId",
                       "value": "{{seasonCardId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2768,9 +3131,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "raw": "http://localhost:3000/cms/experience/season-cards/{{seasonCardId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2783,7 +3146,9 @@
                       "key": "seasonCardId",
                       "value": "{{seasonCardId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2830,9 +3195,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "raw": "http://localhost:3000/cms/experience/season-cards/{{seasonCardId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2845,7 +3210,9 @@
                       "key": "seasonCardId",
                       "value": "{{seasonCardId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2864,15 +3231,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/hero-sections",
+                  "raw": "http://localhost:3000/cms/experience/hero-sections?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "experience",
                     "hero-sections"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2902,9 +3271,9 @@
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/hero-sections/{{heroSectionKey}}",
+                  "raw": "http://localhost:3000/cms/experience/hero-sections/{{heroSectionKey}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -2917,7 +3286,9 @@
                       "key": "heroSectionKey",
                       "value": "{{heroSectionKey}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -2993,14 +3364,16 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/media",
+                  "raw": "http://localhost:3000/cms/media",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "media"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3030,9 +3403,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "raw": "http://localhost:3000/cms/media/{{mediaAssetId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -3044,7 +3417,9 @@
                       "key": "mediaAssetId",
                       "value": "{{mediaAssetId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3063,14 +3438,16 @@
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/media",
+                  "raw": "http://localhost:3000/cms/media",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
                     "media"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3149,13 +3526,47 @@
               ]
             },
             {
+              "name": "Upload Media File",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "http://localhost:3000/cms/media/upload",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
               "name": "Update CMS Media Asset",
               "request": {
                 "method": "PUT",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "raw": "http://localhost:3000/cms/media/{{mediaAssetId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -3167,7 +3578,9 @@
                       "key": "mediaAssetId",
                       "value": "{{mediaAssetId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3227,9 +3640,9 @@
               "request": {
                 "method": "DELETE",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "raw": "http://localhost:3000/cms/media/{{mediaAssetId}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "cms",
@@ -3241,7 +3654,9 @@
                       "key": "mediaAssetId",
                       "value": "{{mediaAssetId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3351,15 +3766,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/home",
+                  "raw": "http://localhost:3000/public/cms/home?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "home"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3379,15 +3796,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/landing-places",
+                  "raw": "http://localhost:3000/public/cms/landing-places?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "landing-places"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3407,15 +3826,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations",
+                  "raw": "http://localhost:3000/public/cms/destinations?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "destinations"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3430,9 +3851,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}",
+                  "raw": "http://localhost:3000/public/cms/destinations/{{destinationSlug}}?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
@@ -3445,7 +3866,9 @@
                       "key": "destinationSlug",
                       "value": "{{destinationSlug}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3460,9 +3883,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/media",
+                  "raw": "http://localhost:3000/public/cms/destinations/{{destinationSlug}}/media?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
@@ -3476,7 +3899,9 @@
                       "key": "destinationSlug",
                       "value": "{{destinationSlug}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3491,9 +3916,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/season-cards",
+                  "raw": "http://localhost:3000/public/cms/destinations/{{destinationSlug}}/season-cards?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
@@ -3507,7 +3932,9 @@
                       "key": "destinationSlug",
                       "value": "{{destinationSlug}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3522,9 +3949,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/packages",
+                  "raw": "http://localhost:3000/public/cms/destinations/{{destinationSlug}}/packages?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
@@ -3538,7 +3965,9 @@
                       "key": "destinationSlug",
                       "value": "{{destinationSlug}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3558,16 +3987,18 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/packages/published",
+                  "raw": "http://localhost:3000/public/cms/packages/published?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "packages",
                     "published"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3582,16 +4013,18 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/packages/main",
+                  "raw": "http://localhost:3000/public/cms/packages/main?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "packages",
                     "main"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3606,9 +4039,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/packages/main/{{mainPackageId}}/sub",
+                  "raw": "http://localhost:3000/public/cms/packages/main/{{mainPackageId}}/sub?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
@@ -3623,7 +4056,9 @@
                       "key": "mainPackageId",
                       "value": "{{mainPackageId}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3643,15 +4078,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/visa-destinations",
+                  "raw": "http://localhost:3000/public/cms/visa-destinations?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "visa-destinations"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3666,9 +4103,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}",
+                  "raw": "http://localhost:3000/public/cms/visa-destinations/{{visaSlug}}?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
@@ -3681,7 +4118,9 @@
                       "key": "visaSlug",
                       "value": "{{visaSlug}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3696,9 +4135,9 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}/details",
+                  "raw": "http://localhost:3000/public/cms/visa-destinations/{{visaSlug}}/details?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
@@ -3712,7 +4151,9 @@
                       "key": "visaSlug",
                       "value": "{{visaSlug}}"
                     }
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3732,15 +4173,37 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/featured-picks",
+                  "raw": "http://localhost:3000/public/cms/featured-picks?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "featured-picks"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Creative Toolkit (Active)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "http://localhost:3000/public/cms/creative-toolkit?country={{country}}",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3755,15 +4218,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/season-cards",
+                  "raw": "http://localhost:3000/public/cms/season-cards?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "season-cards"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3778,15 +4243,17 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/hero-sections",
+                  "raw": "http://localhost:3000/public/cms/hero-sections?country={{country}}",
                   "host": [
-                    "{{baseUrl}}"
+                    "localhost"
                   ],
                   "path": [
                     "public",
                     "cms",
                     "hero-sections"
-                  ]
+                  ],
+                  "protocol": "http",
+                  "port": "3000"
                 },
                 "header": [
                   {
@@ -3901,6 +4368,10 @@
     {
       "key": "sampleVideoUrl",
       "value": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4"
+    },
+    {
+      "key": "country",
+      "value": "UAE"
     }
   ]
 }

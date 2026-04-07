@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { AppError } from "../middlewares/errorHandler.js";
 
 function isImageMimeType(mimeType = "") {
@@ -14,15 +17,61 @@ function resolveMediaType(mimeType = "") {
   return "unknown";
 }
 
+function normalizePrefix(value = "") {
+  return String(value)
+    .trim()
+    .replace(/^[\\/]+|[\\/]+$/g, "")
+    .replace(/\\/g, "/");
+}
+
+function getPublicBaseUrl() {
+  const configured = String(process.env.PUBLIC_URL || "")
+    .trim()
+    .replace(/\/+$/g, "");
+  if (configured) {
+    return configured;
+  }
+
+  const port = String(process.env.PORT || "3000").trim();
+  return `http://localhost:${port}`;
+}
+
 function createCmsUploadService({ s3, logger }) {
-  function ensureConfigured() {
-    if (!s3?.uploadBuffer) {
-      throw new AppError(
-        500,
-        "S3 storage service is not configured",
-        "S3_NOT_CONFIGURED",
-      );
-    }
+  async function uploadToLocal({ file, prefix, mediaType }) {
+    const safePrefix = normalizePrefix(prefix);
+    const date = new Date();
+    const datePrefix = `${date.getUTCFullYear()}/${String(
+      date.getUTCMonth() + 1,
+    ).padStart(2, "0")}/${String(date.getUTCDate()).padStart(2, "0")}`;
+    const ext = path.extname(file.originalname || "").slice(0, 16);
+    const fileName = `${randomUUID()}${ext}`;
+    const relativeParts = [safePrefix, datePrefix, fileName].filter(Boolean);
+    const relativePath = relativeParts.join("/");
+    const uploadsDir = path.join(
+      process.cwd(),
+      "uploads",
+      ...relativeParts.slice(0, -1),
+    );
+    const fullPath = path.join(process.cwd(), "uploads", ...relativeParts);
+
+    await fs.mkdir(uploadsDir, { recursive: true });
+    await fs.writeFile(fullPath, file.buffer);
+
+    const url = `${getPublicBaseUrl()}/uploads/${relativePath}`;
+
+    logger?.debug?.(
+      { module: "cms-upload", path: fullPath, mediaType },
+      "Stored CMS media file locally",
+    );
+
+    return {
+      mediaType,
+      url,
+      key: `local:${relativePath}`,
+      contentType: file.mimetype,
+      size: file.size || 0,
+      originalName: file.originalname || null,
+    };
   }
 
   function validateFileType(file, { allowVideo = false } = {}) {
@@ -57,32 +106,42 @@ function createCmsUploadService({ s3, logger }) {
       return null;
     }
 
-    ensureConfigured();
     const mediaType = validateFileType(file, { allowVideo });
-    const uploaded = await s3.uploadBuffer({
-      buffer: file.buffer,
-      contentType: file.mimetype,
-      originalName: file.originalname,
-      prefix,
-      metadata: {
-        source: "cms",
-        mediaType,
-      },
-    });
+    if (s3?.uploadBuffer) {
+      try {
+        const uploaded = await s3.uploadBuffer({
+          buffer: file.buffer,
+          contentType: file.mimetype,
+          originalName: file.originalname,
+          prefix,
+          metadata: {
+            source: "cms",
+            mediaType,
+          },
+        });
 
-    logger?.debug?.(
-      { module: "cms-upload", key: uploaded.key, mediaType },
-      "Uploaded CMS media file to S3",
-    );
+        logger?.debug?.(
+          { module: "cms-upload", key: uploaded.key, mediaType },
+          "Uploaded CMS media file to S3",
+        );
 
-    return {
-      mediaType,
-      url: uploaded.url,
-      key: uploaded.key,
-      contentType: file.mimetype,
-      size: file.size || 0,
-      originalName: file.originalname || null,
-    };
+        return {
+          mediaType,
+          url: uploaded.url,
+          key: uploaded.key,
+          contentType: file.mimetype,
+          size: file.size || 0,
+          originalName: file.originalname || null,
+        };
+      } catch (error) {
+        logger?.warn?.(
+          { err: error, module: "cms-upload" },
+          "S3 upload failed for CMS media. Falling back to local uploads",
+        );
+      }
+    }
+
+    return uploadToLocal({ file, prefix, mediaType });
   }
 
   async function uploadMany({ files, prefix, allowVideo = false, maxCount = 20 }) {

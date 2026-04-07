@@ -48,9 +48,7 @@ class CmsSectionCatalog {
       [
         new CmsTableColumn("name", "Title", true),
         new CmsTableColumn("tag", "Tag"),
-        new CmsTableColumn("displayOrder", "Display Order"),
         new CmsTableColumn("isActive", "Status"),
-        new CmsTableColumn("updatedAt", "Updated At"),
       ],
       "No landing places found",
       "Create the first landing place to start website hero management.",
@@ -74,10 +72,10 @@ class CmsSectionCatalog {
     ),
     "published-packages": CmsSectionCatalog.createSection(
       "published-packages",
-      "CRM Sync",
+      "Package Catalog",
       "Published Packages",
-      "Read-only package feed from CRM.",
-      "Sync Packages",
+      "Create and manage website-ready packages.",
+      "Add Package",
       [
         new CmsTableColumn("package", "Package", true),
         new CmsTableColumn("destination", "Destination"),
@@ -87,7 +85,7 @@ class CmsSectionCatalog {
         new CmsTableColumn("syncAt", "Updated At"),
       ],
       "No published packages found",
-      "Publish packages in CRM to make them available here.",
+      "Create a package to publish in website catalog.",
     ),
     "main-packages": CmsSectionCatalog.createSection(
       "main-packages",
@@ -118,7 +116,7 @@ class CmsSectionCatalog {
         new CmsTableColumn("duration", "Duration"),
         new CmsTableColumn("priceBand", "Price"),
         new CmsTableColumn("displayOrder", "Display Order"),
-        new CmsTableColumn("status", "Status"),
+        new CmsTableColumn("updatedAt", "Updated At"),
       ],
       "No sub packages found",
       "Create sub packages under main package groups.",

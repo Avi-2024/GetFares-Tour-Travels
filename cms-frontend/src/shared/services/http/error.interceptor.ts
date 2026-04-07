@@ -14,8 +14,11 @@ class ErrorInterceptor implements IHttpInterceptor {
   public onResponseError(error: unknown): Promise<never> {
     if (isAxiosError<ApiErrorResponse>(error)) {
       const axiosError = error as AxiosError<ApiErrorResponse>;
+      const apiMessage = axiosError.response?.data?.message;
+      const nestedApiMessage = axiosError.response?.data?.error?.message;
       const message =
-        axiosError.response?.data?.message ||
+        apiMessage ||
+        nestedApiMessage ||
         axiosError.message ||
         "Something went wrong.";
       return Promise.reject(new Error(message));

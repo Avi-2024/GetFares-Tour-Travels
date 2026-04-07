@@ -9,6 +9,7 @@ class CmsPayloadMapper {
         title,
         name: title,
         country: payload.country,
+        description: payload.description,
         tag: payload.tag,
         image: payload.image ?? payload.imageUrl,
         imageUrl: payload.imageUrl,
@@ -35,6 +36,12 @@ class CmsPayloadMapper {
         metaTitle: payload.metaTitle,
         metaDescription: payload.metaDescription,
         isActive: payload.isActive,
+      };
+    }
+    if (sectionKey === "published-packages") {
+      return {
+        bannerImageUrl: payload.bannerImageUrl,
+        publishToWebsite: payload.publishToWebsite,
       };
     }
     if (sectionKey === "main-packages") {

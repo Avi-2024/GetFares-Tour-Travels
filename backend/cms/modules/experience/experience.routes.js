@@ -7,9 +7,18 @@ function createExperienceRoutes({ controller, upload }) {
     .route("/featured-picks")
     .get(controller.listFeaturedPicks)
     .post(upload.single("bannerImage"), controller.createFeaturedPick);
+  router
+    .route("/creative-toolkit")
+    .get(controller.listFeaturedPicks)
+    .post(upload.single("bannerImage"), controller.createFeaturedPick);
 
   router
     .route("/featured-picks/:id")
+    .get(controller.getFeaturedPickById)
+    .put(upload.single("bannerImage"), controller.updateFeaturedPick)
+    .delete(controller.deleteFeaturedPick);
+  router
+    .route("/creative-toolkit/:id")
     .get(controller.getFeaturedPickById)
     .put(upload.single("bannerImage"), controller.updateFeaturedPick)
     .delete(controller.deleteFeaturedPick);

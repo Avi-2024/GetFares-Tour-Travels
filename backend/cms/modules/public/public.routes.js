@@ -24,6 +24,7 @@ function createPublicCmsRoutes({ controller }) {
   router.route("/visa-destinations/:slug/details").get(controller.getVisaDetailsBySlug);
 
   router.route("/featured-picks").get(controller.listFeaturedPicks);
+  router.route("/creative-toolkit").get(controller.listFeaturedPicks);
   router.route("/season-cards").get(controller.listSeasonCards);
   router.route("/hero-sections").get(controller.listHeroSections);
 

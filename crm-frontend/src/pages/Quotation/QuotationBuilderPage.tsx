@@ -2034,11 +2034,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
         : prev.startDate,
+      endDate: (selectedLead as any).travelEndDate
+        ? (selectedLead as any).travelEndDate.slice(0, 10)
+        : prev.endDate,
       adults: Number(selectedLead.adultsCount || prev.adults || 1),
       children: Number(selectedLead.childrenCount || prev.children || 0),
       childAges: Array.isArray(selectedLead.childAges)
         ? selectedLead.childAges.map(age => String(age))
-        : prev.childAges
+        : prev.childAges,
+      travelPurpose: selectedLead.travelPurpose || prev.travelPurpose,
+      leadSource: (selectedLead as any).source || prev.leadSource
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
@@ -2408,11 +2413,23 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
   const money = (v: number) => {
     const locale = currency === 'INR' ? 'en-IN' : 'en-US'
+    // Ensure the value is a valid finite number
+    if (!Number.isFinite(v) || isNaN(v)) {
+      return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(0)
+    }
+    // Cap extremely large numbers to prevent display issues
+    const cappedValue = Math.min(Math.max(v, -999999999999), 999999999999)
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
-      minimumFractionDigits: 2
-    }).format(v)
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(cappedValue)
   }
 
   const formatPreviewDateTime = (value?: string) => {
@@ -2456,7 +2473,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
         : prev.startDate,
-      adults: Number(selectedLead.adultsCount || prev.adults || 1)
+      endDate: (selectedLead as any).travelEndDate
+        ? (selectedLead as any).travelEndDate.slice(0, 10)
+        : prev.endDate,
+      adults: Number(selectedLead.adultsCount || prev.adults || 1),
+      travelPurpose: selectedLead.travelPurpose || prev.travelPurpose,
+      leadSource: (selectedLead as any).source || prev.leadSource
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
@@ -3322,7 +3344,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <input
                     type='number'
                     min='0'
-                    className='field-input'
+                    className='field-input overflow-hidden text-ellipsis'
                     placeholder='Customer budget'
                     value={form.budget || ''}
                     onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
@@ -3420,38 +3442,44 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 <div>
                   <label className='field-label'>Duration</label>
                   <div className='grid grid-cols-2 gap-2'>
-                    <input
-                      type='number'
-                      min='0'
-                      className='field-input'
-                      placeholder='Nights'
-                      value={form.nights}
-                      onChange={e => {
-                        const nights = Number(e.target.value || 0)
-                        const days = nights + 1
-                        setForm(p => ({
-                          ...p,
-                          nights,
-                          durationDays: String(days)
-                        }))
-                      }}
-                    />
-                    <input
-                      type='number'
-                      min='1'
-                      className='field-input'
-                      placeholder='Days'
-                      value={form.durationDays}
-                      onChange={e => {
-                        const days = Number(e.target.value || 0)
-                        const nights = Math.max(0, days - 1)
-                        setForm(p => ({
-                          ...p,
-                          durationDays: e.target.value,
-                          nights
-                        }))
-                      }}
-                    />
+                    <div>
+                      <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Nights</label>
+                      <input
+                        type='number'
+                        min='0'
+                        className='field-input overflow-hidden text-ellipsis'
+                        placeholder='Nights'
+                        value={form.nights}
+                        onChange={e => {
+                          const nights = Number(e.target.value || 0)
+                          const days = nights + 1
+                          setForm(p => ({
+                            ...p,
+                            nights,
+                            durationDays: String(days)
+                          }))
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Days</label>
+                      <input
+                        type='number'
+                        min='1'
+                        className='field-input overflow-hidden text-ellipsis'
+                        placeholder='Days'
+                        value={form.durationDays}
+                        onChange={e => {
+                          const days = Number(e.target.value || 0)
+                          const nights = Math.max(0, days - 1)
+                          setForm(p => ({
+                            ...p,
+                            durationDays: e.target.value,
+                            nights
+                          }))
+                        }}
+                      />
+                    </div>
                   </div>
                   <p className='mt-1 text-xs text-gray-500'>
                     Duration saves with the quotation itself as{' '}
@@ -3464,7 +3492,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <input
                     type='number'
                     min='1'
-                    className='field-input'
+                    className='field-input overflow-hidden text-ellipsis'
                     value={form.adults}
                     onChange={e =>
                       setForm(p => ({
@@ -3479,7 +3507,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <input
                     type='number'
                     min='0'
-                    className='field-input'
+                    className='field-input overflow-hidden text-ellipsis'
                     value={form.children}
                     onChange={e => {
                       const nextChildren = Math.max(0, Number(e.target.value || 0))
@@ -3509,7 +3537,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                           type='number'
                           min='0'
                           max='18'
-                          className='field-input'
+                          className='field-input overflow-hidden text-ellipsis'
                           placeholder={`Age ${index + 1}`}
                           value={form.childAges?.[index] ?? ''}
                           onChange={e => {
@@ -3720,11 +3748,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         ))}
                         <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200'>
                           <span>Add-on Total</span>
-                          <span>{money(addOnTotal)}</span>
+                          <span className='truncate max-w-[150px]'>{money(Math.min(addOnTotal, 999999999999))}</span>
                         </div>
                         <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
                           <span>Services Total</span>
-                          <span>{money(serviceChargesTotal)}</span>
+                          <span className='truncate max-w-[150px]'>{money(Math.min(serviceChargesTotal, 999999999999))}</span>
                         </div>
                       </div>
                     ) : (
@@ -3732,7 +3760,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         <p>No add-on services added yet.</p>
                         <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:text-gray-100'>
                           <span>Services Total</span>
-                          <span>{money(serviceChargesTotal)}</span>
+                          <span className='truncate max-w-[150px]'>{money(Math.min(serviceChargesTotal, 999999999999))}</span>
                         </div>
                       </div>
                     )}
@@ -4392,7 +4420,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 <div>
                   <label className='field-label'>Service Name</label>
                   <input
-                    className='field-input'
+                    className='field-input overflow-hidden text-ellipsis'
                     value={addOnDraft.name}
                     onChange={e =>
                       setAddOnDraft(p => ({ ...p, name: e.target.value }))
@@ -4405,7 +4433,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <input
                     type='number'
                     min='0'
-                    className='field-input'
+                    className='field-input overflow-hidden text-ellipsis'
                     value={addOnDraft.baseCost}
                     onChange={e =>
                       setAddOnDraft(p => ({
@@ -4422,7 +4450,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     <input
                       type='number'
                       min='0'
-                      className='field-input'
+                      className='field-input overflow-hidden text-ellipsis'
                       value={addOnDraft.markup}
                       onChange={e =>
                         setAddOnDraft(p => ({ ...p, markup: e.target.value }))
@@ -4551,8 +4579,8 @@ const PricingTable = ({
                     <p className='text-xs text-blue-600 dark:text-blue-400'>
                       Total Sell Value
                     </p>
-                    <p className='text-lg font-bold tabular-nums text-blue-900 dark:text-blue-100'>
-                      {money(totalSellValue)}
+                    <p className='text-lg font-bold tabular-nums text-blue-900 dark:text-blue-100 truncate max-w-[200px]'>
+                      {money(Math.min(totalSellValue, 999999999999))}
                     </p>
                   </div>
                 </div>
@@ -4641,7 +4669,7 @@ const PricingRow = ({
   const displaySell = row.sellValue.toFixed(2)
 
   const sharedInputClass =
-    'h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-right tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+    'h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-right tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 overflow-hidden text-ellipsis'
 
   const fieldClass = (field: NumericPricingField) => {
     const key = `${row.key}.${field}`
@@ -4683,8 +4711,8 @@ const PricingRow = ({
           </p>
         </div>
         <div className='rounded-lg bg-blue-50 px-3 py-1.5 dark:bg-blue-900/30'>
-          <p className='text-xs font-semibold text-blue-700 dark:text-blue-300'>
-            {money(row.sellValue)}
+          <p className='text-xs font-semibold text-blue-700 dark:text-blue-300 truncate'>
+            {money(Math.min(row.sellValue, 999999999999))}
           </p>
           <p className='text-[10px] text-blue-600 dark:text-blue-400'>
             Sell Value
@@ -4770,7 +4798,7 @@ const PricingRow = ({
             </p>
           ) : null}
           <p className='mt-1 text-[10px] text-gray-500 dark:text-gray-400'>
-            {isFlightService ? 'Service Charge' : 'Markup'}: {money(row.markupAmount)}
+            {isFlightService ? 'Service Charge' : 'Markup'}: {money(Math.min(row.markupAmount, 999999999999))}
           </p>
         </div>
 
@@ -5089,15 +5117,21 @@ const SummaryPanel = ({
           </div>
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500 font-medium'>Profit (Auto)</span>
-            <div className='h-10 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300'>
-              {money(totalMarkup + addOnMarkup)}
+            <div className='h-10 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 overflow-hidden'>
+              <span className='truncate block'>{money(Math.min(totalMarkup + addOnMarkup, 999999999999))}</span>
             </div>
           </div>
           <div className='space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
             <div className='flex items-center justify-between'>
               <span>Total Markup</span>
+              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+                {money(Math.min(totalMarkup, 999999999999))}
+              </span>
+            </div>
+            <div className='flex items-center justify-between'>
+              <span>Flight Service Charge</span>
               <span className='font-medium tabular-nums'>
-                {money(totalMarkup)}
+                {money(flightServiceCharge)}
               </span>
             </div>
             <div className='flex items-center justify-between'>
@@ -5108,19 +5142,19 @@ const SummaryPanel = ({
             </div>
             <div className='flex items-center justify-between'>
               <span>Add-ons</span>
-              <span className='font-medium tabular-nums'>
-                {money(addOnTotal)}
+              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+                {money(Math.min(addOnTotal, 999999999999))}
               </span>
             </div>
             <div className='flex items-center justify-between'>
               <span>Subtotal</span>
-              <span className='font-medium tabular-nums'>
-                {money(subtotal)}
+              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+                {money(Math.min(subtotal, 999999999999))}
               </span>
             </div>
             <div className='flex items-center justify-between'>
               <span>Tax Amount</span>
-              <span className='font-medium tabular-nums'>{money(taxes)}</span>
+              <span className='font-medium tabular-nums truncate max-w-[120px]'>{money(Math.min(taxes, 999999999999))}</span>
             </div>
             
           </div>
@@ -5128,8 +5162,8 @@ const SummaryPanel = ({
             <p className='text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300'>
               Total Sale Value
             </p>
-            <p className='mt-1 text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-300'>
-              {money(total)}
+            <p className='mt-1 text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-300 truncate'>
+              {money(Math.min(total, 999999999999))}
             </p>
           </div>
         </div>
