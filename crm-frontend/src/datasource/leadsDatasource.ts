@@ -17,6 +17,11 @@ export type LeadAssignedUser = {
   email?: string | null;
 } | null;
 
+export type LeadAssignedBy = {
+  id?: string | null;
+  fullName?: string | null;
+} | null;
+
 export type LeadApiRecord = {
   id?: number | string;
   leadId?: string;
@@ -61,6 +66,8 @@ export type LeadApiRecord = {
   slaBreached?: boolean | null;
   assignedTo?: string | null;
   assignedUser?: LeadAssignedUser;
+  assignedBy?: string | null;
+  assignedByUser?: LeadAssignedBy;
   adultsCount?: number | null;
   childrenCount?: number | null;
   travelDate?: string | null;

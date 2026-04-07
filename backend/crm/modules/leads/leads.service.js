@@ -1415,10 +1415,26 @@ function createLeadsService({ repository, logger, events }) {
       return existing;
     }
 
-    const roleName = payload.roleName ?
+    const requestedRoleName = payload.roleName ?
       String(payload.roleName).trim().toLowerCase()
     : ASSIGNMENT_ROLES.AGENT;
+    const roleName =
+      requestedRoleName === ASSIGNMENT_ROLES.MANAGER ?
+        ASSIGNMENT_ROLES.AGENT
+      : requestedRoleName;
     const requestRole = normalizeRoleToken(context.user?.role);
+
+    if (
+      context.user?.id &&
+      isManagerRole(requestRole) &&
+      !isSuperAdminRole(requestRole)
+    ) {
+      throw new AppError(
+        403,
+        "Managers have view-only access for lead assignment.",
+        "MANAGER_ASSIGNMENT_FORBIDDEN",
+      );
+    }
     const managerId =
       roleName === ASSIGNMENT_ROLES.AGENT && isManagerRole(requestRole)
         ? context.user?.id || null
@@ -1429,6 +1445,13 @@ function createLeadsService({ repository, logger, events }) {
       assignee = await repository.findAssignableUserById(payload.assignedTo);
       if (!assignee) {
         throw new AppError(404, "Assignee not found", "ASSIGNEE_NOT_FOUND");
+      }
+      if (!isAgentRole(assignee.role)) {
+        throw new AppError(
+          400,
+          "Leads can only be assigned to lead agents.",
+          "ASSIGNEE_ROLE_NOT_ALLOWED",
+        );
       }
       const leadCountry = normalizeCategory(
         existing.leadCountry ?? existing.country ?? null,
@@ -1603,7 +1626,12 @@ function createLeadsService({ repository, logger, events }) {
       phone: payload.phone,
     });
 
-    const allowDuplicate = Boolean(payload.allowDuplicate);
+    // For authenticated CRM users, allow creating repeat leads by default
+    // (new lead lifecycle / lead code for the same customer contact).
+    // Public capture keeps strict duplicate protection unless explicitly allowed.
+    const allowDuplicate =
+      payload.allowDuplicate === true ||
+      (payload.allowDuplicate !== false && Boolean(context.user?.id));
     if (duplicate && !allowDuplicate) {
       const duplicateStatus = String(duplicate.status || "").toUpperCase();
       const duplicateIsClosed = CLOSED_STATUSES.has(duplicateStatus);
@@ -2422,20 +2450,26 @@ function createLeadsService({ repository, logger, events }) {
             excludeUserId: previousAssigneeId,
             mode: "SLA_ESCALATION",
             reason: "AGENT_ACCEPT_TIMEOUT",
-            roleName: ASSIGNMENT_ROLES.MANAGER,
+            roleName: ASSIGNMENT_ROLES.AGENT,
           },
           context,
         );
+
+        const escalatedTo = reassigned?.assignedTo || null;
+        const reassignedToAnotherAgent =
+          Boolean(escalatedTo) && escalatedTo !== previousAssigneeId;
+        const breachMessage = reassignedToAnotherAgent
+          ? "Lead SLA breached: first contact was not completed within 15 minutes. Reassigned to another agent and manager notified."
+          : "Lead SLA breached: first contact was not completed within 15 minutes. No alternate agent available, lead remains queued and manager notified.";
 
         events.emitSlaBreached({
           id: lead.id,
           leadId: lead.id,
           assignedTo: lead.assignedTo,
           previousAssigneeId,
-          escalatedTo: reassigned?.assignedTo || null,
+          escalatedTo,
           responseDeadline: lead.responseDeadline,
-          message:
-            "Lead SLA breached: first contact was not completed within 15 minutes. Escalating to manager.",
+          message: breachMessage,
           roles: ["manager"],
         });
 
@@ -2443,9 +2477,8 @@ function createLeadsService({ repository, logger, events }) {
           leadId: lead.id,
           reason: "SLA_BREACH_15_MIN",
           previousAssigneeId,
-          escalatedTo: reassigned?.assignedTo || null,
-          message:
-            "Lead was not first-contacted within 15 minutes. Manager assigned for escalation.",
+          escalatedTo,
+          message: breachMessage,
           roles: ["manager"],
         });
 
@@ -2644,3 +2677,4 @@ function createLeadsService({ repository, logger, events }) {
 }
 
 export { createLeadsService, LEAD_TEMPERATURE };
+

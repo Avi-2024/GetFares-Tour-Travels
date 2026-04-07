@@ -28,7 +28,7 @@ class HttpClient implements IHttpClient {
 
     this.client = axios.create({
       baseURL: baseUrl,
-      withCredentials: true,
+      withCredentials: false,
       timeout,
       headers: {
         Accept: "application/json",

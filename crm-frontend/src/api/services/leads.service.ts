@@ -24,13 +24,10 @@ export class LeadsService {
       throw new Error('Valid phone number is required');
     }
 
-    // Check for duplicates
-    const duplicateCheck = await leadsEndpoints.checkDuplicate(payload.email, payload.phone);
-    if (duplicateCheck.data.isDuplicate) {
-      throw new Error('Lead with this email or phone already exists');
-    }
-
-    const response = await leadsEndpoints.create(payload);
+    const response = await leadsEndpoints.create({
+      ...payload,
+      allowDuplicate: payload.allowDuplicate ?? true,
+    });
     return response.data;
   }
 

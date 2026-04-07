@@ -6,7 +6,8 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL 
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 export type ApiError = Error & {
   status: number;
   details?: unknown;

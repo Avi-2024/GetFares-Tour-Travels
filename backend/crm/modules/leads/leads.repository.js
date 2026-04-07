@@ -316,6 +316,7 @@ function createLeadsRepository({ db, logger, schema }) {
     customerMap = new Map(),
     assigneeMap = new Map(),
     destinationMap = new Map(),
+    assignedByMap = new Map(),
   ) {
     if (!row) {
       return null;
@@ -326,6 +327,8 @@ function createLeadsRepository({ db, logger, schema }) {
     const assignedTo = row.assigned_to ?? row.assignedTo ?? null;
     const assignee =
       assigneeMap.get(assignedTo) || row.assignee || row.assignedUser || null;
+    const assignedBy = row.assigned_by ?? row.assignedBy ?? null;
+    const assignedByUser = assignedByMap.get(assignedBy) || null;
     const destinationId = row.destination_id ?? row.destinationId ?? null;
     const destination = destinationMap.get(destinationId) || null;
 
@@ -394,6 +397,13 @@ function createLeadsRepository({ db, logger, schema }) {
             id: assignee.id ?? assignedTo,
             fullName: assignee.fullName ?? null,
             email: assignee.email ?? null,
+          }
+        : null,
+      assignedByUser:
+        assignedByUser ?
+          {
+            id: assignedByUser.id ?? assignedBy,
+            fullName: assignedByUser.fullName ?? null,
           }
         : null,
       assignedAt: row.assigned_at ?? row.assignedAt ?? null,
@@ -688,15 +698,16 @@ function createLeadsRepository({ db, logger, schema }) {
   }
 
   async function mapRowsToDomain(rows = []) {
-    const [customerMap, assigneeMap, destinationMap] = await Promise.all([
+    const [customerMap, assigneeMap, destinationMap, assignedByMap] = await Promise.all([
       loadCustomersByIds(rows.map((row) => row.customer_id ?? row.customerId)),
       loadUsersByIds(rows.map((row) => row.assigned_to ?? row.assignedTo)),
       loadDestinationsByIds(
         rows.map((row) => row.destination_id ?? row.destinationId),
       ),
+      loadUsersByIds(rows.map((row) => row.assigned_by ?? row.assignedBy)),
     ]);
     return rows.map((row) =>
-      toDomain(row, customerMap, assigneeMap, destinationMap),
+      toDomain(row, customerMap, assigneeMap, destinationMap, assignedByMap),
     );
   }
 
@@ -704,12 +715,13 @@ function createLeadsRepository({ db, logger, schema }) {
     if (!row) {
       return null;
     }
-    const [customerMap, assigneeMap, destinationMap] = await Promise.all([
+    const [customerMap, assigneeMap, destinationMap, assignedByMap] = await Promise.all([
       loadCustomersByIds([row.customer_id ?? row.customerId]),
       loadUsersByIds([row.assigned_to ?? row.assignedTo]),
       loadDestinationsByIds([row.destination_id ?? row.destinationId]),
+      loadUsersByIds([row.assigned_by ?? row.assignedBy]),
     ]);
-    return toDomain(row, customerMap, assigneeMap, destinationMap);
+    return toDomain(row, customerMap, assigneeMap, destinationMap, assignedByMap);
   }
 
   async function findCustomerByContact({ email, phone }) {

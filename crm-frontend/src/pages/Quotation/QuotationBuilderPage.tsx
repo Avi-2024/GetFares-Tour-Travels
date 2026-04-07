@@ -1934,11 +1934,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
         : prev.startDate,
+      endDate: (selectedLead as any).travelEndDate
+        ? (selectedLead as any).travelEndDate.slice(0, 10)
+        : prev.endDate,
       adults: Number(selectedLead.adultsCount || prev.adults || 1),
       children: Number(selectedLead.childrenCount || prev.children || 0),
       childAges: Array.isArray(selectedLead.childAges)
         ? selectedLead.childAges.map(age => String(age))
-        : prev.childAges
+        : prev.childAges,
+      travelPurpose: selectedLead.travelPurpose || prev.travelPurpose,
+      leadSource: (selectedLead as any).source || prev.leadSource
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
@@ -2323,7 +2328,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
         : prev.startDate,
-      adults: Number(selectedLead.adultsCount || prev.adults || 1)
+      endDate: (selectedLead as any).travelEndDate
+        ? (selectedLead as any).travelEndDate.slice(0, 10)
+        : prev.endDate,
+      adults: Number(selectedLead.adultsCount || prev.adults || 1),
+      travelPurpose: selectedLead.travelPurpose || prev.travelPurpose,
+      leadSource: (selectedLead as any).source || prev.leadSource
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
@@ -2900,7 +2910,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           <div>
             <div className='flex items-center gap-3'>
               <button
-                onClick={() => navigate('/quotations')}
+                onClick={() => navigate(-1)}
                 className='inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
                 aria-label='Back to quotations'
                 title='Back to Quotations'
@@ -3283,38 +3293,44 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 <div>
                   <label className='field-label'>Duration</label>
                   <div className='grid grid-cols-2 gap-2'>
-                    <input
-                      type='number'
-                      min='0'
-                      className='field-input'
-                      placeholder='Nights'
-                      value={form.nights}
-                      onChange={e => {
-                        const nights = Number(e.target.value || 0)
-                        const days = nights + 1
-                        setForm(p => ({
-                          ...p,
-                          nights,
-                          durationDays: String(days)
-                        }))
-                      }}
-                    />
-                    <input
-                      type='number'
-                      min='1'
-                      className='field-input'
-                      placeholder='Days'
-                      value={form.durationDays}
-                      onChange={e => {
-                        const days = Number(e.target.value || 0)
-                        const nights = Math.max(0, days - 1)
-                        setForm(p => ({
-                          ...p,
-                          durationDays: e.target.value,
-                          nights
-                        }))
-                      }}
-                    />
+                    <div>
+                      <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Nights</label>
+                      <input
+                        type='number'
+                        min='0'
+                        className='field-input'
+                        placeholder='Nights'
+                        value={form.nights}
+                        onChange={e => {
+                          const nights = Number(e.target.value || 0)
+                          const days = nights + 1
+                          setForm(p => ({
+                            ...p,
+                            nights,
+                            durationDays: String(days)
+                          }))
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Days</label>
+                      <input
+                        type='number'
+                        min='1'
+                        className='field-input'
+                        placeholder='Days'
+                        value={form.durationDays}
+                        onChange={e => {
+                          const days = Number(e.target.value || 0)
+                          const nights = Math.max(0, days - 1)
+                          setForm(p => ({
+                            ...p,
+                            durationDays: e.target.value,
+                            nights
+                          }))
+                        }}
+                      />
+                    </div>
                   </div>
                   <p className='mt-1 text-xs text-gray-500'>
                     Duration saves with the quotation itself as{' '}
@@ -4328,16 +4344,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       </div>
 
       {showSaved && (
-        <div className='fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4'>
-          <div className='w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xl p-6 text-center'>
-            <div className='mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600'>
-              <FaCheck className='text-xl' />
-            </div>
-            <p className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-              {isEditMode ? 'Quotation updated' : 'Quotation saved'}
-            </p>
-            <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
-              Redirecting to quotations list...
+        <div className='fixed top-4 left-1/2 transform -translate-x-1/2 z-[60] animate-fadeIn'>
+          <div className='flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800'>
+            <FaCheck className='text-green-600 dark:text-green-400' />
+            <p className='text-sm font-medium text-green-800 dark:text-green-300'>
+              {isEditMode ? 'Quotation updated successfully' : 'Quotation saved successfully'}
             </p>
           </div>
         </div>
