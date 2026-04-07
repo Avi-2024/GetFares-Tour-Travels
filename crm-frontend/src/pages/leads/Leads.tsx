@@ -103,7 +103,6 @@ const Leads: React.FC = () => {
   const pageSize = 15;
   const nav = useNavigate();
   const leadsService = useLeadsService();
-  const { formatDate } = useDateTimePreferences();
 
   const countryOptions = useMemo(
     () => [
