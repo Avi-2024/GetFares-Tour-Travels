@@ -72,6 +72,15 @@ const REQUIRED_COMPLIANCE = {
   finalReminders: 1
 }
 
+const AGENT_ASSIGNABLE_ROLES = new Set([
+  'agent',
+  'sales_consultant',
+  'visa_executive',
+  'holiday_consultant'
+])
+
+const VIEW_ONLY_MANAGER_ROLES = new Set(['manager', 'department_head', 'team_lead'])
+
 type LeadQuotationOption = {
   id: string
   quoteNumber: string
@@ -94,7 +103,7 @@ const LeadDetails: React.FC = () => {
   const { id } = useParams()
   const leadsService = useLeadsService()
   const campaignsService = useCampaignsService()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
   const { parseApiDateTime, formatDate, formatDateTime } =
     useDateTimePreferences()
 
@@ -182,6 +191,37 @@ const LeadDetails: React.FC = () => {
     ).trim()
     return name || 'System'
   }, [])
+
+  const resolveFollowupActionDate = useCallback(
+    (item: any): Date | null => {
+      const actionTimeRaw = item?.createdAt ?? item?.created_at ?? null
+      const actionTime = actionTimeRaw ? parseApiDateTime(actionTimeRaw) : null
+      if (actionTime && !Number.isNaN(actionTime.getTime())) {
+        return actionTime
+      }
+
+      const fallbackRaw = item?.followupDate ?? item?.followup_date ?? null
+      const fallback = fallbackRaw ? parseApiDateTime(fallbackRaw) : null
+      if (fallback && !Number.isNaN(fallback.getTime())) {
+        return fallback
+      }
+
+      return null
+    },
+    [parseApiDateTime]
+  )
+
+  const assignedLeadAgentName = useMemo(() => {
+    const name = String(
+      lead?.assignedUser?.fullName ??
+        lead?.assignedUser?.name ??
+        lead?.assigned_user?.full_name ??
+        lead?.assigned_user?.name ??
+        ''
+    ).trim()
+
+    return name || null
+  }, [lead])
 
   const qualificationChildrenCount = useMemo(() => {
     const numericValue = Number(qualification.childrenCount || 0)
@@ -369,13 +409,31 @@ const LeadDetails: React.FC = () => {
 
   const loadAssigneeOptions = useCallback(async () => {
     if (!lead) return
+    const viewerRoleToken = String(user?.role ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_')
+    if (
+      !hasPermission('leads:update') ||
+      VIEW_ONLY_MANAGER_ROLES.has(viewerRoleToken)
+    ) {
+      setAssigneeOptions([{ value: '', label: 'Select assignee' }])
+      return
+    }
     try {
       const res = await usersApi.list({ isActive: true, limit: 500 })
       const rows = unwrapApiArray(res) as Array<Record<string, unknown>>
+      const assignableRows = rows.filter(row => {
+        const roleToken = String(row.role ?? row.role_name ?? '')
+          .trim()
+          .toLowerCase()
+          .replace(/[\s-]+/g, '_')
+        return AGENT_ASSIGNABLE_ROLES.has(roleToken)
+      })
 
       setAssigneeOptions([
         { value: '', label: 'Select assignee' },
-        ...rows.map(row => ({
+        ...assignableRows.map(row => ({
           value: String(row.id ?? ''),
           label: `${String(row.fullName ?? row.full_name ?? 'User')} (${String(
             row.role ?? 'user'
@@ -385,7 +443,7 @@ const LeadDetails: React.FC = () => {
     } catch {
       setAssigneeOptions([{ value: '', label: 'Select assignee' }])
     }
-  }, [lead])
+  }, [lead, hasPermission, user?.role])
 
   React.useEffect(() => {
     void loadLead()
@@ -993,7 +1051,12 @@ const LeadDetails: React.FC = () => {
     }
   }
 
-  const canAssignLead = hasPermission('leads:update')
+  const currentRoleToken = String(user?.role ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+  const canAssignLead =
+    hasPermission('leads:update') && !VIEW_ONLY_MANAGER_ROLES.has(currentRoleToken)
   const canReadQuotations = hasPermission('quotations:read')
   const canCreateQuotation = hasPermission('quotations:create')
   const canUpdateQuotation = hasPermission('quotations:update')
@@ -1135,6 +1198,12 @@ const LeadDetails: React.FC = () => {
                       {lead.leadCountry || lead.country}
                     </p>
                   ) : null}
+                  <p className='mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Assigned To:{' '}
+                    <span className='text-gray-900 dark:text-gray-100'>
+                      {assignedLeadAgentName || 'Unassigned'}
+                    </span>
+                  </p>
                   {lead.nationality ? (
                     <p className='mt-0.5 text-xs font-medium text-blue-600 dark:text-blue-400'>
                       Nationality: {lead.nationality}
@@ -2086,8 +2155,8 @@ const LeadDetails: React.FC = () => {
               {visibleHistoryFollowups
                 .slice()
                 .sort((a, b) => {
-                  const left = parseApiDateTime(a.followupDate)?.getTime() || 0
-                  const right = parseApiDateTime(b.followupDate)?.getTime() || 0
+                  const left = resolveFollowupActionDate(a)?.getTime() || 0
+                  const right = resolveFollowupActionDate(b)?.getTime() || 0
                   return right - left
                 })
                 .map(item => (
@@ -2115,10 +2184,16 @@ const LeadDetails: React.FC = () => {
                       </div>
                       <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
                         <FaClock />
-                        {item.followupDate
+                        {resolveFollowupActionDate(item)
                           ? formatDateTime(
-                              item.followupDate,
-                              String(item.followupDate)
+                              resolveFollowupActionDate(item) as Date,
+                              String(
+                                item?.createdAt ??
+                                  item?.created_at ??
+                                  item?.followupDate ??
+                                  item?.followup_date ??
+                                  ''
+                              )
                             )
                           : 'No date'}
                       </span>
