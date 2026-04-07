@@ -15,6 +15,28 @@ function createCmsPackagesController({ service, uploadService }) {
       });
     }),
 
+    createPublishedPackage: asyncHandler(async (req, res) => {
+      const payload = { ...req.body };
+      if (req.file) {
+        const uploaded = await uploadService.uploadSingle({
+          file: req.file,
+          prefix: "cms/packages/banner",
+          allowVideo: false,
+          required: false,
+        });
+        payload.bannerImageUrl = uploaded?.url || payload.bannerImageUrl;
+        payload.galleryImageUrls = payload.bannerImageUrl ?
+            [payload.bannerImageUrl]
+          : payload.galleryImageUrls;
+      }
+
+      const pkg = await service.createPublishedPackage(payload);
+      res.status(201).json({
+        success: true,
+        data: pkg,
+      });
+    }),
+
     getPackageById: asyncHandler(async (req, res) => {
       const pkg = await service.getPackageById(req.params.id);
       res.json({
@@ -41,6 +63,11 @@ function createCmsPackagesController({ service, uploadService }) {
         success: true,
         data: pkg,
       });
+    }),
+
+    deletePublishedPackage: asyncHandler(async (req, res) => {
+      const result = await service.deletePublishedPackage(req.params.id);
+      res.json(result);
     }),
 
     // Main packages

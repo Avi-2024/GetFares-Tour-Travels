@@ -119,7 +119,7 @@ class CmsDatasource {
 
     if (sectionKey === "creative-toolkit") {
       const payload = await this.httpClient.get<unknown>(
-        "/cms/experience/featured-picks",
+        "/cms/experience/creative-toolkit",
         this.withCountryParams(),
       );
       return this.sectionEntryMapper.mapFeaturedEntries(
@@ -157,6 +157,15 @@ class CmsDatasource {
     if (sectionKey === "destinations") {
       const response = await this.httpClient.post(
         "/cms/destinations",
+        mappedPayload,
+        countryOptions,
+      );
+      return this.accessor.toRecord(response);
+    }
+
+    if (sectionKey === "published-packages") {
+      const response = await this.httpClient.post(
+        "/cms/packages/published",
         mappedPayload,
         countryOptions,
       );
@@ -208,7 +217,7 @@ class CmsDatasource {
 
     if (sectionKey === "creative-toolkit") {
       const response = await this.httpClient.post(
-        "/cms/experience/featured-picks",
+        "/cms/experience/creative-toolkit",
         mappedPayload,
         countryOptions,
       );

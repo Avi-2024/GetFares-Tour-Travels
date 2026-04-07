@@ -118,7 +118,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms?active=true",
+                  "raw": "{{baseUrl}}/cms?active=true&country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -420,7 +420,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations?isActive=true&isPopular=true&region=Asia&category=Luxury",
+                  "raw": "{{baseUrl}}/cms/destinations?isActive=true&isPopular=true&region=Asia&category=Luxury&country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1339,7 +1339,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/published",
+                  "raw": "{{baseUrl}}/cms/packages/published?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1407,11 +1407,107 @@
               }
             },
             {
+              "name": "Update Published Package",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}?country={{country}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"startingPrice\": 2999,\n  \"publishToWebsite\": true,\n  \"isSoldOut\": false,\n  \"metaTitle\": \"Updated Maldives Signature Escape\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Published Package",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Create Published Package",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/published?country={{country}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Maldives Signature Escape\",\n  \"destination\": \"Maldives\",\n  \"duration\": \"5 Days / 4 Nights\",\n  \"startingPrice\": 2899,\n  \"packageCategory\": \"Luxury\",\n  \"inclusions\": \"Flights, hotel, transfers\",\n  \"exclusions\": \"Personal expenses\",\n  \"publishToWebsite\": true,\n  \"websiteSlug\": \"maldives-signature-escape\",\n  \"metaTitle\": \"Maldives Signature Escape\",\n  \"metaDescription\": \"Luxury Maldives package\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json?.() || {};",
+                      "const id = payload?.data?.id || null;",
+                      "if (id) pm.collectionVariables.set(\"packageId\", id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
               "name": "List Main Packages",
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main",
+                  "raw": "{{baseUrl}}/cms/packages/main?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1615,7 +1711,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub",
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1798,7 +1894,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa?isActive=true",
+                  "raw": "{{baseUrl}}/cms/visa?isActive=true&country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2304,7 +2400,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks",
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2336,6 +2432,127 @@
                   }
                 }
               ]
+            },
+            {
+              "name": "List Creative Toolkit",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit?country={{country}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Create Creative Toolkit",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit?country={{country}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"April Luxury Hot Pick\",\n  \"slug\": \"april-luxury-hot-pick\",\n  \"category\": \"package\",\n  \"campaignType\": \"featured\",\n  \"sectionKey\": \"featured-hot-picks\",\n  \"country\": \"{{country}}\",\n  \"rating\": 4.8,\n  \"badgeText\": \"Best Seller\",\n  \"discountedPrice\": 1299,\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Get Creative Toolkit By ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Update Creative Toolkit",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}?country={{country}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated Creative Toolkit Card\",\n  \"country\": \"{{country}}\",\n  \"discountedPrice\": 1199\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Creative Toolkit",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ]
+              }
             },
             {
               "name": "Create Featured Pick",
@@ -2598,7 +2815,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards",
+                  "raw": "{{baseUrl}}/cms/experience/season-cards?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2864,7 +3081,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/hero-sections",
+                  "raw": "{{baseUrl}}/cms/experience/hero-sections?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3149,6 +3366,35 @@
               ]
             },
             {
+              "name": "Upload Media File",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/cms/media/upload"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
               "name": "Update CMS Media Asset",
               "request": {
                 "method": "PUT",
@@ -3351,7 +3597,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/home",
+                  "raw": "{{baseUrl}}/public/cms/home?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3379,7 +3625,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/landing-places",
+                  "raw": "{{baseUrl}}/public/cms/landing-places?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3407,7 +3653,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations",
+                  "raw": "{{baseUrl}}/public/cms/destinations?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3430,7 +3676,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}",
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3460,7 +3706,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/media",
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/media?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3491,7 +3737,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/season-cards",
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/season-cards?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3522,7 +3768,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/packages",
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{destinationSlug}}/packages?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3558,7 +3804,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/packages/published",
+                  "raw": "{{baseUrl}}/public/cms/packages/published?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3582,7 +3828,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/packages/main",
+                  "raw": "{{baseUrl}}/public/cms/packages/main?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3606,7 +3852,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/packages/main/{{mainPackageId}}/sub",
+                  "raw": "{{baseUrl}}/public/cms/packages/main/{{mainPackageId}}/sub?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3643,7 +3889,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/visa-destinations",
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3666,7 +3912,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}",
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3696,7 +3942,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}/details",
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{visaSlug}}/details?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3732,7 +3978,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/featured-picks",
+                  "raw": "{{baseUrl}}/public/cms/featured-picks?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3751,11 +3997,26 @@
               }
             },
             {
+              "name": "Creative Toolkit (Active)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/creative-toolkit?country={{country}}"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ]
+              }
+            },
+            {
               "name": "Season Cards (Active)",
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/season-cards",
+                  "raw": "{{baseUrl}}/public/cms/season-cards?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3778,7 +4039,7 @@
               "request": {
                 "method": "GET",
                 "url": {
-                  "raw": "{{baseUrl}}/public/cms/hero-sections",
+                  "raw": "{{baseUrl}}/public/cms/hero-sections?country={{country}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3901,6 +4162,10 @@
     {
       "key": "sampleVideoUrl",
       "value": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4"
+    },
+    {
+      "key": "country",
+      "value": "UAE"
     }
   ]
 }

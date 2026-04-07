@@ -140,7 +140,11 @@ class CmsSectionEntryMapper {
           ),
           syncAt: new CmsTableCell(this.accessor.getText(record, "updatedAt", "updated_at")),
         }),
-        readOnly: true,
+        updatePath: `/cms/packages/published/${id}`,
+        deletePath: `/cms/packages/published/${id}`,
+        deleteMode: "delete",
+        editableField: "name",
+        readOnly: false,
       });
     }
     return entries;

@@ -38,8 +38,26 @@ function createCmsPackagesRepository({ db, schema }) {
       return db.findById(schema.packagesTable, id);
     },
 
+    async findPackageByWebsiteSlug(websiteSlug) {
+      return db.findOne(schema.packagesTable, {
+        website_slug: websiteSlug,
+        is_deleted: false,
+      });
+    },
+
+    async createPackage(data) {
+      return db.insert(schema.packagesTable, data);
+    },
+
     async updatePackageById(id, data) {
       return db.update(schema.packagesTable, id, data);
+    },
+
+    async softDeletePackageById(id) {
+      return db.update(schema.packagesTable, id, {
+        is_deleted: true,
+        publish_to_website: false,
+      });
     },
 
     async findAllMainPackages(filters = {}) {

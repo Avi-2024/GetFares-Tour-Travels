@@ -374,6 +374,12 @@ class CmsEntityEditorModalComponent extends Component<
         payload.imageUrl = primary.mediaUrl;
         payload.heroImageUrl = primary.mediaUrl;
       }
+      if (this.props.sectionKey === "published-packages") {
+        payload.bannerImageUrl = primary.mediaUrl;
+        payload.galleryImageUrls = this.state.mediaItems.map(
+          (item) => item.mediaUrl,
+        );
+      }
       if (this.props.sectionKey === "creative-toolkit") payload.imageUrl = primary.mediaUrl;
       if (this.props.sectionKey === "destination-map") payload.imageUrl = primary.mediaUrl;
     }
