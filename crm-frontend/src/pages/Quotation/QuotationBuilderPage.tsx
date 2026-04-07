@@ -1934,11 +1934,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
         : prev.startDate,
+      endDate: (selectedLead as any).travelEndDate
+        ? (selectedLead as any).travelEndDate.slice(0, 10)
+        : prev.endDate,
       adults: Number(selectedLead.adultsCount || prev.adults || 1),
       children: Number(selectedLead.childrenCount || prev.children || 0),
       childAges: Array.isArray(selectedLead.childAges)
         ? selectedLead.childAges.map(age => String(age))
-        : prev.childAges
+        : prev.childAges,
+      travelPurpose: selectedLead.travelPurpose || prev.travelPurpose,
+      leadSource: (selectedLead as any).source || prev.leadSource
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
@@ -2323,7 +2328,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
         : prev.startDate,
-      adults: Number(selectedLead.adultsCount || prev.adults || 1)
+      endDate: (selectedLead as any).travelEndDate
+        ? (selectedLead as any).travelEndDate.slice(0, 10)
+        : prev.endDate,
+      adults: Number(selectedLead.adultsCount || prev.adults || 1),
+      travelPurpose: selectedLead.travelPurpose || prev.travelPurpose,
+      leadSource: (selectedLead as any).source || prev.leadSource
     }))
     if (selectedLeadCurrency) {
       setCurrency(selectedLeadCurrency)
@@ -3283,38 +3293,44 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 <div>
                   <label className='field-label'>Duration</label>
                   <div className='grid grid-cols-2 gap-2'>
-                    <input
-                      type='number'
-                      min='0'
-                      className='field-input'
-                      placeholder='Nights'
-                      value={form.nights}
-                      onChange={e => {
-                        const nights = Number(e.target.value || 0)
-                        const days = nights + 1
-                        setForm(p => ({
-                          ...p,
-                          nights,
-                          durationDays: String(days)
-                        }))
-                      }}
-                    />
-                    <input
-                      type='number'
-                      min='1'
-                      className='field-input'
-                      placeholder='Days'
-                      value={form.durationDays}
-                      onChange={e => {
-                        const days = Number(e.target.value || 0)
-                        const nights = Math.max(0, days - 1)
-                        setForm(p => ({
-                          ...p,
-                          durationDays: e.target.value,
-                          nights
-                        }))
-                      }}
-                    />
+                    <div>
+                      <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Nights</label>
+                      <input
+                        type='number'
+                        min='0'
+                        className='field-input'
+                        placeholder='Nights'
+                        value={form.nights}
+                        onChange={e => {
+                          const nights = Number(e.target.value || 0)
+                          const days = nights + 1
+                          setForm(p => ({
+                            ...p,
+                            nights,
+                            durationDays: String(days)
+                          }))
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Days</label>
+                      <input
+                        type='number'
+                        min='1'
+                        className='field-input'
+                        placeholder='Days'
+                        value={form.durationDays}
+                        onChange={e => {
+                          const days = Number(e.target.value || 0)
+                          const nights = Math.max(0, days - 1)
+                          setForm(p => ({
+                            ...p,
+                            durationDays: e.target.value,
+                            nights
+                          }))
+                        }}
+                      />
+                    </div>
                   </div>
                   <p className='mt-1 text-xs text-gray-500'>
                     Duration saves with the quotation itself as{' '}

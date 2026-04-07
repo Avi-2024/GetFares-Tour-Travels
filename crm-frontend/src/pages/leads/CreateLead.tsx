@@ -954,7 +954,6 @@ const CreateLead: React.FC = () => {
             <label className='field-label'>Travel Start Date *</label>
             <input
               type='date'
-              min={minTravelDate}
               className={`field-input ${
                 fieldError('travelDate') ? 'border-red-500' : ''
               }`}
@@ -963,12 +962,16 @@ const CreateLead: React.FC = () => {
                 setForm(prev => ({ ...prev, travelDate: event.target.value }))
               }
             />
+            {fieldError('travelDate') && form.travelDate && form.travelDate < minTravelDate && (
+              <p className='mt-1 text-xs text-red-600 dark:text-red-400'>
+                Travel date cannot be in the past
+              </p>
+            )}
           </div>
           <div>
             <label className='field-label'>Travel End Date *</label>
             <input
               type='date'
-              min={form.travelDate || minTravelDate}
               className={`field-input ${
                 fieldError('travelEndDate') ? 'border-red-500' : ''
               }`}
@@ -977,6 +980,16 @@ const CreateLead: React.FC = () => {
                 setForm(prev => ({ ...prev, travelEndDate: event.target.value }))
               }
             />
+            {fieldError('travelEndDate') && form.travelEndDate && form.travelEndDate < minTravelDate && (
+              <p className='mt-1 text-xs text-red-600 dark:text-red-400'>
+                Travel end date cannot be in the past
+              </p>
+            )}
+            {fieldError('travelEndDate') && form.travelDate && form.travelEndDate && form.travelEndDate < form.travelDate && (
+              <p className='mt-1 text-xs text-red-600 dark:text-red-400'>
+                Travel end date must be after start date
+              </p>
+            )}
           </div>
           <div className='grid grid-cols-2 gap-2'>
             <div>

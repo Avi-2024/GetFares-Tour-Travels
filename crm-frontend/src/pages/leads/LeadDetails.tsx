@@ -153,6 +153,7 @@ const LeadDetails: React.FC = () => {
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
+  const [showSavedQualification, setShowSavedQualification] = useState(false)
 
   const createdAtLabel = useMemo(() => {
     const raw =
@@ -798,6 +799,8 @@ const LeadDetails: React.FC = () => {
         qualificationCompleted: true
       })
       await loadLead()
+      setShowSavedQualification(true)
+      setTimeout(() => setShowSavedQualification(false), 2500)
     } catch (err) {
       setStatusError(getApiErrorMessage(err, 'Could not update qualification.'))
     }
@@ -2219,6 +2222,17 @@ const LeadDetails: React.FC = () => {
           )}
         </SurfaceCard>
       </div>
+
+      {showSavedQualification && (
+        <div className='fixed top-4 left-1/2 transform -translate-x-1/2 z-[60] animate-fadeIn'>
+          <div className='flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800'>
+            <FaCheckCircle className='text-green-600 dark:text-green-400' />
+            <p className='text-sm font-medium text-green-800 dark:text-green-300'>
+              Qualification saved successfully
+            </p>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .no-spinner::-webkit-outer-spin-button,

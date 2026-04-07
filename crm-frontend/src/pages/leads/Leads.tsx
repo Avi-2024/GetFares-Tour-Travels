@@ -700,44 +700,44 @@ const Leads: React.FC = () => {
                     <col className="w-[9%]" />
                     <col className="w-[15%]" />
                     <col className="w-[8%]" />
-                    <col className="w-[17%]" />
+                    <col className="w-[16%]" />
                     <col className="w-[11%]" />
                     <col className="w-[10%]" />
                     <col className="w-[10%]" />
                     <col className="w-[7%]" />
                     <col className="w-[6%]" />
-                    <col className="w-[7%]" />
+                    <col className="w-[8%]" />
                   </colgroup>
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
-                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Date
                       </th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Lead
                       </th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Lead ID
                       </th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Contact
                       </th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Destination
                       </th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Visa/Holidays
                       </th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Lead Country
                       </th>
-                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         Status
                       </th>
-                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         SLA
                       </th>
-                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         View
                       </th>
                     </tr>
@@ -748,14 +748,14 @@ const Leads: React.FC = () => {
                         key={lead.id}
                         className="border-b border-gray-100 hover:bg-gray-50 transition-colors dark:border-gray-800 dark:hover:bg-gray-800/40"
                       >
-                        <td className="px-3 py-2.5 text-center leading-tight whitespace-nowrap">
+                        <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             {lead.createdAt
                               ? formatDate(lead.createdAt, "-")
                               : "-"}
                           </p>
                         </td>
-                        <td className="px-3 py-2.5 leading-tight">
+                        <td className="px-4 py-3 leading-tight">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                             {lead.name}
                           </p>
@@ -773,12 +773,12 @@ const Leads: React.FC = () => {
                             </p>
                           )}
                         </td>
-                        <td className="px-3 py-2.5 text-left leading-tight whitespace-nowrap">
+                        <td className="px-4 py-3 text-left leading-tight whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             {lead.leadId}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-left leading-tight">
+                        <td className="px-4 py-3 text-left leading-tight">
                           <div className="flex items-center gap-1">
                             <p
                               className="max-w-full truncate text-sm font-medium text-gray-800 dark:text-gray-200"
@@ -798,27 +798,27 @@ const Leads: React.FC = () => {
                           </p>
                         </td>
                         <td
-                          className="px-3 py-2.5 text-left leading-tight"
+                          className="px-4 py-3 text-left leading-tight"
                           title={lead.destination}
                         >
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
                             {lead.destination}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-left leading-tight">
+                        <td className="px-4 py-3 text-left leading-tight">
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
                             {getVisaHolidayLabel(lead)}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-left leading-tight">
+                        <td className="px-4 py-3 text-left leading-tight">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                             {lead.leadCountry || "-"}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-center leading-tight">
+                        <td className="px-4 py-3 text-center leading-tight">
                           <StatusBadge status={lead.statusLabel} />
                         </td>
-                        <td className="px-3 py-2.5 text-center leading-tight whitespace-nowrap">
+                        <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
                           <span
                             className={`text-sm font-medium ${
                               lead.slaBreached
@@ -829,7 +829,7 @@ const Leads: React.FC = () => {
                             {lead.slaBreached ? "Breached" : lead.sla}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-right leading-tight whitespace-nowrap">
+                        <td className="px-4 py-3 text-right leading-tight whitespace-nowrap">
                           <button
                             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                             onClick={() => handleViewLead(lead)}
