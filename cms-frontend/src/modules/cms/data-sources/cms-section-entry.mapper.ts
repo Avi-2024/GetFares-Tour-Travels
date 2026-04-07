@@ -141,9 +141,7 @@ class CmsSectionEntryMapper {
           syncAt: new CmsTableCell(this.accessor.getText(record, "updatedAt", "updated_at")),
         }),
         updatePath: `/cms/packages/published/${id}`,
-        deletePath: `/cms/packages/published/${id}`,
-        deleteMode: "delete",
-        editableField: "name",
+        editableField: "publishToWebsite",
         readOnly: false,
       });
     }
@@ -244,7 +242,9 @@ class CmsSectionEntryMapper {
                 this.accessor.getText(subPackage, "startingPrice", "starting_price"),
               ),
               displayOrder: new CmsTableCell(`#${displayOrder}`),
-              status: new CmsTableCell("Active", "success"),
+              updatedAt: new CmsTableCell(
+                this.accessor.getText(subPackage, "updatedAt", "updated_at"),
+              ),
             }),
             updatePath: `${mainPath.replace("/main", "/sub")}/${id}`,
             deletePath: `${mainPath.replace("/main", "/sub")}/${id}`,
@@ -321,49 +321,92 @@ class CmsSectionEntryMapper {
         continue;
       }
       try {
-        const detailsPayload = await this.httpClient.get<unknown>(
-          `${visaBasePath}/${destinationId}/details`,
+        const detailEntries = await this.mapVisaDetailsForDestination(
+          visaBasePath,
+          destinationId,
+          destination,
         );
-        const details = this.accessor.toArray(detailsPayload);
-        for (const detail of details) {
-          const detailId = this.accessor.getId(detail);
-          if (!detailId) {
-            continue;
-          }
-
-          entries.push({
-            id: detailId,
-            raw: detail,
-            row: new CmsTableRow(detailId, {
-              destination: new CmsTableCell(
-                this.accessor.getText(destination, "title", "name"),
-              ),
-              sectionType: new CmsTableCell(
-                this.accessor.getText(detail, "sectionType", "section_type"),
-                "info",
-              ),
-              label: new CmsTableCell(this.accessor.getText(detail, "label")),
-              value: new CmsTableCell(this.accessor.getText(detail, "value")),
-              displayOrder: new CmsTableCell(
-                `#${
-                  this.accessor.getNumber(detail, "displayOrder", "display_order") ??
-                  0
-                }`,
-              ),
-              updatedAt: new CmsTableCell(
-                this.accessor.getText(detail, "updatedAt", "updated_at"),
-              ),
-            }),
-            updatePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
-            deletePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
-            deleteMode: "delete",
-            editableField: "value",
-            readOnly: false,
-          });
-        }
+        entries.push(...detailEntries);
       } catch {
         // continue with next destination
       }
+    }
+    return entries;
+  }
+
+  public async mapVisaDetailEntriesByDestination(
+    visaBasePath: string,
+    destinationId: string,
+    country: string | null = null,
+  ): Promise<CmsTableEntry[]> {
+    const destinationOptions = country ? { params: { country } } : undefined;
+    let destinationRecord: JsonRecord | null = null;
+
+    try {
+      const destinationPayload = await this.httpClient.get<unknown>(
+        `${visaBasePath}/${destinationId}`,
+        destinationOptions,
+      );
+      destinationRecord = this.accessor.toRecord(destinationPayload);
+    } catch {
+      destinationRecord = null;
+    }
+
+    return this.mapVisaDetailsForDestination(
+      visaBasePath,
+      destinationId,
+      destinationRecord ?? { id: destinationId, title: destinationId },
+    );
+  }
+
+  private async mapVisaDetailsForDestination(
+    visaBasePath: string,
+    destinationId: string,
+    destinationRecord: JsonRecord,
+  ): Promise<CmsTableEntry[]> {
+    const detailsPayload = await this.httpClient.get<unknown>(
+      `${visaBasePath}/${destinationId}/details`,
+    );
+    const details = this.accessor.toArray(detailsPayload);
+    const destinationLabel = this.accessor.getText(
+      destinationRecord,
+      "title",
+      "name",
+      "country",
+    );
+    const entries: CmsTableEntry[] = [];
+    for (const detail of details) {
+      const detailId = this.accessor.getId(detail);
+      if (!detailId) {
+        continue;
+      }
+
+      entries.push({
+        id: detailId,
+        raw: detail,
+        row: new CmsTableRow(detailId, {
+          destination: new CmsTableCell(destinationLabel),
+          sectionType: new CmsTableCell(
+            this.accessor.getText(detail, "sectionType", "section_type"),
+            "info",
+          ),
+          label: new CmsTableCell(this.accessor.getText(detail, "label")),
+          value: new CmsTableCell(this.accessor.getText(detail, "value")),
+          displayOrder: new CmsTableCell(
+            `#${
+              this.accessor.getNumber(detail, "displayOrder", "display_order") ?? 0
+            }`,
+          ),
+          updatedAt: new CmsTableCell(
+            this.accessor.getText(detail, "updatedAt", "updated_at"),
+          ),
+        }),
+        updatePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
+        deletePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
+        deleteMode: "delete",
+        editableField: "value",
+        readOnly: false,
+      });
     }
     return entries;
   }

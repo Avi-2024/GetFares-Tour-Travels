@@ -18,6 +18,10 @@ class CmsSectionRepository implements ICmsSectionRepository {
     return this.datasource.list(sectionKey);
   }
 
+  public listAdminMainPackages(): Promise<CmsTableEntry[]> {
+    return this.datasource.listAdminMainPackages();
+  }
+
   public create(
     sectionKey: CmsSectionKey,
     payload: Record<string, unknown>,

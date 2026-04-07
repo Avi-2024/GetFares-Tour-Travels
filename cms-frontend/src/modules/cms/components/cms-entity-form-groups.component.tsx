@@ -142,6 +142,12 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
     }
 
     if (field.type === "select" || field.type === "searchable-select") {
+      const filteredOptions = options.filter((option) => {
+        const query = (relationSearch[field.key] ?? "").toLowerCase();
+        return !query || option.label.toLowerCase().includes(query);
+      });
+      const hasOptions = options.length > 0;
+
       return (
         <div className="space-y-1">
           {field.type === "searchable-select" && (
@@ -152,25 +158,28 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                 onRelationSearchChange(field.key, event.target.value)
               }
               className={className}
-              placeholder={`Search ${field.label.toLowerCase()}...`}
+              placeholder={
+                hasOptions ?
+                  `Search ${field.label.toLowerCase()}...`
+                : `No ${field.label.toLowerCase()} options available`
+              }
+              disabled={!hasOptions}
             />
           )}
           <select
             value={String(value ?? "")}
             onChange={(event) => onFieldChange(field, event.target.value)}
             className={className}
+            disabled={!hasOptions}
           >
-            <option value="">Select {field.label}</option>
-            {options
-              .filter((option) => {
-                const query = (relationSearch[field.key] ?? "").toLowerCase();
-                return !query || option.label.toLowerCase().includes(query);
-              })
-              .map((option) => (
-                <option key={`${field.key}-${option.value}`} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
+            <option value="">
+              {hasOptions ? `Select ${field.label}` : `No ${field.label} available`}
+            </option>
+            {filteredOptions.map((option) => (
+              <option key={`${field.key}-${option.value}`} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
       );
@@ -259,6 +268,11 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                       {field.required ? " *" : ""}
                     </span>
                     {this.renderInput(field)}
+                    {field.helperText && (
+                      <span className="text-[11px] normal-case tracking-normal text-[var(--text-secondary)]">
+                        {field.helperText}
+                      </span>
+                    )}
                     <span className="text-[11px] normal-case tracking-normal text-[var(--danger)]">
                       {formErrors[field.key] || " "}
                     </span>

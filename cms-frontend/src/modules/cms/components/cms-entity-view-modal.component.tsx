@@ -19,6 +19,12 @@ interface CmsEntityViewModalState {
   mediaItems: CmsMediaAsset[];
 }
 
+interface CmsEntityViewMetaItem {
+  key: string;
+  label: string;
+  value: string;
+}
+
 class CmsEntityViewModalComponent extends Component<
   CmsEntityViewModalProps,
   CmsEntityViewModalState
@@ -133,6 +139,41 @@ class CmsEntityViewModalComponent extends Component<
     }
   }
 
+  private getMetadataItems(): CmsEntityViewMetaItem[] {
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    const items: CmsEntityViewMetaItem[] = [];
+
+    definition.fields.forEach((field) => {
+      if (field.type === "switch") {
+        return;
+      }
+
+      const value = this.readValue(field.key);
+      if (value === "--") {
+        return;
+      }
+
+      items.push({
+        key: field.key,
+        label: field.label,
+        value,
+      });
+    });
+
+    if (this.props.sectionKey === "landing-places") {
+      const updatedAt = this.readValue("updatedAt");
+      if (updatedAt !== "--") {
+        items.push({
+          key: "updatedAt",
+          label: "Updated At",
+          value: updatedAt,
+        });
+      }
+    }
+
+    return items;
+  }
+
   render() {
     const { isOpen, onClose, sectionKey, sectionTitle, onOpenImage } = this.props;
     const definition = CmsEntityFormCatalog.get(sectionKey);
@@ -141,6 +182,7 @@ class CmsEntityViewModalComponent extends Component<
     const statusValue = definition.statusKey ? this.readValue(definition.statusKey) : "";
     const status = this.resolveStatus(statusValue);
     const description = definition.descriptionKey ? this.readValue(definition.descriptionKey) : "";
+    const metadataItems = this.getMetadataItems();
     const heroImage =
       this.state.mediaItems[0]?.mediaUrl ||
       this.readValue("imageUrl") ||
@@ -167,9 +209,11 @@ class CmsEntityViewModalComponent extends Component<
                   <p className="mt-1 text-sm text-[var(--text-secondary)]">{subtitle}</p>
                 )}
               </div>
-              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}>
-                {status.label}
-              </span>
+              {statusValue && statusValue !== "--" && (
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}>
+                  {status.label}
+                </span>
+              )}
             </div>
             {description !== "--" && (
               <p className="mt-3 text-sm text-[var(--text-secondary)]">{description}</p>
@@ -189,23 +233,17 @@ class CmsEntityViewModalComponent extends Component<
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <h4 className="text-sm font-semibold text-[var(--text-primary)]">Metadata</h4>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {definition.fields.map((field) => {
-                const value = this.readValue(field.key);
-                if (value === "--" || field.type === "switch") {
-                  return null;
-                }
-                return (
-                  <div
-                    key={`view-${field.key}`}
-                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
-                  >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                      {field.label}
-                    </p>
-                    <p className="mt-1 text-sm text-[var(--text-primary)]">{value}</p>
-                  </div>
-                );
-              })}
+              {metadataItems.map((item) => (
+                <div
+                  key={`view-${item.key}`}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--text-primary)]">{item.value}</p>
+                </div>
+              ))}
             </div>
           </section>
 

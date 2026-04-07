@@ -9,6 +9,7 @@ class CmsPayloadMapper {
         title,
         name: title,
         country: payload.country,
+        description: payload.description,
         tag: payload.tag,
         image: payload.image ?? payload.imageUrl,
         imageUrl: payload.imageUrl,
@@ -39,27 +40,8 @@ class CmsPayloadMapper {
     }
     if (sectionKey === "published-packages") {
       return {
-        name: payload.name,
-        destination: payload.destination,
-        duration: payload.duration,
-        startingPrice: payload.startingPrice,
-        inclusions: payload.inclusions,
-        exclusions: payload.exclusions,
-        itinerary: payload.itinerary,
-        hotelDetails: payload.hotelDetails,
-        validFrom: payload.validFrom,
-        validTo: payload.validTo,
-        cancellationPolicy: payload.cancellationPolicy,
-        packageCategory: payload.packageCategory,
-        status: payload.status,
         bannerImageUrl: payload.bannerImageUrl,
-        galleryImageUrls: payload.galleryImageUrls,
-        metaTitle: payload.metaTitle,
-        metaDescription: payload.metaDescription,
-        keywords: payload.keywords,
         publishToWebsite: payload.publishToWebsite,
-        websiteSlug: payload.websiteSlug,
-        isSoldOut: payload.isSoldOut,
       };
     }
     if (sectionKey === "main-packages") {

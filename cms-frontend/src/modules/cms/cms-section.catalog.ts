@@ -48,9 +48,7 @@ class CmsSectionCatalog {
       [
         new CmsTableColumn("name", "Title", true),
         new CmsTableColumn("tag", "Tag"),
-        new CmsTableColumn("displayOrder", "Display Order"),
         new CmsTableColumn("isActive", "Status"),
-        new CmsTableColumn("updatedAt", "Updated At"),
       ],
       "No landing places found",
       "Create the first landing place to start website hero management.",
@@ -118,7 +116,7 @@ class CmsSectionCatalog {
         new CmsTableColumn("duration", "Duration"),
         new CmsTableColumn("priceBand", "Price"),
         new CmsTableColumn("displayOrder", "Display Order"),
-        new CmsTableColumn("status", "Status"),
+        new CmsTableColumn("updatedAt", "Updated At"),
       ],
       "No sub packages found",
       "Create sub packages under main package groups.",
