@@ -93,6 +93,14 @@ function createDestinationsService({ repository }) {
 
     async create(data) {
       const slug = data.slug || toSlug(data.name);
+      const country = normalizeText(data.country);
+      if (!country) {
+        throw new AppError(
+          400,
+          "Country is required for destination",
+          "COUNTRY_REQUIRED",
+        );
+      }
 
       const existing = await repository.findBySlug(slug);
       if (existing) {
@@ -108,7 +116,7 @@ function createDestinationsService({ repository }) {
         slug,
         description: normalizeText(data.description),
         short_description: normalizeText(data.shortDescription),
-        country: normalizeText(data.country),
+        country,
         region: normalizeText(data.region),
         category: normalizeText(data.category),
         rating: toNumber(data.rating, 0),
@@ -146,8 +154,13 @@ function createDestinationsService({ repository }) {
         updates.description = normalizeText(data.description);
       if (data.shortDescription !== undefined)
         updates.short_description = normalizeText(data.shortDescription);
-      if (data.country !== undefined)
-        updates.country = normalizeText(data.country);
+      if (data.country !== undefined) {
+        const country = normalizeText(data.country);
+        if (!country) {
+          throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
+        }
+        updates.country = country;
+      }
       if (data.region !== undefined)
         updates.region = normalizeText(data.region);
       if (data.category !== undefined)
@@ -315,7 +328,29 @@ function createDestinationsService({ repository }) {
     },
 
     async mapPackage(destinationId, mainPackageId, displayOrder = 0) {
-      await this.getById(destinationId);
+      const destination = await this.getById(destinationId);
+      const mainPackage = await repository.findMainPackageById(mainPackageId);
+      if (!mainPackage) {
+        throw new AppError(404, "Main package not found", "NOT_FOUND");
+      }
+      if (!destination.country || !mainPackage.country) {
+        throw new AppError(
+          400,
+          "Both destination and main package must have country configured",
+          "COUNTRY_REQUIRED",
+        );
+      }
+
+      if (
+        String(destination.country).toLowerCase() !==
+          String(mainPackage.country).toLowerCase()
+      ) {
+        throw new AppError(
+          400,
+          "Main package country does not match destination country",
+          "COUNTRY_MISMATCH",
+        );
+      }
 
       const row = await repository.createPackageMap({
         destination_id: destinationId,

@@ -1,5 +1,5 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { toBoolean, toNumber } from "../../core/utils/index.js";
+import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createCmsPackagesService({ repository }) {
   function toPackage(row) {
@@ -27,6 +27,7 @@ function createCmsPackagesService({ repository }) {
     return {
       id: row.id,
       packageId: row.package_id,
+      country: row.country,
       packageName: row.name,
       destination: row.destination,
       startingPrice: parseFloat(row.starting_price) || 0,
@@ -57,8 +58,8 @@ function createCmsPackagesService({ repository }) {
   }
 
   return Object.freeze({
-    async listPublished() {
-      const rows = await repository.findPublishedPackages();
+    async listPublished(filters = {}) {
+      const rows = await repository.findPublishedPackages(filters);
       return rows.map(toPackage);
     },
 
@@ -95,8 +96,8 @@ function createCmsPackagesService({ repository }) {
       return toPackage(updated);
     },
 
-    async listMainPackages() {
-      const rows = await repository.findAllMainPackages();
+    async listMainPackages(filters = {}) {
+      const rows = await repository.findAllMainPackages(filters);
       return rows.map(toMainPackage);
     },
 
@@ -120,9 +121,17 @@ function createCmsPackagesService({ repository }) {
           "NOT_PUBLISHED",
         );
       }
+      if (!normalizeText(data.country)) {
+        throw new AppError(
+          400,
+          "Country is required for main package",
+          "COUNTRY_REQUIRED",
+        );
+      }
 
       const row = await repository.createMainPackage({
         package_id: data.packageId,
+        country: normalizeText(data.country),
         display_order: toNumber(data.displayOrder, 0),
         is_featured: toBoolean(data.isFeatured, false),
       });
@@ -130,6 +139,7 @@ function createCmsPackagesService({ repository }) {
       return {
         id: row.id,
         packageId: row.package_id,
+        country: row.country,
         displayOrder: row.display_order,
         isFeatured: row.is_featured,
         createdAt: row.created_at,
@@ -144,6 +154,13 @@ function createCmsPackagesService({ repository }) {
       }
 
       const updates = {};
+      if (data.country !== undefined) {
+        const country = normalizeText(data.country);
+        if (!country) {
+          throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
+        }
+        updates.country = country;
+      }
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
       if (data.isFeatured !== undefined)
@@ -153,6 +170,7 @@ function createCmsPackagesService({ repository }) {
       return {
         id: updated.id,
         packageId: updated.package_id,
+        country: updated.country,
         displayOrder: updated.display_order,
         isFeatured: updated.is_featured,
         updatedAt: updated.updated_at,
@@ -169,9 +187,16 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
-    async listSubPackages(mainPackageId) {
+    async listSubPackages(mainPackageId, filters = {}) {
       const mainPackage = await repository.findMainPackageById(mainPackageId);
       if (!mainPackage) {
+        throw new AppError(404, "Main package not found", "NOT_FOUND");
+      }
+      if (
+        filters.country &&
+        String(mainPackage.country || "").toLowerCase() !==
+          String(filters.country).toLowerCase()
+      ) {
         throw new AppError(404, "Main package not found", "NOT_FOUND");
       }
 

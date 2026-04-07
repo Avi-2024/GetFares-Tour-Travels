@@ -32,6 +32,10 @@ function createExperienceRepository({ db, schema }) {
         values.push(filters.isActive);
         whereClause += ` AND sc.is_active = $${values.length}`;
       }
+      if (filters.country) {
+        values.push(filters.country);
+        whereClause += ` AND d.country = $${values.length}`;
+      }
 
       const result = await db.query(
         `SELECT
@@ -70,13 +74,14 @@ function createExperienceRepository({ db, schema }) {
       return result.rows[0] || null;
     },
 
-    async findHeroSections() {
-      return db.findMany(schema.heroTable, {});
+    async findHeroSections(filters = {}) {
+      return db.findMany(schema.heroTable, filters);
     },
 
     async upsertHeroSection(sectionKey, data) {
       const result = await db.query(
         `INSERT INTO ${schema.heroTable} (
+          country,
           section_key,
           eyebrow_text,
           heading_line_1,
@@ -90,9 +95,9 @@ function createExperienceRepository({ db, schema }) {
           is_active
         )
         VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
         )
-        ON CONFLICT (section_key)
+        ON CONFLICT (country, section_key)
         DO UPDATE SET
           eyebrow_text = EXCLUDED.eyebrow_text,
           heading_line_1 = EXCLUDED.heading_line_1,
@@ -107,6 +112,7 @@ function createExperienceRepository({ db, schema }) {
           updated_at = NOW()
         RETURNING *`,
         [
+          data.country,
           sectionKey,
           data.eyebrow_text ?? null,
           data.heading_line_1 ?? null,

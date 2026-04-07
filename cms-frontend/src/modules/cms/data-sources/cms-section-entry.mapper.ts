@@ -195,8 +195,12 @@ class CmsSectionEntryMapper {
     return entries;
   }
 
-  public async mapSubPackageEntries(mainPath: string): Promise<CmsTableEntry[]> {
-    const mainPayload = await this.httpClient.get<unknown>(mainPath);
+  public async mapSubPackageEntries(
+    mainPath: string,
+    country: string | null = null,
+  ): Promise<CmsTableEntry[]> {
+    const options = country ? { params: { country } } : undefined;
+    const mainPayload = await this.httpClient.get<unknown>(mainPath, options);
     const mainPackages = this.accessor.toArray(mainPayload);
     const entries: CmsTableEntry[] = [];
 
@@ -207,7 +211,10 @@ class CmsSectionEntryMapper {
       }
 
       try {
-        const subPayload = await this.httpClient.get<unknown>(`${mainPath}/${mainId}/sub`);
+        const subPayload = await this.httpClient.get<unknown>(
+          `${mainPath}/${mainId}/sub`,
+          options,
+        );
         const subPackages = this.accessor.toArray(subPayload);
 
         for (const subPackage of subPackages) {
@@ -262,7 +269,7 @@ class CmsSectionEntryMapper {
         id,
         raw: record,
         row: new CmsTableRow(id, {
-          country: new CmsTableCell(this.accessor.getText(record, "title", "name")),
+          country: new CmsTableCell(this.accessor.getText(record, "country", "title", "name")),
           slug: new CmsTableCell(this.accessor.getText(record, "slug")),
           processingTime: new CmsTableCell(
             this.accessor.getText(record, "processingTime", "processing_time"),
@@ -295,8 +302,12 @@ class CmsSectionEntryMapper {
     return entries;
   }
 
-  public async mapVisaDetailEntries(visaBasePath: string): Promise<CmsTableEntry[]> {
-    const visaPayload = await this.httpClient.get<unknown>(visaBasePath);
+  public async mapVisaDetailEntries(
+    visaBasePath: string,
+    country: string | null = null,
+  ): Promise<CmsTableEntry[]> {
+    const options = country ? { params: { country } } : undefined;
+    const visaPayload = await this.httpClient.get<unknown>(visaBasePath, options);
     const visaDestinations = this.accessor.toArray(visaPayload);
     const entries: CmsTableEntry[] = [];
 

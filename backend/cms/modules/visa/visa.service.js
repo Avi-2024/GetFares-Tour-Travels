@@ -11,6 +11,7 @@ function createVisaService({ repository }) {
     if (!row) return null;
     return {
       id: row.id,
+      country: row.country,
       title: row.title,
       slug: row.slug,
       subtitle: row.subtitle,
@@ -69,6 +70,14 @@ function createVisaService({ repository }) {
 
     async create(data) {
       const slug = data.slug || toSlug(data.title);
+      const country = normalizeText(data.country);
+      if (!country) {
+        throw new AppError(
+          400,
+          "Country is required for visa destination",
+          "COUNTRY_REQUIRED",
+        );
+      }
 
       // Check if slug exists
       const existing = await repository.findBySlug(slug);
@@ -81,6 +90,7 @@ function createVisaService({ repository }) {
       }
 
       const row = await repository.create({
+        country,
         title: normalizeText(data.title),
         slug,
         subtitle: normalizeText(data.subtitle),
@@ -107,6 +117,13 @@ function createVisaService({ repository }) {
 
       const updates = {};
       if (data.title !== undefined) updates.title = normalizeText(data.title);
+      if (data.country !== undefined) {
+        const country = normalizeText(data.country);
+        if (!country) {
+          throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
+        }
+        updates.country = country;
+      }
       if (data.slug !== undefined) {
         const slug = toSlug(data.slug);
         const slugExists = await repository.findBySlug(slug);

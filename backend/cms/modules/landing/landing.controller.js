@@ -7,6 +7,9 @@ function createLandingController({ service, uploadService }) {
       if (req.query.active !== undefined) {
         filters.active = req.query.active === "true";
       }
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
 
       const places = await service.list(filters);
       res.json({
@@ -25,6 +28,9 @@ function createLandingController({ service, uploadService }) {
 
     create: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       if (req.file) {
         const uploaded = await uploadService.uploadSingle({
           file: req.file,
@@ -44,6 +50,9 @@ function createLandingController({ service, uploadService }) {
 
     update: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
+      if (!payload.country && req.query.country) {
+        payload.country = req.query.country;
+      }
       if (req.file) {
         const uploaded = await uploadService.uploadSingle({
           file: req.file,

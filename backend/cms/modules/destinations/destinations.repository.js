@@ -78,11 +78,13 @@ function createDestinationsRepository({ db, schema }) {
         `SELECT dpm.*, mp.display_order as package_display_order, mp.is_featured,
                 p.name, p.starting_price, p.duration, p.banner_image_url
          FROM ${schema.packagesMapTable} dpm
+         JOIN ${schema.tableName} d ON dpm.destination_id = d.id
          JOIN main_packages mp ON dpm.main_package_id = mp.id
          JOIN packages p ON mp.package_id = p.id
          WHERE dpm.destination_id = $1
            AND p.publish_to_website = true
            AND p.is_deleted = false
+           AND (mp.country IS NULL OR d.country IS NULL OR LOWER(mp.country) = LOWER(d.country))
          ORDER BY dpm.display_order`,
         [destinationId],
       );
@@ -91,6 +93,10 @@ function createDestinationsRepository({ db, schema }) {
 
     async createPackageMap(data) {
       return db.insert(schema.packagesMapTable, data);
+    },
+
+    async findMainPackageById(id) {
+      return db.findById("main_packages", id);
     },
 
     async deletePackageMap(id) {
