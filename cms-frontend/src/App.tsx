@@ -30,7 +30,7 @@ class App extends Component {
                 element={
                   <MainLayout
                     title={route.title}
-                    subtitle={route.subtitle}
+                    subtitle={route.subtitle} 
                     breadcrumb={route.breadcrumb}
                   >
                     <CmsSectionPage sectionKey={route.sectionKey} />

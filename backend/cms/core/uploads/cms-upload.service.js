@@ -36,7 +36,18 @@ function getPublicBaseUrl() {
   return `http://localhost:${port}`;
 }
 
-function createCmsUploadService({ s3, logger }) {
+function resolveLocalFallbackFlag(fallbackToLocal) {
+  if (typeof fallbackToLocal === "boolean") {
+    return fallbackToLocal;
+  }
+  return String(process.env.CMS_ALLOW_LOCAL_UPLOAD_FALLBACK || "")
+    .trim()
+    .toLowerCase() === "true";
+}
+
+function createCmsUploadService({ s3, logger, fallbackToLocal }) {
+  const allowLocalFallback = resolveLocalFallbackFlag(fallbackToLocal);
+
   async function uploadToLocal({ file, prefix, mediaType }) {
     const safePrefix = normalizePrefix(prefix);
     const date = new Date();
@@ -134,11 +145,27 @@ function createCmsUploadService({ s3, logger }) {
           originalName: file.originalname || null,
         };
       } catch (error) {
+        if (!allowLocalFallback) {
+          throw new AppError(
+            502,
+            "Failed to upload media to S3",
+            "CMS_S3_UPLOAD_FAILED",
+          );
+        }
+
         logger?.warn?.(
           { err: error, module: "cms-upload" },
           "S3 upload failed for CMS media. Falling back to local uploads",
         );
       }
+    }
+
+    if (!allowLocalFallback) {
+      throw new AppError(
+        500,
+        "CMS media storage fallback disabled. Configure S3 credentials.",
+        "CMS_STORAGE_NOT_CONFIGURED",
+      );
     }
 
     return uploadToLocal({ file, prefix, mediaType });
