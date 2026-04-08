@@ -9,6 +9,7 @@ function createLandingRoutes({ controller, upload }) {
     .get(controller.list)
     .post(upload.single("bannerImage"), controller.create);
   router.route("/reorder").patch(controller.reorder);
+  router.route(`/${uuidParam}/status`).patch(controller.updateStatus);
   router
     .route(`/${uuidParam}`)
     .get(controller.getById)

@@ -1,5 +1,5 @@
 import { Component, type ChangeEvent } from "react";
-import { ArrowDown, ArrowUp, ImagePlus, Star, Trash2, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, Star, Trash2, Upload } from "lucide-react";
 
 interface CmsEntityMediaEditorItem {
   id: string | null;
@@ -9,21 +9,16 @@ interface CmsEntityMediaEditorItem {
   title: string;
   altText: string;
   isPrimary: boolean;
+  pendingFile?: File | null;
+  previewUrl?: string;
 }
 
 interface CmsEntityMediaEditorProps {
   mediaItems: CmsEntityMediaEditorItem[];
-  mediaUrlDraft: string;
-  mediaTitleDraft: string;
-  mediaAltDraft: string;
   mediaErrorMessage: string;
   mediaInfoMessage?: string;
   isMediaUploading?: boolean;
-  onMediaUrlDraftChange: (value: string) => void;
-  onMediaTitleDraftChange: (value: string) => void;
-  onMediaAltDraftChange: (value: string) => void;
   onUploadMedia: (file: File) => Promise<void> | void;
-  onAddMedia: () => void;
   onSetCoverMedia: (clientId: string) => void;
   onMoveMediaUp: (index: number) => void;
   onMoveMediaDown: (index: number) => void;
@@ -42,16 +37,9 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
   render() {
     const {
       mediaItems,
-      mediaUrlDraft,
-      mediaTitleDraft,
-      mediaAltDraft,
       mediaErrorMessage,
       mediaInfoMessage,
       isMediaUploading = false,
-      onMediaUrlDraftChange,
-      onMediaTitleDraftChange,
-      onMediaAltDraftChange,
-      onAddMedia,
       onSetCoverMedia,
       onMoveMediaUp,
       onMoveMediaDown,
@@ -64,7 +52,7 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
             <Upload size={13} />
-            {isMediaUploading ? "Uploading..." : "Upload Image"}
+            {isMediaUploading ? "Selecting..." : "Add Image"}
             <input
               type="file"
               accept="image/*"
@@ -74,41 +62,8 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
             />
           </label>
           <p className="text-xs text-[var(--text-secondary)]">
-            Upload a local image, or paste a media URL manually.
+            Image preview shown here. Upload happens on Save.
           </p>
-        </div>
-
-        <div className="mt-3 grid gap-2 md:grid-cols-[1.5fr_1fr_1fr_auto]">
-          <input
-            type="url"
-            value={mediaUrlDraft}
-            onChange={(event) => onMediaUrlDraftChange(event.target.value)}
-            placeholder="https://..."
-            className="h-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--text-primary)]"
-          />
-          <input
-            type="text"
-            value={mediaTitleDraft}
-            onChange={(event) => onMediaTitleDraftChange(event.target.value)}
-            placeholder="Filename"
-            className="h-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--text-primary)]"
-          />
-          <input
-            type="text"
-            value={mediaAltDraft}
-            onChange={(event) => onMediaAltDraftChange(event.target.value)}
-            placeholder="Alt text"
-            className="h-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--text-primary)]"
-          />
-          <button
-            type="button"
-            onClick={onAddMedia}
-            disabled={isMediaUploading}
-            className="inline-flex h-10 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] px-3 text-xs font-semibold text-white"
-          >
-            <ImagePlus size={13} />
-            Add
-          </button>
         </div>
 
         {mediaInfoMessage && !mediaErrorMessage && (
@@ -128,7 +83,10 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
                 className="h-24 w-full rounded-xl object-cover"
               />
               <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                <span>#{index + 1}</span>
+                <span>
+                  #{index + 1}
+                  {item.pendingFile ? " (new)" : ""}
+                </span>
                 {item.isPrimary && (
                   <span className="inline-flex items-center gap-1 text-[var(--success)]">
                     <Star size={11} />

@@ -9,6 +9,7 @@ function createVisaRoutes({ controller, upload }) {
     .get(controller.list)
     .post(upload.single("bannerImage"), controller.create);
   router.route("/slug/:slug").get(controller.getBySlug);
+  router.route("/:id/status").patch(controller.updateStatus);
   router
     .route("/:id")
     .get(controller.getById)

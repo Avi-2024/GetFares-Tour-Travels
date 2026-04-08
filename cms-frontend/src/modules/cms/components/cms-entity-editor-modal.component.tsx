@@ -33,13 +33,12 @@ interface CmsEntityEditorModalState {
   formValues: Record<string, unknown>;
   formErrors: Record<string, string>;
   formUploadErrorMessage: string;
+  fieldImageFiles: Record<string, File | null>;
+  fieldImagePreviews: Record<string, string>;
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
   relationSearch: Record<string, string>;
   mediaItems: CmsEntityMediaEditorItem[];
   removedMediaIds: string[];
-  mediaUrlDraft: string;
-  mediaTitleDraft: string;
-  mediaAltDraft: string;
   mediaErrorMessage: string;
   mediaInfoMessage: string;
   slugTouched: boolean;
@@ -61,6 +60,8 @@ class CmsEntityEditorModalComponent extends Component<
     formValues: {},
     formErrors: {},
     formUploadErrorMessage: "",
+    fieldImageFiles: {},
+    fieldImagePreviews: {},
     relationOptions: {
       destinations: [],
       "published-packages": [],
@@ -71,9 +72,6 @@ class CmsEntityEditorModalComponent extends Component<
     relationSearch: {},
     mediaItems: [],
     removedMediaIds: [],
-    mediaUrlDraft: "",
-    mediaTitleDraft: "",
-    mediaAltDraft: "",
     mediaErrorMessage: "",
     mediaInfoMessage: "",
     slugTouched: false,
@@ -96,6 +94,25 @@ class CmsEntityEditorModalComponent extends Component<
     if (shouldReinitialize) {
       void this.initialize();
     }
+  }
+
+  componentWillUnmount(): void {
+    this.revokeAllPreviewUrls();
+  }
+
+  private revokeBlobUrl(url?: string): void {
+    if (url && url.startsWith("blob:")) {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  private revokeAllPreviewUrls(): void {
+    Object.values(this.state.fieldImagePreviews).forEach((url) =>
+      this.revokeBlobUrl(url),
+    );
+    this.state.mediaItems.forEach((item) =>
+      this.revokeBlobUrl(item.previewUrl),
+    );
   }
 
   private slugify(value: string): string {
@@ -255,6 +272,8 @@ class CmsEntityEditorModalComponent extends Component<
       });
     }
 
+    this.revokeAllPreviewUrls();
+
     this.setState({
       isBootstrapping: true,
       isMediaUploading: false,
@@ -262,6 +281,8 @@ class CmsEntityEditorModalComponent extends Component<
       formValues,
       formErrors: {},
       formUploadErrorMessage: "",
+      fieldImageFiles: {},
+      fieldImagePreviews: {},
       mediaItems: [],
       removedMediaIds: [],
       mediaErrorMessage: "",
@@ -293,6 +314,8 @@ class CmsEntityEditorModalComponent extends Component<
         title: item.title || "",
         altText: item.altText || "",
         isPrimary: item.isPrimary,
+        pendingFile: null,
+        previewUrl: undefined,
       }));
       this.setState({ mediaItems: mapped });
     }
@@ -349,27 +372,38 @@ class CmsEntityEditorModalComponent extends Component<
   ): Promise<void> => {
     if (!file.type.startsWith("image/")) {
       this.setState({
-        formUploadErrorMessage: "Only image files are supported for upload.",
+        formUploadErrorMessage: "Only image files are supported.",
       });
       return;
     }
 
-    this.setState({
-      uploadingFieldKey: field.key,
-      formUploadErrorMessage: "",
-    });
-
-    try {
-      const uploadedUrl = await this.cmsService.uploadMedia(file);
-      this.onFieldChange(field, uploadedUrl);
-      this.setState({ uploadingFieldKey: null });
-    } catch (error) {
-      this.setState({
+    const previewUrl = URL.createObjectURL(file);
+    this.setState((prev) => {
+      this.revokeBlobUrl(prev.fieldImagePreviews[field.key]);
+      return {
         uploadingFieldKey: null,
-        formUploadErrorMessage:
-          error instanceof Error ? error.message : "Image upload failed.",
-      });
-    }
+        formUploadErrorMessage: "",
+        formErrors: { ...prev.formErrors, [field.key]: "" },
+        fieldImageFiles: { ...prev.fieldImageFiles, [field.key]: file },
+        fieldImagePreviews: { ...prev.fieldImagePreviews, [field.key]: previewUrl },
+      };
+    });
+  };
+
+  private onFieldImageClear = (field: CmsEntityFieldDefinition): void => {
+    this.setState((prev) => {
+      this.revokeBlobUrl(prev.fieldImagePreviews[field.key]);
+      const nextFiles = { ...prev.fieldImageFiles };
+      const nextPreviews = { ...prev.fieldImagePreviews };
+      delete nextFiles[field.key];
+      delete nextPreviews[field.key];
+
+      return {
+        fieldImageFiles: nextFiles,
+        fieldImagePreviews: nextPreviews,
+        formValues: { ...prev.formValues, [field.key]: "" },
+      };
+    });
   };
 
   private validate(): boolean {
@@ -377,12 +411,15 @@ class CmsEntityEditorModalComponent extends Component<
     const result = this.validator.validate({
       fields: definition.fields,
       formValues: this.state.formValues,
+      imageFieldFiles: this.state.fieldImageFiles,
     });
     this.setState({ formErrors: result.errors });
     return result.isValid;
   }
 
-  private createPayload(): Record<string, unknown> {
+  private createPayload(
+    mediaItemsOverride?: CmsEntityMediaEditorItem[],
+  ): Record<string, unknown> {
     const payload: Record<string, unknown> = {};
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     definition.fields.forEach((field) => {
@@ -393,7 +430,8 @@ class CmsEntityEditorModalComponent extends Component<
         payload[field.key] = value;
       }
     });
-    const primary = this.state.mediaItems.find((item) => item.isPrimary) ?? this.state.mediaItems[0];
+    const mediaItems = mediaItemsOverride ?? this.state.mediaItems;
+    const primary = mediaItems.find((item) => item.isPrimary) ?? mediaItems[0];
     if (primary) {
       if (this.props.sectionKey === "landing-places") payload.imageUrl = primary.mediaUrl;
       if (this.props.sectionKey === "destinations") {
@@ -406,7 +444,7 @@ class CmsEntityEditorModalComponent extends Component<
       }
       if (this.props.sectionKey === "published-packages") {
         payload.bannerImageUrl = primary.mediaUrl;
-        payload.galleryImageUrls = this.state.mediaItems.map(
+        payload.galleryImageUrls = mediaItems.map(
           (item) => item.mediaUrl,
         );
       }
@@ -414,6 +452,60 @@ class CmsEntityEditorModalComponent extends Component<
       if (this.props.sectionKey === "destination-map") payload.imageUrl = primary.mediaUrl;
     }
     return payload;
+  }
+
+  private async uploadPendingMediaFiles(): Promise<CmsEntityMediaEditorItem[]> {
+    if (!CmsEntityFormCatalog.get(this.props.sectionKey).mediaEnabled) {
+      return this.state.mediaItems;
+    }
+
+    const pendingItems = this.state.mediaItems.filter((item) => item.pendingFile);
+    if (!pendingItems.length) {
+      return this.state.mediaItems;
+    }
+
+    const nextItems: CmsEntityMediaEditorItem[] = [];
+    for (const item of this.state.mediaItems) {
+      if (!item.pendingFile) {
+        nextItems.push(item);
+        continue;
+      }
+
+      const uploadedUrl = await this.cmsService.uploadMedia(item.pendingFile);
+      this.revokeBlobUrl(item.previewUrl);
+      nextItems.push({
+        ...item,
+        mediaUrl: uploadedUrl,
+        thumbnailUrl: uploadedUrl,
+        pendingFile: null,
+        previewUrl: undefined,
+      });
+    }
+
+    this.setState({ mediaItems: nextItems });
+    return nextItems;
+  }
+
+  private async uploadPendingFieldImages(
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const nextPayload = { ...payload };
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    for (const field of definition.fields) {
+      if (field.type !== "url") {
+        continue;
+      }
+      if (!/image|thumbnail|hero|banner/i.test(field.key)) {
+        continue;
+      }
+      const pendingFile = this.state.fieldImageFiles[field.key];
+      if (!pendingFile) {
+        continue;
+      }
+      const uploadedUrl = await this.cmsService.uploadMedia(pendingFile);
+      nextPayload[field.key] = uploadedUrl;
+    }
+    return nextPayload;
   }
 
   private async syncMedia(entityId: string): Promise<void> {
@@ -425,9 +517,16 @@ class CmsEntityEditorModalComponent extends Component<
     }
     for (let index = 0; index < this.state.mediaItems.length; index += 1) {
       const item = this.state.mediaItems[index];
+      let mediaUrl = item.mediaUrl;
+      let thumbnailUrl = item.thumbnailUrl || item.mediaUrl;
+      if (item.pendingFile) {
+        const uploadedUrl = await this.cmsService.uploadMedia(item.pendingFile);
+        mediaUrl = uploadedUrl;
+        thumbnailUrl = uploadedUrl;
+      }
       const payload = {
-        mediaUrl: item.mediaUrl,
-        thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+        mediaUrl,
+        thumbnailUrl,
         title: item.title,
         altText: item.altText,
         isPrimary: item.isPrimary,
@@ -459,46 +558,50 @@ class CmsEntityEditorModalComponent extends Component<
 
   private onSubmit = async (): Promise<void> => {
     if (!this.validate()) return;
-    const payload = this.createPayload();
-    const requiresPrimaryImageOnCreate =
-      this.props.mode === "create" &&
-      (this.props.sectionKey === "visa-destinations" ||
-        this.props.sectionKey === "creative-toolkit");
-
-    if (
-      requiresPrimaryImageOnCreate &&
-      this.toNonEmptyString(payload.imageUrl).length === 0
-    ) {
-      this.setState((prev) => ({
-        mediaErrorMessage:
-          "Primary image is required. Upload/add media or provide an image URL.",
-        formErrors:
-          this.props.sectionKey === "visa-destinations" ?
-            {
-              ...prev.formErrors,
-              imageUrl: "Image URL is required when no media is selected.",
-            }
-          : prev.formErrors,
-      }));
-      return;
-    }
-
-    if (
-      this.props.sectionKey === "published-packages" &&
-      this.toBooleanValue(payload.publishToWebsite) &&
-      this.toNonEmptyString(payload.websiteSlug).length === 0
-    ) {
-      this.setState((prev) => ({
-        formErrors: {
-          ...prev.formErrors,
-          websiteSlug: "Website Slug is required when Publish To Website is enabled.",
-        },
-      }));
-      return;
-    }
-
     this.setState({ isSubmitting: true, mediaErrorMessage: "" });
     try {
+      const uploadedMediaItems = await this.uploadPendingMediaFiles();
+      let payload = this.createPayload(uploadedMediaItems);
+      payload = await this.uploadPendingFieldImages(payload);
+
+      const requiresPrimaryImageOnCreate =
+        this.props.mode === "create" &&
+        (this.props.sectionKey === "visa-destinations" ||
+          this.props.sectionKey === "creative-toolkit");
+
+      if (
+        requiresPrimaryImageOnCreate &&
+        this.toNonEmptyString(payload.imageUrl).length === 0
+      ) {
+        this.setState((prev) => ({
+          isSubmitting: false,
+          mediaErrorMessage: "Primary image is required.",
+          formErrors:
+            this.props.sectionKey === "visa-destinations" ?
+              {
+                ...prev.formErrors,
+                imageUrl: "Image is required.",
+              }
+            : prev.formErrors,
+        }));
+        return;
+      }
+
+      if (
+        this.props.sectionKey === "published-packages" &&
+        this.toBooleanValue(payload.publishToWebsite) &&
+        this.toNonEmptyString(payload.websiteSlug).length === 0
+      ) {
+        this.setState((prev) => ({
+          isSubmitting: false,
+          formErrors: {
+            ...prev.formErrors,
+            websiteSlug: "Website Slug is required when Publish To Website is enabled.",
+          },
+        }));
+        return;
+      }
+
       if (this.props.mode === "create") {
         const created = await this.cmsService.create(this.props.sectionKey, payload);
         const entityId =
@@ -516,6 +619,7 @@ class CmsEntityEditorModalComponent extends Component<
         await this.syncMedia(this.props.entry.id);
         await this.props.onSaved("Record updated successfully.");
       }
+      this.revokeAllPreviewUrls();
       this.setState({ isSubmitting: false });
       this.props.onClose();
     } catch (error) {
@@ -526,22 +630,10 @@ class CmsEntityEditorModalComponent extends Component<
     }
   };
 
-  private onMediaUrlDraftChange = (value: string): void => {
-    this.setState({ mediaUrlDraft: value, mediaErrorMessage: "", mediaInfoMessage: "" });
-  };
-
-  private onMediaTitleDraftChange = (value: string): void => {
-    this.setState({ mediaTitleDraft: value, mediaErrorMessage: "", mediaInfoMessage: "" });
-  };
-
-  private onMediaAltDraftChange = (value: string): void => {
-    this.setState({ mediaAltDraft: value, mediaErrorMessage: "", mediaInfoMessage: "" });
-  };
-
   private onUploadMedia = async (file: File): Promise<void> => {
     if (!file.type.startsWith("image/")) {
       this.setState({
-        mediaErrorMessage: "Only image files are supported for media upload.",
+        mediaErrorMessage: "Only image files are supported.",
         mediaInfoMessage: "",
       });
       return;
@@ -554,8 +646,8 @@ class CmsEntityEditorModalComponent extends Component<
     });
 
     try {
-      const uploadedUrl = await this.cmsService.uploadMedia(file);
       const defaultLabel = this.toDefaultMediaLabel(file.name);
+      const previewUrl = URL.createObjectURL(file);
 
       this.setState((prev) => ({
         isMediaUploading: false,
@@ -564,54 +656,26 @@ class CmsEntityEditorModalComponent extends Component<
           {
             id: null,
             clientId: this.createClientId(),
-            mediaUrl: uploadedUrl,
-            thumbnailUrl: uploadedUrl,
+            mediaUrl: previewUrl,
+            thumbnailUrl: previewUrl,
             title: defaultLabel,
             altText: defaultLabel,
             isPrimary: prev.mediaItems.length === 0,
+            pendingFile: file,
+            previewUrl,
           },
         ],
         mediaErrorMessage: "",
-        mediaInfoMessage: `${file.name} uploaded successfully.`,
+        mediaInfoMessage: `${file.name} selected. Upload on save.`,
       }));
     } catch (error) {
       this.setState({
         isMediaUploading: false,
         mediaInfoMessage: "",
         mediaErrorMessage:
-          error instanceof Error ? error.message : "Media upload failed.",
+          error instanceof Error ? error.message : "Media selection failed.",
       });
     }
-  };
-
-  private onAddMedia = (): void => {
-    const url = this.state.mediaUrlDraft.trim();
-    if (!url) {
-      this.setState({
-        mediaErrorMessage: "Media URL is required.",
-        mediaInfoMessage: "",
-      });
-      return;
-    }
-
-    const item: CmsEntityMediaEditorItem = {
-      id: null,
-      clientId: this.createClientId(),
-      mediaUrl: url,
-      thumbnailUrl: url,
-      title: this.state.mediaTitleDraft.trim(),
-      altText: this.state.mediaAltDraft.trim(),
-      isPrimary: this.state.mediaItems.length === 0,
-    };
-
-    this.setState((prev) => ({
-      mediaItems: [...prev.mediaItems, item],
-      mediaUrlDraft: "",
-      mediaTitleDraft: "",
-      mediaAltDraft: "",
-      mediaErrorMessage: "",
-      mediaInfoMessage: "",
-    }));
   };
 
   private onSetCoverMedia = (clientId: string): void => {
@@ -650,6 +714,7 @@ class CmsEntityEditorModalComponent extends Component<
   };
 
   private onRemoveMedia = (item: CmsEntityMediaEditorItem): void => {
+    this.revokeBlobUrl(item.previewUrl);
     this.setState((prev) => ({
       mediaItems: prev.mediaItems.filter((media) => media.clientId !== item.clientId),
       removedMediaIds: item.id ? [...prev.removedMediaIds, item.id] : prev.removedMediaIds,
@@ -684,10 +749,12 @@ class CmsEntityEditorModalComponent extends Component<
             definition={definition}
             formValues={this.state.formValues}
             formErrors={this.state.formErrors}
+            imageFieldPreviews={this.state.fieldImagePreviews}
             relationOptions={this.state.relationOptions}
             relationSearch={this.state.relationSearch}
             onFieldChange={this.onFieldChange}
             onFieldFileUpload={this.onFieldFileUpload}
+            onFieldImageClear={this.onFieldImageClear}
             uploadingFieldKey={this.state.uploadingFieldKey}
             onRelationSearchChange={(fieldKey, value) =>
               this.setState((prev) => ({
@@ -699,17 +766,10 @@ class CmsEntityEditorModalComponent extends Component<
           {definition.mediaEnabled && (
             <CmsEntityMediaEditorComponent
               mediaItems={this.state.mediaItems}
-              mediaUrlDraft={this.state.mediaUrlDraft}
-              mediaTitleDraft={this.state.mediaTitleDraft}
-              mediaAltDraft={this.state.mediaAltDraft}
               mediaErrorMessage={this.state.mediaErrorMessage}
               mediaInfoMessage={this.state.mediaInfoMessage}
               isMediaUploading={this.state.isMediaUploading}
-              onMediaUrlDraftChange={this.onMediaUrlDraftChange}
-              onMediaTitleDraftChange={this.onMediaTitleDraftChange}
-              onMediaAltDraftChange={this.onMediaAltDraftChange}
               onUploadMedia={this.onUploadMedia}
-              onAddMedia={this.onAddMedia}
               onSetCoverMedia={this.onSetCoverMedia}
               onMoveMediaUp={this.onMoveMediaUp}
               onMoveMediaDown={this.onMoveMediaDown}

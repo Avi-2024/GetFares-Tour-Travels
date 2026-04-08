@@ -16,8 +16,16 @@ function createCmsMediaRepository({ db, schema }) {
       return db.update(schema.tableName, id, data);
     },
 
+    async delete(id) {
+      const result = await db.query(
+        `DELETE FROM ${schema.tableName} WHERE id = $1 RETURNING *`,
+        [id],
+      );
+      return result.rows[0] || null;
+    },
+
     async deactivate(id) {
-      return db.update(schema.tableName, id, { is_active: false });
+      return this.delete(id);
     },
   });
 }

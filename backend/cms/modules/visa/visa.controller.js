@@ -79,6 +79,17 @@ function createVisaController({ service, uploadService }) {
       });
     }),
 
+    updateStatus: asyncHandler(async (req, res) => {
+      const visaDestination = await service.updateStatus(
+        req.params.id,
+        req.body?.isActive,
+      );
+      res.json({
+        success: true,
+        data: visaDestination,
+      });
+    }),
+
     delete: asyncHandler(async (req, res) => {
       const result = await service.delete(req.params.id);
       res.json(result);

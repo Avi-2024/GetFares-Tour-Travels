@@ -159,6 +159,18 @@ function createVisaService({ repository }) {
       return toVisaDestination(updated);
     },
 
+    async updateStatus(id, isActive) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Visa destination not found", "NOT_FOUND");
+      }
+
+      const updated = await repository.update(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      return toVisaDestination(updated);
+    },
+
     async delete(id) {
       const existing = await repository.findById(id);
       if (!existing) {

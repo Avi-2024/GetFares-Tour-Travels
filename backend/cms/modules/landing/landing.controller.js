@@ -70,6 +70,14 @@ function createLandingController({ service, uploadService }) {
       });
     }),
 
+    updateStatus: asyncHandler(async (req, res) => {
+      const place = await service.updateStatus(req.params.id, req.body?.isActive);
+      res.json({
+        success: true,
+        data: place,
+      });
+    }),
+
     delete: asyncHandler(async (req, res) => {
       const result = await service.delete(req.params.id);
       res.json(result);

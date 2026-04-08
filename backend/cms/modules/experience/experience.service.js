@@ -211,13 +211,25 @@ function createExperienceService({ repository }) {
       return toFeaturedPick(row);
     },
 
+    async updateFeaturedPickStatus(id, isActive) {
+      const existing = await repository.findFeaturedPickById(id);
+      if (!existing) {
+        throw new AppError(404, "Featured pick not found", "NOT_FOUND");
+      }
+
+      const row = await repository.updateFeaturedPick(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      return toFeaturedPick(row);
+    },
+
     async deleteFeaturedPick(id) {
       const existing = await repository.findFeaturedPickById(id);
       if (!existing) {
         throw new AppError(404, "Featured pick not found", "NOT_FOUND");
       }
 
-      await repository.deactivateFeaturedPick(id);
+      await repository.deleteFeaturedPick(id);
       return { success: true };
     },
 
@@ -291,6 +303,18 @@ function createExperienceService({ repository }) {
       }
 
       const row = await repository.updateSeasonCard(id, updates);
+      return toSeasonCard(row);
+    },
+
+    async updateSeasonCardStatus(id, isActive) {
+      const existing = await repository.findSeasonCardById(id);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      const row = await repository.updateSeasonCard(id, {
+        is_active: toBoolean(isActive, true),
+      });
       return toSeasonCard(row);
     },
 

@@ -10,6 +10,7 @@ interface CmsEntityFormGroupsProps {
   definition: CmsEntityFormDefinition;
   formValues: Record<string, unknown>;
   formErrors: Record<string, string>;
+  imageFieldPreviews?: Record<string, string>;
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
   relationSearch: Record<string, string>;
   onFieldChange: (field: CmsEntityFieldDefinition, nextValue: unknown) => void;
@@ -18,6 +19,7 @@ interface CmsEntityFormGroupsProps {
     field: CmsEntityFieldDefinition,
     file: File,
   ) => Promise<void> | void;
+  onFieldImageClear?: (field: CmsEntityFieldDefinition) => void;
   uploadingFieldKey?: string | null;
 }
 
@@ -61,6 +63,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
       formValues,
       relationOptions,
       relationSearch,
+      imageFieldPreviews = {},
       uploadingFieldKey = null,
       onFieldChange,
       onRelationSearchChange,
@@ -117,26 +120,46 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
     }
 
     if (field.type === "url" && this.isImageField(field)) {
+      const previewUrl =
+        imageFieldPreviews[field.key] || String(value ?? "").trim();
+
       return (
         <div className="space-y-2">
-          <input
-            type="url"
-            value={String(value ?? "")}
-            onChange={(event) => onFieldChange(field, event.target.value)}
-            className={className}
-          />
-          {this.props.onFieldFileUpload && (
-            <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold normal-case tracking-normal text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
-              {uploadingFieldKey === field.key ? "Uploading..." : "Upload Image"}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={uploadingFieldKey === field.key}
-                onChange={(event) => this.onFileChange(field, event)}
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+            {previewUrl ?
+              <img
+                src={previewUrl}
+                alt={field.label}
+                className="h-36 w-full object-cover"
               />
-            </label>
-          )}
+            : <div className="flex h-36 items-center justify-center text-xs font-medium text-[var(--text-secondary)]">
+                No image selected
+              </div>
+            }
+            <div className="flex items-center gap-2 border-t border-[var(--border)] p-2">
+              {this.props.onFieldFileUpload && (
+                <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold normal-case tracking-normal text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
+                  {uploadingFieldKey === field.key ? "Selecting..." : previewUrl ? "Replace Image" : "Choose Image"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingFieldKey === field.key}
+                    onChange={(event) => this.onFileChange(field, event)}
+                  />
+                </label>
+              )}
+              {this.props.onFieldImageClear && (
+                <button
+                  type="button"
+                  onClick={() => this.props.onFieldImageClear?.(field)}
+                  className="inline-flex h-9 items-center justify-center rounded-xl border border-[var(--border)] px-3 text-xs font-semibold normal-case tracking-normal text-[var(--text-secondary)]"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       );
     }

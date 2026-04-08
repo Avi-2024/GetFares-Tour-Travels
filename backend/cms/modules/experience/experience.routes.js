@@ -13,6 +13,12 @@ function createExperienceRoutes({ controller, upload }) {
     .post(upload.single("bannerImage"), controller.createFeaturedPick);
 
   router
+    .route("/featured-picks/:id/status")
+    .patch(controller.updateFeaturedPickStatus);
+  router
+    .route("/creative-toolkit/:id/status")
+    .patch(controller.updateFeaturedPickStatus);
+  router
     .route("/featured-picks/:id")
     .get(controller.getFeaturedPickById)
     .put(upload.single("bannerImage"), controller.updateFeaturedPick)
@@ -28,6 +34,9 @@ function createExperienceRoutes({ controller, upload }) {
     .get(controller.listSeasonCards)
     .post(upload.single("bannerImage"), controller.createSeasonCard);
 
+  router
+    .route("/season-cards/:id/status")
+    .patch(controller.updateSeasonCardStatus);
   router
     .route("/season-cards/:id")
     .get(controller.getSeasonCardById)

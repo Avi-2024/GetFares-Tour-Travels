@@ -93,13 +93,25 @@ function createCmsMediaService({ repository }) {
       return toMediaAsset(row);
     },
 
+    async updateStatus(id, isActive) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Media asset not found", "NOT_FOUND");
+      }
+
+      const row = await repository.update(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      return toMediaAsset(row);
+    },
+
     async delete(id) {
       const existing = await repository.findById(id);
       if (!existing) {
         throw new AppError(404, "Media asset not found", "NOT_FOUND");
       }
 
-      await repository.deactivate(id);
+      await repository.delete(id);
       return { success: true };
     },
   });

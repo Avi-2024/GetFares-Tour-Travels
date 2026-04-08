@@ -62,6 +62,14 @@ function createExperienceController({ service, uploadService }) {
       res.json({ success: true, data: row });
     }),
 
+    updateFeaturedPickStatus: asyncHandler(async (req, res) => {
+      const row = await service.updateFeaturedPickStatus(
+        req.params.id,
+        req.body?.isActive,
+      );
+      res.json({ success: true, data: row });
+    }),
+
     deleteFeaturedPick: asyncHandler(async (req, res) => {
       const result = await service.deleteFeaturedPick(req.params.id);
       res.json(result);
@@ -114,6 +122,14 @@ function createExperienceController({ service, uploadService }) {
         payload.imageUrl = uploaded?.url || payload.imageUrl;
       }
       const row = await service.updateSeasonCard(req.params.id, payload);
+      res.json({ success: true, data: row });
+    }),
+
+    updateSeasonCardStatus: asyncHandler(async (req, res) => {
+      const row = await service.updateSeasonCardStatus(
+        req.params.id,
+        req.body?.isActive,
+      );
       res.json({ success: true, data: row });
     }),
 

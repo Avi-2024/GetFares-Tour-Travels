@@ -132,6 +132,18 @@ function createLandingService({ repository }) {
       return toLandingPlace(updated);
     },
 
+    async updateStatus(id, isActive) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Landing place not found", "NOT_FOUND");
+      }
+
+      const updated = await repository.update(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      return toLandingPlace(updated);
+    },
+
     async delete(id) {
       const existing = await repository.findById(id);
       if (!existing) {

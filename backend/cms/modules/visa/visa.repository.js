@@ -78,7 +78,11 @@ function createVisaRepository({ db, schema }) {
     },
 
     async delete(id) {
-      return db.update(schema.tableName, id, { is_active: false });
+      const result = await db.query(
+        `DELETE FROM ${schema.tableName} WHERE id = $1 RETURNING *`,
+        [id],
+      );
+      return result.rows[0] || null;
     },
 
     // Details methods

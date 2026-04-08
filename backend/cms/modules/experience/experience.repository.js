@@ -16,8 +16,16 @@ function createExperienceRepository({ db, schema }) {
       return db.update(schema.featuredTable, id, data);
     },
 
+    async deleteFeaturedPick(id) {
+      const result = await db.query(
+        `DELETE FROM ${schema.featuredTable} WHERE id = $1 RETURNING *`,
+        [id],
+      );
+      return result.rows[0] || null;
+    },
+
     async deactivateFeaturedPick(id) {
-      return db.update(schema.featuredTable, id, { is_active: false });
+      return this.deleteFeaturedPick(id);
     },
 
     async findSeasonCards(filters = {}) {
