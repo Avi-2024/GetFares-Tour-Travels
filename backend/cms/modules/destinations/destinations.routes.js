@@ -9,7 +9,12 @@ function createDestinationsRoutes({ controller, upload }) {
 
   router.route("/").get(controller.list).post(destinationUpload, controller.create);
   router.route("/slug/:slug").get(controller.getBySlug);
-  router.route("/:id").get(controller.getById).put(destinationUpload, controller.update);
+  router
+    .route("/:id")
+    .get(controller.getById)
+    .put(destinationUpload, controller.update)
+    .delete(controller.delete);
+  router.route("/:id/status").patch(controller.updateStatus);
 
   router
     .route("/:id/media")

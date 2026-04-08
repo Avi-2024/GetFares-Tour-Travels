@@ -127,6 +127,7 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().optional(),
   AWS_S3_BUCKET_NAME: z.string().optional(),
+  AWS_S3_BUCKET: z.string().optional(),
   AWS_S3_PUBLIC_READ: z.coerce.boolean().optional(),
   AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
   AWS_S3_UPLOAD_PREFIX: z.string().optional(),

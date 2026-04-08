@@ -35,7 +35,7 @@ const config = Object.freeze({
   storage: {
     type: process.env.STORAGE_TYPE || "local", // 'local' or 's3'
     s3: {
-      bucket: process.env.AWS_S3_BUCKET,
+      bucket: process.env.AWS_S3_BUCKET || process.env.AWS_S3_BUCKET_NAME,
       region: process.env.AWS_REGION || "us-east-1",
       accessKeyId: process.env.AWS_ACCESS_KEY_ID,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,

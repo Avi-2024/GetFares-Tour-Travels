@@ -20,6 +20,14 @@ function createDestinationsRepository({ db, schema }) {
       return db.update(schema.tableName, id, data);
     },
 
+    async delete(id) {
+      const result = await db.query(
+        `DELETE FROM ${schema.tableName} WHERE id = $1 RETURNING *`,
+        [id],
+      );
+      return result.rows[0] || null;
+    },
+
     async findMedia(destinationId, filters = {}) {
       return db.findMany(schema.mediaTable, {
         destination_id: destinationId,

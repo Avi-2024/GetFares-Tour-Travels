@@ -145,10 +145,14 @@ function createCmsUploadService({ s3, logger, fallbackToLocal }) {
           originalName: file.originalname || null,
         };
       } catch (error) {
+        logger?.error?.(
+          { err: error, module: "cms-upload" },
+          "S3 upload failed for CMS media",
+        );
         if (!allowLocalFallback) {
           throw new AppError(
             502,
-            "Failed to upload media to S3",
+            `Failed to upload media to S3${error?.message ? `: ${error.message}` : ""}`,
             "CMS_S3_UPLOAD_FAILED",
           );
         }

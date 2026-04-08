@@ -131,6 +131,22 @@ function createDestinationsController({ service, uploadService }) {
       });
     }),
 
+    updateStatus: asyncHandler(async (req, res) => {
+      const destination = await service.updateStatus(
+        req.params.id,
+        req.body?.isActive,
+      );
+      res.json({
+        success: true,
+        data: destination,
+      });
+    }),
+
+    delete: asyncHandler(async (req, res) => {
+      const result = await service.delete(req.params.id);
+      res.json(result);
+    }),
+
     // Media endpoints
     getMedia: asyncHandler(async (req, res) => {
       const media = await service.getMedia(req.params.id);

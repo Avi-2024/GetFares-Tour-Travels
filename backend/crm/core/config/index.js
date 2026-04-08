@@ -84,7 +84,7 @@ const config = Object.freeze({
     accessKeyId: env.AWS_ACCESS_KEY_ID,
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
     region: env.AWS_REGION,
-    bucket: env.AWS_S3_BUCKET_NAME,
+    bucket: env.AWS_S3_BUCKET_NAME || env.AWS_S3_BUCKET,
     publicRead: env.AWS_S3_PUBLIC_READ ?? false,
     publicBaseUrl: env.AWS_S3_PUBLIC_BASE_URL,
     uploadPrefix: env.AWS_S3_UPLOAD_PREFIX,

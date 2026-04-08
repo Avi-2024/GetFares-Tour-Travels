@@ -188,6 +188,28 @@ function createDestinationsService({ repository }) {
       return toDestination(updated);
     },
 
+    async updateStatus(id, isActive) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      const updated = await repository.update(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      return toDestination(updated);
+    },
+
+    async delete(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      await repository.delete(id);
+      return { success: true };
+    },
+
     async getMedia(destinationId) {
       await this.getById(destinationId);
       const rows = await repository.findMedia(destinationId);
