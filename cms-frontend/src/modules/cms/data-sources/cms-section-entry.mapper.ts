@@ -116,6 +116,15 @@ class CmsSectionEntryMapper {
         "publishToWebsite",
         "publish_to_website",
       );
+      const isSoldOut = this.accessor.getBoolean(record, "isSoldOut", "is_sold_out");
+      const statusLabel =
+        isSoldOut ? "Sold Out"
+        : isPublished ? "Published"
+        : "Draft";
+      const statusTone =
+        isSoldOut ? "warning"
+        : isPublished ? "success"
+        : "info";
 
       entries.push({
         id,
@@ -134,13 +143,12 @@ class CmsSectionEntryMapper {
               "price",
             ),
           ),
-          crmState: new CmsTableCell(
-            isPublished ? "Published" : "Draft",
-            isPublished ? "success" : "warning",
-          ),
+          crmState: new CmsTableCell(statusLabel, statusTone),
           syncAt: new CmsTableCell(this.accessor.getText(record, "updatedAt", "updated_at")),
         }),
         updatePath: `/cms/packages/published/${id}`,
+        deletePath: `/cms/packages/published/${id}`,
+        deleteMode: "delete",
         editableField: "publishToWebsite",
         readOnly: false,
       });

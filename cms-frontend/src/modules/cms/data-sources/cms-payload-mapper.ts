@@ -40,7 +40,24 @@ class CmsPayloadMapper {
     }
     if (sectionKey === "published-packages") {
       return {
+        name: payload.name,
+        destination: payload.destination,
+        duration: payload.duration,
+        startingPrice: payload.startingPrice,
+        inclusions: payload.inclusions,
+        exclusions: payload.exclusions,
+        hotelDetails: payload.hotelDetails,
+        validFrom: payload.validFrom,
+        validTo: payload.validTo,
+        packageCategory: payload.packageCategory,
+        status: payload.status,
         bannerImageUrl: payload.bannerImageUrl,
+        galleryImageUrls: payload.galleryImageUrls,
+        metaTitle: payload.metaTitle,
+        metaDescription: payload.metaDescription,
+        keywords: payload.keywords,
+        websiteSlug: payload.websiteSlug,
+        isSoldOut: payload.isSoldOut,
         publishToWebsite: payload.publishToWebsite,
       };
     }

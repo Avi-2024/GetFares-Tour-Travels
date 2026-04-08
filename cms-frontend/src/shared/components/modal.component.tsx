@@ -41,8 +41,8 @@ const ModalComponent = ({
   const dialogRef = useRef<HTMLElement | null>(null);
 
   const sizeClass =
-    size === "sm" ? "max-w-lg"
-    : size === "md" ? "max-w-5xl"
+    size === "sm" ? "max-w-2xl"
+    : size === "md" ? "max-w-4xl"
     : "max-w-5xl";
 
   const collectFocusableElements = (): HTMLElement[] => {
@@ -158,18 +158,28 @@ const ModalComponent = ({
               aria-labelledby={titleId}
               aria-describedby={description ? descriptionId : undefined}
               tabIndex={-1}
-              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className={ClassName.merge(
-                "relative z-10 flex w-full flex-col overflow-hidden rounded-2xl border border-(--border) bg-[color-mix(in_srgb,var(--surface)_95%,transparent)] shadow-2xl",
+                "relative z-10 flex h-[min(92vh,920px)] w-full flex-col overflow-hidden rounded-3xl border border-[color-mix(in_srgb,var(--border)_85%,transparent)] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] shadow-[0_28px_80px_color-mix(in_srgb,var(--primary)_18%,transparent)] sm:h-auto",
                 sizeClass,
                 className,
               )}
               onClick={(event) => event.stopPropagation()}
             >
-              <header className="sticky top-0 z-20 border-b border-(--border) bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--primary)_34%,transparent)_0%,color-mix(in_srgb,var(--accent)_20%,transparent)_44%,transparent_72%)] blur-2xl"
+              />
+
+              <motion.header
+                className="sticky top-0 z-20 border-b border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.04, duration: 0.18, ease: "easeOut" }}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 id={titleId} className="font-display text-xl font-semibold text-(--text-primary) ">
@@ -190,21 +200,29 @@ const ModalComponent = ({
                     <span aria-hidden="true">&times;</span>
                   </button>
                 </div>
-              </header>
+              </motion.header>
 
-              <div
+              <motion.div
                 className={ClassName.merge(
                   "hide-scrollbar max-h-[70vh] overflow-y-auto px-6 py-5 sm:px-8",
                   contentClassName,
                 )}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08, duration: 0.2, ease: "easeOut" }}
               >
                 {children}
-              </div>
+              </motion.div>
 
               {footer && (
-                <footer className="sticky bottom-0 z-20 border-t border-(--border) bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8">
+                <motion.footer
+                  className="sticky bottom-0 z-20 border-t border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.12, duration: 0.18, ease: "easeOut" }}
+                >
                   {footer}
-                </footer>
+                </motion.footer>
               )}
             </motion.section>
           </div>

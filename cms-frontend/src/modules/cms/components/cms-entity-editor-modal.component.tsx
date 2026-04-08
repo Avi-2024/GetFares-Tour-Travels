@@ -216,6 +216,13 @@ class CmsEntityEditorModalComponent extends Component<
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     const formValues: Record<string, unknown> = {};
     definition.fields.forEach((field) => {
+      if (field.defaultValue !== undefined) {
+        formValues[field.key] =
+          Array.isArray(field.defaultValue) ?
+            [...field.defaultValue]
+          : field.defaultValue;
+        return;
+      }
       if (field.type === "switch") {
         formValues[field.key] = true;
       } else if (field.type === "multi-select") {
@@ -330,7 +337,8 @@ class CmsEntityEditorModalComponent extends Component<
         formValues,
         formErrors: { ...prev.formErrors, [field.key]: "" },
         formUploadErrorMessage: "",
-        slugTouched: field.key === "slug" ? true : prev.slugTouched,
+        slugTouched:
+          field.key.toLowerCase().includes("slug") ? true : prev.slugTouched,
       };
     });
   };
@@ -471,6 +479,20 @@ class CmsEntityEditorModalComponent extends Component<
               imageUrl: "Image URL is required when no media is selected.",
             }
           : prev.formErrors,
+      }));
+      return;
+    }
+
+    if (
+      this.props.sectionKey === "published-packages" &&
+      this.toBooleanValue(payload.publishToWebsite) &&
+      this.toNonEmptyString(payload.websiteSlug).length === 0
+    ) {
+      this.setState((prev) => ({
+        formErrors: {
+          ...prev.formErrors,
+          websiteSlug: "Website Slug is required when Publish To Website is enabled.",
+        },
       }));
       return;
     }

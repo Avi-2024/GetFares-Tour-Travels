@@ -11,6 +11,8 @@ interface CmsSectionTableProps {
   isLoading: boolean;
   hasImageColumn: boolean;
   supportsCreate: boolean;
+  supportsEdit: boolean;
+  supportsDelete: boolean;
   dateColumnKeys: Set<string>;
   onCreate: () => void;
   onView: (entry: CmsTableEntry) => void;
@@ -92,6 +94,8 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
       isLoading,
       hasImageColumn,
       supportsCreate,
+      supportsEdit,
+      supportsDelete,
       onCreate,
       onView,
       onEdit,
@@ -179,14 +183,14 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                           {this.renderActionButton({
                             label: `Edit ${entryLabel}`,
                             title: "Edit",
-                            disabled: entry.readOnly,
+                            disabled: !supportsEdit || entry.readOnly,
                             onClick: () => onEdit(entry),
                             icon: <PencilLine size={14} />,
                           })}
                           {this.renderActionButton({
                             label: `Delete ${entryLabel}`,
                             title: "Delete",
-                            disabled: entry.readOnly,
+                            disabled: !supportsDelete || entry.readOnly,
                             tone: "danger",
                             onClick: () => onDelete(entry),
                             icon: <Trash2 size={14} />,

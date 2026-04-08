@@ -76,6 +76,20 @@ class CmsEntityViewModalComponent extends Component<
 
   private resolveStatus(value: string): { label: string; className: string } {
     const normalized = value.toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return {
+        label: "Active",
+        className:
+          "border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[var(--success)]",
+      };
+    }
+    if (normalized === "false" || normalized === "0") {
+      return {
+        label: "Inactive",
+        className:
+          "border-[color-mix(in_srgb,var(--text-secondary)_30%,transparent)] bg-[color-mix(in_srgb,var(--text-secondary)_12%,transparent)] text-[var(--text-secondary)]",
+      };
+    }
     if (
       normalized.includes("active") ||
       normalized.includes("published") ||
@@ -183,11 +197,17 @@ class CmsEntityViewModalComponent extends Component<
     const status = this.resolveStatus(statusValue);
     const description = definition.descriptionKey ? this.readValue(definition.descriptionKey) : "";
     const metadataItems = this.getMetadataItems();
+    const heroImageCandidates = [
+      this.state.mediaItems[0]?.mediaUrl,
+      this.readValue("imageUrl"),
+      this.readValue("heroImageUrl"),
+      this.readValue("thumbnailUrl"),
+      this.readValue("bannerImageUrl"),
+    ];
     const heroImage =
-      this.state.mediaItems[0]?.mediaUrl ||
-      this.readValue("imageUrl") ||
-      this.readValue("heroImageUrl") ||
-      this.readValue("thumbnailUrl");
+      heroImageCandidates.find(
+        (candidate) => Boolean(candidate && candidate !== "--"),
+      ) || "";
 
     return (
       <CmsModalShellComponent

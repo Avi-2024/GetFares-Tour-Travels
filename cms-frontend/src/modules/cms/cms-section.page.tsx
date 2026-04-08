@@ -225,6 +225,11 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
   };
 
   private openDeleteModal = (entry: CmsTableEntry): void => {
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    if (!definition.supportsDelete) {
+      this.setError("Delete operation is not supported for this section.");
+      return;
+    }
     if (entry.readOnly) {
       this.setError("This row is read-only and cannot be deleted.");
       return;
@@ -368,6 +373,8 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
           isLoading={isLoading}
           hasImageColumn={hasImageColumn}
           supportsCreate={CmsEntityFormCatalog.get(sectionKey).supportsCreate}
+          supportsEdit={CmsEntityFormCatalog.get(sectionKey).supportsEdit}
+          supportsDelete={CmsEntityFormCatalog.get(sectionKey).supportsDelete}
           dateColumnKeys={dateColumnKeys}
           onCreate={this.openCreateModal}
           onView={this.openViewModal}
