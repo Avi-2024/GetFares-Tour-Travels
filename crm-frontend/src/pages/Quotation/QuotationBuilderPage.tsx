@@ -139,6 +139,22 @@ type PricingCosts = {
   discount: number
 }
 
+type FinanceBreakdown = {
+  supplierTaxPercent: number
+  supplierTaxAmount: number
+  gstEnabled: boolean
+  gstPercent: number
+  gstAmount: number
+  tcsEnabled: boolean
+  tcsPercent: number
+  tcsAmount: number
+  totalSaleValue: number
+  addOns: number
+  subtotal: number
+  taxAmount: number
+  totalMarkup: number
+}
+
 type ServiceOverrideValue = {
   baseCost?: string
   markupPercent?: string
@@ -175,7 +191,7 @@ const INCLUSION_SHORTCUTS: InclusionShortcut[] = [
     key: 'flights',
     label: 'Flights',
     icon: FaPlane,
-    line: 'Return flight tickets'
+    line: 'flight tickets'
   },
   {
     key: 'hotel',
@@ -254,6 +270,17 @@ function resolveLeadDisplayId (
 function toFiniteNumber (value: unknown, fallback = 0): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function toBoolean (value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value === 1
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false
+  }
+  return fallback
 }
 
 function toDateInputString (value: unknown): string {
@@ -541,11 +568,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   })
   
   // Finance breakdown state for detailed cost tracking
-  const [finance, setFinance] = useState({
+  const [finance, setFinance] = useState<FinanceBreakdown>({
     supplierTaxPercent: 0,
     supplierTaxAmount: 0,
+    gstEnabled: false,
     gstPercent: 18,
     gstAmount: 0,
+    tcsEnabled: false,
     tcsPercent: 5,
     tcsAmount: 0,
     totalSaleValue: 0,
@@ -569,6 +598,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     markup: '',
     sellValue: ''
   })
+  const addOnComputedSellValue = useMemo(() => {
+    const baseCost = Number(addOnDraft.baseCost)
+    const markup = Number(addOnDraft.markup)
+    if (!Number.isFinite(baseCost) || !Number.isFinite(markup)) return 0
+    return Number((Math.max(0, baseCost) + Math.max(0, markup)).toFixed(2))
+  }, [addOnDraft.baseCost, addOnDraft.markup])
   const [serviceOverrides, setServiceOverrides] =
     useState<ServiceOverridesState>({})
   const [changedPricingCells, setChangedPricingCells] = useState<
@@ -945,7 +980,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         allocatedRemainder = Number((allocatedRemainder + baseCost).toFixed(2))
       }
 
-      const overrideSell = override.sellValue
       const overrideServiceCharge =
         override.serviceCharge !== undefined && override.serviceCharge !== ''
           ? Number(override.serviceCharge)
@@ -967,10 +1001,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           )
         : Number(((baseCost * effectiveMarkup) / 100).toFixed(2))
       const computedSell = Number((baseCost + computedMarkupAmount).toFixed(2))
-      const finalSell =
-        overrideSell !== undefined && overrideSell !== ''
-          ? Number(overrideSell)
-          : computedSell
+      const finalSell = computedSell
       const markupAmount = Number((finalSell - baseCost).toFixed(2))
       const markupPercent =
         baseCost > 0
@@ -1624,6 +1655,19 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           : Array.isArray(snapshotRoot?.serviceRows)
           ? snapshotRoot.serviceRows
           : []
+        const snapshotFlightServiceCharge = Number(
+          serviceRowSnapshot
+            .filter((row: any) => normalizeServiceKey(row?.key) === 'flights')
+            .reduce((sum: number, row: any) => {
+              const baseCost = toFiniteNumber(row?.baseCost, 0)
+              const serviceCharge = toFiniteNumber(
+                row?.serviceCharge,
+                toFiniteNumber(row?.markupAmount, toFiniteNumber(row?.sellValue, 0) - baseCost)
+              )
+              return sum + Math.max(0, serviceCharge)
+            }, 0)
+            .toFixed(2)
+        )
         if (!cancelled) {
           const nextOverrides: ServiceOverridesState = {}
           serviceRowSnapshot.forEach((row: any) => {
@@ -1792,6 +1836,42 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         }
 
         if (!cancelled) {
+          const snapshotManualServiceFee = toFiniteNumber(
+            snapshotPricing?.manualServiceFee,
+            NaN
+          )
+          const snapshotServiceFeeTotal = toFiniteNumber(snapshotPricing?.serviceFee, NaN)
+          const persistedServiceFeeTotal = Math.max(
+            0,
+            toFiniteNumber(
+              quotation.serviceFeeAmount,
+              Number.isFinite(snapshotServiceFeeTotal) ? snapshotServiceFeeTotal : 0
+            )
+          )
+          const resolvedServiceFee = Number.isFinite(snapshotManualServiceFee)
+            ? Math.max(0, snapshotManualServiceFee)
+            : Number.isFinite(snapshotServiceFeeTotal)
+            ? Math.max(0, snapshotServiceFeeTotal - snapshotFlightServiceCharge)
+            : Math.max(0, persistedServiceFeeTotal - snapshotFlightServiceCharge)
+          const persistedTaxAmount = Math.max(
+            0,
+            toFiniteNumber(
+              quotation.taxAmount ?? quotation.tax,
+              toFiniteNumber(snapshotPricing?.taxAmount, 0)
+            )
+          )
+          const preTaxBase = Math.max(
+            0,
+            toFiniteNumber(quotation.supplierCost, 0) +
+              toFiniteNumber(quotation.markupAmount, 0) +
+              toFiniteNumber(quotation.serviceFeeAmount, 0) -
+              toFiniteNumber(quotation.discount, 0)
+          )
+          const derivedTaxPercent =
+            preTaxBase > 0
+              ? Number(((persistedTaxAmount / preTaxBase) * 100).toFixed(2))
+              : 0
+
           setCosts(prev => ({
             supplierCost: Math.max(
               0,
@@ -1810,13 +1890,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             serviceFee: Math.max(
               0,
               toFiniteNumber(
-                quotation.serviceFeeAmount ?? snapshotPricing?.serviceFee,
+                resolvedServiceFee,
                 prev.serviceFee
               )
             ),
             taxPercent: Math.max(
               0,
-              toFiniteNumber(snapshotPricing?.taxPercent, prev.taxPercent)
+              toFiniteNumber(
+                snapshotPricing?.taxPercent,
+                Number.isFinite(derivedTaxPercent) ? derivedTaxPercent : prev.taxPercent
+              )
             ),
             discount: Math.max(
               0,
@@ -1831,23 +1914,40 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             ...prev,
             supplierTaxPercent: Math.max(
               0,
-              toFiniteNumber(quotation.supplierTaxPercent ?? 0, 0)
+              toFiniteNumber(
+                quotation.supplierTaxPercent ?? snapshotPricing?.supplierTaxPercent ?? 0,
+                0
+              )
             ),
             supplierTaxAmount: Math.max(
               0,
               toFiniteNumber(quotation.supplierTaxAmount ?? 0, 0)
             ),
+            gstEnabled: toBoolean(
+              snapshotPricing?.gstEnabled,
+              toFiniteNumber(quotation.gstAmount ?? 0, 0) > 0
+            ),
             gstPercent: Math.max(
               0,
-              toFiniteNumber(quotation.gstPercent ?? 18, 18)
+              toFiniteNumber(
+                quotation.gstPercent ?? snapshotPricing?.gstPercent ?? 18,
+                18
+              )
             ),
             gstAmount: Math.max(
               0,
               toFiniteNumber(quotation.gstAmount ?? 0, 0)
             ),
+            tcsEnabled: toBoolean(
+              snapshotPricing?.tcsEnabled,
+              toFiniteNumber(quotation.tcsAmount ?? 0, 0) > 0
+            ),
             tcsPercent: Math.max(
               0,
-              toFiniteNumber(quotation.tcsPercent ?? 5, 5)
+              toFiniteNumber(
+                quotation.tcsPercent ?? snapshotPricing?.tcsPercent ?? 5,
+                5
+              )
             ),
             tcsAmount: Math.max(
               0,
@@ -2018,6 +2118,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     )
     const serviceMarkupTotal = Number(
       serviceCostRows
+        .filter(row => row.key !== 'flights')
         .reduce(
           (sum, row) =>
             sum + ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
@@ -2033,8 +2134,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const markupAmount = Number((serviceMarkupTotal + addOnMarkupTotal).toFixed(2))
     const serviceFeeAmount = Number(costs.serviceFee) || 0
     const subtotal = serviceSellTotal + addOnTotal + serviceFeeAmount + supplierTaxAmount
-    const gstAmount = (subtotal * finance.gstPercent) / 100
-    const tcsAmount = (subtotal * finance.tcsPercent) / 100
+    const gstPercent = finance.gstEnabled ? finance.gstPercent : 0
+    const tcsPercent = finance.tcsEnabled ? finance.tcsPercent : 0
+    const gstAmount = (subtotal * gstPercent) / 100
+    const tcsAmount = (subtotal * tcsPercent) / 100
     const discount = Number(costs.discount) || 0
     const totalSaleValue = subtotal + gstAmount + tcsAmount - discount
     const taxAmount = supplierTaxAmount + gstAmount + tcsAmount
@@ -2056,7 +2159,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     costs.serviceFee,
     costs.discount,
     finance.supplierTaxPercent,
+    finance.gstEnabled,
     finance.gstPercent,
+    finance.tcsEnabled,
     finance.tcsPercent,
     serviceCostRows
   ])
@@ -2067,7 +2172,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const name = addOnDraft.name.trim()
     const baseCost = Number(addOnDraft.baseCost)
     const markup = Number(addOnDraft.markup)
-    const sellValue = Number(addOnDraft.sellValue)
+    const sellValue = Number((baseCost + markup).toFixed(2))
     if (
       !name ||
       !Number.isFinite(baseCost) ||
@@ -2075,7 +2180,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       !Number.isFinite(markup) ||
       markup < 0 ||
       !Number.isFinite(sellValue) ||
-      sellValue <= 0
+      sellValue < 0
     ) {
       alert('Please fill all add-on fields with valid values.')
       return
@@ -2143,10 +2248,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     [serviceCostRows]
   )
 
-  const totalMarkupFromServices = useMemo(
+  const nonFlightServiceRows = useMemo(
+    () => serviceCostRows.filter(row => row.key !== 'flights'),
+    [serviceCostRows]
+  )
+
+  const flightServiceChargeTotal = useMemo(
     () =>
       Number(
         serviceCostRows
+          .filter(row => row.key === 'flights')
           .reduce(
             (sum, row) =>
               sum + ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
@@ -2157,12 +2268,36 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     [serviceCostRows]
   )
 
+  const markupBaseCostTotal = useMemo(
+    () =>
+      Number(
+        nonFlightServiceRows
+          .reduce((sum, row) => sum + (Number(row.baseCost) || 0), 0)
+          .toFixed(2)
+      ),
+    [nonFlightServiceRows]
+  )
+
+  const totalMarkupFromServices = useMemo(
+    () =>
+      Number(
+        nonFlightServiceRows
+          .reduce(
+            (sum, row) =>
+              sum + ((Number(row.sellValue) || 0) - (Number(row.baseCost) || 0)),
+            0
+          )
+          .toFixed(2)
+      ),
+    [nonFlightServiceRows]
+  )
+
   const effectiveMarkupPercent = useMemo(() => {
-    if (!serviceBaseCostTotal) return 0
+    if (!markupBaseCostTotal) return 0
     return Number(
-      ((totalMarkupFromServices / serviceBaseCostTotal) * 100).toFixed(2)
+      ((totalMarkupFromServices / markupBaseCostTotal) * 100).toFixed(2)
     )
-  }, [serviceBaseCostTotal, totalMarkupFromServices])
+  }, [markupBaseCostTotal, totalMarkupFromServices])
   
   const serviceChargesTotal = useMemo(
     () =>
@@ -2237,12 +2372,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             min: 0,
             max: 100
           })
-      const sellError = getNumericOverrideError(override.sellValue, { min: 0 })
       if (baseCostError) errors[`${definition.key}.baseCost`] = baseCostError
       if (markupError)
         errors[`${definition.key}.${isFlightService ? 'serviceCharge' : 'markupPercent'}`] =
           markupError
-      if (sellError) errors[`${definition.key}.sellValue`] = sellError
     })
     return errors
   }, [selectedServiceDefinitions, serviceOverrides])
@@ -2651,10 +2784,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 : row.markupAmount
               : undefined,
           markupAmount: row.markupAmount,
-          sellValue:
-            override.sellValue !== undefined && override.sellValue !== ''
-              ? Number(override.sellValue)
-              : row.sellValue,
+          sellValue: row.sellValue,
           paymentTerms: override.paymentTerms?.trim() || null,
           supplierId: override.supplierId?.trim() || null,
           supplierName: override.supplierName?.trim() || null
@@ -2688,13 +2818,21 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         addOnBaseCost: addOnBaseCostTotal,
         markupPercent: Number(costs.markupPercent) || 0,
         addOnMarkup: addOnMarkupTotal,
-        serviceFee: Number(costs.serviceFee) || 0,
+        manualServiceFee: Number(costs.serviceFee) || 0,
+        serviceFee: Number(
+          ((Number(costs.serviceFee) || 0) + flightServiceChargeTotal).toFixed(2)
+        ),
         taxPercent: Number(costs.taxPercent) || 0,
         discount: Number(costs.discount) || 0,
         taxAmount: Number(computed.taxVal) || 0,
         totalPrice: Number(computed.totalPrice) || 0,
         profit: Number(computed.profit) || 0,
         margin: Number(computed.margin) || 0,
+        supplierTaxPercent: Number(finance.supplierTaxPercent) || 0,
+        gstEnabled: Boolean(finance.gstEnabled),
+        gstPercent: Number(finance.gstPercent) || 0,
+        tcsEnabled: Boolean(finance.tcsEnabled),
+        tcsPercent: Number(finance.tcsPercent) || 0,
         serviceChargesTotal,
         totalMarkupFromServices
       }
@@ -2804,7 +2942,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         }
       }
 
-      const serviceFee = Number(costs.serviceFee) || 0
+      const manualServiceFee = Number(costs.serviceFee) || 0
+      // Flight markup is treated as service charge (not markup %) and must still
+      // be included in persisted financial totals for backend parity.
+      const serviceFee = Number((manualServiceFee + flightServiceChargeTotal).toFixed(2))
       const totalSupplierCost = Number(
         (serviceBaseCostTotal + addOnBaseCostTotal).toFixed(2)
       )
@@ -2814,17 +2955,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       const components = [
         ...serviceCostRows.map(row => {
           const override = serviceOverrides[row.key] ?? {}
-          const effectiveSell =
-            override.sellValue !== undefined
-              ? Number(override.sellValue)
-              : row.sellValue
           return {
             itemType: row.itemType,
             description: `${row.label}${
               form.destination ? ` - ${form.destination}` : ''
             }${override.paymentTerms ? ` (${override.paymentTerms})` : ''}`,
             cost: row.baseCost,
-            sellValue: effectiveSell,
+            sellValue: row.sellValue,
             supplierId: override.supplierId?.trim() || null,
             supplierName: override.supplierName?.trim() || null
           }
@@ -3636,8 +3773,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   selectedServiceCount={selectedServiceDefinitions.length}
                   costs={costs}
                   setCosts={setCosts}
+                  finance={finance}
+                  setFinance={setFinance}
                   addOnTotal={addOnTotal}
                   addOnMarkup={addOnMarkupTotal}
+                  flightServiceCharge={flightServiceChargeTotal}
                   effectiveMarkupPercent={effectiveMarkupPercent}
                   subtotal={subtotal}
                   taxes={taxes}
@@ -3856,7 +3996,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       </div>
                       <div>
                         <p className='font-semibold'>
-                          Get2Vacations Travel CRM
+                          Get2Vacations
                         </p>
                         <p className='text-xs text-gray-500'>
                           support@Get2Vacations.com
@@ -4323,16 +4463,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     <input
                       type='number'
                       min='0'
-                      className='field-input overflow-hidden text-ellipsis'
-                      value={addOnDraft.sellValue}
-                      onChange={e =>
-                        setAddOnDraft(p => ({
-                          ...p,
-                          sellValue: e.target.value
-                        }))
-                      }
+                      className='field-input cursor-not-allowed bg-gray-100 dark:bg-gray-700/60'
+                      value={addOnComputedSellValue}
+                      readOnly
                       placeholder='0.00'
                     />
+                    <p className='mt-1 text-[10px] text-gray-500 dark:text-gray-400'>
+                      Auto-calculated as Base + Markup
+                    </p>
                   </div>
                 </div>
               </div>
@@ -4496,7 +4634,6 @@ const PricingRow = ({
   const hasMarkupOverride = isFlightService
     ? override.serviceCharge !== undefined
     : override.markupPercent !== undefined
-  const hasSellOverride = override.sellValue !== undefined
 
   const supplierDropdownOptions = useMemo(
     () => [
@@ -4529,9 +4666,7 @@ const PricingRow = ({
     : isFlightService
       ? row.markupAmount.toFixed(2)
       : row.markupPercent.toFixed(1)
-  const displaySell = hasSellOverride
-    ? String(override.sellValue)
-    : row.sellValue.toFixed(2)
+  const displaySell = row.sellValue.toFixed(2)
 
   const sharedInputClass =
     'h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-right tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 overflow-hidden text-ellipsis'
@@ -4672,26 +4807,16 @@ const PricingRow = ({
             Final Sell Value
           </label>
           <input
-            data-pricing-input='true'
             type='number'
             min='0'
             step='0.01'
             value={displaySell}
-            onFocus={event => event.currentTarget.select()}
-            onKeyDown={onCellKeyDown}
-            onChange={event =>
-              onUpdateField(row.key, 'sellValue', event.target.value)
-            }
-            onBlur={event => normalizeOnBlur('sellValue', event.target.value)}
-            className={`${fieldClass(
-              'sellValue'
-            )} font-semibold text-blue-600 dark:text-blue-400`}
+            readOnly
+            className={`${sharedInputClass} cursor-not-allowed bg-gray-100 font-semibold text-blue-600 dark:bg-gray-700/60 dark:text-blue-300`}
           />
-          {fieldErrors[`${row.key}.sellValue`] ? (
-            <p className='mt-1 text-[10px] text-red-600'>
-              {fieldErrors[`${row.key}.sellValue`]}
-            </p>
-          ) : null}
+          <p className='mt-1 text-[10px] text-gray-500 dark:text-gray-400'>
+            Auto-calculated as Base + {isFlightService ? 'Service Charge' : 'Markup'}
+          </p>
         </div>
       </div>
 
@@ -4721,8 +4846,11 @@ const SummaryPanel = ({
   selectedServiceCount,
   costs,
   setCosts,
+  finance,
+  setFinance,
   addOnTotal,
   addOnMarkup,
+  flightServiceCharge,
   effectiveMarkupPercent,
   subtotal,
   taxes,
@@ -4740,8 +4868,11 @@ const SummaryPanel = ({
   selectedServiceCount: number
   costs: PricingCosts
   setCosts: React.Dispatch<React.SetStateAction<PricingCosts>>
+  finance: FinanceBreakdown
+  setFinance: React.Dispatch<React.SetStateAction<FinanceBreakdown>>
   addOnTotal: number
   addOnMarkup: number
+  flightServiceCharge: number
   effectiveMarkupPercent: number
   subtotal: number
   taxes: number
@@ -4750,7 +4881,8 @@ const SummaryPanel = ({
   money: (value: number) => string
 }) => {
   const inputClass =
-    'h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 overflow-hidden text-ellipsis'
+    'h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+  const totalServiceFee = Number((costs.serviceFee + flightServiceCharge).toFixed(2))
 
   const updateCost = (field: keyof PricingCosts, value: string) => {
     setCosts(previous => {
@@ -4763,6 +4895,40 @@ const SummaryPanel = ({
       return {
         ...previous,
         [field]: bounded
+      }
+    })
+  }
+
+  const updateFinancePercent = (
+    field: 'supplierTaxPercent' | 'gstPercent' | 'tcsPercent',
+    value: string
+  ) => {
+    setFinance(previous => {
+      const next = Number(value)
+      if (!Number.isFinite(next)) return previous
+      return {
+        ...previous,
+        [field]: Math.max(0, next)
+      }
+    })
+  }
+
+  const toggleFinanceFlag = (field: 'gstEnabled' | 'tcsEnabled', value: boolean) => {
+    setFinance(previous => ({
+      ...previous,
+      [field]: value
+    }))
+  }
+
+  const updateTotalServiceFee = (value: string) => {
+    setCosts(previous => {
+      const next = Number(value)
+      if (!Number.isFinite(next)) return previous
+      const boundedTotal = Math.max(0, next)
+      const manualFee = Math.max(0, boundedTotal - flightServiceCharge)
+      return {
+        ...previous,
+        serviceFee: Number(manualFee.toFixed(2))
       }
     })
   }
@@ -4824,12 +4990,15 @@ const SummaryPanel = ({
               type='number'
               min='0'
               step='0.01'
-              value={costs.serviceFee}
+              value={totalServiceFee}
               onFocus={event => event.currentTarget.select()}
-              onChange={event => updateCost('serviceFee', event.target.value)}
+              onChange={event => updateTotalServiceFee(event.target.value)}
               className={inputClass}
             />
           </div>
+          <p className='-mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+            Manual {money(costs.serviceFee)} + Flight charge {money(flightServiceCharge)}
+          </p>
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Tax %</span>
             <input
@@ -4843,6 +5012,78 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
+          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+            <span className='text-xs text-gray-500'>Supplier Tax %</span>
+            <input
+              type='number'
+              min='0'
+              step='0.1'
+              value={finance.supplierTaxPercent}
+              onFocus={event => event.currentTarget.select()}
+              onChange={event =>
+                updateFinancePercent('supplierTaxPercent', event.target.value)
+              }
+              className={inputClass}
+            />
+          </div>
+          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+            <span className='text-xs text-gray-500'>Apply GST</span>
+            <select
+              value={finance.gstEnabled ? 'yes' : 'no'}
+              onChange={event =>
+                toggleFinanceFlag('gstEnabled', event.target.value === 'yes')
+              }
+              className='h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+            >
+              <option value='no'>No</option>
+              <option value='yes'>Yes</option>
+            </select>
+          </div>
+          {finance.gstEnabled ? (
+            <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+              <span className='text-xs text-gray-500'>GST %</span>
+              <input
+                type='number'
+                min='0'
+                step='0.1'
+                value={finance.gstPercent}
+                onFocus={event => event.currentTarget.select()}
+                onChange={event =>
+                  updateFinancePercent('gstPercent', event.target.value)
+                }
+                className={inputClass}
+              />
+            </div>
+          ) : null}
+          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+            <span className='text-xs text-gray-500'>Apply TCS</span>
+            <select
+              value={finance.tcsEnabled ? 'yes' : 'no'}
+              onChange={event =>
+                toggleFinanceFlag('tcsEnabled', event.target.value === 'yes')
+              }
+              className='h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+            >
+              <option value='no'>No</option>
+              <option value='yes'>Yes</option>
+            </select>
+          </div>
+          {finance.tcsEnabled ? (
+            <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
+              <span className='text-xs text-gray-500'>TCS %</span>
+              <input
+                type='number'
+                min='0'
+                step='0.1'
+                value={finance.tcsPercent}
+                onFocus={event => event.currentTarget.select()}
+                onChange={event =>
+                  updateFinancePercent('tcsPercent', event.target.value)
+                }
+                className={inputClass}
+              />
+            </div>
+          ) : null}
           {/* <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Default Markup %</span>
             <input
@@ -4885,6 +5126,18 @@ const SummaryPanel = ({
               <span>Total Markup</span>
               <span className='font-medium tabular-nums truncate max-w-[120px]'>
                 {money(Math.min(totalMarkup, 999999999999))}
+              </span>
+            </div>
+            <div className='flex items-center justify-between'>
+              <span>Flight Service Charge</span>
+              <span className='font-medium tabular-nums'>
+                {money(flightServiceCharge)}
+              </span>
+            </div>
+            <div className='flex items-center justify-between'>
+              <span>Flight Service Charge</span>
+              <span className='font-medium tabular-nums'>
+                {money(flightServiceCharge)}
               </span>
             </div>
             <div className='flex items-center justify-between'>

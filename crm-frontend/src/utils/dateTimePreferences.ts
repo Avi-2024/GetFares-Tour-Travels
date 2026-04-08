@@ -121,25 +121,26 @@ export function parseApiDateTime(value: unknown): Date | null {
   const raw = String(value).trim();
   if (!raw) return null;
 
-  const normalized = ISO_WITHOUT_TIMEZONE_REGEX.test(raw) ?
-      `${raw.replace(" ", "T")}Z`
-    : raw;
-  const parsed = new Date(normalized);
+  // Extract just the date part (YYYY-MM-DD) to avoid timezone conversion
+  // This ensures we show the exact date from the database
+  const dateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateMatch) {
+    const [, year, month, day] = dateMatch;
+    // Create date in local timezone without time component
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  }
+
+  // Fallback for other date formats
+  const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function getDateParts(date: Date, preferences: DateTimePreferences) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: preferences.timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-
-  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const year = map.year || "0000";
-  const month = map.month || "00";
-  const day = map.day || "00";
+function getDateParts(date: Date) {
+  // Extract date parts directly from the Date object without timezone conversion
+  // This ensures we show the exact date from the backend
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
 
   return { year, month, day };
 }
@@ -152,7 +153,7 @@ export function formatDateWithPreferences(
   const date = parseApiDateTime(value);
   if (!date) return fallback;
 
-  const { year, month, day } = getDateParts(date, preferences);
+  const { year, month, day } = getDateParts(date);
   switch (preferences.dateFormat) {
     case "MM/DD/YYYY":
       return `${month}/${day}/${year}`;
