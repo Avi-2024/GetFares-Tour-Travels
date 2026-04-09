@@ -29,6 +29,8 @@ export type LeadListItem = {
   childrenCount: number;
   childAges: number[];
   packageName: string;
+  leadType?: string | null;
+  lead_type?: string | null;
   status: CanonicalLeadStatus;
   statusLabel: SopStatusLabel;
   subStatus: string | null;
@@ -340,6 +342,8 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     ),
     childAges: normalizeChildAges(lead),
     packageName: lead.packageName ?? lead.package ?? "N/A",
+    leadType: (lead as LeadApiRecord & { leadType?: string | null }).leadType ?? null,
+    lead_type: (lead as LeadApiRecord & { lead_type?: string | null }).lead_type ?? null,
     status,
     statusLabel,
     subStatus: lead.subStatus ?? null,
