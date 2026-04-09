@@ -20,7 +20,29 @@ function createSuppliersRepository({ db, logger, schema }) {
   }
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
+    return (
+      typeof db.query === "function" &&
+      db.pool &&
+      String(db.adapter || "").toLowerCase() === "postgres"
+    );
+  }
+
+  function parseObject(value, fallback = {}) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "object") {
+      return value;
+    }
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" ? parsed : fallback;
+      } catch (_error) {
+        return fallback;
+      }
+    }
+    return fallback;
   }
 
   async function hasTable(tableName) {
@@ -200,10 +222,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     return rows
       .filter((row) => {
         const supplierDetails = row.supplier_details ?? row.supplierDetails ?? {};
-        const details =
-          typeof supplierDetails === "string"
-            ? JSON.parse(supplierDetails)
-            : supplierDetails;
+        const details = parseObject(supplierDetails, {});
         const rowSupplierId = details?.supplierId ?? details?.supplier_id ?? "";
         return String(rowSupplierId) === String(supplierId);
       })
@@ -215,10 +234,7 @@ function createSuppliersRepository({ db, logger, schema }) {
       .slice(0, filters.limit || 500)
       .map((row) => {
         const supplierDetails = row.supplier_details ?? row.supplierDetails ?? {};
-        const details =
-          typeof supplierDetails === "string"
-            ? JSON.parse(supplierDetails)
-            : supplierDetails;
+        const details = parseObject(supplierDetails, {});
         return {
           ...row,
           service_names:

@@ -2,7 +2,11 @@ function createCustomersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
+    return (
+      typeof db.query === "function" &&
+      db.pool &&
+      String(db.adapter || "").toLowerCase() === "postgres"
+    );
   }
 
   async function getTableColumns(tableName) {

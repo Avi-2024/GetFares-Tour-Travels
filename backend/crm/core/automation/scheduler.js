@@ -78,7 +78,11 @@ function createAutomationScheduler({
   const tableCache = new Map();
 
   function canUseDbLock() {
-    return typeof db?.query === "function" && Boolean(db?.pool);
+    return (
+      typeof db?.query === "function" &&
+      Boolean(db?.pool) &&
+      String(db?.adapter || "").toLowerCase() === "postgres"
+    );
   }
 
   async function hasTable(tableName) {

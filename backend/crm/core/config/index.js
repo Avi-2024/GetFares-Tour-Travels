@@ -18,7 +18,15 @@ const config = Object.freeze({
     permissionCacheTtlMs: env.RBAC_PERMISSION_CACHE_TTL_SEC * 1000,
   },
   database: {
+    client: env.DATABASE_CLIENT,
     url: env.DATABASE_URL,
+    mysql: {
+      host: env.MYSQL_HOST,
+      port: env.MYSQL_PORT || 3306,
+      user: env.MYSQL_USER,
+      password: env.MYSQL_PASSWORD,
+      database: env.MYSQL_DATABASE,
+    },
   },
   logger: {
     level: env.LOG_LEVEL,

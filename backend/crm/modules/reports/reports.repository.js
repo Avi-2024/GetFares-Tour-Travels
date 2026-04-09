@@ -1,6 +1,10 @@
 function createReportsRepository({ db, schema }) {
   function canUseRawQuery() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      Boolean(db.pool) &&
+      String(db.adapter || "").toLowerCase() === "postgres"
+    );
   }
 
   function toNumber(value, fallback = 0) {

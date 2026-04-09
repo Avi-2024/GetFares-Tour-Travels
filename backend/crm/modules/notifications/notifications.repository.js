@@ -142,7 +142,11 @@ function createNotificationsRepository({ db, logger, schema }) {
   }
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
+    return (
+      typeof db.query === "function" &&
+      db.pool &&
+      String(db.adapter || "").toLowerCase() === "postgres"
+    );
   }
 
   return Object.freeze({

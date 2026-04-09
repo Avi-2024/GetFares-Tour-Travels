@@ -1,6 +1,9 @@
 import dotenv from "dotenv";
 import bcryptjs from "bcryptjs";
-import { Client } from "pg";
+import { randomUUID } from "node:crypto";
+import { createDatabaseConnection } from "../crm/core/database/index.js";
+import { config } from "../crm/core/config/index.js";
+import { logger } from "../crm/core/logger/logger.js";
 
 dotenv.config();
 
@@ -25,14 +28,18 @@ async function seedDatabase() {
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is required to seed data.");
   }
+  const normalizedUrl = String(databaseUrl).toLowerCase();
+  const explicitClient = String(process.env.DATABASE_CLIENT || "")
+    .trim()
+    .toLowerCase();
+  const isMySql =
+    explicitClient === "mysql" ||
+    explicitClient === "mariadb" ||
+    normalizedUrl.startsWith("mysql://") ||
+    normalizedUrl.startsWith("mysql2://");
+  const schemaFilter = isMySql ? "table_schema = DATABASE()" : "table_schema = 'public'";
 
-  const clientConfig = { connectionString: databaseUrl };
-  if (databaseUrl.includes(".rds.") || databaseUrl.includes(".rds-")) {
-    clientConfig.ssl = { rejectUnauthorized: false };
-  }
-
-  const client = new Client(clientConfig);
-  await client.connect();
+  const client = createDatabaseConnection({ config, logger });
 
   const columnsCache = new Map();
 
@@ -42,18 +49,23 @@ async function seedDatabase() {
     }
 
     const result = await client.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE ${schemaFilter} AND table_name=$1`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      result.rows
+        .map((row) => row.column_name || row.COLUMN_NAME || row.Column_name)
+        .map((column) => String(column || "").trim().toLowerCase())
+        .filter(Boolean),
+    );
     columnsCache.set(tableName, columns);
     return columns;
   }
 
   async function hasTable(tableName) {
     const result = await client.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+      `SELECT 1 FROM information_schema.tables WHERE ${schemaFilter} AND table_name=$1 LIMIT 1`,
       [tableName],
     );
     return result.rowCount > 0;
@@ -61,40 +73,65 @@ async function seedDatabase() {
 
   async function hasColumn(tableName, columnName) {
     const columns = await getTableColumns(tableName);
-    return columns.has(columnName);
+    return columns.has(String(columnName || "").toLowerCase());
   }
 
   async function insertRow(tableName, payload, options = {}) {
     const columns = await getTableColumns(tableName);
-    const entries = Object.entries(payload).filter(
+    const normalizedPayload = { ...payload };
+    if (columns.has("id") && normalizedPayload.id === undefined) {
+      normalizedPayload.id = randomUUID();
+    }
+
+    const entries = Object.entries(normalizedPayload).filter(
       ([, value]) => value !== undefined,
     );
-    const filtered = entries.filter(([key]) => columns.has(key));
+    const filtered = entries.filter(([key]) =>
+      columns.has(String(key || "").toLowerCase()),
+    );
 
     if (!filtered.length) {
       return null;
     }
 
     const keys = filtered.map(([key]) => key);
-    const values = filtered.map(([, value]) => value);
+    const values = filtered.map(([, value]) => {
+      if (Array.isArray(value)) return JSON.stringify(value);
+      if (value && typeof value === "object" && !(value instanceof Date)) {
+        return JSON.stringify(value);
+      }
+      return value;
+    });
     const params = keys.map((_, index) => `$${index + 1}`);
 
-    let sql = `INSERT INTO ${tableName} (${keys.join(", ")}) VALUES (${params.join(", ")})`;
+    const shouldIgnoreConflicts =
+      isMySql && (options.conflictTarget || options.onConflict);
+    let sql = `${shouldIgnoreConflicts ? "INSERT IGNORE INTO" : "INSERT INTO"} ${tableName} (${keys.join(", ")}) VALUES (${params.join(", ")})`;
 
-    if (options.conflictTarget) {
+    if (!isMySql && options.conflictTarget) {
       sql += ` ON CONFLICT (${options.conflictTarget}) DO NOTHING`;
-    } else if (options.onConflict) {
+    } else if (!isMySql && options.onConflict) {
       sql += ` ON CONFLICT ${options.onConflict}`;
     }
 
-    if (options.returning !== false) {
+    if (!isMySql && options.returning !== false) {
       const returningColumns = Array.isArray(options.returning)
         ? options.returning.join(", ")
         : options.returning || "*";
       sql += ` RETURNING ${returningColumns}`;
     }
 
-    const result = await client.query(sql, values);
+    let result;
+    try {
+      result = await client.query(sql, values);
+    } catch (error) {
+      throw new Error(
+        `insertRow failed for ${tableName}: ${error.message}. SQL=${sql}. keys=${keys.join(",")}`,
+      );
+    }
+    if (isMySql || options.returning === false) {
+      return null;
+    }
     return result.rows[0] || null;
   }
 
@@ -113,8 +150,19 @@ async function seedDatabase() {
       return existing;
     }
 
-    await insertRow(tableName, payload, { onConflict: "DO NOTHING" });
-    return getRowByUnique(tableName, columnName, uniqueValue);
+    const inserted = await insertRow(tableName, payload, { onConflict: "DO NOTHING" });
+    if (inserted) {
+      return inserted;
+    }
+
+    const resolved = await getRowByUnique(tableName, columnName, uniqueValue);
+    if (resolved) {
+      return resolved;
+    }
+
+    throw new Error(
+      `upsertByUnique failed for ${tableName}.${columnName}=${String(uniqueValue)}`,
+    );
   }
 
   try {
@@ -1305,7 +1353,7 @@ async function seedDatabase() {
     console.error("Database seeding failed:", error.message);
     throw error;
   } finally {
-    await client.end();
+    await client.close();
   }
 }
 
