@@ -184,28 +184,14 @@ const Leads: React.FC = () => {
   });
 
   useEffect(() => {
-    const loadDestinations = async () => {
-      try {
-        const rows = await leadsService.getDestinations();
-        const names = rows
-          .map((item) => {
-            if (typeof item === "string") return item.trim();
-            if (!item || typeof item !== "object") return "";
-            return String(
-              item.name ?? item.destinationName ?? item.country ?? "",
-            ).trim();
-          })
-          .filter(Boolean);
-        const unique = Array.from(new Set(names)).sort((a, b) =>
-          a.localeCompare(b),
-        );
-        setDestinationNames(unique);
-      } catch {
-        setDestinationNames([]);
-      }
-    };
-    void loadDestinations();
-  }, [leadsService]);
+    // Extract unique destinations from fetched leads
+    const destinations = fetchedLeads
+      .map((lead) => lead.destination)
+      .filter((dest) => dest && dest !== "N/A")
+      .filter((dest, index, self) => self.indexOf(dest) === index)
+      .sort((a, b) => a.localeCompare(b));
+    setDestinationNames(destinations);
+  }, [fetchedLeads]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -769,22 +755,37 @@ const Leads: React.FC = () => {
                           </p>
                         </td>
                         <td className="px-4 py-3 leading-tight">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {lead.name}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatPaxSummary(lead)}
-                          </p>
-                          {formatChildAges(lead) ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatChildAges(lead)}
-                            </p>
-                          ) : null}
-                          {lead.assignedBy && (
-                            <p className="text-xs text-blue-600 dark:text-blue-400">
-                              Assigned by: {lead.assignedBy}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {lead.name}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatPaxSummary(lead)}
+                              </p>
+                              {formatChildAges(lead) ? (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {formatChildAges(lead)}
+                                </p>
+                              ) : null}
+                              {lead.assignedBy && (
+                                <p className="text-xs text-blue-600 dark:text-blue-400">
+                                  Assigned by: {lead.assignedBy}
+                                </p>
+                              )}
+                            </div>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                lead.priority === "High"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                                  : lead.priority === "Medium"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                  : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                              }`}
+                            >
+                              {lead.priority === "High" ? "🔥 Hot" : lead.priority === "Medium" ? "⚡ Warm" : "❄️ Cold"}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-left leading-tight whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -862,9 +863,22 @@ const Leads: React.FC = () => {
                   <div key={lead.id} className="p-4 space-y-2">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">
-                          {lead.name}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100">
+                            {lead.name}
+                          </p>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              lead.priority === "High"
+                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                                : lead.priority === "Medium"
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            }`}
+                          >
+                            {lead.priority === "High" ? "🔥 Hot" : lead.priority === "Medium" ? "⚡ Warm" : "❄️ Cold"}
+                          </span>
+                        </div>
                         <p className="text-xs text-gray-500">
                           Lead ID: {lead.leadId}
                         </p>
