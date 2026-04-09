@@ -1,11 +1,13 @@
 # Travel CRM - Roles & Permissions Documentation
 
 ## Document Overview
+
 This document provides a complete reference for all user roles and their associated permissions in the Get2Vacation Travel CRM system, based on the Product Requirements Document (PRD) and Standard Operating Procedures (SOP).
 
 ---
 
 ## Table of Contents
+
 1. [User Roles Overview](#user-roles-overview)
 2. [Role Descriptions & Responsibilities](#role-descriptions--responsibilities)
 3. [Complete Permissions List](#complete-permissions-list)
@@ -18,25 +20,27 @@ This document provides a complete reference for all user roles and their associa
 
 The Travel CRM system supports **8 distinct user roles**, each designed for specific operational responsibilities:
 
-| # | Role Name | Code | Primary Function |
-|---|-----------|------|------------------|
-| 1 | Super Admin | `super_admin` | Complete system control and configuration |
-| 2 | Admin | `admin` | Full operational access and user management |
-| 3 | Manager | `manager` | Team oversight and performance monitoring |
-| 4 | Sales Consultant / Holiday Consultant | `sales_consultant` | Lead management and quotation creation |
-| 5 | Visa Executive / Visa Consultant | `visa_executive` | Visa application processing |
-| 6 | Accounts Team | `accounts` | Financial operations and payment tracking |
-| 7 | Marketing | `marketing` | Campaign management and lead analytics |
-| 8 | Management | `management` | Dashboard monitoring and reporting |
+| #   | Role Name                             | Code               | Primary Function                            |
+| --- | ------------------------------------- | ------------------ | ------------------------------------------- |
+| 1   | Super Admin                           | `super_admin`      | Complete system control and configuration   |
+| 2   | Admin                                 | `admin`            | Full operational access and user management |
+| 3   | Manager                               | `manager`          | Team oversight and performance monitoring   |
+| 4   | Sales Consultant / Holiday Consultant | `sales_consultant` | Lead management and quotation creation      |
+| 5   | Visa Executive / Visa Consultant      | `visa_executive`   | Visa application processing                 |
+| 6   | Accounts Team                         | `accounts`         | Financial operations and payment tracking   |
+| 7   | Marketing                             | `marketing`        | Campaign management and lead analytics      |
+| 8   | Management                            | `management`       | Dashboard monitoring and reporting          |
 
 ---
 
 ## Role Descriptions & Responsibilities
 
 ### 1. Super Admin
+
 **Access Level**: Complete system access
 
 **Responsibilities**:
+
 - System configuration and settings
 - Role and permission management
 - Database administration
@@ -44,6 +48,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - All administrative functions
 
 **Key Capabilities**:
+
 - Add/edit/delete all users
 - Modify system-wide settings
 - Access all modules and data
@@ -53,9 +58,11 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 2. Admin
+
 **Access Level**: Full operational access
 
 **Responsibilities**:
+
 - User management (add/edit/delete users)
 - Access to reports & revenue dashboard
 - Modify margins & pricing settings
@@ -63,6 +70,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - System configuration
 
 **Key Capabilities**:
+
 - Complete access to all modules
 - Revenue and profit tracking
 - Pricing and margin adjustments
@@ -72,9 +80,11 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 3. Manager
+
 **Access Level**: Team oversight and operational management
 
 **Responsibilities**:
+
 - Monitor team performance
 - Lead distribution and assignment
 - Quotation approval (high-value files)
@@ -83,6 +93,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Supplier coordination
 
 **Key Capabilities**:
+
 - View and manage all leads
 - Create and approve quotations
 - Monitor booking pipeline
@@ -92,6 +103,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Cannot modify system settings or user roles
 
 **SOP Requirements**:
+
 - Review quotations for customized/complex packages
 - Approve bookings above AED 25,000
 - Intervene in force majeure cancellation cases
@@ -100,9 +112,11 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 4. Sales Consultant / Holiday Consultant
+
 **Access Level**: Lead-to-booking workflow
 
 **Responsibilities**:
+
 - Respond to leads within 15 minutes (SLA)
 - Lead qualification using 7-question script
 - Create quotations (ready packages: 30 min, customized: 2 hours)
@@ -112,6 +126,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Customer communication
 
 **Key Capabilities**:
+
 - Access assigned leads
 - Create and send quotations
 - Update lead status
@@ -123,6 +138,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Cannot access payments or refunds directly
 
 **SOP Requirements**:
+
 - 15-minute lead response time
 - Use lead qualification script (7 questions)
 - Minimum 4 follow-ups before marking non-responsive
@@ -130,6 +146,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Daily reporting (leads received, quotes sent, conversions)
 
 **Lead Qualification Questions**:
+
 1. Destination
 2. Travel Dates
 3. Number of Adults/Children/Infants
@@ -141,9 +158,11 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 5. Visa Executive / Visa Consultant
+
 **Access Level**: Visa processing workflow
 
 **Responsibilities**:
+
 - Manage visa leads and applications
 - Upload visa documents
 - Track application stages
@@ -152,6 +171,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Process visa deliveries
 
 **Key Capabilities**:
+
 - Full access to visa module
 - View related leads and bookings
 - Access customer profiles
@@ -160,6 +180,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Cannot create bookings or manage payments
 
 **Visa Workflow Stages**:
+
 1. Document Collection
 2. Application Submitted
 3. Biometrics Scheduled
@@ -169,6 +190,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 7. Delivered
 
 **SOP Requirements**:
+
 - Maintain country-specific visa checklists
 - Track appointment dates and expiry reminders
 - Monitor SLA for visa processing
@@ -177,9 +199,11 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 6. Accounts Team
+
 **Access Level**: Financial operations
 
 **Responsibilities**:
+
 - Update payment status
 - Generate invoices
 - Process refunds
@@ -188,6 +212,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Revenue reporting
 
 **Key Capabilities**:
+
 - Full access to payments and refunds
 - View bookings and quotations
 - Access customer profiles
@@ -196,6 +221,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Cannot create leads or quotations
 
 **Payment Rules (SOP)**:
+
 - Minimum 50% advance payment required
 - 100% payment for non-refundable bookings
 - Balance payment before D-2 (2 days before supplier deadline)
@@ -203,6 +229,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Process refunds within 3-5 working days after receiving supplier refund
 
 **Refund Processing**:
+
 - Verify cancellation policy (airline, hotel, DMC, visa, insurance)
 - Calculate refund: Total Paid - Supplier Penalty - Visa Charges - Service Charges
 - Communicate refund timeline (airline: 15-30 days, DMC: 7-21 days)
@@ -211,9 +238,11 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 7. Marketing
+
 **Access Level**: Campaign and analytics
 
 **Responsibilities**:
+
 - Manage marketing campaigns
 - Track lead sources
 - Monitor campaign performance
@@ -222,6 +251,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - View conversion analytics
 
 **Key Capabilities**:
+
 - Full access to campaigns module
 - View leads (read-only)
 - Access customer database
@@ -229,6 +259,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Cannot create bookings or manage payments
 
 **Lead Sources Tracked**:
+
 - Meta Ads (Facebook/Instagram)
 - Website Enquiry
 - Walk-in
@@ -240,9 +271,11 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 8. Management
+
 **Access Level**: Dashboard and reporting (view-only)
 
 **Responsibilities**:
+
 - Monitor KPIs
 - View conversion reports
 - Track revenue and profit
@@ -250,6 +283,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Strategic decision-making
 
 **Key Capabilities**:
+
 - Dashboard view only
 - Access all reports
 - View leads, quotations, bookings
@@ -259,6 +293,7 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 - Cannot create or modify any records
 
 **KPIs Monitored**:
+
 - Total Leads (Daily/Weekly/Monthly)
 - Conversion Rate %
 - Revenue Generated
@@ -276,85 +311,101 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ### Total Permissions: 53
 
 #### Core System (2)
+
 1. `*` - All permissions (wildcard)
 2. `rbac:manage` - Manage roles and permissions
 
 #### Users Module (3)
+
 3. `users:read` - View users
 4. `users:create` - Create users
 5. `users:update` - Update users
 
 #### Settings Module (2)
+
 6. `settings:read` - View settings
 7. `settings:update` - Update settings
 
 #### Leads Module (4)
+
 8. `leads:read` - View leads
 9. `leads:create` - Create leads
 10. `leads:update` - Update leads (assign, followups, status)
 11. `leads:*` - All lead permissions
 
 #### Quotations Module (4)
+
 12. `quotations:read` - View quotations
 13. `quotations:create` - Create quotations
 14. `quotations:update` - Update quotations
 15. `quotations:*` - All quotation permissions
 
 #### Bookings Module (4)
+
 16. `bookings:read` - View bookings
 17. `bookings:create` - Create bookings
 18. `bookings:update` - Update bookings (status, approval)
 19. `bookings:*` - All booking permissions
 
 #### Payments Module (4)
+
 20. `payments:read` - View payments
 21. `payments:create` - Create payments
 22. `payments:update` - Update payments
 23. `payments:*` - All payment permissions
 
 #### Refunds Module (4)
+
 24. `refunds:read` - View refunds
 25. `refunds:create` - Create refunds
 26. `refunds:update` - Update refunds
 27. `refunds:*` - All refund permissions
 
 #### Customers Module (4)
+
 28. `customers:read` - View customers
 29. `customers:create` - Create customers
 30. `customers:update` - Update customers
 31. `customers:*` - All customer permissions
 
 #### Campaigns Module (4)
+
 32. `campaigns:read` - View campaigns
 33. `campaigns:create` - Create campaigns
 34. `campaigns:update` - Update campaigns
 35. `campaigns:*` - All campaign permissions
 
 #### Visa Module (4)
+
 36. `visa:read` - View visa applications
 37. `visa:create` - Create visa applications
 38. `visa:update` - Update visa applications
 39. `visa:*` - All visa permissions
 
 #### Complaints Module (4)
+
 40. `complaints:read` - View complaints
 41. `complaints:create` - Create complaints
 42. `complaints:update` - Update complaints
 43. `complaints:*` - All complaint permissions
 
 #### Reports Module (1)
+
 44. `reports:read` - View reports and analytics
 
 #### Notifications Module (2)
+
 45. `notifications:read` - View notifications
 46. `notifications:update` - Update notifications (mark as read)
 
 #### Suppliers Module (3)
+
 47. `suppliers:read` - View suppliers
 48. `suppliers:create` - Create suppliers
 49. `suppliers:update` - Update suppliers
 
 #### Employees Module (2)
+
 50. `employees:read` - View employees
 51. `employees:update` - Update employees
 
@@ -364,53 +415,55 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 
 ### Quick Reference Table
 
-| Permission | Super Admin | Admin | Manager | Sales Consultant | Visa Executive | Accounts | Marketing | Management |
-|------------|:-----------:|:-----:|:-------:|:----------------:|:--------------:|:--------:|:---------:|:----------:|
-| `*` (All) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `rbac:manage` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `users:read` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `users:create` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `users:update` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `settings:read` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `settings:update` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `leads:*` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `leads:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| `quotations:*` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `quotations:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `bookings:*` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `bookings:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| `bookings:create` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `bookings:update` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `payments:*` | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `payments:read` | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ |
-| `refunds:*` | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `refunds:read` | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ |
-| `customers:*` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `customers:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `campaigns:*` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| `campaigns:read` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| `visa:*` | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| `visa:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
-| `complaints:*` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `complaints:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
-| `complaints:create` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `reports:read` | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `notifications:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `notifications:update` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `suppliers:read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ |
-| `suppliers:create` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `suppliers:update` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| `employees:read` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `employees:update` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Permission             | Super Admin | Admin | Manager | Sales Consultant | Visa Executive | Accounts | Marketing | Management |
+| ---------------------- | :---------: | :---: | :-----: | :--------------: | :------------: | :------: | :-------: | :--------: |
+| `*` (All)              |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `rbac:manage`          |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `users:read`           |     ✅      |  ✅   |   ✅    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `users:create`         |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `users:update`         |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `settings:read`        |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `settings:update`      |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `leads:*`              |     ✅      |  ✅   |   ✅    |        ✅        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `leads:read`           |     ✅      |  ✅   |   ✅    |        ✅        |       ✅       |    ❌    |    ✅     |     ✅     |
+| `quotations:*`         |     ✅      |  ✅   |   ✅    |        ✅        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `quotations:read`      |     ✅      |  ✅   |   ✅    |        ✅        |       ✅       |    ✅    |    ✅     |     ✅     |
+| `bookings:*`           |     ✅      |  ✅   |   ✅    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `bookings:read`        |     ✅      |  ✅   |   ✅    |        ✅        |       ✅       |    ✅    |    ❌     |     ✅     |
+| `bookings:create`      |     ✅      |  ✅   |   ✅    |        ✅        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `bookings:update`      |     ✅      |  ✅   |   ✅    |        ✅        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `payments:*`           |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ✅    |    ❌     |     ❌     |
+| `payments:read`        |     ✅      |  ✅   |   ✅    |        ❌        |       ❌       |    ✅    |    ❌     |     ✅     |
+| `refunds:*`            |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ✅    |    ❌     |     ❌     |
+| `refunds:read`         |     ✅      |  ✅   |   ✅    |        ❌        |       ❌       |    ✅    |    ❌     |     ✅     |
+| `customers:*`          |     ✅      |  ✅   |   ✅    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `customers:read`       |     ✅      |  ✅   |   ✅    |        ✅        |       ✅       |    ✅    |    ✅     |     ✅     |
+| `campaigns:*`          |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ✅     |     ❌     |
+| `campaigns:read`       |     ✅      |  ✅   |   ✅    |        ❌        |       ❌       |    ❌    |    ✅     |     ✅     |
+| `visa:*`               |     ✅      |  ✅   |   ❌    |        ❌        |       ✅       |    ❌    |    ❌     |     ❌     |
+| `visa:read`            |     ✅      |  ✅   |   ✅    |        ✅        |       ✅       |    ❌    |    ❌     |     ✅     |
+| `complaints:*`         |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `complaints:read`      |     ✅      |  ✅   |   ✅    |        ✅        |       ✅       |    ❌    |    ❌     |     ✅     |
+| `complaints:create`    |     ✅      |  ✅   |   ❌    |        ✅        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `reports:read`         |     ✅      |  ✅   |   ✅    |        ❌        |       ❌       |    ✅    |    ✅     |     ✅     |
+| `notifications:read`   |     ✅      |  ✅   |   ✅    |        ✅        |       ✅       |    ✅    |    ✅     |     ✅     |
+| `notifications:update` |     ✅      |  ✅   |   ✅    |        ✅        |       ✅       |    ✅    |    ✅     |     ✅     |
+| `suppliers:read`       |     ✅      |  ✅   |   ✅    |        ✅        |       ❌       |    ✅    |    ❌     |     ✅     |
+| `suppliers:create`     |     ✅      |  ✅   |   ✅    |        ✅        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `suppliers:update`     |     ✅      |  ✅   |   ✅    |        ✅        |       ❌       |    ✅    |    ❌     |     ❌     |
+| `employees:read`       |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
+| `employees:update`     |     ✅      |  ✅   |   ❌    |        ❌        |       ❌       |    ❌    |    ❌     |     ❌     |
 
 ---
 
 ## Permission Details by Module
 
 ### 1. Super Admin Role
+
 **Permission**: `*` (All permissions)
 
 **Complete Access To**:
+
 - All modules
 - All operations (create, read, update, delete)
 - System configuration
@@ -421,9 +474,11 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 2. Admin Role
+
 **Permission**: `*` (All permissions)
 
 **Complete Access To**:
+
 - All modules
 - User management
 - System settings
@@ -434,7 +489,9 @@ The Travel CRM system supports **8 distinct user roles**, each designed for spec
 ---
 
 ### 3. Manager Role
+
 **Permissions** (16 total):
+
 ```
 users:read
 leads:*
@@ -455,6 +512,7 @@ notifications:update
 ```
 
 **Can Do**:
+
 - View team members
 - Full lead management (create, assign, update, followup)
 - Full quotation management (create, approve, send)
@@ -469,6 +527,7 @@ notifications:update
 - Receive and manage notifications
 
 **Cannot Do**:
+
 - Create or modify users
 - Change system settings
 - Process payments or refunds
@@ -478,7 +537,9 @@ notifications:update
 ---
 
 ### 4. Sales Consultant / Holiday Consultant Role
+
 **Permissions** (14 total):
+
 ```
 leads:*
 quotations:*
@@ -497,6 +558,7 @@ notifications:update
 ```
 
 **Can Do**:
+
 - Full lead management (create, qualify, assign, update, followup)
 - Full quotation management (create ready/customized packages, send)
 - Create bookings from converted leads
@@ -508,6 +570,7 @@ notifications:update
 - Receive notifications
 
 **Cannot Do**:
+
 - View or manage users
 - Access system settings
 - Process payments or refunds
@@ -516,6 +579,7 @@ notifications:update
 - Access financial reports
 
 **SOP Workflow**:
+
 1. Receive lead → Respond within 15 minutes
 2. Qualify lead using 7-question script
 3. Categorize as Hot/Warm/Cold
@@ -528,7 +592,9 @@ notifications:update
 ---
 
 ### 5. Visa Executive / Visa Consultant Role
+
 **Permissions** (8 total):
+
 ```
 visa:*
 leads:read
@@ -541,6 +607,7 @@ notifications:update
 ```
 
 **Can Do**:
+
 - Full visa management (create, update, track stages)
 - Upload visa documents
 - Track appointment dates
@@ -553,6 +620,7 @@ notifications:update
 - Receive notifications
 
 **Cannot Do**:
+
 - Create or manage leads
 - Create quotations
 - Create bookings
@@ -561,6 +629,7 @@ notifications:update
 - Access financial data
 
 **Visa Workflow**:
+
 1. Document Collection
 2. Application Submitted
 3. Biometrics Scheduled
@@ -572,7 +641,9 @@ notifications:update
 ---
 
 ### 6. Accounts Team Role
+
 **Permissions** (11 total):
+
 ```
 payments:*
 refunds:*
@@ -587,6 +658,7 @@ notifications:update
 ```
 
 **Can Do**:
+
 - Full payment management (create, update, track)
 - Full refund management (process, calculate, approve)
 - Generate invoices
@@ -597,6 +669,7 @@ notifications:update
 - Receive notifications
 
 **Cannot Do**:
+
 - Create or manage leads
 - Create quotations
 - Create bookings
@@ -605,12 +678,14 @@ notifications:update
 - Modify system settings
 
 **Payment Rules**:
+
 - Minimum 50% advance required
 - 100% for non-refundable bookings
 - Balance before D-2
 - No service confirmation without payment proof
 
 **Refund Calculation**:
+
 ```
 Refundable Amount = Total Paid - Supplier Penalty - Visa Charges - Service Charges
 ```
@@ -618,7 +693,9 @@ Refundable Amount = Total Paid - Supplier Penalty - Visa Charges - Service Charg
 ---
 
 ### 7. Marketing Role
+
 **Permissions** (8 total):
+
 ```
 campaigns:*
 leads:read
@@ -630,6 +707,7 @@ notifications:update
 ```
 
 **Can Do**:
+
 - Full campaign management (create, track, analyze)
 - View all leads (read-only)
 - View customer database
@@ -638,6 +716,7 @@ notifications:update
 - Receive notifications
 
 **Cannot Do**:
+
 - Create or modify leads
 - Create quotations
 - Create bookings
@@ -646,6 +725,7 @@ notifications:update
 - Modify system settings
 
 **Analytics Tracked**:
+
 - Lead source performance
 - Campaign ROI
 - Cost per lead
@@ -655,7 +735,9 @@ notifications:update
 ---
 
 ### 8. Management Role
+
 **Permissions** (13 total):
+
 ```
 reports:read
 leads:read
@@ -673,6 +755,7 @@ notifications:update
 ```
 
 **Can Do**:
+
 - View all reports and dashboards
 - View all leads (read-only)
 - View all quotations (read-only)
@@ -687,12 +770,14 @@ notifications:update
 - Receive notifications
 
 **Cannot Do**:
+
 - Create or modify any records
 - Process any transactions
 - Change system settings
 - Manage users
 
 **Dashboard KPIs**:
+
 - Total Leads (Daily/Weekly/Monthly)
 - Conversion Rate %
 - Revenue Generated
@@ -708,16 +793,20 @@ notifications:update
 ## Permission Patterns & Rules
 
 ### Wildcard Permissions
+
 - `*` - Grants ALL permissions across ALL modules
 - `module:*` - Grants ALL actions (read, create, update) for a specific module
 
 ### Hierarchical Matching
+
 Permissions are checked hierarchically:
+
 1. **Exact match**: `leads:read` matches `leads:read`
 2. **Wildcard match**: `leads:*` matches `leads:read`, `leads:create`, `leads:update`
 3. **Global wildcard**: `*` matches everything
 
 ### Permission Inheritance
+
 - Super Admin and Admin have `*` permission (all access)
 - Other roles have specific permission sets
 - Permissions are cached for 60 seconds for performance
@@ -727,18 +816,21 @@ Permissions are checked hierarchically:
 ## SOP Compliance Requirements
 
 ### Lead Response Time
+
 - **15-minute SLA** for all leads
 - Escalation to manager if not contacted within 15 minutes
 - Applies to: Meta ads, website, WhatsApp, phone, walk-ins, email
 
 ### Quotation Response Time
-| Package Type | Response Time | Notes |
-|--------------|---------------|-------|
-| Ready Package | 30 minutes | Pre-costed, pre-approved |
-| Customized Itinerary | 2 hours | Requires supplier rate check |
-| Complex Itinerary | 6 hours | Multi-country, multiple suppliers |
+
+| Package Type         | Response Time | Notes                             |
+| -------------------- | ------------- | --------------------------------- |
+| Ready Package        | 30 minutes    | Pre-costed, pre-approved          |
+| Customized Itinerary | 2 hours       | Requires supplier rate check      |
+| Complex Itinerary    | 6 hours       | Multi-country, multiple suppliers |
 
 ### Follow-Up Sequence
+
 1. **Follow-Up 1**: Same day (evening)
 2. **Follow-Up 2**: Day 2 (morning)
 3. **Follow-Up 3**: Day 2 (evening)
@@ -746,22 +838,26 @@ Permissions are checked hierarchically:
 5. **Day 4**: Mark as "Non-Responsive" if no response
 
 **Compliance Rule**: A lead cannot be marked as "Closed – No Response" unless:
+
 - 4 call attempts completed
 - 2 WhatsApp messages sent
 - 1 Final Reminder sent
 - All logged in CRM
 
 ### Payment Rules
+
 - Minimum 50% advance payment required
 - 100% payment for non-refundable bookings
 - Balance payment before D-2 (2 days before supplier deadline)
 - No service confirmation without payment proof
 
 ### Documentation Timeline
+
 - Final itinerary must be sent **72 hours before departure**
 - Includes: passport, visa, tickets, hotel vouchers, transfers, tours, emergency contacts
 
 ### Booking Approval
+
 - Bookings above **AED 25,000** require Department Head (Manager) approval
 - Margin verification required
 - All vouchers must be verified
@@ -771,13 +867,16 @@ Permissions are checked hierarchically:
 ## Adding New Permissions
 
 ### Database Method
+
 ```sql
 INSERT INTO permissions (key, description, is_active)
 VALUES ('module:action', 'Description of permission', true);
 ```
 
 ### Seed File Method
+
 Update `database/seed-rbac.json`:
+
 ```json
 {
   "key": "module:action",
@@ -787,6 +886,7 @@ Update `database/seed-rbac.json`:
 ```
 
 ### Assign to Role
+
 ```sql
 INSERT INTO role_permissions (role_id, permission_id, is_active)
 VALUES (
@@ -797,11 +897,13 @@ VALUES (
 ```
 
 ### Apply in Routes
+
 ```javascript
-router.get('/', 
-  requireAuth, 
-  authorize('module:action'), 
-  asyncHandler(controller.method)
+router.get(
+  "/",
+  requireAuth,
+  authorize("module:action"),
+  asyncHandler(controller.method),
 );
 ```
 
@@ -823,6 +925,7 @@ router.get('/',
 ## Success Metrics
 
 The CRM system aims to achieve:
+
 - ✅ **15-minute lead response compliance**
 - ✅ **20-30% conversion ratio**
 - ✅ **Real-time revenue visibility**
@@ -832,8 +935,8 @@ The CRM system aims to achieve:
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025  
-**Total Roles**: 8  
-**Total Permissions**: 53  
+**Document Version**: 1.0
+**Last Updated**: 2025
+**Total Roles**: 8
+**Total Permissions**: 53
 **Based On**: PRD - CRM.pdf, HOLIDAYS SOP.pdf
