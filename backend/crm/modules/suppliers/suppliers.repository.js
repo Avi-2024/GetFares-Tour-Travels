@@ -2,6 +2,14 @@ function createSuppliersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
   const tableExistsCache = new Map();
 
+  function getAdapterName() {
+    return String(db.adapter || "").toLowerCase();
+  }
+
+  function isPostgresAdapter() {
+    return getAdapterName() === "postgres";
+  }
+
   function toNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -20,10 +28,11 @@ function createSuppliersRepository({ db, logger, schema }) {
   }
 
   function canUseRawQuery() {
+    const adapter = getAdapterName();
     return (
       typeof db.query === "function" &&
       db.pool &&
-      String(db.adapter || "").toLowerCase() === "postgres"
+      (adapter === "mysql" || adapter === "mysql")
     );
   }
 
@@ -55,7 +64,7 @@ function createSuppliersRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -77,7 +86,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
@@ -135,7 +144,7 @@ function createSuppliersRepository({ db, logger, schema }) {
       return [];
     }
 
-    if (canUseRawQuery()) {
+    if (canUseRawQuery() && isPostgresAdapter()) {
       const params = [supplierId];
       let sql = `
         SELECT 
@@ -201,11 +210,11 @@ function createSuppliersRepository({ db, logger, schema }) {
               NULLIF(TRIM(srv.item ->> 'supplier_id'), ''),
               NULLIF(TRIM(COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) -> 'supplierDetails' ->> 'supplierId'), ''),
               NULLIF(TRIM(COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) -> 'supplierDetails' ->> 'supplier_id'), '')
-            ) = $1
+            ) = ?
           ) mapped
         ) service_agg ON TRUE
-        WHERE b.supplier_details->>'supplierId' = $1
-           OR b.supplier_details->>'supplier_id' = $1
+        WHERE b.supplier_details->>'supplierId' = ?
+           OR b.supplier_details->>'supplier_id' = ?
         ORDER BY b.created_at DESC
       `;
       
@@ -262,8 +271,8 @@ function createSuppliersRepository({ db, logger, schema }) {
         `
           SELECT *
           FROM ${schema.payablesTable}
-          WHERE supplier_id = $1
-            AND booking_id = $2
+          WHERE supplier_id = ?
+            AND booking_id = ?
           ORDER BY created_at DESC
           LIMIT 1
         `,
@@ -304,13 +313,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     includeStatuses = ["PENDING", "PARTIAL"],
   } = {}) {
     if (canUseRawQuery()) {
-      const params = [includeStatuses];
-      let sql = `
-        SELECT p.*, s.name AS supplier_name
-        FROM ${schema.payablesTable} p
-        INNER JOIN ${schema.tableName} s ON s.id = p.supplier_id
-        WHERE p.due_date IS NOT NULL
-          AND p.status::text = ANY($1::text[])
+      const placeholders = includeStatuses.map(() => '?').join(','); const params = [...includeStatuses]; let sql = `SELECT p.*, s.name AS supplier_name FROM ${schema.payablesTable} p INNER JOIN ${schema.tableName} s ON s.id = p.supplier_id WHERE p.due_date IS NOT NULL AND p.status IN (${placeholders})
         ORDER BY p.due_date ASC
       `;
       if (limit) {
@@ -393,9 +396,9 @@ function createSuppliersRepository({ db, logger, schema }) {
     if (canUseRawQuery()) {
       const countResult = await db.query(
         `
-          SELECT COUNT(*)::int AS total
+          SELECT COUNT(*) AS total
           FROM ${schema.settlementsTable} s
-          WHERE s.payable_id = $1
+          WHERE s.payable_id = ?
         `,
         [payableId],
       );
@@ -410,9 +413,9 @@ function createSuppliersRepository({ db, logger, schema }) {
           FROM ${schema.settlementsTable} s
           LEFT JOIN ${schema.bookingsTable} b ON b.id = s.booking_id
           LEFT JOIN ${schema.usersTable} u ON u.id = s.created_by
-          WHERE s.payable_id = $1
+          WHERE s.payable_id = ?
           ORDER BY s.settlement_date DESC, s.created_at DESC
-          LIMIT $2 OFFSET $3
+          LIMIT ? OFFSET ?
         `,
         [payableId, limit, offset],
       );
@@ -467,7 +470,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     }
 
     const params = [supplierId];
-    const where = [`s.supplier_id = $1`];
+    const where = [`s.supplier_id = ?`];
 
     if (filters.bookingId) {
       params.push(filters.bookingId);
@@ -491,7 +494,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     if (canUseRawQuery()) {
       const countResult = await db.query(
         `
-          SELECT COUNT(*)::int AS total
+          SELECT COUNT(*) AS total
           FROM ${schema.settlementsTable} s
           ${whereSql}
         `,
@@ -605,7 +608,7 @@ function createSuppliersRepository({ db, logger, schema }) {
           `
             SELECT p.*
             FROM ${schema.payablesTable} p
-            WHERE p.id = $1
+            WHERE p.id = ?
             FOR UPDATE
           `,
           [payableId],
@@ -648,11 +651,11 @@ function createSuppliersRepository({ db, logger, schema }) {
           `
             UPDATE ${schema.payablesTable}
             SET
-              paid_amount = $1,
-              status = $2,
-              payment_reference = COALESCE($3, payment_reference),
-              last_paid_at = $4
-            WHERE id = $5
+              paid_amount = ?,
+              status = ?,
+              payment_reference = COALESCE(?, payment_reference),
+              last_paid_at = ?
+            WHERE id = ?
             RETURNING *
           `,
           [nextPaidAmount, nextStatus, reference || null, when, payableId],
@@ -674,7 +677,7 @@ function createSuppliersRepository({ db, logger, schema }) {
                 created_by,
                 created_at
               )
-              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
+              VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
               RETURNING *
             `,
             [
@@ -809,3 +812,8 @@ function createSuppliersRepository({ db, logger, schema }) {
 }
 
 export { createSuppliersRepository };
+
+
+
+
+

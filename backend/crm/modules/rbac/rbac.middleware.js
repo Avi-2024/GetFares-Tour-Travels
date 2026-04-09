@@ -41,6 +41,7 @@ function createRbacMiddleware({ rbacService }) {
           return next(error);
         }
 
+        console.error("[RBAC Middleware Error]", error);
         return next(
           new AppError(
             503,

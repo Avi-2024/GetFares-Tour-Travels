@@ -49,15 +49,15 @@ function coerceProcessedCount(result) {
 
 function toJsonDetails(value) {
   if (value === undefined) {
-    return {};
+    return JSON.stringify({});
   }
   if (value === null) {
-    return { value: null };
+    return JSON.stringify({ value: null });
   }
   if (typeof value === "object") {
-    return value;
+    return JSON.stringify(value);
   }
-  return { value };
+  return JSON.stringify({ value });
 }
 
 function createAutomationScheduler({
@@ -254,7 +254,7 @@ function createAutomationScheduler({
       const skippedPayload = {
         status: "SKIPPED",
         recordsProcessed: 0,
-        details: { reason: "LOCK_NOT_ACQUIRED" },
+        details: JSON.stringify({ reason: "LOCK_NOT_ACQUIRED" }),
         errorMessage: null,
       };
       await completeRunRecord(runRecord, skippedPayload);

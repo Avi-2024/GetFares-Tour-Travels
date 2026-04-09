@@ -91,7 +91,7 @@ function createQuotationsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
@@ -594,7 +594,7 @@ function createQuotationsRepository({ db, logger, schema }) {
         WHERE COALESCE(is_deleted, FALSE) = FALSE
           AND status NOT IN ('APPROVED', 'REJECTED')
           AND sent_at IS NOT NULL
-          AND sent_at <= $1
+          AND sent_at <= ?
           AND COALESCE(view_count, 0) = 0
           AND NOT EXISTS (
             SELECT 1
@@ -611,7 +611,7 @@ function createQuotationsRepository({ db, logger, schema }) {
           AND status NOT IN ('APPROVED', 'REJECTED')
           AND sent_at IS NOT NULL
           AND last_viewed_at IS NOT NULL
-          AND last_viewed_at <= $1
+          AND last_viewed_at <= ?
           AND COALESCE(view_count, 0) > 0
           AND NOT EXISTS (
             SELECT 1
@@ -717,7 +717,7 @@ function createQuotationsRepository({ db, logger, schema }) {
         if (canUseRawQuery()) {
           const values = ["APPROVED"];
           const clauses = [
-            "q.status = $1",
+            "q.status = ?",
             "q.is_deleted = FALSE",
             "b.id IS NULL",
           ];
@@ -936,7 +936,7 @@ function createQuotationsRepository({ db, logger, schema }) {
     },
 
     async replaceItems(quotationId, components = []) {
-      await db.query("DELETE FROM quotation_items WHERE quotation_id = $1", [
+      await db.query("DELETE FROM quotation_items WHERE quotation_id = ?", [
         quotationId,
       ]);
 
@@ -970,7 +970,7 @@ function createQuotationsRepository({ db, logger, schema }) {
               first_viewed_at = COALESCE(first_viewed_at, CURRENT_TIMESTAMP),
               last_viewed_at = CURRENT_TIMESTAMP,
               updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1
+            WHERE id = ?
             RETURNING *
           `,
           [quotationId],
@@ -1211,9 +1211,9 @@ function createQuotationsRepository({ db, logger, schema }) {
         SELECT
           q.created_by,
           u.full_name AS consultant_name,
-          COUNT(*)::int AS total_quotes,
-          SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved_quotes,
-          SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected_quotes,
+          COUNT(*) AS total_quotes,
+          SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotes,
+          SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotes,
           AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_created_minutes,
           AVG(
             CASE
@@ -1224,7 +1224,7 @@ function createQuotationsRepository({ db, logger, schema }) {
           )::numeric(10,2) AS avg_lead_to_quote_sent_minutes,
           AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
           AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent,
-          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END)::int AS sla_breached_quotes
+          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END) AS sla_breached_quotes
         FROM quotations q
         LEFT JOIN users u ON u.id = q.created_by
         LEFT JOIN leads l ON l.id = q.lead_id
@@ -1235,9 +1235,9 @@ function createQuotationsRepository({ db, logger, schema }) {
 
       const overallSql = `
         SELECT
-          COUNT(*)::int AS total_quotes,
-          SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved_quotes,
-          SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected_quotes,
+          COUNT(*) AS total_quotes,
+          SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotes,
+          SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotes,
           AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_created_minutes,
           AVG(
             CASE
@@ -1248,7 +1248,7 @@ function createQuotationsRepository({ db, logger, schema }) {
           )::numeric(10,2) AS avg_lead_to_quote_sent_minutes,
           AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
           AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent,
-          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END)::int AS sla_breached_quotes
+          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END) AS sla_breached_quotes
         FROM quotations q
         LEFT JOIN leads l ON l.id = q.lead_id
         WHERE ${whereSql}
@@ -1327,3 +1327,4 @@ function createQuotationsRepository({ db, logger, schema }) {
 }
 
 export { createQuotationsRepository };
+

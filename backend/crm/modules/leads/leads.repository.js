@@ -24,6 +24,18 @@ function createLeadsRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
   const tableExistsCache = new Map();
 
+  function isDuplicateKeyError(error) {
+    const code = String(error?.code || "").toUpperCase();
+    const sqlState = String(error?.sqlState || "").toUpperCase();
+    const errno = Number(error?.errno);
+    return (
+      code === "23505" ||
+      code === "ER_DUP_ENTRY" ||
+      sqlState === "23000" ||
+      errno === 1062
+    );
+  }
+
   function canIntrospect() {
     return typeof db.query === "function" && Boolean(db.pool);
   }
@@ -112,7 +124,10 @@ function createLeadsRepository({ db, logger, schema }) {
   }
 
   async function reserveNextLeadCodeSerial() {
-    if (db.adapter === "postgres" && typeof db.query === "function") {
+    if (
+      (db.adapter === "mysql") &&
+      typeof db.query === "function"
+    ) {
       try {
         const result = await db.query(
           `SELECT nextval('leads_lead_code_seq') AS serial`,
@@ -162,7 +177,7 @@ function createLeadsRepository({ db, logger, schema }) {
         });
         return mapRowToDomain(updated);
       } catch (error) {
-        if (error?.code === "23505") {
+        if (isDuplicateKeyError(error)) {
           continue;
         }
         if (error?.code === "42703") {
@@ -256,7 +271,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-        `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+        `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
         [tableName],
       );
 
@@ -495,7 +510,7 @@ function createLeadsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
@@ -515,7 +530,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -873,7 +888,10 @@ function createLeadsRepository({ db, logger, schema }) {
         .trim()
         .toUpperCase();
 
-      if (db.adapter === "postgres" && typeof db.query === "function") {
+      if (
+        (db.adapter === "mysql") &&
+        typeof db.query === "function"
+      ) {
         const where = ["COALESCE(l.is_deleted, FALSE) = FALSE"];
         const params = [];
 
@@ -921,10 +939,10 @@ function createLeadsRepository({ db, logger, schema }) {
           if (visibleAssigneeIds.length > 0) {
             params.push(visibleAssigneeIds);
             if (filters.includeUnassigned === false) {
-              where.push(`l.assigned_to = ANY($${params.length}::uuid[])`);
+              where.push(`l.assigned_to = ANY($${params.length})`);
             } else {
               where.push(
-                `(l.assigned_to IS NULL OR l.assigned_to = ANY($${params.length}::uuid[]))`,
+                `(l.assigned_to IS NULL OR l.assigned_to = ANY($${params.length}))`,
               );
             }
           }
@@ -966,7 +984,7 @@ function createLeadsRepository({ db, logger, schema }) {
           if (allowedCountries.length > 0) {
             params.push(allowedCountries);
             where.push(
-              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) = ANY($${params.length}::text[]))`,
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) = ANY($${params.length}))`,
             );
           }
         }
@@ -1006,7 +1024,7 @@ function createLeadsRepository({ db, logger, schema }) {
           if (leadId) {
             params.push(leadId);
             where.push(
-              `(LOWER(l.id::text) = LOWER($${params.length}) OR LOWER(COALESCE(l.lead_code, '')) = LOWER($${params.length}) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER($${params.length}))`,
+              `(LOWER(l.id) = LOWER($${params.length}) OR LOWER(COALESCE(l.lead_code, '')) = LOWER($${params.length}) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER($${params.length}))`,
             );
           }
         }
@@ -1023,7 +1041,7 @@ function createLeadsRepository({ db, logger, schema }) {
               `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(d.name, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(l.source, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.id::text, '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(l.id, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(l.lead_code, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(l.meta_lead_id, '')) LIKE $${textParamIndex}`,
             ];
@@ -1040,12 +1058,12 @@ function createLeadsRepository({ db, logger, schema }) {
 
         if (filters.fromDate) {
           params.push(filters.fromDate);
-          where.push(`l.created_at >= $${params.length}::date`);
+          where.push(`l.created_at >= $${params.length}`);
         }
 
         if (filters.toDate) {
           params.push(filters.toDate);
-          where.push(`l.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+          where.push(`l.created_at < ($${params.length} + INTERVAL '1 day')`);
         }
 
         if (filters.sla === "OVERDUE" || quickFilter === "LATE_RESPONSE") {
@@ -1072,14 +1090,13 @@ function createLeadsRepository({ db, logger, schema }) {
 
         const baseSql = [
           `FROM ${schema.tableName} l`,
-          `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id`,
           `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
           `WHERE ${where.join(" AND ")}`,
         ]
           .filter(Boolean)
           .join("\n");
 
-        const countSql = [`SELECT COUNT(*)::int AS total`, baseSql].join("\n");
+        const countSql = [`SELECT COUNT(*) AS total`, baseSql].join("\n");
         const countResult = await db.query(countSql, params);
         const total = Number(countResult.rows?.[0]?.total || 0);
 
@@ -1285,9 +1302,9 @@ function createLeadsRepository({ db, logger, schema }) {
         return null;
       }
 
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const result = await db.query(
-          `SELECT * FROM ${schema.destinationsTable} WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+          `SELECT * FROM ${schema.destinationsTable} WHERE LOWER(name) = LOWER(?) LIMIT 1`,
           [normalized],
         );
         return result.rows?.[0] || null;
@@ -1433,7 +1450,7 @@ function createLeadsRepository({ db, logger, schema }) {
     async findUserAgentCountry(userId) {
       if (!userId) return null;
 
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const [hasUserCountriesTable, hasCountriesTable] = await Promise.all([
           hasTable(schema.userCountriesTable),
           hasTable(schema.countriesTable),
@@ -1444,7 +1461,7 @@ function createLeadsRepository({ db, logger, schema }) {
               SELECT c.name
               FROM ${schema.userCountriesTable} uc
               INNER JOIN ${schema.countriesTable} c ON c.id = uc.country_id
-              WHERE uc.user_id = $1
+              WHERE uc.user_id = ?
               ORDER BY uc.is_primary DESC, c.name ASC
               LIMIT 1
             `,
@@ -1463,7 +1480,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findUserCountryNames(userId) {
       if (!userId) return [];
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const [hasUserCountriesTable, hasCountriesTable] = await Promise.all([
           hasTable(schema.userCountriesTable),
           hasTable(schema.countriesTable),
@@ -1474,7 +1491,7 @@ function createLeadsRepository({ db, logger, schema }) {
               SELECT c.name
               FROM ${schema.userCountriesTable} uc
               INNER JOIN ${schema.countriesTable} c ON c.id = uc.country_id
-              WHERE uc.user_id = $1
+              WHERE uc.user_id = ?
               ORDER BY uc.is_primary DESC, c.name ASC
             `,
             [userId],
@@ -1499,9 +1516,12 @@ function createLeadsRepository({ db, logger, schema }) {
       const normalizedType = agentType ? String(agentType).trim().toUpperCase() : null;
       
       // Use database-level filtering for better performance
-      if (db.adapter === 'postgres' && normalizedCountry) {
+      if (
+        (db.adapter === "mysql") &&
+        normalizedCountry
+      ) {
         const typeCondition = normalizedType 
-          ? `AND (u.agent_type = $2 OR u.agent_type = 'BOTH')`
+          ? `AND (u.agent_type = ? OR u.agent_type = 'BOTH')`
           : '';
         
         const params = normalizedType 
@@ -1514,7 +1534,7 @@ function createLeadsRepository({ db, logger, schema }) {
           LEFT JOIN ${schema.rolesTable} r ON u.role_id = r.id
           WHERE u.is_active = true
             AND COALESCE(u.is_on_leave, false) = false
-            AND LOWER(u.agent_country) = $1
+            AND LOWER(u.agent_country) = ?
             AND r.name IN ('agent', 'sales_consultant', 'visa_executive', 'holiday_consultant')
             ${typeCondition}
           ORDER BY u.id ASC
@@ -1639,14 +1659,14 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findManagedAgentIds(managerId) {
       if (!managerId) return [];
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const hasParentId = await hasColumn(schema.usersTable, "parent_id");
         if (hasParentId) {
           const result = await db.query(
             `
               SELECT id
               FROM ${schema.usersTable}
-              WHERE COALESCE(parent_id, manager_id) = $1
+              WHERE COALESCE(parent_id, manager_id) = ?
             `,
             [managerId],
           );
@@ -1760,7 +1780,7 @@ function createLeadsRepository({ db, logger, schema }) {
       try {
         return await db.insert(tableName, payload);
       } catch (error) {
-        if (error?.code === "23505") {
+        if (isDuplicateKeyError(error)) {
           return db.findOne(tableName, { lead_id: leadId });
         }
         throw error;
@@ -1775,9 +1795,9 @@ function createLeadsRepository({ db, logger, schema }) {
       }
       const normalizedLimit = toPositiveInt(limit, 50);
 
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const result = await db.query(
-          `SELECT * FROM ${tableName} WHERE processed_at IS NULL ORDER BY queued_at ASC LIMIT $1`,
+          `SELECT * FROM ${tableName} WHERE processed_at IS NULL ORDER BY queued_at ASC LIMIT ?`,
           [normalizedLimit],
         );
         return result.rows || [];
@@ -1893,7 +1913,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findSlaBreachCandidates({ limit = 100 } = {}) {
       const normalizedLimit = toPositiveInt(limit, 100);
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const result = await db.query(
           `
             SELECT *
@@ -1904,7 +1924,7 @@ function createLeadsRepository({ db, logger, schema }) {
               AND response_deadline IS NOT NULL
               AND response_deadline < CURRENT_TIMESTAMP
             ORDER BY response_deadline ASC
-            LIMIT $1
+            LIMIT ?
           `,
           [normalizedLimit],
         );
@@ -2272,3 +2292,6 @@ function createLeadsRepository({ db, logger, schema }) {
 }
 
 export { createLeadsRepository };
+
+
+

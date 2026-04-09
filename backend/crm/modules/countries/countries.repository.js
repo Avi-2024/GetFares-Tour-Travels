@@ -1,6 +1,6 @@
 function createCountriesRepository({ db, logger, schema }) {
   async function findAll({ includeInactive = true, search = null } = {}) {
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const values = [];
       const filters = [];
 
@@ -48,7 +48,7 @@ function createCountriesRepository({ db, logger, schema }) {
 
   async function findByCode(code) {
     if (!code) return null;
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const result = await db.query(
         `
           SELECT *
@@ -70,7 +70,7 @@ function createCountriesRepository({ db, logger, schema }) {
 
   async function findByName(name) {
     if (!name) return null;
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const result = await db.query(
         `
           SELECT *
@@ -101,7 +101,7 @@ function createCountriesRepository({ db, logger, schema }) {
   }
 
   async function countUsage(countryId) {
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const result = await db.query(
         `
           SELECT
@@ -139,3 +139,4 @@ function createCountriesRepository({ db, logger, schema }) {
 }
 
 export { createCountriesRepository };
+

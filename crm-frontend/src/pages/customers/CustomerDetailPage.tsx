@@ -724,7 +724,7 @@ const CustomerDetailPage: React.FC = () => {
               </div>
               <div className='p-5 space-y-2'>
                 <button
-                  onClick={() => navigate('/create-lead')}
+                  onClick={() => navigate('/create-lead', { state: { customer } })}
                   className='w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors'
                 >
                   Create Lead

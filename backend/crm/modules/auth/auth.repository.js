@@ -1,6 +1,18 @@
 function createAuthRepository({ db, logger, schema }) {
   const columnCache = new Map();
 
+  function isDuplicateKeyError(error) {
+    const code = String(error?.code || "").toUpperCase();
+    const sqlState = String(error?.sqlState || "").toUpperCase();
+    const errno = Number(error?.errno);
+    return (
+      code === "23505" ||
+      code === "ER_DUP_ENTRY" ||
+      sqlState === "23000" ||
+      errno === 1062
+    );
+  }
+
   async function hasUsersColumn(columnName) {
     if (typeof db?.query !== "function") {
       return true;
@@ -51,7 +63,7 @@ function createAuthRepository({ db, logger, schema }) {
       agentCountry: row.agent_country ?? row.agentCountry ?? null,
       agentType: row.agent_type ?? row.agentType ?? null,
       isActive: row.is_active ?? row.isActive ?? true,
-      active: row.active ?? null,
+      active: row.active != null ? Boolean(row.active) : null,
       createdAt: row.created_at ?? row.createdAt,
       updatedAt: row.updated_at ?? row.updatedAt,
     };
@@ -66,7 +78,7 @@ function createAuthRepository({ db, logger, schema }) {
           description: `Auto-created role: ${roleName}`,
         });
       } catch (error) {
-        if (error?.code !== "23505") {
+        if (!isDuplicateKeyError(error)) {
           throw error;
         }
         roleRecord = await db.findOne(schema.rolesTable, { name: roleName });

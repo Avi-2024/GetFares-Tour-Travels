@@ -38,11 +38,12 @@ class DashboardRepository {
   }
 
   canUseRawQuery() {
+    const adapter = String(this.db.adapter || '').toLowerCase();
     return (
       this.db &&
       typeof this.db.query === 'function' &&
       Boolean(this.db.pool) &&
-      String(this.db.adapter || '').toLowerCase() === 'postgres'
+      (adapter === 'mysql')
     );
   }
 
@@ -391,9 +392,9 @@ class DashboardRepository {
         `
           SELECT 1
           FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = $1
-            AND column_name = $2
+          WHERE table_schema = DATABASE()
+            AND table_name = ?
+            AND column_name = ?
           LIMIT 1
         `,
         [tableName, columnName],
@@ -475,7 +476,7 @@ class DashboardRepository {
       const currentQuery = `
         SELECT
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.created_at >= ${periodStartSql}
             ${leadSoftDeleteClause}
@@ -488,15 +489,15 @@ class DashboardRepository {
               ${quotationSoftDeleteClause}
           ) AS revenue,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.next_followup_date IS NOT NULL
               AND l.next_followup_date <= CURRENT_DATE
-              AND COALESCE(l.status::text, '') = ANY($1::text[])
+              AND COALESCE(l.status, '') IN (?)
               ${leadSoftDeleteClause}
           ) AS pending_calls,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.bookings} b
             WHERE b.created_at >= ${periodStartSql}
           ) AS bookings
@@ -505,7 +506,7 @@ class DashboardRepository {
       const previousQuery = `
         SELECT
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.created_at >= ${previousStartSql}
               AND l.created_at < ${periodStartSql}
@@ -520,15 +521,15 @@ class DashboardRepository {
               ${quotationSoftDeleteClause}
           ) AS revenue,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.next_followup_date IS NOT NULL
-              AND l.next_followup_date < ${periodStartSql}::date
-              AND COALESCE(l.status::text, '') = ANY($1::text[])
+              AND l.next_followup_date < ${periodStartSql}
+              AND COALESCE(l.status, '') IN (?)
               ${leadSoftDeleteClause}
           ) AS pending_calls,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.bookings} b
             WHERE b.created_at >= ${previousStartSql}
               AND b.created_at < ${periodStartSql}
@@ -556,7 +557,7 @@ class DashboardRepository {
       };
     } catch (error) {
       this.log.error({ err: error, period }, 'Error fetching dashboard stats.');
-      return DEFAULT_STATS;
+      return this.getStatsFallback(period);
     }
   }
 
@@ -573,7 +574,7 @@ class DashboardRepository {
         'b',
       );
 
-      const bookedRevenueWhere = `COALESCE(b.status::text, '') <> 'CANCELLED'${bookingSoftDeleteClause}`;
+      const bookedRevenueWhere = `COALESCE(b.status, '') <> 'CANCELLED'${bookingSoftDeleteClause}`;
 
       const queries = {
         today: `
@@ -734,7 +735,7 @@ class DashboardRepository {
       }));
     } catch (error) {
       this.log.error({ err: error, range }, 'Error fetching revenue data.');
-      return DEFAULT_REVENUE;
+      return this.getRevenueFallback(range);
     }
   }
 
@@ -762,7 +763,7 @@ class DashboardRepository {
         source_counts AS (
           SELECT
             source_name,
-            COUNT(*)::int AS source_count
+            COUNT(*) AS source_count
           FROM filtered_leads
           GROUP BY source_name
         ),
@@ -788,7 +789,7 @@ class DashboardRepository {
       }));
     } catch (error) {
       this.log.error({ err: error, period }, 'Error fetching lead sources.');
-      return DEFAULT_LEAD_SOURCES;
+      return this.getLeadSourcesFallback(period);
     }
   }
 }
@@ -798,3 +799,4 @@ function createDashboardRepository(dependencies) {
 }
 
 export { DashboardRepository, createDashboardRepository };
+

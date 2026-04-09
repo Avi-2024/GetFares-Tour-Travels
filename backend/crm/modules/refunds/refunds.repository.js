@@ -180,7 +180,7 @@ function createRefundsRepository({ db, logger, schema }) {
           `
             SELECT COALESCE(SUM(amount), 0) AS paid_amount
             FROM ${schema.paymentsTable}
-            WHERE booking_id = $1
+            WHERE booking_id = ?
               AND COALESCE(is_verified, FALSE) = TRUE
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
           `,
@@ -205,7 +205,7 @@ function createRefundsRepository({ db, logger, schema }) {
           `
             SELECT COALESCE(SUM(refund_amount), 0) AS refund_amount
             FROM ${schema.tableName}
-            WHERE booking_id = $1
+            WHERE booking_id = ?
               AND status = 'PROCESSED'
           `,
           [bookingId],
