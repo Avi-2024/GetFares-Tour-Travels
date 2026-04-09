@@ -10,8 +10,9 @@ function createCountriesRepository({ db, logger, schema }) {
       if (search) {
         values.push(`%${search}%`);
         filters.push(
-          `(c.name ILIKE $${values.length} OR c.code ILIKE $${values.length})`,
+          `(c.name LIKE ? OR c.code LIKE ?)`,
         );
+        values.push(`%${search}%`);
       }
 
       const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
@@ -52,7 +53,7 @@ function createCountriesRepository({ db, logger, schema }) {
         `
           SELECT *
           FROM ${schema.tableName}
-          WHERE LOWER(code) = LOWER($1)
+          WHERE LOWER(code) = LOWER(?)
           LIMIT 1
         `,
         [code],
@@ -74,7 +75,7 @@ function createCountriesRepository({ db, logger, schema }) {
         `
           SELECT *
           FROM ${schema.tableName}
-          WHERE LOWER(name) = LOWER($1)
+          WHERE LOWER(name) = LOWER(?)
           LIMIT 1
         `,
         [name],
@@ -107,15 +108,15 @@ function createCountriesRepository({ db, logger, schema }) {
             (
               SELECT COUNT(*)
               FROM ${schema.userCountriesTable} uc
-              WHERE uc.country_id = $1
-            )::int AS users_count,
+              WHERE uc.country_id = ?
+            ) AS users_count,
             (
               SELECT COUNT(*)
               FROM ${schema.leadsTable} l
-              WHERE l.country_id = $1
-            )::int AS leads_count
+              WHERE l.country_id = ?
+            ) AS leads_count
         `,
-        [countryId],
+        [countryId, countryId],
       );
       return {
         usersCount: Number(result.rows[0]?.users_count || 0),

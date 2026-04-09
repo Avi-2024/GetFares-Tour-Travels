@@ -26,15 +26,15 @@ function createExperienceRepository({ db, schema }) {
 
       if (filters.destinationId) {
         values.push(filters.destinationId);
-        whereClause += ` AND sc.destination_id = $${values.length}`;
+        whereClause += " AND sc.destination_id = ?";
       }
       if (filters.isActive !== undefined) {
         values.push(filters.isActive);
-        whereClause += ` AND sc.is_active = $${values.length}`;
+        whereClause += " AND sc.is_active = ?";
       }
       if (filters.country) {
         values.push(filters.country);
-        whereClause += ` AND d.country = $${values.length}`;
+        whereClause += " AND d.country = ?";
       }
 
       const result = await db.query(
@@ -67,11 +67,12 @@ function createExperienceRepository({ db, schema }) {
     },
 
     async deleteSeasonCard(id) {
-      const result = await db.query(
-        `DELETE FROM ${schema.seasonsTable} WHERE id = $1 RETURNING *`,
-        [id],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.seasonsTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.seasonsTable} WHERE id = ?`, [id]);
+      return existing;
     },
 
     async findHeroSections(filters = {}) {
@@ -79,7 +80,7 @@ function createExperienceRepository({ db, schema }) {
     },
 
     async upsertHeroSection(sectionKey, data) {
-      const result = await db.query(
+      await db.query(
         `INSERT INTO ${schema.heroTable} (
           country,
           section_key,
@@ -95,22 +96,20 @@ function createExperienceRepository({ db, schema }) {
           is_active
         )
         VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+          ?,?,?,?,?,?,?,?,?,?,?,?
         )
-        ON CONFLICT (country, section_key)
-        DO UPDATE SET
-          eyebrow_text = EXCLUDED.eyebrow_text,
-          heading_line_1 = EXCLUDED.heading_line_1,
-          heading_line_2 = EXCLUDED.heading_line_2,
-          description = EXCLUDED.description,
-          primary_cta_label = EXCLUDED.primary_cta_label,
-          primary_cta_url = EXCLUDED.primary_cta_url,
-          secondary_cta_label = EXCLUDED.secondary_cta_label,
-          secondary_cta_url = EXCLUDED.secondary_cta_url,
-          background_image_url = EXCLUDED.background_image_url,
-          is_active = EXCLUDED.is_active,
-          updated_at = NOW()
-        RETURNING *`,
+        ON DUPLICATE KEY UPDATE
+          eyebrow_text = VALUES(eyebrow_text),
+          heading_line_1 = VALUES(heading_line_1),
+          heading_line_2 = VALUES(heading_line_2),
+          description = VALUES(description),
+          primary_cta_label = VALUES(primary_cta_label),
+          primary_cta_url = VALUES(primary_cta_url),
+          secondary_cta_label = VALUES(secondary_cta_label),
+          secondary_cta_url = VALUES(secondary_cta_url),
+          background_image_url = VALUES(background_image_url),
+          is_active = VALUES(is_active),
+          updated_at = CURRENT_TIMESTAMP`,
         [
           data.country,
           sectionKey,
@@ -125,6 +124,16 @@ function createExperienceRepository({ db, schema }) {
           data.background_image_url ?? null,
           data.is_active ?? true,
         ],
+      );
+
+      const result = await db.query(
+        `SELECT *
+         FROM ${schema.heroTable}
+         WHERE section_key = ?
+           AND country <=> ?
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [sectionKey, data.country ?? null],
       );
 
       return result.rows[0] || null;

@@ -4,8 +4,7 @@ function createCustomersRepository({ db, logger, schema }) {
   function canUseRawQuery() {
     return (
       typeof db.query === "function" &&
-      db.pool &&
-      String(db.adapter || "").toLowerCase() === "postgres"
+      db.pool
     );
   }
 
@@ -19,7 +18,7 @@ function createCustomersRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
       [tableName],
     );
 
@@ -129,17 +128,22 @@ function createCustomersRepository({ db, logger, schema }) {
 
       const query = `
         SELECT
-          l.customer_id::text AS customer_id,
-          COUNT(DISTINCT b.id)::int AS total_bookings,
-          MAX(COALESCE(b.created_at, b.travel_start_date::timestamp)) AS last_booking_date,
-          (ARRAY_AGG(
-            COALESCE(NULLIF(b.booking_number, ''), b.id::text)
-            ORDER BY COALESCE(b.created_at, b.travel_start_date::timestamp) DESC NULLS LAST, b.created_at DESC NULLS LAST
-          ))[1] AS last_booking_number
+          l.customer_id AS customer_id,
+          COUNT(DISTINCT b.id) AS total_bookings,
+          MAX(COALESCE(b.created_at, b.travel_start_date)) AS last_booking_date,
+          SUBSTRING_INDEX(
+            GROUP_CONCAT(
+              COALESCE(NULLIF(b.booking_number, ''), b.id)
+              ORDER BY COALESCE(b.created_at, b.travel_start_date) DESC, b.created_at DESC
+              SEPARATOR ','
+            ),
+            ',',
+            1
+          ) AS last_booking_number
         FROM ${schema.leadsTable} l
         INNER JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
         INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
-        WHERE l.customer_id = ANY($1::uuid[])
+        WHERE l.customer_id IN (?)
           ${leadSoftDeleteClause}
           ${quotationSoftDeleteClause}
           ${bookingSoftDeleteClause}

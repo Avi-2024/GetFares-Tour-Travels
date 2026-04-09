@@ -5,8 +5,6 @@ import crypto from "node:crypto";
  * Manages JWT token revocation and blacklist
  */
 function createTokenBlacklistService({ db, logger }) {
-  const isMySql = String(db?.adapter || "").toLowerCase() === "mysql";
-
   /**
    * Add token to blacklist
    */
@@ -19,24 +17,13 @@ function createTokenBlacklistService({ db, logger }) {
     userAgent = null,
   }) {
     try {
-      if (isMySql) {
-        await db.query(
-          `
-          INSERT IGNORE INTO token_blacklist (token_jti, user_id, expires_at, reason, ip_address, user_agent)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `,
-          [jti, userId, expiresAt, reason, ipAddress, userAgent],
-        );
-      } else {
-        await db.query(
-          `
-          INSERT INTO token_blacklist (token_jti, user_id, expires_at, reason, ip_address, user_agent)
-          VALUES ($1, $2, $3, $4, $5, $6)
-          ON CONFLICT (token_jti) DO NOTHING
-        `,
-          [jti, userId, expiresAt, reason, ipAddress, userAgent],
-        );
-      }
+      await db.query(
+        `
+        INSERT IGNORE INTO token_blacklist (token_jti, user_id, expires_at, reason, ip_address, user_agent)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `,
+        [jti, userId, expiresAt, reason, ipAddress, userAgent],
+      );
 
       logger.info(
         { jti, userId, reason },
@@ -63,7 +50,7 @@ function createTokenBlacklistService({ db, logger }) {
       const result = await db.query(
         `
         SELECT 1 FROM token_blacklist 
-        WHERE token_jti = $1 
+        WHERE token_jti = ? 
         AND expires_at > CURRENT_TIMESTAMP
         LIMIT 1
       `,

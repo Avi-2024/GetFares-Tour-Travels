@@ -78,11 +78,7 @@ function createAutomationScheduler({
   const tableCache = new Map();
 
   function canUseDbLock() {
-    return (
-      typeof db?.query === "function" &&
-      Boolean(db?.pool) &&
-      String(db?.adapter || "").toLowerCase() === "postgres"
-    );
+    return typeof db?.query === "function" && Boolean(db?.pool);
   }
 
   async function hasTable(tableName) {
@@ -96,7 +92,7 @@ function createAutomationScheduler({
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -112,10 +108,10 @@ function createAutomationScheduler({
     const lockName = `automation:${jobName}`;
     const lockKey = lockKeyFromString(lockName);
 
-    if (canUseDbLock()) {
+    if (canUseDbLock() && String(db?.adapter || "").toLowerCase() === "postgres") {
       try {
         const result = await db.query(
-          "SELECT pg_try_advisory_lock($1::bigint) AS locked",
+          "SELECT pg_try_advisory_lock(?) AS locked",
           [lockKey],
         );
         const locked = Boolean(result.rows?.[0]?.locked);
@@ -130,7 +126,7 @@ function createAutomationScheduler({
           acquired: true,
           release: async () => {
             try {
-              await db.query("SELECT pg_advisory_unlock($1::bigint)", [lockKey]);
+              await db.query("SELECT pg_advisory_unlock(?)", [lockKey]);
             } catch (error) {
               logger?.warn?.(
                 { err: error, module: "automation", jobName, lockKey },
@@ -143,6 +139,41 @@ function createAutomationScheduler({
         logger?.warn?.(
           { err: error, module: "automation", jobName },
           "Falling back to local lock due advisory lock failure",
+        );
+      }
+    }
+
+    if (canUseDbLock() && String(db?.adapter || "").toLowerCase() === "mysql") {
+      try {
+        const result = await db.query(
+          "SELECT GET_LOCK(?, 0) AS locked",
+          [lockName],
+        );
+        const locked = Number(result.rows?.[0]?.locked || 0) === 1;
+        if (!locked) {
+          return {
+            acquired: false,
+            release: async () => undefined,
+          };
+        }
+
+        return {
+          acquired: true,
+          release: async () => {
+            try {
+              await db.query("SELECT RELEASE_LOCK(?)", [lockName]);
+            } catch (error) {
+              logger?.warn?.(
+                { err: error, module: "automation", jobName, lockName },
+                "Failed to release mysql lock",
+              );
+            }
+          },
+        };
+      } catch (error) {
+        logger?.warn?.(
+          { err: error, module: "automation", jobName },
+          "Falling back to local lock due mysql lock failure",
         );
       }
     }
