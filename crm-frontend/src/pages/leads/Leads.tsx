@@ -118,7 +118,7 @@ const Leads: React.FC = () => {
 
   const destinationOptions = useMemo(
     () => [
-      { value: "", label: "All Destinations" },
+      { value: "", label: "All " },
       ...destinationNames.map((name) => ({ value: name, label: name })),
     ],
     [destinationNames],
@@ -126,7 +126,7 @@ const Leads: React.FC = () => {
 
   const statusOptions = useMemo(
     () => [
-      { value: "ALL", label: "All Statuses" },
+      { value: "ALL", label: "All " },
       { value: "NEW", label: "New" },
       { value: "CONTACTED", label: "Contacted" },
       { value: "CONVERTED", label: "Converted" },
@@ -531,7 +531,7 @@ const Leads: React.FC = () => {
                     onChange={(event) =>
                       updateDraftFilter("email", event.target.value)
                     }
-                    placeholder="Partial email"
+                    placeholder="email"
                     className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
                   />
                 </div>
@@ -545,7 +545,7 @@ const Leads: React.FC = () => {
                     onChange={(event) =>
                       updateDraftFilter("phone", event.target.value)
                     }
-                    placeholder="Partial phone"
+                    placeholder="phone"
                     className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
                   />
                 </div>
@@ -614,7 +614,7 @@ const Leads: React.FC = () => {
                     className="w-full"
                     value={draftFilters.status}
                     options={statusOptions}
-                    placeholder="All Statuses"
+                    placeholder="All "
                     searchPlaceholder="Search status..."
                     onChange={(value) =>
                       updateDraftFilter(
@@ -632,8 +632,8 @@ const Leads: React.FC = () => {
                     className="w-full"
                     value={draftFilters.sla}
                     options={slaOptions}
-                    placeholder="All SLA"
-                    searchPlaceholder="Search SLA..."
+                    placeholder="All "
+                    searchPlaceholder="Searching..."
                     onChange={(value) =>
                       updateDraftFilter("sla", value as LeadFilterState["sla"])
                     }
