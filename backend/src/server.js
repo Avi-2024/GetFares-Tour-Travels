@@ -41,10 +41,13 @@ httpServer.listen(container.config.app.port, () => {
 
 let shuttingDown = false;
 
-async function closeDependencies() {
+async function closeDependencies({ skipLogger = false } = {}) {
   if (typeof automationRuntime?.stop === "function") automationRuntime.stop();
   if (typeof socketServer?.close === "function") socketServer.close();
   if (typeof container.db?.close === "function") await container.db.close();
+  if (!skipLogger && typeof container.logger?.close === "function") {
+    await container.logger.close();
+  }
 }
 
 function initiateShutdown(signal) {
@@ -76,7 +79,7 @@ function initiateShutdown(signal) {
     }
 
     try {
-      await closeDependencies();
+      await closeDependencies({ skipLogger: true });
       container.logger.info("Graceful shutdown completed");
     } catch (dependencyError) {
       container.logger.error(
@@ -84,6 +87,9 @@ function initiateShutdown(signal) {
         "Error while closing dependencies",
       );
     } finally {
+      if (typeof container.logger?.close === "function") {
+        await container.logger.close();
+      }
       clearTimeout(forceShutdownTimer);
       process.exit(serverCloseError ? 1 : 0);
     }
@@ -92,3 +98,33 @@ function initiateShutdown(signal) {
 
 process.on("SIGTERM", () => initiateShutdown("SIGTERM"));
 process.on("SIGINT", () => initiateShutdown("SIGINT"));
+process.on("unhandledRejection", (reason) => {
+  container.logger.error(
+    {
+      module: "server",
+      fileName: "server.js",
+      functionName: "unhandledRejection",
+      metadata: {
+        reason: reason instanceof Error ? reason.message : String(reason),
+      },
+      stack: reason instanceof Error ? reason.stack : undefined,
+    },
+    "Unhandled exception",
+  );
+  initiateShutdown("unhandledRejection");
+});
+process.on("uncaughtException", (error) => {
+  container.logger.error(
+    {
+      module: "server",
+      fileName: "server.js",
+      functionName: "uncaughtException",
+      stack: error?.stack,
+      metadata: {
+        message: error?.message,
+      },
+    },
+    "Unhandled exception",
+  );
+  initiateShutdown("uncaughtException");
+});

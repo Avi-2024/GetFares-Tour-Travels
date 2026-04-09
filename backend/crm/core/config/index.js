@@ -30,6 +30,9 @@ const config = Object.freeze({
   },
   logger: {
     level: env.LOG_LEVEL,
+    logDbUrl: env.LOG_DB_URL,
+    logDbDirectUrl: env.LOG_DB_DIRECT_URL,
+    logDbCollection: env.LOG_DB_COLLECTION,
   },
   health: {
     dbTimeoutMs: env.HEALTH_DB_TIMEOUT_MS,

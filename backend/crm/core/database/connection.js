@@ -326,41 +326,64 @@ class InMemoryDatabase {
 }
 
 class PostgresDatabase {
-  constructor({ pool }) {
+  constructor({ pool, logger }) {
     this.pool = pool;
+    this.logger = logger;
     this.adapter = "postgres";
   }
 
-  async insert(tableName, payload) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
-    const table = quoteIdentifier(tableName, "postgres");
-
-    if (!entries.length) {
-      const result = await this.pool.query(
-        `INSERT INTO ${table} DEFAULT VALUES RETURNING *`,
+  async executeWithErrorLog(operationName, metadata, executor) {
+    try {
+      return await executor();
+    } catch (error) {
+      this.logger?.error(
+        {
+          module: "database",
+          fileName: "connection.js",
+          functionName: operationName,
+          stack: error?.stack,
+          metadata,
+        },
+        "Database query failed",
       );
-      return result.rows[0] || null;
+      throw error;
     }
+  }
 
-    const columns = entries.map(([column]) => quoteIdentifier(column, "postgres")).join(", ");
-    const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
-    const values = entries.map(([, value]) => value);
+  async insert(tableName, payload) {
+    return this.executeWithErrorLog("insert", { tableName }, async () => {
+      const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
+      const table = quoteIdentifier(tableName, "postgres");
 
-    const result = await this.pool.query(
-      `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`,
-      values,
-    );
+      if (!entries.length) {
+        const result = await this.pool.query(
+          `INSERT INTO ${table} DEFAULT VALUES RETURNING *`,
+        );
+        return result.rows[0] || null;
+      }
 
-    return result.rows[0] || null;
+      const columns = entries.map(([column]) => quoteIdentifier(column, "postgres")).join(", ");
+      const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
+      const values = entries.map(([, value]) => value);
+
+      const result = await this.pool.query(
+        `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`,
+        values,
+      );
+
+      return result.rows[0] || null;
+    });
   }
 
   async findById(tableName, id) {
-    const table = quoteIdentifier(tableName, "postgres");
-    const result = await this.pool.query(
-      `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
-      [id],
-    );
-    return result.rows[0] || null;
+    return this.executeWithErrorLog("findById", { tableName }, async () => {
+      const table = quoteIdentifier(tableName, "postgres");
+      const result = await this.pool.query(
+        `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
+        [id],
+      );
+      return result.rows[0] || null;
+    });
   }
 
   async findOne(tableName, filters = {}) {
@@ -369,69 +392,73 @@ class PostgresDatabase {
   }
 
   async findMany(tableName, filters = {}) {
-    const table = quoteIdentifier(tableName, "postgres");
-    const normalizedFilters = normalizeFilters(filters);
-    const values = [];
+    return this.executeWithErrorLog("findMany", { tableName }, async () => {
+      const table = quoteIdentifier(tableName, "postgres");
+      const normalizedFilters = normalizeFilters(filters);
+      const values = [];
 
-    const whereClause = normalizedFilters
-      .map(([key, value], index) => {
-        values.push(value);
-        return `${quoteIdentifier(key, "postgres")} = $${index + 1}`;
-      })
-      .join(" AND ");
+      const whereClause = normalizedFilters
+        .map(([key, value], index) => {
+          values.push(value);
+          return `${quoteIdentifier(key, "postgres")} = $${index + 1}`;
+        })
+        .join(" AND ");
 
-    let query = `SELECT * FROM ${table}`;
-    if (whereClause) {
-      query += ` WHERE ${whereClause}`;
-    }
+      let query = `SELECT * FROM ${table}`;
+      if (whereClause) {
+        query += ` WHERE ${whereClause}`;
+      }
 
-    const limit = toPositiveInt(filters.limit);
-    const page = toPositiveInt(filters.page);
-    const requestedOffset = toNonNegativeInt(filters.offset);
-    const offset =
-      requestedOffset !== null ? requestedOffset
-      : limit && page ? (page - 1) * limit
-      : null;
+      const limit = toPositiveInt(filters.limit);
+      const page = toPositiveInt(filters.page);
+      const requestedOffset = toNonNegativeInt(filters.offset);
+      const offset =
+        requestedOffset !== null ? requestedOffset
+        : limit && page ? (page - 1) * limit
+        : null;
 
-    if (limit) {
-      values.push(limit);
-      query += ` LIMIT $${values.length}`;
-    }
+      if (limit) {
+        values.push(limit);
+        query += ` LIMIT $${values.length}`;
+      }
 
-    if (offset !== null) {
-      values.push(offset);
-      query += ` OFFSET $${values.length}`;
-    }
+      if (offset !== null) {
+        values.push(offset);
+        query += ` OFFSET $${values.length}`;
+      }
 
-    const result = await this.pool.query(query, values);
-    return result.rows;
+      const result = await this.pool.query(query, values);
+      return result.rows;
+    });
   }
 
   async update(tableName, id, payload) {
-    const entries = Object.entries(payload).filter(
-      ([key, value]) => key !== "id" && value !== undefined,
-    );
-    if (!entries.length) {
-      return this.findById(tableName, id);
-    }
+    return this.executeWithErrorLog("update", { tableName }, async () => {
+      const entries = Object.entries(payload).filter(
+        ([key, value]) => key !== "id" && value !== undefined,
+      );
+      if (!entries.length) {
+        return this.findById(tableName, id);
+      }
 
-    const table = quoteIdentifier(tableName, "postgres");
-    const values = entries.map(([, value]) => value);
-    const setClause = entries
-      .map(([key], index) => `${quoteIdentifier(key, "postgres")} = $${index + 1}`)
-      .join(", ");
+      const table = quoteIdentifier(tableName, "postgres");
+      const values = entries.map(([, value]) => value);
+      const setClause = entries
+        .map(([key], index) => `${quoteIdentifier(key, "postgres")} = $${index + 1}`)
+        .join(", ");
 
-    values.push(id);
-    const result = await this.pool.query(
-      `UPDATE ${table} SET ${setClause} WHERE id = $${values.length} RETURNING *`,
-      values,
-    );
+      values.push(id);
+      const result = await this.pool.query(
+        `UPDATE ${table} SET ${setClause} WHERE id = $${values.length} RETURNING *`,
+        values,
+      );
 
-    return result.rows[0] || null;
+      return result.rows[0] || null;
+    });
   }
 
   async query(sql, params = []) {
-    return this.pool.query(sql, params);
+    return this.executeWithErrorLog("query", {}, async () => this.pool.query(sql, params));
   }
 
   async healthCheck({ timeoutMs } = {}) {
@@ -942,7 +969,7 @@ function createDatabaseConnection({ config, logger }) {
     pool.on("error", (error) => {
       logger.error({ err: error }, "Unexpected PostgreSQL pool error");
     });
-    return new PostgresDatabase({ pool });
+    return new PostgresDatabase({ pool, logger });
   }
 
   logger.warn("DATABASE_URL is not set. Falling back to in-memory adapter.");
