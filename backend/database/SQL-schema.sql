@@ -1,126 +1,185 @@
--- MySQL full schema script
--- Auto-built from 0*.mysql.sql
-
+-- STRICT MYSQL SCHEMA
 SET time_zone = '+05:30';
 
-
--- ========================================
--- 001_add_crm_package_fields.mysql.sql
--- ========================================
--- CRM package fields (idempotent)
-
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'base_cost') = 0,
   'ALTER TABLE packages ADD COLUMN base_cost DECIMAL(12,2) DEFAULT 0 CHECK (base_cost >= 0)',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'markup_percent') = 0,
   'ALTER TABLE packages ADD COLUMN markup_percent DECIMAL(5,2) DEFAULT 0 CHECK (markup_percent >= 0 AND markup_percent <= 100)',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'package_kind') = 0,
   'ALTER TABLE packages ADD COLUMN package_kind VARCHAR(20) DEFAULT ''READY'' CHECK (package_kind IN (''READY'', ''CUSTOMIZED''))',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'custom_services') = 0,
   'ALTER TABLE packages ADD COLUMN custom_services JSON DEFAULT (JSON_ARRAY())',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'visa_details') = 0,
   'ALTER TABLE packages ADD COLUMN visa_details TEXT',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'payment_terms') = 0,
   'ALTER TABLE packages ADD COLUMN payment_terms TEXT',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'package_category') = 0,
   'ALTER TABLE packages ADD COLUMN package_category VARCHAR(30)',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'status') = 0,
   'ALTER TABLE packages ADD COLUMN status VARCHAR(20) DEFAULT ''DRAFT'' CHECK (status IN (''DRAFT'', ''ACTIVE'', ''EXPIRED'', ''SOLD_OUT''))',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'keywords') = 0,
   'ALTER TABLE packages ADD COLUMN keywords TEXT',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'website_slug') = 0,
   'ALTER TABLE packages ADD COLUMN website_slug VARCHAR(180) UNIQUE',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = 'website_last_synced_at') = 0,
   'ALTER TABLE packages ADD COLUMN website_last_synced_at DATETIME',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'packages' AND index_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'packages' AND index_name = 'idx_packages_published') = 0,
   'CREATE INDEX idx_packages_published ON packages(publish_to_website, is_deleted)',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'packages' AND index_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'packages' AND index_name = 'idx_packages_kind') = 0,
   'CREATE INDEX idx_packages_kind ON packages(package_kind)',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'packages' AND index_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'packages' AND index_name = 'idx_packages_status') = 0,
   'CREATE INDEX idx_packages_status ON packages(status)',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM @sql;
+
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
-  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'packages' AND index_name = '') = 0,
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'packages') = 1 AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'packages' AND index_name = 'idx_packages_website_slug') = 0,
   'CREATE INDEX idx_packages_website_slug ON packages(website_slug)',
   'SELECT 1'
 );
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+PREPARE stmt FROM @sql;
 
--- ========================================
--- 001_initial_schema.mysql.sql
--- ========================================
--- =========================================
--- 1. AUTHENTICATION & RBAC TABLES (MySQL)
--- =========================================
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS roles (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -172,10 +231,6 @@ CREATE TABLE IF NOT EXISTS login_audit (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- =========================================
--- 2. DESTINATION & PRICING (MySQL)
--- =========================================
-
 CREATE TABLE IF NOT EXISTS destinations (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     name VARCHAR(150) UNIQUE NOT NULL,
@@ -200,10 +255,6 @@ CREATE TABLE IF NOT EXISTS destination_pricing (
     CHECK (valid_from <= valid_to)
 );
 
--- =========================================
--- 3. MARKETING (MySQL)
--- =========================================
-
 CREATE TABLE IF NOT EXISTS campaigns (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     name VARCHAR(150),
@@ -219,10 +270,6 @@ CREATE TABLE IF NOT EXISTS campaigns (
     end_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- =========================================
--- 4. LEAD MANAGEMENT (MySQL)
--- =========================================
 
 CREATE TABLE IF NOT EXISTS leads (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -293,10 +340,6 @@ CREATE TABLE IF NOT EXISTS followups (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- =========================================
--- 5. QUOTATION (MySQL)
--- =========================================
-
 CREATE TABLE IF NOT EXISTS quotations (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     parent_quote_id CHAR(36),
@@ -336,10 +379,6 @@ CREATE TABLE IF NOT EXISTS quotation_views (
     ip_address VARCHAR(50),
     FOREIGN KEY (quotation_id) REFERENCES quotations(id)
 );
-
--- =========================================
--- 6. BOOKING & PAYMENT (MySQL)
--- =========================================
 
 CREATE TABLE IF NOT EXISTS bookings (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -413,10 +452,6 @@ CREATE TABLE IF NOT EXISTS refunds (
     FOREIGN KEY (approved_by) REFERENCES users(id)
 );
 
--- =========================================
--- 7. VISA MODULE (MySQL)
--- =========================================
-
 CREATE TABLE IF NOT EXISTS suppliers (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     name VARCHAR(150),
@@ -473,10 +508,6 @@ CREATE TABLE IF NOT EXISTS documentation_checklist (
     FOREIGN KEY (verified_by) REFERENCES users(id)
 );
 
--- =========================================
--- 8. CUSTOMER MANAGEMENT (MySQL)
--- =========================================
-
 CREATE TABLE IF NOT EXISTS customers (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     full_name VARCHAR(150),
@@ -496,10 +527,6 @@ CREATE TABLE IF NOT EXISTS customer_leads (
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (lead_id) REFERENCES leads(id)
 );
-
--- =========================================
--- 9. OPERATIONS (MySQL)
--- =========================================
 
 CREATE TABLE IF NOT EXISTS complaints (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -523,10 +550,6 @@ CREATE TABLE IF NOT EXISTS complaint_activities (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- =========================================
--- 10. EMPLOYEE MANAGEMENT (MySQL)
--- =========================================
-
 CREATE TABLE IF NOT EXISTS attendance (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     user_id CHAR(36),
@@ -546,10 +569,6 @@ CREATE TABLE IF NOT EXISTS leaves (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- =========================================
--- 11. GLOBAL AUDIT (MySQL)
--- =========================================
-
 CREATE TABLE IF NOT EXISTS audit_logs (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     user_id CHAR(36),
@@ -562,68 +581,69 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- =========================================
--- 12. INDEXES (MySQL)
--- =========================================
-
 CREATE INDEX idx_leads_destination_id ON leads(destination_id);
+
 CREATE INDEX idx_leads_campaign_id ON leads(campaign_id);
+
 CREATE INDEX idx_leads_status ON leads(status);
+
 CREATE INDEX idx_leads_assigned_to ON leads(assigned_to);
+
 CREATE INDEX idx_leads_created_at ON leads(created_at);
+
 CREATE INDEX idx_leads_response_deadline ON leads(response_deadline);
+
 CREATE INDEX idx_leads_status_assigned ON leads(status, assigned_to);
+
 CREATE INDEX idx_quotations_lead_id ON quotations(lead_id);
+
 CREATE INDEX idx_quotations_status ON quotations(status);
+
 CREATE INDEX idx_quotations_created_at ON quotations(created_at);
+
 CREATE INDEX idx_bookings_quotation_id ON bookings(quotation_id);
+
 CREATE INDEX idx_bookings_status ON bookings(status);
+
 CREATE INDEX idx_bookings_payment_status ON bookings(payment_status);
+
 CREATE INDEX idx_bookings_created_at ON bookings(created_at);
+
 CREATE INDEX idx_payments_booking_id ON payments(booking_id);
+
 CREATE INDEX idx_payments_status ON payments(status);
+
 CREATE INDEX idx_payments_paid_at ON payments(paid_at);
+
 CREATE INDEX idx_payments_gateway_payment_id ON payments(gateway_payment_id);
+
 CREATE INDEX idx_refunds_booking_id ON refunds(booking_id);
+
 CREATE INDEX idx_refunds_payment_id ON refunds(payment_id);
+
 CREATE INDEX idx_visa_cases_booking_id ON visa_cases(booking_id);
+
 CREATE INDEX idx_visa_cases_status ON visa_cases(status);
+
 CREATE INDEX idx_campaigns_source ON campaigns(source);
+
 CREATE INDEX idx_campaigns_start_date ON campaigns(start_date);
 
-
--- ========================================
--- 002_initial_schema.mysql.sql
--- ========================================
 CREATE INDEX idx_leads_assigned_at ON leads(assigned_at);
+
 CREATE INDEX idx_leads_sla_breached ON leads(sla_breached);
 
 CREATE INDEX idx_followups_lead_id ON followups(lead_id);
+
 CREATE INDEX idx_followups_due_open ON followups(followup_date, is_completed);
 
 CREATE INDEX idx_lead_activities_lead_user_created
   ON lead_activities(lead_id, user_id, created_at);
 
-
--- ========================================
--- 003_followups_schedule_only.mysql.sql
--- ========================================
--- Add is_schedule_only column to followups table (MySQL)
--- This separates schedule-only followups (for notifications) from compliance-tracked followups
-
-ALTER TABLE followups 
+ALTER TABLE followups
 ADD COLUMN is_schedule_only BOOLEAN DEFAULT FALSE;
 
--- Create index for filtering
 CREATE INDEX idx_followups_is_schedule_only ON followups(is_schedule_only);
-
-
--- ========================================
--- 003_quotation_engine_sprint3.mysql.sql
--- ========================================
--- MySQL migration: quotation engine sprint 3
--- This migration is idempotent and safe for re-run in environments where
--- some columns/tables may already exist.
 
 CREATE TABLE IF NOT EXISTS quotation_templates (
   id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -671,56 +691,66 @@ ALTER TABLE quotations
   ADD COLUMN lead_to_quote_minutes INT,
   ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
 
--- Add foreign keys if they don't exist
 SET @query = IF(
-  (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS 
-   WHERE CONSTRAINT_SCHEMA = DATABASE() 
-   AND TABLE_NAME = 'quotations' 
+  (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+   WHERE CONSTRAINT_SCHEMA = DATABASE()
+   AND TABLE_NAME = 'quotations'
    AND CONSTRAINT_NAME = 'quotations_template_id_fkey') = 0,
   'ALTER TABLE quotations ADD CONSTRAINT quotations_template_id_fkey FOREIGN KEY (template_id) REFERENCES quotation_templates(id) ON DELETE SET NULL',
   'SELECT 1'
 );
+
 PREPARE stmt FROM @query;
+
 EXECUTE stmt;
+
 DEALLOCATE PREPARE stmt;
 
 SET @query = IF(
-  (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS 
-   WHERE CONSTRAINT_SCHEMA = DATABASE() 
-   AND TABLE_NAME = 'quotations' 
+  (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+   WHERE CONSTRAINT_SCHEMA = DATABASE()
+   AND TABLE_NAME = 'quotations'
    AND CONSTRAINT_NAME = 'quotations_approved_by_fkey') = 0,
   'ALTER TABLE quotations ADD CONSTRAINT quotations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES users(id)',
   'SELECT 1'
 );
+
 PREPARE stmt FROM @query;
+
 EXECUTE stmt;
+
 DEALLOCATE PREPARE stmt;
 
 SET @query = IF(
-  (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS 
-   WHERE CONSTRAINT_SCHEMA = DATABASE() 
-   AND TABLE_NAME = 'quotations' 
+  (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+   WHERE CONSTRAINT_SCHEMA = DATABASE()
+   AND TABLE_NAME = 'quotations'
    AND CONSTRAINT_NAME = 'quotations_sent_by_fkey') = 0,
   'ALTER TABLE quotations ADD CONSTRAINT quotations_sent_by_fkey FOREIGN KEY (sent_by) REFERENCES users(id)',
   'SELECT 1'
 );
+
 PREPARE stmt FROM @query;
+
 EXECUTE stmt;
+
 DEALLOCATE PREPARE stmt;
 
 SET @query = IF(
-  (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS 
-   WHERE CONSTRAINT_SCHEMA = DATABASE() 
-   AND TABLE_NAME = 'quotations' 
+  (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+   WHERE CONSTRAINT_SCHEMA = DATABASE()
+   AND TABLE_NAME = 'quotations'
    AND CONSTRAINT_NAME = 'quotations_pdf_generated_by_fkey') = 0,
   'ALTER TABLE quotations ADD CONSTRAINT quotations_pdf_generated_by_fkey FOREIGN KEY (pdf_generated_by) REFERENCES users(id)',
   'SELECT 1'
 );
+
 PREPARE stmt FROM @query;
+
 EXECUTE stmt;
+
 DEALLOCATE PREPARE stmt;
 
--- Add check constraints
 ALTER TABLE quotations
   ADD CONSTRAINT chk_quotations_margin_amount_non_negative CHECK (margin_amount >= 0),
   ADD CONSTRAINT chk_quotations_discount_amount_non_negative CHECK (discount_amount >= 0),
@@ -799,10 +829,6 @@ CREATE INDEX idx_quotation_views_quote_viewed
 CREATE INDEX idx_quotation_templates_active_type
   ON quotation_templates (is_active, template_type);
 
-
--- ========================================
--- 004_notifications_socketio_mvp.mysql.sql
--- ========================================
 CREATE TABLE IF NOT EXISTS notification_events (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     event_name VARCHAR(150) NOT NULL,
@@ -841,47 +867,20 @@ CREATE INDEX idx_notification_events_event_name
 CREATE INDEX idx_notification_events_status
   ON notification_events (status, created_at DESC);
 
-
--- ========================================
--- 004_update_existing_followups.mysql.sql
--- ========================================
--- Update existing followups that were created via Schedule Follow-up (MySQL)
--- These should be marked as schedule-only (not appear in history)
-
--- Mark all existing followups as schedule-only by default
--- (since the new system separates schedule from workflow actions)
-UPDATE followups 
-SET is_schedule_only = TRUE 
+UPDATE followups
+SET is_schedule_only = TRUE
 WHERE is_schedule_only IS NULL OR is_schedule_only = FALSE;
 
--- If you want to keep existing followups in history, comment out the above
--- and only mark future ones as schedule-only
-
--- Alternatively, if you want to preserve existing history:
--- UPDATE followups 
--- SET is_schedule_only = FALSE 
--- WHERE is_schedule_only IS NULL;
-
-
--- ========================================
--- 005_finance_crm_mapping.mysql.sql
--- ========================================
--- Finance System <-> CRM mapping upgrade (MySQL)
--- Covers client onboarding, supplier onboarding, cost break-up, payment modes, currency mapping.
-
--- 1) Lead onboarding fields (captured at lead generation)
 ALTER TABLE leads
   ADD COLUMN pan_number VARCHAR(20),
   ADD COLUMN address_line TEXT,
   ADD COLUMN client_currency VARCHAR(10) DEFAULT 'INR';
 
--- 2) Customer profile finance identity fields
 ALTER TABLE customers
   ADD COLUMN pan_number VARCHAR(20),
   ADD COLUMN address_line TEXT,
   ADD COLUMN client_currency VARCHAR(10) DEFAULT 'INR';
 
--- 3) Supplier onboarding fields
 ALTER TABLE suppliers
   ADD COLUMN pan_number VARCHAR(20),
   ADD COLUMN gst_number VARCHAR(30),
@@ -893,7 +892,6 @@ ALTER TABLE suppliers
   ADD COLUMN invoice_upi_id VARCHAR(100),
   ADD COLUMN supplier_currency VARCHAR(10) DEFAULT 'INR';
 
--- 4) Quotation cost break-up and currency context
 ALTER TABLE quotations
   ADD COLUMN supplier_cost DECIMAL(12,2) DEFAULT 0 CHECK (supplier_cost >= 0),
   ADD COLUMN supplier_tax_amount DECIMAL(12,2) DEFAULT 0 CHECK (supplier_tax_amount >= 0),
@@ -906,7 +904,6 @@ ALTER TABLE quotations
   ADD COLUMN client_currency VARCHAR(10) DEFAULT 'INR',
   ADD COLUMN supplier_currency VARCHAR(10) DEFAULT 'INR';
 
--- 5) Payment mode enforcement (Cash / Bank Transfer / Payment Gateway)
 ALTER TABLE payments
   ADD CONSTRAINT payments_mode_allowed
   CHECK (
@@ -917,28 +914,18 @@ ALTER TABLE payments
     )
   );
 
--- Helpful indexes for finance filtering/reporting
 CREATE INDEX idx_leads_pan_number ON leads(pan_number);
+
 CREATE INDEX idx_customers_pan_number ON customers(pan_number);
+
 CREATE INDEX idx_suppliers_pan_number ON suppliers(pan_number);
+
 CREATE INDEX idx_quotations_total_sale_value ON quotations(total_sale_value);
+
 CREATE INDEX idx_payments_mode ON payments(payment_mode);
 
-
--- ========================================
--- 005_set_ist_timezone.mysql.sql
--- ========================================
--- Session-level timezone only (no SUPER privilege needed)
 SET time_zone = '+05:30';
 
-
--- ========================================
--- 006_prd_completion_modules.mysql.sql
--- ========================================
--- PRD completion migration (MySQL)
--- Adds missing entities and fields for packages, documents, supplier mgmt and lead workflow compliance.
-
--- Add new value to lead status ENUM
 ALTER TABLE leads MODIFY COLUMN status ENUM('OPEN', 'CONTACTED', 'WIP', 'QUOTED', 'FOLLOW_UP', 'CONVERTED', 'LOST', 'NON_RESPONSIVE') DEFAULT 'OPEN';
 
 ALTER TABLE leads
@@ -1061,31 +1048,23 @@ CREATE TABLE IF NOT EXISTS package_enquiries (
 );
 
 CREATE INDEX idx_leads_temperature ON leads(temperature);
+
 CREATE INDEX idx_leads_sub_status ON leads(sub_status);
+
 CREATE INDEX idx_booking_documents_booking_id ON booking_documents(booking_id);
+
 CREATE INDEX idx_supplier_payables_supplier_id ON supplier_payables(supplier_id);
+
 CREATE INDEX idx_supplier_payables_status ON supplier_payables(status);
+
 CREATE INDEX idx_packages_status_publish ON packages(status, publish_to_website);
+
 CREATE INDEX idx_package_enquiries_package_id ON package_enquiries(package_id);
-
-
--- ========================================
--- 007_meta_lead_ads.mysql.sql
--- ========================================
--- Meta Lead Ads webhook support (MySQL)
--- Adds a Meta lead identifier for idempotent ingestion
 
 ALTER TABLE leads
   ADD COLUMN meta_lead_id VARCHAR(120);
 
 CREATE UNIQUE INDEX idx_leads_meta_lead_id ON leads(meta_lead_id);
-
-
--- ========================================
--- 008_settings_module.mysql.sql
--- ========================================
--- Settings module (MySQL)
--- Stores system and integration settings in JSON sections.
 
 CREATE TABLE IF NOT EXISTS app_settings (
   id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -1129,13 +1108,6 @@ VALUES
   )
 ON DUPLICATE KEY UPDATE `key` = `key`;
 
-
--- ========================================
--- 009_dynamic_rbac_permissions.mysql.sql
--- ========================================
--- Dynamic RBAC enhancements (MySQL)
--- Makes permissions fully DB-managed and role grants toggleable.
-
 ALTER TABLE roles
   ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
@@ -1155,6 +1127,7 @@ ALTER TABLE permissions
   MODIFY COLUMN `key` VARCHAR(120) NOT NULL;
 
 CREATE UNIQUE INDEX uq_permissions_key ON permissions(`key`);
+
 CREATE INDEX idx_permissions_is_active ON permissions(is_active);
 
 ALTER TABLE role_permissions
@@ -1167,17 +1140,6 @@ CREATE INDEX idx_role_permissions_role_active
 
 CREATE INDEX idx_role_permissions_permission_active
   ON role_permissions(permission_id, is_active);
-
-
--- ========================================
--- 010_quotation_prd_response_sla_pdf_notes.mysql.sql
--- ========================================
--- =====================================================
--- MODULE 2 PRD HARDENING (Quotation Management) - MySQL
--- - important notes persistence
--- - lead->quote sent tracking + SLA tracking
--- - response category normalization
--- =====================================================
 
 ALTER TABLE quotations
   ADD COLUMN important_notes TEXT;
@@ -1235,17 +1197,6 @@ CREATE INDEX idx_quotations_response_category
 CREATE INDEX idx_quotations_response_sla_breached
   ON quotations(response_sla_breached, sent_at DESC);
 
-
--- ========================================
--- 011_leads_followup_compliance_and_packages_policy.mysql.sql
--- ========================================
--- =====================================================
--- PRD/SOP hardening (MySQL)
--- - Lead qualification: preferred hotel category
--- - Follow-up cadence tracking metadata
--- - Packages pricing policy fields
--- =====================================================
-
 ALTER TABLE leads
   ADD COLUMN preferred_hotel_category VARCHAR(20);
 
@@ -1258,12 +1209,6 @@ CREATE INDEX idx_followups_lead_cadence_code
 ALTER TABLE packages
   ADD COLUMN base_cost DECIMAL(12,2) DEFAULT 0 CHECK (base_cost >= 0),
   ADD COLUMN markup_percent DECIMAL(5,2) DEFAULT 0 CHECK (markup_percent >= 0 AND markup_percent <= 100);
-
-
--- ========================================
--- 012_scheduler_deadlines_and_alert_logs.mysql.sql
--- ========================================
--- Module completion migration: automation scheduler + bookings structured deadlines + alert logs (MySQL)
 
 ALTER TABLE bookings
   ADD COLUMN supplier_details JSON DEFAULT (JSON_OBJECT()),
@@ -1362,10 +1307,6 @@ ALTER TABLE automation_job_runs
 CREATE INDEX idx_automation_job_runs_job_started
   ON automation_job_runs (job_name, started_at DESC);
 
-
--- ========================================
--- 013_leads_followup_alert_dedupe.mysql.sql
--- ========================================
 CREATE TABLE IF NOT EXISTS lead_followup_alert_logs (
   id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
   followup_id CHAR(36) NOT NULL,
@@ -1382,10 +1323,6 @@ CREATE UNIQUE INDEX uq_lead_followup_alert_logs_unique
 CREATE INDEX idx_lead_followup_alert_logs_alert_date
   ON lead_followup_alert_logs (alert_date);
 
-
--- ========================================
--- 014_visa_workflow_stage_and_delivery.mysql.sql
--- ========================================
 ALTER TABLE visa_cases
   ADD COLUMN workflow_stage VARCHAR(50),
   ADD COLUMN delivered_at DATE,
@@ -1421,20 +1358,12 @@ CREATE INDEX idx_visa_cases_appointment_date
 CREATE INDEX idx_visa_cases_visa_valid_until
   ON visa_cases (visa_valid_until);
 
-
--- ========================================
--- 015_fix_lead_sla_flags.mysql.sql
--- ========================================
 UPDATE leads
 SET sla_breached = (response_at > response_deadline)
 WHERE response_at IS NOT NULL
   AND response_deadline IS NOT NULL
   AND sla_breached != (response_at > response_deadline);
 
-
--- ========================================
--- 016_active_users_and_queued_leads.mysql.sql
--- ========================================
 ALTER TABLE users
 ADD COLUMN active BOOLEAN DEFAULT TRUE;
 
@@ -1463,29 +1392,15 @@ CREATE INDEX idx_queued_leads_pending
 CREATE INDEX idx_queued_leads_lead_id
   ON queued_leads(lead_id);
 
-
--- ========================================
--- 018_roles_country.mysql.sql
--- ========================================
--- Add country column to roles table for multi-country RBAC (MySQL)
 ALTER TABLE roles ADD COLUMN country VARCHAR(100);
 
 CREATE INDEX idx_roles_country
   ON roles(country);
 
-
--- ========================================
--- 019_lead_child_ages.mysql.sql
--- ========================================
--- Add structured child_ages array to leads (MySQL uses JSON instead of array)
 ALTER TABLE leads ADD COLUMN child_ages JSON;
 
-
--- ========================================
--- 020_users_agent_fields.mysql.sql
--- ========================================
--- Add agent_country and agent_type columns to users table (MySQL)
 ALTER TABLE users ADD COLUMN agent_country VARCHAR(100);
+
 ALTER TABLE users ADD COLUMN agent_type VARCHAR(50);
 
 CREATE INDEX idx_users_agent_country
@@ -1494,29 +1409,18 @@ CREATE INDEX idx_users_agent_country
 CREATE INDEX idx_users_agent_type
   ON users(agent_type);
 
-
--- ========================================
--- 021_leads_calls_disabled_packages_kind.mysql.sql
--- ========================================
--- Lead call opt-out persistence (MySQL)
 ALTER TABLE leads ADD COLUMN calls_disabled BOOLEAN DEFAULT FALSE;
 
--- Package operational kind: READY (static) vs CUSTOMIZED (editable services in CRM)
 ALTER TABLE packages ADD COLUMN package_kind VARCHAR(20) DEFAULT 'READY';
 
--- Line items for customized packages (JSON array of { name, description?, cost, markupPercent?, sellValue? })
 ALTER TABLE packages ADD COLUMN custom_services JSON DEFAULT (JSON_ARRAY());
 
--- Quotation SOP prefill (optional on package record)
 ALTER TABLE packages ADD COLUMN visa_details TEXT;
+
 ALTER TABLE packages ADD COLUMN payment_terms TEXT;
 
 CREATE INDEX idx_packages_kind ON packages(package_kind, is_deleted);
 
-
--- ========================================
--- 022_quotation_manual_trip_fields.mysql.sql
--- ========================================
 ALTER TABLE quotations
   ADD COLUMN source_package_id CHAR(36),
   ADD COLUMN quotation_title VARCHAR(200),
@@ -1537,11 +1441,6 @@ ALTER TABLE quotations
   ADD CONSTRAINT fk_quotations_source_package
   FOREIGN KEY (source_package_id) REFERENCES packages(id) ON DELETE SET NULL;
 
-
--- ========================================
--- 023_users_manager_hierarchy.mysql.sql
--- ========================================
--- Add reporting hierarchy link for agents (MySQL)
 ALTER TABLE users
   ADD COLUMN manager_id CHAR(36);
 
@@ -1550,20 +1449,6 @@ ALTER TABLE users
   FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL;
 
 CREATE INDEX idx_users_manager_id ON users(manager_id);
-
-
--- ========================================
--- 024_hierarchical_rbac_countries.mysql.sql
--- ========================================
--- =========================================
--- 024_hierarchical_rbac_countries.sql (MySQL)
--- Additive migration for:
--- - country master
--- - multi-country user mapping
--- - optional normalized lead country reference
--- - assignment history audit
--- - parent_id alias for hierarchy
--- =========================================
 
 CREATE TABLE IF NOT EXISTS countries (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -1579,6 +1464,7 @@ CREATE TABLE IF NOT EXISTS countries (
 );
 
 CREATE INDEX idx_countries_is_active ON countries(is_active);
+
 CREATE INDEX idx_countries_name ON countries(name);
 
 CREATE TABLE IF NOT EXISTS user_countries (
@@ -1611,6 +1497,7 @@ ALTER TABLE leads
   FOREIGN KEY (country_id) REFERENCES countries(id) ON DELETE SET NULL;
 
 CREATE INDEX idx_users_parent_id ON users(parent_id);
+
 CREATE INDEX idx_leads_country_id ON leads(country_id);
 
 CREATE TABLE IF NOT EXISTS lead_assignment_history (
@@ -1630,41 +1517,35 @@ CREATE TABLE IF NOT EXISTS lead_assignment_history (
 
 CREATE INDEX idx_lead_assignment_history_lead_id
   ON lead_assignment_history(lead_id, created_at DESC);
+
 CREATE INDEX idx_lead_assignment_history_new_assignee
   ON lead_assignment_history(new_assignee_id, created_at DESC);
 
--- Seed baseline countries (safe idempotent)
 INSERT INTO countries (code, name)
 VALUES
   ('IN', 'India'),
   ('AE', 'UAE')
 ON DUPLICATE KEY UPDATE code = code;
 
--- Backfill parent_id from manager_id (keeps existing hierarchy intact)
 UPDATE users
 SET parent_id = manager_id
 WHERE parent_id IS NULL
   AND manager_id IS NOT NULL;
 
--- Backfill lead.country_id from existing lead_country text when possible
+ALTER TABLE leads ADD COLUMN lead_country VARCHAR(255);
+
 UPDATE leads l
 JOIN countries c ON LOWER(TRIM(l.lead_country)) = LOWER(TRIM(c.name))
-SET l.country_id = c.id
-WHERE l.country_id IS NULL
+SET l.country_id = c.id WHERE l.country_id IS NULL
   AND l.lead_country IS NOT NULL;
 
--- Backfill user_countries from existing users.agent_country text when possible
 INSERT INTO user_countries (user_id, country_id, is_primary)
 SELECT u.id, c.id, TRUE
 FROM users u
 JOIN countries c ON LOWER(TRIM(u.agent_country)) = LOWER(TRIM(c.name))
 ON DUPLICATE KEY UPDATE is_primary = VALUES(is_primary);
 
-
--- ========================================
--- 025_leads_list_performance_indexes.mysql.sql
--- ========================================
--- MySQL doesn't support pg_trgm extension, using FULLTEXT indexes instead
+ALTER TABLE leads ADD COLUMN is_deleted BOOLEAN DEFAULT false;
 
 CREATE INDEX idx_leads_active_created_at_desc
   ON leads(created_at DESC, is_deleted);
@@ -1672,33 +1553,21 @@ CREATE INDEX idx_leads_active_created_at_desc
 CREATE INDEX idx_leads_country_lower
   ON leads(lead_country);
 
--- FULLTEXT indexes for text search (MySQL alternative to pg_trgm)
 ALTER TABLE leads ADD FULLTEXT INDEX idx_leads_full_name_ft (full_name);
+
 ALTER TABLE leads ADD FULLTEXT INDEX idx_leads_email_ft (email);
 
 ALTER TABLE customers ADD FULLTEXT INDEX idx_customers_full_name_ft (full_name);
+
 ALTER TABLE customers ADD FULLTEXT INDEX idx_customers_email_ft (email);
 
--- Phone number indexes (MySQL uses REGEXP_REPLACE differently)
 CREATE INDEX idx_leads_phone ON leads(phone);
+
 CREATE INDEX idx_customers_phone ON customers(phone);
 
-
--- ========================================
--- 026_booking_approval.mysql.sql
--- ========================================
--- Add is_approved column to bookings table (MySQL)
 ALTER TABLE bookings ADD COLUMN is_approved BOOLEAN DEFAULT FALSE;
 
--- Add index for faster filtering
 CREATE INDEX idx_bookings_is_approved ON bookings(is_approved);
-
-
--- ========================================
--- 027_token_blacklist.mysql.sql
--- ========================================
--- Token Blacklist for JWT Revocation (MySQL)
--- Stores revoked tokens to prevent reuse after logout
 
 CREATE TABLE IF NOT EXISTS token_blacklist (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -1712,28 +1581,15 @@ CREATE TABLE IF NOT EXISTS token_blacklist (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Index for fast JTI lookup
 CREATE INDEX idx_token_blacklist_jti ON token_blacklist(token_jti);
 
--- Index for expiration-based queries
 CREATE INDEX idx_token_blacklist_expires ON token_blacklist(expires_at);
 
--- Index for cleanup queries (expired tokens)
-CREATE INDEX idx_token_blacklist_cleanup 
+CREATE INDEX idx_token_blacklist_cleanup
     ON token_blacklist(expires_at);
 
--- Index for user-based queries
 CREATE INDEX idx_token_blacklist_user ON token_blacklist(user_id);
 
-
--- ========================================
--- 028_system_datetime_preferences_defaults.mysql.sql
--- ========================================
--- Ensure system date/time preferences are present in database-backed settings (MySQL)
--- This keeps runtime defaults and persisted DB values aligned.
-
--- Safety guard: if migration 008 was not applied yet, create a compatible table
--- so this migration remains idempotent and deploy-safe.
 CREATE TABLE IF NOT EXISTS app_settings (
   id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
   `key` VARCHAR(80) NOT NULL UNIQUE,
@@ -1742,8 +1598,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_app_settings_key ON app_settings(`key`);
 
 INSERT INTO app_settings (`key`, value)
 VALUES (
@@ -1774,31 +1628,11 @@ SET
   updated_at = CURRENT_TIMESTAMP
 WHERE `key` = 'system';
 
-
--- ========================================
--- 029_followups_workflow_history_and_reminders.mysql.sql
--- ========================================
--- Follow-up workflow/history/reminder alignment (MySQL)
--- Safe to run on MySQL environments where some earlier follow-up migrations
--- may or may not already be applied.
-
 START TRANSACTION;
-
-ALTER TABLE followups
-  ADD COLUMN cadence_code VARCHAR(50);
-
-ALTER TABLE followups
-  ADD COLUMN is_schedule_only BOOLEAN DEFAULT FALSE;
 
 UPDATE followups
 SET is_schedule_only = FALSE
 WHERE is_schedule_only IS NULL;
-
-CREATE INDEX idx_followups_lead_cadence_code
-  ON followups(lead_id, cadence_code);
-
-CREATE INDEX idx_followups_is_schedule_only
-  ON followups(is_schedule_only);
 
 CREATE TABLE IF NOT EXISTS lead_followup_alert_logs (
   id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -1810,27 +1644,9 @@ CREATE TABLE IF NOT EXISTS lead_followup_alert_logs (
   FOREIGN KEY (followup_id) REFERENCES followups(id) ON DELETE CASCADE
 );
 
-CREATE UNIQUE INDEX uq_lead_followup_alert_logs_unique
-  ON lead_followup_alert_logs (followup_id, alert_type(100), alert_date);
-
-CREATE INDEX idx_lead_followup_alert_logs_alert_date
-  ON lead_followup_alert_logs (alert_date);
-
 COMMIT;
 
--- Optional one-time backfill:
--- Run ONLY if all old rows in `followups` came from "Schedule Follow-up"
--- and you want to hide those old notes from Follow-up History.
---
--- UPDATE followups
--- SET is_schedule_only = TRUE
--- WHERE is_schedule_only = FALSE;
-
-
--- ========================================
--- 030_followups_status_snapshot.mysql.sql
--- ========================================
-START TRANSACTION;
+--START TRANSACTION;
 
 ALTER TABLE followups
   ADD COLUMN status_snapshot VARCHAR(60);
@@ -1844,10 +1660,6 @@ WHERE counts_toward_compliance IS NULL;
 
 COMMIT;
 
-
--- ========================================
--- 031_leads_travel_route_fields.mysql.sql
--- ========================================
 START TRANSACTION;
 
 ALTER TABLE leads
@@ -1860,14 +1672,11 @@ SET l.travel_to = d.name
 WHERE l.travel_to IS NULL OR TRIM(l.travel_to) = '';
 
 CREATE INDEX idx_leads_travel_to ON leads (travel_to);
+
 CREATE INDEX idx_leads_travel_from ON leads (travel_from);
 
 COMMIT;
 
-
--- ========================================
--- 032_leads_travel_end_date.mysql.sql
--- ========================================
 START TRANSACTION;
 
 ALTER TABLE leads
@@ -1885,16 +1694,13 @@ CREATE INDEX idx_leads_travel_end_date ON leads (travel_end_date);
 
 COMMIT;
 
-
--- ========================================
--- 033_leads_lead_code.mysql.sql
--- ========================================
 START TRANSACTION;
 
 ALTER TABLE leads
   ADD COLUMN lead_code VARCHAR(20);
 
 SET @rownum := 0;
+
 UPDATE leads l
 JOIN (
   SELECT id, (@rownum := @rownum + 1) AS rn
@@ -1923,10 +1729,6 @@ ALTER TABLE leads
 
 COMMIT;
 
-
--- ========================================
--- 034_supplier_payable_settlements.mysql.sql
--- ========================================
 START TRANSACTION;
 
 CREATE TABLE IF NOT EXISTS supplier_payable_settlements (
@@ -1961,10 +1763,6 @@ CREATE INDEX idx_supplier_payable_settlements_settlement_date
 
 COMMIT;
 
-
--- ========================================
--- 035_payments_invoice_uploads.mysql.sql
--- ========================================
 START TRANSACTION;
 
 ALTER TABLE payments
@@ -1972,3 +1770,374 @@ ALTER TABLE payments
 
 COMMIT;
 
+-- =============================
+-- CMS EXTENSIONS
+-- =============================
+
+-- =========================================
+-- CMS SCHEMA FOR GET2VACATION WEBSITE
+-- =========================================
+
+-- =========================================
+-- 1. LANDING PAGE MANAGEMENT
+-- =========================================
+
+-- Floating cards on homepage hero section
+CREATE TABLE landing_places (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    name VARCHAR(100) NOT NULL,
+    country VARCHAR(100),
+    tag VARCHAR(50),
+    image_url TEXT NOT NULL,
+    display_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_landing_places_active_order ON landing_places(is_active, display_order);
+
+CREATE INDEX idx_landing_places_country_active_order ON landing_places(country, is_active, display_order);
+
+-- =========================================
+-- 2. DESTINATIONS MANAGEMENT
+-- =========================================
+
+-- Main destinations table is created in main-db.sql (shared with CRM)
+-- Here we only extend it with CMS-specific columns.
+ALTER TABLE destinations ADD COLUMN slug VARCHAR(180);
+
+ALTER TABLE destinations ADD COLUMN description TEXT;
+
+ALTER TABLE destinations ADD COLUMN short_description VARCHAR(300);
+
+ALTER TABLE destinations ADD COLUMN region VARCHAR(50);
+
+ALTER TABLE destinations ADD COLUMN category VARCHAR(50);
+
+ALTER TABLE destinations ADD COLUMN rating DECIMAL(2,1) DEFAULT 0.0;
+
+ALTER TABLE destinations ADD COLUMN hero_image_url TEXT;
+
+ALTER TABLE destinations ADD COLUMN thumbnail_url TEXT;
+
+ALTER TABLE destinations ADD COLUMN is_popular BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE destinations ADD COLUMN is_new BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE destinations ADD COLUMN travel_type VARCHAR(50);
+
+ALTER TABLE destinations ADD COLUMN season VARCHAR(50);
+
+ALTER TABLE destinations ADD COLUMN meta_title VARCHAR(180);
+
+ALTER TABLE destinations ADD COLUMN meta_description TEXT;
+
+ALTER TABLE destinations ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE destinations ADD CONSTRAINT destinations_rating_check
+  CHECK (rating >= 0 AND rating <= 5);
+
+CREATE UNIQUE INDEX ux_destinations_slug ON destinations(slug);
+
+CREATE INDEX idx_destinations_active ON destinations(is_active);
+
+CREATE INDEX idx_destinations_slug ON destinations(slug);
+
+CREATE INDEX idx_destinations_popular ON destinations(is_popular, is_active);
+
+CREATE INDEX idx_destinations_region ON destinations(region, is_active);
+
+-- =========================================
+-- 3. DESTINATION MEDIA GALLERY
+-- =========================================
+
+CREATE TABLE destination_media (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    destination_id CHAR(36) NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
+    media_type VARCHAR(20) NOT NULL CHECK (media_type IN ('image', 'video')),
+    media_url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    title VARCHAR(200),
+    caption TEXT,
+    display_order INT DEFAULT 0,
+    is_featured BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_destination_media_destination ON destination_media(destination_id, display_order);
+
+CREATE INDEX idx_destination_media_featured ON destination_media(destination_id, is_featured);
+
+  CREATE UNIQUE INDEX ux_destination_media_destination_url
+ON destination_media(destination_id, media_url(255));
+
+-- =========================================
+-- 4. SEASON CARDS (Best Time to Visit)
+-- =========================================
+
+CREATE TABLE season_cards (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    destination_id CHAR(36) NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
+    title VARCHAR(100) NOT NULL,
+    from_month VARCHAR(20) NOT NULL,
+    to_month VARCHAR(20) NOT NULL,
+    description TEXT NOT NULL,
+    tag VARCHAR(50),
+    icon_name VARCHAR(50),
+    icon_color VARCHAR(20),
+    bg_color VARCHAR(20),
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_season_cards_destination ON season_cards(destination_id, display_order);
+
+-- =========================================
+-- 5. PACKAGE HIERARCHY (CMS Layer)
+-- =========================================
+
+-- Note: packages table exists in main-db.sql (shared with CRM)
+-- This creates the CMS hierarchy layer on top
+
+-- Main packages for website display
+CREATE TABLE main_packages (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    package_id CHAR(36) NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    country VARCHAR(100),
+    display_order INT DEFAULT 0,
+    is_featured BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(package_id)
+);
+
+CREATE INDEX idx_main_packages_package ON main_packages(package_id);
+
+CREATE INDEX idx_main_packages_featured ON main_packages(is_featured, display_order);
+
+CREATE INDEX idx_main_packages_country_featured ON main_packages(country, is_featured, display_order);
+
+-- Map destinations to main packages
+CREATE TABLE destination_package_map (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    destination_id CHAR(36) NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
+    main_package_id CHAR(36) NOT NULL REFERENCES main_packages(id) ON DELETE CASCADE,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(destination_id, main_package_id)
+);
+
+CREATE INDEX idx_dest_package_map_destination ON destination_package_map(destination_id, display_order);
+
+CREATE INDEX idx_dest_package_map_package ON destination_package_map(main_package_id);
+
+-- Sub-packages (variants of main packages)
+CREATE TABLE sub_packages (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    main_package_id CHAR(36) NOT NULL REFERENCES main_packages(id) ON DELETE CASCADE,
+    package_id CHAR(36) NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(main_package_id, package_id)
+);
+
+CREATE INDEX idx_sub_packages_main ON sub_packages(main_package_id, display_order);
+
+CREATE INDEX idx_sub_packages_package ON sub_packages(package_id);
+
+-- =========================================
+-- 6. VISA SERVICES MANAGEMENT
+-- =========================================
+
+CREATE TABLE visa_destinations (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    country VARCHAR(100),
+    title VARCHAR(150) NOT NULL,
+    slug VARCHAR(180) UNIQUE NOT NULL,
+    subtitle VARCHAR(200),
+    description TEXT,
+    image_url TEXT NOT NULL,
+    hero_image_url TEXT,
+    processing_time VARCHAR(100),
+    support_info TEXT,
+    display_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_visa_destinations_active ON visa_destinations(is_active, display_order);
+
+CREATE INDEX idx_visa_destinations_slug ON visa_destinations(slug);
+
+CREATE INDEX idx_visa_destinations_country_active ON visa_destinations(country, is_active, display_order);
+
+-- Visa destination details (facts, requirements, etc.)
+CREATE TABLE visa_destination_details (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    visa_destination_id CHAR(36) NOT NULL REFERENCES visa_destinations(id) ON DELETE CASCADE,
+    section_type VARCHAR(50) NOT NULL CHECK (section_type IN ('overview', 'fact', 'requirement', 'note')),
+    label VARCHAR(200),
+    value TEXT NOT NULL,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_visa_details_destination ON visa_destination_details(visa_destination_id, section_type, display_order);
+
+CREATE UNIQUE INDEX ux_visa_details_destination_section_label
+  ON visa_destination_details(visa_destination_id, section_type, label);
+
+-- =========================================
+-- 7. FEATURED/HOT PICKS (Optional)
+-- =========================================
+
+CREATE TABLE featured_picks (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    title VARCHAR(150) NOT NULL,
+    subtitle VARCHAR(150),
+    category VARCHAR(50) NOT NULL CHECK (category IN ('package', 'visa_service', 'destination')),
+    reference_id CHAR(36),
+    country VARCHAR(100),
+    rating DECIMAL(2,1) DEFAULT 0.0,
+    badge_text VARCHAR(100),
+    original_price NUMERIC(10,2),
+    discounted_price NUMERIC(10,2),
+    duration VARCHAR(100),
+    description TEXT,
+    image_url TEXT NOT NULL,
+    button_text VARCHAR(50) DEFAULT 'Book Now',
+    display_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_featured_picks_active ON featured_picks(is_active, display_order);
+
+CREATE INDEX idx_featured_picks_category ON featured_picks(category, is_active);
+
+-- =========================================
+-- 8. CMS USERS & PERMISSIONS (Optional)
+-- =========================================
+
+-- If separate from CRM users, create dedicated CMS user table
+-- Otherwise, use existing users table with role-based access
+
+CREATE TABLE cms_activity_log (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    user_id CHAR(36) REFERENCES users(id),
+    action VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(100) NOT NULL,
+    entity_id CHAR(36),
+    old_data JSON,
+    new_data JSON,
+    ip_address VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_cms_activity_user ON cms_activity_log(user_id, created_at DESC);
+
+CREATE INDEX idx_cms_activity_entity ON cms_activity_log(entity_type, entity_id, created_at DESC);
+
+-- =========================================
+-- 9. CMS HOMEPAGE HERO CONTENT
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS landing_hero_sections (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    country VARCHAR(100) NOT NULL DEFAULT 'GLOBAL',
+    section_key VARCHAR(100) NOT NULL,
+    eyebrow_text VARCHAR(200),
+    heading_line_1 VARCHAR(255),
+    heading_line_2 VARCHAR(255),
+    description TEXT,
+    primary_cta_label VARCHAR(100),
+    primary_cta_url TEXT,
+    secondary_cta_label VARCHAR(100),
+    secondary_cta_url TEXT,
+    background_image_url TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Existing table extensions for richer website cards
+ALTER TABLE landing_places ADD COLUMN country VARCHAR(100);
+
+ALTER TABLE main_packages ADD COLUMN country VARCHAR(100);
+
+ALTER TABLE visa_destinations ADD COLUMN country VARCHAR(100);
+
+UPDATE landing_hero_sections SET country = 'GLOBAL' WHERE country IS NULL;
+
+ALTER TABLE landing_hero_sections MODIFY COLUMN country VARCHAR(100) NOT NULL DEFAULT 'GLOBAL';
+
+CREATE INDEX idx_destinations_country_active ON destinations(country, is_active);
+
+CREATE INDEX idx_featured_picks_country_active ON featured_picks(country, is_active, display_order);
+
+CREATE INDEX idx_landing_hero_sections_country_active ON landing_hero_sections(country, is_active, section_key);
+
+CREATE UNIQUE INDEX ux_landing_hero_sections_country_section
+  ON landing_hero_sections(country, section_key);
+
+ALTER TABLE featured_picks ADD COLUMN slug VARCHAR(180);
+
+ALTER TABLE featured_picks ADD COLUMN campaign_type VARCHAR(50) DEFAULT 'featured';
+
+ALTER TABLE featured_picks ADD COLUMN section_key VARCHAR(80) DEFAULT 'featured-hot-picks';
+
+ALTER TABLE featured_picks ADD COLUMN tags JSON DEFAULT (JSON_ARRAY());
+
+ALTER TABLE featured_picks ADD COLUMN highlights JSON DEFAULT (JSON_ARRAY());
+
+ALTER TABLE featured_picks ADD COLUMN expires_on DATE;
+
+ALTER TABLE featured_picks ADD COLUMN cta_url TEXT;
+
+ALTER TABLE featured_picks ADD COLUMN metadata JSON DEFAULT (JSON_OBJECT());
+
+CREATE UNIQUE INDEX ux_featured_picks_slug ON featured_picks(slug);
+
+ALTER TABLE season_cards ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+
+ALTER TABLE season_cards ADD COLUMN image_url TEXT;
+
+ALTER TABLE visa_destinations ADD COLUMN icon_name VARCHAR(80);
+
+ALTER TABLE visa_destinations ADD COLUMN highlights JSON DEFAULT (JSON_ARRAY());
+
+ALTER TABLE visa_destinations ADD COLUMN cta_text VARCHAR(50) DEFAULT 'View Details';
+
+-- =========================================
+-- 10. GENERIC MEDIA ASSETS FOR CMS ENTITIES
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS cms_media_assets (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    entity_type VARCHAR(100) NOT NULL,
+    entity_id CHAR(36) NOT NULL,
+    media_kind VARCHAR(20) NOT NULL DEFAULT 'image',
+    media_url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    title VARCHAR(200),
+    alt_text VARCHAR(250),
+    display_order INT DEFAULT 0,
+    is_primary BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_cms_media_assets_entity
+  ON cms_media_assets(entity_type, entity_id, display_order);
+
+CREATE UNIQUE INDEX ux_cms_media_assets_entity_url
+  ON cms_media_assets(entity_type, entity_id, media_url(255));
