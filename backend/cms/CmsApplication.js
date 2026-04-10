@@ -5,6 +5,10 @@ import { createDatabaseConnection } from "../crm/core/database/connection.js";
 import { createLogger } from "../crm/core/logger/logger.js";
 import { ErrorHandler } from "./core/errors/Errors.js";
 import { LandingPlacesModule } from "./modules/landing/LandingPlaces.module.js";
+import {
+  requestContext,
+  createRequestLoggingMiddleware,
+} from "../crm/core/middlewares/index.js";
 
 export class CmsApplication {
   constructor() {
@@ -60,17 +64,12 @@ export class CmsApplication {
   }
 
   _setupMiddleware() {
+    this._app.locals.logger = this._logger;
     this._app.use(cors(this._config.cors));
     this._app.use(express.json({ limit: "10mb" }));
     this._app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-    this._app.use((req, res, next) => {
-      this._logger.info({
-        method: req.method,
-        path: req.path,
-        query: req.query,
-      });
-      next();
-    });
+    this._app.use(requestContext);
+    this._app.use(createRequestLoggingMiddleware({ logger: this._logger }));
   }
 
   _setupModules() {

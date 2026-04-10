@@ -47,8 +47,8 @@ type LeadFilterState = {
   email: string;
   phone: string;
   leadId: string;
-  status: "ALL" | "NEW" | "CONTACTED" | "CONVERTED" | "CANCELLED";
-  sla: "ALL" | "WITHIN_SLA" | "OVERDUE" | "PENDING";
+  status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
+  sla: "ALL" | "BREACHED" | "ON_REQUEST";
   sortBy: "NEWEST_FIRST" | "OLDEST_FIRST" | "NAME_A_Z" | "STATUS";
 };
 
@@ -118,7 +118,7 @@ const Leads: React.FC = () => {
 
   const destinationOptions = useMemo(
     () => [
-      { value: "", label: "All Destinations" },
+      { value: "", label: "All " },
       ...destinationNames.map((name) => ({ value: name, label: name })),
     ],
     [destinationNames],
@@ -126,11 +126,19 @@ const Leads: React.FC = () => {
 
   const statusOptions = useMemo(
     () => [
-      { value: "ALL", label: "All Statuses" },
+      { value: "ALL", label: "All " },
       { value: "NEW", label: "New" },
       { value: "CONTACTED", label: "Contacted" },
+      { value: "NEGOTIATION", label: "Negotiation" },
+      { value: "QUOTED", label: "Quoted" },
+      { value: "FOLLOW_UP_1", label: "Follow Up 1" },
+      { value: "FOLLOW_UP_2", label: "Follow Up 2" },
+      { value: "FOLLOW_UP_3", label: "Follow Up 3" },
+      { value: "FOLLOW_UP_4", label: "Follow Up 4" },
+      { value: "FINAL_REMINDER", label: "Final Reminder" },
       { value: "CONVERTED", label: "Converted" },
-      { value: "CANCELLED", label: "Cancelled" },
+      { value: "LOST", label: "Lost" },
+      { value: "NON_RESPONSIVE", label: "Non Responsive" },
     ],
     [],
   );
@@ -138,9 +146,8 @@ const Leads: React.FC = () => {
   const slaOptions = useMemo(
     () => [
       { value: "ALL", label: "All SLA" },
-      { value: "WITHIN_SLA", label: "Within SLA" },
-      { value: "OVERDUE", label: "Overdue" },
-      { value: "PENDING", label: "Pending" },
+      { value: "BREACHED", label: "Breached" },
+      { value: "ON_REQUEST", label: "On Request (Not Breached)" },
     ],
     [],
   );
@@ -177,28 +184,14 @@ const Leads: React.FC = () => {
   });
 
   useEffect(() => {
-    const loadDestinations = async () => {
-      try {
-        const rows = await leadsService.getDestinations();
-        const names = rows
-          .map((item) => {
-            if (typeof item === "string") return item.trim();
-            if (!item || typeof item !== "object") return "";
-            return String(
-              item.name ?? item.destinationName ?? item.country ?? "",
-            ).trim();
-          })
-          .filter(Boolean);
-        const unique = Array.from(new Set(names)).sort((a, b) =>
-          a.localeCompare(b),
-        );
-        setDestinationNames(unique);
-      } catch {
-        setDestinationNames([]);
-      }
-    };
-    void loadDestinations();
-  }, [leadsService]);
+    // Extract unique destinations from fetched leads
+    const destinations = fetchedLeads
+      .map((lead) => lead.destination)
+      .filter((dest) => dest && dest !== "N/A")
+      .filter((dest, index, self) => self.indexOf(dest) === index)
+      .sort((a, b) => a.localeCompare(b));
+    setDestinationNames(destinations);
+  }, [fetchedLeads]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -405,6 +398,12 @@ const Leads: React.FC = () => {
   };
 
   const getVisaHolidayLabel = (lead: LeadListItem) => {
+    // Check lead_type field first (from database)
+    const leadType = String(lead.leadType ?? lead.lead_type ?? '').trim().toUpperCase();
+    if (leadType === 'VISA') return 'Visa';
+    if (leadType === 'HOLIDAY') return 'Holidays';
+    
+    // Fallback: check packageName and statusLabel
     const source = `${lead.packageName ?? ""} ${lead.statusLabel ?? ""}`
       .trim()
       .toLowerCase();
@@ -531,7 +530,7 @@ const Leads: React.FC = () => {
                     onChange={(event) =>
                       updateDraftFilter("email", event.target.value)
                     }
-                    placeholder="Partial email"
+                    placeholder="email"
                     className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
                   />
                 </div>
@@ -545,7 +544,7 @@ const Leads: React.FC = () => {
                     onChange={(event) =>
                       updateDraftFilter("phone", event.target.value)
                     }
-                    placeholder="Partial phone"
+                    placeholder="phone"
                     className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-700 dark:bg-gray-900"
                   />
                 </div>
@@ -614,7 +613,7 @@ const Leads: React.FC = () => {
                     className="w-full"
                     value={draftFilters.status}
                     options={statusOptions}
-                    placeholder="All Statuses"
+                    placeholder="All "
                     searchPlaceholder="Search status..."
                     onChange={(value) =>
                       updateDraftFilter(
@@ -632,8 +631,8 @@ const Leads: React.FC = () => {
                     className="w-full"
                     value={draftFilters.sla}
                     options={slaOptions}
-                    placeholder="All SLA"
-                    searchPlaceholder="Search SLA..."
+                    placeholder="All "
+                    searchPlaceholder="Searching..."
                     onChange={(value) =>
                       updateDraftFilter("sla", value as LeadFilterState["sla"])
                     }
@@ -756,22 +755,37 @@ const Leads: React.FC = () => {
                           </p>
                         </td>
                         <td className="px-4 py-3 leading-tight">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {lead.name}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatPaxSummary(lead)}
-                          </p>
-                          {formatChildAges(lead) ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatChildAges(lead)}
-                            </p>
-                          ) : null}
-                          {lead.assignedBy && (
-                            <p className="text-xs text-blue-600 dark:text-blue-400">
-                              Assigned by: {lead.assignedBy}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {lead.name}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatPaxSummary(lead)}
+                              </p>
+                              {formatChildAges(lead) ? (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {formatChildAges(lead)}
+                                </p>
+                              ) : null}
+                              {lead.assignedBy && (
+                                <p className="text-xs text-blue-600 dark:text-blue-400">
+                                  Assigned by: {lead.assignedBy}
+                                </p>
+                              )}
+                            </div>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                lead.priority === "High"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                                  : lead.priority === "Medium"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                  : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                              }`}
+                            >
+                              {lead.priority === "High" ? "🔥 Hot" : lead.priority === "Medium" ? "⚡ Warm" : "❄️ Cold"}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-left leading-tight whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -849,9 +863,22 @@ const Leads: React.FC = () => {
                   <div key={lead.id} className="p-4 space-y-2">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">
-                          {lead.name}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100">
+                            {lead.name}
+                          </p>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              lead.priority === "High"
+                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                                : lead.priority === "Medium"
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            }`}
+                          >
+                            {lead.priority === "High" ? "🔥 Hot" : lead.priority === "Medium" ? "⚡ Warm" : "❄️ Cold"}
+                          </span>
+                        </div>
                         <p className="text-xs text-gray-500">
                           Lead ID: {lead.leadId}
                         </p>

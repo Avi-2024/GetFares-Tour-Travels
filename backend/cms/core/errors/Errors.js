@@ -94,15 +94,25 @@ export class ErrorHandler {
     const statusCode = err.statusCode || 500;
     const code = err.code || 'INTERNAL_ERROR';
     const message = err.message || 'Internal Server Error';
+    const logger = req.logger || req.app?.locals?.logger;
 
-    console.error('[Error]', {
-      statusCode,
-      code,
-      message,
-      stack: err.stack,
-      path: req.path,
-      method: req.method,
-    });
+    logger?.error(
+      {
+        module: "cms",
+        fileName: "Errors.js",
+        functionName: "ErrorHandler.handle",
+        requestId: req.context?.requestId,
+        userId: req.context?.user?.id,
+        method: req.method,
+        url: req.originalUrl || req.url,
+        statusCode,
+        stack: err?.stack,
+        metadata: {
+          code,
+        },
+      },
+      "Unhandled exception",
+    );
 
     res.status(statusCode).json({
       success: false,

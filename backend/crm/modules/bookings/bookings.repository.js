@@ -275,7 +275,7 @@ function createBookingsRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -304,7 +304,7 @@ function createBookingsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
@@ -467,7 +467,7 @@ function createBookingsRepository({ db, logger, schema }) {
     const conditions = [
       "b.is_deleted = false",
       "b.status = 'CONFIRMED'",
-      `b.${dateColumn} = $1`,
+      `b.${dateColumn} = ?`,
     ];
 
     const hasLogsTable = await hasTable(schema.reminderLogsTable);
@@ -665,14 +665,14 @@ function createBookingsRepository({ db, logger, schema }) {
 
         const buildStatsQuery = (notDeletedPredicate) => `
             SELECT
-              SUM(CASE WHEN ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS total_bookings,
-              SUM(CASE WHEN status = 'CONFIRMED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS active_bookings,
-              SUM(CASE WHEN status = 'PENDING' AND ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS pending_bookings,
-              SUM(CASE WHEN status = 'COMPLETED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS completed_bookings,
-              SUM(CASE WHEN status = 'CANCELLED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END)::int AS cancelled_bookings,
+              SUM(CASE WHEN ${notDeletedPredicate} THEN 1 ELSE 0 END) AS total_bookings,
+              SUM(CASE WHEN status = 'CONFIRMED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS active_bookings,
+              SUM(CASE WHEN status = 'PENDING' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS pending_bookings,
+              SUM(CASE WHEN status = 'COMPLETED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS completed_bookings,
+              SUM(CASE WHEN status = 'CANCELLED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS cancelled_bookings,
               COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(total_amount, 0) ELSE 0 END), 0)::numeric AS total_revenue,
               COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(advance_received, 0), 0) ELSE 0 END), 0)::numeric AS pending_payments_amount,
-              SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} AND COALESCE(advance_received, 0) < COALESCE(total_amount, 0) THEN 1 ELSE 0 END)::int AS pending_payments_count
+              SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} AND COALESCE(advance_received, 0) < COALESCE(total_amount, 0) THEN 1 ELSE 0 END) AS pending_payments_count
             FROM ${schema.tableName}
           `;
 
@@ -940,7 +940,7 @@ function createBookingsRepository({ db, logger, schema }) {
           `
             SELECT COALESCE(SUM(amount), 0) AS paid_amount
             FROM ${schema.paymentsTable}
-            WHERE booking_id = $1
+            WHERE booking_id = ?
               AND COALESCE(is_verified, FALSE) = TRUE
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
           `,
@@ -949,9 +949,9 @@ function createBookingsRepository({ db, logger, schema }) {
 
         const proofResult = await db.query(
           `
-            SELECT COUNT(*)::int AS proof_count
+            SELECT COUNT(*) AS proof_count
             FROM ${schema.paymentsTable}
-            WHERE booking_id = $1
+            WHERE booking_id = ?
               AND COALESCE(is_verified, FALSE) = TRUE
               AND (
                 proof_url IS NOT NULL
@@ -999,7 +999,7 @@ function createBookingsRepository({ db, logger, schema }) {
           `
             SELECT COALESCE(SUM(amount), 0) AS paid_amount
             FROM ${schema.paymentsTable}
-            WHERE booking_id = $1
+            WHERE booking_id = ?
               AND COALESCE(is_verified, FALSE) = TRUE
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
           `,
@@ -1027,7 +1027,7 @@ function createBookingsRepository({ db, logger, schema }) {
           `
             SELECT COALESCE(SUM(refund_amount), 0) AS refund_amount
             FROM ${schema.refundsTable}
-            WHERE booking_id = $1
+            WHERE booking_id = ?
               AND status = 'PROCESSED'
           `,
           [bookingId],
@@ -1050,3 +1050,4 @@ function createBookingsRepository({ db, logger, schema }) {
 }
 
 export { createBookingsRepository };
+

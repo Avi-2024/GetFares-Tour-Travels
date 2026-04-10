@@ -34,8 +34,8 @@ export class LandingPlacesService extends BaseService {
 
     const entity = new LandingPlace({
       name: TextNormalizer.normalize(data.name),
-      description: TextNormalizer.normalize(data.description),
-      tag: TextNormalizer.normalize(data.tag),
+      description: TextNormalizer.normalize(data.description ?? data.tag),
+      tag: TextNormalizer.normalize(data.tag ?? data.description),
       imageUrl: TextNormalizer.normalize(data.imageUrl),
       displayOrder: NumberConverter.toInteger(data.displayOrder, activeCount),
       isActive: data.isActive !== false,
@@ -57,11 +57,8 @@ export class LandingPlacesService extends BaseService {
     if (data.name !== undefined) {
       updates.name = TextNormalizer.normalize(data.name);
     }
-    if (data.description !== undefined) {
-      updates.description = TextNormalizer.normalize(data.description);
-    }
-    if (data.tag !== undefined) {
-      updates.tag = TextNormalizer.normalize(data.tag);
+    if (data.description !== undefined || data.tag !== undefined) {
+      updates.tag = TextNormalizer.normalize(data.tag ?? data.description);
     }
     if (data.imageUrl !== undefined) {
       updates.image_url = TextNormalizer.normalize(data.imageUrl);
@@ -100,8 +97,8 @@ export class LandingPlacesService extends BaseService {
     if (!data.name) {
       throw new ValidationError("Name is required");
     }
-    if (!data.description) {
-      throw new ValidationError("Description is required");
+    if (!data.tag && !data.description) {
+      throw new ValidationError("Tag is required");
     }
     if (!data.imageUrl) {
       throw new ValidationError("Image URL is required");

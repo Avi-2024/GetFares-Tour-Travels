@@ -65,7 +65,7 @@ function createVisaRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -94,7 +94,7 @@ function createVisaRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
     const columns = new Set(result.rows.map((row) => row.column_name));
@@ -425,17 +425,17 @@ function createVisaRepository({ db, logger, schema }) {
 
       const summarySql = `
         SELECT
-          COUNT(*)::int AS total_cases,
-          SUM(CASE WHEN vc.status = 'DOCUMENT_PENDING' THEN 1 ELSE 0 END)::int AS document_pending,
-          SUM(CASE WHEN vc.status = 'SUBMITTED' THEN 1 ELSE 0 END)::int AS submitted,
-          SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved,
-          SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected,
-          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DOCUMENT_COLLECTION' THEN 1 ELSE 0 END)::int AS document_collection,
-          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'APPLICATION_SUBMITTED' THEN 1 ELSE 0 END)::int AS application_submitted,
-          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'BIOMETRICS_SCHEDULED' THEN 1 ELSE 0 END)::int AS biometrics_scheduled,
-          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'UNDER_PROCESS' THEN 1 ELSE 0 END)::int AS under_process,
-          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DELIVERED' THEN 1 ELSE 0 END)::int AS delivered,
-          SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' THEN 1 ELSE 0 END)::int AS expiring_soon_count,
+          COUNT(*) AS total_cases,
+          SUM(CASE WHEN vc.status = 'DOCUMENT_PENDING' THEN 1 ELSE 0 END) AS document_pending,
+          SUM(CASE WHEN vc.status = 'SUBMITTED' THEN 1 ELSE 0 END) AS submitted,
+          SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved,
+          SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DOCUMENT_COLLECTION' THEN 1 ELSE 0 END) AS document_collection,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'APPLICATION_SUBMITTED' THEN 1 ELSE 0 END) AS application_submitted,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'BIOMETRICS_SCHEDULED' THEN 1 ELSE 0 END) AS biometrics_scheduled,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'UNDER_PROCESS' THEN 1 ELSE 0 END) AS under_process,
+          SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DELIVERED' THEN 1 ELSE 0 END) AS delivered,
+          SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' THEN 1 ELSE 0 END) AS expiring_soon_count,
           AVG(
             CASE
               WHEN vc.submission_date IS NOT NULL AND vc.visa_valid_until IS NOT NULL
@@ -448,7 +448,7 @@ function createVisaRepository({ db, logger, schema }) {
       `;
 
       const pendingDocsSql = `
-        SELECT COUNT(*)::int AS pending_document_count
+        SELECT COUNT(*) AS pending_document_count
         FROM ${schema.documentsTable} vd
         INNER JOIN ${schema.tableName} vc ON vc.id = vd.visa_case_id
         ${whereSql ? `${whereSql} AND` : "WHERE"} COALESCE(vd.is_verified, FALSE) = FALSE
@@ -501,3 +501,4 @@ function createVisaRepository({ db, logger, schema }) {
 }
 
 export { createVisaRepository };
+

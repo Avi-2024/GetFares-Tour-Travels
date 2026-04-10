@@ -38,10 +38,12 @@ class DashboardRepository {
   }
 
   canUseRawQuery() {
+    const adapter = String(this.db.adapter || '').toLowerCase();
     return (
       this.db &&
       typeof this.db.query === 'function' &&
-      Boolean(this.db.pool)
+      Boolean(this.db.pool) &&
+      (adapter === 'mysql')
     );
   }
 
@@ -101,6 +103,280 @@ class DashboardRepository {
     }
   }
 
+  getPeriodBoundary(period, reference = new Date()) {
+    const date = new Date(reference);
+    if (period === 'day') {
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+    if (period === 'week') {
+      date.setHours(0, 0, 0, 0);
+      const day = date.getDay();
+      const diff = (day + 6) % 7; // Monday start
+      date.setDate(date.getDate() - diff);
+      return date;
+    }
+    if (period === 'year') {
+      return new Date(date.getFullYear(), 0, 1, 0, 0, 0, 0);
+    }
+    return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+  }
+
+  shiftPeriod(period, dateInput, count = 1) {
+    const date = new Date(dateInput);
+    if (period === 'day') {
+      date.setDate(date.getDate() + count);
+      return date;
+    }
+    if (period === 'week') {
+      date.setDate(date.getDate() + 7 * count);
+      return date;
+    }
+    if (period === 'year') {
+      date.setFullYear(date.getFullYear() + count);
+      return date;
+    }
+    date.setMonth(date.getMonth() + count);
+    return date;
+  }
+
+  parseDate(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+  }
+
+  isSoftDeleted(row) {
+    return Boolean(row?.is_deleted ?? row?.isDeleted ?? false);
+  }
+
+  getRevenueFromQuotation(row) {
+    return this.toNumber(
+      row?.total_sale_value ??
+        row?.totalSaleValue ??
+        row?.final_price ??
+        row?.finalPrice ??
+        row?.total_amount ??
+        row?.totalAmount ??
+        0,
+      0,
+    );
+  }
+
+  getRevenueFromBooking(row) {
+    return this.toNumber(row?.total_amount ?? row?.totalAmount ?? 0, 0);
+  }
+
+  bucketLabel(date, range, index = 0) {
+    if (range === 'today') {
+      return `${String(date.getHours()).padStart(2, '0')}:00`;
+    }
+    if (range === 'week') {
+      return date.toLocaleDateString('en-US', { weekday: 'short' });
+    }
+    if (range === 'month') {
+      return `W${index + 1}`;
+    }
+    return date.toLocaleDateString('en-US', { month: 'short' });
+  }
+
+  async getStatsFallback(period = 'month') {
+    const normalizedPeriod = this.normalizePeriod(period);
+    const now = new Date();
+    const currentStart = this.getPeriodBoundary(normalizedPeriod, now);
+    const previousStart = this.shiftPeriod(normalizedPeriod, currentStart, -1);
+    const currentEnd = this.shiftPeriod(normalizedPeriod, currentStart, 1);
+
+    const [leads, quotations, bookings] = await Promise.all([
+      this.db.findMany(this.tables.leads, {}),
+      this.db.findMany(this.tables.quotations, {}),
+      this.db.findMany(this.tables.bookings, {}),
+    ]);
+
+    const leadRows = (Array.isArray(leads) ? leads : []).filter(
+      (row) => !this.isSoftDeleted(row),
+    );
+    const quotationRows = (Array.isArray(quotations) ? quotations : []).filter(
+      (row) => !this.isSoftDeleted(row),
+    );
+    const bookingRows = Array.isArray(bookings) ? bookings : [];
+
+    const inWindow = (date, start, end) =>
+      date && date.getTime() >= start.getTime() && date.getTime() < end.getTime();
+
+    const pendingCallCount = (rows, start, end, previous = false) => {
+      const statuses = new Set(PENDING_LEAD_STATUSES);
+      return rows.filter((row) => {
+        const createdAt = this.parseDate(row.created_at ?? row.createdAt);
+        if (!inWindow(createdAt, start, end)) {
+          return false;
+        }
+        const status = String(row.status || '').toUpperCase();
+        if (!statuses.has(status)) return false;
+        const followup = this.parseDate(row.next_followup_date ?? row.nextFollowupDate);
+        if (!followup) return false;
+        if (previous) {
+          return followup.getTime() < start.getTime();
+        }
+        return followup.getTime() <= now.getTime();
+      }).length;
+    };
+
+    const currentRevenue = quotationRows
+      .filter((row) => String(row.status || '').toUpperCase() === 'APPROVED')
+      .filter((row) => inWindow(this.parseDate(row.created_at ?? row.createdAt), currentStart, currentEnd))
+      .reduce((sum, row) => sum + this.getRevenueFromQuotation(row), 0);
+
+    const previousRevenue = quotationRows
+      .filter((row) => String(row.status || '').toUpperCase() === 'APPROVED')
+      .filter((row) => inWindow(this.parseDate(row.created_at ?? row.createdAt), previousStart, currentStart))
+      .reduce((sum, row) => sum + this.getRevenueFromQuotation(row), 0);
+
+    const currentLeads = leadRows.filter((row) =>
+      inWindow(this.parseDate(row.created_at ?? row.createdAt), currentStart, currentEnd),
+    ).length;
+
+    const previousLeads = leadRows.filter((row) =>
+      inWindow(this.parseDate(row.created_at ?? row.createdAt), previousStart, currentStart),
+    ).length;
+
+    const currentBookings = bookingRows.filter((row) =>
+      inWindow(this.parseDate(row.created_at ?? row.createdAt), currentStart, currentEnd),
+    ).length;
+
+    const previousBookings = bookingRows.filter((row) =>
+      inWindow(this.parseDate(row.created_at ?? row.createdAt), previousStart, currentStart),
+    ).length;
+
+    return {
+      current: {
+        totalLeads: currentLeads,
+        revenue: Number(currentRevenue.toFixed(2)),
+        pendingCalls: pendingCallCount(leadRows, currentStart, currentEnd, false),
+        bookings: currentBookings,
+      },
+      previous: {
+        totalLeads: previousLeads,
+        revenue: Number(previousRevenue.toFixed(2)),
+        pendingCalls: pendingCallCount(leadRows, previousStart, currentStart, true),
+        bookings: previousBookings,
+      },
+    };
+  }
+
+  async getRevenueFallback(range = 'week') {
+    const normalizedRange = this.normalizeRange(range);
+    const bookings = await this.db.findMany(this.tables.bookings, {});
+    const rows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
+      const status = String(row.status || '').toUpperCase();
+      return status !== 'CANCELLED' && !this.isSoftDeleted(row);
+    });
+
+    const now = new Date();
+    const buckets = [];
+
+    if (normalizedRange === 'today') {
+      const dayStart = this.getPeriodBoundary('day', now);
+      for (let index = 0; index < 24; index += 1) {
+        const start = new Date(dayStart.getTime() + index * 60 * 60 * 1000);
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+        const prevStart = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+        const prevEnd = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        buckets.push({ start, end, prevStart, prevEnd, index });
+      }
+    } else if (normalizedRange === 'week') {
+      const end = this.shiftPeriod('day', this.getPeriodBoundary('day', now), 1);
+      for (let index = 6; index >= 0; index -= 1) {
+        const start = this.shiftPeriod('day', end, -(index + 1));
+        const bucketEnd = this.shiftPeriod('day', start, 1);
+        const prevStart = this.shiftPeriod('week', start, -1);
+        const prevEnd = this.shiftPeriod('week', bucketEnd, -1);
+        buckets.push({ start, end: bucketEnd, prevStart, prevEnd, index: 6 - index });
+      }
+    } else if (normalizedRange === 'month') {
+      const monthStart = this.getPeriodBoundary('month', now);
+      for (let week = 1; week <= 4; week += 1) {
+        const start = this.shiftPeriod('week', monthStart, week - 1);
+        const end = this.shiftPeriod('week', start, 1);
+        const prevStart = this.shiftPeriod('month', start, -1);
+        const prevEnd = this.shiftPeriod('month', end, -1);
+        buckets.push({ start, end, prevStart, prevEnd, index: week - 1 });
+      }
+    } else {
+      const yearStart = this.getPeriodBoundary('year', now);
+      for (let month = 0; month < 12; month += 1) {
+        const start = new Date(yearStart.getFullYear(), month, 1);
+        const end = new Date(yearStart.getFullYear(), month + 1, 1);
+        const prevStart = new Date(yearStart.getFullYear() - 1, month, 1);
+        const prevEnd = new Date(yearStart.getFullYear() - 1, month + 1, 1);
+        buckets.push({ start, end, prevStart, prevEnd, index: month });
+      }
+    }
+
+    return buckets.map((bucket) => {
+      const revenue = rows
+        .filter((row) => {
+          const created = this.parseDate(row.created_at ?? row.createdAt);
+          return (
+            created &&
+            created.getTime() >= bucket.start.getTime() &&
+            created.getTime() < bucket.end.getTime()
+          );
+        })
+        .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
+
+      const last = rows
+        .filter((row) => {
+          const created = this.parseDate(row.created_at ?? row.createdAt);
+          return (
+            created &&
+            created.getTime() >= bucket.prevStart.getTime() &&
+            created.getTime() < bucket.prevEnd.getTime()
+          );
+        })
+        .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
+
+      return {
+        name: this.bucketLabel(bucket.start, normalizedRange, bucket.index),
+        revenue: Number(revenue.toFixed(2)),
+        last: Number(last.toFixed(2)),
+      };
+    });
+  }
+
+  async getLeadSourcesFallback(period = 'month') {
+    const normalizedPeriod = this.normalizePeriod(period);
+    const start = this.getPeriodBoundary(normalizedPeriod, new Date());
+    const leads = await this.db.findMany(this.tables.leads, {});
+    const sourceCounts = new Map();
+
+    (Array.isArray(leads) ? leads : [])
+      .filter((row) => !this.isSoftDeleted(row))
+      .forEach((row) => {
+        const createdAt = this.parseDate(row.created_at ?? row.createdAt);
+        if (!createdAt || createdAt.getTime() < start.getTime()) {
+          return;
+        }
+
+        const source =
+          String(row.source || '').trim() || 'Unknown';
+        sourceCounts.set(source, (sourceCounts.get(source) || 0) + 1);
+      });
+
+    const total = [...sourceCounts.values()].reduce((sum, count) => sum + count, 0);
+    if (total <= 0) {
+      return [];
+    }
+
+    return [...sourceCounts.entries()]
+      .map(([name, count]) => ({
+        name,
+        value: Number(((count * 100) / total).toFixed(1)),
+      }))
+      .sort((left, right) => right.value - left.value || left.name.localeCompare(right.name));
+  }
+
   async hasColumn(tableName, columnName) {
     if (!this.canUseRawQuery()) {
       return false;
@@ -116,9 +392,9 @@ class DashboardRepository {
         `
           SELECT 1
           FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = $1
-            AND column_name = $2
+          WHERE table_schema = DATABASE()
+            AND table_name = ?
+            AND column_name = ?
           LIMIT 1
         `,
         [tableName, columnName],
@@ -180,7 +456,7 @@ class DashboardRepository {
   async getStats(period = 'month') {
     try {
       if (!this.canUseRawQuery()) {
-        return DEFAULT_STATS;
+        return this.getStatsFallback(period);
       }
 
       const normalizedPeriod = this.normalizePeriod(period);
@@ -200,7 +476,7 @@ class DashboardRepository {
       const currentQuery = `
         SELECT
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.created_at >= ${periodStartSql}
             ${leadSoftDeleteClause}
@@ -213,15 +489,15 @@ class DashboardRepository {
               ${quotationSoftDeleteClause}
           ) AS revenue,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.next_followup_date IS NOT NULL
               AND l.next_followup_date <= CURRENT_DATE
-              AND COALESCE(l.status::text, '') = ANY($1::text[])
+              AND COALESCE(l.status, '') IN (?)
               ${leadSoftDeleteClause}
           ) AS pending_calls,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.bookings} b
             WHERE b.created_at >= ${periodStartSql}
           ) AS bookings
@@ -230,7 +506,7 @@ class DashboardRepository {
       const previousQuery = `
         SELECT
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.created_at >= ${previousStartSql}
               AND l.created_at < ${periodStartSql}
@@ -245,15 +521,15 @@ class DashboardRepository {
               ${quotationSoftDeleteClause}
           ) AS revenue,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.next_followup_date IS NOT NULL
-              AND l.next_followup_date < ${periodStartSql}::date
-              AND COALESCE(l.status::text, '') = ANY($1::text[])
+              AND l.next_followup_date < ${periodStartSql}
+              AND COALESCE(l.status, '') IN (?)
               ${leadSoftDeleteClause}
           ) AS pending_calls,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.bookings} b
             WHERE b.created_at >= ${previousStartSql}
               AND b.created_at < ${periodStartSql}
@@ -281,14 +557,14 @@ class DashboardRepository {
       };
     } catch (error) {
       this.log.error({ err: error, period }, 'Error fetching dashboard stats.');
-      return DEFAULT_STATS;
+      return this.getStatsFallback(period);
     }
   }
 
   async getRevenue(range = 'week') {
     try {
       if (!this.canUseRawQuery()) {
-        return DEFAULT_REVENUE;
+        return this.getRevenueFallback(range);
       }
 
       const normalizedRange = this.normalizeRange(range);
@@ -298,7 +574,7 @@ class DashboardRepository {
         'b',
       );
 
-      const bookedRevenueWhere = `COALESCE(b.status::text, '') <> 'CANCELLED'${bookingSoftDeleteClause}`;
+      const bookedRevenueWhere = `COALESCE(b.status, '') <> 'CANCELLED'${bookingSoftDeleteClause}`;
 
       const queries = {
         today: `
@@ -459,14 +735,14 @@ class DashboardRepository {
       }));
     } catch (error) {
       this.log.error({ err: error, range }, 'Error fetching revenue data.');
-      return DEFAULT_REVENUE;
+      return this.getRevenueFallback(range);
     }
   }
 
   async getLeadSources(period = 'month') {
     try {
       if (!this.canUseRawQuery()) {
-        return DEFAULT_LEAD_SOURCES;
+        return this.getLeadSourcesFallback(period);
       }
 
       const normalizedPeriod = this.normalizePeriod(period);
@@ -487,7 +763,7 @@ class DashboardRepository {
         source_counts AS (
           SELECT
             source_name,
-            COUNT(*)::int AS source_count
+            COUNT(*) AS source_count
           FROM filtered_leads
           GROUP BY source_name
         ),
@@ -513,7 +789,7 @@ class DashboardRepository {
       }));
     } catch (error) {
       this.log.error({ err: error, period }, 'Error fetching lead sources.');
-      return DEFAULT_LEAD_SOURCES;
+      return this.getLeadSourcesFallback(period);
     }
   }
 }
@@ -523,3 +799,4 @@ function createDashboardRepository(dependencies) {
 }
 
 export { DashboardRepository, createDashboardRepository };
+

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { FaArrowLeft, FaCheckCircle } from 'react-icons/fa'
 import {
   PhoneInput,
@@ -198,6 +198,8 @@ const createInitialFormState = (): FormState => {
 
 const CreateLead: React.FC = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const customerData = location.state?.customer
   const leadsService = useLeadsService()
   const campaignsService = useCampaignsService()
   const [leadType, setLeadType] = useState<LeadType>(null)
@@ -223,7 +225,25 @@ const CreateLead: React.FC = () => {
 
   const handleLeadTypeSelect = (type: 'HOLIDAY' | 'VISA') => {
     setLeadType(type)
-    setForm(createInitialFormState())
+    const baseForm = createInitialFormState()
+    
+    if (customerData) {
+      const nameParts = (customerData.fullName || '').split(' ')
+      setForm({
+        ...baseForm,
+        firstName: nameParts[0] || '',
+        lastName: nameParts.slice(1).join(' ') || '',
+        email: customerData.email || '',
+        phone: customerData.phone || '',
+        leadCountry: customerData.leadCountry || baseForm.leadCountry,
+        nationality: customerData.nationality || baseForm.nationality,
+        clientCurrency: customerData.clientCurrency || baseForm.clientCurrency,
+        location: customerData.addressLine || ''
+      })
+    } else {
+      setForm(baseForm)
+    }
+    
     setChildAges([])
     setShowErrors(false)
     setApiError('')

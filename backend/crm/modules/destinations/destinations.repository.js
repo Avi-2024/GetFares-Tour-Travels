@@ -15,9 +15,9 @@ function createDestinationsRepository({ db, logger, schema }) {
       return [];
     }
 
-    if (db.adapter === "postgres" && typeof db.query === "function") {
+    if (typeof db.query === "function") {
       const result = await db.query(
-        `SELECT * FROM "${schema.pricingTable}" WHERE destination_id = ANY($1::uuid[])`,
+        `SELECT * FROM ${schema.pricingTable} WHERE destination_id IN (?)`,
         [normalizedIds],
       );
       return result.rows || [];
