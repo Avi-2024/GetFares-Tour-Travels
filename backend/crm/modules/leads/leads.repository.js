@@ -888,35 +888,35 @@ function createLeadsRepository({ db, logger, schema }) {
 
         if (filters.status) {
           params.push(filters.status);
-          where.push(`l.status = $${params.length}`);
+          where.push(`l.status = ?`);
         }
 
         if (filters.source) {
           params.push(filters.source);
-          where.push(`l.source = $${params.length}`);
+          where.push(`l.source = ?`);
         }
 
         if (filters.temperature) {
           params.push(filters.temperature);
-          where.push(`l.temperature = $${params.length}`);
+          where.push(`l.temperature = ?`);
         }
 
         if (filters.subStatus) {
           params.push(filters.subStatus);
-          where.push(`l.sub_status = $${params.length}`);
+          where.push(`l.sub_status = ?`);
         }
 
         if (filters.leadType) {
           params.push(filters.leadType);
-          where.push(`l.lead_type = $${params.length}`);
+          where.push(`l.lead_type = ?`);
         } else if (filters.type) {
           params.push(filters.type);
-          where.push(`l.lead_type = $${params.length}`);
+          where.push(`l.lead_type = ?`);
         }
 
         if (filters.assignedTo) {
           params.push(filters.assignedTo);
-          where.push(`l.assigned_to = $${params.length}`);
+          where.push(`l.assigned_to = ?`);
         }
 
         if (Array.isArray(filters.visibleAssigneeIds)) {
@@ -928,12 +928,13 @@ function createLeadsRepository({ db, logger, schema }) {
             ),
           ];
           if (visibleAssigneeIds.length > 0) {
-            params.push(visibleAssigneeIds);
+            params.push(...visibleAssigneeIds);
+            const assigneePlaceholders = visibleAssigneeIds.map(() => "?").join(", ");
             if (filters.includeUnassigned === false) {
-              where.push(`l.assigned_to = ANY($${params.length})`);
+              where.push(`l.assigned_to IN (${assigneePlaceholders})`);
             } else {
               where.push(
-                `(l.assigned_to IS NULL OR l.assigned_to = ANY($${params.length}))`,
+                `(l.assigned_to IS NULL OR l.assigned_to IN (${assigneePlaceholders}))`,
               );
             }
           }
@@ -941,7 +942,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
         if (filters.destinationId) {
           params.push(filters.destinationId);
-          where.push(`l.destination_id = $${params.length}`);
+          where.push(`l.destination_id = ?`);
         }
 
         if (filters.destination) {
@@ -949,10 +950,10 @@ function createLeadsRepository({ db, logger, schema }) {
           if (destination) {
             if (isUuidLike(destination)) {
               params.push(destination);
-              where.push(`l.destination_id = $${params.length}`);
+              where.push(`l.destination_id = ?`);
             } else {
               params.push(destination);
-              where.push(`LOWER(COALESCE(d.name, '')) = LOWER($${params.length})`);
+              where.push(`LOWER(COALESCE(d.name, '')) = LOWER(?)`);
             }
           }
         }
@@ -960,7 +961,7 @@ function createLeadsRepository({ db, logger, schema }) {
         if (filters.leadCountry || filters.country) {
           params.push(filters.leadCountry ?? filters.country);
           where.push(
-            `LOWER(COALESCE(l.lead_country, '')) = LOWER($${params.length})`,
+            `LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`,
           );
         }
 
@@ -973,21 +974,22 @@ function createLeadsRepository({ db, logger, schema }) {
             ),
           ];
           if (allowedCountries.length > 0) {
-            params.push(allowedCountries);
+            params.push(...allowedCountries);
+            const countryPlaceholders = allowedCountries.map(() => "?").join(", ");
             where.push(
-              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) = ANY($${params.length}))`,
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPlaceholders}))`,
             );
           }
         }
 
         if (filters.countryId) {
           params.push(filters.countryId);
-          where.push(`l.country_id = $${params.length}`);
+          where.push(`l.country_id = ?`);
         }
 
         if (filters.campaignId) {
           params.push(filters.campaignId);
-          where.push(`l.campaign_id = $${params.length}`);
+          where.push(`l.campaign_id = ?`);
         }
 
         if (filters.email) {
@@ -996,11 +998,12 @@ function createLeadsRepository({ db, logger, schema }) {
             params.push(`%${normalizedEmail}%`);
             if (joinCustomers) {
               where.push(
-                `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${params.length} OR LOWER(COALESCE(c.email, '')) LIKE $${params.length})`,
+                `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ? OR LOWER(COALESCE(c.email, '')) LIKE ?)`,
               );
+              params.push(params[params.length - 1]);
             } else {
               where.push(
-                `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${params.length}`,
+                `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
               );
             }
           }
@@ -1012,11 +1015,12 @@ function createLeadsRepository({ db, logger, schema }) {
             params.push(`%${normalizedPhone}%`);
             if (joinCustomers) {
               where.push(
-                `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE $${params.length} OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE $${params.length})`,
+                `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ? OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE ?)`,
               );
+              params.push(params[params.length - 1]);
             } else {
               where.push(
-                `REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE $${params.length}`,
+                `REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ?`,
               );
             }
           }
@@ -1027,39 +1031,43 @@ function createLeadsRepository({ db, logger, schema }) {
           if (leadId) {
             params.push(leadId);
             where.push(
-              `(LOWER(l.id) = LOWER($${params.length}) OR LOWER(COALESCE(l.lead_code, '')) = LOWER($${params.length}) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER($${params.length}))`,
+              `(LOWER(l.id) = LOWER(?) OR LOWER(COALESCE(l.lead_code, '')) = LOWER(?) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER(?))`,
             );
+            params.push(leadId, leadId);
           }
         }
 
         if (filters.search) {
           const rawSearch = String(filters.search).trim().toLowerCase();
           if (rawSearch) {
-            params.push(`%${rawSearch}%`);
-            const textParamIndex = params.length;
+            const textLike = `%${rawSearch}%`;
+            params.push(textLike);
             const searchWhere = [
-              `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(d.name, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.source, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.id, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.lead_code, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.meta_lead_id, '')) LIKE $${textParamIndex}`,
+              `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE ?`,
+              `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
+              `LOWER(COALESCE(d.name, '')) LIKE ?`,
+              `LOWER(COALESCE(l.source, '')) LIKE ?`,
+              `LOWER(COALESCE(l.id, '')) LIKE ?`,
+              `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
+              `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
             ];
+            params.push(textLike, textLike, textLike, textLike, textLike, textLike);
             if (joinCustomers) {
-              searchWhere.unshift(`LOWER(COALESCE(c.full_name, '')) LIKE $${textParamIndex}`);
-              searchWhere.splice(2, 0, `LOWER(COALESCE(c.email, '')) LIKE $${textParamIndex}`);
+              searchWhere.unshift(`LOWER(COALESCE(c.full_name, '')) LIKE ?`);
+              searchWhere.splice(2, 0, `LOWER(COALESCE(c.email, '')) LIKE ?`);
+              params.push(textLike, textLike);
             }
             const phoneSearch = rawSearch.replace(/\D/g, "");
             if (phoneSearch) {
               params.push(`%${phoneSearch}%`);
               if (joinCustomers) {
                 searchWhere.push(
-                  `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE $${params.length} OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE $${params.length})`,
+                  `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ? OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE ?)`,
                 );
+                params.push(params[params.length - 1]);
               } else {
                 searchWhere.push(
-                  `REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE $${params.length}`,
+                  `REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ?`,
                 );
               }
             }
@@ -1069,12 +1077,12 @@ function createLeadsRepository({ db, logger, schema }) {
 
         if (filters.fromDate) {
           params.push(filters.fromDate);
-          where.push(`l.created_at >= $${params.length}`);
+          where.push(`l.created_at >= ?`);
         }
 
         if (filters.toDate) {
           params.push(filters.toDate);
-          where.push(`l.created_at < ($${params.length} + INTERVAL 1 DAY)`);
+          where.push(`l.created_at < DATE_ADD(?, INTERVAL 1 DAY)`);
         }
 
         if (filters.sla === "OVERDUE" || quickFilter === "LATE_RESPONSE") {
@@ -1122,7 +1130,7 @@ function createLeadsRepository({ db, logger, schema }) {
           `SELECT l.*`,
           baseSql,
           sortClause,
-          `LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+          `LIMIT ? OFFSET ?`,
         ]
           .filter(Boolean)
           .join("\n");

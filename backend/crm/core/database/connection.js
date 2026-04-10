@@ -79,15 +79,8 @@ function normalizeRawSql(sql) {
     .replace(/;+\s*$/, "");
 }
 
-function stripTypeCasts(sql) {
-  return sql.replace(
-    /::\s*[A-Za-z_][A-Za-z0-9_]*(?:\s*\([^)]*\))?/g,
-    "",
-  );
-}
-
 function convertQuotedIdentifiersToMySql(sql) {
-  return sql.replace(/"([A-Za-z_][A-Za-z0-9_]*)"/g, "`$1`");
+  return sql.replace(/"([A-Za-z_][A-Za-z0-9_]*)"/g, (_match, identifier) => `\`${identifier}\``);
 }
 
 function normalizeIntervalLiterals(sql) {
@@ -110,90 +103,20 @@ function normalizeTableSchemaPublic(sql) {
   );
 }
 
-function normalizeOnConflict(sql) {
-  let normalized = String(sql || "");
-
-  if (/\bON\s+CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING\b/i.test(normalized)) {
-    normalized = normalized.replace(
-      /^\s*INSERT\s+INTO\b/i,
-      (match) => match.replace(/\bINSERT\s+INTO\b/i, "INSERT IGNORE INTO"),
-    );
-    normalized = normalized.replace(
-      /\s+ON\s+CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING\b/gi,
-      "",
-    );
-  }
-
-  normalized = normalized.replace(
-    /\bON\s+CONFLICT\s*\([^)]+\)\s*DO\s+UPDATE\s+SET\s+([\s\S]+?)(?=\s+RETURNING\b|$)/gi,
-    (_match, setClause = "") => {
-      const rewritten = String(setClause).replace(
-        /\bEXCLUDED\.([A-Za-z_][A-Za-z0-9_]*)\b/gi,
-        "VALUES($1)",
-      );
-      return `ON DUPLICATE KEY UPDATE ${rewritten}`;
-    },
-  );
-
-  return normalized;
-}
-
-function extractParamIndexes(sqlFragment = "") {
-  const indexes = [];
-  sqlFragment.replace(/\$([0-9]+)/g, (_, idx) => {
-    indexes.push(Number(idx));
-    return "";
-  });
-  return indexes;
-}
-
-function pickParamsByIndexes(params = [], indexes = []) {
-  return indexes.map((idx) => params[idx - 1]);
-}
-
-function replaceIndexedPlaceholders(sql, params = []) {
-  const orderedParams = [];
-  const replacedSql = String(sql || "").replace(/\$([0-9]+)/g, (_, rawIndex) => {
-    const index = Number(rawIndex) - 1;
-    orderedParams.push(params[index]);
-    return "?";
-  });
-
-  if (!orderedParams.length) {
-    return { sql: replacedSql, params };
-  }
-
-  return { sql: replacedSql, params: orderedParams };
-}
-
 function normalizeSqlForMySql(sql, params = []) {
   let normalizedSql = String(sql || "");
-  normalizedSql = stripTypeCasts(normalizedSql);
   normalizedSql = convertQuotedIdentifiersToMySql(normalizedSql);
   normalizedSql = normalizeIntervalLiterals(normalizedSql);
   normalizedSql = normalizeTableSchemaPublic(normalizedSql);
-  normalizedSql = normalizeOnConflict(normalizedSql);
-  normalizedSql = normalizedSql.replace(/\bILIKE\b/gi, "LIKE");
-  normalizedSql = normalizedSql.replace(
-    /=\s*ANY\(\s*\$([0-9]+)\s*\)/gi,
-    "IN ($1)",
-  );
-
-  const placeholderNormalized = replaceIndexedPlaceholders(normalizedSql, params);
-  const sqlWithAny = placeholderNormalized.sql.replace(
-    /=\s*ANY\(\s*\?\s*\)/gi,
-    "IN (?)",
-  );
 
   return {
-    sql: sqlWithAny,
-    params: placeholderNormalized.params,
+    sql: normalizedSql,
+    params,
   };
 }
 
 function hasUnsupportedMySqlConstruct(sql = "") {
   const checks = [
-    /\bDATE_TRUNC\s*\(/i,
     /\bFILTER\s*\(/i,
     /\-\>\>?/i,
   ];
@@ -361,106 +284,6 @@ class MySqlDatabase {
     return Array.isArray(rows) ? rows : [];
   }
 
-  async tryReturningCompatibility(sql, params = []) {
-    const normalizedSql = normalizeRawSql(sql);
-    if (!/\bRETURNING\b/i.test(normalizedSql)) {
-      return null;
-    }
-
-    const toSelectColumns = (returningClause) => {
-      const trimmed = String(returningClause || "").trim();
-      if (!trimmed || trimmed === "*") {
-        return "*";
-      }
-      return trimmed;
-    };
-
-    const deleteMatch = normalizedSql.match(
-      /^\s*DELETE\s+FROM\s+([^\s]+)\s+WHERE\s+([\s\S]+?)\s+RETURNING\s+([\s\S]+)\s*$/i,
-    );
-    if (deleteMatch) {
-      const table = deleteMatch[1];
-      const whereClause = deleteMatch[2];
-      const returningClause = toSelectColumns(deleteMatch[3]);
-      const whereParamIndexes = extractParamIndexes(whereClause);
-      const whereParams = pickParamsByIndexes(params, whereParamIndexes);
-      const beforeRows = await this.runSelect(
-        `SELECT ${returningClause} FROM ${table} WHERE ${whereClause}`,
-        whereParams,
-      );
-      await this.runQuery(`DELETE FROM ${table} WHERE ${whereClause}`, whereParams);
-      return { rows: beforeRows, rowCount: beforeRows.length };
-    }
-
-    const updateMatch = normalizedSql.match(
-      /^\s*UPDATE\s+([^\s]+)\s+SET\s+([\s\S]+?)\s+WHERE\s+([\s\S]+?)\s+RETURNING\s+([\s\S]+)\s*$/i,
-    );
-    if (updateMatch) {
-      const table = updateMatch[1];
-      const setClause = updateMatch[2];
-      const whereClause = updateMatch[3];
-      const returningClause = toSelectColumns(updateMatch[4]);
-      await this.runQuery(`UPDATE ${table} SET ${setClause} WHERE ${whereClause}`, params);
-
-      const whereParamIndexes = extractParamIndexes(whereClause);
-      const whereParams = pickParamsByIndexes(params, whereParamIndexes);
-      const rows = await this.runSelect(
-        `SELECT ${returningClause} FROM ${table} WHERE ${whereClause}`,
-        whereParams,
-      );
-      return { rows, rowCount: rows.length };
-    }
-
-    const insertMatch = normalizedSql.match(
-      /^\s*INSERT\s+INTO\s+([^\s(]+)\s*\(([\s\S]+?)\)\s*VALUES\s*\(([\s\S]+?)\)\s*RETURNING\s+([\s\S]+)\s*$/i,
-    );
-    if (insertMatch) {
-      const table = insertMatch[1];
-      const columns = insertMatch[2]
-        .split(",")
-        .map((item) => item.trim().replace(/^["`]|["`]$/g, ""));
-      const valuesFragment = insertMatch[3];
-      const returningClause = toSelectColumns(insertMatch[4]);
-      const valueParamIndexes = extractParamIndexes(valuesFragment);
-      const [insertResult] = await this.runQuery(
-        `INSERT INTO ${table} (${insertMatch[2]}) VALUES (${valuesFragment})`,
-        params,
-      );
-
-      const idColumnIndex = columns.findIndex((item) => item === "id");
-      if (idColumnIndex >= 0 && valueParamIndexes[idColumnIndex]) {
-        const idValue = params[valueParamIndexes[idColumnIndex] - 1];
-        if (idValue) {
-          const rows = await this.runSelect(
-            `SELECT ${returningClause} FROM ${table} WHERE id = $1`,
-            [idValue],
-          );
-          return { rows, rowCount: rows.length };
-        }
-      }
-
-      const insertId = insertResult?.insertId;
-      if (insertId !== undefined && insertId !== null && insertId !== 0) {
-        const rows = await this.runSelect(
-          `SELECT ${returningClause} FROM ${table} WHERE id = $1`,
-          [insertId],
-        );
-        if (rows.length > 0) {
-          return { rows, rowCount: rows.length };
-        }
-      }
-
-      return { rows: [], rowCount: 0 };
-    }
-
-    throw new Error(
-      `Unsupported RETURNING query for MySQL adapter. Rewrite query manually: ${normalizedSql.slice(
-        0,
-        220,
-      )}`,
-    );
-  }
-
   async insert(tableName, payload) {
     const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
     const table = quoteIdentifier(tableName, "mysql");
@@ -475,7 +298,7 @@ class MySqlDatabase {
     if (!finalEntries.length) {
       const idValue = hasIdColumn ? randomUUID() : null;
       if (idValue) {
-        await this.runQuery(`INSERT INTO ${table} (id) VALUES ($1)`, [idValue]);
+        await this.runQuery(`INSERT INTO ${table} (id) VALUES (?)`, [idValue]);
         return this.findById(tableName, idValue);
       }
       await this.runQuery(`INSERT INTO ${table} () VALUES ()`, []);
@@ -567,20 +390,6 @@ class MySqlDatabase {
   }
 
   async query(sql, params = []) {
-    const returningResult = await this.tryReturningCompatibility(sql, params).catch(
-      (error) => {
-        this.logger?.warn?.(
-          { err: error, module: "database", adapter: "mysql" },
-          "MySQL RETURNING compatibility fallback failed.",
-        );
-        throw error;
-      },
-    );
-
-    if (returningResult) {
-      return returningResult;
-    }
-
     const [result] = await this.runQuery(sql, params);
     if (Array.isArray(result)) {
       return { rows: result, rowCount: result.length };
