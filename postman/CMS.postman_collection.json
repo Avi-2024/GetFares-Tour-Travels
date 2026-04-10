@@ -1397,7 +1397,13 @@
                     "published"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -1468,7 +1474,19 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "%7B%7BpackageId%7D%7D"
+                  ],
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -1505,7 +1523,13 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published",
+                    "%7B%7BpackageId%7D%7D"
+                  ]
                 },
                 "header": [
                   {
@@ -1529,7 +1553,18 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "packages",
+                    "published"
+                  ],
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -1584,7 +1619,13 @@
                     "main"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -1806,7 +1847,13 @@
                     }
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -2515,7 +2562,13 @@
                     "featured-picks"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -2550,7 +2603,18 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit"
+                  ],
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -2574,7 +2638,18 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit"
+                  ],
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -2611,7 +2686,13 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "%7B%7BfeaturedPickId%7D%7D"
+                  ]
                 },
                 "header": [
                   {
@@ -2635,7 +2716,19 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "%7B%7BfeaturedPickId%7D%7D"
+                  ],
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -2672,7 +2765,13 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "experience",
+                    "creative-toolkit",
+                    "%7B%7BfeaturedPickId%7D%7D"
+                  ]
                 },
                 "header": [
                   {
@@ -2965,7 +3064,13 @@
                     "season-cards"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3241,7 +3346,13 @@
                     "hero-sections"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3535,7 +3646,12 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "cms",
+                    "media",
+                    "upload"
+                  ]
                 },
                 "header": [
                   {
@@ -3776,7 +3892,13 @@
                     "home"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3806,7 +3928,13 @@
                     "landing-places"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3836,7 +3964,13 @@
                     "destinations"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3868,7 +4002,13 @@
                     }
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3901,7 +4041,13 @@
                     }
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3934,7 +4080,13 @@
                     }
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3967,7 +4119,13 @@
                     }
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -3998,7 +4156,13 @@
                     "published"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4024,7 +4188,13 @@
                     "main"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4058,7 +4228,13 @@
                     }
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4088,7 +4264,13 @@
                     "visa-destinations"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4120,7 +4302,13 @@
                     }
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4153,7 +4341,13 @@
                     }
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4183,7 +4377,13 @@
                     "featured-picks"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4203,7 +4403,18 @@
                   "host": [
                     "localhost"
                   ],
-                  "port": "3000"
+                  "port": "3000",
+                  "path": [
+                    "public",
+                    "cms",
+                    "creative-toolkit"
+                  ],
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4228,7 +4439,13 @@
                     "season-cards"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {
@@ -4253,7 +4470,13 @@
                     "hero-sections"
                   ],
                   "protocol": "http",
-                  "port": "3000"
+                  "port": "3000",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "header": [
                   {

@@ -21,7 +21,8 @@ function createLandingRepository({ db, schema }) {
          LIMIT 1`,
         [schema.tableName],
       );
-      countryColumnSupported = result.rowCount > 0;
+      countryColumnSupported =
+        (result?.rowCount ?? result?.rows?.length ?? 0) > 0;
     } catch {
       countryColumnSupported = false;
     }

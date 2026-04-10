@@ -61,7 +61,8 @@ function createCmsAccessMiddleware({
         [userId],
       );
 
-      if (result.rowCount > 0) {
+      const hasRows = (result?.rowCount ?? result?.rows?.length ?? 0) > 0;
+      if (hasRows) {
         return result.rows[0];
       }
     }
