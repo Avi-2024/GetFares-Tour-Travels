@@ -22,6 +22,12 @@ function createLeadsController({ service }) {
     },
 
     async publicCapture(req, res) {
+      // Debug logging
+      req.logger?.info?.(
+        { validated: req.validated?.body, raw: req.body },
+        'publicCapture payload received'
+      );
+      
       const payload = {
         ...req.validated.body,
         source: req.validated.body.source || "website",

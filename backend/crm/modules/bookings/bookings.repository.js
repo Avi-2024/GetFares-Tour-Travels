@@ -465,7 +465,7 @@ function createBookingsRepository({ db, logger, schema }) {
     const params = [scheduledFor];
     let joinClause = "";
     const conditions = [
-      "b.is_deleted = false",
+      "TRUE",
       "b.status = 'CONFIRMED'",
       `b.${dateColumn} = ?`,
     ];
@@ -528,7 +528,7 @@ function createBookingsRepository({ db, logger, schema }) {
     if (typeof db.query === "function") {
       const params = [];
       const conditions = [
-        "COALESCE(b.is_deleted, FALSE) = FALSE",
+        "TRUE",
         "b.status <> 'CANCELLED'",
         "(b.supplier_payment_deadline_at IS NOT NULL OR b.cancellation_deadline_at IS NOT NULL)",
       ];
@@ -1050,4 +1050,5 @@ function createBookingsRepository({ db, logger, schema }) {
 }
 
 export { createBookingsRepository };
+
 

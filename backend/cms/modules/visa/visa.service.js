@@ -9,6 +9,14 @@ import {
 function createVisaService({ repository }) {
   function toVisaDestination(row) {
     if (!row) return null;
+    let highlights = [];
+    if (row.highlights) {
+      try {
+        highlights = typeof row.highlights === 'string' ? JSON.parse(row.highlights) : row.highlights;
+      } catch {
+        highlights = [];
+      }
+    }
     return {
       id: row.id,
       country: row.country,
@@ -21,7 +29,7 @@ function createVisaService({ repository }) {
       processingTime: row.processing_time,
       supportInfo: row.support_info,
       iconName: row.icon_name,
-      highlights: row.highlights || [],
+      highlights,
       ctaText: row.cta_text,
       displayOrder: row.display_order,
       isActive: row.is_active,
@@ -100,7 +108,7 @@ function createVisaService({ repository }) {
         processing_time: normalizeText(data.processingTime),
         support_info: normalizeText(data.supportInfo),
         icon_name: normalizeText(data.iconName),
-        highlights: Array.isArray(data.highlights) ? data.highlights : [],
+        highlights: JSON.stringify(Array.isArray(data.highlights) ? data.highlights : []),
         cta_text: normalizeText(data.ctaText),
         display_order: toNumber(data.displayOrder, 0),
         is_active: toBoolean(data.isActive, true),
@@ -147,7 +155,7 @@ function createVisaService({ repository }) {
       if (data.iconName !== undefined)
         updates.icon_name = normalizeText(data.iconName);
       if (data.highlights !== undefined && Array.isArray(data.highlights))
-        updates.highlights = data.highlights;
+        updates.highlights = JSON.stringify(data.highlights);
       if (data.ctaText !== undefined)
         updates.cta_text = normalizeText(data.ctaText);
       if (data.displayOrder !== undefined)

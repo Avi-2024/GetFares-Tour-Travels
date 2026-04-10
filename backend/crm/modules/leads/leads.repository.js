@@ -500,25 +500,6 @@ function createLeadsRepository({ db, logger, schema }) {
     };
   }
 
-  async function getTableColumns(tableName) {
-    if (!canIntrospect()) {
-      return null;
-    }
-
-    if (tableColumnsCache.has(tableName)) {
-      return tableColumnsCache.get(tableName);
-    }
-
-    const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
-      [tableName],
-    );
-
-    const columns = new Set(result.rows.map((row) => row.column_name));
-    tableColumnsCache.set(tableName, columns);
-    return columns;
-  }
-
   async function hasTable(tableName) {
     if (!canIntrospect()) {
       return true;
@@ -892,6 +873,8 @@ function createLeadsRepository({ db, logger, schema }) {
         (db.adapter === "mysql") &&
         typeof db.query === "function"
       ) {
+        const hasLeadCustomerId = await hasColumn(schema.tableName, "customer_id");
+        const joinCustomers = hasLeadCustomerId && Boolean(schema.customersTable);
         const where = ["COALESCE(l.is_deleted, FALSE) = FALSE"];
         const params = [];
 
@@ -1003,9 +986,15 @@ function createLeadsRepository({ db, logger, schema }) {
           const normalizedEmail = String(filters.email).trim().toLowerCase();
           if (normalizedEmail) {
             params.push(`%${normalizedEmail}%`);
-            where.push(
-              `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${params.length} OR LOWER(COALESCE(c.email, '')) LIKE $${params.length})`,
-            );
+            if (joinCustomers) {
+              where.push(
+                `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${params.length} OR LOWER(COALESCE(c.email, '')) LIKE $${params.length})`,
+              );
+            } else {
+              where.push(
+                `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${params.length}`,
+              );
+            }
           }
         }
 
@@ -1013,9 +1002,15 @@ function createLeadsRepository({ db, logger, schema }) {
           const normalizedPhone = String(filters.phone).replace(/\D/g, "");
           if (normalizedPhone) {
             params.push(`%${normalizedPhone}%`);
-            where.push(
-              `(regexp_replace(COALESCE(NULLIF(l.phone, ''), ''), '\\D', '', 'g') LIKE $${params.length} OR regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g') LIKE $${params.length})`,
-            );
+            if (joinCustomers) {
+              where.push(
+                `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE $${params.length} OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE $${params.length})`,
+              );
+            } else {
+              where.push(
+                `REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE $${params.length}`,
+              );
+            }
           }
         }
 
@@ -1035,9 +1030,7 @@ function createLeadsRepository({ db, logger, schema }) {
             params.push(`%${rawSearch}%`);
             const textParamIndex = params.length;
             const searchWhere = [
-              `LOWER(COALESCE(c.full_name, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(c.email, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(d.name, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(l.source, '')) LIKE $${textParamIndex}`,
@@ -1045,12 +1038,22 @@ function createLeadsRepository({ db, logger, schema }) {
               `LOWER(COALESCE(l.lead_code, '')) LIKE $${textParamIndex}`,
               `LOWER(COALESCE(l.meta_lead_id, '')) LIKE $${textParamIndex}`,
             ];
+            if (joinCustomers) {
+              searchWhere.unshift(`LOWER(COALESCE(c.full_name, '')) LIKE $${textParamIndex}`);
+              searchWhere.splice(2, 0, `LOWER(COALESCE(c.email, '')) LIKE $${textParamIndex}`);
+            }
             const phoneSearch = rawSearch.replace(/\D/g, "");
             if (phoneSearch) {
               params.push(`%${phoneSearch}%`);
-              searchWhere.push(
-                `(regexp_replace(COALESCE(NULLIF(l.phone, ''), ''), '\\D', '', 'g') LIKE $${params.length} OR regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g') LIKE $${params.length})`,
-              );
+              if (joinCustomers) {
+                searchWhere.push(
+                  `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE $${params.length} OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE $${params.length})`,
+                );
+              } else {
+                searchWhere.push(
+                  `REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE $${params.length}`,
+                );
+              }
             }
             where.push(`(${searchWhere.join(" OR ")})`);
           }
@@ -1063,7 +1066,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
         if (filters.toDate) {
           params.push(filters.toDate);
-          where.push(`l.created_at < ($${params.length} + INTERVAL '1 day')`);
+          where.push(`l.created_at < ($${params.length} + INTERVAL 1 DAY)`);
         }
 
         if (filters.sla === "OVERDUE" || quickFilter === "LATE_RESPONSE") {
@@ -1091,6 +1094,7 @@ function createLeadsRepository({ db, logger, schema }) {
         const baseSql = [
           `FROM ${schema.tableName} l`,
           `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
+          joinCustomers ? `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id` : null,
           `WHERE ${where.join(" AND ")}`,
         ]
           .filter(Boolean)
@@ -1100,10 +1104,16 @@ function createLeadsRepository({ db, logger, schema }) {
         const countResult = await db.query(countSql, params);
         const total = Number(countResult.rows?.[0]?.total || 0);
 
+        const sortClause = joinCustomers
+          ? buildSortClause(filters.sortBy)
+          : filters.sortBy === "NAME_A_Z"
+            ? "ORDER BY LOWER(COALESCE(NULLIF(l.full_name, ''), '')) ASC, l.created_at DESC"
+            : buildSortClause(filters.sortBy);
+
         const dataSql = [
           `SELECT l.*`,
           baseSql,
-          buildSortClause(filters.sortBy),
+          sortClause,
           `LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         ]
           .filter(Boolean)
@@ -2017,8 +2027,9 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async create(payload) {
-      logger.debug({ module: "leads", payload }, "Creating lead");
+      logger.debug({ module: "leads", payload }, "Creating lead - raw payload");
       const sanitized = await sanitizeForTable(schema.tableName, payload);
+      logger.debug({ module: "leads", sanitized, payloadKeys: Object.keys(payload), sanitizedKeys: Object.keys(sanitized) }, "Creating lead - after sanitize");
       const row = await db.insert(schema.tableName, sanitized);
       return mapRowToDomain(row);
     },
@@ -2292,6 +2303,8 @@ function createLeadsRepository({ db, logger, schema }) {
 }
 
 export { createLeadsRepository };
+
+
 
 
 
