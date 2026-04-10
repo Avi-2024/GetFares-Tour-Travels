@@ -28,7 +28,10 @@ function createAuthModule({ dependencies }) {
     tokenBlacklistService: dependencies.services?.tokenBlacklist,
   });
 
-  const middleware = createAuthMiddleware({ authService: service });
+  const middleware = createAuthMiddleware({
+    authService: service,
+    logger: dependencies.logger,
+  });
 
   const controller = createAuthController({ service });
 

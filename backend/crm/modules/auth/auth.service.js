@@ -89,8 +89,27 @@ function createAuthService({
     isTokenBlacklisted,
 
     async register(payload) {
+      logger.info(
+        {
+          module: "auth",
+          fileName: "auth.service.js",
+          functionName: "register",
+          metadata: { email: payload.email },
+        },
+        "User registration started",
+      );
+
       const existing = await repository.findUserByEmail(payload.email);
       if (existing) {
+        logger.warn(
+          {
+            module: "auth",
+            fileName: "auth.service.js",
+            functionName: "register",
+            metadata: { email: payload.email, reason: "AUTH_EMAIL_EXISTS" },
+          },
+          "Validation failure",
+        );
         throw new AppError(
           409,
           "Email is already registered",
@@ -119,12 +138,41 @@ function createAuthService({
       });
 
       events.emitRegistered(user);
+      logger.info(
+        {
+          module: "auth",
+          fileName: "auth.service.js",
+          functionName: "register",
+          userId: user.id,
+          metadata: { email: user.email },
+        },
+        "User created",
+      );
       return buildAuthResponse(user);
     },
 
     async login(payload, sessionContext = {}) {
+      logger.info(
+        {
+          module: "auth",
+          fileName: "auth.service.js",
+          functionName: "login",
+          metadata: { email: payload.email },
+        },
+        "Login started",
+      );
+
       const user = await repository.findUserByEmail(payload.email);
       if (!user || !user.passwordHash) {
+        logger.warn(
+          {
+            module: "auth",
+            fileName: "auth.service.js",
+            functionName: "login",
+            metadata: { email: payload.email, reason: "AUTH_INVALID_CREDENTIALS" },
+          },
+          "Invalid password",
+        );
         throw new AppError(
           401,
           "Invalid credentials",
@@ -134,6 +182,16 @@ function createAuthService({
 
       const isMatch = await bcrypt.compare(payload.password, user.passwordHash);
       if (!isMatch) {
+        logger.warn(
+          {
+            module: "auth",
+            fileName: "auth.service.js",
+            functionName: "login",
+            userId: user.id,
+            metadata: { email: payload.email, reason: "AUTH_INVALID_CREDENTIALS" },
+          },
+          "Invalid password",
+        );
         throw new AppError(
           401,
           "Invalid credentials",
@@ -142,6 +200,16 @@ function createAuthService({
       }
 
       if (!user.isActive) {
+        logger.warn(
+          {
+            module: "auth",
+            fileName: "auth.service.js",
+            functionName: "login",
+            userId: user.id,
+            metadata: { email: payload.email, reason: "AUTH_INACTIVE_USER" },
+          },
+          "Permission denied",
+        );
         throw new AppError(
           403,
           "User account is inactive",
@@ -164,6 +232,16 @@ function createAuthService({
       }
 
       events.emitLoggedIn(user);
+      logger.info(
+        {
+          module: "auth",
+          fileName: "auth.service.js",
+          functionName: "login",
+          userId: user.id,
+          metadata: { email: user.email },
+        },
+        "Login success",
+      );
       return buildAuthResponse(user);
     },
 
@@ -214,6 +292,15 @@ function createAuthService({
       }
 
       await repository.clearLoginPresence(userId);
+      logger.info(
+        {
+          module: "auth",
+          fileName: "auth.service.js",
+          functionName: "logout",
+          userId,
+        },
+        "Logout success",
+      );
       return { success: true };
     },
   });

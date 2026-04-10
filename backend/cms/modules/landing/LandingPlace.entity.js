@@ -2,7 +2,7 @@ export class LandingPlace {
   constructor(data) {
     this.id = data.id;
     this.name = data.name;
-    this.description = data.description;
+    this.description = data.description ?? data.tag;
     this.tag = data.tag;
     this.imageUrl = data.imageUrl || data.image_url;
     this.displayOrder = data.displayOrder || data.display_order || 0;
@@ -17,7 +17,7 @@ export class LandingPlace {
     return new LandingPlace({
       id: row.id,
       name: row.name,
-      description: row.description,
+      description: row.tag,
       tag: row.tag,
       imageUrl: row.image_url,
       displayOrder: row.display_order,
@@ -30,7 +30,6 @@ export class LandingPlace {
   toDatabase() {
     return {
       name: this.name,
-      description: this.description,
       tag: this.tag,
       image_url: this.imageUrl,
       display_order: this.displayOrder,
@@ -59,8 +58,8 @@ export class LandingPlace {
       errors.push("Name is required");
     }
 
-    if (!this.description || this.description.trim().length === 0) {
-      errors.push("Description is required");
+    if (!this.tag || this.tag.trim().length === 0) {
+      errors.push("Tag is required");
     }
 
     if (!this.imageUrl || this.imageUrl.trim().length === 0) {

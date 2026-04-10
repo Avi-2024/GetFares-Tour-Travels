@@ -4,7 +4,12 @@ function isMissingColumnError(error) {
   }
 
   const message = String(error.message || "");
-  return error.code === "42703" || /column\s+"[^"]+"\s+.*does not exist/i.test(message);
+  return (
+    error.code === "42703" ||
+    error.code === "ER_BAD_FIELD_ERROR" ||
+    /column\s+"[^"]+"\s+.*does not exist/i.test(message) ||
+    /unknown column\s+'[^']+'/i.test(message)
+  );
 }
 
 function getMissingColumnName(error) {
@@ -15,6 +20,7 @@ function getMissingColumnName(error) {
   const message = String(error.message || "");
   const relationPattern = /column\s+"([^"]+)"\s+of relation\s+"[^"]+"\s+does not exist/i;
   const genericPattern = /column\s+"([^"]+)"\s+does not exist/i;
+  const mysqlPattern = /unknown column\s+'([^']+)'/i;
   const relationMatch = message.match(relationPattern);
   if (relationMatch?.[1]) {
     return relationMatch[1];
@@ -22,6 +28,10 @@ function getMissingColumnName(error) {
   const genericMatch = message.match(genericPattern);
   if (genericMatch?.[1]) {
     return genericMatch[1];
+  }
+  const mysqlMatch = message.match(mysqlPattern);
+  if (mysqlMatch?.[1]) {
+    return mysqlMatch[1].split(".").pop();
   }
   return null;
 }
@@ -105,11 +115,12 @@ function createVisaRepository({ db, schema }) {
     },
 
     async deleteDetail(detailId) {
-      const result = await db.query(
-        `DELETE FROM ${schema.detailsTable} WHERE id = $1 RETURNING *`,
-        [detailId],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.detailsTable, detailId);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.detailsTable} WHERE id = ?`, [detailId]);
+      return existing;
     },
   });
 }

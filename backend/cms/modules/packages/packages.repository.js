@@ -19,7 +19,7 @@ function createCmsPackagesRepository({ db, schema }) {
             SELECT 1
             FROM ${schema.mainPackagesTable} mp
             WHERE mp.package_id = p.id
-              AND LOWER(mp.country) = LOWER($${values.length})
+              AND LOWER(mp.country) = LOWER(?)
           )`,
         );
       }
@@ -67,12 +67,12 @@ function createCmsPackagesRepository({ db, schema }) {
       const country = normalizeCountry(filters.country);
       if (country) {
         values.push(country);
-        clauses.push(`LOWER(mp.country) = LOWER($${values.length})`);
+        clauses.push("LOWER(mp.country) = LOWER(?)");
       }
 
       if (filters.is_featured !== undefined) {
         values.push(filters.is_featured);
-        clauses.push(`mp.is_featured = $${values.length}`);
+        clauses.push("mp.is_featured = ?");
       }
 
       const result = await db.query(
@@ -93,7 +93,7 @@ function createCmsPackagesRepository({ db, schema }) {
                 p.banner_image_url, p.publish_to_website
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
-         WHERE mp.id = $1
+         WHERE mp.id = ?
          LIMIT 1`,
         [id],
       );
@@ -109,11 +109,12 @@ function createCmsPackagesRepository({ db, schema }) {
     },
 
     async deleteMainPackage(id) {
-      const result = await db.query(
-        `DELETE FROM ${schema.mainPackagesTable} WHERE id = $1 RETURNING *`,
-        [id],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.mainPackagesTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.mainPackagesTable} WHERE id = ?`, [id]);
+      return existing;
     },
 
     async findSubPackages(mainPackageId) {
@@ -121,7 +122,7 @@ function createCmsPackagesRepository({ db, schema }) {
         `SELECT sp.*, p.name, p.starting_price, p.duration, p.banner_image_url
          FROM ${schema.subPackagesTable} sp
          JOIN ${schema.packagesTable} p ON sp.package_id = p.id
-         WHERE sp.main_package_id = $1
+         WHERE sp.main_package_id = ?
            AND p.is_deleted = false
            AND p.publish_to_website = true
          ORDER BY sp.display_order`,
@@ -143,11 +144,12 @@ function createCmsPackagesRepository({ db, schema }) {
     },
 
     async deleteSubPackage(id) {
-      const result = await db.query(
-        `DELETE FROM ${schema.subPackagesTable} WHERE id = $1 RETURNING *`,
-        [id],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.subPackagesTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.subPackagesTable} WHERE id = ?`, [id]);
+      return existing;
     },
   });
 }

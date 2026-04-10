@@ -27,7 +27,15 @@ export class Configuration {
     this._port = parseInt(process.env.PORT || '3000', 10);
 
     this._database = {
+      client: process.env.DATABASE_CLIENT,
       url: process.env.DATABASE_URL,
+      mysql: {
+        host: process.env.MYSQL_HOST,
+        port: parseInt(process.env.MYSQL_PORT || '3306', 10),
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_PASSWORD,
+        database: process.env.MYSQL_DATABASE,
+      },
     };
 
     this._jwt = {
@@ -118,8 +126,17 @@ export class Configuration {
   validate() {
     const errors = [];
 
-    if (!this._database.url) {
-      errors.push('DATABASE_URL is required');
+    const dbClient = String(this._database.client || '')
+      .trim()
+      .toLowerCase();
+    const mysqlHostConfigured = Boolean(this._database.mysql.host);
+
+    if (!this._database.url && !mysqlHostConfigured) {
+      errors.push('DATABASE_URL or MYSQL_HOST is required');
+    }
+
+    if (dbClient === 'mysql' && !this._database.url && !mysqlHostConfigured) {
+      errors.push('MySQL config missing. Set DATABASE_URL or MYSQL_HOST.');
     }
 
     if (this.isProduction && this._jwt.secret === 'your-secret-key-change-in-production') {

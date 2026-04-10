@@ -50,18 +50,19 @@ function createCmsAccessMiddleware({
           SELECT
             u.id,
             u.email,
-            u.is_active AS "isActive",
-            u.role_id AS "roleId",
-            r.name AS "roleName"
+            u.is_active AS isActive,
+            u.role_id AS roleId,
+            r.name AS roleName
           FROM users u
           LEFT JOIN roles r ON r.id = u.role_id
-          WHERE u.id = $1
+          WHERE u.id = ?
           LIMIT 1
         `,
         [userId],
       );
 
-      if (result.rowCount > 0) {
+      const hasRows = (result?.rowCount ?? result?.rows?.length ?? 0) > 0;
+      if (hasRows) {
         return result.rows[0];
       }
     }

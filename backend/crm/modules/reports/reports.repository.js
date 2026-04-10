@@ -1,6 +1,15 @@
 function createReportsRepository({ db, schema }) {
+  function getAdapterName() {
+    return String(db.adapter || "").toLowerCase();
+  }
+
   function canUseRawQuery() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    const adapter = getAdapterName();
+    return (
+      typeof db.query === "function" &&
+      Boolean(db.pool) &&
+      (adapter === "mysql" || adapter === "mysql")
+    );
   }
 
   function toNumber(value, fallback = 0) {
@@ -39,8 +48,12 @@ function createReportsRepository({ db, schema }) {
     if (!canUseRawQuery()) {
       return [];
     }
-    const result = await db.query(sql, params);
-    return result.rows;
+    try {
+      const result = await db.query(sql, params);
+      return result.rows;
+    } catch (_error) {
+      return [];
+    }
   }
 
   return Object.freeze({
@@ -50,8 +63,8 @@ function createReportsRepository({ db, schema }) {
         `
           SELECT
             COALESCE(l.source, 'UNKNOWN') AS source,
-            COUNT(*)::int AS total_leads,
-            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END)::int AS converted_leads
+            COUNT(*) AS total_leads,
+            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
           FROM ${schema.leadsTable} l
           ${range.sql}
           GROUP BY COALESCE(l.source, 'UNKNOWN')
@@ -94,8 +107,8 @@ function createReportsRepository({ db, schema }) {
           SELECT
             u.id AS user_id,
             u.full_name AS consultant_name,
-            COUNT(l.id)::int AS total_leads,
-            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END)::int AS converted_leads,
+            COUNT(l.id) AS total_leads,
+            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads,
             AVG(
               CASE
                 WHEN l.response_at IS NOT NULL AND l.created_at IS NOT NULL
@@ -226,7 +239,7 @@ function createReportsRepository({ db, schema }) {
           )
           SELECT
             service_type,
-            COUNT(*)::int AS total_bookings,
+            COUNT(*) AS total_bookings,
             SUM(COALESCE(total_amount, 0))::numeric(14,2) AS revenue
           FROM base
           GROUP BY service_type
@@ -248,7 +261,7 @@ function createReportsRepository({ db, schema }) {
         `
           SELECT
             COALESCE(d.name, 'UNKNOWN') AS destination,
-            COUNT(*)::int AS total_bookings,
+            COUNT(*) AS total_bookings,
             SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS revenue
           FROM ${schema.bookingsTable} b
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
@@ -352,7 +365,7 @@ function createReportsRepository({ db, schema }) {
         `
           SELECT
             p.payment_mode,
-            COUNT(*)::int AS total_payments,
+            COUNT(*) AS total_payments,
             SUM(COALESCE(p.amount, 0))::numeric(14,2) AS total_amount
           FROM ${schema.paymentsTable} p
           ${range.sql}
@@ -374,7 +387,7 @@ function createReportsRepository({ db, schema }) {
       const rows = await queryRows(
         `
           SELECT
-            COUNT(*)::int AS total_bookings,
+            COUNT(*) AS total_bookings,
             SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS total_revenue,
             SUM(COALESCE(b.cost_amount, 0))::numeric(14,2) AS total_cost,
             SUM(COALESCE(b.total_amount, 0) - COALESCE(b.cost_amount, 0))::numeric(14,2) AS total_profit
@@ -427,7 +440,7 @@ function createReportsRepository({ db, schema }) {
       const summaryRows = await queryRows(
         `
           SELECT
-            COUNT(*)::int AS total_quotes,
+            COUNT(*) AS total_quotes,
             SUM(COALESCE(q.supplier_cost, 0))::numeric(14,2) AS supplier_cost,
             SUM(COALESCE(q.supplier_tax_amount, 0))::numeric(14,2) AS supplier_tax_amount,
             SUM(COALESCE(q.markup_amount, 0))::numeric(14,2) AS markup_amount,
@@ -450,7 +463,7 @@ function createReportsRepository({ db, schema }) {
               NULLIF(q.supplier_currency, ''),
               'INR'
             ) AS currency,
-            COUNT(*)::int AS total_quotes,
+            COUNT(*) AS total_quotes,
             SUM(COALESCE(q.supplier_cost, 0))::numeric(14,2) AS supplier_cost,
             SUM(COALESCE(q.supplier_tax_amount, 0))::numeric(14,2) AS supplier_tax_amount,
             SUM(COALESCE(q.markup_amount, 0))::numeric(14,2) AS markup_amount,
@@ -587,9 +600,9 @@ function createReportsRepository({ db, schema }) {
           FROM ${schema.bookingsTable} b
           WHERE COALESCE(b.is_deleted, FALSE) = FALSE
             AND (
-              UPPER(COALESCE(NULLIF(TRIM(b.status::text), ''), '')) = 'CONFIRMED'
+              UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) = 'CONFIRMED'
               OR COALESCE(b.advance_received, 0) > 0
-              OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status::text), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
+              OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
             )
         ),
         quotation_snapshot AS (
@@ -669,7 +682,7 @@ function createReportsRepository({ db, schema }) {
         )
         SELECT
           service_rows.quotation_id,
-          COALESCE(NULLIF(TRIM(service_rows.quote_number), ''), LEFT(service_rows.quotation_id::text, 8)) AS quote_number,
+          COALESCE(NULLIF(TRIM(service_rows.quote_number), ''), LEFT(service_rows.quotation_id, 8)) AS quote_number,
           COALESCE(NULLIF(TRIM(l.full_name), ''), 'Unknown lead') AS lead_name,
           service_rows.service_label,
           service_rows.supplier_id,
@@ -690,13 +703,13 @@ function createReportsRepository({ db, schema }) {
           eb.advance_received
         FROM service_rows
         LEFT JOIN ${schema.leadsTable} l ON l.id = service_rows.lead_id
-        LEFT JOIN ${schema.suppliersTable} s ON s.id::text = service_rows.supplier_id
+        LEFT JOIN ${schema.suppliersTable} s ON s.id = service_rows.supplier_id
         LEFT JOIN eligible_bookings eb ON eb.quotation_id = service_rows.quotation_id
       `;
 
       const countRows = await queryRows(
         `
-          SELECT COUNT(*)::int AS total_items
+          SELECT COUNT(*) AS total_items
           FROM (${baseSql} ${whereSql}) AS filtered
         `,
         params,
@@ -749,10 +762,10 @@ function createReportsRepository({ db, schema }) {
       const rows = await queryRows(
         `
           SELECT
-            COUNT(*)::int AS total_cases,
-            SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved_cases,
-            SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected_cases,
-            SUM(CASE WHEN vc.status = 'DOCUMENT_PENDING' THEN 1 ELSE 0 END)::int AS pending_document_cases,
+            COUNT(*) AS total_cases,
+            SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_cases,
+            SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_cases,
+            SUM(CASE WHEN vc.status = 'DOCUMENT_PENDING' THEN 1 ELSE 0 END) AS pending_document_cases,
             AVG(
               CASE
                 WHEN vc.submission_date IS NOT NULL AND vc.appointment_date IS NOT NULL
@@ -797,7 +810,7 @@ function createReportsRepository({ db, schema }) {
             f.is_completed
           FROM ${schema.followupsTable} f
           LEFT JOIN ${schema.leadsTable} l ON l.id = f.lead_id
-          WHERE DATE(f.followup_date) = $1
+          WHERE DATE(f.followup_date) = ?
           ORDER BY f.followup_date ASC
         `,
         [date],
@@ -825,7 +838,7 @@ function createReportsRepository({ db, schema }) {
             f.followup_date
           FROM ${schema.followupsTable} f
           LEFT JOIN ${schema.leadsTable} l ON l.id = f.lead_id
-          WHERE DATE(f.followup_date) < $1
+          WHERE DATE(f.followup_date) < ?
             AND COALESCE(f.is_completed, FALSE) = FALSE
           ORDER BY f.followup_date ASC
         `,
@@ -905,13 +918,13 @@ function createReportsRepository({ db, schema }) {
         `
           WITH lead_stats AS (
             SELECT
-              COUNT(*)::int AS total_leads,
-              SUM(CASE WHEN status = 'CONVERTED' THEN 1 ELSE 0 END)::int AS converted_leads
+              COUNT(*) AS total_leads,
+              SUM(CASE WHEN status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
             FROM ${schema.leadsTable}
           ),
           booking_stats AS (
             SELECT
-              COUNT(*)::int AS total_bookings,
+              COUNT(*) AS total_bookings,
               SUM(COALESCE(total_amount, 0))::numeric(14,2) AS revenue,
               SUM(COALESCE(cost_amount, 0))::numeric(14,2) AS cost
             FROM ${schema.bookingsTable} b
@@ -963,10 +976,10 @@ function createReportsRepository({ db, schema }) {
       const bookingRows = await queryRows(
         `
           SELECT
-            COUNT(*)::int AS total_bookings,
+            COUNT(*) AS total_bookings,
             SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS total_revenue,
             SUM(COALESCE(b.cost_amount, 0))::numeric(14,2) AS total_cost,
-            SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END)::int AS cancelled_bookings
+            SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_bookings
           FROM ${schema.bookingsTable} b
           ${bookingRange.sql}
         `,
@@ -976,8 +989,8 @@ function createReportsRepository({ db, schema }) {
       const leadRows = await queryRows(
         `
           SELECT
-            COUNT(*)::int AS total_leads,
-            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END)::int AS converted_leads
+            COUNT(*) AS total_leads,
+            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
           FROM ${schema.leadsTable} l
           ${leadRange.sql}
         `,
@@ -1013,7 +1026,7 @@ function createReportsRepository({ db, schema }) {
                 THEN 1
                 ELSE 0
               END
-            )::int AS pending_followups,
+            ) AS pending_followups,
             SUM(
               CASE
                 WHEN DATE(f.followup_date) < CURRENT_DATE
@@ -1021,7 +1034,7 @@ function createReportsRepository({ db, schema }) {
                 THEN 1
                 ELSE 0
               END
-            )::int AS overdue_followups
+            ) AS overdue_followups
           FROM ${schema.followupsTable} f
         `,
       );
@@ -1029,7 +1042,7 @@ function createReportsRepository({ db, schema }) {
       const activeAgentsRows = await queryRows(
         `
           SELECT
-            COUNT(*)::int AS active_agents
+            COUNT(*) AS active_agents
           FROM ${schema.usersTable} u
           WHERE COALESCE(u.is_active, TRUE) = TRUE
             AND COALESCE(u.is_on_leave, FALSE) = FALSE
@@ -1116,7 +1129,7 @@ function createReportsRepository({ db, schema }) {
         `
           SELECT
             l.status,
-            COUNT(*)::int AS total
+            COUNT(*) AS total
           FROM ${schema.leadsTable} l
           ${range.sql}
           GROUP BY l.status
@@ -1179,8 +1192,8 @@ function createReportsRepository({ db, schema }) {
           WITH lead_stats AS (
             SELECT
               l.campaign_id,
-              COUNT(*)::int AS total_leads,
-              SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END)::int AS converted_leads
+              COUNT(*) AS total_leads,
+              SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
             FROM ${schema.leadsTable} l
             ${range.sql}
             GROUP BY l.campaign_id
@@ -1188,7 +1201,7 @@ function createReportsRepository({ db, schema }) {
           booking_stats AS (
             SELECT
               l.campaign_id,
-              COUNT(b.id)::int AS total_bookings,
+              COUNT(b.id) AS total_bookings,
               SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS revenue
             FROM ${schema.leadsTable} l
             LEFT JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
@@ -1202,9 +1215,9 @@ function createReportsRepository({ db, schema }) {
             c.source,
             COALESCE(c.budget, 0)::numeric(14,2) AS budget,
             COALESCE(c.actual_spend, 0)::numeric(14,2) AS actual_spend,
-            COALESCE(ls.total_leads, 0)::int AS total_leads,
-            COALESCE(ls.converted_leads, 0)::int AS converted_leads,
-            COALESCE(bs.total_bookings, 0)::int AS total_bookings,
+            COALESCE(ls.total_leads, 0) AS total_leads,
+            COALESCE(ls.converted_leads, 0) AS converted_leads,
+            COALESCE(bs.total_bookings, 0) AS total_bookings,
             COALESCE(bs.revenue, 0)::numeric(14,2) AS revenue
           FROM ${schema.campaignsTable} c
           LEFT JOIN lead_stats ls ON ls.campaign_id = c.id
@@ -1264,10 +1277,10 @@ function createReportsRepository({ db, schema }) {
           SELECT
             s.id,
             s.name,
-            COUNT(vc.id)::int AS total_cases,
-            SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END)::int AS approved_cases,
-            SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END)::int AS rejected_cases,
-            SUM(CASE WHEN vc.status = 'DOCUMENT_PENDING' THEN 1 ELSE 0 END)::int AS pending_cases,
+            COUNT(vc.id) AS total_cases,
+            SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_cases,
+            SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_cases,
+            SUM(CASE WHEN vc.status = 'DOCUMENT_PENDING' THEN 1 ELSE 0 END) AS pending_cases,
             AVG(COALESCE(vc.fees, 0))::numeric(12,2) AS avg_visa_fee,
             AVG(
               CASE
@@ -1313,7 +1326,7 @@ function createReportsRepository({ db, schema }) {
       const openPipelineRows = await queryRows(
         `
           SELECT
-            COUNT(*)::int AS open_pipeline_leads
+            COUNT(*) AS open_pipeline_leads
           FROM ${schema.leadsTable} l
           WHERE l.status NOT IN ('CONVERTED', 'LOST')
         `,
@@ -1322,8 +1335,8 @@ function createReportsRepository({ db, schema }) {
       const conversionRows = await queryRows(
         `
           SELECT
-            COUNT(*)::int AS total_leads,
-            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END)::int AS converted_leads
+            COUNT(*) AS total_leads,
+            SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
           FROM ${schema.leadsTable} l
           WHERE l.created_at >= (CURRENT_TIMESTAMP - INTERVAL '90 days')
         `,

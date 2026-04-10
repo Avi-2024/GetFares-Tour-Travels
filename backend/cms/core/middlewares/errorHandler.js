@@ -2,16 +2,25 @@ function errorHandler(err, req, res, next) {
   const statusCode = err.statusCode || err.status || 500;
   const message = err.message || "Internal Server Error";
   const code = err.code || "INTERNAL_ERROR";
+  const logger = req.logger || req.app?.locals?.logger;
 
-  // Log error
-  console.error("[CMS Error]", {
-    statusCode,
-    code,
-    message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method,
-  });
+  logger?.error(
+    {
+      module: "cms",
+      fileName: "errorHandler.js",
+      functionName: "errorHandler",
+      requestId: req.context?.requestId,
+      userId: req.context?.user?.id,
+      method: req.method,
+      url: req.originalUrl || req.url,
+      statusCode,
+      stack: err?.stack,
+      metadata: {
+        code,
+      },
+    },
+    "Unhandled exception",
+  );
 
   res.status(statusCode).json({
     success: false,
