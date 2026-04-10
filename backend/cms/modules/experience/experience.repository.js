@@ -17,11 +17,12 @@ function createExperienceRepository({ db, schema }) {
     },
 
     async deleteFeaturedPick(id) {
-      const result = await db.query(
-        `DELETE FROM ${schema.featuredTable} WHERE id = $1 RETURNING *`,
-        [id],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.featuredTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.featuredTable} WHERE id = ?`, [id]);
+      return existing;
     },
 
     async deactivateFeaturedPick(id) {
