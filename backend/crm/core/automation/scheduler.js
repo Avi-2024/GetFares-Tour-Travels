@@ -104,11 +104,9 @@ function createAutomationScheduler({
           "SELECT GET_LOCK(?, 0) AS locked",
           [lockName],
         );
-<<<<<<< HEAD
-        const locked = Number(result.rows?.[0]?.locked) === 1;
-=======
+
         const locked = Number(result.rows?.[0]?.locked || 0) === 1;
->>>>>>> development
+      
         if (!locked) {
           return {
             acquired: false,

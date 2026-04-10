@@ -29,6 +29,8 @@ export type LeadListItem = {
   childrenCount: number;
   childAges: number[];
   packageName: string;
+  leadType?: string | null;
+  lead_type?: string | null;
   status: CanonicalLeadStatus;
   statusLabel: SopStatusLabel;
   subStatus: string | null;
@@ -180,20 +182,6 @@ const extractListPayload = (response: LeadsListResponse) => {
   return { items, pagination };
 };
 
-const extractFollowups = (response: LeadFollowupsResponse) => {
-  const data =
-    (response as {
-      data?: { data?: LeadFollowupRecord[]; items?: LeadFollowupRecord[] };
-    })?.data?.data ??
-    (response as {
-      data?: { data?: LeadFollowupRecord[]; items?: LeadFollowupRecord[] };
-    })?.data?.items ??
-    (response as { data?: LeadFollowupRecord[] })?.data ??
-    response;
-
-  return Array.isArray(data) ? data : [];
-};
-
 const extractArray = (response: unknown) => {
   const payload = (response as { data?: unknown })?.data ?? response;
   if (Array.isArray(payload)) return payload;
@@ -215,6 +203,11 @@ const extractArray = (response: unknown) => {
   if (Array.isArray(secondLevelItems)) return secondLevelItems;
 
   return [];
+};
+
+const extractFollowups = (response: LeadFollowupsResponse) => {
+  const rows = extractArray(response);
+  return Array.isArray(rows) ? (rows as LeadFollowupRecord[]) : [];
 };
 
 const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
@@ -304,11 +297,12 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
   const status = normalizeCanonicalStatus(lead.status);
   const statusLabel = deriveSopStatusLabel(lead.status, lead.subStatus, lead.statusLabel);
   const leadIdFromBackend = toPlainText(
-    lead.leadId ??
-      (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
-        .leadCode ??
+    (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
+      .leadCode ??
       (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
         .lead_code ??
+      lead.leadId ??
+      lead.id ??
       lead.code ??
       "",
     "",
@@ -340,6 +334,8 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     ),
     childAges: normalizeChildAges(lead),
     packageName: lead.packageName ?? lead.package ?? "N/A",
+    leadType: (lead as LeadApiRecord & { leadType?: string | null }).leadType ?? null,
+    lead_type: (lead as LeadApiRecord & { lead_type?: string | null }).lead_type ?? null,
     status,
     statusLabel,
     subStatus: lead.subStatus ?? null,
