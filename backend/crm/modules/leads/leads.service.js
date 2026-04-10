@@ -944,7 +944,9 @@ function createLeadsService({ repository, logger, events }) {
       final_reminder_at: null,
       non_responsive_marked_at: null,
       calls_disabled: payload.callsDisabled ?? false,
-      child_ages: Array.isArray(payload.childAges) ? payload.childAges : null,
+      child_ages: Array.isArray(payload.childAges)
+        ? JSON.stringify(payload.childAges)
+        : null,
     };
 
     if (useCustomerLinking) {
@@ -1035,7 +1037,9 @@ function createLeadsService({ repository, logger, events }) {
       mapped.children_count = payload.childrenCount;
     }
     if (payload.childAges !== undefined) {
-      mapped.child_ages = Array.isArray(payload.childAges) ? payload.childAges : null;
+      mapped.child_ages = Array.isArray(payload.childAges)
+        ? JSON.stringify(payload.childAges)
+        : null;
     }
     if (payload.visaRequired !== undefined) {
       mapped.visa_required = payload.visaRequired;
