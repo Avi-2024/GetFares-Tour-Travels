@@ -17,7 +17,11 @@ class AppShellComponent extends Component<AppShellProps> {
       <div className="flex min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
         <SidebarComponent />
         <div className="min-w-0 flex-1">
-          <TopbarComponent title={title} subtitle={subtitle} breadcrumb={breadcrumb} />
+          <TopbarComponent
+            title={title}
+            subtitle={subtitle}
+            breadcrumb={breadcrumb}
+          />
           <main className="p-6 md:p-8">{children}</main>
         </div>
       </div>

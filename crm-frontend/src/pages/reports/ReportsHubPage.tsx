@@ -186,6 +186,8 @@ const CHART_COLORS = [
   '#0891b2'
 ]
 
+const MOBILE_BREAKPOINT = 640
+
 const toDateValue = (date: Date) => {
   const yyyy = date.getFullYear()
   const mm = String(date.getMonth() + 1).padStart(2, '0')
@@ -380,7 +382,11 @@ const ReportsHubPage = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [executiveKpis, setExecutiveKpis] = useState<ExecutiveKpis | null>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.innerWidth < MOBILE_BREAKPOINT
+      : false
+  )
 
   const activeTabLabel = useMemo(
     () => reportTabs.find(item => item.id === tab)?.label ?? 'Report',
@@ -396,9 +402,16 @@ const ReportsHubPage = () => {
   const handleTabChange = (nextTabId: string) => {
     if (reportTabIds.has(nextTabId as ReportTabId)) {
       setTab(nextTabId as ReportTabId)
-      setMobileMenuOpen(false)
     }
   }
+
+  useEffect(() => {
+    const syncViewport = () =>
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    syncViewport()
+    window.addEventListener('resize', syncViewport)
+    return () => window.removeEventListener('resize', syncViewport)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -499,6 +512,19 @@ const ReportsHubPage = () => {
       .filter((item): item is { label: string; value: number } => Boolean(item))
   }, [chartValueKey, labelColumn, rows])
 
+  const visibleColumns = useMemo(
+    () => (isMobile ? columns.slice(0, Math.min(columns.length, 4)) : columns),
+    [columns, isMobile]
+  )
+
+  const visibleRowLimit = isMobile ? 6 : 12
+  const visibleRows = useMemo(() => rows.slice(0, visibleRowLimit), [rows, visibleRowLimit])
+  const hasMoreRows = rows.length > visibleRowLimit
+  const pieInnerRadius = isMobile ? 44 : 68
+  const pieOuterRadius = isMobile ? 72 : 96
+  const legendFontSize = isMobile ? 10 : 12
+  const chartBarSize = isMobile ? 18 : 28
+
   const kpiCards = useMemo(() => {
     if (!executiveKpis) return []
     return KPI_CARD_ORDER.filter(item => item.key in executiveKpis).map(
@@ -588,81 +614,33 @@ const ReportsHubPage = () => {
   }
 
   return (
-    <div className='mx-auto w-full max-w-7xl space-y-4 px-4 sm:space-y-6 sm:px-6 lg:px-8'>
-      {/* Mobile Header with Menu Toggle */}
-      <div className='block sm:hidden'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h1 className='text-lg font-bold text-gray-900 dark:text-gray-100'>
+    <div className='mx-auto w-full max-w-none min-w-0 space-y-6 overflow-x-hidden pb-8'>
+      <SurfaceCard className='overflow-hidden border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-4 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30 sm:p-5 lg:p-6'>
+        <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end'>
+          <div className='space-y-1'>
+            <p className='text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-600 dark:text-blue-300'>
+              Executive Analytics
+            </p>
+            <h1 className='text-2xl font-semibold leading-tight text-slate-900 dark:text-slate-100'>
               Reports Hub
             </h1>
-            <p className='text-[10px] text-gray-500 dark:text-gray-400'>
-              PRD Module 7 requires this page.
+            <p className='text-sm text-slate-500 dark:text-slate-400'>
+              PRD Module 7 report space. Cards, chart, and table use backend APIs.
             </p>
           </div>
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className='rounded-lg bg-gray-100 p-2 dark:bg-gray-800'
-          >
-            <svg
-              className='h-5 w-5'
-              fill='none'
-              stroke='currentColor'
-              viewBox='0 0 24 24'
-            >
-              {mobileMenuOpen ? (
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M6 18L18 6M6 6l12 12'
-                />
-              ) : (
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M4 6h16M4 12h16M4 18h16'
-                />
-              )}
-            </svg>
-          </button>
-        </div>
-        {mobileMenuOpen && (
-          <div className='mt-3 space-y-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900'>
-            <DateInput
-              label='From'
-              value={from}
-              onChange={setFrom}
-              className='w-full'
-            />
-            <DateInput
-              label='To'
-              value={to}
-              onChange={setTo}
-              className='w-full'
-            />
+          <div className='grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:items-end xl:w-auto xl:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto]'>
+            <DateInput label='From' value={from} onChange={setFrom} className='w-full' />
+            <DateInput label='To' value={to} onChange={setTo} className='w-full' />
             <button
               onClick={exportCsv}
               disabled={!rows.length}
-              className='w-full rounded-xl bg-gray-900 px-3 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-700'
+              className='inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-55 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-400/40 dark:hover:text-blue-300'
             >
-              📥 Export CSV
+              Export CSV
             </button>
           </div>
-        )}
-      </div>
-
-      {/* Desktop Header */}
-      <div className='hidden sm:block'>
-        <h1 className='text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl'>
-          Reports Hub
-        </h1>
-        <p className='text-xs text-gray-500 dark:text-gray-400 sm:text-sm'>
-          PRD Module 7 requires this page. Every card, chart, and table below is
-          loaded from backend APIs.
-        </p>
-      </div>
+        </div>
+      </SurfaceCard>
 
       {error ? (
         <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300 sm:px-4 sm:py-3 sm:text-sm'>
@@ -670,81 +648,69 @@ const ReportsHubPage = () => {
         </div>
       ) : null}
 
-      {/* Executive KPI Section - Mobile Optimized */}
-      <SurfaceCard className='w-full overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/60 dark:from-gray-900 dark:via-gray-900 dark:to-blue-950/30'>
-        <div className='flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-end lg:justify-between'>
-          <div>
-            <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100 sm:text-base'>
-              Executive KPI Snapshot
-            </h2>
-            <p className='mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 sm:mt-1 sm:text-xs'>
-              Leadership summary for the selected reporting window.
-            </p>
-          </div>
-          <div className='hidden grid-cols-1 gap-3 sm:grid sm:grid-cols-2 lg:flex'>
-            <DateInput label='From' value={from} onChange={setFrom} />
-            <DateInput label='To' value={to} onChange={setTo} />
-          </div>
+      <SurfaceCard className='w-full overflow-hidden border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-blue-50/50 shadow-[0_24px_48px_-34px_rgba(15,23,42,0.65)] dark:border-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30'>
+        <div className='border-b border-slate-200/70 p-4 dark:border-slate-800 sm:p-5'>
+          <h2 className='text-lg font-semibold text-slate-900 dark:text-slate-100'>
+            Executive KPI Snapshot
+          </h2>
+          <p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>
+            Leadership summary in selected reporting window.
+          </p>
         </div>
 
         {kpiCards.length ? (
-          <div className='grid grid-cols-2 gap-2 p-3 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 xl:grid-flow-col xl:auto-cols-fr xl:grid-cols-none'>
+          <div className='grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3 xl:grid-cols-5'>
             {kpiCards.map((item, idx) => (
               <div
                 key={item.key}
-                className='group relative min-w-0 overflow-hidden rounded-xl border border-white/80 bg-white/90 p-2 shadow-[0_10px_25px_-20px_rgba(15,23,42,0.7)] ring-1 ring-transparent transition hover:-translate-y-0.5 hover:ring-slate-200 dark:border-gray-800 dark:bg-gray-900/80 dark:hover:ring-slate-700 sm:rounded-2xl sm:p-3'
+                className='group relative min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.75)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_34px_-22px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900'
               >
-                <div className='pointer-events-none absolute -right-3 -top-3 h-8 w-8 rounded-full border border-slate-200/70 dark:border-slate-700/70 sm:h-10 sm:w-10' />
-                <div className='pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-slate-200 dark:bg-slate-700 sm:right-2 sm:top-2 sm:h-2.5 sm:w-2.5' />
-                <div className='relative'>
+                <div
+                  className='absolute inset-x-0 top-0 h-1.5'
+                  style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}
+                />
+                <p className='mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400'>
+                  {item.label}
+                </p>
+                <p className='mt-3 text-2xl font-semibold leading-none text-slate-900 dark:text-slate-100'>
+                  {formatMetricValue(item.value, item.key)}
+                </p>
+                <div className='mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800'>
                   <div
-                    className='inline-flex w-full rounded-md px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-white sm:px-2 sm:py-1 sm:text-[10px]'
-                    style={{
-                      backgroundColor: CHART_COLORS[idx % CHART_COLORS.length]
-                    }}
-                  >
-                    <span className='whitespace-normal leading-tight'>
-                      {item.label}
-                    </span>
-                  </div>
-                  <p className='mt-1 text-xs font-semibold text-gray-900 dark:text-gray-100 sm:mt-2 sm:text-sm'>
-                    {formatMetricValue(item.value, item.key)}
-                  </p>
-                </div>
-                <div className='mt-1 h-0.5 w-full rounded-full bg-gray-100 dark:bg-gray-800 sm:mt-2 sm:h-1'>
-                  <div className='h-full w-2/3 rounded-full bg-slate-900/80 dark:bg-white/80' />
+                    className='h-full w-2/3 rounded-full'
+                    style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}
+                  />
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <p className='p-3 text-xs text-gray-500 sm:p-4 sm:text-sm'>
-            Executive KPI data is not available right now.
+          <p className='p-4 text-sm text-slate-500 dark:text-slate-400 sm:p-5'>
+            Executive KPI data not available right now.
           </p>
         )}
       </SurfaceCard>
 
-      {/* Main Report Section */}
-      <SurfaceCard className='w-full space-y-3 overflow-hidden sm:space-y-5'>
-        <div className='rounded-xl border border-gray-200 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-900 p-3 text-white dark:border-gray-800 sm:rounded-2xl sm:p-4 md:p-5'>
-          <div className='flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between'>
+      <SurfaceCard className='w-full space-y-5 overflow-hidden border border-slate-200/70 bg-white shadow-[0_22px_44px_-30px_rgba(15,23,42,0.6)] dark:border-slate-800 dark:bg-slate-900'>
+        <div className='rounded-2xl border border-slate-800/70 bg-gradient-to-r from-slate-950 via-slate-900 to-blue-900 p-4 text-white sm:p-5'>
+          <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
             <div className='max-w-3xl'>
-              <p className='text-[8px] uppercase tracking-[0.2em] text-blue-200 sm:text-[10px] md:text-xs'>
+              <p className='text-[10px] uppercase tracking-[0.22em] text-blue-200'>
                 Active Report
               </p>
-              <h2 className='mt-1 text-base font-semibold sm:mt-2 sm:text-xl md:text-2xl'>
+              <h2 className='mt-2 text-2xl font-semibold leading-tight'>
                 {activeTabLabel}
               </h2>
-              <p className='mt-1 text-[10px] text-slate-200 sm:mt-2 sm:text-xs md:text-sm'>
+              <p className='mt-2 text-sm text-slate-200'>
                 {activeMeta.description}
               </p>
             </div>
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+            <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center'>
               {numericColumns.length > 1 ? (
                 <select
                   value={chartValueKey}
                   onChange={event => setChartValueKey(event.target.value)}
-                  className='field-input w-full min-w-0 border-white/20 bg-white/10 text-xs text-white sm:w-auto sm:min-w-[180px] sm:text-sm'
+                  className='field-input h-11 w-full min-w-0 border-white/20 bg-white/10 text-sm text-white sm:w-auto sm:min-w-[220px]'
                 >
                   {numericColumns.map(column => (
                     <option key={column} value={column}>
@@ -756,7 +722,7 @@ const ReportsHubPage = () => {
               <button
                 onClick={exportCsv}
                 disabled={!rows.length}
-                className='hidden w-full rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-medium text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex sm:px-4 sm:py-2 sm:text-xs'
+                className='hidden h-11 w-full rounded-xl border border-white/20 bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex sm:w-auto'
               >
                 Export CSV
               </button>
@@ -780,7 +746,7 @@ const ReportsHubPage = () => {
         </div>
 
         {/* Desktop Tab Navigation */}
-        <div className='hidden overflow-x-auto sm:block'>
+        <div className='hidden overflow-x-auto pb-1 sm:block'>
           <FilterTabs
             tabs={reportTabs}
             active={tab}
@@ -789,19 +755,19 @@ const ReportsHubPage = () => {
         </div>
 
         {/* Highlight Cards - Mobile Optimized Grid */}
-        <div className='grid grid-cols-2 gap-2 p-2 sm:grid-cols-2 sm:gap-3 sm:p-0 md:grid-cols-4'>
+        <div className='grid grid-cols-1 gap-3 p-2 sm:grid-cols-2 md:grid-cols-4'>
           {highlightCards.map(item => (
             <div
               key={item.label}
-              className={`rounded-xl border border-gray-200 bg-gradient-to-br p-2 shadow-sm dark:border-gray-800 sm:rounded-2xl sm:p-3 ${item.tone}`}
+              className={`h-full rounded-2xl border border-gray-200 bg-gradient-to-br p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 ${item.tone}`}
             >
-              <p className='text-[9px] uppercase tracking-[0.16em] opacity-70 sm:text-[10px] md:text-xs'>
+              <p className='text-[11px] uppercase tracking-[0.14em] opacity-75'>
                 {item.label}
               </p>
-              <p className='mt-1 text-sm font-semibold sm:mt-2 sm:text-base md:text-xl'>
+              <p className='mt-2 text-2xl font-semibold leading-tight'>
                 {item.value}
               </p>
-              <p className='mt-1 text-[9px] opacity-75 sm:mt-2 sm:text-[10px]'>
+              <p className='mt-2 text-xs opacity-80'>
                 {item.helper}
               </p>
             </div>
@@ -809,7 +775,7 @@ const ReportsHubPage = () => {
         </div>
 
         {/* Chart and Guide Section */}
-        <div className='grid grid-cols-1 gap-3 p-2 sm:gap-4 sm:p-4 md:gap-6 lg:grid-cols-[1.3fr_0.7fr]'>
+        <div className='grid grid-cols-1 gap-4 p-2 sm:gap-5 sm:p-4 md:gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.75fr)]'>
           <div className='rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900 sm:rounded-2xl sm:p-3 md:p-4'>
             <div className='mb-2 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3'>
               <div>
@@ -911,8 +877,8 @@ const ReportsHubPage = () => {
                       data={chartRows.slice(0, 6)}
                       dataKey='value'
                       nameKey='label'
-                      innerRadius={window.innerWidth < 640 ? 40 : 60}
-                      outerRadius={window.innerWidth < 640 ? 70 : 90}
+                      innerRadius={pieInnerRadius}
+                      outerRadius={pieOuterRadius}
                       paddingAngle={2}
                     >
                       {chartRows.slice(0, 6).map((entry, index) => (
@@ -923,11 +889,7 @@ const ReportsHubPage = () => {
                       ))}
                     </Pie>
                     <Tooltip />
-                    <Legend
-                      wrapperStyle={{
-                        fontSize: window.innerWidth < 640 ? 10 : 12
-                      }}
-                    />
+                    <Legend wrapperStyle={{ fontSize: legendFontSize }} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -947,7 +909,7 @@ const ReportsHubPage = () => {
                     <Bar
                       dataKey='value'
                       radius={[6, 6, 0, 0]}
-                      barSize={window.innerWidth < 640 ? 20 : 30}
+                      barSize={chartBarSize}
                     >
                       {chartRows.map((entry, index) => (
                         <Cell
@@ -1004,7 +966,7 @@ const ReportsHubPage = () => {
       </SurfaceCard>
 
       {/* Data Table - Mobile Optimized */}
-      <SurfaceCard className='w-full overflow-hidden p-0'>
+      <SurfaceCard className='w-full overflow-hidden border border-slate-200/70 bg-white p-0 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.6)] dark:border-slate-800 dark:bg-slate-900'>
         <div className='border-b border-gray-100 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900 sm:px-4 sm:py-3 md:px-5 md:py-4'>
           <h2 className='text-sm font-semibold text-gray-900 dark:text-gray-100 sm:text-base'>
             {activeTabLabel} Table
@@ -1018,56 +980,84 @@ const ReportsHubPage = () => {
           <div className='p-3 text-xs text-gray-500 sm:p-4 sm:text-sm'>
             No rows available for this report and date range.
           </div>
+        ) : isMobile ? (
+          <div className='space-y-3 p-3'>
+            {visibleRows.map((row, index) => (
+              <div
+                key={index}
+                className='rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900'
+              >
+                {visibleColumns.map(column => (
+                  <div
+                    key={`${column}-${index}`}
+                    className='grid grid-cols-[110px_1fr] gap-2 border-b border-gray-100 py-1.5 last:border-b-0 dark:border-gray-800'
+                  >
+                    <span className='text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400'>
+                      {toReadableLabel(column)}
+                    </span>
+                    <span
+                      className={`break-words text-xs ${
+                        column === labelColumn
+                          ? 'font-semibold text-gray-900 dark:text-gray-100'
+                          : 'text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {formatValue(row[column] ?? null)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {hasMoreRows && (
+              <div className='px-1 text-center text-[11px] text-gray-400 dark:text-gray-500'>
+                +{rows.length - visibleRowLimit} more rows
+              </div>
+            )}
+          </div>
         ) : (
           <div className='overflow-x-auto'>
-            <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
+            <table className='w-full min-w-[720px] divide-y divide-gray-200 dark:divide-gray-800'>
               <thead className='bg-gray-50 dark:bg-gray-800/95'>
                 <tr>
-                  {columns
-                    .slice(0, window.innerWidth < 640 ? 3 : columns.length)
-                    .map(column => (
-                      <th
-                        key={column}
-                        className='sticky top-0 px-2 py-1.5 text-left text-[9px] font-semibold uppercase tracking-wide text-gray-500 sm:px-3 sm:py-2 sm:text-[10px] md:px-4 md:py-2.5 md:text-xs lg:px-5 lg:py-3'
-                      >
-                        {toReadableLabel(column)}
-                      </th>
-                    ))}
+                  {visibleColumns.map(column => (
+                    <th
+                      key={column}
+                      className='sticky top-0 px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 sm:px-5 sm:py-3'
+                    >
+                      {toReadableLabel(column)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                {rows
-                  .slice(0, window.innerWidth < 640 ? 5 : 10)
-                  .map((row, index) => (
-                    <tr
-                      key={index}
-                      className={
-                        index % 2 === 0
-                          ? 'bg-white dark:bg-gray-900'
-                          : 'bg-slate-50/60 dark:bg-gray-900/60'
-                      }
-                    >
-                      {columns
-                        .slice(0, window.innerWidth < 640 ? 3 : columns.length)
-                        .map(column => (
-                          <td
-                            key={`${column}-${index}`}
-                            className={`whitespace-nowrap px-2 py-1.5 text-[10px] dark:text-gray-200 sm:px-3 sm:py-2 sm:text-xs md:px-4 md:py-3 md:text-sm ${
-                              column === labelColumn
-                                ? 'font-semibold text-gray-900'
-                                : 'text-gray-700'
-                            }`}
-                          >
-                            {formatValue(row[column] ?? null)}
-                          </td>
-                        ))}
-                    </tr>
-                  ))}
+                {visibleRows.map((row, index) => (
+                  <tr
+                    key={index}
+                    className={
+                      index % 2 === 0
+                        ? 'bg-white dark:bg-gray-900'
+                        : 'bg-slate-50/60 dark:bg-gray-900/60'
+                    }
+                  >
+                    {visibleColumns.map(column => (
+                      <td
+                        key={`${column}-${index}`}
+                        className={`max-w-[260px] break-words px-4 py-3 text-sm ${
+                          column === labelColumn
+                            ? 'font-semibold text-gray-900 dark:text-gray-100'
+                            : 'text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        {formatValue(row[column] ?? null)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
-            {rows.length > (window.innerWidth < 640 ? 5 : 10) && (
-              <div className='border-t border-gray-100 px-3 py-2 text-center text-[9px] text-gray-400 dark:border-gray-800 sm:px-4 sm:py-2.5 sm:text-[10px]'>
-                +{rows.length - (window.innerWidth < 640 ? 5 : 10)} more rows
+            {hasMoreRows && (
+              <div className='border-t border-gray-100 px-3 py-2 text-center text-[11px] text-gray-400 dark:border-gray-800'>
+                +{rows.length - visibleRowLimit} more rows
               </div>
             )}
           </div>
