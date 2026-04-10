@@ -49,15 +49,15 @@ function coerceProcessedCount(result) {
 
 function toJsonDetails(value) {
   if (value === undefined) {
-    return {};
+    return JSON.stringify({});
   }
   if (value === null) {
-    return { value: null };
+    return JSON.stringify({ value: null });
   }
   if (typeof value === "object") {
-    return value;
+    return JSON.stringify(value);
   }
-  return { value };
+  return JSON.stringify({ value });
 }
 
 function createAutomationScheduler({
@@ -92,7 +92,7 @@ function createAutomationScheduler({
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -108,10 +108,10 @@ function createAutomationScheduler({
     const lockName = `automation:${jobName}`;
     const lockKey = lockKeyFromString(lockName);
 
-    if (canUseDbLock()) {
+    if (canUseDbLock() && String(db?.adapter || "").toLowerCase() === "postgres") {
       try {
         const result = await db.query(
-          "SELECT pg_try_advisory_lock($1::bigint) AS locked",
+          "SELECT pg_try_advisory_lock(?) AS locked",
           [lockKey],
         );
         const locked = Boolean(result.rows?.[0]?.locked);
@@ -126,7 +126,7 @@ function createAutomationScheduler({
           acquired: true,
           release: async () => {
             try {
-              await db.query("SELECT pg_advisory_unlock($1::bigint)", [lockKey]);
+              await db.query("SELECT pg_advisory_unlock(?)", [lockKey]);
             } catch (error) {
               logger?.warn?.(
                 { err: error, module: "automation", jobName, lockKey },
@@ -139,6 +139,41 @@ function createAutomationScheduler({
         logger?.warn?.(
           { err: error, module: "automation", jobName },
           "Falling back to local lock due advisory lock failure",
+        );
+      }
+    }
+
+    if (canUseDbLock() && String(db?.adapter || "").toLowerCase() === "mysql") {
+      try {
+        const result = await db.query(
+          "SELECT GET_LOCK(?, 0) AS locked",
+          [lockName],
+        );
+        const locked = Number(result.rows?.[0]?.locked || 0) === 1;
+        if (!locked) {
+          return {
+            acquired: false,
+            release: async () => undefined,
+          };
+        }
+
+        return {
+          acquired: true,
+          release: async () => {
+            try {
+              await db.query("SELECT RELEASE_LOCK(?)", [lockName]);
+            } catch (error) {
+              logger?.warn?.(
+                { err: error, module: "automation", jobName, lockName },
+                "Failed to release mysql lock",
+              );
+            }
+          },
+        };
+      } catch (error) {
+        logger?.warn?.(
+          { err: error, module: "automation", jobName },
+          "Falling back to local lock due mysql lock failure",
         );
       }
     }
@@ -219,7 +254,7 @@ function createAutomationScheduler({
       const skippedPayload = {
         status: "SKIPPED",
         recordsProcessed: 0,
-        details: { reason: "LOCK_NOT_ACQUIRED" },
+        details: JSON.stringify({ reason: "LOCK_NOT_ACQUIRED" }),
         errorMessage: null,
       };
       await completeRunRecord(runRecord, skippedPayload);

@@ -7,7 +7,10 @@ function createRbacRepository({ db, logger, schema }) {
   let capabilitiesPromise = null;
 
   function quotedColumn(columnName) {
-    return `"${columnName}"`;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(columnName)) {
+      throw new Error(`Unsafe column name: ${columnName}`);
+    }
+    return `\`${columnName}\``;
   }
 
   function getPermissionColumn(capabilities) {
@@ -20,16 +23,16 @@ function createRbacRepository({ db, logger, schema }) {
     }
 
     capabilitiesPromise =
-      db.adapter === "postgres" ?
+      db.adapter === "mysql" ?
         db
           .query(
             `
               SELECT table_name, column_name
               FROM information_schema.columns
-              WHERE table_schema = 'public'
-                AND table_name = ANY($1::text[])
+              WHERE table_schema = DATABASE()
+                AND table_name IN (?, ?, ?)
             `,
-            [[schema.rolesTable, schema.permissionsTable, schema.rolePermissionsTable]],
+            [schema.rolesTable, schema.permissionsTable, schema.rolePermissionsTable],
           )
           .then((result) => {
             const hasColumn = (tableName, columnName) =>
@@ -73,12 +76,12 @@ function createRbacRepository({ db, logger, schema }) {
   async function findRoleById(roleId) {
     if (!roleId) return null;
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const capabilities = await getCapabilities();
       const roleIsActiveSql =
         capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
       const roleCountrySql =
-        capabilities.hasRoleCountry ? "r.country" : "NULL::text";
+        capabilities.hasRoleCountry ? "r.country" : "NULL";
       const result = await db.query(
         `
           SELECT
@@ -88,7 +91,7 @@ function createRbacRepository({ db, logger, schema }) {
             ${roleCountrySql} AS country,
             ${roleIsActiveSql} AS is_active
           FROM ${schema.rolesTable} r
-          WHERE r.id = $1
+          WHERE r.id = ?
           LIMIT 1
         `,
         [roleId],
@@ -110,12 +113,12 @@ function createRbacRepository({ db, logger, schema }) {
   async function findRoleByName(roleName) {
     if (!roleName) return null;
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const capabilities = await getCapabilities();
       const roleIsActiveSql =
         capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
       const roleCountrySql =
-        capabilities.hasRoleCountry ? "r.country" : "NULL::text";
+        capabilities.hasRoleCountry ? "r.country" : "NULL";
       const result = await db.query(
         `
           SELECT
@@ -125,7 +128,7 @@ function createRbacRepository({ db, logger, schema }) {
             ${roleCountrySql} AS country,
             ${roleIsActiveSql} AS is_active
           FROM ${schema.rolesTable} r
-          WHERE r.name = $1
+          WHERE r.name = ?
           LIMIT 1
         `,
         [roleName],
@@ -151,39 +154,28 @@ function createRbacRepository({ db, logger, schema }) {
     }
 
     const description = `Auto-created role: ${roleName}`;
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const capabilities = await getCapabilities();
       const columns = ["name", "description"];
-      const placeholders = ["$1", "$2"];
+      const placeholders = ["?", "?"];
       const values = [roleName, description];
 
       if (capabilities.hasRoleIsActive) {
         columns.push("is_active");
-        placeholders.push(`$${placeholders.length + 1}`);
+        placeholders.push("?");
         values.push(true);
       }
-
-      const roleIsActiveSql =
-        capabilities.hasRoleIsActive ? "is_active" : "TRUE";
-      const roleCountrySql =
-        capabilities.hasRoleCountry ? "country" : "NULL::text";
-      const result = await db.query(
+      await db.query(
         `
           INSERT INTO ${schema.rolesTable} (${columns.join(", ")})
           VALUES (${placeholders.join(", ")})
-          ON CONFLICT (name) DO UPDATE
-            SET description = COALESCE(EXCLUDED.description, ${schema.rolesTable}.description)
-          RETURNING
-            id,
-            name,
-            description,
-            ${roleCountrySql} AS country,
-            ${roleIsActiveSql} AS is_active
+          ON DUPLICATE KEY UPDATE
+            description = COALESCE(VALUES(description), description)
         `,
         values,
       );
 
-      return result.rows?.[0] || null;
+      return findRoleByName(roleName);
     }
 
     return db.insert(schema.rolesTable, {
@@ -194,18 +186,18 @@ function createRbacRepository({ db, logger, schema }) {
   }
 
   async function listRoles({ includeInactive = true } = {}) {
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const capabilities = await getCapabilities();
       const roleIsActiveSql =
         capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
       const roleCountrySql =
-        capabilities.hasRoleCountry ? "r.country" : "NULL::text";
+        capabilities.hasRoleCountry ? "r.country" : "NULL";
 
       const values = [];
       let whereClause = "";
       if (capabilities.hasRoleIsActive && !includeInactive) {
         values.push(true);
-        whereClause = `WHERE r.is_active = $${values.length}`;
+        whereClause = `WHERE r.is_active = ?`;
       }
 
       const result = await db.query(
@@ -244,10 +236,10 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const keySql = `p.${quotedColumn(keyColumn)}`;
       const descriptionSql =
-        capabilities.hasPermissionDescription ? "p.description" : "NULL::text";
+        capabilities.hasPermissionDescription ? "p.description" : "NULL";
       const isActiveSql =
         capabilities.hasPermissionIsActive ? "p.is_active" : "TRUE";
 
@@ -259,7 +251,7 @@ function createRbacRepository({ db, logger, schema }) {
             ${descriptionSql} AS description,
             ${isActiveSql} AS is_active
           FROM ${schema.permissionsTable} p
-          WHERE p.id = $1
+          WHERE p.id = ?
           LIMIT 1
         `,
         [permissionId],
@@ -300,10 +292,10 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const keySql = `p.${quotedColumn(keyColumn)}`;
       const descriptionSql =
-        capabilities.hasPermissionDescription ? "p.description" : "NULL::text";
+        capabilities.hasPermissionDescription ? "p.description" : "NULL";
       const isActiveSql =
         capabilities.hasPermissionIsActive ? "p.is_active" : "TRUE";
 
@@ -315,7 +307,7 @@ function createRbacRepository({ db, logger, schema }) {
             ${descriptionSql} AS description,
             ${isActiveSql} AS is_active
           FROM ${schema.permissionsTable} p
-          WHERE ${keySql} = $1
+          WHERE ${keySql} = ?
           LIMIT 1
         `,
         [permissionKey],
@@ -355,10 +347,10 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const keySql = `p.${quotedColumn(keyColumn)}`;
       const descriptionSql =
-        capabilities.hasPermissionDescription ? "p.description" : "NULL::text";
+        capabilities.hasPermissionDescription ? "p.description" : "NULL";
       const isActiveSql =
         capabilities.hasPermissionIsActive ? "p.is_active" : "TRUE";
 
@@ -366,7 +358,7 @@ function createRbacRepository({ db, logger, schema }) {
       let whereClause = "";
       if (capabilities.hasPermissionIsActive && !includeInactive) {
         values.push(true);
-        whereClause = `WHERE p.is_active = $${values.length}`;
+        whereClause = `WHERE p.is_active = ?`;
       }
 
       const result = await db.query(
@@ -414,7 +406,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter !== "postgres") {
+    if (db.adapter !== "mysql") {
       const created = await db.insert(schema.permissionsTable, {
         [keyColumn]: key,
         description,
@@ -424,69 +416,49 @@ function createRbacRepository({ db, logger, schema }) {
     }
 
     const columns = [quotedColumn(keyColumn)];
-    const placeholders = ["$1"];
+    const placeholders = ["?"];
     const values = [key];
 
     if (capabilities.hasPermissionName && keyColumn !== "name") {
       columns.push("name");
-      placeholders.push(`$${placeholders.length + 1}`);
+      placeholders.push("?");
       values.push(key);
     }
 
     if (capabilities.hasPermissionDescription) {
       columns.push("description");
-      placeholders.push(`$${placeholders.length + 1}`);
+      placeholders.push("?");
       values.push(description);
     }
 
     if (capabilities.hasPermissionIsActive) {
       columns.push("is_active");
-      placeholders.push(`$${placeholders.length + 1}`);
+      placeholders.push("?");
       values.push(isActive);
     }
 
     const updateParts = [];
     if (capabilities.hasPermissionDescription) {
-      updateParts.push("description = EXCLUDED.description");
+      updateParts.push("description = VALUES(description)");
     }
     if (capabilities.hasPermissionIsActive) {
-      updateParts.push("is_active = EXCLUDED.is_active");
+      updateParts.push("is_active = VALUES(is_active)");
     }
     if (capabilities.hasPermissionName && keyColumn !== "name") {
-      updateParts.push("name = EXCLUDED.name");
+      updateParts.push("name = VALUES(name)");
     }
 
-    const keySql = quotedColumn(keyColumn);
-    const descriptionSql =
-      capabilities.hasPermissionDescription ? "description" : "NULL::text";
-    const isActiveSql =
-      capabilities.hasPermissionIsActive ? "is_active" : "TRUE";
-
-    const result = await db.query(
+    await db.query(
       `
         INSERT INTO ${schema.permissionsTable} (${columns.join(", ")})
         VALUES (${placeholders.join(", ")})
-        ON CONFLICT (${quotedColumn(keyColumn)}) DO UPDATE
-          SET ${updateParts.length ? updateParts.join(", ") : `${quotedColumn(keyColumn)} = EXCLUDED.${quotedColumn(keyColumn)}`}
-        RETURNING
-          id,
-          ${keySql} AS permission_key,
-          ${descriptionSql} AS description,
-          ${isActiveSql} AS is_active
+        ON DUPLICATE KEY UPDATE
+          ${updateParts.length ? updateParts.join(", ") : `${quotedColumn(keyColumn)} = VALUES(${quotedColumn(keyColumn)})`}
       `,
       values,
     );
 
-    const row = result.rows?.[0];
-    return row ?
-        {
-          id: row.id,
-          key: row.permission_key,
-          name: row.permission_key,
-          description: row.description ?? null,
-          is_active: row.is_active !== false,
-        }
-      : null;
+    return findPermissionByKey(key);
   }
 
   async function updatePermission(
@@ -496,7 +468,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter !== "postgres") {
+    if (db.adapter !== "mysql") {
       const payload = {};
       if (key !== undefined) payload[keyColumn] = key;
       if (description !== undefined) payload.description = description;
@@ -513,20 +485,21 @@ function createRbacRepository({ db, logger, schema }) {
 
     if (key !== undefined) {
       values.push(key);
-      updates.push(`${quotedColumn(keyColumn)} = $${values.length}`);
+      updates.push(`${quotedColumn(keyColumn)} = ?`);
       if (capabilities.hasPermissionName && keyColumn !== "name") {
-        updates.push(`name = $${values.length}`);
+        updates.push(`name = ?`);
+        values.push(key);
       }
     }
 
     if (description !== undefined && capabilities.hasPermissionDescription) {
       values.push(description);
-      updates.push(`description = $${values.length}`);
+      updates.push(`description = ?`);
     }
 
     if (isActive !== undefined && capabilities.hasPermissionIsActive) {
       values.push(isActive);
-      updates.push(`is_active = $${values.length}`);
+      updates.push(`is_active = ?`);
     }
 
     if (!updates.length) {
@@ -538,7 +511,7 @@ function createRbacRepository({ db, logger, schema }) {
       `
         UPDATE ${schema.permissionsTable}
         SET ${updates.join(", ")}
-        WHERE id = $${values.length}
+        WHERE id = ?
       `,
       values,
     );
@@ -549,7 +522,7 @@ function createRbacRepository({ db, logger, schema }) {
   async function getRoleForUser(userId) {
     if (!userId) return null;
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const result = await db.query(
         `
           SELECT
@@ -558,7 +531,7 @@ function createRbacRepository({ db, logger, schema }) {
             r.name AS role_name
           FROM ${schema.usersTable} u
           LEFT JOIN ${schema.rolesTable} r ON r.id = u.role_id
-          WHERE u.id = $1
+          WHERE u.id = ?
           LIMIT 1
         `,
         [userId],
@@ -598,7 +571,8 @@ function createRbacRepository({ db, logger, schema }) {
       return [];
     }
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
+      const placeholders = normalized.map(() => '?').join(',');
       const result = await db.query(
         `
           SELECT
@@ -607,9 +581,9 @@ function createRbacRepository({ db, logger, schema }) {
             r.name AS role_name
           FROM ${schema.usersTable} u
           LEFT JOIN ${schema.rolesTable} r ON r.id = u.role_id
-          WHERE u.id = ANY($1::uuid[])
+          WHERE u.id IN (${placeholders})
         `,
-        [normalized],
+        normalized,
       );
 
       return (result.rows || []).map((row) => ({
@@ -647,9 +621,9 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const keySql = `p.${quotedColumn(keyColumn)}`;
-      const filters = ["rp.role_id = $1"];
+      const filters = ["rp.role_id = ?"];
       if (capabilities.hasRolePermissionIsActive) {
         filters.push("rp.is_active = TRUE");
       }
@@ -699,9 +673,10 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const keySql = `p.${quotedColumn(keyColumn)}`;
-      const filters = ["rp.role_id = ANY($1::uuid[])"];
+      const placeholders = normalizedRoleIds.map(() => '?').join(',');
+      const filters = [`rp.role_id IN (${placeholders})`];
       if (capabilities.hasRolePermissionIsActive) {
         filters.push("rp.is_active = TRUE");
       }
@@ -719,7 +694,7 @@ function createRbacRepository({ db, logger, schema }) {
           WHERE ${filters.join(" AND ")}
           ORDER BY rp.role_id ASC, permission_key ASC
         `,
-        [normalizedRoleIds],
+        normalizedRoleIds,
       );
 
       (result.rows || []).forEach((row) => {
@@ -762,11 +737,12 @@ function createRbacRepository({ db, logger, schema }) {
       return [];
     }
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const capabilities = await getCapabilities();
       const keyColumn = getPermissionColumn(capabilities);
       const keySql = `p.${quotedColumn(keyColumn)}`;
-      const filters = ["r.name = ANY($1::text[])"];
+      const placeholders = normalizedRoles.map(() => '?').join(',');
+      const filters = [`r.name IN (${placeholders})`];
 
       if (capabilities.hasRolePermissionIsActive) {
         filters.push("rp.is_active = TRUE");
@@ -784,7 +760,7 @@ function createRbacRepository({ db, logger, schema }) {
           WHERE ${filters.join(" AND ")}
           ORDER BY permission_key ASC
         `,
-        [normalizedRoles],
+        normalizedRoles,
       );
 
       return normalizePermissionKeys(
@@ -834,16 +810,16 @@ function createRbacRepository({ db, logger, schema }) {
   async function countActiveUsersByRoleId(roleId, { excludeUserId = null } = {}) {
     if (!roleId) return 0;
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const values = [roleId];
-      const filters = ["u.role_id = $1", "u.is_active = TRUE"];
+      const filters = ["u.role_id = ?", "u.is_active = TRUE"];
       if (excludeUserId) {
         values.push(excludeUserId);
-        filters.push(`u.id <> $${values.length}`);
+        filters.push(`u.id <> ?`);
       }
       const result = await db.query(
         `
-          SELECT COUNT(*)::int AS count
+          SELECT COUNT(*) AS count
           FROM ${schema.usersTable} u
           WHERE ${filters.join(" AND ")}
         `,
@@ -871,7 +847,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter !== "postgres") {
+    if (db.adapter !== "mysql") {
       const rows = await db.findMany(schema.permissionsTable, {});
       const records = rows
         .filter((row) => normalizedKeys.includes(row[keyColumn] || row.name))
@@ -897,13 +873,14 @@ function createRbacRepository({ db, logger, schema }) {
     }
 
     const keySql = quotedColumn(keyColumn);
+    const placeholders = normalizedKeys.map(() => '?').join(',');
     const existingResult = await db.query(
       `
         SELECT id, ${keySql} AS permission_key
         FROM ${schema.permissionsTable}
-        WHERE ${keySql} = ANY($1::text[])
+        WHERE ${keySql} IN (${placeholders})
       `,
-      [normalizedKeys],
+      normalizedKeys,
     );
 
     const records = (existingResult.rows || []).map((row) => ({
@@ -929,8 +906,8 @@ function createRbacRepository({ db, logger, schema }) {
   }
 
   async function setRolePermissionsByRoleId(roleId, assignments = []) {
-    if (db.adapter !== "postgres") {
-      throw new Error("Role permission updates require PostgreSQL adapter.");
+    if (db.adapter !== "mysql") {
+      throw new Error("Role permission updates require MySQL adapter.");
     }
 
     if (!assignments.length) {
@@ -945,9 +922,8 @@ function createRbacRepository({ db, logger, schema }) {
         await db.query(
           `
             INSERT INTO ${schema.rolePermissionsTable} (role_id, permission_id, is_active)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (role_id, permission_id)
-            DO UPDATE SET is_active = EXCLUDED.is_active
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)
           `,
           [roleId, assignment.permissionId, enabled],
         );
@@ -955,8 +931,8 @@ function createRbacRepository({ db, logger, schema }) {
         await db.query(
           `
             INSERT INTO ${schema.rolePermissionsTable} (role_id, permission_id)
-            VALUES ($1, $2)
-            ON CONFLICT (role_id, permission_id) DO NOTHING
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE role_id = VALUES(role_id)
           `,
           [roleId, assignment.permissionId],
         );
@@ -964,7 +940,7 @@ function createRbacRepository({ db, logger, schema }) {
         await db.query(
           `
             DELETE FROM ${schema.rolePermissionsTable}
-            WHERE role_id = $1 AND permission_id = $2
+            WHERE role_id = ? AND permission_id = ?
           `,
           [roleId, assignment.permissionId],
         );
@@ -975,8 +951,8 @@ function createRbacRepository({ db, logger, schema }) {
   }
 
   async function replaceRolePermissionsByRoleId(roleId, permissionIds = []) {
-    if (db.adapter !== "postgres") {
-      throw new Error("Role permission updates require PostgreSQL adapter.");
+    if (db.adapter !== "mysql") {
+      throw new Error("Role permission updates require MySQL adapter.");
     }
 
     const capabilities = await getCapabilities();
@@ -987,7 +963,7 @@ function createRbacRepository({ db, logger, schema }) {
         `
           UPDATE ${schema.rolePermissionsTable}
           SET is_active = FALSE
-          WHERE role_id = $1
+          WHERE role_id = ?
         `,
         [roleId],
       );
@@ -995,7 +971,7 @@ function createRbacRepository({ db, logger, schema }) {
       await db.query(
         `
           DELETE FROM ${schema.rolePermissionsTable}
-          WHERE role_id = $1
+          WHERE role_id = ?
         `,
         [roleId],
       );
@@ -1006,9 +982,8 @@ function createRbacRepository({ db, logger, schema }) {
         await db.query(
           `
             INSERT INTO ${schema.rolePermissionsTable} (role_id, permission_id, is_active)
-            VALUES ($1, $2, TRUE)
-            ON CONFLICT (role_id, permission_id)
-            DO UPDATE SET is_active = TRUE
+            VALUES (?, ?, TRUE)
+            ON DUPLICATE KEY UPDATE is_active = TRUE
           `,
           [roleId, permissionId],
         );
@@ -1016,8 +991,8 @@ function createRbacRepository({ db, logger, schema }) {
         await db.query(
           `
             INSERT INTO ${schema.rolePermissionsTable} (role_id, permission_id)
-            VALUES ($1, $2)
-            ON CONFLICT (role_id, permission_id) DO NOTHING
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE role_id = VALUES(role_id)
           `,
           [roleId, permissionId],
         );
@@ -1028,8 +1003,8 @@ function createRbacRepository({ db, logger, schema }) {
   }
 
   async function setRolePermissions(roleName, permissionKeys = []) {
-    if (db.adapter !== "postgres") {
-      throw new Error("Role permission updates require PostgreSQL adapter.");
+    if (db.adapter !== "mysql") {
+      throw new Error("Role permission updates require MySQL adapter.");
     }
 
     const role = await ensureRole(roleName);
@@ -1074,3 +1049,4 @@ function createRbacRepository({ db, logger, schema }) {
 }
 
 export { createRbacRepository };
+

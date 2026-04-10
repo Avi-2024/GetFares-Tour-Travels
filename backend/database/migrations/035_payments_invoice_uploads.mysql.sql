@@ -1,0 +1,6 @@
+START TRANSACTION;
+
+ALTER TABLE payments
+  ADD COLUMN invoice_url TEXT;
+
+COMMIT;

@@ -18,7 +18,15 @@ async function main() {
       process.exit(0);
     });
   } catch (error) {
-    console.error("Failed to start application:", error);
+    app.logger?.error(
+      {
+        module: "cms",
+        fileName: "index.js",
+        functionName: "main",
+        stack: error?.stack,
+      },
+      "Unhandled exception",
+    );
     process.exit(1);
   }
 }

@@ -1,17 +1,46 @@
-import * as fs from "node:fs/promises";
+import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
-import { Client } from "pg";
+import { Client as PostgresClient } from "pg";
+import mysql from "mysql2/promise";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const MIGRATIONS_DIR = path.resolve(__dirname, "../database/migrations");
 
-async function ensureMigrationsTable(client) {
+function detectDatabaseClient() {
+  const explicit = String(process.env.DATABASE_CLIENT || "")
+    .trim()
+    .toLowerCase();
+  if (explicit === "mysql" || explicit === "mariadb") return "mysql";
+  if (explicit === "postgres" || explicit === "postgresql" || explicit === "pg") {
+    return "postgres";
+  }
+
+  const url = String(process.env.DATABASE_URL || "")
+    .trim()
+    .toLowerCase();
+  if (url.startsWith("mysql://") || url.startsWith("mysql2://")) return "mysql";
+
+  return "postgres";
+}
+
+async function getMigrationFiles(dbClient) {
+  const files = await fs.readdir(MIGRATIONS_DIR);
+  const selected =
+    dbClient === "mysql"
+      ? files.filter((file) => /^\d+_.+\.mysql\.sql$/i.test(file))
+      : files.filter(
+          (file) => /^\d+_.+\.sql$/i.test(file) && !file.endsWith(".mysql.sql"),
+        );
+  return selected.sort();
+}
+
+async function ensureMigrationsTablePostgres(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       id SERIAL PRIMARY KEY,
@@ -21,17 +50,27 @@ async function ensureMigrationsTable(client) {
   `);
 }
 
-async function getExecutedMigrations(client) {
+async function ensureMigrationsTableMySql(connection) {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      filename VARCHAR(255) NOT NULL UNIQUE,
+      executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+async function getExecutedMigrationsPostgres(client) {
   const result = await client.query("SELECT filename FROM schema_migrations");
   return new Set(result.rows.map((row) => row.filename));
 }
 
-async function getMigrationFiles() {
-  const files = await fs.readdir(MIGRATIONS_DIR);
-  return files.filter((file) => /^\d+_.+\.sql$/i.test(file)).sort();
+async function getExecutedMigrationsMySql(connection) {
+  const [rows] = await connection.query("SELECT filename FROM schema_migrations");
+  return new Set((rows || []).map((row) => row.filename));
 }
 
-async function runMigration(client, filename) {
+async function runMigrationPostgres(client, filename) {
   const fullPath = path.join(MIGRATIONS_DIR, filename);
   const sql = await fs.readFile(fullPath, "utf8");
 
@@ -49,26 +88,144 @@ async function runMigration(client, filename) {
   }
 }
 
-async function main() {
+async function runMigrationMySql(connection, filename) {
+  const fullPath = path.join(MIGRATIONS_DIR, filename);
+  const sql = await fs.readFile(fullPath, "utf8");
+  const statements = sql
+    .split(/;\s*(?:\r?\n|$)/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  try {
+    for (const statement of statements) {
+      try {
+        await connection.query(statement);
+      } catch (error) {
+        if (isIgnorableMySqlMigrationError(error)) {
+          console.warn(
+            `Skipped already-applied MySQL statement (${error.code || "UNKNOWN"}).`,
+          );
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    await connection.query("INSERT INTO schema_migrations (filename) VALUES (?)", [
+      filename,
+    ]);
+    console.log(`Applied migration: ${filename}`);
+  } catch (error) {
+    throw error;
+  }
+}
+
+function isIgnorableMySqlMigrationError(error) {
+  const ignorableCodes = new Set([
+    "ER_TABLE_EXISTS_ERROR",
+    "ER_DUP_KEYNAME",
+    "ER_DUP_FIELDNAME",
+    "ER_FK_DUP_NAME",
+    "ER_DUP_INDEX",
+  ]);
+
+  return ignorableCodes.has(String(error?.code || ""));
+}
+
+function parseMySqlUrl(databaseUrl) {
+  const parsed = new URL(databaseUrl);
+  return {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 3306,
+    user: decodeURIComponent(parsed.username || ""),
+    password: decodeURIComponent(parsed.password || ""),
+    database: decodeURIComponent((parsed.pathname || "").replace(/^\//, "")),
+  };
+}
+
+function buildMysqlSslConfig() {
+  const sslRejectUnauthorizedOverride =
+    process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
+  const sslCaInline = process.env.DATABASE_SSL_CA;
+  const sslCaPath = process.env.DATABASE_SSL_CA_PATH;
+
+  if (sslRejectUnauthorizedOverride === "false") {
+    return { rejectUnauthorized: false };
+  }
+
+  if (sslCaInline) {
+    return {
+      rejectUnauthorized: true,
+      ca: sslCaInline.replace(/\\n/g, "\n"),
+    };
+  }
+
+  if (sslCaPath && fsSync.existsSync(sslCaPath)) {
+    return {
+      rejectUnauthorized: true,
+      ca: fsSync.readFileSync(sslCaPath, "utf8"),
+    };
+  }
+
+  return undefined;
+}
+
+function createMySqlConnectionConfig() {
+  const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+  const ssl = buildMysqlSslConfig();
+
+  if (
+    databaseUrl.toLowerCase().startsWith("mysql://") ||
+    databaseUrl.toLowerCase().startsWith("mysql2://")
+  ) {
+    return {
+      ...parseMySqlUrl(databaseUrl),
+      multipleStatements: true,
+      ssl,
+    };
+  }
+
+  const host = process.env.MYSQL_HOST;
+  const port = process.env.MYSQL_PORT ? Number(process.env.MYSQL_PORT) : 3306;
+  const user = process.env.MYSQL_USER;
+  const password = process.env.MYSQL_PASSWORD;
+  const database = process.env.MYSQL_DATABASE;
+
+  if (!host || !user || !database) {
+    throw new Error(
+      "MySQL migration requires DATABASE_URL=mysql://... or MYSQL_HOST, MYSQL_USER, MYSQL_DATABASE.",
+    );
+  }
+
+  return {
+    host,
+    port,
+    user,
+    password,
+    database,
+    multipleStatements: true,
+    ssl,
+  };
+}
+
+async function runPostgresMigrations() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL is required to run migrations.");
+    throw new Error("DATABASE_URL is required to run PostgreSQL migrations.");
   }
 
   const clientConfig = { connectionString: databaseUrl };
-
-  // AWS RDS requires SSL connection
   if (databaseUrl.includes(".rds.") || databaseUrl.includes(".rds-")) {
     clientConfig.ssl = { rejectUnauthorized: false };
   }
 
-  const client = new Client(clientConfig);
+  const client = new PostgresClient(clientConfig);
   await client.connect();
 
   try {
-    await ensureMigrationsTable(client);
-    const executed = await getExecutedMigrations(client);
-    const files = await getMigrationFiles();
+    await ensureMigrationsTablePostgres(client);
+    const executed = await getExecutedMigrationsPostgres(client);
+    const files = await getMigrationFiles("postgres");
     const pending = files.filter((file) => !executed.has(file));
 
     if (!pending.length) {
@@ -77,13 +234,52 @@ async function main() {
     }
 
     for (const file of pending) {
-      await runMigration(client, file);
+      await runMigrationPostgres(client, file);
     }
 
     console.log(`Migration completed. Applied ${pending.length} file(s).`);
   } finally {
     await client.end();
   }
+}
+
+async function runMySqlMigrations() {
+  const connection = await mysql.createConnection(createMySqlConnectionConfig());
+
+  try {
+    await ensureMigrationsTableMySql(connection);
+    const executed = await getExecutedMigrationsMySql(connection);
+    const files = await getMigrationFiles("mysql");
+
+    if (!files.length) {
+      throw new Error(
+        "No MySQL migration files found. Add files like 001_initial.mysql.sql in backend/database/migrations.",
+      );
+    }
+
+    const pending = files.filter((file) => !executed.has(file));
+    if (!pending.length) {
+      console.log("No pending migrations.");
+      return;
+    }
+
+    for (const file of pending) {
+      await runMigrationMySql(connection, file);
+    }
+
+    console.log(`Migration completed. Applied ${pending.length} file(s).`);
+  } finally {
+    await connection.end();
+  }
+}
+
+async function main() {
+  const dbClient = detectDatabaseClient();
+  if (dbClient === "mysql") {
+    await runMySqlMigrations();
+    return;
+  }
+  await runPostgresMigrations();
 }
 
 main().catch((error) => {

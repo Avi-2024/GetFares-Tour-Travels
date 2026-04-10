@@ -1,17 +1,39 @@
 import { AppError } from "../errors/index.js";
 
 function errorHandler(err, req, res, next) {
-  const logger = req.log || console;
+  const logger = req.logger || req.app?.locals?.logger;
   const isProduction = process.env.NODE_ENV === "production";
 
+  const baseContext = {
+    module: "http",
+    fileName: "errorHandler.js",
+    functionName: "errorHandler",
+    requestId: req.context?.requestId,
+    userId: req.context?.user?.id,
+    method: req.method,
+    url: req.originalUrl || req.url,
+    statusCode: err?.statusCode || err?.status || 500,
+  };
+
   if (err instanceof AppError) {
-    logger.warn(
+    const isValidationError = err.code === "VALIDATION_ERROR";
+    const isAuthError =
+      err.code?.startsWith("AUTH_") || err.code === "TOKEN_REVOKED";
+
+    const warnMessage =
+      isValidationError ? "Validation failure"
+      : isAuthError ? "Authentication failure"
+      : err.message;
+
+    logger?.warn(
       {
-        err,
-        requestId: req.context?.requestId,
-        code: err.code,
+        ...baseContext,
+        metadata: {
+          code: err.code,
+          details: err.details,
+        },
       },
-      err.message,
+      warnMessage,
     );
 
     return res.status(err.statusCode).json({
@@ -24,12 +46,15 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  logger.error(
+  logger?.error(
     {
-      err,
-      requestId: req.context?.requestId,
+      ...baseContext,
+      stack: err?.stack,
+      metadata: {
+        code: "INTERNAL_SERVER_ERROR",
+      },
     },
-    "Unhandled error",
+    "Unhandled exception",
   );
 
   return res.status(500).json({

@@ -67,20 +67,23 @@ function createNotificationsRepository({ db, logger, schema }) {
       SELECT *
       FROM ${schema.tableName}
       WHERE (
-        recipient_user_id = $1
-        OR ($2::text IS NOT NULL AND recipient_role = $2)
-        OR ($3::uuid IS NOT NULL AND recipient_team_id = $3)
+        recipient_user_id = ?
+        OR (? IS NOT NULL AND recipient_role = ?)
+        OR (? IS NOT NULL AND recipient_team_id = ?)
         OR (recipient_user_id IS NULL AND recipient_role IS NULL AND recipient_team_id IS NULL)
       )
-      AND ($4::text IS NULL OR status = $4)
+      AND (? IS NULL OR status = ?)
       ORDER BY created_at DESC
-      LIMIT $5 OFFSET $6
+      LIMIT ? OFFSET ?
     `;
 
     const params = [
       identity.userId || null,
       identity.role || null,
+      identity.role || null,
       identity.teamId || null,
+      identity.teamId || null,
+      query.status || null,
       query.status || null,
       query.limit,
       query.offset,
@@ -92,21 +95,24 @@ function createNotificationsRepository({ db, logger, schema }) {
 
   async function countForUserRaw(identity, query) {
     const sql = `
-      SELECT COUNT(*)::int AS total
+      SELECT COUNT(*) AS total
       FROM ${schema.tableName}
       WHERE (
-        recipient_user_id = $1
-        OR ($2::text IS NOT NULL AND recipient_role = $2)
-        OR ($3::uuid IS NOT NULL AND recipient_team_id = $3)
+        recipient_user_id = ?
+        OR (? IS NOT NULL AND recipient_role = ?)
+        OR (? IS NOT NULL AND recipient_team_id = ?)
         OR (recipient_user_id IS NULL AND recipient_role IS NULL AND recipient_team_id IS NULL)
       )
-      AND ($4::text IS NULL OR status = $4)
+      AND (? IS NULL OR status = ?)
     `;
 
     const params = [
       identity.userId || null,
       identity.role || null,
+      identity.role || null,
       identity.teamId || null,
+      identity.teamId || null,
+      query.status || null,
       query.status || null,
     ];
 
@@ -118,31 +124,36 @@ function createNotificationsRepository({ db, logger, schema }) {
     const sql = `
       UPDATE ${schema.tableName}
       SET
-        status = $4,
+        status = ?,
         read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
         updated_at = CURRENT_TIMESTAMP
-      WHERE status <> $4
+      WHERE status <> ?
       AND (
-        recipient_user_id = $1
-        OR ($2::text IS NOT NULL AND recipient_role = $2)
-        OR ($3::uuid IS NOT NULL AND recipient_team_id = $3)
+        recipient_user_id = ?
+        OR (? IS NOT NULL AND recipient_role = ?)
+        OR (? IS NOT NULL AND recipient_team_id = ?)
         OR (recipient_user_id IS NULL AND recipient_role IS NULL AND recipient_team_id IS NULL)
       )
-      RETURNING id
     `;
 
     const params = [
+      schema.statuses.READ,
+      schema.statuses.READ,
       identity.userId || null,
       identity.role || null,
+      identity.role || null,
       identity.teamId || null,
-      schema.statuses.READ,
+      identity.teamId || null,
     ];
     const result = await db.query(sql, params);
-    return result.rows.length;
+    return Number(result.rowCount || result?.rows?.length || 0);
   }
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
+    return (
+      typeof db.query === "function" &&
+      db.pool
+    );
   }
 
   return Object.freeze({
@@ -242,13 +253,13 @@ function createNotificationsRepository({ db, logger, schema }) {
       try {
         if (canUseRawQuery()) {
           const sql = `
-            SELECT COUNT(*)::int AS total
+            SELECT COUNT(*) AS total
             FROM ${schema.tableName}
-            WHERE status <> $4
+            WHERE status <> ?
             AND (
-              recipient_user_id = $1
-              OR ($2::text IS NOT NULL AND recipient_role = $2)
-              OR ($3::uuid IS NOT NULL AND recipient_team_id = $3)
+              recipient_user_id = ?
+              OR (? IS NOT NULL AND recipient_role = ?)
+              OR (? IS NOT NULL AND recipient_team_id = ?)
               OR (recipient_user_id IS NULL AND recipient_role IS NULL AND recipient_team_id IS NULL)
             )
           `;

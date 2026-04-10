@@ -368,11 +368,10 @@ const ProfilePage = () => {
           <div className='flex flex-col gap-4'>
             <div className='flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gray-50 p-4 dark:bg-gray-950'>
               <div className='flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400'>
-                <FaCircleInfo />
+               
                 <span>
-                  {canEditProfile
-                    ? 'Profile loads from /api/auth/me and saves through /api/users/:id.'
-                    : 'Profile loads from /api/auth/me.'}
+                  {canEditProfile}
+                  
                 </span>
               </div>
 
@@ -407,14 +406,7 @@ const ProfilePage = () => {
               )}
             </div>
 
-            <div className='flex items-center gap-2 rounded-2xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-400'>
-              <FaCircleInfo />
-              <span>
-                {canEditProfile
-                  ? 'You can edit your full name and email here.'
-                  : 'Profile editing requires users:update permission.'}
-              </span>
-            </div>
+      
 
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
               {fields.map(field => (
