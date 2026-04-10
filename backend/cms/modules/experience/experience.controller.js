@@ -1,4 +1,5 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import { getFirstRequestFile } from "../../core/uploads/request-files.util.js";
 
 function createExperienceController({ service, uploadService }) {
   return Object.freeze({
@@ -31,9 +32,14 @@ function createExperienceController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/featured-picks/banner",
           allowVideo: false,
           required: false,
@@ -49,9 +55,14 @@ function createExperienceController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/featured-picks/banner",
           allowVideo: false,
           required: false,
@@ -97,9 +108,14 @@ function createExperienceController({ service, uploadService }) {
 
     createSeasonCard: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/season-cards/banner",
           allowVideo: false,
           required: false,
@@ -112,9 +128,14 @@ function createExperienceController({ service, uploadService }) {
 
     updateSeasonCard: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/season-cards/banner",
           allowVideo: false,
           required: false,
@@ -156,9 +177,15 @@ function createExperienceController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "backgroundImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/hero-sections/banner",
           allowVideo: false,
           required: false,

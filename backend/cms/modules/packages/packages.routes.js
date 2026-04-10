@@ -6,11 +6,11 @@ function createCmsPackagesRoutes({ controller, upload }) {
   router
     .route("/published")
     .get(controller.listPublished)
-    .post(upload.single("bannerImage"), controller.createPublishedPackage);
+    .post(upload.any(), controller.createPublishedPackage);
   router
     .route("/published/:id")
     .get(controller.getPackageById)
-    .put(upload.single("bannerImage"), controller.updatePublishedPackage)
+    .put(upload.any(), controller.updatePublishedPackage)
     .delete(controller.deletePublishedPackage);
 
   router

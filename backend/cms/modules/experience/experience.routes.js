@@ -6,11 +6,11 @@ function createExperienceRoutes({ controller, upload }) {
   router
     .route("/featured-picks")
     .get(controller.listFeaturedPicks)
-    .post(upload.single("bannerImage"), controller.createFeaturedPick);
+    .post(upload.any(), controller.createFeaturedPick);
   router
     .route("/creative-toolkit")
     .get(controller.listFeaturedPicks)
-    .post(upload.single("bannerImage"), controller.createFeaturedPick);
+    .post(upload.any(), controller.createFeaturedPick);
 
   router
     .route("/featured-picks/:id/status")
@@ -21,18 +21,18 @@ function createExperienceRoutes({ controller, upload }) {
   router
     .route("/featured-picks/:id")
     .get(controller.getFeaturedPickById)
-    .put(upload.single("bannerImage"), controller.updateFeaturedPick)
+    .put(upload.any(), controller.updateFeaturedPick)
     .delete(controller.deleteFeaturedPick);
   router
     .route("/creative-toolkit/:id")
     .get(controller.getFeaturedPickById)
-    .put(upload.single("bannerImage"), controller.updateFeaturedPick)
+    .put(upload.any(), controller.updateFeaturedPick)
     .delete(controller.deleteFeaturedPick);
 
   router
     .route("/season-cards")
     .get(controller.listSeasonCards)
-    .post(upload.single("bannerImage"), controller.createSeasonCard);
+    .post(upload.any(), controller.createSeasonCard);
 
   router
     .route("/season-cards/:id/status")
@@ -40,13 +40,13 @@ function createExperienceRoutes({ controller, upload }) {
   router
     .route("/season-cards/:id")
     .get(controller.getSeasonCardById)
-    .put(upload.single("bannerImage"), controller.updateSeasonCard)
+    .put(upload.any(), controller.updateSeasonCard)
     .delete(controller.deleteSeasonCard);
 
   router.route("/hero-sections").get(controller.listHeroSections);
   router
     .route("/hero-sections/:sectionKey")
-    .put(upload.single("bannerImage"), controller.upsertHeroSection);
+    .put(upload.any(), controller.upsertHeroSection);
 
   return router;
 }

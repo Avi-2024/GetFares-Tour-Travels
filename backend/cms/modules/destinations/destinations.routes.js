@@ -2,10 +2,7 @@ import express from "express";
 
 function createDestinationsRoutes({ controller, upload }) {
   const router = express.Router();
-  const destinationUpload = upload.fields([
-    { name: "bannerImage", maxCount: 1 },
-    { name: "gallery", maxCount: 50 },
-  ]);
+  const destinationUpload = upload.any();
 
   router.route("/").get(controller.list).post(destinationUpload, controller.create);
   router.route("/slug/:slug").get(controller.getBySlug);
@@ -19,10 +16,10 @@ function createDestinationsRoutes({ controller, upload }) {
   router
     .route("/:id/media")
     .get(controller.getMedia)
-    .post(upload.single("media"), controller.addMedia);
+    .post(upload.any(), controller.addMedia);
   router
     .route("/:id/media/:mediaId")
-    .put(upload.single("media"), controller.updateMedia)
+    .put(upload.any(), controller.updateMedia)
     .delete(controller.deleteMedia);
 
   router
