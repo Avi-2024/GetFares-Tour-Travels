@@ -536,7 +536,32 @@ function createLeadsRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    const toCamelCase = (key = "") =>
+      String(key).replace(/_([a-zA-Z0-9])/g, (_, char) => char.toUpperCase());
+    const toSnakeCase = (key = "") =>
+      String(key).replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`);
+
+    const sanitizedEntries = [];
+    for (const [rawKey, value] of entries) {
+      const key = String(rawKey);
+      if (columns.has(key)) {
+        sanitizedEntries.push([key, value]);
+        continue;
+      }
+
+      const camelCandidate = toCamelCase(key);
+      if (camelCandidate !== key && columns.has(camelCandidate)) {
+        sanitizedEntries.push([camelCandidate, value]);
+        continue;
+      }
+
+      const snakeCandidate = toSnakeCase(key);
+      if (snakeCandidate !== key && columns.has(snakeCandidate)) {
+        sanitizedEntries.push([snakeCandidate, value]);
+      }
+    }
+
+    return Object.fromEntries(sanitizedEntries);
   }
 
   function mapListFilters(filters = {}) {
@@ -2027,10 +2052,17 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async create(payload) {
-      logger.debug({ module: "leads", payload }, "Creating lead - raw payload");
-      const sanitized = await sanitizeForTable(schema.tableName, payload);
-      logger.debug({ module: "leads", sanitized, payloadKeys: Object.keys(payload), sanitizedKeys: Object.keys(sanitized) }, "Creating lead - after sanitize");
-      const row = await db.insert(schema.tableName, sanitized);
+      logger.debug({ module: "leads", payload, payloadKeys: Object.keys(payload) }, "Creating lead - raw payload");
+      
+      // Generate lead_code before insert since it's NOT NULL
+      if (!payload.lead_code) {
+        const serial = await reserveNextLeadCodeSerial();
+        payload.lead_code = formatLeadCode(serial);
+        logger.debug({ module: "leads", leadCode: payload.lead_code, serial }, "Generated lead_code");
+      }
+      
+      logger.debug({ module: "leads", finalPayload: payload, keys: Object.keys(payload) }, "Final payload before insert");
+      const row = await db.insert(schema.tableName, payload);
       return mapRowToDomain(row);
     },
 
