@@ -28,6 +28,7 @@ import {
 import { Country } from 'country-state-city'
 import { getCurrencyOptions } from '../../utils/currency'
 import { getNationalityOptions } from '../../utils/nationality'
+import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
 
 type QualificationForm = {
   panNumber: string
@@ -112,6 +113,9 @@ const LeadDetails: React.FC = () => {
   const [followups, setFollowups] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingFollowups, setLoadingFollowups] = useState(false)
+  const [followupsError, setFollowupsError] = useState('')
+  const [followupScheduleError, setFollowupScheduleError] = useState('')
+  const [followupScheduleOk, setFollowupScheduleOk] = useState('')
   const [error, setError] = useState('')
   const [statusError, setStatusError] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
@@ -331,13 +335,15 @@ const LeadDetails: React.FC = () => {
   const loadFollowups = useCallback(async () => {
     if (!id) return
     setLoadingFollowups(true)
+    setFollowupsError('')
     try {
       const rows = await leadsService.getFollowups(id)
-      console.log('Loaded followups:', rows)
       setFollowups(rows)
-    } catch (error) {
-      console.error('Error loading followups:', error)
+    } catch (err) {
       setFollowups([])
+      setFollowupsError(
+        getApiErrorMessage(err, 'Could not load follow-ups. Check login and API URL.')
+      )
     } finally {
       setLoadingFollowups(false)
     }
@@ -1031,19 +1037,20 @@ const LeadDetails: React.FC = () => {
   const scheduleFollowup = async () => {
     if (!id) return
     if (!followupDraft.followupDate) {
-      setStatusError('Please select follow-up date/time.')
+      setFollowupScheduleError('Please select follow-up date/time.')
       return
     }
     setFollowupSaving(true)
-    setStatusError('')
+    setFollowupScheduleError('')
+    setFollowupScheduleOk('')
     try {
       await leadsService.addFollowup(id, {
         followupType: followupDraft.followupType,
         followupDate: new Date(followupDraft.followupDate).toISOString(),
         cadenceCode: followupDraft.cadenceCode || undefined,
-        notes: followupDraft.notes || undefined
+        notes: followupDraft.notes || undefined,
+        clientTimezone: getBrowserTimeZone()
       })
-      console.log('Followup scheduled successfully')
       setFollowupDraft({
         followupType: 'CALL',
         followupDate: '',
@@ -1051,9 +1058,14 @@ const LeadDetails: React.FC = () => {
         notes: ''
       })
       await Promise.all([loadLead(), loadFollowups()])
-      console.log('Data reloaded after scheduling followup')
+      setFollowupScheduleOk(
+        'Saved. It appears under Scheduled Follow-ups (not Follow-up History).'
+      )
+      window.setTimeout(() => setFollowupScheduleOk(''), 6000)
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Could not schedule follow-up.'))
+      setFollowupScheduleError(
+        getApiErrorMessage(err, 'Could not schedule follow-up.')
+      )
     } finally {
       setFollowupSaving(false)
     }
@@ -1198,6 +1210,12 @@ const LeadDetails: React.FC = () => {
                   <h2 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
                     {lead.fullName || lead.name || 'Lead'}
                   </h2>
+                  <p className='mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Lead code:{' '}
+                    <span className='font-mono text-gray-900 dark:text-gray-100'>
+                      {String(lead.leadCode ?? lead.lead_code ?? '—')}
+                    </span>
+                  </p>
                   <p className='text-sm text-gray-500'>
                     {lead.email || 'N/A'} | {lead.phone || 'N/A'}
                   </p>
@@ -2001,14 +2019,28 @@ const LeadDetails: React.FC = () => {
               Schedule Follow-up
             </p>
             <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-              Use this for the next action only. If the customer already
-              answered your first call, also update the lead status so the
-              first-response SLA is closed. Call follow-ups raise due-time
-              reminders, and WhatsApp, Email, and Final Reminder notifications
-              are sent by automation when the selected date/time is due. Notes
-              stay private for reminders and do not appear in Follow-up
-              History.
+              Date/time uses your device clock and zone (
+              {getBrowserTimeZone()}). The exact instant is stored in UTC;
+              lists and reminders use your CRM date/time settings. Assigned
+              agent gets an in-app reminder in a ~1 minute window about{' '}
+              <span className='font-semibold text-gray-700 dark:text-gray-200'>
+                5 minutes before
+              </span>{' '}
+              the scheduled call/WhatsApp (automation job must be running).
+              Rows appear under{' '}
+              <span className='font-semibold'>Scheduled Follow-ups</span>, not
+              Follow-up History.
             </p>
+            {followupScheduleError ? (
+              <p className='mt-2 text-xs font-medium text-red-600 dark:text-red-400'>
+                {followupScheduleError}
+              </p>
+            ) : null}
+            {followupScheduleOk ? (
+              <p className='mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400'>
+                {followupScheduleOk}
+              </p>
+            ) : null}
             <div className='mt-2 grid grid-cols-1 gap-2'>
               <SearchableDropdown
                 value={followupDraft.followupType}
@@ -2063,6 +2095,12 @@ const LeadDetails: React.FC = () => {
           </div>
         </SurfaceCard>
       </div>
+
+      {followupsError ? (
+        <div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100'>
+          {followupsError}
+        </div>
+      ) : null}
 
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-2'>
         {id && <FollowupsDebug leadId={id} />}
@@ -2159,7 +2197,10 @@ const LeadDetails: React.FC = () => {
           {loadingFollowups ? (
             <p className='mt-3 text-sm text-gray-500'>Loading follow-ups...</p>
           ) : visibleHistoryFollowups.length === 0 ? (
-            <p className='mt-3 text-sm text-gray-500'>No follow-ups yet.</p>
+            <p className='mt-3 text-sm text-gray-500'>
+              No workflow follow-ups yet. History fills when compliance/status
+              workflow logs actions—not from the Schedule Follow-up form above.
+            </p>
           ) : (
             <div className='mt-3 space-y-2'>
               {visibleHistoryFollowups

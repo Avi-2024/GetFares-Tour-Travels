@@ -17,7 +17,7 @@ export const DATE_TIME_PREFERENCES_STORAGE_KEY =
 export const ISO_WITHOUT_TIMEZONE_REGEX =
   /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?$/;
 
-function getBrowserTimeZone() {
+export function getBrowserTimeZone() {
   try {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return zone || "UTC";

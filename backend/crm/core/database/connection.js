@@ -103,11 +103,17 @@ function normalizeTableSchemaPublic(sql) {
   );
 }
 
+/** PostgreSQL-only; MySQL uses LIKE (often with LOWER() for case-insensitivity). */
+function replaceIlikeWithLike(sql) {
+  return String(sql || "").replace(/\bILIKE\b/gi, "LIKE");
+}
+
 function normalizeSqlForMySql(sql, params = []) {
   let normalizedSql = String(sql || "");
   normalizedSql = convertQuotedIdentifiersToMySql(normalizedSql);
   normalizedSql = normalizeIntervalLiterals(normalizedSql);
   normalizedSql = normalizeTableSchemaPublic(normalizedSql);
+  normalizedSql = replaceIlikeWithLike(normalizedSql);
 
   return {
     sql: normalizedSql,
@@ -119,6 +125,9 @@ function hasUnsupportedMySqlConstruct(sql = "") {
   const checks = [
     /\bFILTER\s*\(/i,
     /\-\>\>?/i,
+    /\bRETURNING\b/i,
+    /\bANY\s*\(\s*\?/i,
+    /\bDISTINCT\s+ON\b/i,
   ];
 
   return checks.some((pattern) => pattern.test(sql));
@@ -273,6 +282,18 @@ class MySqlDatabase {
         `Unsupported SQL construct for MySQL adapter. Query must be rewritten: ${normalizeRawSql(
           sql,
         ).slice(0, 220)}`,
+      );
+    }
+
+    if (process.env.CRM_SQL_DEBUG === "1" && this.logger?.debug) {
+      this.logger.debug(
+        {
+          sql: normalizeRawSql(normalized.sql).slice(0, 900),
+          paramCount: Array.isArray(normalized.params)
+            ? normalized.params.length
+            : 0,
+        },
+        "crm mysql query",
       );
     }
 

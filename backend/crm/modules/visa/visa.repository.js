@@ -435,7 +435,7 @@ function createVisaRepository({ db, logger, schema }) {
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'BIOMETRICS_SCHEDULED' THEN 1 ELSE 0 END) AS biometrics_scheduled,
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'UNDER_PROCESS' THEN 1 ELSE 0 END) AS under_process,
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DELIVERED' THEN 1 ELSE 0 END) AS delivered,
-          SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' THEN 1 ELSE 0 END) AS expiring_soon_count,
+          SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) THEN 1 ELSE 0 END) AS expiring_soon_count,
           AVG(
             CASE
               WHEN vc.submission_date IS NOT NULL AND vc.visa_valid_until IS NOT NULL

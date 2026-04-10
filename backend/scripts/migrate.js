@@ -127,6 +127,7 @@ function isIgnorableMySqlMigrationError(error) {
     "ER_DUP_FIELDNAME",
     "ER_FK_DUP_NAME",
     "ER_DUP_INDEX",
+    "ER_CHECK_CONSTRAINT_DUP_NAME",
   ]);
 
   return ignorableCodes.has(String(error?.code || ""));

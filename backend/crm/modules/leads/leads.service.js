@@ -27,7 +27,8 @@ const FOLLOWUP_COMPLIANCE_RULES = Object.freeze({
   requiredWhatsapp: 7,
   requiredFinalReminders: 1,
 });
-const FOLLOWUP_REMINDER_LOOKAHEAD_MS = 2 * 60 * 1000;
+/** Notify assigned agent in a ~1-minute band ending ~5 minutes before due time. */
+const FOLLOWUP_REMINDER_LOOKAHEAD_MS = 5 * 60 * 1000;
 const DOC_STATUS_TO_CANONICAL = Object.freeze({
   NEW: "OPEN",
   OPEN: "OPEN",
@@ -686,6 +687,7 @@ function createLeadsService({ repository, logger, events }) {
   function formatFollowupDateTime(
     value,
     preferences = DEFAULT_SYSTEM_DATE_TIME_PREFERENCES,
+    timeZoneOverride,
   ) {
     if (!value) {
       return null;
@@ -697,10 +699,12 @@ function createLeadsService({ repository, logger, events }) {
 
     const normalizedPreferences =
       normalizeSystemDateTimePreferences(preferences);
+    const tz =
+      String(timeZoneOverride || "").trim() || normalizedPreferences.timezone;
 
     try {
       return new Intl.DateTimeFormat(normalizedPreferences.locale, {
-        timeZone: normalizedPreferences.timezone,
+        timeZone: tz,
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
@@ -720,7 +724,11 @@ function createLeadsService({ repository, logger, events }) {
     const followupType = String(item.followupType || "").trim().toUpperCase();
     const leadId = item.leadId ? String(item.leadId) : null;
     const leadRef = leadId ? `Lead ${leadId}` : "A lead";
-    const followupLabel = formatFollowupDateTime(item.followupDate, preferences);
+    const followupLabel = formatFollowupDateTime(
+      item.followupDate,
+      preferences,
+      item.clientTimezone,
+    );
     const timeSuffix =
       followupLabel ? ` Scheduled time was ${followupLabel}.` : "";
     const normalizedNote = String(item.notes || "").trim();
@@ -822,10 +830,14 @@ function createLeadsService({ repository, logger, events }) {
     item = {},
     lead = {},
     preferences = DEFAULT_SYSTEM_DATE_TIME_PREFERENCES,
-    lookaheadMinutes = 2,
+    lookaheadMinutes = 5,
   ) {
     const followupType = String(item.followupType || "").trim().toUpperCase();
-    const followupLabel = formatFollowupDateTime(item.followupDate, preferences);
+    const followupLabel = formatFollowupDateTime(
+      item.followupDate,
+      preferences,
+      item.clientTimezone,
+    );
     const leadLabel =
       lead.fullName ? `Lead ${lead.fullName}` : item.leadId ? `Lead ${item.leadId}` : "A lead";
 
@@ -839,7 +851,7 @@ function createLeadsService({ repository, logger, events }) {
     if (followupLabel) {
       message += ` at ${followupLabel}`;
     }
-    message += `. Please be ready in about ${Math.max(1, lookaheadMinutes)} minute(s).`;
+    message += `. Due in about ${Math.max(1, lookaheadMinutes)} minute(s) — please be ready.`;
 
     const note = String(item.notes || "").trim();
     if (note) {
@@ -2006,6 +2018,7 @@ function createLeadsService({ repository, logger, events }) {
         followupDate: payload.followupDate,
         cadenceCode: payload.cadenceCode || null,
         notes: payload.notes,
+        clientTimezone: payload.clientTimezone || null,
         isScheduleOnly: true,
         countsTowardCompliance: false,
       });
@@ -2015,8 +2028,11 @@ function createLeadsService({ repository, logger, events }) {
         .toUpperCase()
         .replace(/_/g, " ");
       const followupLabel =
-        formatFollowupDateTime(followup.followupDate, dateTimePreferences) ||
-        String(followup.followupDate || "").trim();
+        formatFollowupDateTime(
+          followup.followupDate,
+          dateTimePreferences,
+          followup.clientTimezone,
+        ) || String(followup.followupDate || "").trim();
       const note = String(payload.notes || "").trim();
 
       await repository.createActivity({
@@ -2075,7 +2091,11 @@ function createLeadsService({ repository, logger, events }) {
 
     async listFollowups(leadId, context = {}) {
       const lead = await getById(leadId, context);
-      return repository.listFollowupsByLeadId(lead.id);
+      const pk = String(lead?.id ?? "").trim();
+      if (!pk) {
+        return [];
+      }
+      return repository.listFollowupsByLeadId(pk);
     },
 
     async processUpcomingFollowupReminders(payload = {}) {
@@ -2086,7 +2106,7 @@ function createLeadsService({ repository, logger, events }) {
       const lookaheadMs = toPositiveInt(
         payload.lookaheadMs,
         FOLLOWUP_REMINDER_LOOKAHEAD_MS,
-        10 * 60 * 1000,
+        15 * 60 * 1000,
       );
       const referenceDate = payload.referenceDate
         ? new Date(payload.referenceDate)
@@ -2264,6 +2284,7 @@ function createLeadsService({ repository, logger, events }) {
         const followupLabel = formatFollowupDateTime(
           item.followupDate,
           dateTimePreferences,
+          item.clientTimezone,
         );
         events.emitFollowupOverdue({
           ...item,

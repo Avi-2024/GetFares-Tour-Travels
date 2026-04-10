@@ -333,14 +333,8 @@ function createLeadsRepository({ db, logger, schema }) {
 
     return {
       id: row.id,
-      leadId:
-        row.lead_code ??
-        row.leadCode ??
-        row.meta_lead_id ??
-        row.metaLeadId ??
-        row.lead_id ??
-        row.leadId ??
-        null,
+      // Always the primary key UUID (same as id). Human-readable code is `leadCode` only.
+      leadId: row.id,
       leadCode: row.lead_code ?? row.leadCode ?? null,
       customerId,
       fullName: customer?.fullName ?? row.full_name ?? row.fullName ?? null,
@@ -430,6 +424,28 @@ function createLeadsRepository({ db, logger, schema }) {
     };
   }
 
+  function coalesceBool(value, whenMissing) {
+    if (value === undefined || value === null) {
+      return whenMissing;
+    }
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "number") {
+      return value !== 0;
+    }
+    if (typeof value === "string") {
+      const s = value.trim().toLowerCase();
+      if (s === "1" || s === "true") {
+        return true;
+      }
+      if (s === "0" || s === "false") {
+        return false;
+      }
+    }
+    return Boolean(value);
+  }
+
   function toFollowupDomain(row) {
     if (!row) {
       return null;
@@ -457,10 +473,14 @@ function createLeadsRepository({ db, logger, schema }) {
       cadenceCode: row.cadence_code ?? row.cadenceCode ?? null,
       statusSnapshot: row.status_snapshot ?? row.statusSnapshot ?? null,
       notes: row.notes ?? null,
-      isCompleted: row.is_completed ?? row.isCompleted ?? false,
-      isScheduleOnly: row.is_schedule_only ?? row.isScheduleOnly ?? false,
-      countsTowardCompliance:
-        row.counts_toward_compliance ?? row.countsTowardCompliance ?? true,
+      clientTimezone:
+        row.client_timezone ?? row.clientTimezone ?? null,
+      isCompleted: coalesceBool(row.is_completed ?? row.isCompleted, false),
+      isScheduleOnly: coalesceBool(row.is_schedule_only ?? row.isScheduleOnly, false),
+      countsTowardCompliance: coalesceBool(
+        row.counts_toward_compliance ?? row.countsTowardCompliance,
+        true,
+      ),
       createdAt: row.created_at ?? row.createdAt ?? null,
     };
   }
@@ -2109,6 +2129,7 @@ function createLeadsRepository({ db, logger, schema }) {
         cadence_code: payload.cadenceCode || null,
         status_snapshot: payload.statusSnapshot || null,
         notes: payload.notes || null,
+        client_timezone: payload.clientTimezone || null,
         is_completed: payload.isCompleted ?? false,
         is_schedule_only: payload.isScheduleOnly ?? false,
         counts_toward_compliance: payload.countsTowardCompliance ?? true,
@@ -2159,7 +2180,30 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async listFollowupsByLeadId(leadId) {
-      const rows = await db.findMany(schema.followupsTable, { lead_id: leadId });
+      const normalizedLeadId = String(leadId ?? "").trim();
+      if (!normalizedLeadId) {
+        return [];
+      }
+
+      let rows;
+      if (typeof db.query === "function" && db.pool) {
+        const table = schema.followupsTable;
+        const result = await db.query(
+          `
+            SELECT *
+            FROM \`${table}\`
+            WHERE lead_id = ?
+            ORDER BY followup_date DESC, created_at DESC
+          `,
+          [normalizedLeadId],
+        );
+        rows = Array.isArray(result.rows) ? result.rows : [];
+      } else {
+        rows = await db.findMany(schema.followupsTable, {
+          lead_id: normalizedLeadId,
+        });
+      }
+
       const followups = rows
         .map((row) => toFollowupDomain(row))
         .filter(Boolean);
@@ -2210,12 +2254,15 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findUpcomingReminderFollowups({
       limit = 100,
-      lookaheadMs = 2 * 60 * 1000,
+      lookaheadMs = 5 * 60 * 1000,
       referenceDate = new Date().toISOString(),
     } = {}) {
       const normalizedLimit = toPositiveInt(limit, 100);
       const referenceTime = toDate(referenceDate)?.getTime() ?? Date.now();
-      const windowEnd = referenceTime + Math.max(0, Number(lookaheadMs) || 0);
+      const advanceMs = Math.max(60_000, Number(lookaheadMs) || 5 * 60 * 1000);
+      /** Fire once when due time is between (advance-1min] and advance from "now" (≈5 min before due). */
+      const bandLowMs = advanceMs - 60 * 1000;
+      const bandHighMs = advanceMs;
       const rows = await db.findMany(schema.followupsTable, {});
 
       const dueSoon = rows
@@ -2228,7 +2275,11 @@ function createLeadsRepository({ db, logger, schema }) {
           if (!Number.isFinite(dueTime)) {
             return false;
           }
-          return dueTime > referenceTime && dueTime <= windowEnd;
+          const msUntilDue = dueTime - referenceTime;
+          if (msUntilDue <= 0) {
+            return false;
+          }
+          return msUntilDue >= bandLowMs && msUntilDue <= bandHighMs;
         })
         .sort((left, right) => {
           const leftTime = toDate(left.followupDate)?.getTime() || 0;

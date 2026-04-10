@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../../api/apiClient';
 
 const FollowupsDebug: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+
+  useEffect(() => {
+    setResponse(null);
+    setError('');
+  }, [leadId]);
 
   const testFollowupsAPI = async () => {
     setLoading(true);

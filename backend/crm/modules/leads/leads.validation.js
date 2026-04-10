@@ -214,6 +214,11 @@ const createFollowup = z.object({
     cadenceCode: z.string().max(50).optional(),
     followupDate: dateTimeString,
     notes: z.string().max(2000).optional(),
+    clientTimezone: z.preprocess(
+      (v) =>
+        v === "" || v === null || v === undefined ? undefined : String(v).trim(),
+      z.string().min(2).max(80).optional(),
+    ),
   }),
   params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
