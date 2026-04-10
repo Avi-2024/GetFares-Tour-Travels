@@ -32,7 +32,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     return (
       typeof db.query === "function" &&
       db.pool &&
-      (adapter === "mysql" || adapter === "mysql")
+      (adapter === "postgres")
     );
   }
 
@@ -220,7 +220,7 @@ function createSuppliersRepository({ db, logger, schema }) {
       
       if (filters.limit) {
         params.push(filters.limit);
-        sql += ` LIMIT $${params.length}`;
+        sql += ` LIMIT ?`;
       }
       
       const result = await db.query(sql, params);
@@ -318,7 +318,7 @@ function createSuppliersRepository({ db, logger, schema }) {
       `;
       if (limit) {
         params.push(limit);
-        sql += ` LIMIT $${params.length}`;
+        sql += ` LIMIT ?`;
       }
       const result = await db.query(sql, params);
       return result.rows || [];
@@ -812,6 +812,11 @@ function createSuppliersRepository({ db, logger, schema }) {
 }
 
 export { createSuppliersRepository };
+
+
+
+
+
 
 
 
