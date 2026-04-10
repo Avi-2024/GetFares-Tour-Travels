@@ -4,11 +4,7 @@ function createCustomersRepository({ db, logger, schema }) {
   function canUseRawQuery() {
     return (
       typeof db.query === "function" &&
-<<<<<<< HEAD
       (db.adapter === "mysql" || Boolean(db.pool))
-=======
-      db.pool
->>>>>>> development
     );
   }
 
@@ -22,11 +18,7 @@ function createCustomersRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-<<<<<<< HEAD
-      `SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
-=======
       `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
->>>>>>> development
       [tableName],
     );
 
