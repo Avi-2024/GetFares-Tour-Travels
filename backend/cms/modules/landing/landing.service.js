@@ -11,10 +11,12 @@ function createLandingService({ repository }) {
     return {
       id: row.id,
       title: row.name,
+      name: row.name,
       country: row.country ?? null,
       description: row.tag ?? null,
       tag: row.tag,
       image: row.image_url,
+      imageUrl: row.image_url,
       displayOrder: row.display_order,
       isActive: row.is_active,
       createdAt: row.created_at,
