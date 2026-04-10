@@ -1,6 +1,4 @@
 function createQuotationsRepository({ db, logger, schema }) {
-  const tableColumnsCache = new Map();
-
   function toNumber(value, fallback = null) {
     if (value === null || value === undefined) {
       return fallback;
@@ -79,41 +77,6 @@ function createQuotationsRepository({ db, logger, schema }) {
 
   function canUseRawQuery() {
     return typeof db.query === "function" && db.pool;
-  }
-
-  async function getTableColumns(tableName) {
-    if (!canUseRawQuery()) {
-      return null;
-    }
-
-    if (tableColumnsCache.has(tableName)) {
-      return tableColumnsCache.get(tableName);
-    }
-
-    const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
-      [tableName],
-    );
-
-    const columns = new Set(result.rows.map((row) => row.column_name));
-    tableColumnsCache.set(tableName, columns);
-    return columns;
-  }
-
-  async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(
-      ([, value]) => value !== undefined,
-    );
-    if (!entries.length) {
-      return {};
-    }
-
-    const columns = await getTableColumns(tableName);
-    if (columns === null) {
-      return Object.fromEntries(entries);
-    }
-
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
   }
 
   function toQuotation(row) {
@@ -724,43 +687,43 @@ function createQuotationsRepository({ db, logger, schema }) {
 
           if (filters.leadId) {
             values.push(filters.leadId);
-            clauses.push(`q.lead_id = $${values.length}`);
+            clauses.push(`q.lead_id = ?`);
           }
           if (filters.createdBy) {
             values.push(filters.createdBy);
-            clauses.push(`q.created_by = $${values.length}`);
+            clauses.push(`q.created_by = ?`);
           }
           if (filters.templateId) {
             values.push(filters.templateId);
-            clauses.push(`q.template_id = $${values.length}`);
+            clauses.push(`q.template_id = ?`);
           }
           if (filters.sourcePackageId) {
             values.push(filters.sourcePackageId);
-            clauses.push(`q.source_package_id = $${values.length}`);
+            clauses.push(`q.source_package_id = ?`);
           }
           if (filters.quotationTitle) {
             values.push(`%${String(filters.quotationTitle).trim()}%`);
-            clauses.push(`q.quotation_title ILIKE $${values.length}`);
+            clauses.push(`LOWER(COALESCE(q.quotation_title, '')) LIKE LOWER(?)`);
           }
           if (filters.tripDestination) {
             values.push(`%${String(filters.tripDestination).trim()}%`);
-            clauses.push(`q.trip_destination ILIKE $${values.length}`);
+            clauses.push(`LOWER(COALESCE(q.trip_destination, '')) LIKE LOWER(?)`);
           }
           if (filters.durationNights !== undefined) {
             values.push(Number(filters.durationNights));
-            clauses.push(`q.duration_nights = $${values.length}`);
+            clauses.push(`q.duration_nights = ?`);
           }
           if (filters.durationDays !== undefined) {
             values.push(Number(filters.durationDays));
-            clauses.push(`q.duration_days = $${values.length}`);
+            clauses.push(`q.duration_days = ?`);
           }
           if (filters.travelStartDate) {
             values.push(filters.travelStartDate);
-            clauses.push(`q.travel_start_date = $${values.length}`);
+            clauses.push(`q.travel_start_date = ?`);
           }
           if (filters.requiresApproval !== undefined) {
             values.push(toBoolean(filters.requiresApproval));
-            clauses.push(`q.requires_approval = $${values.length}`);
+            clauses.push(`q.requires_approval = ?`);
           }
 
           let query = `
@@ -775,11 +738,11 @@ function createQuotationsRepository({ db, logger, schema }) {
 
           if (limit) {
             values.push(limit);
-            query += ` LIMIT $${values.length}`;
+            query += ` LIMIT ?`;
           }
           if (offset !== null) {
             values.push(offset);
-            query += ` OFFSET $${values.length}`;
+            query += ` OFFSET ?`;
           }
 
           const result = await db.query(query, values);
@@ -959,24 +922,6 @@ function createQuotationsRepository({ db, logger, schema }) {
     },
 
     async incrementViewStats(quotationId) {
-      if (canUseRawQuery()) {
-        const result = await db.query(
-          `
-            UPDATE ${schema.tableName}
-            SET
-              view_count = COALESCE(view_count, 0) + 1,
-              first_viewed_at = COALESCE(first_viewed_at, CURRENT_TIMESTAMP),
-              last_viewed_at = CURRENT_TIMESTAMP,
-              updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-            RETURNING *
-          `,
-          [quotationId],
-        );
-
-        return toQuotation(result.rows[0]);
-      }
-
       const current = await db.findById(schema.tableName, quotationId);
       if (!current) {
         return null;
@@ -1166,41 +1111,41 @@ function createQuotationsRepository({ db, logger, schema }) {
 
       if (filters.from) {
         params.push(filters.from);
-        where.push(`q.created_at >= $${params.length}`);
+        where.push(`q.created_at >= ?`);
       }
 
       if (filters.to) {
         params.push(filters.to);
-        where.push(`q.created_at <= $${params.length}`);
+        where.push(`q.created_at <= ?`);
       }
 
       if (filters.createdBy) {
         params.push(filters.createdBy);
-        where.push(`q.created_by = $${params.length}`);
+        where.push(`q.created_by = ?`);
       }
       if (filters.sourcePackageId) {
         params.push(filters.sourcePackageId);
-        where.push(`q.source_package_id = $${params.length}`);
+        where.push(`q.source_package_id = ?`);
       }
       if (filters.quotationTitle) {
         params.push(`%${String(filters.quotationTitle).trim()}%`);
-        where.push(`q.quotation_title ILIKE $${params.length}`);
+        where.push(`LOWER(COALESCE(q.quotation_title, '')) LIKE LOWER(?)`);
       }
       if (filters.tripDestination) {
         params.push(`%${String(filters.tripDestination).trim()}%`);
-        where.push(`q.trip_destination ILIKE $${params.length}`);
+        where.push(`LOWER(COALESCE(q.trip_destination, '')) LIKE LOWER(?)`);
       }
       if (filters.durationNights !== undefined) {
         params.push(Number(filters.durationNights));
-        where.push(`q.duration_nights = $${params.length}`);
+        where.push(`q.duration_nights = ?`);
       }
       if (filters.durationDays !== undefined) {
         params.push(Number(filters.durationDays));
-        where.push(`q.duration_days = $${params.length}`);
+        where.push(`q.duration_days = ?`);
       }
       if (filters.travelStartDate) {
         params.push(filters.travelStartDate);
-        where.push(`q.travel_start_date = $${params.length}`);
+        where.push(`q.travel_start_date = ?`);
       }
 
       const whereSql = where.join(" AND ");
@@ -1212,16 +1157,16 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*) AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotes,
-          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_created_minutes,
+          AVG(TIMESTAMPDIFF(MINUTE, l.created_at, q.created_at)) AS avg_lead_to_quote_created_minutes,
           AVG(
             CASE
               WHEN q.sent_at IS NOT NULL
-              THEN EXTRACT(EPOCH FROM (q.sent_at - l.created_at)) / 60.0
+              THEN TIMESTAMPDIFF(MINUTE, l.created_at, q.sent_at)
               ELSE NULL
             END
-          )::numeric(10,2) AS avg_lead_to_quote_sent_minutes,
-          AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
-          AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent,
+          ) AS avg_lead_to_quote_sent_minutes,
+          AVG(q.final_price) AS avg_quote_value,
+          AVG(q.margin_percent) AS avg_margin_percent,
           SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END) AS sla_breached_quotes
         FROM quotations q
         LEFT JOIN users u ON u.id = q.created_by
@@ -1236,16 +1181,16 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*) AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotes,
-          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_created_minutes,
+          AVG(TIMESTAMPDIFF(MINUTE, l.created_at, q.created_at)) AS avg_lead_to_quote_created_minutes,
           AVG(
             CASE
               WHEN q.sent_at IS NOT NULL
-              THEN EXTRACT(EPOCH FROM (q.sent_at - l.created_at)) / 60.0
+              THEN TIMESTAMPDIFF(MINUTE, l.created_at, q.sent_at)
               ELSE NULL
             END
-          )::numeric(10,2) AS avg_lead_to_quote_sent_minutes,
-          AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
-          AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent,
+          ) AS avg_lead_to_quote_sent_minutes,
+          AVG(q.final_price) AS avg_quote_value,
+          AVG(q.margin_percent) AS avg_margin_percent,
           SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END) AS sla_breached_quotes
         FROM quotations q
         LEFT JOIN leads l ON l.id = q.lead_id

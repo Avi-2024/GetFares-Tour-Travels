@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { Pool as PostgresPool } from "pg";
 import mysql from "mysql2/promise";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const RESERVED_FILTER_KEYS = new Set([
   "page",
@@ -44,7 +37,7 @@ function normalizeFilters(filters = {}) {
   });
 }
 
-function quoteIdentifier(identifier, dialect = "postgres") {
+function quoteIdentifier(identifier, dialect = "mysql") {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
     throw new Error(`Unsafe SQL identifier: ${identifier}`);
   }
@@ -53,7 +46,7 @@ function quoteIdentifier(identifier, dialect = "postgres") {
     return `\`${identifier}\``;
   }
 
-  return `"${identifier}"`;
+  return `\`${identifier}\``;
 }
 
 function runWithTimeout(task, timeoutMs, timeoutMessage) {
@@ -322,164 +315,6 @@ class InMemoryDatabase {
 
   async close() {
     return undefined;
-  }
-}
-
-class PostgresDatabase {
-  constructor({ pool, logger }) {
-    this.pool = pool;
-    this.logger = logger;
-    this.adapter = "postgres";
-  }
-
-  async executeWithErrorLog(operationName, metadata, executor) {
-    try {
-      return await executor();
-    } catch (error) {
-      this.logger?.error(
-        {
-          module: "database",
-          fileName: "connection.js",
-          functionName: operationName,
-          stack: error?.stack,
-          metadata,
-        },
-        "Database query failed",
-      );
-      throw error;
-    }
-  }
-
-  async insert(tableName, payload) {
-    return this.executeWithErrorLog("insert", { tableName }, async () => {
-      const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
-      const table = quoteIdentifier(tableName, "postgres");
-
-      if (!entries.length) {
-        const result = await this.pool.query(
-          `INSERT INTO ${table} DEFAULT VALUES RETURNING *`,
-        );
-        return result.rows[0] || null;
-      }
-
-      const columns = entries.map(([column]) => quoteIdentifier(column, "postgres")).join(", ");
-      const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
-      const values = entries.map(([, value]) => value);
-
-      const result = await this.pool.query(
-        `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`,
-        values,
-      );
-
-      return result.rows[0] || null;
-    });
-  }
-
-  async findById(tableName, id) {
-    return this.executeWithErrorLog("findById", { tableName }, async () => {
-      const table = quoteIdentifier(tableName, "postgres");
-      const result = await this.pool.query(
-        `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
-        [id],
-      );
-      return result.rows[0] || null;
-    });
-  }
-
-  async findOne(tableName, filters = {}) {
-    const rows = await this.findMany(tableName, { ...filters, limit: 1 });
-    return rows[0] || null;
-  }
-
-  async findMany(tableName, filters = {}) {
-    return this.executeWithErrorLog("findMany", { tableName }, async () => {
-      const table = quoteIdentifier(tableName, "postgres");
-      const normalizedFilters = normalizeFilters(filters);
-      const values = [];
-
-      const whereClause = normalizedFilters
-        .map(([key, value], index) => {
-          values.push(value);
-          return `${quoteIdentifier(key, "postgres")} = $${index + 1}`;
-        })
-        .join(" AND ");
-
-      let query = `SELECT * FROM ${table}`;
-      if (whereClause) {
-        query += ` WHERE ${whereClause}`;
-      }
-
-      const limit = toPositiveInt(filters.limit);
-      const page = toPositiveInt(filters.page);
-      const requestedOffset = toNonNegativeInt(filters.offset);
-      const offset =
-        requestedOffset !== null ? requestedOffset
-        : limit && page ? (page - 1) * limit
-        : null;
-
-      if (limit) {
-        values.push(limit);
-        query += ` LIMIT $${values.length}`;
-      }
-
-      if (offset !== null) {
-        values.push(offset);
-        query += ` OFFSET $${values.length}`;
-      }
-
-      const result = await this.pool.query(query, values);
-      return result.rows;
-    });
-  }
-
-  async update(tableName, id, payload) {
-    return this.executeWithErrorLog("update", { tableName }, async () => {
-      const entries = Object.entries(payload).filter(
-        ([key, value]) => key !== "id" && value !== undefined,
-      );
-      if (!entries.length) {
-        return this.findById(tableName, id);
-      }
-
-      const table = quoteIdentifier(tableName, "postgres");
-      const values = entries.map(([, value]) => value);
-      const setClause = entries
-        .map(([key], index) => `${quoteIdentifier(key, "postgres")} = $${index + 1}`)
-        .join(", ");
-
-      values.push(id);
-      const result = await this.pool.query(
-        `UPDATE ${table} SET ${setClause} WHERE id = $${values.length} RETURNING *`,
-        values,
-      );
-
-      return result.rows[0] || null;
-    });
-  }
-
-  async query(sql, params = []) {
-    return this.executeWithErrorLog("query", {}, async () => this.pool.query(sql, params));
-  }
-
-  async healthCheck({ timeoutMs } = {}) {
-    const startedAt = Date.now();
-
-    await runWithTimeout(
-      () => this.pool.query("SELECT 1"),
-      timeoutMs,
-      `PostgreSQL health check timed out after ${timeoutMs}ms`,
-    );
-
-    return {
-      ok: true,
-      adapter: this.adapter,
-      latencyMs: Date.now() - startedAt,
-      checkedAt: new Date().toISOString(),
-    };
-  }
-
-  async close() {
-    await this.pool.end();
   }
 }
 

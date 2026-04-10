@@ -66,9 +66,18 @@ class MongoLogStore {
 
     this.connectPromise = (async () => {
       const activeConnectionUrl = this.resolveConnectionUrl();
+      const isSrvConnection = /^mongodb\+srv:\/\//i.test(activeConnectionUrl);
       const client = new MongoClient(activeConnectionUrl, {
         maxPoolSize: 10,
         minPoolSize: 0,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+        ...(isSrvConnection
+          ? {
+              tls: true,
+              tlsAllowInvalidCertificates: false,
+            }
+          : {}),
       });
       await client.connect();
 

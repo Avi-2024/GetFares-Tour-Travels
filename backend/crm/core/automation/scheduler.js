@@ -8,16 +8,6 @@ function normalizeIntervalMs(value, fallback) {
   return Math.floor(parsed);
 }
 
-function lockKeyFromString(input) {
-  const value = String(input || "automation");
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(index);
-    hash |= 0;
-  }
-  return Math.abs(hash || 1);
-}
-
 function coerceProcessedCount(result) {
   if (result === null || result === undefined) {
     return 0;
@@ -106,42 +96,6 @@ function createAutomationScheduler({
 
   async function acquireLock(jobName) {
     const lockName = `automation:${jobName}`;
-    const lockKey = lockKeyFromString(lockName);
-
-    if (canUseDbLock() && String(db?.adapter || "").toLowerCase() === "postgres") {
-      try {
-        const result = await db.query(
-          "SELECT pg_try_advisory_lock(?) AS locked",
-          [lockKey],
-        );
-        const locked = Boolean(result.rows?.[0]?.locked);
-        if (!locked) {
-          return {
-            acquired: false,
-            release: async () => undefined,
-          };
-        }
-
-        return {
-          acquired: true,
-          release: async () => {
-            try {
-              await db.query("SELECT pg_advisory_unlock(?)", [lockKey]);
-            } catch (error) {
-              logger?.warn?.(
-                { err: error, module: "automation", jobName, lockKey },
-                "Failed to release advisory lock",
-              );
-            }
-          },
-        };
-      } catch (error) {
-        logger?.warn?.(
-          { err: error, module: "automation", jobName },
-          "Falling back to local lock due advisory lock failure",
-        );
-      }
-    }
 
     if (canUseDbLock() && String(db?.adapter || "").toLowerCase() === "mysql") {
       try {

@@ -670,8 +670,8 @@ function createBookingsRepository({ db, logger, schema }) {
               SUM(CASE WHEN status = 'PENDING' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS pending_bookings,
               SUM(CASE WHEN status = 'COMPLETED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS completed_bookings,
               SUM(CASE WHEN status = 'CANCELLED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS cancelled_bookings,
-              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(total_amount, 0) ELSE 0 END), 0)::numeric AS total_revenue,
-              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(advance_received, 0), 0) ELSE 0 END), 0)::numeric AS pending_payments_amount,
+              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(total_amount, 0) ELSE 0 END), 0) AS total_revenue,
+              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(advance_received, 0), 0) ELSE 0 END), 0) AS pending_payments_amount,
               SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} AND COALESCE(advance_received, 0) < COALESCE(total_amount, 0) THEN 1 ELSE 0 END) AS pending_payments_count
             FROM ${schema.tableName}
           `;

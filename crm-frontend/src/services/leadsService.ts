@@ -381,8 +381,16 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
   assignLead: (id: string, payload: unknown) => datasource.assign(id, payload),
   addFollowup: (id: string, payload: unknown) => datasource.addFollowup(id, payload),
   getFollowups: async (id: string): Promise<LeadFollowupRecord[]> => {
-    const response = await datasource.getFollowups(id);
-    return extractFollowups(response);
+    try {
+      const response = await datasource.getFollowups(id);
+      console.log('Raw followups response:', response);
+      const extracted = extractFollowups(response);
+      console.log('Extracted followups:', extracted);
+      return extracted;
+    } catch (error) {
+      console.error('Error in getFollowups:', error);
+      return [];
+    }
   },
   markAsLost: (id: string, reason: string, notes?: string) =>
     datasource.markAsLost(id, reason, notes),

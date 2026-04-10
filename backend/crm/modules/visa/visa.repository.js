@@ -442,7 +442,7 @@ function createVisaRepository({ db, logger, schema }) {
               THEN (vc.visa_valid_until - vc.submission_date)
               ELSE NULL
             END
-          )::numeric(10,2) AS avg_processing_days
+          ) AS avg_processing_days
         FROM ${schema.tableName} vc
         ${whereSql}
       `;

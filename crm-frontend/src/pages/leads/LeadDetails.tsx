@@ -4,6 +4,7 @@ import { FaArrowLeft, FaCheckCircle, FaClock } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
+import FollowupsDebug from '../../components/debug/FollowupsDebug'
 import { getApiErrorMessage } from '../../api/apiClient'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
@@ -332,8 +333,10 @@ const LeadDetails: React.FC = () => {
     setLoadingFollowups(true)
     try {
       const rows = await leadsService.getFollowups(id)
+      console.log('Loaded followups:', rows)
       setFollowups(rows)
-    } catch (_error) {
+    } catch (error) {
+      console.error('Error loading followups:', error)
       setFollowups([])
     } finally {
       setLoadingFollowups(false)
@@ -900,6 +903,7 @@ const LeadDetails: React.FC = () => {
           ? true
           : undefined
       })
+      console.log('Status updated successfully')
 
       if (
         conversion.canonical === 'CONVERTED' &&
@@ -1015,6 +1019,7 @@ const LeadDetails: React.FC = () => {
         loadFollowups(),
         conversion.canonical === 'CONVERTED' ? loadLeadQuotationsForLead() : Promise.resolve()
       ])
+      console.log('Data reloaded after status update')
       setStatusNotes('')
       setClosedReason('')
     } catch (err) {
@@ -1039,6 +1044,7 @@ const LeadDetails: React.FC = () => {
         cadenceCode: followupDraft.cadenceCode || undefined,
         notes: followupDraft.notes || undefined
       })
+      console.log('Followup scheduled successfully')
       setFollowupDraft({
         followupType: 'CALL',
         followupDate: '',
@@ -1046,6 +1052,7 @@ const LeadDetails: React.FC = () => {
         notes: ''
       })
       await Promise.all([loadLead(), loadFollowups()])
+      console.log('Data reloaded after scheduling followup')
     } catch (err) {
       setStatusError(getApiErrorMessage(err, 'Could not schedule follow-up.'))
     } finally {
@@ -2059,6 +2066,8 @@ const LeadDetails: React.FC = () => {
       </div>
 
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-2'>
+        {id && <FollowupsDebug leadId={id} />}
+        
         <SurfaceCard className='h-full'>
           <div className='flex items-center justify-between'>
             <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>

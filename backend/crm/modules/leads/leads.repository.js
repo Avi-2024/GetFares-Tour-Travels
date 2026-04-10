@@ -124,23 +124,6 @@ function createLeadsRepository({ db, logger, schema }) {
   }
 
   async function reserveNextLeadCodeSerial() {
-    if (
-      (db.adapter === "mysql") &&
-      typeof db.query === "function"
-    ) {
-      try {
-        const result = await db.query(
-          `SELECT nextval('leads_lead_code_seq') AS serial`,
-        );
-        const serial = Number(result.rows?.[0]?.serial ?? 0);
-        if (Number.isFinite(serial) && serial > 0) {
-          return serial;
-        }
-      } catch (_error) {
-        // Fallback below when sequence is unavailable.
-      }
-    }
-
     const rows = await db.findMany(schema.tableName, {});
     const maxSerial = rows.reduce((currentMax, row) => {
       const serial = parseLeadCodeSerial(row?.lead_code ?? row?.leadCode ?? null);

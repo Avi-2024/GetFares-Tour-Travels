@@ -257,7 +257,7 @@ function createPaymentsRepository({ db, logger, schema }) {
           SELECT
             COALESCE(SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-              THEN amount ELSE 0 END), 0)::numeric AS collected_amount,
+              THEN amount ELSE 0 END), 0) AS collected_amount,
             SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
               THEN 1 ELSE 0 END) AS collected_count
@@ -299,7 +299,7 @@ function createPaymentsRepository({ db, logger, schema }) {
             SELECT
               COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
-                ELSE 0 END), 0)::numeric AS outstanding_amount,
+                ELSE 0 END), 0) AS outstanding_amount,
               SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
                 THEN 1 ELSE 0 END) AS outstanding_count,
@@ -307,7 +307,7 @@ function createPaymentsRepository({ db, logger, schema }) {
                 AND ${overdueDate}
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
                 THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
-                ELSE 0 END), 0)::numeric AS overdue_amount,
+                ELSE 0 END), 0) AS overdue_amount,
               SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 AND ${overdueDate}
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
@@ -351,7 +351,7 @@ function createPaymentsRepository({ db, logger, schema }) {
           const refundResult = await db.query(
             `
               SELECT
-                COALESCE(SUM(refund_amount), 0)::numeric AS refunds_amount,
+                COALESCE(SUM(refund_amount), 0) AS refunds_amount,
                 COUNT(*) AS refunds_count
               FROM ${schema.refundsTable}
               WHERE status = 'PROCESSED'

@@ -199,8 +199,8 @@ function createUsersRepository({ db, logger, schema }) {
             INSERT INTO ${schema.userCountriesTable}
               (user_id, country_id, is_primary, created_by)
             VALUES (?, ?, ?, ?)
-            ON CONFLICT (user_id, country_id)
-            DO UPDATE SET is_primary = EXCLUDED.is_primary
+            ON DUPLICATE KEY UPDATE
+              is_primary = VALUES(is_primary)
           `,
           [userId, countryId, isPrimary, createdBy],
         );

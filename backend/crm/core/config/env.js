@@ -156,8 +156,6 @@ const envSchema = z.object({
   const dbUrlLower = dbUrl.toLowerCase();
   const isMysqlUrl =
     dbUrlLower.startsWith("mysql://") || dbUrlLower.startsWith("mysql2://");
-  const isPostgresUrl =
-    dbUrlLower.startsWith("postgres://") || dbUrlLower.startsWith("postgresql://");
 
   const hasMysqlDiscreteConfig = Boolean(
     data.MYSQL_HOST && data.MYSQL_USER && data.MYSQL_DATABASE,
@@ -175,32 +173,21 @@ const envSchema = z.object({
     }
   }
 
-  // If client is explicitly postgres, enforce DATABASE_URL.
-  if (explicitClient === "postgres" || explicitClient === "postgresql" || explicitClient === "pg") {
-    if (!dbUrl) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["DATABASE_URL"],
-        message:
-          "For DATABASE_CLIENT=postgres, DATABASE_URL is required.",
-      });
-    } else if (isMysqlUrl) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["DATABASE_URL"],
-        message:
-          "DATABASE_URL is MySQL but DATABASE_CLIENT is set to postgres. Use postgres URL or set DATABASE_CLIENT=mysql.",
-      });
-    }
+  if (explicitClient && explicitClient !== "mysql" && explicitClient !== "mariadb") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["DATABASE_CLIENT"],
+      message: "Only MySQL is supported. Use DATABASE_CLIENT=mysql.",
+    });
   }
 
-  // If no explicit client but URL is present, validate recognizable URL schemes.
-  if (!explicitClient && dbUrl && !isMysqlUrl && !isPostgresUrl) {
+  // If URL is present, validate recognizable URL schemes.
+  if (dbUrl && !isMysqlUrl) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["DATABASE_URL"],
       message:
-        "DATABASE_URL must start with mysql://, mysql2://, postgres://, or postgresql://.",
+        "DATABASE_URL must start with mysql:// or mysql2://.",
     });
   }
 });
