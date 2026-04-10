@@ -909,18 +909,17 @@ function createQuotationsRepository({ db, logger, schema }) {
 
     async create(payload) {
       logger.debug({ module: "quotations", payload }, "Creating quotation");
-      const sanitized = await sanitizeForTable(schema.tableName, {
+      const row = await db.insert(schema.tableName, {
         ...payload,
         template_snapshot: toJsonString(payload.template_snapshot),
         itinerary: toJsonString(payload.itinerary),
       });
-      const row = await db.insert(schema.tableName, sanitized);
       return toQuotation(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: "quotations", id, payload }, "Updating quotation");
-      const sanitized = await sanitizeForTable(schema.tableName, {
+      const row = await db.update(schema.tableName, id, {
         ...payload,
         template_snapshot:
           payload.template_snapshot !== undefined
@@ -931,7 +930,6 @@ function createQuotationsRepository({ db, logger, schema }) {
             ? toJsonString(payload.itinerary)
             : undefined,
       });
-      const row = await db.update(schema.tableName, id, sanitized);
       return toQuotation(row);
     },
 
@@ -1125,8 +1123,8 @@ function createQuotationsRepository({ db, logger, schema }) {
         version_number: payload.versionNumber,
         editor_id: payload.editorId || null,
         action: payload.action,
-        change_log: payload.changeLog || {},
-        snapshot: payload.snapshot || null,
+        change_log: toJsonString(payload.changeLog || {}),
+        snapshot: toJsonString(payload.snapshot || null),
       });
 
       return toVersionLog(row);
@@ -1141,7 +1139,7 @@ function createQuotationsRepository({ db, logger, schema }) {
         delivery_channel: payload.deliveryChannel || "MANUAL",
         recipient_email: payload.recipientEmail || null,
         recipient_phone: payload.recipientPhone || null,
-        metadata: payload.metadata || {},
+        metadata: toJsonString(payload.metadata || {}),
       });
 
       return toSendLog(row);
@@ -1154,7 +1152,7 @@ function createQuotationsRepository({ db, logger, schema }) {
         quotation_id: payload.quotationId,
         reminder_type: payload.reminderType,
         triggered_by: payload.triggeredBy || null,
-        metadata: payload.metadata || {},
+        metadata: toJsonString(payload.metadata || {}),
       });
 
       return toReminderLog(row);

@@ -1010,11 +1010,11 @@ const LeadDetails: React.FC = () => {
         setConversionFollowUpMessage(followUp)
       }
 
-      await loadLead()
-      if (conversion.canonical === 'CONVERTED') {
-        await loadLeadQuotationsForLead()
-      }
-      await loadFollowups()
+      await Promise.all([
+        loadLead(),
+        loadFollowups(),
+        conversion.canonical === 'CONVERTED' ? loadLeadQuotationsForLead() : Promise.resolve()
+      ])
       setStatusNotes('')
       setClosedReason('')
     } catch (err) {
@@ -1045,8 +1045,7 @@ const LeadDetails: React.FC = () => {
         cadenceCode: '',
         notes: ''
       })
-      await loadLead()
-      await loadFollowups()
+      await Promise.all([loadLead(), loadFollowups()])
     } catch (err) {
       setStatusError(getApiErrorMessage(err, 'Could not schedule follow-up.'))
     } finally {

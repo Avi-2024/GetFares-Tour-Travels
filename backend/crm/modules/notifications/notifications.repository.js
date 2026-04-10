@@ -264,10 +264,12 @@ function createNotificationsRepository({ db, logger, schema }) {
             )
           `;
           const result = await db.query(sql, [
+            schema.statuses.READ,
             identity.userId || null,
             identity.role || null,
+            identity.role || null,
             identity.teamId || null,
-            schema.statuses.READ,
+            identity.teamId || null,
           ]);
           return Number(result.rows[0]?.total || 0);
         }

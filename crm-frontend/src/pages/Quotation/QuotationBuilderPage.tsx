@@ -781,7 +781,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     []
   )
 
-  const [campaigns] = useState<any[]>([])
 
   // const campaignOptions = useMemo(
   //   () => [
