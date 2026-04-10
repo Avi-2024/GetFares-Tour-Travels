@@ -119,7 +119,13 @@ function createDestinationsService({ repository }) {
         country,
         region: normalizeText(data.region),
         category: normalizeText(data.category),
-        rating: toNumber(data.rating, 0),
+        rating: (() => {
+          const rating = toNumber(data.rating, null);
+          if (rating !== null && (rating < 0 || rating > 5)) {
+            throw new AppError(400, "Rating must be between 0 and 5", "INVALID_RATING");
+          }
+          return rating;
+        })(),
         hero_image_url: normalizeText(data.heroImageUrl),
         thumbnail_url: normalizeText(data.thumbnailUrl),
         is_popular: toBoolean(data.isPopular, false),
@@ -165,7 +171,13 @@ function createDestinationsService({ repository }) {
         updates.region = normalizeText(data.region);
       if (data.category !== undefined)
         updates.category = normalizeText(data.category);
-      if (data.rating !== undefined) updates.rating = toNumber(data.rating);
+      if (data.rating !== undefined) {
+        const rating = toNumber(data.rating);
+        if (rating !== null && (rating < 0 || rating > 5)) {
+          throw new AppError(400, "Rating must be between 0 and 5", "INVALID_RATING");
+        }
+        updates.rating = rating;
+      }
       if (data.heroImageUrl !== undefined)
         updates.hero_image_url = normalizeText(data.heroImageUrl);
       if (data.thumbnailUrl !== undefined)
