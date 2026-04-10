@@ -20,7 +20,8 @@ class TopbarComponent extends Component<TopbarProps> {
       .join("")
       .slice(0, 2)
       .toUpperCase();
-    const roleLabel = currentUser?.role ? currentUser.role.replace(/_/g, " ") : "CMS Access";
+    const roleLabel =
+      currentUser?.role ? currentUser.role.replace(/_/g, " ") : "CMS Access";
 
     return (
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--surface-muted)] px-6 py-3 backdrop-blur-xl">
@@ -30,6 +31,18 @@ class TopbarComponent extends Component<TopbarProps> {
           </h1>
 
           <div className="flex items-center gap-3">
+            <div className="hidden lg:flex items-center gap-3">
+              <img
+                alt="Tabby"
+                className="h-6 w-auto object-contain"
+                src="tabby.svg"
+              />
+              <img
+                alt="Tamara"
+                className="h-6 w-auto object-contain"
+                src="tamara.svg"
+              />
+            </div>
             <ThemeToggle />
 
             <button

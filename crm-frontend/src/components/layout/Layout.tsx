@@ -9,9 +9,12 @@ const Layout: React.FC = () => {
     return window.innerWidth >= 1024;
   });
   const [collapsed, setCollapsed] = useState(false);
+  const contentFrameClass = collapsed
+    ? "lg:ml-20 lg:w-[calc(100%-5rem)]"
+    : "lg:ml-72 lg:w-[calc(100%-18rem)]";
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {sidebarOpen ?
         <div
           className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
@@ -30,10 +33,10 @@ const Layout: React.FC = () => {
       </div>
 
       <div
-        className={`flex flex-1 flex-col transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-72"}`}
+        className={`flex min-h-screen w-full min-w-0 flex-col transition-all duration-300 ${contentFrameClass}`}
       >
         <Header onMenuClick={() => setSidebarOpen((p) => !p)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-6 transition-all">
+        <main className="flex-1 min-w-0 overflow-y-auto p-4 transition-all md:p-6 lg:p-6">
           <Outlet />
         </main>
       </div>
