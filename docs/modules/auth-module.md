@@ -69,7 +69,7 @@ Handles sign-up, sign-in, current user profile, online/presence flag (`active`),
 
 | Function | DB |
 |----------|-----|
-| `hasUsersColumn` | **SELECT** `information_schema.columns` (cached) for optional `users.active`. |
+| `hasUsersColumn` | **SELECT** `information_schema.COLUMNS` (`TABLE_SCHEMA = DATABASE()`, `TABLE_NAME`, `COLUMN_NAME`) — cached — for optional `users.active`. |
 | `toDomainUser` / `attachRole` | Map DB row → domain; join role name/country. |
 | `resolveRole` | **SELECT** role by name; **INSERT** if missing (handle duplicate `23505`). |
 | `createUser` | **INSERT** `users`. |
@@ -139,7 +139,7 @@ No email/SMS in this module.
 - **403** `AUTH_INACTIVE_USER` — `is_active` false.
 - **401** `AUTH_TOKEN_REQUIRED` / `AUTH_INVALID_TOKEN` / `TOKEN_REVOKED` — auth middleware.
 - **404** `AUTH_USER_NOT_FOUND` — profile/toggle/logout user missing.
-- **400** — `toggleActive` when `active` is not a boolean.
+- **400** `VALIDATION_ERROR` — `toggleActive` when `active` is not a boolean (or other request validation failures).
 - Missing **`users.active`** column: updates may skip `active`; warnings in logs.
 
 ---
@@ -244,3 +244,20 @@ Header: `Authorization: Bearer <accessToken>`
 - **`users.active`** is optional; UI “online” behavior depends on migration/schema.
 - **`login_audit`** holds IP and user-agent for login tracking.
 - Listen for **`auth.registered`** / **`auth.logged_in`** for notifications, analytics, or onboarding flows.
+- **MySQL:** CRM uses `mysql2` (`backend/crm/core/database/connection.js`). Set **`MYSQL_HOST`**, **`MYSQL_DATABASE`**, and optionally **`MYSQL_USER`**, **`MYSQL_PASSWORD`**, **`MYSQL_PORT`**. Duplicate key on concurrent role insert is normalized to **`23505`** so `resolveRole` can retry. See also `docs/modules/auth.md`.
+
+---
+
+## 11. Implementation status (this repo)
+
+| Area | Status |
+|------|--------|
+| Routes + rate limits (`auth.routes.js`) | Implemented |
+| Zod validation (`auth.validation.js`) | Implemented |
+| Controller HTTP codes (`auth.controller.js`) | Implemented; `toggleActive` uses `AppError` + `VALIDATION_ERROR` for non-boolean `active` |
+| Service (JWT, bcrypt, errors, blacklist, events) | Implemented |
+| Repository (MySQL-friendly introspection, CRUD) | Implemented |
+| Middleware (`requireAuth`, blacklist check) | Implemented |
+| Events (`auth.registered`, `auth.logged_in`) | Implemented |
+
+This document describes the **live** auth module; behavior should match sections 1–9 above.

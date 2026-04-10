@@ -25,7 +25,10 @@ function createLeadsRepository({ db, logger, schema }) {
   const tableExistsCache = new Map();
 
   function canIntrospect() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || Boolean(db.pool))
+    );
   }
 
   function toPositiveInt(value, fallback, max = 500) {
@@ -112,7 +115,7 @@ function createLeadsRepository({ db, logger, schema }) {
   }
 
   async function reserveNextLeadCodeSerial() {
-    if (db.adapter === "postgres" && typeof db.query === "function") {
+    if (db.adapter === "mysql" && typeof db.query === "function") {
       try {
         const result = await db.query(
           `SELECT nextval('leads_lead_code_seq') AS serial`,
@@ -165,7 +168,7 @@ function createLeadsRepository({ db, logger, schema }) {
         if (error?.code === "23505") {
           continue;
         }
-        if (error?.code === "42703") {
+        if (error?.code === "42703" || error?.code === "ER_BAD_FIELD_ERROR") {
           return mapRowToDomain(existing);
         }
         throw error;
@@ -244,37 +247,12 @@ function createLeadsRepository({ db, logger, schema }) {
     return mapped || 1;
   }
 
-  async function getTableColumns(tableName) {
-    if (tableColumnsCache.has(tableName)) {
-      return tableColumnsCache.get(tableName);
-    }
-
-    if (typeof db.query !== "function") {
-      tableColumnsCache.set(tableName, null);
-      return null;
-    }
-
-    try {
-      const result = await db.query(
-        `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
-        [tableName],
-      );
-
-      const columnSet = new Set(result.rows.map((row) => row.column_name));
-      tableColumnsCache.set(tableName, columnSet);
-      return columnSet;
-    } catch (_error) {
-      tableColumnsCache.set(tableName, null);
-      return null;
-    }
-  }
-
   async function hasColumn(tableName, columnName) {
     const columns = await getTableColumns(tableName);
     if (!columns) {
-      return true;
+      return false;
     }
-    return columns.has(columnName);
+    return columns.has(String(columnName).toLowerCase());
   }
 
   function toCustomerDomain(row) {
@@ -495,11 +473,15 @@ function createLeadsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      (result.rows || []).map((row) =>
+        String(row.column_name ?? row.COLUMN_NAME ?? "").toLowerCase(),
+      ),
+    );
     tableColumnsCache.set(tableName, columns);
     return columns;
   }
@@ -515,10 +497,10 @@ function createLeadsRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1`,
         [tableName],
       );
-      const exists = result.rowCount > 0;
+      const exists = (result.rows?.length ?? 0) > 0;
       tableExistsCache.set(tableName, exists);
       return exists;
     } catch (_error) {
@@ -540,7 +522,9 @@ function createLeadsRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    return Object.fromEntries(
+      entries.filter(([key]) => columns.has(String(key).toLowerCase())),
+    );
   }
 
   function mapListFilters(filters = {}) {
@@ -873,41 +857,45 @@ function createLeadsRepository({ db, logger, schema }) {
         .trim()
         .toUpperCase();
 
-      if (db.adapter === "postgres" && typeof db.query === "function") {
-        const where = ["COALESCE(l.is_deleted, FALSE) = FALSE"];
+      if (db.adapter === "mysql" && typeof db.query === "function") {
+        const hasLeadCustomerId = await hasColumn(
+          schema.tableName,
+          "customer_id",
+        );
+        const where = ["COALESCE(l.is_deleted, 0) = 0"];
         const params = [];
 
         if (filters.status) {
           params.push(filters.status);
-          where.push(`l.status = $${params.length}`);
+          where.push(`l.status = ?`);
         }
 
         if (filters.source) {
           params.push(filters.source);
-          where.push(`l.source = $${params.length}`);
+          where.push(`l.source = ?`);
         }
 
         if (filters.temperature) {
           params.push(filters.temperature);
-          where.push(`l.temperature = $${params.length}`);
+          where.push(`l.temperature = ?`);
         }
 
         if (filters.subStatus) {
           params.push(filters.subStatus);
-          where.push(`l.sub_status = $${params.length}`);
+          where.push(`l.sub_status = ?`);
         }
 
         if (filters.leadType) {
           params.push(filters.leadType);
-          where.push(`l.lead_type = $${params.length}`);
+          where.push(`l.lead_type = ?`);
         } else if (filters.type) {
           params.push(filters.type);
-          where.push(`l.lead_type = $${params.length}`);
+          where.push(`l.lead_type = ?`);
         }
 
         if (filters.assignedTo) {
           params.push(filters.assignedTo);
-          where.push(`l.assigned_to = $${params.length}`);
+          where.push(`l.assigned_to = ?`);
         }
 
         if (Array.isArray(filters.visibleAssigneeIds)) {
@@ -919,12 +907,13 @@ function createLeadsRepository({ db, logger, schema }) {
             ),
           ];
           if (visibleAssigneeIds.length > 0) {
-            params.push(visibleAssigneeIds);
+            const assignPh = visibleAssigneeIds.map(() => "?").join(", ");
+            params.push(...visibleAssigneeIds);
             if (filters.includeUnassigned === false) {
-              where.push(`l.assigned_to = ANY($${params.length}::uuid[])`);
+              where.push(`l.assigned_to IN (${assignPh})`);
             } else {
               where.push(
-                `(l.assigned_to IS NULL OR l.assigned_to = ANY($${params.length}::uuid[]))`,
+                `(l.assigned_to IS NULL OR l.assigned_to IN (${assignPh}))`,
               );
             }
           }
@@ -932,7 +921,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
         if (filters.destinationId) {
           params.push(filters.destinationId);
-          where.push(`l.destination_id = $${params.length}`);
+          where.push(`l.destination_id = ?`);
         }
 
         if (filters.destination) {
@@ -940,10 +929,10 @@ function createLeadsRepository({ db, logger, schema }) {
           if (destination) {
             if (isUuidLike(destination)) {
               params.push(destination);
-              where.push(`l.destination_id = $${params.length}`);
+              where.push(`l.destination_id = ?`);
             } else {
               params.push(destination);
-              where.push(`LOWER(COALESCE(d.name, '')) = LOWER($${params.length})`);
+              where.push(`LOWER(COALESCE(d.name, '')) = LOWER(?)`);
             }
           }
         }
@@ -951,7 +940,7 @@ function createLeadsRepository({ db, logger, schema }) {
         if (filters.leadCountry || filters.country) {
           params.push(filters.leadCountry ?? filters.country);
           where.push(
-            `LOWER(COALESCE(l.lead_country, '')) = LOWER($${params.length})`,
+            `LOWER(COALESCE(l.lead_country, '')) = LOWER(?)`,
           );
         }
 
@@ -964,49 +953,66 @@ function createLeadsRepository({ db, logger, schema }) {
             ),
           ];
           if (allowedCountries.length > 0) {
-            params.push(allowedCountries);
+            const countryPh = allowedCountries.map(() => "?").join(", ");
+            params.push(...allowedCountries);
             where.push(
-              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) = ANY($${params.length}::text[]))`,
+              `(NULLIF(TRIM(COALESCE(l.lead_country, '')), '') IS NULL OR LOWER(COALESCE(l.lead_country, '')) IN (${countryPh}))`,
             );
           }
         }
 
         if (filters.countryId) {
           params.push(filters.countryId);
-          where.push(`l.country_id = $${params.length}`);
+          where.push(`l.country_id = ?`);
         }
 
         if (filters.campaignId) {
           params.push(filters.campaignId);
-          where.push(`l.campaign_id = $${params.length}`);
+          where.push(`l.campaign_id = ?`);
         }
 
         if (filters.email) {
           const normalizedEmail = String(filters.email).trim().toLowerCase();
           if (normalizedEmail) {
-            params.push(`%${normalizedEmail}%`);
-            where.push(
-              `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${params.length} OR LOWER(COALESCE(c.email, '')) LIKE $${params.length})`,
-            );
+            const ev = `%${normalizedEmail}%`;
+            if (hasLeadCustomerId) {
+              params.push(ev, ev);
+              where.push(
+                `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ? OR LOWER(COALESCE(c.email, '')) LIKE ?)`,
+              );
+            } else {
+              params.push(ev);
+              where.push(
+                `(LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?)`,
+              );
+            }
           }
         }
 
         if (filters.phone) {
           const normalizedPhone = String(filters.phone).replace(/\D/g, "");
           if (normalizedPhone) {
-            params.push(`%${normalizedPhone}%`);
-            where.push(
-              `(regexp_replace(COALESCE(NULLIF(l.phone, ''), ''), '\\D', '', 'g') LIKE $${params.length} OR regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g') LIKE $${params.length})`,
-            );
+            const phoneLike = `%${normalizedPhone}%`;
+            if (hasLeadCustomerId) {
+              params.push(phoneLike, phoneLike);
+              where.push(
+                `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ? OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE ?)`,
+              );
+            } else {
+              params.push(phoneLike);
+              where.push(
+                `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ?)`,
+              );
+            }
           }
         }
 
         if (filters.leadId) {
           const leadId = String(filters.leadId).trim();
           if (leadId) {
-            params.push(leadId);
+            params.push(leadId, leadId, leadId);
             where.push(
-              `(LOWER(l.id::text) = LOWER($${params.length}) OR LOWER(COALESCE(l.lead_code, '')) = LOWER($${params.length}) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER($${params.length}))`,
+              `(LOWER(CAST(l.id AS CHAR)) = LOWER(?) OR LOWER(COALESCE(l.lead_code, '')) = LOWER(?) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER(?))`,
             );
           }
         }
@@ -1014,25 +1020,45 @@ function createLeadsRepository({ db, logger, schema }) {
         if (filters.search) {
           const rawSearch = String(filters.search).trim().toLowerCase();
           if (rawSearch) {
-            params.push(`%${rawSearch}%`);
-            const textParamIndex = params.length;
-            const searchWhere = [
-              `LOWER(COALESCE(c.full_name, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(c.email, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(d.name, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.source, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.id::text, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.lead_code, '')) LIKE $${textParamIndex}`,
-              `LOWER(COALESCE(l.meta_lead_id, '')) LIKE $${textParamIndex}`,
-            ];
+            const searchVal = `%${rawSearch}%`;
+            const searchWhere = hasLeadCustomerId ?
+                [
+                  `LOWER(COALESCE(c.full_name, '')) LIKE ?`,
+                  `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE ?`,
+                  `LOWER(COALESCE(c.email, '')) LIKE ?`,
+                  `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
+                  `LOWER(COALESCE(d.name, '')) LIKE ?`,
+                  `LOWER(COALESCE(l.source, '')) LIKE ?`,
+                  `LOWER(CAST(l.id AS CHAR)) LIKE ?`,
+                  `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
+                  `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
+                ]
+              : [
+                  `LOWER(COALESCE(NULLIF(l.full_name, ''), '')) LIKE ?`,
+                  `LOWER(COALESCE(NULLIF(l.email, ''), '')) LIKE ?`,
+                  `LOWER(COALESCE(d.name, '')) LIKE ?`,
+                  `LOWER(COALESCE(l.source, '')) LIKE ?`,
+                  `LOWER(CAST(l.id AS CHAR)) LIKE ?`,
+                  `LOWER(COALESCE(l.lead_code, '')) LIKE ?`,
+                  `LOWER(COALESCE(l.meta_lead_id, '')) LIKE ?`,
+                ];
+            for (let i = 0; i < searchWhere.length; i += 1) {
+              params.push(searchVal);
+            }
             const phoneSearch = rawSearch.replace(/\D/g, "");
             if (phoneSearch) {
-              params.push(`%${phoneSearch}%`);
-              searchWhere.push(
-                `(regexp_replace(COALESCE(NULLIF(l.phone, ''), ''), '\\D', '', 'g') LIKE $${params.length} OR regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g') LIKE $${params.length})`,
-              );
+              const phoneLike = `%${phoneSearch}%`;
+              if (hasLeadCustomerId) {
+                params.push(phoneLike, phoneLike);
+                searchWhere.push(
+                  `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ? OR REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '') LIKE ?)`,
+                );
+              } else {
+                params.push(phoneLike);
+                searchWhere.push(
+                  `(REGEXP_REPLACE(COALESCE(NULLIF(l.phone, ''), ''), '[^0-9]', '') LIKE ?)`,
+                );
+              }
             }
             where.push(`(${searchWhere.join(" OR ")})`);
           }
@@ -1040,25 +1066,27 @@ function createLeadsRepository({ db, logger, schema }) {
 
         if (filters.fromDate) {
           params.push(filters.fromDate);
-          where.push(`l.created_at >= $${params.length}::date`);
+          where.push(`l.created_at >= CAST(? AS DATE)`);
         }
 
         if (filters.toDate) {
           params.push(filters.toDate);
-          where.push(`l.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+          where.push(
+            `l.created_at < DATE_ADD(CAST(? AS DATE), INTERVAL 1 DAY)`,
+          );
         }
 
         if (filters.sla === "OVERDUE" || quickFilter === "LATE_RESPONSE") {
           where.push(
-            `(COALESCE(l.sla_breached, FALSE) = TRUE OR (l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline < NOW()))`,
+            `(COALESCE(l.sla_breached, 0) = 1 OR (l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline < NOW()))`,
           );
         } else if (filters.sla === "PENDING") {
           where.push(
-            `(l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline >= NOW() AND COALESCE(l.sla_breached, FALSE) = FALSE)`,
+            `(l.response_at IS NULL AND l.response_deadline IS NOT NULL AND l.response_deadline >= NOW() AND COALESCE(l.sla_breached, 0) = 0)`,
           );
         } else if (filters.sla === "WITHIN_SLA") {
           where.push(
-            `(l.response_at IS NOT NULL AND l.response_deadline IS NOT NULL AND l.response_at <= l.response_deadline AND COALESCE(l.sla_breached, FALSE) = FALSE)`,
+            `(l.response_at IS NOT NULL AND l.response_deadline IS NOT NULL AND l.response_at <= l.response_deadline AND COALESCE(l.sla_breached, 0) = 0)`,
           );
         }
 
@@ -1072,14 +1100,16 @@ function createLeadsRepository({ db, logger, schema }) {
 
         const baseSql = [
           `FROM ${schema.tableName} l`,
-          `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id`,
+          hasLeadCustomerId ?
+            `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id`
+          : null,
           `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
           `WHERE ${where.join(" AND ")}`,
         ]
           .filter(Boolean)
           .join("\n");
 
-        const countSql = [`SELECT COUNT(*)::int AS total`, baseSql].join("\n");
+        const countSql = [`SELECT COUNT(*) AS total`, baseSql].join("\n");
         const countResult = await db.query(countSql, params);
         const total = Number(countResult.rows?.[0]?.total || 0);
 
@@ -1087,7 +1117,7 @@ function createLeadsRepository({ db, logger, schema }) {
           `SELECT l.*`,
           baseSql,
           buildSortClause(filters.sortBy),
-          `LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+          `LIMIT ? OFFSET ?`,
         ]
           .filter(Boolean)
           .join("\n");
@@ -1285,9 +1315,9 @@ function createLeadsRepository({ db, logger, schema }) {
         return null;
       }
 
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const result = await db.query(
-          `SELECT * FROM ${schema.destinationsTable} WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+          `SELECT * FROM ${schema.destinationsTable} WHERE LOWER(name) = LOWER(?) LIMIT 1`,
           [normalized],
         );
         return result.rows?.[0] || null;
@@ -1433,7 +1463,7 @@ function createLeadsRepository({ db, logger, schema }) {
     async findUserAgentCountry(userId) {
       if (!userId) return null;
 
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const [hasUserCountriesTable, hasCountriesTable] = await Promise.all([
           hasTable(schema.userCountriesTable),
           hasTable(schema.countriesTable),
@@ -1444,7 +1474,7 @@ function createLeadsRepository({ db, logger, schema }) {
               SELECT c.name
               FROM ${schema.userCountriesTable} uc
               INNER JOIN ${schema.countriesTable} c ON c.id = uc.country_id
-              WHERE uc.user_id = $1
+              WHERE uc.user_id = ?
               ORDER BY uc.is_primary DESC, c.name ASC
               LIMIT 1
             `,
@@ -1463,7 +1493,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findUserCountryNames(userId) {
       if (!userId) return [];
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const [hasUserCountriesTable, hasCountriesTable] = await Promise.all([
           hasTable(schema.userCountriesTable),
           hasTable(schema.countriesTable),
@@ -1474,7 +1504,7 @@ function createLeadsRepository({ db, logger, schema }) {
               SELECT c.name
               FROM ${schema.userCountriesTable} uc
               INNER JOIN ${schema.countriesTable} c ON c.id = uc.country_id
-              WHERE uc.user_id = $1
+              WHERE uc.user_id = ?
               ORDER BY uc.is_primary DESC, c.name ASC
             `,
             [userId],
@@ -1499,12 +1529,12 @@ function createLeadsRepository({ db, logger, schema }) {
       const normalizedType = agentType ? String(agentType).trim().toUpperCase() : null;
       
       // Use database-level filtering for better performance
-      if (db.adapter === 'postgres' && normalizedCountry) {
-        const typeCondition = normalizedType 
-          ? `AND (u.agent_type = $2 OR u.agent_type = 'BOTH')`
-          : '';
-        
-        const params = normalizedType 
+      if (db.adapter === 'mysql' && normalizedCountry) {
+        const typeCondition = normalizedType
+          ? `AND (u.agent_type = ? OR u.agent_type = 'BOTH')`
+          : "";
+
+        const params = normalizedType
           ? [normalizedCountry, normalizedType]
           : [normalizedCountry];
 
@@ -1512,9 +1542,9 @@ function createLeadsRepository({ db, logger, schema }) {
           SELECT u.*, r.name as role_name
           FROM ${schema.usersTable} u
           LEFT JOIN ${schema.rolesTable} r ON u.role_id = r.id
-          WHERE u.is_active = true
-            AND COALESCE(u.is_on_leave, false) = false
-            AND LOWER(u.agent_country) = $1
+          WHERE u.is_active = 1
+            AND COALESCE(u.is_on_leave, 0) = 0
+            AND LOWER(u.agent_country) = ?
             AND r.name IN ('agent', 'sales_consultant', 'visa_executive', 'holiday_consultant')
             ${typeCondition}
           ORDER BY u.id ASC
@@ -1639,14 +1669,14 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findManagedAgentIds(managerId) {
       if (!managerId) return [];
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const hasParentId = await hasColumn(schema.usersTable, "parent_id");
         if (hasParentId) {
           const result = await db.query(
             `
               SELECT id
               FROM ${schema.usersTable}
-              WHERE COALESCE(parent_id, manager_id) = $1
+              WHERE COALESCE(parent_id, manager_id) = ?
             `,
             [managerId],
           );
@@ -1775,9 +1805,9 @@ function createLeadsRepository({ db, logger, schema }) {
       }
       const normalizedLimit = toPositiveInt(limit, 50);
 
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const result = await db.query(
-          `SELECT * FROM ${tableName} WHERE processed_at IS NULL ORDER BY queued_at ASC LIMIT $1`,
+          `SELECT * FROM ${tableName} WHERE processed_at IS NULL ORDER BY queued_at ASC LIMIT ?`,
           [normalizedLimit],
         );
         return result.rows || [];
@@ -1893,18 +1923,18 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findSlaBreachCandidates({ limit = 100 } = {}) {
       const normalizedLimit = toPositiveInt(limit, 100);
-      if (db.adapter === "postgres") {
+      if (db.adapter === "mysql") {
         const result = await db.query(
           `
             SELECT *
             FROM ${schema.tableName}
             WHERE status NOT IN ('CONVERTED', 'LOST')
-              AND COALESCE(sla_breached, FALSE) = FALSE
+              AND COALESCE(sla_breached, 0) = 0
               AND response_at IS NULL
               AND response_deadline IS NOT NULL
               AND response_deadline < CURRENT_TIMESTAMP
             ORDER BY response_deadline ASC
-            LIMIT $1
+            LIMIT ?
           `,
           [normalizedLimit],
         );

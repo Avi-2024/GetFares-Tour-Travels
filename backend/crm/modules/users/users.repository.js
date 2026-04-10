@@ -1,6 +1,6 @@
 function createUsersRepository({ db, logger, schema }) {
   async function hasColumn(tableName, columnName) {
-    if (db.adapter !== "postgres") {
+    if (db.adapter !== "mysql") {
       return false;
     }
     try {
@@ -8,15 +8,16 @@ function createUsersRepository({ db, logger, schema }) {
         `
           SELECT 1
           FROM information_schema.columns
-          WHERE table_name = $1
-            AND column_name = $2
+          WHERE table_schema = DATABASE()
+            AND table_name = ?
+            AND column_name = ?
           LIMIT 1
         `,
         [tableName, columnName],
       );
       return result.rowCount > 0;
     } catch (error) {
-      if (error?.code === "42P01") {
+      if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
         return false;
       }
       throw error;
@@ -49,17 +50,17 @@ function createUsersRepository({ db, logger, schema }) {
   async function countActiveUsersByRoleId(roleId, { excludeUserId } = {}) {
     if (!roleId) return 0;
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       const values = [roleId];
-      const filters = ["u.role_id = $1", "u.is_active = TRUE"];
+      const filters = ["u.role_id = ?", "u.is_active = 1"];
       if (excludeUserId) {
         values.push(excludeUserId);
-        filters.push(`u.id <> $${values.length}`);
+        filters.push(`u.id <> ?`);
       }
 
       const result = await db.query(
         `
-          SELECT COUNT(*)::int AS count
+          SELECT COUNT(*) AS count
           FROM ${schema.tableName} u
           WHERE ${filters.join(" AND ")}
         `,
@@ -80,20 +81,21 @@ function createUsersRepository({ db, logger, schema }) {
       .filter(Boolean);
     if (!normalized.length) return [];
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       try {
+        const placeholders = normalized.map(() => "?").join(", ");
         const result = await db.query(
           `
             SELECT id, code, name, is_active
             FROM ${schema.countriesTable}
-            WHERE id = ANY($1::uuid[])
+            WHERE id IN (${placeholders})
             ORDER BY name ASC
           `,
-          [normalized],
+          normalized,
         );
         return result.rows;
       } catch (error) {
-        if (error?.code === "42P01") {
+        if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
           return [];
         }
         throw error;
@@ -113,9 +115,10 @@ function createUsersRepository({ db, logger, schema }) {
       return new Map();
     }
 
-    if (db.adapter === "postgres") {
+    if (db.adapter === "mysql") {
       let result;
       try {
+        const placeholders = normalized.map(() => "?").join(", ");
         result = await db.query(
           `
             SELECT
@@ -127,13 +130,13 @@ function createUsersRepository({ db, logger, schema }) {
               c.is_active
             FROM ${schema.userCountriesTable} uc
             INNER JOIN ${schema.countriesTable} c ON c.id = uc.country_id
-            WHERE uc.user_id = ANY($1::uuid[])
+            WHERE uc.user_id IN (${placeholders})
             ORDER BY uc.user_id ASC, uc.is_primary DESC, c.name ASC
           `,
-          [normalized],
+          normalized,
         );
       } catch (error) {
-        if (error?.code === "42P01") {
+        if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
           return new Map();
         }
         throw error;
@@ -171,17 +174,17 @@ function createUsersRepository({ db, logger, schema }) {
     const normalized = [...new Set(countryIds.map((id) => String(id || "").trim()))]
       .filter(Boolean);
 
-    if (db.adapter !== "postgres") {
+    if (db.adapter !== "mysql") {
       return [];
     }
 
     try {
       await db.query(
-        `DELETE FROM ${schema.userCountriesTable} WHERE user_id = $1`,
+        `DELETE FROM ${schema.userCountriesTable} WHERE user_id = ?`,
         [userId],
       );
     } catch (error) {
-      if (error?.code === "42P01") {
+      if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
         return [];
       }
       throw error;
@@ -196,15 +199,14 @@ function createUsersRepository({ db, logger, schema }) {
           `
             INSERT INTO ${schema.userCountriesTable}
               (user_id, country_id, is_primary, created_by)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (user_id, country_id)
-            DO UPDATE SET is_primary = EXCLUDED.is_primary
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE is_primary = VALUES(is_primary)
           `,
           [userId, countryId, isPrimary, createdBy],
         );
       }
     } catch (error) {
-      if (error?.code === "42P01") {
+      if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
         return [];
       }
       throw error;

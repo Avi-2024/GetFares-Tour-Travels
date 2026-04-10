@@ -109,7 +109,7 @@ function createPaymentsRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -138,7 +138,7 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
       [tableName],
     );
 
@@ -205,14 +205,14 @@ function createPaymentsRepository({ db, logger, schema }) {
 
     if (canUseRawQuery()) {
       const result = await db.query(
-        `
-          SELECT COALESCE(SUM(refund_amount), 0) AS refund_amount
-          FROM ${schema.refundsTable}
-          WHERE booking_id = $1
-            AND status = 'PROCESSED'
-        `,
-        [bookingId],
-      );
+          `
+            SELECT COALESCE(SUM(refund_amount), 0) AS refund_amount
+            FROM ${schema.refundsTable}
+            WHERE booking_id = ?
+              AND status = 'PROCESSED'
+          `,
+          [bookingId],
+        );
 
       return toNumber(result.rows[0]?.refund_amount, 0);
     }
@@ -255,12 +255,12 @@ function createPaymentsRepository({ db, logger, schema }) {
       if (canUseRawQuery()) {
         const paymentsQuery = `
           SELECT
-            COALESCE(SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
+            ROUND(COALESCE(SUM(CASE WHEN COALESCE(is_verified, 0) = 1
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-              THEN amount ELSE 0 END), 0)::numeric AS collected_amount,
-            SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
+              THEN amount ELSE 0 END), 0), 2) AS collected_amount,
+            SUM(CASE WHEN COALESCE(is_verified, 0) = 1
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-              THEN 1 ELSE 0 END)::int AS collected_count
+              THEN 1 ELSE 0 END) AS collected_count
           FROM ${schema.tableName}
         `;
 
@@ -289,29 +289,29 @@ function createPaymentsRepository({ db, logger, schema }) {
           }
 
           let notDeletedPredicate = hasSoftDelete
-            ? "COALESCE(b.is_deleted, FALSE) = FALSE"
-            : "TRUE";
+            ? "COALESCE(b.is_deleted, 0) = 0"
+            : "1 = 1";
           let overdueDatePredicate = hasTravelStartDate
-            ? "b.travel_start_date < CURRENT_DATE"
-            : "FALSE";
+            ? "b.travel_start_date < CURDATE()"
+            : "1 = 0";
 
           const buildBookingsQuery = (notDeleted, overdueDate) => `
             SELECT
-              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+              ROUND(COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
-                ELSE 0 END), 0)::numeric AS outstanding_amount,
+                ELSE 0 END), 0), 2) AS outstanding_amount,
               SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
-                THEN 1 ELSE 0 END)::int AS outstanding_count,
-              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                THEN 1 ELSE 0 END) AS outstanding_count,
+              ROUND(COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 AND ${overdueDate}
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
                 THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
-                ELSE 0 END), 0)::numeric AS overdue_amount,
+                ELSE 0 END), 0), 2) AS overdue_amount,
               SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 AND ${overdueDate}
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
-                THEN 1 ELSE 0 END)::int AS overdue_count
+                THEN 1 ELSE 0 END) AS overdue_count
             FROM ${schema.bookingsTable} b
           `;
 
@@ -325,6 +325,7 @@ function createPaymentsRepository({ db, logger, schema }) {
             const code = error?.code;
             const missingColumn =
               code === "42703" ||
+              code === "ER_BAD_FIELD_ERROR" ||
               message.includes("is_deleted") ||
               message.includes("travel_start_date");
 
@@ -351,8 +352,8 @@ function createPaymentsRepository({ db, logger, schema }) {
           const refundResult = await db.query(
             `
               SELECT
-                COALESCE(SUM(refund_amount), 0)::numeric AS refunds_amount,
-                COUNT(*)::int AS refunds_count
+                ROUND(COALESCE(SUM(refund_amount), 0), 2) AS refunds_amount,
+                COUNT(*) AS refunds_count
               FROM ${schema.refundsTable}
               WHERE status = 'PROCESSED'
             `,
@@ -520,8 +521,8 @@ function createPaymentsRepository({ db, logger, schema }) {
           `
             SELECT COALESCE(SUM(amount), 0) AS paid_amount
             FROM ${schema.tableName}
-            WHERE booking_id = $1
-              AND COALESCE(is_verified, FALSE) = TRUE
+            WHERE booking_id = ?
+              AND COALESCE(is_verified, 0) = 1
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
           `,
           [bookingId],

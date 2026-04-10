@@ -18,7 +18,7 @@ function createRolesService({ db, logger }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name=$2 LIMIT 1`,
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1`,
         [ROLES_TABLE, columnName],
       );
       const exists = result.rowCount > 0;
@@ -41,7 +41,7 @@ function createRolesService({ db, logger }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -82,11 +82,11 @@ function createRolesService({ db, logger }) {
         `
           SELECT id, code, name, is_active
           FROM ${COUNTRIES_TABLE}
-          WHERE LOWER(code) = LOWER($1)
-             OR LOWER(name) = LOWER($1)
+          WHERE LOWER(code) = LOWER(?)
+             OR LOWER(name) = LOWER(?)
           LIMIT 1
         `,
-        [normalized],
+        [normalized, normalized],
       );
 
       const country = result.rows?.[0];
@@ -202,7 +202,7 @@ function createRolesService({ db, logger }) {
       const created = await db.insert(ROLES_TABLE, record);
       return toRole(created);
     } catch (error) {
-      if (error?.code === "23505") {
+      if (error?.code === "23505" || error?.errno === 1062) {
         throw new AppError(409, "Role already exists", "ROLE_ALREADY_EXISTS");
       }
       throw error;
@@ -258,7 +258,7 @@ function createRolesService({ db, logger }) {
       const updated = await db.update(ROLES_TABLE, roleId, updates);
       return toRole(updated);
     } catch (error) {
-      if (error?.code === "23505") {
+      if (error?.code === "23505" || error?.errno === 1062) {
         throw new AppError(409, "Role already exists", "ROLE_ALREADY_EXISTS");
       }
       throw error;

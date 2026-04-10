@@ -21,7 +21,16 @@ function createApp(overrides = {}) {
   };
 
   app.use(helmet());
-  app.use(cors({ origin: container.config.app.corsOrigin }));
+  const corsOptions = {
+    origin: container.config.app.corsOrigin,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Authorization"],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  };
+  app.use(cors(corsOptions));
+  app.options("*", cors(corsOptions));
   app.use(
     express.json({
       limit: "5mb",

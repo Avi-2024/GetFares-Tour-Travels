@@ -27,7 +27,7 @@ Central CRM module for **sales leads**: capture, **RBAC-scoped listing**, **assi
 2. **`validateRequest`** → **`req.validated`**.  
 3. **Controller** → **service** method.  
 4. **Service** enforces **access** (`canUserAccessLead` on get/update/assign), builds records, calls **repository**.  
-5. **Repository** reads/writes DB (often Postgres-specific queries when `db.query` + pool exist).  
+5. **Repository** reads/writes DB (MySQL via `mysql2`; raw SQL uses `?` placeholders).  
 6. **Events** (`leads.events.js`) + **`lead_activities`** rows for audit trail.
 
 ---
@@ -101,7 +101,7 @@ Static paths (`/distribute`, `/public-capture`, …) are registered **before** `
 
 ### Repository (`leads.repository.js`)
 
-Implements persistence: **lead CRUD**, **lead_code** generation (`nextval` or scan), **findAll** with rich filtering (search, SLA, temperatures, joins), **agents** / **managed agents**, **queued_leads**, **followups** (type mapping to ints), **compliance stats**, **activities**, **customers** update when linked, **system date/time** prefs from **`app_settings`**, introspection for optional columns, etc.
+Implements persistence: **lead CRUD**, **lead_code** generation (table scan / `AUTO_INCREMENT` when available), **findAll** with rich filtering (search, SLA, temperatures, joins), **agents** / **managed agents**, **queued_leads**, **followups** (type mapping to ints), **compliance stats**, **activities**, **customers** update when linked, **system date/time** prefs from **`app_settings`**, introspection via **`information_schema`** (`DATABASE()`), etc.
 
 ### Events (`leads.events.js`)
 
@@ -144,7 +144,7 @@ Broad **Zod** schemas: lead fields (travel, UTM, type, status, assignment…), *
 | **INSERT** | `leads`, `lead_activities`, `followups`, `lead_followup_alert_logs`, `queued_leads`, sometimes **customers** |
 | **UPDATE** | `leads`, `followups`, `customers` (when linked), queue rows, SLA flags |
 
-Exact SQL is in **`leads.repository.js`** (Postgres-oriented).
+Exact SQL is in **`leads.repository.js`** (MySQL-oriented).
 
 ---
 
@@ -204,7 +204,7 @@ Exact SQL is in **`leads.repository.js`** (Postgres-oriented).
 
 - **Service file is large** — search by method name or read **`return Object.freeze({`** near file end for the exported surface.  
 - **`processQueuedLeads`** exists on the service but is **not** exposed in `leads.routes.js`; may be invoked from **cron** or **another module**.  
-- **Repository** behavior depends on **Postgres** features and **schema** (sequences, columns). Optional columns are probed for safe deploys.  
+- **Repository** behavior depends on **MySQL** features and **schema** (`AUTO_INCREMENT`, JSON columns, optional columns). Optional columns are probed for safe deploys.  
 - **Duplicate** handling: **`createOrGetDuplicate`** catches **`LEAD_DUPLICATE`** and returns existing lead (used by integrations).  
 - For **frontend**, list response includes **`pagination`** (`total`, `totalPages`), not only a flat array.
 

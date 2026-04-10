@@ -56,9 +56,11 @@ const Header: React.FC<{
     return localStorage.getItem('theme') === 'dark'
   })
   const [menuOpen, setMenuOpen] = useState(false)
-  const [workingMode, setWorkingMode] = useState<boolean | null>(
-    typeof user?.active === 'boolean' ? user.active : null
-  )
+  const [workingMode, setWorkingMode] = useState<boolean | null>(() => {
+    if (typeof user?.active === 'boolean') return user.active
+    if (typeof user?.isActive === 'boolean') return user.isActive
+    return null
+  })
   const [togglingWorkingMode, setTogglingWorkingMode] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
 
@@ -71,8 +73,14 @@ const Header: React.FC<{
   }, [dark])
 
   useEffect(() => {
-    setWorkingMode(typeof user?.active === 'boolean' ? user.active : null)
-  }, [user?.active])
+    if (typeof user?.active === 'boolean') {
+      setWorkingMode(user.active)
+    } else if (typeof user?.isActive === 'boolean') {
+      setWorkingMode(user.isActive)
+    } else {
+      setWorkingMode(null)
+    }
+  }, [user?.active, user?.isActive])
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
@@ -91,6 +99,16 @@ const Header: React.FC<{
     document.documentElement.classList.toggle('dark', next)
   }
 
+  const normalizeBooleanFlag = (value: unknown): boolean | null => {
+    if (value === true || value === 1 || value === '1' || value === 'true') {
+      return true
+    }
+    if (value === false || value === 0 || value === '0' || value === 'false') {
+      return false
+    }
+    return null
+  }
+
   const syncPresenceUser = (payload: PresencePayload) => {
     if (!token) return
     setAuthState(token, {
@@ -103,8 +121,9 @@ const Header: React.FC<{
       email: payload.email || user?.email || '',
       role: payload.role ?? user?.role,
       roleId: payload.roleId ?? user?.roleId,
-      active: payload.active ?? null,
-      isActive: payload.isActive
+      active: normalizeBooleanFlag(payload.active ?? payload.isActive),
+      isActive:
+        normalizeBooleanFlag(payload.isActive ?? payload.active) ?? undefined,
     })
   }
 
@@ -116,14 +135,19 @@ const Header: React.FC<{
     try {
       const response = await authApi.toggleActive(next)
       const payload = response?.data
-      const confirmed =
-        typeof payload?.active === 'boolean' ? payload.active : null
+      const confirmed = normalizeBooleanFlag(payload?.active ?? payload?.isActive)
       setWorkingMode(confirmed)
       if (payload) {
         syncPresenceUser(payload)
       }
     } catch {
-      setWorkingMode(typeof user?.active === 'boolean' ? user.active : null)
+      setWorkingMode(
+        typeof user?.active === 'boolean'
+          ? user.active
+          : typeof user?.isActive === 'boolean'
+          ? user.isActive
+          : null,
+      )
     } finally {
       setTogglingWorkingMode(false)
     }

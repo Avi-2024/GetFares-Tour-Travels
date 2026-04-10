@@ -27,7 +27,10 @@ function createRbacModule({ dependencies }) {
     rolesService: dependencies.services?.roles,
   });
 
-  const middleware = createRbacMiddleware({ rbacService: service });
+  const middleware = createRbacMiddleware({
+    rbacService: service,
+    logger: dependencies.logger,
+  });
 
   const controller = createRbacController({ service });
 

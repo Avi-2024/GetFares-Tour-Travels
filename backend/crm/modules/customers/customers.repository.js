@@ -2,7 +2,10 @@ function createCustomersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || Boolean(db.pool))
+    );
   }
 
   async function getTableColumns(tableName) {
@@ -15,11 +18,15 @@ function createCustomersRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      (result.rows || []).map((row) =>
+        String(row.column_name ?? row.COLUMN_NAME ?? "").toLowerCase(),
+      ),
+    );
     tableColumnsCache.set(tableName, columns);
     return columns;
   }
@@ -37,15 +44,17 @@ function createCustomersRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    return Object.fromEntries(
+      entries.filter(([key]) => columns.has(String(key).toLowerCase())),
+    );
   }
 
   async function hasColumn(tableName, columnName) {
     const columns = await getTableColumns(tableName);
     if (!columns) {
-      return true;
+      return false;
     }
-    return columns.has(columnName);
+    return columns.has(String(columnName).toLowerCase());
   }
 
   function toDateOnly(value) {
@@ -103,57 +112,72 @@ function createCustomersRepository({ db, logger, schema }) {
     }
 
     if (canUseRawQuery()) {
-      const leadHasSoftDelete = await hasColumn(schema.leadsTable, "is_deleted");
-      const quotationHasSoftDelete = await hasColumn(
-        schema.quotationsTable,
-        "is_deleted",
-      );
-      const bookingHasSoftDelete = await hasColumn(
-        schema.bookingsTable,
-        "is_deleted",
-      );
+      const [leadHasCustomerId, leadHasSoftDelete, quotationHasSoftDelete, bookingHasSoftDelete] =
+        await Promise.all([
+          hasColumn(schema.leadsTable, "customer_id"),
+          hasColumn(schema.leadsTable, "is_deleted"),
+          hasColumn(schema.quotationsTable, "is_deleted"),
+          hasColumn(schema.bookingsTable, "is_deleted"),
+        ]);
+
+      if (!leadHasCustomerId) {
+        return new Map();
+      }
 
       const leadSoftDeleteClause = leadHasSoftDelete
-        ? "AND COALESCE(l.is_deleted, FALSE) = FALSE"
+        ? "AND COALESCE(l.is_deleted, 0) = 0"
         : "";
       const quotationSoftDeleteClause = quotationHasSoftDelete
-        ? "AND COALESCE(q.is_deleted, FALSE) = FALSE"
+        ? "AND COALESCE(q.is_deleted, 0) = 0"
         : "";
       const bookingSoftDeleteClause = bookingHasSoftDelete
-        ? "AND COALESCE(b.is_deleted, FALSE) = FALSE"
+        ? "AND COALESCE(b.is_deleted, 0) = 0"
+        : "";
+      const bookingSubDeleteClause = bookingHasSoftDelete
+        ? "AND COALESCE(b2.is_deleted, 0) = 0"
         : "";
 
+      const placeholders = ids.map(() => "?").join(", ");
       const query = `
         SELECT
-          l.customer_id::text AS customer_id,
-          COUNT(DISTINCT b.id)::int AS total_bookings,
-          MAX(COALESCE(b.created_at, b.travel_start_date::timestamp)) AS last_booking_date,
-          (ARRAY_AGG(
-            COALESCE(NULLIF(b.booking_number, ''), b.id::text)
-            ORDER BY COALESCE(b.created_at, b.travel_start_date::timestamp) DESC NULLS LAST, b.created_at DESC NULLS LAST
-          ))[1] AS last_booking_number
+          CONVERT(l.customer_id, CHAR) AS customer_id,
+          COUNT(DISTINCT b.id) AS total_bookings,
+          MAX(COALESCE(b.created_at, b.travel_start_date)) AS last_booking_date,
+          (
+            SELECT COALESCE(NULLIF(b2.booking_number, ''), CONVERT(b2.id, CHAR))
+            FROM ${schema.bookingsTable} b2
+            INNER JOIN ${schema.quotationsTable} q2 ON q2.id = b2.quotation_id
+            WHERE q2.lead_id = l.id
+              ${bookingSubDeleteClause}
+            ORDER BY COALESCE(b2.created_at, b2.travel_start_date) DESC
+            LIMIT 1
+          ) AS last_booking_number
         FROM ${schema.leadsTable} l
         INNER JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
         INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
-        WHERE l.customer_id = ANY($1::uuid[])
+        WHERE l.customer_id IN (${placeholders})
           ${leadSoftDeleteClause}
           ${quotationSoftDeleteClause}
           ${bookingSoftDeleteClause}
         GROUP BY l.customer_id
       `;
 
-      const result = await db.query(query, [ids]);
-      const summaryMap = new Map();
-      result.rows.forEach((row) => {
-        const customerId = String(row.customer_id || "");
-        if (!customerId) return;
-        summaryMap.set(customerId, {
-          totalBookings: Number(row.total_bookings || 0),
-          lastBookingDate: toDateOnly(row.last_booking_date),
-          lastBookingNumber: row.last_booking_number || null,
+      try {
+        const result = await db.query(query, ids);
+        const summaryMap = new Map();
+        result.rows.forEach((row) => {
+          const customerId = String(row.customer_id || "");
+          if (!customerId) return;
+          summaryMap.set(customerId, {
+            totalBookings: Number(row.total_bookings || 0),
+            lastBookingDate: toDateOnly(row.last_booking_date),
+            lastBookingNumber: row.last_booking_number || null,
+          });
         });
-      });
-      return summaryMap;
+        return summaryMap;
+      } catch (_err) {
+        // Fall through to in-memory fallback
+      }
     }
 
     const [leadRows, quotationRows, bookingRows] = await Promise.all([

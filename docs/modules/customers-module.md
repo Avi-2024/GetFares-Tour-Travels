@@ -18,7 +18,7 @@ CRUD for **customer** records (contact, segment, lifetime value, PAN, address, c
 | **Routes** | JWT, `authorize`, Zod `validateRequest`, controller. |
 | **Controller** | Passes `req.validated` + `req.context` to service. |
 | **Service** | Maps camelCase ↔ snake_case; **404** on missing get/update/remove; **list** hides deleted; attaches **booking summary**; fires **events** (payload = raw DB row from create/update). |
-| **Repository** | `findMany` / `findById` / `insert` / `update`; **column introspection** to drop unknown fields; **booking aggregation** (Postgres SQL or in-memory fallback). |
+| **Repository** | `findMany` / `findById` / `insert` / `update`; **column introspection** (`information_schema.COLUMNS`) to drop unknown fields; **booking aggregation** (MySQL raw SQL or in-memory fallback). |
 
 ---
 
@@ -76,7 +76,7 @@ CRUD for **customer** records (contact, segment, lifetime value, PAN, address, c
 | `getTableColumns` / `sanitizeForTable` | Filter payload keys to real columns (migrations-safe). |
 | `findAll` | Passes filters through to **`db.findMany`**. |
 | `findById` / `create` / `update` | Standard CRUD on **`customers`**. |
-| `findBookingSummaryByCustomerIds` | **Postgres:** `JOIN` leads → quotations → bookings, `COUNT`, `MAX`, latest booking number; respects soft-delete columns if present. **Fallback:** load all three tables and compute in JS. |
+| `findBookingSummaryByCustomerIds` | **MySQL:** `JOIN` leads → quotations → bookings, `COUNT`, `MAX`, correlated subquery for latest booking number; respects soft-delete columns if present. **Fallback:** load all three tables and compute in JS. |
 
 ### `customers.validation.js`
 
@@ -184,5 +184,5 @@ CRUD for **customer** records (contact, segment, lifetime value, PAN, address, c
 - **`create`** does not pass **`context`** into **`emitCreated`** payload shape—events receive **repository row** (often **snake_case**); normalize in subscribers if needed.  
 - **`page` / `limit`** are validated but **service `list`** does not slice pages—behavior depends on **`db.findMany`**; verify adapter implements pagination or add it in service/repository.  
 - **`customer_leads`** in schema is unused by this repository file—relationships may live in **leads** module.  
-- **Booking summary** on **Postgres** is efficient; fallback is **O(n)** table scans—avoid in huge datasets.  
+- **Booking summary** on **MySQL** (raw aggregation) is efficient; fallback is **O(n)** table scans—avoid in huge datasets. See **`docs/modules/customers.md`**.  
 - For **automation**, wire **`customers.created` / `customers.updated`** in **`notifications.subscribers.js`** (already listed in domain events) or custom jobs.

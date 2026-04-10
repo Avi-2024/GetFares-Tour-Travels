@@ -15,10 +15,11 @@ function createDestinationsRepository({ db, logger, schema }) {
       return [];
     }
 
-    if (db.adapter === "postgres" && typeof db.query === "function") {
+    if (db.adapter === "mysql" && typeof db.query === "function") {
+      const placeholders = normalizedIds.map(() => "?").join(", ");
       const result = await db.query(
-        `SELECT * FROM "${schema.pricingTable}" WHERE destination_id = ANY($1::uuid[])`,
-        [normalizedIds],
+        `SELECT * FROM \`${schema.pricingTable}\` WHERE destination_id IN (${placeholders})`,
+        normalizedIds,
       );
       return result.rows || [];
     }

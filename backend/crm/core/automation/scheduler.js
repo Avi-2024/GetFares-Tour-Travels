@@ -92,7 +92,7 @@ function createAutomationScheduler({
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -110,11 +110,12 @@ function createAutomationScheduler({
 
     if (canUseDbLock()) {
       try {
+        const lockName = `crm_lock_${lockKey}`;
         const result = await db.query(
-          "SELECT pg_try_advisory_lock($1::bigint) AS locked",
-          [lockKey],
+          "SELECT GET_LOCK(?, 0) AS locked",
+          [lockName],
         );
-        const locked = Boolean(result.rows?.[0]?.locked);
+        const locked = Number(result.rows?.[0]?.locked) === 1;
         if (!locked) {
           return {
             acquired: false,
@@ -126,7 +127,7 @@ function createAutomationScheduler({
           acquired: true,
           release: async () => {
             try {
-              await db.query("SELECT pg_advisory_unlock($1::bigint)", [lockKey]);
+              await db.query("SELECT RELEASE_LOCK(?)", [lockName]);
             } catch (error) {
               logger?.warn?.(
                 { err: error, module: "automation", jobName, lockKey },

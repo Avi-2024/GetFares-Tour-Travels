@@ -1,6 +1,6 @@
 import { AppError } from "../../core/errors/index.js";
 
-function createRbacMiddleware({ rbacService }) {
+function createRbacMiddleware({ rbacService, logger }) {
   function authorize(permissionKey) {
     return async (req, res, next) => {
       try {
@@ -10,13 +10,24 @@ function createRbacMiddleware({ rbacService }) {
           );
         }
 
+        const normalizedPermissionKey = String(permissionKey || "").trim();
+        if (!normalizedPermissionKey) {
+          return next(
+            new AppError(
+              500,
+              "Authorization middleware requires a permission key",
+              "RBAC_PERMISSION_KEY_REQUIRED",
+            ),
+          );
+        }
+
         const access = await rbacService.getPermissionsForUser(req.context.user);
         const allowed = access.permissions.some((granted) => {
           if (granted === "*") return true;
-          if (granted === permissionKey) return true;
+          if (granted === normalizedPermissionKey) return true;
           if (granted.endsWith(":*")) {
             const [scope] = granted.split(":");
-            return permissionKey.startsWith(`${scope}:`);
+            return normalizedPermissionKey.startsWith(`${scope}:`);
           }
           return false;
         });
@@ -25,7 +36,7 @@ function createRbacMiddleware({ rbacService }) {
           return next(
             new AppError(
               403,
-              `Missing permission: ${permissionKey}`,
+              `Missing permission: ${normalizedPermissionKey}`,
               "RBAC_FORBIDDEN",
             ),
           );
@@ -40,6 +51,15 @@ function createRbacMiddleware({ rbacService }) {
         if (error instanceof AppError) {
           return next(error);
         }
+
+        const logContext = {
+          err: error,
+          permissionKey: String(permissionKey || ""),
+          userId: req.context?.user?.id,
+          roleId: req.context?.user?.roleId,
+        };
+        logger?.error?.(logContext, "RBAC authorization failure");
+        req.log?.error?.(logContext, "RBAC authorization failure");
 
         return next(
           new AppError(

@@ -1,11 +1,5 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { Pool } from "pg";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import mysql from "mysql2/promise";
 
 const RESERVED_FILTER_KEYS = new Set([
   "page",
@@ -43,12 +37,41 @@ function normalizeFilters(filters = {}) {
   });
 }
 
+// Plain objects must become JSON strings for MySQL JSON columns (pg/jsonb passed objects through).
+function bindValueForMysql(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
+    return value;
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return value;
+}
+
+// MySQL uses backtick quoting for identifiers
 function quoteIdentifier(identifier) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
     throw new Error(`Unsafe SQL identifier: ${identifier}`);
   }
 
-  return `"${identifier}"`;
+  return `\`${identifier}\``;
+}
+
+function wrapDuplicateKeyError(error) {
+  if (error && (error.code === "ER_DUP_ENTRY" || error.errno === 1062)) {
+    const wrapped = new Error(error.message);
+    wrapped.code = "23505";
+    wrapped.errno = error.errno;
+    wrapped.sqlMessage = error.sqlMessage;
+    return wrapped;
+  }
+  return error;
 }
 
 function runWithTimeout(task, timeoutMs, timeoutMessage) {
@@ -90,7 +113,6 @@ class InMemoryDatabase {
 
   async insert(tableName, payload) {
     const table = this.getTable(tableName);
-    // Use IST timezone for timestamps
     const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
     const istDate = new Date(now).toISOString();
     const createdAt = payload.created_at || payload.createdAt || istDate;
@@ -164,7 +186,6 @@ class InMemoryDatabase {
       return null;
     }
 
-    // Use IST timezone for timestamps
     const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
     const istDate = new Date(now).toISOString();
     const updated = {
@@ -199,46 +220,50 @@ class InMemoryDatabase {
   }
 }
 
-class PostgresDatabase {
+class MySQLDatabase {
   constructor({ pool }) {
     this.pool = pool;
-    this.adapter = "postgres";
+    this.adapter = "mysql";
   }
 
   async insert(tableName, payload) {
-    const entries = Object.entries(payload).filter(
-      ([, value]) => value !== undefined,
-    );
     const table = quoteIdentifier(tableName);
 
-    if (!entries.length) {
-      const result = await this.pool.query(
-        `INSERT INTO ${table} DEFAULT VALUES RETURNING *`,
-      );
-      return result.rows[0] || null;
-    }
-
-    const columns = entries
-      .map(([column]) => quoteIdentifier(column))
-      .join(", ");
-    const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
-    const values = entries.map(([, value]) => value);
-
-    const result = await this.pool.query(
-      `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`,
-      values,
+    const id = payload.id || randomUUID();
+    const entries = Object.entries({ ...payload, id }).filter(
+      ([, value]) => value !== undefined,
     );
 
-    return result.rows[0] || null;
+    try {
+      if (!entries.length) {
+        await this.pool.query(`INSERT INTO ${table} (id) VALUES (?)`, [id]);
+      } else {
+        const columns = entries.map(([col]) => quoteIdentifier(col)).join(", ");
+        const placeholders = entries.map(() => "?").join(", ");
+        const values = entries.map(([, v]) => bindValueForMysql(v));
+        await this.pool.query(
+          `INSERT INTO ${table} (${columns}) VALUES (${placeholders})`,
+          values,
+        );
+      }
+    } catch (error) {
+      throw wrapDuplicateKeyError(error);
+    }
+
+    const [rows] = await this.pool.query(
+      `SELECT * FROM ${table} WHERE id = ? LIMIT 1`,
+      [id],
+    );
+    return rows[0] || null;
   }
 
   async findById(tableName, id) {
     const table = quoteIdentifier(tableName);
-    const result = await this.pool.query(
-      `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
+    const [rows] = await this.pool.query(
+      `SELECT * FROM ${table} WHERE id = ? LIMIT 1`,
       [id],
     );
-    return result.rows[0] || null;
+    return rows[0] || null;
   }
 
   async findOne(tableName, filters = {}) {
@@ -252,9 +277,9 @@ class PostgresDatabase {
     const values = [];
 
     const whereClause = normalizedFilters
-      .map(([key, value], index) => {
+      .map(([key, value]) => {
         values.push(value);
-        return `${quoteIdentifier(key)} = $${index + 1}`;
+        return `${quoteIdentifier(key)} = ?`;
       })
       .join(" AND ");
 
@@ -272,17 +297,17 @@ class PostgresDatabase {
       : null;
 
     if (limit) {
+      query += ` LIMIT ?`;
       values.push(limit);
-      query += ` LIMIT $${values.length}`;
     }
 
     if (offset !== null) {
+      query += ` OFFSET ?`;
       values.push(offset);
-      query += ` OFFSET $${values.length}`;
     }
 
-    const result = await this.pool.query(query, values);
-    return result.rows;
+    const [rows] = await this.pool.query(query, values);
+    return rows;
   }
 
   async update(tableName, id, payload) {
@@ -294,22 +319,32 @@ class PostgresDatabase {
     }
 
     const table = quoteIdentifier(tableName);
-    const values = entries.map(([, value]) => value);
+    const values = entries.map(([, v]) => bindValueForMysql(v));
     const setClause = entries
-      .map(([key], index) => `${quoteIdentifier(key)} = $${index + 1}`)
+      .map(([key]) => `${quoteIdentifier(key)} = ?`)
       .join(", ");
 
     values.push(id);
-    const result = await this.pool.query(
-      `UPDATE ${table} SET ${setClause} WHERE id = $${values.length} RETURNING *`,
-      values,
-    );
+    try {
+      await this.pool.query(
+        `UPDATE ${table} SET ${setClause} WHERE id = ?`,
+        values,
+      );
+    } catch (error) {
+      throw wrapDuplicateKeyError(error);
+    }
 
-    return result.rows[0] || null;
+    return this.findById(tableName, id);
   }
 
   async query(sql, params = []) {
-    return this.pool.query(sql, params);
+    const [result, fields] = await this.pool.query(sql, params);
+    const rows = Array.isArray(result) ? result : [];
+    return {
+      rows,
+      rowCount: Array.isArray(result) ? result.length : (result?.affectedRows ?? 0),
+      fields,
+    };
   }
 
   async healthCheck({ timeoutMs } = {}) {
@@ -318,7 +353,7 @@ class PostgresDatabase {
     await runWithTimeout(
       () => this.pool.query("SELECT 1"),
       timeoutMs,
-      `PostgreSQL health check timed out after ${timeoutMs}ms`,
+      `MySQL health check timed out after ${timeoutMs}ms`,
     );
 
     return {
@@ -335,100 +370,49 @@ class PostgresDatabase {
 }
 
 function createDatabaseConnection({ config, logger }) {
-  if (config.database.url) {
-    const sslRejectUnauthorizedOverride =
-      process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
-    const sslCaOverride = process.env.DATABASE_SSL_CA;
-    const sslCaPathOverride = process.env.DATABASE_SSL_CA_PATH;
+  const mysqlHost = process.env.MYSQL_HOST;
+  const mysqlUser = process.env.MYSQL_USER;
+  const mysqlPassword = process.env.MYSQL_PASSWORD;
+  const mysqlDatabase = process.env.MYSQL_DATABASE;
+  const mysqlPort = Number(process.env.MYSQL_PORT) || 3306;
 
-    // For serverless environments, use smaller connection pool
-    // Vercel serverless functions have short lifespans
+  if (mysqlHost && mysqlDatabase) {
     const isServerless =
       process.env.VERCEL === "1" || process.env.AWS_EXECUTION_ENV;
-    const isProduction = config.env === "production";
-    const isAWSRDS =
-      config.database.url.includes(".rds.") ||
-      config.database.url.includes(".rds-");
 
     const poolConfig = {
-      connectionString: config.database.url,
-      // Serverless: 1-5 connections, Traditional: 10-20
-      max: isServerless ? 2 : 10,
-      // Keep idle connections for longer to avoid reconnects
-      idleTimeoutMillis: isServerless ? 20000 : 30000,
-      // Connection establishment to remote RDS can be slow on some networks.
-      connectionTimeoutMillis: isServerless ? 7000 : 15000,
-      // Keep TCP alive to reduce abrupt idle disconnects.
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
-      // Query safety timeouts (milliseconds)
-      statement_timeout: 60000,
-      query_timeout: 60000,
-      // Set timezone to Indian Standard Time (IST)
-      options: '-c timezone=Asia/Kolkata',
+      host: mysqlHost,
+      port: mysqlPort,
+      user: mysqlUser,
+      password: mysqlPassword,
+      database: mysqlDatabase,
+      waitForConnections: true,
+      connectionLimit: isServerless ? 2 : 10,
+      queueLimit: 0,
+      connectTimeout: isServerless ? 7000 : 15000,
+      timezone: "+05:30",
     };
-
-    // AWS RDS requires SSL connection
-    if (isAWSRDS) {
-      if (isProduction) {
-        const fallbackCaPath = path.resolve(
-          __dirname,
-          "../../..",
-          "global-bundle.pem",
-        );
-        const caPath = sslCaPathOverride || fallbackCaPath;
-
-        if (sslCaOverride) {
-          poolConfig.ssl = {
-            rejectUnauthorized: true,
-            ca: sslCaOverride.replace(/\\n/g, "\n"),
-          };
-        } else if (fs.existsSync(caPath)) {
-          poolConfig.ssl = {
-            rejectUnauthorized: true,
-            ca: fs.readFileSync(caPath, "utf8"),
-          };
-        } else {
-          poolConfig.ssl = { rejectUnauthorized: false };
-          logger.warn(
-            { caPath },
-            "RDS CA bundle not found. Falling back to rejectUnauthorized=false.",
-          );
-        }
-      } else {
-        poolConfig.ssl = { rejectUnauthorized: false }; // Development: allow self-signed certs
-      }
-    }
-
-    if (sslRejectUnauthorizedOverride === "false") {
-      const current =
-        poolConfig.ssl && poolConfig.ssl !== true ? poolConfig.ssl : {};
-      poolConfig.ssl = { ...current, rejectUnauthorized: false };
-    }
 
     logger.info(
       {
-        databaseUrlConfigured: true,
+        mysqlHost,
+        mysqlDatabase,
+        mysqlPort,
         isServerless,
-        isAWSRDS,
-        sslEnabled: !!poolConfig.ssl,
         poolConfig: {
-          max: poolConfig.max,
-          idleTimeoutMillis: poolConfig.idleTimeoutMillis,
-          connectionTimeoutMillis: poolConfig.connectionTimeoutMillis,
+          connectionLimit: poolConfig.connectionLimit,
+          connectTimeout: poolConfig.connectTimeout,
         },
       },
-      "Using PostgreSQL database adapter.",
+      "Using MySQL database adapter.",
     );
-    const pool = new Pool(poolConfig);
-    pool.on("error", (error) => {
-      logger.error({ err: error }, "Unexpected PostgreSQL pool error");
-    });
-    return new PostgresDatabase({ pool });
+
+    const pool = mysql.createPool(poolConfig);
+    return new MySQLDatabase({ pool });
   }
 
-  logger.warn("DATABASE_URL is not set. Falling back to in-memory adapter.");
+  logger.warn("MYSQL_HOST / MYSQL_DATABASE not set. Falling back to in-memory adapter.");
   return new InMemoryDatabase();
 }
 
-export { createDatabaseConnection, InMemoryDatabase, PostgresDatabase };
+export { createDatabaseConnection, InMemoryDatabase, MySQLDatabase };

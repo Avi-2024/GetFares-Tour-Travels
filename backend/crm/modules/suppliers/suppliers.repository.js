@@ -33,7 +33,7 @@ function createSuppliersRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1 LIMIT 1`,
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -55,7 +55,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
       [tableName],
     );
 
@@ -113,88 +113,8 @@ function createSuppliersRepository({ db, logger, schema }) {
       return [];
     }
 
-    if (canUseRawQuery()) {
-      const params = [supplierId];
-      let sql = `
-        SELECT 
-          b.*,
-          q.trip_destination AS quotation_destination,
-          l.full_name AS customer_name,
-          l.email AS customer_email,
-          l.phone AS customer_phone,
-          c.full_name AS customer_full_name,
-          d.name AS destination_name,
-          COALESCE(
-            service_agg.service_names,
-            NULLIF(TRIM(b.supplier_details->>'serviceName'), ''),
-            NULLIF(TRIM(b.supplier_details->>'serviceLabel'), ''),
-            NULLIF(TRIM(b.supplier_details->>'serviceType'), ''),
-            'Other'
-          ) AS service_names
-        FROM ${schema.bookingsTable} b
-        LEFT JOIN ${schema.quotationsTable || 'quotations'} q ON q.id = b.quotation_id
-        LEFT JOIN ${schema.leadsTable || 'leads'} l ON l.id = q.lead_id
-        LEFT JOIN ${schema.customersTable || 'customers'} c ON c.id = l.customer_id
-        LEFT JOIN ${schema.destinationsTable || 'destinations'} d ON d.id = l.destination_id
-        LEFT JOIN LATERAL (
-          SELECT STRING_AGG(DISTINCT mapped.service_name, ', ' ORDER BY mapped.service_name) AS service_names
-          FROM (
-            SELECT
-              COALESCE(
-                NULLIF(TRIM(srv.item ->> 'label'), ''),
-                NULLIF(TRIM(srv.item ->> 'serviceName'), ''),
-                CASE LOWER(COALESCE(NULLIF(TRIM(srv.item ->> 'key'), ''), ''))
-                  WHEN 'hotel' THEN 'Accommodation'
-                  WHEN 'flights' THEN 'Flights'
-                  WHEN 'tours' THEN 'Tours & Activities'
-                  WHEN 'visa' THEN 'Visa Services'
-                  WHEN 'insurance' THEN 'Insurance'
-                  WHEN 'insurance2' THEN 'Land Arrangement'
-                  ELSE NULL
-                END,
-                CASE UPPER(COALESCE(NULLIF(TRIM(srv.item ->> 'itemType'), ''), ''))
-                  WHEN 'HOTEL' THEN 'Accommodation'
-                  WHEN 'FLIGHT' THEN 'Flights'
-                  WHEN 'TRANSFER' THEN 'Land Arrangement'
-                  WHEN 'VISA' THEN 'Visa Services'
-                  WHEN 'INSURANCE' THEN 'Insurance'
-                  WHEN 'OTHER' THEN 'Other'
-                  ELSE NULL
-                END,
-                NULLIF(TRIM(srv.item ->> 'itemType'), ''),
-                NULLIF(TRIM(srv.item ->> 'key'), ''),
-                'Other'
-              ) AS service_name
-            FROM jsonb_array_elements(
-              CASE
-                WHEN jsonb_typeof(COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) -> 'serviceRows') = 'array'
-                  THEN COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) -> 'serviceRows'
-                WHEN jsonb_typeof(COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) -> 'builderSnapshot' -> 'serviceRows') = 'array'
-                  THEN COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) -> 'builderSnapshot' -> 'serviceRows'
-                ELSE '[]'::jsonb
-              END
-            ) AS srv(item)
-            WHERE COALESCE(
-              NULLIF(TRIM(srv.item ->> 'supplierId'), ''),
-              NULLIF(TRIM(srv.item ->> 'supplier_id'), ''),
-              NULLIF(TRIM(COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) -> 'supplierDetails' ->> 'supplierId'), ''),
-              NULLIF(TRIM(COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) -> 'supplierDetails' ->> 'supplier_id'), '')
-            ) = $1
-          ) mapped
-        ) service_agg ON TRUE
-        WHERE b.supplier_details->>'supplierId' = $1
-           OR b.supplier_details->>'supplier_id' = $1
-        ORDER BY b.created_at DESC
-      `;
-      
-      if (filters.limit) {
-        params.push(filters.limit);
-        sql += ` LIMIT $${params.length}`;
-      }
-      
-      const result = await db.query(sql, params);
-      return result.rows || [];
-    }
+    // RISKY: findBookingsBySupplierId raw query uses JSONB/LATERAL (PostgreSQL-specific).
+    // Falls back to in-memory filtering which works with MySQL JSON columns.
 
     const rows = await db.findMany(schema.bookingsTable, {});
     return rows
@@ -246,8 +166,8 @@ function createSuppliersRepository({ db, logger, schema }) {
         `
           SELECT *
           FROM ${schema.payablesTable}
-          WHERE supplier_id = $1
-            AND booking_id = $2
+          WHERE supplier_id = ?
+            AND booking_id = ?
           ORDER BY created_at DESC
           LIMIT 1
         `,
@@ -288,18 +208,18 @@ function createSuppliersRepository({ db, logger, schema }) {
     includeStatuses = ["PENDING", "PARTIAL"],
   } = {}) {
     if (canUseRawQuery()) {
-      const params = [includeStatuses];
       let sql = `
         SELECT p.*, s.name AS supplier_name
         FROM ${schema.payablesTable} p
         INNER JOIN ${schema.tableName} s ON s.id = p.supplier_id
         WHERE p.due_date IS NOT NULL
-          AND p.status::text = ANY($1::text[])
+          AND p.status IN (?)
         ORDER BY p.due_date ASC
       `;
+      const params = [includeStatuses];
       if (limit) {
         params.push(limit);
-        sql += ` LIMIT $${params.length}`;
+        sql += ` LIMIT ?`;
       }
       const result = await db.query(sql, params);
       return result.rows || [];
@@ -377,9 +297,9 @@ function createSuppliersRepository({ db, logger, schema }) {
     if (canUseRawQuery()) {
       const countResult = await db.query(
         `
-          SELECT COUNT(*)::int AS total
+          SELECT COUNT(*) AS total
           FROM ${schema.settlementsTable} s
-          WHERE s.payable_id = $1
+          WHERE s.payable_id = ?
         `,
         [payableId],
       );
@@ -394,9 +314,9 @@ function createSuppliersRepository({ db, logger, schema }) {
           FROM ${schema.settlementsTable} s
           LEFT JOIN ${schema.bookingsTable} b ON b.id = s.booking_id
           LEFT JOIN ${schema.usersTable} u ON u.id = s.created_by
-          WHERE s.payable_id = $1
+          WHERE s.payable_id = ?
           ORDER BY s.settlement_date DESC, s.created_at DESC
-          LIMIT $2 OFFSET $3
+          LIMIT ? OFFSET ?
         `,
         [payableId, limit, offset],
       );
@@ -451,23 +371,23 @@ function createSuppliersRepository({ db, logger, schema }) {
     }
 
     const params = [supplierId];
-    const where = [`s.supplier_id = $1`];
+    const where = [`s.supplier_id = ?`];
 
     if (filters.bookingId) {
       params.push(filters.bookingId);
-      where.push(`s.booking_id = $${params.length}`);
+      where.push(`s.booking_id = ?`);
     }
     if (filters.payableId) {
       params.push(filters.payableId);
-      where.push(`s.payable_id = $${params.length}`);
+      where.push(`s.payable_id = ?`);
     }
     if (filters.from) {
       params.push(filters.from);
-      where.push(`s.settlement_date >= $${params.length}`);
+      where.push(`s.settlement_date >= ?`);
     }
     if (filters.to) {
       params.push(filters.to);
-      where.push(`s.settlement_date <= $${params.length}`);
+      where.push(`s.settlement_date <= ?`);
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -475,7 +395,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     if (canUseRawQuery()) {
       const countResult = await db.query(
         `
-          SELECT COUNT(*)::int AS total
+          SELECT COUNT(*) AS total
           FROM ${schema.settlementsTable} s
           ${whereSql}
         `,
@@ -499,8 +419,7 @@ function createSuppliersRepository({ db, logger, schema }) {
           LEFT JOIN ${schema.usersTable} u ON u.id = s.created_by
           ${whereSql}
           ORDER BY s.settlement_date DESC, s.created_at DESC
-          LIMIT $${rowParams.length - 1}
-          OFFSET $${rowParams.length}
+          LIMIT ? OFFSET ?
         `,
         rowParams,
       );
@@ -581,20 +500,20 @@ function createSuppliersRepository({ db, logger, schema }) {
       .toUpperCase();
 
     if (canUseRawQuery()) {
-      const client = await db.pool.connect();
+      const connection = await db.pool.getConnection();
       try {
-        await client.query("BEGIN");
+        await connection.beginTransaction();
 
-        const payableResult = await client.query(
+        const [payableRows] = await connection.query(
           `
             SELECT p.*
             FROM ${schema.payablesTable} p
-            WHERE p.id = $1
+            WHERE p.id = ?
             FOR UPDATE
           `,
           [payableId],
         );
-        const payable = payableResult.rows?.[0] || null;
+        const payable = payableRows?.[0] || null;
         if (!payable) {
           const notFoundError = new Error("Supplier payable not found");
           notFoundError.code = "SUPPLIER_PAYABLE_NOT_FOUND";
@@ -628,23 +547,28 @@ function createSuppliersRepository({ db, logger, schema }) {
         const nextPaidAmount = Number((paidAmount + amount).toFixed(2));
         const nextStatus = derivePayableStatus(payableAmount, nextPaidAmount);
 
-        const payableUpdateResult = await client.query(
+        await connection.query(
           `
             UPDATE ${schema.payablesTable}
             SET
-              paid_amount = $1,
-              status = $2,
-              payment_reference = COALESCE($3, payment_reference),
-              last_paid_at = $4
-            WHERE id = $5
-            RETURNING *
+              paid_amount = ?,
+              status = ?,
+              payment_reference = COALESCE(?, payment_reference),
+              last_paid_at = ?
+            WHERE id = ?
           `,
           [nextPaidAmount, nextStatus, reference || null, when, payableId],
         );
 
+        const [updatedPayableRows] = await connection.query(
+          `SELECT * FROM ${schema.payablesTable} WHERE id = ? LIMIT 1`,
+          [payableId],
+        );
+        const updatedPayable = updatedPayableRows?.[0] || null;
+
         let settlement = null;
         if (tableExists) {
-          const settlementResult = await client.query(
+          await connection.query(
             `
               INSERT INTO ${schema.settlementsTable} (
                 payable_id,
@@ -658,8 +582,7 @@ function createSuppliersRepository({ db, logger, schema }) {
                 created_by,
                 created_at
               )
-              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
-              RETURNING *
+              VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
             `,
             [
               payable.id,
@@ -673,19 +596,20 @@ function createSuppliersRepository({ db, logger, schema }) {
               createdBy || null,
             ],
           );
-          settlement = settlementResult.rows?.[0] || null;
+          const [settlementRows] = await connection.query(
+            `SELECT * FROM ${schema.settlementsTable} WHERE payable_id = ? ORDER BY created_at DESC LIMIT 1`,
+            [payable.id],
+          );
+          settlement = settlementRows?.[0] || null;
         }
 
-        await client.query("COMMIT");
-        return {
-          payable: payableUpdateResult.rows?.[0] || null,
-          settlement,
-        };
+        await connection.commit();
+        return { payable: updatedPayable, settlement };
       } catch (error) {
-        await client.query("ROLLBACK");
+        await connection.rollback();
         throw error;
       } finally {
-        client.release();
+        connection.release();
       }
     }
 

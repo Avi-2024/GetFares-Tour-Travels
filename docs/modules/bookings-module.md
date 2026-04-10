@@ -128,7 +128,7 @@ Wires **repository**, **events**, **service**, **controller**, **router**.
 | `mapListFilters` | Maps query filters to DB column names. |
 | `findAll` | Loads bookings, filters deleted, sorts by `createdAt` desc; joins creator + lead via quotations. |
 | `findById`, `findByQuotationId`, `findByBookingNumber` | Lookups. |
-| `create` / `update` | JSON columns serialized for Postgres. |
+| `create` / `update` | JSON columns serialized as strings for MySQL `JSON` columns (`serializeJsonColumns` + adapter `bindValueForMysql`). |
 | `getStats` | SQL aggregates or in-memory fallback. |
 | `findTravelReminderCandidates` | SQL with optional anti-join on reminder logs. |
 | `createReminderLog` | Insert if table exists. |
@@ -196,7 +196,7 @@ Listeners (e.g. WhatsApp, notifications) live **outside** this module.
 
 | Operation | Tables (typical) |
 |-----------|-------------------|
-| **SELECT** | `bookings`, `quotations`, `users`, `payments`, `refunds`, `invoices`, `booking_status_history`, `booking_reminder_logs`, `booking_deadline_alert_logs`, `information_schema` |
+| **SELECT** | `bookings`, `quotations`, `users`, `payments`, `refunds`, `invoices`, `booking_status_history`, `booking_reminder_logs`, `booking_deadline_alert_logs`, `information_schema` (MySQL `TABLE_SCHEMA = DATABASE()`) |
 | **INSERT** | `bookings`, `booking_status_history`, `booking_reminder_logs`, `booking_deadline_alert_logs`, `invoices`, `payments` (pending invoice payment) |
 | **UPDATE** | `bookings` (fields + payment rollup), sometimes via `recalculatePaymentStatus` from payments module |
 
@@ -313,3 +313,13 @@ Headers: `Authorization: Bearer <token>`
 - **Stats** includes `COMPLETED` status in aggregates — ensure DB/workflows set it if used.
 - Subscribe to **`bookings.deadline_alert`** and **`bookings.pre_travel_reminder`** for automation; idempotency uses **reminder** and **deadline alert log** tables.
 - Call **`recalculatePaymentStatus(bookingId)`** from payments/refunds flows after money changes.
+
+---
+
+## 12. MySQL (adapter + env)
+
+- **Driver:** `mysql2` pool in `backend/crm/core/database/connection.js` (`MySQLDatabase`).
+- **Env:** `MYSQL_HOST`, `MYSQL_DATABASE`, optional `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_PORT`.
+- **Introspection:** `canIntrospect()` is true when `db.adapter === "mysql"` and `db.query` exists; optional tables/columns are probed via `information_schema.TABLES` / `COLUMNS`.
+- **Stats SQL:** Uses `GREATEST`, `COALESCE`, `SUM(CASE …)` — valid on MySQL 8+.
+- **Deeper guide:** see `docs/modules/bookings.md` (sections 1–8).

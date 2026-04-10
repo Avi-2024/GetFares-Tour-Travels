@@ -76,28 +76,28 @@ class DashboardRepository {
   getPeriodStartSql(period) {
     switch (period) {
       case 'day':
-        return "DATE_TRUNC('day', CURRENT_TIMESTAMP)";
+        return "DATE(NOW())";
       case 'week':
-        return "DATE_TRUNC('week', CURRENT_TIMESTAMP)";
+        return "DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)";
       case 'year':
-        return "DATE_TRUNC('year', CURRENT_TIMESTAMP)";
+        return "DATE_FORMAT(NOW(), '%Y-01-01')";
       case 'month':
       default:
-        return "DATE_TRUNC('month', CURRENT_TIMESTAMP)";
+        return "DATE_FORMAT(NOW(), '%Y-%m-01')";
     }
   }
 
-  getPeriodInterval(period) {
+  getPeriodIntervalSql(period) {
     switch (period) {
       case 'day':
-        return '1 day';
+        return 'INTERVAL 1 DAY';
       case 'week':
-        return '1 week';
+        return 'INTERVAL 1 WEEK';
       case 'year':
-        return '1 year';
+        return 'INTERVAL 1 YEAR';
       case 'month':
       default:
-        return '1 month';
+        return 'INTERVAL 1 MONTH';
     }
   }
 
@@ -116,9 +116,9 @@ class DashboardRepository {
         `
           SELECT 1
           FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = $1
-            AND column_name = $2
+          WHERE table_schema = DATABASE()
+            AND table_name = ?
+            AND column_name = ?
           LIMIT 1
         `,
         [tableName, columnName],
@@ -157,7 +157,7 @@ class DashboardRepository {
 
   async getSoftDeleteClause(tableName, alias) {
     if (await this.hasColumn(tableName, 'is_deleted')) {
-      return ` AND COALESCE(${alias}.is_deleted, FALSE) = FALSE`;
+      return ` AND COALESCE(${alias}.is_deleted, 0) = 0`;
     }
 
     return '';
@@ -185,7 +185,8 @@ class DashboardRepository {
 
       const normalizedPeriod = this.normalizePeriod(period);
       const periodStartSql = this.getPeriodStartSql(normalizedPeriod);
-      const previousStartSql = `${periodStartSql} - INTERVAL '${this.getPeriodInterval(normalizedPeriod)}'`;
+      const intervalSql = this.getPeriodIntervalSql(normalizedPeriod);
+      const previousStartSql = `DATE_SUB(${periodStartSql}, ${intervalSql})`;
 
       const revenueExpression = await this.resolveRevenueExpression('q');
       const quotationSoftDeleteClause = await this.getSoftDeleteClause(
@@ -200,28 +201,28 @@ class DashboardRepository {
       const currentQuery = `
         SELECT
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.created_at >= ${periodStartSql}
             ${leadSoftDeleteClause}
           ) AS total_leads,
           (
-            SELECT COALESCE(SUM(${revenueExpression}), 0)::numeric(14,2)
+            SELECT ROUND(COALESCE(SUM(${revenueExpression}), 0), 2)
             FROM ${this.tables.quotations} q
             WHERE q.created_at >= ${periodStartSql}
               AND q.status = 'APPROVED'
               ${quotationSoftDeleteClause}
           ) AS revenue,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.next_followup_date IS NOT NULL
-              AND l.next_followup_date <= CURRENT_DATE
-              AND COALESCE(l.status::text, '') = ANY($1::text[])
+              AND l.next_followup_date <= CURDATE()
+              AND COALESCE(l.status, '') IN (?)
               ${leadSoftDeleteClause}
           ) AS pending_calls,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.bookings} b
             WHERE b.created_at >= ${periodStartSql}
           ) AS bookings
@@ -230,14 +231,14 @@ class DashboardRepository {
       const previousQuery = `
         SELECT
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.created_at >= ${previousStartSql}
               AND l.created_at < ${periodStartSql}
             ${leadSoftDeleteClause}
           ) AS total_leads,
           (
-            SELECT COALESCE(SUM(${revenueExpression}), 0)::numeric(14,2)
+            SELECT ROUND(COALESCE(SUM(${revenueExpression}), 0), 2)
             FROM ${this.tables.quotations} q
             WHERE q.created_at >= ${previousStartSql}
               AND q.created_at < ${periodStartSql}
@@ -245,15 +246,15 @@ class DashboardRepository {
               ${quotationSoftDeleteClause}
           ) AS revenue,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.leads} l
             WHERE l.next_followup_date IS NOT NULL
-              AND l.next_followup_date < ${periodStartSql}::date
-              AND COALESCE(l.status::text, '') = ANY($1::text[])
+              AND l.next_followup_date < ${periodStartSql}
+              AND COALESCE(l.status, '') IN (?)
               ${leadSoftDeleteClause}
           ) AS pending_calls,
           (
-            SELECT COUNT(*)::int
+            SELECT COUNT(*)
             FROM ${this.tables.bookings} b
             WHERE b.created_at >= ${previousStartSql}
               AND b.created_at < ${periodStartSql}
@@ -287,7 +288,9 @@ class DashboardRepository {
 
   async getRevenue(range = 'week') {
     try {
-      if (!this.canUseRawQuery()) {
+      // RISKY: getRevenue uses PostgreSQL generate_series CTE which has no MySQL equivalent.
+      // Returns empty array on MySQL adapter.
+      if (!this.canUseRawQuery() || this.db.adapter === 'mysql') {
         return DEFAULT_REVENUE;
       }
 
@@ -477,34 +480,18 @@ class DashboardRepository {
       );
 
       const rows = await this.queryRows(`
-        WITH filtered_leads AS (
-          SELECT
-            COALESCE(NULLIF(TRIM(l.source), ''), 'Unknown') AS source_name
-          FROM ${this.tables.leads} l
-          WHERE l.created_at >= ${periodStartSql}
-          ${leadSoftDeleteClause}
-        ),
-        source_counts AS (
-          SELECT
-            source_name,
-            COUNT(*)::int AS source_count
-          FROM filtered_leads
-          GROUP BY source_name
-        ),
-        totals AS (
-          SELECT COALESCE(SUM(source_count), 0)::numeric AS total_count
-          FROM source_counts
-        )
         SELECT
-          s.source_name AS name,
-          CASE
-            WHEN t.total_count > 0
-            THEN ROUND((s.source_count::numeric * 100.0) / t.total_count, 1)
-            ELSE 0
-          END AS value
-        FROM source_counts s
-        CROSS JOIN totals t
-        ORDER BY s.source_count DESC, s.source_name ASC
+          COALESCE(NULLIF(TRIM(l.source), ''), 'Unknown') AS name,
+          COUNT(*) AS source_count,
+          ROUND(
+            COUNT(*) * 100.0 / NULLIF(SUM(COUNT(*)) OVER (), 0),
+            1
+          ) AS value
+        FROM ${this.tables.leads} l
+        WHERE l.created_at >= ${periodStartSql}
+        ${leadSoftDeleteClause}
+        GROUP BY name
+        ORDER BY source_count DESC, name ASC
       `);
 
       return rows.map((row) => ({

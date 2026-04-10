@@ -14,7 +14,7 @@
 | **`rbac.routes.js`** | Three routers: legacy **`/api/rbac/*`**, plus **`/api/permissions`** and **`/api/roles`** for admin UI. Most admin routes need **`rbac:manage`** **and** **super admin** (see below). |
 | **`rbac.controller.js`** | Thin: forwards validated body/params/query to **service**. |
 | **`rbac.service.js`** | Permission resolution, **caching**, **wildcard** matching, CRUD orchestration, **assign role** with **single Super Admin** rule. |
-| **`rbac.repository.js`** | PostgreSQL-oriented SQL + fallbacks; introspects columns (`key` vs `name`, `is_active`, etc.). |
+| **`rbac.repository.js`** | MySQL-oriented SQL (`mysql2`) + fallbacks; introspects columns (`key` vs `name`, `is_active`, etc.) via `information_schema.COLUMNS`. |
 | **`rbac.middleware.js`** | **`authorize(permissionKey)`** — loads user permissions and allows or **403**. |
 | **`rbac.events.js`** | Emits **`rbac.role_assigned`**, **`rbac.role_permissions_updated`**, **`rbac.permission_created`**, **`rbac.permission_updated`**. |
 | **`rbac.validation.js`** | Zod: permission key format, UUIDs, **`replace`** vs patch rules for role permissions. |
@@ -130,7 +130,7 @@ All **`/api/permissions`** and **`/api/roles`** routes use **`rbac:manage`** + *
 | **Links** | **`getPermissionsByRoleId`**, batch variants, **`setRolePermissionsByRoleId`** (patch rows), **`replaceRolePermissionsByRoleId`** (full replace), **`setRolePermissions`** (by name + keys). |
 | **Users** | **`getRoleForUser`**, **`getRolesForUsers`**, **`assignRoleById`** (updates **`users.role_id`**), **`countActiveUsersByRoleId`**. |
 
-**Note:** Some **mutating** repository helpers **throw** if adapter is not **PostgreSQL** (role-permission writes).
+**Note:** Some **mutating** repository helpers **throw** if adapter is not **MySQL** (role-permission writes). See `docs/modules/rbac.md`.
 
 ### Events
 
@@ -252,5 +252,5 @@ Headers: `Authorization: Bearer <token>`
 - **`authorize`** loads permissions once per request; heavy routes should reuse **`req.context.permissions`**.
 - **`requireSuperAdmin`** and **`authorize("rbac:manage")`** stack — design **bootstrap** users carefully so someone can grant **`rbac:manage`**.
 - **Role CRUD** goes through **`rolesService`** — keep that service aligned with **`roles`** table schema.
-- **PostgreSQL** expected for full **role_permissions** mutation paths; other adapters may error on patch/replace.
+- **MySQL** expected for full **role_permissions** mutation paths (`ON DUPLICATE KEY` / `INSERT IGNORE`); in-memory adapter errors on those writes.
 - Tune **`dependencies.config.rbac.permissionCacheTtlMs`** if permission changes must propagate faster than default TTL.
