@@ -1,4 +1,8 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import {
+  getFirstRequestFile,
+  getRequestFiles,
+} from "../../core/uploads/request-files.util.js";
 
 function createDestinationsController({ service, uploadService }) {
   async function attachGalleryMedia({ destinationId, files, startingOrder = 0 }) {
@@ -65,8 +69,19 @@ function createDestinationsController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      const bannerFile = req.files?.bannerImage?.[0] || null;
-      const galleryFiles = req.files?.gallery || [];
+      const bannerFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "heroImage",
+        "thumbnailImage",
+        "image",
+        "file",
+      ]);
+      const galleryFiles = getRequestFiles(req, [
+        "gallery",
+        "galleryImages",
+        "media",
+        "files",
+      ]);
 
       if (bannerFile) {
         const bannerUpload = await uploadService.uploadSingle({
@@ -100,8 +115,19 @@ function createDestinationsController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      const bannerFile = req.files?.bannerImage?.[0] || null;
-      const galleryFiles = req.files?.gallery || [];
+      const bannerFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "heroImage",
+        "thumbnailImage",
+        "image",
+        "file",
+      ]);
+      const galleryFiles = getRequestFiles(req, [
+        "gallery",
+        "galleryImages",
+        "media",
+        "files",
+      ]);
 
       if (bannerFile) {
         const bannerUpload = await uploadService.uploadSingle({
@@ -158,9 +184,10 @@ function createDestinationsController({ service, uploadService }) {
 
     addMedia: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const mediaFile = getFirstRequestFile(req, ["media", "file", "image", "video"]);
+      if (mediaFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: mediaFile,
           prefix: "cms/destinations/gallery",
           allowVideo: true,
           required: false,
@@ -180,9 +207,10 @@ function createDestinationsController({ service, uploadService }) {
 
     updateMedia: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const mediaFile = getFirstRequestFile(req, ["media", "file", "image", "video"]);
+      if (mediaFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: mediaFile,
           prefix: "cms/destinations/gallery",
           allowVideo: true,
           required: false,

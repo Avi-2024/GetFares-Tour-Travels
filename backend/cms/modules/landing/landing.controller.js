@@ -1,4 +1,5 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import { getFirstRequestFile } from "../../core/uploads/request-files.util.js";
 
 function createLandingController({ service, uploadService }) {
   return Object.freeze({
@@ -31,9 +32,16 @@ function createLandingController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "imageFile",
+        "file",
+        "banner",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/landing/banner",
           allowVideo: false,
           required: false,
@@ -53,9 +61,16 @@ function createLandingController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "imageFile",
+        "file",
+        "banner",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/landing/banner",
           allowVideo: false,
           required: false,

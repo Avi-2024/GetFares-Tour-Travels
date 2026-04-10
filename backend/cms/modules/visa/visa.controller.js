@@ -1,4 +1,5 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import { getFirstRequestFile } from "../../core/uploads/request-files.util.js";
 
 function createVisaController({ service, uploadService }) {
   return Object.freeze({
@@ -38,9 +39,15 @@ function createVisaController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "heroImage",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/visa/banner",
           allowVideo: false,
           required: false,
@@ -61,9 +68,15 @@ function createVisaController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "heroImage",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/visa/banner",
           allowVideo: false,
           required: false,
