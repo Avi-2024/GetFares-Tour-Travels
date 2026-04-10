@@ -79,18 +79,18 @@ function normalizeRawSql(sql) {
     .replace(/;+\s*$/, "");
 }
 
-function stripPostgresTypeCasts(sql) {
+function stripTypeCasts(sql) {
   return sql.replace(
     /::\s*[A-Za-z_][A-Za-z0-9_]*(?:\s*\([^)]*\))?/g,
     "",
   );
 }
 
-function convertPostgresQuotesToMySql(sql) {
+function convertQuotedIdentifiersToMySql(sql) {
   return sql.replace(/"([A-Za-z_][A-Za-z0-9_]*)"/g, "`$1`");
 }
 
-function normalizePostgresIntervalLiterals(sql) {
+function normalizeIntervalLiterals(sql) {
   return String(sql || "").replace(
     /\bINTERVAL\s*'(-?\d+)\s*(microsecond|microseconds|second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)'\b/gi,
     (_match, amount, rawUnit) => {
@@ -110,7 +110,7 @@ function normalizeTableSchemaPublic(sql) {
   );
 }
 
-function normalizePostgresOnConflict(sql) {
+function normalizeOnConflict(sql) {
   let normalized = String(sql || "");
 
   if (/\bON\s+CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING\b/i.test(normalized)) {
@@ -151,7 +151,7 @@ function pickParamsByIndexes(params = [], indexes = []) {
   return indexes.map((idx) => params[idx - 1]);
 }
 
-function replacePostgresPlaceholders(sql, params = []) {
+function replaceIndexedPlaceholders(sql, params = []) {
   const orderedParams = [];
   const replacedSql = String(sql || "").replace(/\$([0-9]+)/g, (_, rawIndex) => {
     const index = Number(rawIndex) - 1;
@@ -166,20 +166,20 @@ function replacePostgresPlaceholders(sql, params = []) {
   return { sql: replacedSql, params: orderedParams };
 }
 
-function normalizePostgresSqlForMySql(sql, params = []) {
+function normalizeSqlForMySql(sql, params = []) {
   let normalizedSql = String(sql || "");
-  normalizedSql = stripPostgresTypeCasts(normalizedSql);
-  normalizedSql = convertPostgresQuotesToMySql(normalizedSql);
-  normalizedSql = normalizePostgresIntervalLiterals(normalizedSql);
+  normalizedSql = stripTypeCasts(normalizedSql);
+  normalizedSql = convertQuotedIdentifiersToMySql(normalizedSql);
+  normalizedSql = normalizeIntervalLiterals(normalizedSql);
   normalizedSql = normalizeTableSchemaPublic(normalizedSql);
-  normalizedSql = normalizePostgresOnConflict(normalizedSql);
+  normalizedSql = normalizeOnConflict(normalizedSql);
   normalizedSql = normalizedSql.replace(/\bILIKE\b/gi, "LIKE");
   normalizedSql = normalizedSql.replace(
     /=\s*ANY\(\s*\$([0-9]+)\s*\)/gi,
     "IN ($1)",
   );
 
-  const placeholderNormalized = replacePostgresPlaceholders(normalizedSql, params);
+  const placeholderNormalized = replaceIndexedPlaceholders(normalizedSql, params);
   const sqlWithAny = placeholderNormalized.sql.replace(
     /=\s*ANY\(\s*\?\s*\)/gi,
     "IN (?)",
@@ -195,11 +195,7 @@ function hasUnsupportedMySqlConstruct(sql = "") {
   const checks = [
     /\bDATE_TRUNC\s*\(/i,
     /\bFILTER\s*\(/i,
-    /\bjsonb_[a-z_]+\s*\(/i,
-    /'[^']*'::jsonb/i,
     /\-\>\>?/i,
-    /\bpg_try_advisory_lock\s*\(/i,
-    /\bpg_advisory_unlock\s*\(/i,
   ];
 
   return checks.some((pattern) => pattern.test(sql));
@@ -348,10 +344,10 @@ class MySqlDatabase {
   }
 
   async runQuery(sql, params = []) {
-    const normalized = normalizePostgresSqlForMySql(sql, params);
+    const normalized = normalizeSqlForMySql(sql, params);
     if (hasUnsupportedMySqlConstruct(normalized.sql)) {
       throw new Error(
-        `Unsupported PostgreSQL SQL construct for MySQL adapter. Query must be rewritten: ${normalizeRawSql(
+        `Unsupported SQL construct for MySQL adapter. Query must be rewritten: ${normalizeRawSql(
           sql,
         ).slice(0, 220)}`,
       );
@@ -626,15 +622,12 @@ function detectDatabaseClient(config = {}) {
   if (explicit === "mysql" || explicit === "mariadb") {
     return "mysql";
   }
-  if (explicit === "postgres" || explicit === "postgresql" || explicit === "pg") {
-    return "postgres";
-  }
 
   const url = String(config.database?.url || "").trim().toLowerCase();
   if (url.startsWith("mysql://") || url.startsWith("mysql2://")) {
     return "mysql";
   }
-  return "postgres";
+  return "mysql";
 }
 
 function parseMysqlUrl(databaseUrl) {
@@ -699,121 +692,39 @@ function createDatabaseConnection({ config, logger }) {
   }
 
   const dbClient = detectDatabaseClient(config);
-
-  if (dbClient === "mysql") {
-    const poolConfig = createMySqlPoolConfig({ config });
-    if (!poolConfig) {
-      logger.warn(
-        "MySQL client selected but connection settings are incomplete. Falling back to in-memory adapter.",
-      );
-      return new InMemoryDatabase();
-    }
-
-    logger.info(
-      {
-        databaseUrlConfigured: Boolean(config.database.url),
-        adapter: "mysql",
-        host: poolConfig.host,
-        port: poolConfig.port,
-        database: poolConfig.database,
-      },
-      "Using MySQL database adapter.",
+  if (dbClient !== "mysql") {
+    logger.warn(
+      { configuredClient: config.database?.client || null },
+      "Only MySQL adapter is supported. Falling back to in-memory adapter.",
     );
-
-    const pool = mysql.createPool(poolConfig);
-    return new MySqlDatabase({ pool, logger });
+    return new InMemoryDatabase();
   }
 
-  if (config.database.url) {
-    const sslRejectUnauthorizedOverride =
-      process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
-    const sslCaOverride = process.env.DATABASE_SSL_CA;
-    const sslCaPathOverride = process.env.DATABASE_SSL_CA_PATH;
-
-    const isServerless =
-      process.env.VERCEL === "1" || process.env.AWS_EXECUTION_ENV;
-    const isProduction = config.env === "production";
-    const isAWSRDS =
-      config.database.url.includes(".rds.") ||
-      config.database.url.includes(".rds-");
-
-    const poolConfig = {
-      connectionString: config.database.url,
-      max: isServerless ? 2 : 10,
-      idleTimeoutMillis: isServerless ? 20000 : 30000,
-      connectionTimeoutMillis: isServerless ? 7000 : 15000,
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
-      statement_timeout: 60000,
-      query_timeout: 60000,
-      options: "-c timezone=Asia/Kolkata",
-    };
-
-    if (isAWSRDS) {
-      if (isProduction) {
-        const fallbackCaPath = path.resolve(
-          __dirname,
-          "../../..",
-          "global-bundle.pem",
-        );
-        const caPath = sslCaPathOverride || fallbackCaPath;
-
-        if (sslCaOverride) {
-          poolConfig.ssl = {
-            rejectUnauthorized: true,
-            ca: sslCaOverride.replace(/\\n/g, "\n"),
-          };
-        } else if (fs.existsSync(caPath)) {
-          poolConfig.ssl = {
-            rejectUnauthorized: true,
-            ca: fs.readFileSync(caPath, "utf8"),
-          };
-        } else {
-          poolConfig.ssl = { rejectUnauthorized: false };
-          logger.warn(
-            { caPath },
-            "RDS CA bundle not found. Falling back to rejectUnauthorized=false.",
-          );
-        }
-      } else {
-        poolConfig.ssl = { rejectUnauthorized: false };
-      }
-    }
-
-    if (sslRejectUnauthorizedOverride === "false") {
-      const current = poolConfig.ssl && poolConfig.ssl !== true ? poolConfig.ssl : {};
-      poolConfig.ssl = { ...current, rejectUnauthorized: false };
-    }
-
-    logger.info(
-      {
-        databaseUrlConfigured: true,
-        isServerless,
-        isAWSRDS,
-        sslEnabled: !!poolConfig.ssl,
-        adapter: "postgres",
-        poolConfig: {
-          max: poolConfig.max,
-          idleTimeoutMillis: poolConfig.idleTimeoutMillis,
-          connectionTimeoutMillis: poolConfig.connectionTimeoutMillis,
-        },
-      },
-      "Using PostgreSQL database adapter.",
+  const poolConfig = createMySqlPoolConfig({ config });
+  if (!poolConfig) {
+    logger.warn(
+      "MySQL client selected but connection settings are incomplete. Falling back to in-memory adapter.",
     );
-    const pool = new PostgresPool(poolConfig);
-    pool.on("error", (error) => {
-      logger.error({ err: error }, "Unexpected PostgreSQL pool error");
-    });
-    return new PostgresDatabase({ pool, logger });
+    return new InMemoryDatabase();
   }
 
-  logger.warn("DATABASE_URL is not set. Falling back to in-memory adapter.");
-  return new InMemoryDatabase();
+  logger.info(
+    {
+      databaseUrlConfigured: Boolean(config.database.url),
+      adapter: "mysql",
+      host: poolConfig.host,
+      port: poolConfig.port,
+      database: poolConfig.database,
+    },
+    "Using MySQL database adapter.",
+  );
+
+  const pool = mysql.createPool(poolConfig);
+  return new MySqlDatabase({ pool, logger });
 }
 
 export {
   createDatabaseConnection,
   InMemoryDatabase,
-  PostgresDatabase,
   MySqlDatabase,
 };

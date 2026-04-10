@@ -94,7 +94,7 @@
         : [];
 
       if (filters.userId) {
-        whereClauses.push(`l.assigned_to = $${params.length + 1}`);
+        whereClauses.push(`l.assigned_to = ?`);
         params.push(filters.userId);
       }
 
@@ -503,8 +503,8 @@
           LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
           ORDER BY q.created_at DESC
-          LIMIT $${rowParams.length - 1}
-          OFFSET $${rowParams.length}
+          LIMIT ?
+          OFFSET ?
         `,
         rowParams,
       );

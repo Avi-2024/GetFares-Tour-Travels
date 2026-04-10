@@ -38,13 +38,7 @@ class DashboardRepository {
   }
 
   canUseRawQuery() {
-    const adapter = String(this.db.adapter || '').toLowerCase();
-    return (
-      this.db &&
-      typeof this.db.query === 'function' &&
-      Boolean(this.db.pool) &&
-      (adapter === 'postgres')
-    );
+    return false;
   }
 
   toNumber(value, fallback = 0) {
