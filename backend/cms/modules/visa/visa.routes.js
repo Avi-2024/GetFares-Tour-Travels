@@ -7,13 +7,13 @@ function createVisaRoutes({ controller, upload }) {
   router
     .route("/")
     .get(controller.list)
-    .post(upload.single("bannerImage"), controller.create);
+    .post(upload.any(), controller.create);
   router.route("/slug/:slug").get(controller.getBySlug);
   router.route("/:id/status").patch(controller.updateStatus);
   router
     .route("/:id")
     .get(controller.getById)
-    .put(upload.single("bannerImage"), controller.update)
+    .put(upload.any(), controller.update)
     .delete(controller.delete);
 
   // Details routes

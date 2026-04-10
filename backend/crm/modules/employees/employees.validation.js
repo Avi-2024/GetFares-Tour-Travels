@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const uuid = z.string().uuid();
 const leaveStatus = z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]);
@@ -11,8 +12,8 @@ const directory = z.object({
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().optional(),
       email: z.string().email().optional(),
-      isActive: z.coerce.boolean().optional(),
-      isOnLeave: z.coerce.boolean().optional(),
+      isActive: optionalQueryBoolean,
+      isOnLeave: optionalQueryBoolean,
     })
     .optional(),
 });

@@ -27,10 +27,11 @@ export class LandingPlacesRepository extends BaseRepository {
   }
 
   async softDelete(id) {
-    const result = await this.db.query(
-      `DELETE FROM ${this.tableName} WHERE id = $1 RETURNING *`,
-      [id],
-    );
-    return result.rows[0] || null;
+    const existing = await this.db.findById(this.tableName, id);
+    if (!existing) {
+      return null;
+    }
+    await this.db.query(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
+    return existing;
   }
 }

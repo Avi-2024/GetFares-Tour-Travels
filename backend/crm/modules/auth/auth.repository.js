@@ -1,6 +1,18 @@
 function createAuthRepository({ db, logger, schema }) {
   const columnCache = new Map();
 
+  function isDuplicateKeyError(error) {
+    const code = String(error?.code || "").toUpperCase();
+    const sqlState = String(error?.sqlState || "").toUpperCase();
+    const errno = Number(error?.errno);
+    return (
+      code === "23505" ||
+      code === "ER_DUP_ENTRY" ||
+      sqlState === "23000" ||
+      errno === 1062
+    );
+  }
+
   async function hasUsersColumn(columnName) {
     if (typeof db?.query !== "function") {
       return true;
@@ -14,10 +26,17 @@ function createAuthRepository({ db, logger, schema }) {
     try {
       const result = await db.query(
         `SELECT 1
+<<<<<<< HEAD
            FROM information_schema.COLUMNS
           WHERE TABLE_SCHEMA = DATABASE()
             AND TABLE_NAME = ?
             AND COLUMN_NAME = ?
+=======
+           FROM information_schema.columns
+          WHERE table_schema = DATABASE()
+            AND table_name = ?
+            AND column_name = ?
+>>>>>>> development
           LIMIT 1`,
         [schema.usersTable, columnName],
       );
@@ -51,7 +70,7 @@ function createAuthRepository({ db, logger, schema }) {
       agentCountry: row.agent_country ?? row.agentCountry ?? null,
       agentType: row.agent_type ?? row.agentType ?? null,
       isActive: row.is_active ?? row.isActive ?? true,
-      active: row.active ?? null,
+      active: row.active != null ? Boolean(row.active) : null,
       createdAt: row.created_at ?? row.createdAt,
       updatedAt: row.updated_at ?? row.updatedAt,
     };
@@ -66,11 +85,15 @@ function createAuthRepository({ db, logger, schema }) {
           description: `Auto-created role: ${roleName}`,
         });
       } catch (error) {
+<<<<<<< HEAD
         const isDupEntry =
           error?.code === "ER_DUP_ENTRY" ||
           error?.errno === 1062 ||
           error?.code === "23505";
         if (!isDupEntry) {
+=======
+        if (!isDuplicateKeyError(error)) {
+>>>>>>> development
           throw error;
         }
         roleRecord = await db.findOne(schema.rolesTable, { name: roleName });

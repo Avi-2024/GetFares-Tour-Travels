@@ -2,6 +2,10 @@ function createSuppliersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
   const tableExistsCache = new Map();
 
+  function getAdapterName() {
+    return String(db.adapter || "").toLowerCase();
+  }
+
   function toNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -20,7 +24,30 @@ function createSuppliersRepository({ db, logger, schema }) {
   }
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
+    const adapter = getAdapterName();
+    return (
+      typeof db.query === "function" &&
+      db.pool &&
+      adapter === "mysql"
+    );
+  }
+
+  function parseObject(value, fallback = {}) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "object") {
+      return value;
+    }
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" ? parsed : fallback;
+      } catch (_error) {
+        return fallback;
+      }
+    }
+    return fallback;
   }
 
   async function hasTable(tableName) {
@@ -33,7 +60,11 @@ function createSuppliersRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
+<<<<<<< HEAD
         `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
+=======
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1`,
+>>>>>>> development
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -55,7 +86,11 @@ function createSuppliersRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
+<<<<<<< HEAD
       `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
+=======
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+>>>>>>> development
       [tableName],
     );
 
@@ -92,6 +127,11 @@ function createSuppliersRepository({ db, logger, schema }) {
   async function create(payload) {
     logger.debug({ module: "suppliers", payload }, "Creating supplier");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
+    if (!sanitized.name) {
+      const error = new Error("Supplier name is required");
+      error.code = "SUPPLIER_NAME_REQUIRED";
+      throw error;
+    }
     return db.insert(schema.tableName, sanitized);
   }
 
@@ -113,17 +153,17 @@ function createSuppliersRepository({ db, logger, schema }) {
       return [];
     }
 
+<<<<<<< HEAD
     // RISKY: findBookingsBySupplierId raw query uses JSONB/LATERAL (PostgreSQL-specific).
     // Falls back to in-memory filtering which works with MySQL JSON columns.
 
+=======
+>>>>>>> development
     const rows = await db.findMany(schema.bookingsTable, {});
     return rows
       .filter((row) => {
         const supplierDetails = row.supplier_details ?? row.supplierDetails ?? {};
-        const details =
-          typeof supplierDetails === "string"
-            ? JSON.parse(supplierDetails)
-            : supplierDetails;
+        const details = parseObject(supplierDetails, {});
         const rowSupplierId = details?.supplierId ?? details?.supplier_id ?? "";
         return String(rowSupplierId) === String(supplierId);
       })
@@ -135,10 +175,7 @@ function createSuppliersRepository({ db, logger, schema }) {
       .slice(0, filters.limit || 500)
       .map((row) => {
         const supplierDetails = row.supplier_details ?? row.supplierDetails ?? {};
-        const details =
-          typeof supplierDetails === "string"
-            ? JSON.parse(supplierDetails)
-            : supplierDetails;
+        const details = parseObject(supplierDetails, {});
         return {
           ...row,
           service_names:
@@ -208,12 +245,16 @@ function createSuppliersRepository({ db, logger, schema }) {
     includeStatuses = ["PENDING", "PARTIAL"],
   } = {}) {
     if (canUseRawQuery()) {
+<<<<<<< HEAD
       let sql = `
         SELECT p.*, s.name AS supplier_name
         FROM ${schema.payablesTable} p
         INNER JOIN ${schema.tableName} s ON s.id = p.supplier_id
         WHERE p.due_date IS NOT NULL
           AND p.status IN (?)
+=======
+      const placeholders = includeStatuses.map(() => '?').join(','); const params = [...includeStatuses]; let sql = `SELECT p.*, s.name AS supplier_name FROM ${schema.payablesTable} p INNER JOIN ${schema.tableName} s ON s.id = p.supplier_id WHERE p.due_date IS NOT NULL AND p.status IN (${placeholders})
+>>>>>>> development
         ORDER BY p.due_date ASC
       `;
       const params = [includeStatuses];
@@ -419,7 +460,12 @@ function createSuppliersRepository({ db, logger, schema }) {
           LEFT JOIN ${schema.usersTable} u ON u.id = s.created_by
           ${whereSql}
           ORDER BY s.settlement_date DESC, s.created_at DESC
+<<<<<<< HEAD
           LIMIT ? OFFSET ?
+=======
+          LIMIT ?
+          OFFSET ?
+>>>>>>> development
         `,
         rowParams,
       );
@@ -499,7 +545,11 @@ function createSuppliersRepository({ db, logger, schema }) {
       .trim()
       .toUpperCase();
 
+<<<<<<< HEAD
     if (canUseRawQuery()) {
+=======
+    if (canUseRawQuery() && typeof db.pool?.getConnection === "function") {
+>>>>>>> development
       const connection = await db.pool.getConnection();
       try {
         await connection.beginTransaction();
@@ -568,7 +618,11 @@ function createSuppliersRepository({ db, logger, schema }) {
 
         let settlement = null;
         if (tableExists) {
+<<<<<<< HEAD
           await connection.query(
+=======
+          const [settlementResult] = await connection.query(
+>>>>>>> development
             `
               INSERT INTO ${schema.settlementsTable} (
                 payable_id,
@@ -596,6 +650,7 @@ function createSuppliersRepository({ db, logger, schema }) {
               createdBy || null,
             ],
           );
+<<<<<<< HEAD
           const [settlementRows] = await connection.query(
             `SELECT * FROM ${schema.settlementsTable} WHERE payable_id = ? ORDER BY created_at DESC LIMIT 1`,
             [payable.id],
@@ -605,6 +660,27 @@ function createSuppliersRepository({ db, logger, schema }) {
 
         await connection.commit();
         return { payable: updatedPayable, settlement };
+=======
+          const settlementId = settlementResult?.insertId;
+          if (settlementId) {
+            const [settlementRows] = await connection.query(
+              `SELECT * FROM ${schema.settlementsTable} WHERE id = ? LIMIT 1`,
+              [settlementId],
+            );
+            settlement = settlementRows?.[0] || null;
+          }
+        }
+
+        await connection.commit();
+        const [updatedPayableRows] = await connection.query(
+          `SELECT * FROM ${schema.payablesTable} WHERE id = ? LIMIT 1`,
+          [payableId],
+        );
+        return {
+          payable: updatedPayableRows?.[0] || null,
+          settlement,
+        };
+>>>>>>> development
       } catch (error) {
         await connection.rollback();
         throw error;
@@ -717,3 +793,13 @@ function createSuppliersRepository({ db, logger, schema }) {
 }
 
 export { createSuppliersRepository };
+
+
+
+
+
+
+
+
+
+

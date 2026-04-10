@@ -52,6 +52,7 @@ function createRbacMiddleware({ rbacService, logger }) {
           return next(error);
         }
 
+<<<<<<< HEAD
         const logContext = {
           err: error,
           permissionKey: String(permissionKey || ""),
@@ -61,6 +62,9 @@ function createRbacMiddleware({ rbacService, logger }) {
         logger?.error?.(logContext, "RBAC authorization failure");
         req.log?.error?.(logContext, "RBAC authorization failure");
 
+=======
+        console.error("[RBAC Middleware Error]", error);
+>>>>>>> development
         return next(
           new AppError(
             503,

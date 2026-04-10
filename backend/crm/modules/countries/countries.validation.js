@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const list = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
   query: z
     .object({
-      includeInactive: z.coerce.boolean().optional(),
+      includeInactive: optionalQueryBoolean,
       search: z.string().trim().min(1).max(120).optional(),
     })
     .optional(),
@@ -18,7 +19,7 @@ const byId = z.object({
   }),
   query: z
     .object({
-      includeUsage: z.coerce.boolean().optional(),
+      includeUsage: optionalQueryBoolean,
     })
     .optional(),
 });

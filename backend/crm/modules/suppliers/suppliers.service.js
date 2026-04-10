@@ -161,6 +161,45 @@ function toSettlement(entity) {
 }
 
 function createSuppliersService({ repository, logger, events }) {
+  function pickFirst(payload, keys = []) {
+    for (const key of keys) {
+      if (payload?.[key] !== undefined && payload?.[key] !== null) {
+        return payload[key];
+      }
+    }
+    return undefined;
+  }
+
+  function pickText(payload, keys = []) {
+    const value = pickFirst(payload, keys);
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    const normalized = String(value).trim();
+    return normalized ? normalized : undefined;
+  }
+
+  function pickBoolean(payload, keys = []) {
+    const value = pickFirst(payload, keys);
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "number") {
+      return value === 1;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0") {
+      return false;
+    }
+    return undefined;
+  }
+
   function toDateOnly(value) {
     if (!value) {
       return null;
@@ -189,59 +228,99 @@ function createSuppliersService({ repository, logger, events }) {
 
   function mapCreatePayload(payload) {
     return {
-      name: payload.name,
-      contact_person: payload.contactPerson,
-      phone: payload.phone,
-      email: payload.email,
-      pan_number: payload.panNumber,
-      gst_number: payload.gstNumber,
-      address: payload.address,
-      address_line: payload.addressLine,
-      country: payload.country,
-      invoice_beneficiary_name: payload.invoiceBeneficiaryName,
-      invoice_bank_name: payload.invoiceBankName,
-      invoice_account_number: payload.invoiceAccountNumber,
-      invoice_ifsc_swift: payload.invoiceIfscSwift,
-      invoice_upi_id: payload.invoiceUpiId,
-      bank_name: payload.bankName,
-      bank_account_number: payload.bankAccountNumber,
-      ifsc_code: payload.ifscCode,
-      supplier_currency: payload.supplierCurrency,
-      contract_url: payload.contractUrl,
-      rate_valid_until: payload.rateValidUntil,
-      production_commitment: payload.productionCommitment,
-      payment_deadline_date: payload.paymentDeadlineDate,
-      is_active: payload.isActive,
-      is_deleted: false,
+      name: pickText(payload, ["name", "fullName", "full_name"]),
+      contact_person: pickText(payload, ["contactPerson", "contact_person"]),
+      phone: pickText(payload, ["phone"]),
+      email: pickText(payload, ["email"]),
+      pan_number: pickText(payload, ["panNumber", "pan_number"]),
+      gst_number: pickText(payload, ["gstNumber", "gst_number"]),
+      address_line: pickText(payload, ["addressLine", "address_line", "address"]),
+      country: pickText(payload, ["country"]),
+      invoice_beneficiary_name: pickText(payload, [
+        "invoiceBeneficiaryName",
+        "invoice_beneficiary_name",
+      ]),
+      invoice_bank_name: pickText(payload, ["invoiceBankName", "invoice_bank_name"]),
+      invoice_account_number: pickText(payload, [
+        "invoiceAccountNumber",
+        "invoice_account_number",
+      ]),
+      invoice_ifsc_swift: pickText(payload, [
+        "invoiceIfscSwift",
+        "invoice_ifsc_swift",
+      ]),
+      invoice_upi_id: pickText(payload, ["invoiceUpiId", "invoice_upi_id"]),
+      bank_name: pickText(payload, ["bankName", "bank_name"]),
+      bank_account_number: pickText(payload, [
+        "bankAccountNumber",
+        "bank_account_number",
+      ]),
+      ifsc_code: pickText(payload, ["ifscCode", "ifsc_code"]),
+      supplier_currency: pickText(payload, [
+        "supplierCurrency",
+        "supplier_currency",
+        "currency",
+      ]),
+      contract_url: pickText(payload, ["contractUrl", "contract_url"]),
+      rate_valid_until: pickText(payload, ["rateValidUntil", "rate_valid_until"]),
+      production_commitment: pickText(payload, [
+        "productionCommitment",
+        "production_commitment",
+      ]),
+      payment_deadline_date: pickText(payload, [
+        "paymentDeadlineDate",
+        "payment_deadline_date",
+      ]),
+      is_active: pickBoolean(payload, ["isActive", "is_active"]),
     };
   }
 
   function mapUpdatePayload(payload) {
     return {
-      name: payload.name,
-      contact_person: payload.contactPerson,
-      phone: payload.phone,
-      email: payload.email,
-      pan_number: payload.panNumber,
-      gst_number: payload.gstNumber,
-      address: payload.address,
-      address_line: payload.addressLine,
-      country: payload.country,
-      invoice_beneficiary_name: payload.invoiceBeneficiaryName,
-      invoice_bank_name: payload.invoiceBankName,
-      invoice_account_number: payload.invoiceAccountNumber,
-      invoice_ifsc_swift: payload.invoiceIfscSwift,
-      invoice_upi_id: payload.invoiceUpiId,
-      bank_name: payload.bankName,
-      bank_account_number: payload.bankAccountNumber,
-      ifsc_code: payload.ifscCode,
-      supplier_currency: payload.supplierCurrency,
-      contract_url: payload.contractUrl,
-      rate_valid_until: payload.rateValidUntil,
-      production_commitment: payload.productionCommitment,
-      payment_deadline_date: payload.paymentDeadlineDate,
-      is_active: payload.isActive,
-      is_deleted: payload.isDeleted,
+      name: pickText(payload, ["name", "fullName", "full_name"]),
+      contact_person: pickText(payload, ["contactPerson", "contact_person"]),
+      phone: pickText(payload, ["phone"]),
+      email: pickText(payload, ["email"]),
+      pan_number: pickText(payload, ["panNumber", "pan_number"]),
+      gst_number: pickText(payload, ["gstNumber", "gst_number"]),
+      address_line: pickText(payload, ["addressLine", "address_line", "address"]),
+      country: pickText(payload, ["country"]),
+      invoice_beneficiary_name: pickText(payload, [
+        "invoiceBeneficiaryName",
+        "invoice_beneficiary_name",
+      ]),
+      invoice_bank_name: pickText(payload, ["invoiceBankName", "invoice_bank_name"]),
+      invoice_account_number: pickText(payload, [
+        "invoiceAccountNumber",
+        "invoice_account_number",
+      ]),
+      invoice_ifsc_swift: pickText(payload, [
+        "invoiceIfscSwift",
+        "invoice_ifsc_swift",
+      ]),
+      invoice_upi_id: pickText(payload, ["invoiceUpiId", "invoice_upi_id"]),
+      bank_name: pickText(payload, ["bankName", "bank_name"]),
+      bank_account_number: pickText(payload, [
+        "bankAccountNumber",
+        "bank_account_number",
+      ]),
+      ifsc_code: pickText(payload, ["ifscCode", "ifsc_code"]),
+      supplier_currency: pickText(payload, [
+        "supplierCurrency",
+        "supplier_currency",
+        "currency",
+      ]),
+      contract_url: pickText(payload, ["contractUrl", "contract_url"]),
+      rate_valid_until: pickText(payload, ["rateValidUntil", "rate_valid_until"]),
+      production_commitment: pickText(payload, [
+        "productionCommitment",
+        "production_commitment",
+      ]),
+      payment_deadline_date: pickText(payload, [
+        "paymentDeadlineDate",
+        "payment_deadline_date",
+      ]),
+      is_active: pickBoolean(payload, ["isActive", "is_active"]),
     };
   }
 
@@ -284,7 +363,15 @@ function createSuppliersService({ repository, logger, events }) {
     getById,
 
     async create(payload) {
-      const created = await repository.create(mapCreatePayload(payload));
+      const mappedPayload = mapCreatePayload(payload);
+      if (!mappedPayload.name) {
+        throw new AppError(
+          400,
+          "Supplier name is required",
+          "SUPPLIER_NAME_REQUIRED",
+        );
+      }
+      const created = await repository.create(mappedPayload);
       const supplier = toSupplier(created);
       events.emitCreated(supplier);
       return supplier;

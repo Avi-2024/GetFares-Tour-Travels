@@ -9,8 +9,15 @@ function createCountriesRepository({ db, logger, schema }) {
       }
       if (search) {
         values.push(`%${search}%`);
+<<<<<<< HEAD
         values.push(`%${search}%`);
         filters.push(`(c.name LIKE ? OR c.code LIKE ?)`);
+=======
+        filters.push(
+          `(c.name LIKE ? OR c.code LIKE ?)`,
+        );
+        values.push(`%${search}%`);
+>>>>>>> development
       }
 
       const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
@@ -137,3 +144,4 @@ function createCountriesRepository({ db, logger, schema }) {
 }
 
 export { createCountriesRepository };
+

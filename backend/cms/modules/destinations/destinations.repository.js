@@ -21,11 +21,12 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async delete(id) {
-      const result = await db.query(
-        `DELETE FROM ${schema.tableName} WHERE id = $1 RETURNING *`,
-        [id],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+      return existing;
     },
 
     async findMedia(destinationId, filters = {}) {
@@ -48,11 +49,12 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async deleteMedia(mediaId) {
-      const result = await db.query(
-        `DELETE FROM ${schema.mediaTable} WHERE id = $1 RETURNING *`,
-        [mediaId],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.mediaTable, mediaId);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.mediaTable} WHERE id = ?`, [mediaId]);
+      return existing;
     },
 
     async findSeasons(destinationId) {
@@ -74,11 +76,12 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async deleteSeason(seasonId) {
-      const result = await db.query(
-        `DELETE FROM ${schema.seasonsTable} WHERE id = $1 RETURNING *`,
-        [seasonId],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.seasonsTable, seasonId);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.seasonsTable} WHERE id = ?`, [seasonId]);
+      return existing;
     },
 
     async findPackageMaps(destinationId) {
@@ -89,7 +92,7 @@ function createDestinationsRepository({ db, schema }) {
          JOIN ${schema.tableName} d ON dpm.destination_id = d.id
          JOIN main_packages mp ON dpm.main_package_id = mp.id
          JOIN packages p ON mp.package_id = p.id
-         WHERE dpm.destination_id = $1
+         WHERE dpm.destination_id = ?
            AND p.publish_to_website = true
            AND p.is_deleted = false
            AND (mp.country IS NULL OR d.country IS NULL OR LOWER(mp.country) = LOWER(d.country))
@@ -108,11 +111,12 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async deletePackageMap(id) {
-      const result = await db.query(
-        `DELETE FROM ${schema.packagesMapTable} WHERE id = $1 RETURNING *`,
-        [id],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.packagesMapTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.packagesMapTable} WHERE id = ?`, [id]);
+      return existing;
     },
   });
 }

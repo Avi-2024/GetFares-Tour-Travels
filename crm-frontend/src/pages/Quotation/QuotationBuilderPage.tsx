@@ -781,18 +781,17 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     []
   )
 
-  const [campaigns] = useState<any[]>([])
 
-  const campaignOptions = useMemo(
-    () => [
-      { value: '', label: 'Select campaign (optional)' },
-      ...campaigns.map(campaign => ({
-        value: String(campaign.id),
-        label: String(campaign.name ?? campaign.title ?? campaign.id)
-      }))
-    ],
-    [campaigns]
-  )
+  // const campaignOptions = useMemo(
+  //   () => [
+  //     { value: '', label: 'Select campaign (optional)' },
+  //     ...campaigns.map(campaign => ({
+  //       value: String(campaign.id),
+  //       label: String(campaign.name ?? campaign.title ?? campaign.id)
+  //     }))
+  //   ],
+  //   [campaigns]
+  // )
 
   const applyTemplateDefaults = (template: TemplateOption | null) => {
     if (!template) return
@@ -3386,7 +3385,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     onChange={value => setForm(p => ({ ...p, leadSource: value }))}
                   />
                 </div>
-                <div>
+               {/* <div>
                   <label className='field-label'>Campaign</label>
                   <SearchableDropdown
                     value={form.campaignId}
@@ -3394,7 +3393,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     searchPlaceholder='Search campaign...'
                     onChange={value => setForm(p => ({ ...p, campaignId: value }))}
                   />
-                </div>
+                </div> */}
                 <Field
                   label='Quote Reference'
                   value={form.quote}

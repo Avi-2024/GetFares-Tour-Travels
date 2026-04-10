@@ -146,11 +146,18 @@ function createNotificationsRepository({ db, logger, schema }) {
       identity.teamId || null,
     ];
     const result = await db.query(sql, params);
+<<<<<<< HEAD
     return result.rowCount;
+=======
+    return Number(result.rowCount || result?.rows?.length || 0);
+>>>>>>> development
   }
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
+    return (
+      typeof db.query === "function" &&
+      db.pool
+    );
   }
 
   return Object.freeze({
@@ -175,7 +182,7 @@ function createNotificationsRepository({ db, logger, schema }) {
         entity_id: payload.entityId || null,
         title: payload.title || null,
         message: payload.message || null,
-        payload: payload.payload || {},
+        payload: JSON.stringify(payload.payload || {}),
         recipient_user_id: payload.recipientUserId || null,
         recipient_role: payload.recipientRole || null,
         recipient_team_id: payload.recipientTeamId || null,
@@ -371,3 +378,4 @@ function createNotificationsRepository({ db, logger, schema }) {
 }
 
 export { createNotificationsRepository };
+

@@ -9,19 +9,38 @@ import {
 function createCmsPackagesService({ repository }) {
   function toPackage(row) {
     if (!row) return null;
+    let galleryImageUrls = [];
+    if (row.gallery_image_urls) {
+      try {
+        galleryImageUrls = typeof row.gallery_image_urls === 'string' ? JSON.parse(row.gallery_image_urls) : row.gallery_image_urls;
+      } catch {
+        galleryImageUrls = [];
+      }
+    }
     return {
       id: row.id,
       name: row.name,
       destination: row.destination,
       duration: row.duration,
       startingPrice: parseFloat(row.starting_price) || 0,
+      inclusions: row.inclusions,
+      exclusions: row.exclusions,
+      hotelDetails: row.hotel_details,
+      packageCategory: row.package_category,
       bannerImageUrl: row.banner_image_url,
       galleryImageUrls: row.gallery_image_urls || [],
+      itinerary: row.itinerary,
+      validFrom: row.valid_from,
+      validTo: row.valid_to,
+      cancellationPolicy: row.cancellation_policy,
+      status: row.status,
       metaTitle: row.meta_title,
       metaDescription: row.meta_description,
+      keywords: row.keywords,
       publishToWebsite: row.publish_to_website,
       websiteSlug: row.website_slug,
       isSoldOut: row.is_sold_out,
+      isDeleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -126,9 +145,7 @@ function createCmsPackagesService({ repository }) {
         package_category: normalizeText(data.packageCategory),
         status: normalizeText(data.status || "DRAFT"),
         banner_image_url: normalizeText(data.bannerImageUrl),
-        gallery_image_urls: Array.isArray(data.galleryImageUrls) ?
-            data.galleryImageUrls
-          : [],
+        gallery_image_urls: JSON.stringify(Array.isArray(data.galleryImageUrls) ? data.galleryImageUrls : []),
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
         keywords: normalizeText(data.keywords),
@@ -193,7 +210,7 @@ function createCmsPackagesService({ repository }) {
         updates.banner_image_url = data.bannerImageUrl;
       }
       if (data.galleryImageUrls !== undefined && Array.isArray(data.galleryImageUrls)) {
-        updates.gallery_image_urls = data.galleryImageUrls;
+        updates.gallery_image_urls = JSON.stringify(data.galleryImageUrls);
       }
       if (data.publishToWebsite !== undefined) {
         updates.publish_to_website = toBoolean(data.publishToWebsite, true);

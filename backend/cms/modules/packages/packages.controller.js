@@ -1,4 +1,8 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import {
+  getFirstRequestFile,
+  getRequestFiles,
+} from "../../core/uploads/request-files.util.js";
 
 function createCmsPackagesController({ service, uploadService }) {
   return Object.freeze({
@@ -17,17 +21,39 @@ function createCmsPackagesController({ service, uploadService }) {
 
     createPublishedPackage: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const bannerFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "banner",
+        "image",
+        "file",
+      ]);
+      const galleryFiles = getRequestFiles(req, [
+        "gallery",
+        "galleryImages",
+        "images",
+        "media",
+      ]);
+
+      if (bannerFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: bannerFile,
           prefix: "cms/packages/banner",
           allowVideo: false,
           required: false,
         });
         payload.bannerImageUrl = uploaded?.url || payload.bannerImageUrl;
-        payload.galleryImageUrls = payload.bannerImageUrl ?
-            [payload.bannerImageUrl]
-          : payload.galleryImageUrls;
+      }
+
+      if (galleryFiles.length) {
+        const uploadedGallery = await uploadService.uploadMany({
+          files: galleryFiles,
+          prefix: "cms/packages/gallery",
+          allowVideo: false,
+          maxCount: 50,
+        });
+        payload.galleryImageUrls = uploadedGallery.map((item) => item.url);
+      } else if (!payload.galleryImageUrls && payload.bannerImageUrl) {
+        payload.galleryImageUrls = [payload.bannerImageUrl];
       }
 
       const pkg = await service.createPublishedPackage(payload);
@@ -47,15 +73,37 @@ function createCmsPackagesController({ service, uploadService }) {
 
     updatePublishedPackage: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const bannerFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "banner",
+        "image",
+        "file",
+      ]);
+      const galleryFiles = getRequestFiles(req, [
+        "gallery",
+        "galleryImages",
+        "images",
+        "media",
+      ]);
+
+      if (bannerFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: bannerFile,
           prefix: "cms/packages/banner",
           allowVideo: false,
           required: false,
         });
         payload.bannerImageUrl = uploaded?.url || payload.bannerImageUrl;
-        payload.galleryImageUrls = payload.bannerImageUrl ? [payload.bannerImageUrl] : payload.galleryImageUrls;
+      }
+
+      if (galleryFiles.length) {
+        const uploadedGallery = await uploadService.uploadMany({
+          files: galleryFiles,
+          prefix: "cms/packages/gallery",
+          allowVideo: false,
+          maxCount: 50,
+        });
+        payload.galleryImageUrls = uploadedGallery.map((item) => item.url);
       }
 
       const pkg = await service.updatePublishedPackage(req.params.id, payload);

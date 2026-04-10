@@ -11,10 +11,12 @@ function createLandingService({ repository }) {
     return {
       id: row.id,
       title: row.name,
+      name: row.name,
       country: row.country ?? null,
-      description: row.description,
+      description: row.tag ?? null,
       tag: row.tag,
       image: row.image_url,
+      imageUrl: row.image_url,
       displayOrder: row.display_order,
       isActive: row.is_active,
       createdAt: row.created_at,
@@ -63,21 +65,20 @@ function createLandingService({ repository }) {
       }
 
       const title = normalizeText(data.title ?? data.name);
-      const description = normalizeText(data.description ?? data.tag ?? title);
-      if (!description) {
-        throw new AppError(
-          400,
-          "Description is required for landing place",
-          "DESCRIPTION_REQUIRED",
-        );
+      if (!title) {
+        throw new AppError(400, "Title is required", "TITLE_REQUIRED");
+      }
+
+      const imageUrl = normalizeText(data.image ?? data.imageUrl);
+      if (!imageUrl) {
+        throw new AppError(400, "Image is required", "IMAGE_REQUIRED");
       }
 
       const row = await repository.create({
         name: title,
         ...(supportsCountry ? { country } : {}),
-        description,
-        tag: normalizeText(data.tag),
-        image_url: normalizeText(data.image ?? data.imageUrl),
+        tag: normalizeText(data.tag ?? data.subtitle ?? data.description),
+        image_url: imageUrl,
         display_order: toNumber(data.displayOrder, existing.length),
         is_active: toBoolean(data.isActive, true),
       });
@@ -113,14 +114,17 @@ function createLandingService({ repository }) {
         }
         updates.country = country;
       }
-      if (data.description !== undefined) {
-        const description = normalizeText(data.description);
-        if (!description) {
-          throw new AppError(400, "Description cannot be empty", "INVALID_DESCRIPTION");
+      if (
+        data.tag !== undefined ||
+        data.subtitle !== undefined ||
+        data.description !== undefined
+      ) {
+        const tag = normalizeText(data.tag ?? data.subtitle ?? data.description);
+        if (!tag) {
+          throw new AppError(400, "Tag cannot be empty", "INVALID_TAG");
         }
-        updates.description = description;
+        updates.tag = tag;
       }
-      if (data.tag !== undefined) updates.tag = normalizeText(data.tag);
       if (data.imageUrl !== undefined || data.image !== undefined)
         updates.image_url = normalizeText(data.image ?? data.imageUrl);
       if (data.displayOrder !== undefined)

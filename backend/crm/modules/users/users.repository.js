@@ -8,8 +8,12 @@ function createUsersRepository({ db, logger, schema }) {
         `
           SELECT 1
           FROM information_schema.columns
+<<<<<<< HEAD
           WHERE table_schema = DATABASE()
             AND table_name = ?
+=======
+          WHERE table_name = ?
+>>>>>>> development
             AND column_name = ?
           LIMIT 1
         `,
@@ -52,7 +56,11 @@ function createUsersRepository({ db, logger, schema }) {
 
     if (db.adapter === "mysql") {
       const values = [roleId];
+<<<<<<< HEAD
       const filters = ["u.role_id = ?", "u.is_active = 1"];
+=======
+      const filters = ["u.role_id = ?", "u.is_active = TRUE"];
+>>>>>>> development
       if (excludeUserId) {
         values.push(excludeUserId);
         filters.push(`u.id <> ?`);
@@ -83,7 +91,11 @@ function createUsersRepository({ db, logger, schema }) {
 
     if (db.adapter === "mysql") {
       try {
+<<<<<<< HEAD
         const placeholders = normalized.map(() => "?").join(", ");
+=======
+        const placeholders = normalized.map(() => '?').join(',');
+>>>>>>> development
         const result = await db.query(
           `
             SELECT id, code, name, is_active
@@ -118,7 +130,11 @@ function createUsersRepository({ db, logger, schema }) {
     if (db.adapter === "mysql") {
       let result;
       try {
+<<<<<<< HEAD
         const placeholders = normalized.map(() => "?").join(", ");
+=======
+        const placeholders = normalized.map(() => '?').join(',');
+>>>>>>> development
         result = await db.query(
           `
             SELECT
@@ -200,7 +216,12 @@ function createUsersRepository({ db, logger, schema }) {
             INSERT INTO ${schema.userCountriesTable}
               (user_id, country_id, is_primary, created_by)
             VALUES (?, ?, ?, ?)
+<<<<<<< HEAD
             ON DUPLICATE KEY UPDATE is_primary = VALUES(is_primary)
+=======
+            ON DUPLICATE KEY UPDATE
+              is_primary = VALUES(is_primary)
+>>>>>>> development
           `,
           [userId, countryId, isPrimary, createdBy],
         );
@@ -232,3 +253,4 @@ function createUsersRepository({ db, logger, schema }) {
 }
 
 export { createUsersRepository };
+

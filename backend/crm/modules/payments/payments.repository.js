@@ -109,7 +109,11 @@ function createPaymentsRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
+<<<<<<< HEAD
         `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
+=======
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1`,
+>>>>>>> development
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -138,7 +142,11 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
+<<<<<<< HEAD
       `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
+=======
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+>>>>>>> development
       [tableName],
     );
 
@@ -205,6 +213,7 @@ function createPaymentsRepository({ db, logger, schema }) {
 
     if (canUseRawQuery()) {
       const result = await db.query(
+<<<<<<< HEAD
           `
             SELECT COALESCE(SUM(refund_amount), 0) AS refund_amount
             FROM ${schema.refundsTable}
@@ -213,6 +222,16 @@ function createPaymentsRepository({ db, logger, schema }) {
           `,
           [bookingId],
         );
+=======
+        `
+          SELECT COALESCE(SUM(refund_amount), 0) AS refund_amount
+          FROM ${schema.refundsTable}
+          WHERE booking_id = ?
+            AND status = 'PROCESSED'
+        `,
+        [bookingId],
+      );
+>>>>>>> development
 
       return toNumber(result.rows[0]?.refund_amount, 0);
     }
@@ -257,8 +276,13 @@ function createPaymentsRepository({ db, logger, schema }) {
           SELECT
             ROUND(COALESCE(SUM(CASE WHEN COALESCE(is_verified, 0) = 1
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+<<<<<<< HEAD
               THEN amount ELSE 0 END), 0), 2) AS collected_amount,
             SUM(CASE WHEN COALESCE(is_verified, 0) = 1
+=======
+              THEN amount ELSE 0 END), 0) AS collected_amount,
+            SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
+>>>>>>> development
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
               THEN 1 ELSE 0 END) AS collected_count
           FROM ${schema.tableName}
@@ -299,6 +323,7 @@ function createPaymentsRepository({ db, logger, schema }) {
             SELECT
               ROUND(COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
+<<<<<<< HEAD
                 ELSE 0 END), 0), 2) AS outstanding_amount,
               SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
@@ -308,6 +333,17 @@ function createPaymentsRepository({ db, logger, schema }) {
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
                 THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
                 ELSE 0 END), 0), 2) AS overdue_amount,
+=======
+                ELSE 0 END), 0) AS outstanding_amount,
+              SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
+                THEN 1 ELSE 0 END) AS outstanding_count,
+              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                AND ${overdueDate}
+                AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
+                THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
+                ELSE 0 END), 0) AS overdue_amount,
+>>>>>>> development
               SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
                 AND ${overdueDate}
                 AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
@@ -352,7 +388,11 @@ function createPaymentsRepository({ db, logger, schema }) {
           const refundResult = await db.query(
             `
               SELECT
+<<<<<<< HEAD
                 ROUND(COALESCE(SUM(refund_amount), 0), 2) AS refunds_amount,
+=======
+                COALESCE(SUM(refund_amount), 0) AS refunds_amount,
+>>>>>>> development
                 COUNT(*) AS refunds_count
               FROM ${schema.refundsTable}
               WHERE status = 'PROCESSED'
@@ -522,7 +562,11 @@ function createPaymentsRepository({ db, logger, schema }) {
             SELECT COALESCE(SUM(amount), 0) AS paid_amount
             FROM ${schema.tableName}
             WHERE booking_id = ?
+<<<<<<< HEAD
               AND COALESCE(is_verified, 0) = 1
+=======
+              AND COALESCE(is_verified, FALSE) = TRUE
+>>>>>>> development
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
           `,
           [bookingId],
@@ -545,3 +589,4 @@ function createPaymentsRepository({ db, logger, schema }) {
 }
 
 export { createPaymentsRepository };
+

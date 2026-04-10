@@ -18,6 +18,24 @@ const dateTimeString = z
     message: "Invalid date-time",
   });
 
+/** Accepts YYYY-MM-DD or ISO datetimes; maps "", null to undefined (omit). */
+function preprocessOptionalDateOnly(val) {
+  if (val === undefined || val === null) return undefined;
+  if (typeof val === "string" && val.trim() === "") return undefined;
+  const s = String(val).trim();
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+const optionalDateOnly = z.preprocess(
+  preprocessOptionalDateOnly,
+  z.string().date().optional(),
+);
+
 const basePayload = z.object({
   fullName: z.string().min(2),
   nationality: z.string().min(2).max(80).optional(),
@@ -34,8 +52,8 @@ const basePayload = z.object({
   travelTo: z.string().min(2).max(150).optional(),
   destinationName: z.string().min(2).max(150).optional(),
   destination: z.string().min(2).max(150).optional(),
-  travelDate: z.string().date().optional(),
-  travelEndDate: z.string().date().optional(),
+  travelDate: optionalDateOnly,
+  travelEndDate: optionalDateOnly,
   budget: z.coerce.number().nonnegative().optional(),
   source: z.string().min(2).max(100).optional(),
   campaignId: z.string().uuid().optional(),
@@ -130,8 +148,8 @@ const list = z.object({
       phone: z.string().trim().max(20).optional(),
       leadId: z.string().trim().max(120).optional(),
       destination: z.string().trim().max(150).optional(),
-      fromDate: z.string().date().optional(),
-      toDate: z.string().date().optional(),
+      fromDate: optionalDateOnly,
+      toDate: optionalDateOnly,
       sla: z.enum(["WITHIN_SLA", "OVERDUE", "PENDING"]).optional(),
       sortBy: z
         .enum(["NEWEST_FIRST", "OLDEST_FIRST", "NAME_A_Z", "STATUS"])
@@ -196,6 +214,11 @@ const createFollowup = z.object({
     cadenceCode: z.string().max(50).optional(),
     followupDate: dateTimeString,
     notes: z.string().max(2000).optional(),
+    clientTimezone: z.preprocess(
+      (v) =>
+        v === "" || v === null || v === undefined ? undefined : String(v).trim(),
+      z.string().min(2).max(80).optional(),
+    ),
   }),
   params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),

@@ -19,9 +19,8 @@ function createTokenBlacklistService({ db, logger }) {
     try {
       await db.query(
         `
-        INSERT INTO token_blacklist (token_jti, user_id, expires_at, reason, ip_address, user_agent)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (token_jti) DO NOTHING
+        INSERT IGNORE INTO token_blacklist (token_jti, user_id, expires_at, reason, ip_address, user_agent)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
         [jti, userId, expiresAt, reason, ipAddress, userAgent],
       );
@@ -51,7 +50,7 @@ function createTokenBlacklistService({ db, logger }) {
       const result = await db.query(
         `
         SELECT 1 FROM token_blacklist 
-        WHERE token_jti = $1 
+        WHERE token_jti = ? 
         AND expires_at > CURRENT_TIMESTAMP
         LIMIT 1
       `,
@@ -98,11 +97,15 @@ function createTokenBlacklistService({ db, logger }) {
         `
         DELETE FROM token_blacklist 
         WHERE expires_at < CURRENT_TIMESTAMP
-        RETURNING id
       `,
       );
 
-      const deletedCount = result.rows.length;
+      const deletedCount = Number(
+        result?.rowCount ??
+          result?.rows?.length ??
+          result?.affectedRows ??
+          0,
+      );
 
       logger.info(
         { deletedCount },
@@ -128,8 +131,8 @@ function createTokenBlacklistService({ db, logger }) {
         `
         SELECT 
           COUNT(*) as total,
-          COUNT(*) FILTER (WHERE expires_at > CURRENT_TIMESTAMP) as active,
-          COUNT(*) FILTER (WHERE expires_at <= CURRENT_TIMESTAMP) as expired,
+          SUM(CASE WHEN expires_at > CURRENT_TIMESTAMP THEN 1 ELSE 0 END) as active,
+          SUM(CASE WHEN expires_at <= CURRENT_TIMESTAMP THEN 1 ELSE 0 END) as expired,
           COUNT(DISTINCT user_id) as unique_users
         FROM token_blacklist
       `,

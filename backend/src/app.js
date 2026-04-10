@@ -2,11 +2,11 @@ import express from "express";
 import path from "node:path";
 import cors from "cors";
 import helmet from "helmet";
-import pinoHttp from "pino-http";
 import { createContainer } from "./container.js";
 import { registerModules } from "./modules/index.js";
 import {
   requestContext,
+  createRequestLoggingMiddleware,
   notFound,
   errorHandler,
 } from "../crm/core/middlewares/index.js";
@@ -19,6 +19,7 @@ function createApp(overrides = {}) {
     startedAt: new Date(),
     isShuttingDown: false,
   };
+  app.locals.logger = container.logger;
 
   app.use(helmet());
   const corsOptions = {
@@ -45,8 +46,8 @@ function createApp(overrides = {}) {
 
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-  app.use(pinoHttp({ logger: container.logger }));
   app.use(requestContext);
+  app.use(createRequestLoggingMiddleware({ logger: container.logger }));
   app.use(
     createRequestMetricsMiddleware({ metricsStore: container.metricsStore }),
   );
@@ -119,7 +120,19 @@ function createApp(overrides = {}) {
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      req.log?.error({ err: error }, "Readiness check failed");
+      req.logger?.error(
+        {
+          module: "health",
+          fileName: "app.js",
+          functionName: "health.ready",
+          requestId: req.context?.requestId,
+          method: req.method,
+          url: req.originalUrl || req.url,
+          statusCode: 503,
+          stack: error?.stack,
+        },
+        "Database failure",
+      );
       return res.status(503).json({
         service: container.config.app.name,
         version: container.config.app.version,

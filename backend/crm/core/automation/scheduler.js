@@ -8,16 +8,6 @@ function normalizeIntervalMs(value, fallback) {
   return Math.floor(parsed);
 }
 
-function lockKeyFromString(input) {
-  const value = String(input || "automation");
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(index);
-    hash |= 0;
-  }
-  return Math.abs(hash || 1);
-}
-
 function coerceProcessedCount(result) {
   if (result === null || result === undefined) {
     return 0;
@@ -49,15 +39,15 @@ function coerceProcessedCount(result) {
 
 function toJsonDetails(value) {
   if (value === undefined) {
-    return {};
+    return JSON.stringify({});
   }
   if (value === null) {
-    return { value: null };
+    return JSON.stringify({ value: null });
   }
   if (typeof value === "object") {
-    return value;
+    return JSON.stringify(value);
   }
-  return { value };
+  return JSON.stringify({ value });
 }
 
 function createAutomationScheduler({
@@ -106,16 +96,19 @@ function createAutomationScheduler({
 
   async function acquireLock(jobName) {
     const lockName = `automation:${jobName}`;
-    const lockKey = lockKeyFromString(lockName);
 
-    if (canUseDbLock()) {
+    if (canUseDbLock() && String(db?.adapter || "").toLowerCase() === "mysql") {
       try {
         const lockName = `crm_lock_${lockKey}`;
         const result = await db.query(
           "SELECT GET_LOCK(?, 0) AS locked",
           [lockName],
         );
+<<<<<<< HEAD
         const locked = Number(result.rows?.[0]?.locked) === 1;
+=======
+        const locked = Number(result.rows?.[0]?.locked || 0) === 1;
+>>>>>>> development
         if (!locked) {
           return {
             acquired: false,
@@ -130,8 +123,8 @@ function createAutomationScheduler({
               await db.query("SELECT RELEASE_LOCK(?)", [lockName]);
             } catch (error) {
               logger?.warn?.(
-                { err: error, module: "automation", jobName, lockKey },
-                "Failed to release advisory lock",
+                { err: error, module: "automation", jobName, lockName },
+                "Failed to release mysql lock",
               );
             }
           },
@@ -139,7 +132,7 @@ function createAutomationScheduler({
       } catch (error) {
         logger?.warn?.(
           { err: error, module: "automation", jobName },
-          "Falling back to local lock due advisory lock failure",
+          "Falling back to local lock due mysql lock failure",
         );
       }
     }
@@ -220,7 +213,7 @@ function createAutomationScheduler({
       const skippedPayload = {
         status: "SKIPPED",
         recordsProcessed: 0,
-        details: { reason: "LOCK_NOT_ACQUIRED" },
+        details: JSON.stringify({ reason: "LOCK_NOT_ACQUIRED" }),
         errorMessage: null,
       };
       await completeRunRecord(runRecord, skippedPayload);

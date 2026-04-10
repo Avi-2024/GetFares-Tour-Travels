@@ -28,13 +28,21 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default("7d"),
   AUTH_DEFAULT_ROLE: z.string().default("sales_consultant"),
   RBAC_PERMISSION_CACHE_TTL_SEC: z.coerce.number().int().positive().default(60),
+  DATABASE_CLIENT: z.string().optional(),
   DATABASE_URL: z.string().optional(),
   MYSQL_HOST: z.string().optional(),
+<<<<<<< HEAD
   MYSQL_PORT: z.coerce.number().int().positive().default(3306),
+=======
+  MYSQL_PORT: z.coerce.number().int().positive().optional(),
+>>>>>>> development
   MYSQL_USER: z.string().optional(),
   MYSQL_PASSWORD: z.string().optional(),
   MYSQL_DATABASE: z.string().optional(),
   LOG_LEVEL: z.string().default("info"),
+  LOG_DB_URL: z.string().optional(),
+  LOG_DB_DIRECT_URL: z.string().optional(),
+  LOG_DB_COLLECTION: z.string().default("application_logs"),
   HEALTH_DB_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   METRICS_ENABLED: z.coerce.boolean().default(true),
@@ -144,6 +152,48 @@ const envSchema = z.object({
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM_EMAIL: z.string().email().optional(),
   SMTP_FROM_NAME: z.string().default("Get2Vacations"),
+}).superRefine((data, ctx) => {
+  const explicitClient = String(data.DATABASE_CLIENT || "")
+    .trim()
+    .toLowerCase();
+  const dbUrl = String(data.DATABASE_URL || "").trim();
+  const dbUrlLower = dbUrl.toLowerCase();
+  const isMysqlUrl =
+    dbUrlLower.startsWith("mysql://") || dbUrlLower.startsWith("mysql2://");
+
+  const hasMysqlDiscreteConfig = Boolean(
+    data.MYSQL_HOST && data.MYSQL_USER && data.MYSQL_DATABASE,
+  );
+
+  // If client is explicitly mysql, enforce mysql-compatible settings.
+  if (explicitClient === "mysql" || explicitClient === "mariadb") {
+    if (!isMysqlUrl && !hasMysqlDiscreteConfig) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["DATABASE_CLIENT"],
+        message:
+          'For DATABASE_CLIENT=mysql, set DATABASE_URL=mysql://... or MYSQL_HOST, MYSQL_USER, MYSQL_DATABASE.',
+      });
+    }
+  }
+
+  if (explicitClient && explicitClient !== "mysql" && explicitClient !== "mariadb") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["DATABASE_CLIENT"],
+      message: "Only MySQL is supported. Use DATABASE_CLIENT=mysql.",
+    });
+  }
+
+  // If URL is present, validate recognizable URL schemes.
+  if (dbUrl && !isMysqlUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["DATABASE_URL"],
+      message:
+        "DATABASE_URL must start with mysql:// or mysql2://.",
+    });
+  }
 });
 
 const parsed = envSchema.safeParse(process.env);

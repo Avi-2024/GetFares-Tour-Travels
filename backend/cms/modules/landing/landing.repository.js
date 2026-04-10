@@ -15,13 +15,14 @@ function createLandingRepository({ db, schema }) {
       const result = await db.query(
         `SELECT 1
          FROM information_schema.columns
-         WHERE table_schema = 'public'
-           AND table_name = $1
+         WHERE table_schema = DATABASE()
+           AND table_name = ?
            AND column_name = 'country'
          LIMIT 1`,
         [schema.tableName],
       );
-      countryColumnSupported = result.rowCount > 0;
+      countryColumnSupported =
+        (result?.rowCount ?? result?.rows?.length ?? 0) > 0;
     } catch {
       countryColumnSupported = false;
     }
@@ -63,11 +64,12 @@ function createLandingRepository({ db, schema }) {
     },
 
     async delete(id) {
-      const result = await db.query(
-        `DELETE FROM ${schema.tableName} WHERE id = $1 RETURNING *`,
-        [id],
-      );
-      return result.rows[0] || null;
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+      return existing;
     },
 
     async updateOrder(items) {

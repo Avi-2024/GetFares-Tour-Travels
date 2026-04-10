@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "node scripts/build.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "axios": "^1.13.6",
@@ -23,6 +25,7 @@
     "recharts": "^3.7.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",

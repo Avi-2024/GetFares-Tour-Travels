@@ -14,6 +14,7 @@ import {
   DEFAULT_DATE_TIME_PREFERENCES,
   formatDateTimeWithPreferences,
   formatDateWithPreferences,
+  getBrowserTimeZone,
   loadDateTimePreferencesFromStorage,
   normalizeDateTimePreferences,
   parseApiDateTime,
@@ -100,18 +101,24 @@ export const DateTimePreferencesProvider = ({
     try {
       const response = await settingsApi.getSystemPreferences();
       const patch = toDateTimePreferencePatch(extractObject(response));
-      if (Object.keys(patch).length > 0) {
-        applyPreferences(patch, true);
-      }
+      applyPreferences(
+        normalizeDateTimePreferences({
+          ...patch,
+          timezone: getBrowserTimeZone(),
+        }),
+        true,
+      );
     } catch {
-      // Some environments may not have the lightweight endpoint yet.
-      // Fall back to privileged endpoint when available.
       try {
         const response = await settingsApi.getSystem();
         const patch = toDateTimePreferencePatch(extractObject(response));
-        if (Object.keys(patch).length > 0) {
-          applyPreferences(patch, true);
-        }
+        applyPreferences(
+          normalizeDateTimePreferences({
+            ...patch,
+            timezone: getBrowserTimeZone(),
+          }),
+          true,
+        );
       } catch {
         // Keep local/browser defaults.
       }

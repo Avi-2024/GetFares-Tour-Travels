@@ -1,6 +1,19 @@
-function createReportsRepository({ db, schema }) {
+function createReportsRepository({ db, schema, logger }) {
+  function getAdapterName() {
+    return String(db.adapter || "").toLowerCase();
+  }
+
   function canUseRawQuery() {
+<<<<<<< HEAD
     return typeof db.query === "function" && db.adapter === "mysql";
+=======
+    const adapter = getAdapterName();
+    return (
+      typeof db.query === "function" &&
+      Boolean(db.pool) &&
+      adapter === "mysql"
+    );
+>>>>>>> development
   }
 
   function toNumber(value, fallback = 0) {
@@ -35,8 +48,20 @@ function createReportsRepository({ db, schema }) {
     if (!canUseRawQuery()) {
       return [];
     }
-    const result = await db.query(sql, params);
-    return result.rows;
+    try {
+      const result = await db.query(sql, params);
+      return result.rows;
+    } catch (error) {
+      logger?.warn?.(
+        {
+          err: error,
+          module: "reports",
+          sqlPreview: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 240),
+        },
+        "reports raw SQL failed; returning empty rows",
+      );
+      return [];
+    }
   }
 
   return Object.freeze({
@@ -77,6 +102,10 @@ function createReportsRepository({ db, schema }) {
         : [];
 
       if (filters.userId) {
+<<<<<<< HEAD
+=======
+        whereClauses.push(`l.assigned_to = ?`);
+>>>>>>> development
         params.push(filters.userId);
         whereClauses.push(`l.assigned_to = ?`);
       }
@@ -95,7 +124,11 @@ function createReportsRepository({ db, schema }) {
             AVG(
               CASE
                 WHEN l.response_at IS NOT NULL AND l.created_at IS NOT NULL
+<<<<<<< HEAD
                 THEN TIMESTAMPDIFF(SECOND, l.created_at, l.response_at) / 60.0
+=======
+                THEN TIMESTAMPDIFF(MINUTE, l.created_at, l.response_at)
+>>>>>>> development
                 ELSE NULL
               END
             ) AS avg_response_minutes
@@ -135,7 +168,11 @@ function createReportsRepository({ db, schema }) {
             l.assigned_to,
             u.full_name AS consultant_name,
             l.created_at,
+<<<<<<< HEAD
             TIMESTAMPDIFF(SECOND, l.created_at, NOW()) / 3600.0 AS age_hours
+=======
+            TIMESTAMPDIFF(HOUR, l.created_at, CURRENT_TIMESTAMP) AS age_hours
+>>>>>>> development
           FROM ${schema.leadsTable} l
           LEFT JOIN ${schema.usersTable} u ON u.id = l.assigned_to
           ${range.sql}
@@ -487,7 +524,12 @@ function createReportsRepository({ db, schema }) {
           LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
           ORDER BY q.created_at DESC
+<<<<<<< HEAD
           LIMIT ? OFFSET ?
+=======
+          LIMIT ?
+          OFFSET ?
+>>>>>>> development
         `,
         rowParams,
       );
@@ -565,7 +607,7 @@ function createReportsRepository({ db, schema }) {
 
       const offset = (page - 1) * limit;
       const params = [];
-      const where = [];
+      const where = ["COALESCE(q.is_deleted, FALSE) = FALSE"];
 
       if (filters.from) {
         params.push(filters.from);
@@ -575,6 +617,7 @@ function createReportsRepository({ db, schema }) {
         params.push(filters.to);
         where.push(`q.created_at <= ?`);
       }
+<<<<<<< HEAD
       if (filters.supplierId) {
         params.push(String(filters.supplierId).trim());
         where.push(`service_rows.supplier_id = ?`);
@@ -600,6 +643,12 @@ function createReportsRepository({ db, schema }) {
             )
         ),
         quotation_snapshot AS (
+=======
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+      const quotationRows = await queryRows(
+        `
+>>>>>>> development
           SELECT
             q.id AS quotation_id,
             q.quote_number,
@@ -609,8 +658,14 @@ function createReportsRepository({ db, schema }) {
             q.client_currency,
             q.cost_currency,
             q.supplier_currency,
-            COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) AS snapshot_json
+            q.template_snapshot,
+            b.id AS booking_id,
+            b.booking_number,
+            b.status AS booking_status,
+            b.payment_status,
+            COALESCE(b.advance_received, 0) AS advance_received
           FROM ${schema.quotationsTable} q
+<<<<<<< HEAD
           INNER JOIN eligible_bookings eb ON eb.quotation_id = q.id
         ),
         service_rows AS (
@@ -705,43 +760,131 @@ function createReportsRepository({ db, schema }) {
         `
           SELECT COUNT(*) AS total_items
           FROM (${baseSql} ${whereSql}) AS filtered
+=======
+          INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
+          ${whereSql}
+            AND COALESCE(b.is_deleted, FALSE) = FALSE
+            AND (
+              UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) = 'CONFIRMED'
+              OR COALESCE(b.advance_received, 0) > 0
+              OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
+            )
+          ORDER BY q.created_at DESC, q.quote_number ASC
+>>>>>>> development
         `,
         params,
       );
 
-      const listParams = [...params, limit, offset];
-      const rows = await queryRows(
-        `
-          ${baseSql}
-          ${whereSql}
-          ORDER BY created_at DESC, quote_number ASC
-          LIMIT $${listParams.length - 1}
-          OFFSET $${listParams.length}
-        `,
-        listParams,
-      );
+      const toSnapshot = (value) => {
+        if (!value) return {};
+        if (typeof value === "object") return value;
+        try {
+          return JSON.parse(value);
+        } catch {
+          return {};
+        }
+      };
 
-      const totalItems = toNumber(countRows[0]?.total_items, 0);
+      const normalizeText = (value, fallback = "") => {
+        const text = String(value || "").trim();
+        return text || fallback;
+      };
+
+      const deriveServiceLabel = (service = {}) => {
+        const key = normalizeText(service.key).toLowerCase();
+        const itemType = normalizeText(service.itemType).toUpperCase();
+        return (
+          normalizeText(service.label) ||
+          normalizeText(service.serviceName) ||
+          ({
+            hotel: "Accommodation",
+            flights: "Flights",
+            tours: "Tours & Activities",
+            visa: "Visa Services",
+            insurance: "Insurance",
+            insurance2: "Land Arrangement",
+          }[key] || "") ||
+          ({
+            HOTEL: "Accommodation",
+            FLIGHT: "Flights",
+            TRANSFER: "Land Arrangement",
+            VISA: "Visa Services",
+            INSURANCE: "Insurance",
+            OTHER: "Other",
+          }[itemType] || "") ||
+          normalizeText(service.itemType) ||
+          normalizeText(service.key) ||
+          "Other"
+        );
+      };
+
+      const leadIds = [...new Set(quotationRows.map((row) => row.lead_id).filter(Boolean))];
+      const leadMap = new Map();
+      if (leadIds.length > 0) {
+        const placeholders = leadIds.map(() => "?").join(",");
+        const leadRows = await queryRows(
+          `SELECT id, full_name FROM ${schema.leadsTable} WHERE id IN (${placeholders})`,
+          leadIds,
+        );
+        leadRows.forEach((row) => {
+          leadMap.set(String(row.id), normalizeText(row.full_name, "Unknown lead"));
+        });
+      }
+
+      const allRows = [];
+      quotationRows.forEach((row) => {
+        const snapshot = toSnapshot(row.template_snapshot);
+        const serviceRows =
+          Array.isArray(snapshot.serviceRows) ? snapshot.serviceRows
+          : Array.isArray(snapshot.builderSnapshot?.serviceRows) ? snapshot.builderSnapshot.serviceRows
+          : [];
+        const supplierDetails = snapshot.supplierDetails || {};
+        const quoteNumber = normalizeText(row.quote_number, String(row.quotation_id || "").slice(0, 8));
+        const leadName = leadMap.get(String(row.lead_id || "")) || "Unknown lead";
+        const currency =
+          normalizeText(row.client_currency) ||
+          normalizeText(row.cost_currency) ||
+          normalizeText(row.supplier_currency) ||
+          "INR";
+
+        serviceRows.forEach((service, index) => {
+          const supplierId =
+            normalizeText(service?.supplierId) ||
+            normalizeText(supplierDetails?.supplierId) ||
+            "UNASSIGNED";
+          if (filters.supplierId && String(filters.supplierId).trim() !== supplierId) {
+            return;
+          }
+
+          allRows.push({
+            id: `${row.quotation_id}-${index}`,
+            quotationId: row.quotation_id,
+            bookingId: row.booking_id,
+            bookingNumber: row.booking_number,
+            bookingStatus: row.booking_status,
+            paymentStatus: row.payment_status,
+            advanceReceived: toNumber(row.advance_received, 0),
+            quoteNumber,
+            leadName,
+            serviceLabel: deriveServiceLabel(service),
+            supplierId,
+            supplierName:
+              normalizeText(service?.supplierName) ||
+              normalizeText(supplierDetails?.supplierName) ||
+              "Not selected",
+            basePrice: toNumber(service?.baseCost, 0),
+            currency,
+            quotationStatus: row.quotation_status,
+            createdAt: row.created_at,
+          });
+        });
+      });
+
+      const totalItems = allRows.length;
+      const rows = allRows.slice(offset, offset + limit);
 
       return {
-        rows: rows.map((row, index) => ({
-          id: `${row.quotation_id}-${index}`,
-          quotationId: row.quotation_id,
-          bookingId: row.booking_id,
-          bookingNumber: row.booking_number,
-          bookingStatus: row.booking_status,
-          paymentStatus: row.payment_status,
-          advanceReceived: toNumber(row.advance_received, 0),
-          quoteNumber: row.quote_number,
-          leadName: row.lead_name,
-          serviceLabel: row.service_label,
-          supplierId: row.supplier_id,
-          supplierName: row.supplier_name,
-          basePrice: toNumber(row.base_price, 0),
-          currency: row.currency || "INR",
-          quotationStatus: row.quotation_status,
-          createdAt: row.created_at,
-        })),
+        rows,
         pagination: {
           page,
           limit,
@@ -833,7 +976,11 @@ function createReportsRepository({ db, schema }) {
           FROM ${schema.followupsTable} f
           LEFT JOIN ${schema.leadsTable} l ON l.id = f.lead_id
           WHERE DATE(f.followup_date) < ?
+<<<<<<< HEAD
             AND COALESCE(f.is_completed, 0) = 0
+=======
+            AND COALESCE(f.is_completed, FALSE) = FALSE
+>>>>>>> development
           ORDER BY f.followup_date ASC
         `,
         [date],
@@ -1049,7 +1196,11 @@ function createReportsRepository({ db, schema }) {
             AVG(
               CASE
                 WHEN r.processed_at IS NOT NULL
+<<<<<<< HEAD
                 THEN TIMESTAMPDIFF(SECOND, r.created_at, r.processed_at) / 86400.0
+=======
+                THEN TIMESTAMPDIFF(SECOND, r.created_at, r.processed_at) / 86400
+>>>>>>> development
                 ELSE NULL
               END
             ) AS avg_refund_turnaround_days
@@ -1332,7 +1483,11 @@ function createReportsRepository({ db, schema }) {
             COUNT(*) AS total_leads,
             SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
           FROM ${schema.leadsTable} l
+<<<<<<< HEAD
           WHERE l.created_at >= NOW() - INTERVAL 90 DAY
+=======
+          WHERE l.created_at >= (CURRENT_TIMESTAMP - INTERVAL 90 DAY)
+>>>>>>> development
         `,
       );
 
@@ -1341,7 +1496,11 @@ function createReportsRepository({ db, schema }) {
           SELECT
             AVG(COALESCE(b.total_amount, 0)) AS avg_booking_value
           FROM ${schema.bookingsTable} b
+<<<<<<< HEAD
           WHERE b.created_at >= NOW() - INTERVAL 90 DAY
+=======
+          WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL 90 DAY)
+>>>>>>> development
         `,
       );
 
@@ -1351,7 +1510,11 @@ function createReportsRepository({ db, schema }) {
             DATE_FORMAT(b.created_at, '%Y-%m') AS month,
             SUM(COALESCE(b.total_amount, 0)) AS revenue
           FROM ${schema.bookingsTable} b
+<<<<<<< HEAD
           WHERE b.created_at >= NOW() - INTERVAL 12 MONTH
+=======
+          WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL 12 MONTH)
+>>>>>>> development
           GROUP BY DATE_FORMAT(b.created_at, '%Y-%m')
           ORDER BY DATE_FORMAT(b.created_at, '%Y-%m')
         `,
@@ -1415,3 +1578,5 @@ function createReportsRepository({ db, schema }) {
 }
 
 export { createReportsRepository };
+
+

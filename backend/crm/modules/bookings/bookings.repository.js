@@ -275,7 +275,11 @@ function createBookingsRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
+<<<<<<< HEAD
         `SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1`,
+=======
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1`,
+>>>>>>> development
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -304,7 +308,11 @@ function createBookingsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
+<<<<<<< HEAD
       `SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+=======
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+>>>>>>> development
       [tableName],
     );
 
@@ -470,7 +478,11 @@ function createBookingsRepository({ db, logger, schema }) {
     let joinClause = "";
     const bookingHasSoftDelete = await hasColumn(schema.tableName, "is_deleted");
     const conditions = [
+<<<<<<< HEAD
       ...(bookingHasSoftDelete ? ["b.is_deleted = 0"] : []),
+=======
+      "TRUE",
+>>>>>>> development
       "b.status = 'CONFIRMED'",
       `b.${dateColumn} = ?`,
     ];
@@ -534,7 +546,11 @@ function createBookingsRepository({ db, logger, schema }) {
       const params = [];
       const bookingHasSoftDelete = await hasColumn(schema.tableName, "is_deleted");
       const conditions = [
+<<<<<<< HEAD
         ...(bookingHasSoftDelete ? ["COALESCE(b.is_deleted, 0) = 0"] : []),
+=======
+        "TRUE",
+>>>>>>> development
         "b.status <> 'CANCELLED'",
         "(b.supplier_payment_deadline_at IS NOT NULL OR b.cancellation_deadline_at IS NOT NULL)",
       ];
@@ -949,7 +965,11 @@ function createBookingsRepository({ db, logger, schema }) {
             SELECT COALESCE(SUM(amount), 0) AS paid_amount
             FROM ${schema.paymentsTable}
             WHERE booking_id = ?
+<<<<<<< HEAD
               AND COALESCE(is_verified, 0) = 1
+=======
+              AND COALESCE(is_verified, FALSE) = TRUE
+>>>>>>> development
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
           `,
           [bookingId],
@@ -960,7 +980,11 @@ function createBookingsRepository({ db, logger, schema }) {
             SELECT COUNT(*) AS proof_count
             FROM ${schema.paymentsTable}
             WHERE booking_id = ?
+<<<<<<< HEAD
               AND COALESCE(is_verified, 0) = 1
+=======
+              AND COALESCE(is_verified, FALSE) = TRUE
+>>>>>>> development
               AND (
                 proof_url IS NOT NULL
                 OR gateway_payment_id IS NOT NULL
@@ -1008,7 +1032,11 @@ function createBookingsRepository({ db, logger, schema }) {
             SELECT COALESCE(SUM(amount), 0) AS paid_amount
             FROM ${schema.paymentsTable}
             WHERE booking_id = ?
+<<<<<<< HEAD
               AND COALESCE(is_verified, 0) = 1
+=======
+              AND COALESCE(is_verified, FALSE) = TRUE
+>>>>>>> development
               AND COALESCE(status, 'PENDING') <> 'REFUNDED'
           `,
           [bookingId],
@@ -1058,3 +1086,5 @@ function createBookingsRepository({ db, logger, schema }) {
 }
 
 export { createBookingsRepository };
+
+
