@@ -236,7 +236,7 @@ const QuotationsPage: React.FC = () => {
 
       setIsFetchingList(true)
       try {
-        const response = await quotationsApi.list({ includeItems: false })
+        const response = await quotationsApi.list()
 
         // Check if response has the expected structure
         if (response && typeof response === 'object') {

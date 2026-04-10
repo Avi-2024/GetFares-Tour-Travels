@@ -1,4 +1,4 @@
-﻿function createReportsRepository({ db, schema }) {
+function createReportsRepository({ db, schema, logger }) {
   function getAdapterName() {
     return String(db.adapter || "").toLowerCase();
   }
@@ -51,7 +51,15 @@
     try {
       const result = await db.query(sql, params);
       return result.rows;
-    } catch (_error) {
+    } catch (error) {
+      logger?.warn?.(
+        {
+          err: error,
+          module: "reports",
+          sqlPreview: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 240),
+        },
+        "reports raw SQL failed; returning empty rows",
+      );
       return [];
     }
   }

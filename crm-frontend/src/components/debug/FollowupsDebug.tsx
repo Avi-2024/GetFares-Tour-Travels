@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../../api/apiClient';
 
 const FollowupsDebug: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [response, setResponse] = useState<any>(null);
@@ -9,9 +10,12 @@ const FollowupsDebug: React.FC<{ leadId: string }> = ({ leadId }) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/leads/${leadId}/followups`, {
+      const token =
+        localStorage.getItem('auth_token') || localStorage.getItem('token');
+      const base = API_BASE_URL.replace(/\/$/, '');
+      const res = await fetch(`${base}/api/leads/${leadId}/followups`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       const data = await res.json();

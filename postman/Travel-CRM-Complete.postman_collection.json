@@ -57,12 +57,12 @@
     },
     {
       "key": "adminEmail",
-      "value": "admin@travel-crm.com",
+      "value": "get2vacations@gmail.com",
       "type": "string"
     },
     {
       "key": "adminPassword",
-      "value": "admin@123",
+      "value": "12345678",
       "type": "string"
     },
     {
@@ -258,48 +258,6 @@
           ]
         },
         {
-          "name": "Login - Sales Consultant",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{consultantEmail}}\",\n  \"password\": \"{{consultantPassword}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const json = pm.response.json();",
-                  "if (json && json.data && json.data.accessToken) {",
-                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
-                  "  pm.collectionVariables.set('userId', json.data.user.id);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
           "name": "Get Current User (Me)",
           "request": {
             "method": "GET",
@@ -321,48 +279,6 @@
               ]
             }
           }
-        },
-        {
-          "name": "Register User",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"fullName\": \"{{registerFullName}}\",\n  \"email\": \"{{registerEmail}}\",\n  \"phone\": \"{{registerPhone}}\",\n  \"password\": \"{{registerPassword}}\",\n  \"role\": \"{{registerRole}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "register"
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const json = pm.response.json();",
-                  "if (json && json.data && json.data.id) {",
-                  "  pm.collectionVariables.set('userId', json.data.id);",
-                  "  pm.collectionVariables.set('accessToken', json.data.accessToken || pm.collectionVariables.get('accessToken'));",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
         }
       ]
     },
@@ -410,8 +326,10 @@
               "script": {
                 "exec": [
                   "const json = pm.response.json();",
-                  "if (json && json.data && json.data.length > 0) {",
-                  "  pm.collectionVariables.set('leadId', json.data[0].id);",
+                  "const inner = json && json.data;",
+                  "const rows = Array.isArray(inner?.data) ? inner.data : Array.isArray(inner) ? inner : Array.isArray(inner?.items) ? inner.items : [];",
+                  "if (rows.length > 0 && rows[0].id) {",
+                  "  pm.collectionVariables.set('leadId', rows[0].id);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -435,7 +353,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"New Lead Test\",\n  \"email\": \"newlead@test.com\",\n  \"phone\": \"+91-9999999999\",\n  \"destinationId\": \"{{destinationId}}\",\n  \"travelDate\": \"2026-06-15\",\n  \"budget\": 75000,\n  \"source\": \"Direct\",\n  \"status\": \"OPEN\"\n}"
+              "raw": "{\n  \"fullName\": \"Postman Lead Test\",\n  \"email\": \"postman.lead.{{$randomInt}}@test.com\",\n  \"phone\": \"+919999999999\",\n  \"leadCountry\": \"India\",\n  \"nationality\": \"Indian\",\n  \"leadType\": \"HOLIDAY\",\n  \"destinationName\": \"Goa\",\n  \"travelDate\": \"2026-06-15\",\n  \"budget\": 75000,\n  \"source\": \"Direct\",\n  \"status\": \"OPEN\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/leads",
@@ -613,8 +531,10 @@
               "script": {
                 "exec": [
                   "const json = pm.response.json();",
-                  "if (json && json.data && json.data.length > 0) {",
-                  "  pm.collectionVariables.set('quotationId', json.data[0].id);",
+                  "const inner = json && json.data;",
+                  "const rows = Array.isArray(inner?.data) ? inner.data : Array.isArray(inner) ? inner : Array.isArray(inner?.items) ? inner.items : [];",
+                  "if (rows.length > 0 && rows[0].id) {",
+                  "  pm.collectionVariables.set('quotationId', rows[0].id);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -775,8 +695,10 @@
               "script": {
                 "exec": [
                   "const json = pm.response.json();",
-                  "if (json && json.data && json.data.length > 0) {",
-                  "  pm.collectionVariables.set('bookingId', json.data[0].id);",
+                  "const inner = json && json.data;",
+                  "const rows = Array.isArray(inner?.data) ? inner.data : Array.isArray(inner) ? inner : Array.isArray(inner?.items) ? inner.items : [];",
+                  "if (rows.length > 0 && rows[0].id) {",
+                  "  pm.collectionVariables.set('bookingId', rows[0].id);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -1004,8 +926,10 @@
               "script": {
                 "exec": [
                   "const json = pm.response.json();",
-                  "if (json && json.data && json.data.length > 0) {",
-                  "  pm.collectionVariables.set('paymentId', json.data[0].id);",
+                  "const inner = json && json.data;",
+                  "const rows = Array.isArray(inner?.data) ? inner.data : Array.isArray(inner) ? inner : Array.isArray(inner?.items) ? inner.items : [];",
+                  "if (rows.length > 0 && rows[0].id) {",
+                  "  pm.collectionVariables.set('paymentId', rows[0].id);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -2503,34 +2427,7 @@
           "name": "Auth",
           "item": [
             {
-              "name": "POST /api/auth/register",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/api/auth/register",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "api",
-                    "auth",
-                    "register"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"fullName\": \"{{registerFullName}}\",\n  \"email\": \"{{registerEmail}}\",\n  \"phone\": \"{{registerPhone}}\",\n  \"password\": \"{{registerPassword}}\",\n  \"role\": \"{{registerRole}}\"\n}"
-                }
-              }
-            },
-            {
-              "name": "POST /api/auth/login",
+              "name": "POST /api/auth/login (admin)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -2554,7 +2451,22 @@
                   "mode": "raw",
                   "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json && json.data && json.data.accessToken) {",
+                      "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                      "  pm.collectionVariables.set('userId', json.data.user.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
             },
             {
               "name": "GET /api/auth/me",

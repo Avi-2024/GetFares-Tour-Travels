@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const paymentStatus = z.enum(["PENDING", "PARTIAL", "FULL", "REFUNDED"]);
 const paymentMode = z.enum([
@@ -109,7 +110,7 @@ const list = z.object({
       bookingId: z.string().uuid().optional(),
       status: paymentStatus.optional(),
       paymentMode: paymentMode.optional(),
-      isVerified: z.coerce.boolean().optional(),
+      isVerified: optionalQueryBoolean,
     })
     .optional(),
 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const createPayload = z
   .object({
@@ -99,9 +100,9 @@ const list = z.object({
       roleId: z.string().uuid().optional(),
       managerId: z.string().uuid().optional(),
       email: z.string().email().optional(),
-      isActive: z.coerce.boolean().optional(),
-      isOnLeave: z.coerce.boolean().optional(),
-      active: z.coerce.boolean().optional(),
+      isActive: optionalQueryBoolean,
+      isOnLeave: optionalQueryBoolean,
+      active: optionalQueryBoolean,
     })
     .optional(),
 });

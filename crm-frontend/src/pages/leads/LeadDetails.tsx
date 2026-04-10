@@ -360,7 +360,6 @@ const LeadDetails: React.FC = () => {
     try {
       const response = await quotationsApi.list({
         leadId: id,
-        includeItems: false,
         limit: 100
       })
       const rows = unwrapApiArray(response) as Record<string, unknown>[]
@@ -788,8 +787,8 @@ const LeadDetails: React.FC = () => {
         nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim(),
-        travelDate: qualification.travelDate,
-        travelEndDate: qualification.travelEndDate,
+        travelDate: qualification.travelDate.trim() || undefined,
+        travelEndDate: qualification.travelEndDate.trim() || undefined,
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
         childAges: cleanChildAges,
@@ -886,8 +885,8 @@ const LeadDetails: React.FC = () => {
         nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim(),
-        travelDate: qualification.travelDate,
-        travelEndDate: qualification.travelEndDate,
+        travelDate: qualification.travelDate.trim() || undefined,
+        travelEndDate: qualification.travelEndDate.trim() || undefined,
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
         childAges: cleanChildAges,

@@ -10,6 +10,7 @@ function createReportsModule({ dependencies }) {
   const repository = createReportsRepository({
     db: dependencies.db,
     schema: ReportsSchema,
+    logger: dependencies.logger,
   });
 
   const events = createReportsEvents();

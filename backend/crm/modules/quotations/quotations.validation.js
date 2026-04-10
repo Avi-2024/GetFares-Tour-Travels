@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const quotationStatus = z.enum([
   "DRAFT",
@@ -120,8 +121,8 @@ const list = z.object({
       durationNights: z.coerce.number().int().min(0).optional(),
       durationDays: z.coerce.number().int().min(1).optional(),
       travelStartDate: z.string().date().optional(),
-      includeItems: z.coerce.boolean().optional(),
-      availableForBooking: z.coerce.boolean().optional(),
+      includeItems: optionalQueryBoolean,
+      availableForBooking: optionalQueryBoolean,
     })
     .optional(),
 });
@@ -300,7 +301,7 @@ const listTemplates = z.object({
   params: z.object({}).optional(),
   query: z
     .object({
-      isActive: z.coerce.boolean().optional(),
+      isActive: optionalQueryBoolean,
       templateType: templateType.optional(),
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().optional(),

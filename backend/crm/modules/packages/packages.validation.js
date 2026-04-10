@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const packageStatus = z.enum(["DRAFT", "ACTIVE", "EXPIRED", "SOLD_OUT"]);
 const packageCategory = z.enum([
@@ -120,8 +121,8 @@ const list = z.object({
       status: packageStatus.optional(),
       destination: z.string().optional(),
       packageCategory: packageCategory.optional(),
-      publishToWebsite: z.coerce.boolean().optional(),
-      isSoldOut: z.coerce.boolean().optional(),
+      publishToWebsite: optionalQueryBoolean,
+      isSoldOut: optionalQueryBoolean,
       search: z.string().max(120).optional(),
     })
     .optional(),

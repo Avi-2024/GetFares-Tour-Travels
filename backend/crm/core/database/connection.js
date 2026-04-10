@@ -511,6 +511,12 @@ function createDatabaseConnection({ config, logger }) {
 
   const poolConfig = createMySqlPoolConfig({ config });
   if (!poolConfig) {
+    const rawUrl = String(config.database?.url || "").trim();
+    if (/^postgres(ql)?:/i.test(rawUrl)) {
+      logger.warn(
+        "DATABASE_URL is still a postgres URL. MySQL adapter never reads it. Use mysql:// or mysql2:// in DATABASE_URL, or set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE.",
+      );
+    }
     logger.warn(
       "MySQL client selected but connection settings are incomplete. Falling back to in-memory adapter.",
     );
