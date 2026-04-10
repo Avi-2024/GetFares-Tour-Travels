@@ -43,7 +43,7 @@ class DashboardRepository {
       this.db &&
       typeof this.db.query === 'function' &&
       Boolean(this.db.pool) &&
-      (adapter === 'mysql')
+      (adapter === 'postgres')
     );
   }
 
