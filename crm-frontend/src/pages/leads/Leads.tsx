@@ -48,7 +48,7 @@ type LeadFilterState = {
   phone: string;
   leadId: string;
   status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
-  sla: "ALL" | "BREACHED" | "ON_REQUEST";
+  sla: "ALL" | "OVERDUE" | "PENDING" | "WITHIN_SLA";
   sortBy: "NEWEST_FIRST" | "OLDEST_FIRST" | "NAME_A_Z" | "STATUS";
 };
 
@@ -104,24 +104,33 @@ const Leads: React.FC = () => {
   const nav = useNavigate();
   const leadsService = useLeadsService();
   const { formatDate } = useDateTimePreferences();
+  const allCountryNames = useMemo(
+    () => Country.getAllCountries().map((country) => country.name),
+    [],
+  );
 
   const countryOptions = useMemo(
     () => [
       { value: "", label: "All Countries" },
-      ...Country.getAllCountries()
-        .map((country) => country.name)
+      ...[...allCountryNames]
         .sort((a, b) => a.localeCompare(b))
         .map((name) => ({ value: name, label: name })),
     ],
-    [],
+    [allCountryNames],
   );
 
   const destinationOptions = useMemo(
-    () => [
-      { value: "", label: "All " },
-      ...destinationNames.map((name) => ({ value: name, label: name })),
-    ],
-    [destinationNames],
+    () => {
+      const mergedNames = Array.from(
+        new Set([...allCountryNames, ...destinationNames]),
+      ).sort((a, b) => a.localeCompare(b));
+
+      return [
+        { value: "", label: "All " },
+        ...mergedNames.map((name) => ({ value: name, label: name })),
+      ];
+    },
+    [allCountryNames, destinationNames],
   );
 
   const statusOptions = useMemo(
@@ -146,8 +155,9 @@ const Leads: React.FC = () => {
   const slaOptions = useMemo(
     () => [
       { value: "ALL", label: "All SLA" },
-      { value: "BREACHED", label: "Breached" },
-      { value: "ON_REQUEST", label: "On Request (Not Breached)" },
+      { value: "OVERDUE", label: "Breached" },
+      { value: "PENDING", label: "Pending" },
+      { value: "WITHIN_SLA", label: "Within SLA" },
     ],
     [],
   );

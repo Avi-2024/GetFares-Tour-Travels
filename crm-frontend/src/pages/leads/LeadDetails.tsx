@@ -171,7 +171,10 @@ const LeadDetails: React.FC = () => {
   const firstFollowupLabel = useMemo(() => {
     if (!followups.length) return 'N/A'
     const dates = followups
-      .map(item => item?.followupDate || item?.followup_date || null)
+      .map(item => {
+        const date = item?.followupDate || item?.followup_date || item?.createdAt || item?.created_at || null
+        return date
+      })
       .filter(Boolean)
       .map(value => parseApiDateTime(value))
       .filter((value): value is Date => Boolean(value))
@@ -211,6 +214,50 @@ const LeadDetails: React.FC = () => {
       return null
     },
     [parseApiDateTime]
+  )
+
+  const parseBooleanLike = useCallback((value: unknown) => {
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'number') return value !== 0
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (!normalized) return false
+      return ['true', '1', 'yes', 'y'].includes(normalized)
+    }
+    return false
+  }, [])
+
+  const normalizeFollowupItem = useCallback(
+    (item: any) => {
+      const rawCountsTowardCompliance =
+        item?.countsTowardCompliance ?? item?.counts_toward_compliance
+
+      return {
+        ...item,
+        userFullName:
+          item?.userFullName ??
+          item?.user_full_name ??
+          item?.userName ??
+          item?.user_name ??
+          item?.actorName ??
+          item?.actor_name ??
+          null,
+        followupType: item?.followupType ?? item?.followup_type ?? 'CALL',
+        followupDate: item?.followupDate ?? item?.followup_date ?? null,
+        cadenceCode: item?.cadenceCode ?? item?.cadence_code ?? null,
+        statusSnapshot: item?.statusSnapshot ?? item?.status_snapshot ?? null,
+        isScheduleOnly: parseBooleanLike(
+          item?.isScheduleOnly ?? item?.is_schedule_only
+        ),
+        isCompleted: parseBooleanLike(item?.isCompleted ?? item?.is_completed),
+        countsTowardCompliance:
+          rawCountsTowardCompliance === undefined ||
+          rawCountsTowardCompliance === null
+            ? true
+            : parseBooleanLike(rawCountsTowardCompliance)
+      }
+    },
+    [parseBooleanLike]
   )
 
   const assignedLeadAgentName = useMemo(() => {
@@ -334,14 +381,16 @@ const LeadDetails: React.FC = () => {
     try {
       const rows = await leadsService.getFollowups(id)
       console.log('Loaded followups:', rows)
-      setFollowups(rows)
+      setFollowups(
+        Array.isArray(rows) ? rows.map(normalizeFollowupItem) : []
+      )
     } catch (error) {
       console.error('Error loading followups:', error)
       setFollowups([])
     } finally {
       setLoadingFollowups(false)
     }
-  }, [id, leadsService])
+  }, [id, leadsService, normalizeFollowupItem])
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -473,7 +522,7 @@ const LeadDetails: React.FC = () => {
   }, [loadCampaigns])
 
   const visibleHistoryFollowups = useMemo(
-    () => followups.filter(item => !item?.isScheduleOnly),
+    () => followups,
     [followups]
   )
 
@@ -482,21 +531,29 @@ const LeadDetails: React.FC = () => {
     [followups]
   )
 
+  const complianceFollowups = useMemo(
+    () =>
+      followups.filter(
+        item => !item?.isScheduleOnly && item?.countsTowardCompliance !== false
+      ),
+    [followups]
+  )
+
   const compliance = useMemo(() => {
     const summary = {
-      total: visibleHistoryFollowups.length,
+      total: complianceFollowups.length,
       calls: 0,
       whatsapp: 0,
       finalReminders: 0
     }
-    visibleHistoryFollowups.forEach(item => {
+    complianceFollowups.forEach(item => {
       const type = String(item?.followupType || '').toUpperCase()
       if (type === 'CALL') summary.calls += 1
       if (type === 'WHATSAPP') summary.whatsapp += 1
       if (type === 'FINAL_REMINDER') summary.finalReminders += 1
     })
     return summary
-  }, [visibleHistoryFollowups])
+  }, [complianceFollowups])
 
   const statusOptions = useMemo(
     () =>
@@ -1644,8 +1701,8 @@ const LeadDetails: React.FC = () => {
               }
             />
             <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-              Workflow Action history will use this selected type. Schedule
-              Follow-up reminders stay separate.
+              Workflow Action history will use this selected type and will be
+              visible in Follow-up History below.
             </p>
             {selectedStatusLabel === 'CONVERTED' ? (
               <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-sm dark:border-gray-600 dark:bg-gray-800/40'>

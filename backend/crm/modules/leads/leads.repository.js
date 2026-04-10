@@ -377,7 +377,7 @@ function createLeadsRepository({ db, logger, schema }) {
         typeof row.child_ages === "string"
           ? JSON.parse(row.child_ages)
           : row.child_ages ?? row.childAges ?? [],
-      visaRequired: row.visa_required ?? row.visaRequired ?? false,
+     visaRequired: row.visa_required != null ? Boolean(row.visa_required) : (row.visaRequired ?? false),
       leadType: row.lead_type ?? row.leadType ?? "HOLIDAY",
       preferredHotelCategory:
         row.preferred_hotel_category ?? row.preferredHotelCategory ?? null,
