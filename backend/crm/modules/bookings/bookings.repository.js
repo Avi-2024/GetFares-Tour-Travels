@@ -479,11 +479,11 @@ function createBookingsRepository({ db, logger, schema }) {
       let join = `LEFT JOIN ${schema.reminderLogsTable} r ON r.booking_id = b.id`;
       if (hasReminderTypeColumn) {
         params.push(normalizedType);
-        join += ` AND r.reminder_type = $${params.length}`;
+        join += ` AND r.reminder_type = ?`;
       }
       if (hasScheduledForColumn) {
         params.push(scheduledFor);
-        join += ` AND r.scheduled_for = $${params.length}`;
+        join += ` AND r.scheduled_for = ?`;
       }
       joinClause = join;
       conditions.push("r.id IS NULL");
@@ -498,7 +498,7 @@ function createBookingsRepository({ db, logger, schema }) {
     }
     if (limit) {
       params.push(limit);
-      sql += ` LIMIT $${params.length}`;
+      sql += ` LIMIT ?`;
     }
 
     const result = await db.query(sql, params);
@@ -536,7 +536,7 @@ function createBookingsRepository({ db, logger, schema }) {
       let sql = `SELECT b.* FROM ${schema.tableName} b WHERE ${conditions.join(" AND ")} ORDER BY COALESCE(b.supplier_payment_deadline_at, b.cancellation_deadline_at) ASC`;
       if (limit) {
         params.push(limit);
-        sql += ` LIMIT $${params.length}`;
+        sql += ` LIMIT ?`;
       }
 
       const result = await db.query(sql, params);

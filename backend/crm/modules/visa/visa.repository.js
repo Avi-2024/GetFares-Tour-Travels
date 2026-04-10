@@ -414,11 +414,11 @@ function createVisaRepository({ db, logger, schema }) {
 
       if (filters.from) {
         params.push(filters.from);
-        where.push(`vc.created_at >= $${params.length}`);
+        where.push(`vc.created_at >= ?`);
       }
       if (filters.to) {
         params.push(filters.to);
-        where.push(`vc.created_at <= $${params.length}`);
+        where.push(`vc.created_at <= ?`);
       }
 
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";

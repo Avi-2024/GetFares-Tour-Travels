@@ -119,6 +119,11 @@ function createSuppliersRepository({ db, logger, schema }) {
   async function create(payload) {
     logger.debug({ module: "suppliers", payload }, "Creating supplier");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
+    if (!sanitized.name) {
+      const error = new Error("Supplier name is required");
+      error.code = "SUPPLIER_NAME_REQUIRED";
+      throw error;
+    }
     return db.insert(schema.tableName, sanitized);
   }
 
