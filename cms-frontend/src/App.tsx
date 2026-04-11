@@ -1,6 +1,7 @@
 import { Component } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "./modules/auth/login.page";
+import CmsDeletedPage from "./modules/cms/cms-deleted.page";
 import CmsSectionPage from "./modules/cms/cms-section.page";
 import { cmsRouteDefinitions } from "./modules/cms/cms-route.config";
 import MainLayout from "./modules/layout/layout";
@@ -22,6 +23,18 @@ class App extends Component {
             <Route
               path="/dashboard"
               element={<Navigate to="/cms/landing-places" replace />}
+            />
+            <Route
+              path="/cms/deleted"
+              element={
+                <MainLayout
+                  title="Deleted Objects"
+                  subtitle="Review and permanently remove deleted CMS records."
+                  breadcrumb="CMS / Deleted Objects"
+                >
+                  <CmsDeletedPage />
+                </MainLayout>
+              }
             />
             {cmsRouteDefinitions.map((route) => (
               <Route

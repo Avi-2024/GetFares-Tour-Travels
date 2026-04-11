@@ -19,6 +19,18 @@ function createCmsPackagesController({ service, uploadService }) {
       });
     }),
 
+    listDeleted: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      const packages = await service.listDeleted(filters);
+      res.json({
+        success: true,
+        data: packages,
+      });
+    }),
+
     createPublishedPackage: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
       const bannerFile = getFirstRequestFile(req, [
@@ -118,6 +130,11 @@ function createCmsPackagesController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDeletePublishedPackage: asyncHandler(async (req, res) => {
+      const result = await service.hardDeletePublishedPackage(req.params.id);
+      res.json(result);
+    }),
+
     // Main packages
     listMainPackages: asyncHandler(async (req, res) => {
       const filters = {};
@@ -129,6 +146,18 @@ function createCmsPackagesController({ service, uploadService }) {
       }
 
       const packages = await service.listMainPackages(filters);
+      res.json({
+        success: true,
+        data: packages,
+      });
+    }),
+
+    listDeletedMainPackages: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      const packages = await service.listDeletedMainPackages(filters);
       res.json({
         success: true,
         data: packages,
@@ -174,6 +203,11 @@ function createCmsPackagesController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDeleteMainPackage: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteMainPackage(req.params.id);
+      res.json(result);
+    }),
+
     // Sub packages
     listSubPackages: asyncHandler(async (req, res) => {
       const filters = {};
@@ -182,6 +216,14 @@ function createCmsPackagesController({ service, uploadService }) {
       }
 
       const packages = await service.listSubPackages(req.params.mainPackageId, filters);
+      res.json({
+        success: true,
+        data: packages,
+      });
+    }),
+
+    listDeletedSubPackages: asyncHandler(async (_req, res) => {
+      const packages = await service.listDeletedSubPackages({});
       res.json({
         success: true,
         data: packages,
@@ -206,6 +248,11 @@ function createCmsPackagesController({ service, uploadService }) {
 
     deleteSubPackage: asyncHandler(async (req, res) => {
       const result = await service.deleteSubPackage(req.params.id);
+      res.json(result);
+    }),
+
+    hardDeleteSubPackage: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteSubPackage(req.params.id);
       res.json(result);
     }),
   });

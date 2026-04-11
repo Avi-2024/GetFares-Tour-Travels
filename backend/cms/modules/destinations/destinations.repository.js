@@ -1,7 +1,11 @@
 function createDestinationsRepository({ db, schema }) {
   return Object.freeze({
     async findAll(filters = {}) {
-      return db.findMany(schema.tableName, filters);
+      const query = { ...filters };
+      if (query.is_deleted === undefined) {
+        query.is_deleted = false;
+      }
+      return db.findMany(schema.tableName, query);
     },
 
     async findById(id) {
@@ -13,7 +17,7 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async create(data) {
-      return db.insert(schema.tableName, data);
+      return db.insert(schema.tableName, { ...data, is_deleted: false });
     },
 
     async update(id, data) {
@@ -25,6 +29,15 @@ function createDestinationsRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
+      await db.update(schema.tableName, id, { is_deleted: true });
+      return db.findById(schema.tableName, id);
+    },
+
+    async hardDelete(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
       await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
       return existing;
     },
@@ -32,6 +45,7 @@ function createDestinationsRepository({ db, schema }) {
     async findMedia(destinationId, filters = {}) {
       return db.findMany(schema.mediaTable, {
         destination_id: destinationId,
+        is_deleted: false,
         ...filters,
       });
     },
@@ -41,7 +55,7 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async createMedia(data) {
-      return db.insert(schema.mediaTable, data);
+      return db.insert(schema.mediaTable, { ...data, is_deleted: false });
     },
 
     async updateMedia(mediaId, data) {
@@ -53,6 +67,15 @@ function createDestinationsRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
+      await db.update(schema.mediaTable, mediaId, { is_deleted: true });
+      return db.findById(schema.mediaTable, mediaId);
+    },
+
+    async hardDeleteMedia(mediaId) {
+      const existing = await db.findById(schema.mediaTable, mediaId);
+      if (!existing) {
+        return null;
+      }
       await db.query(`DELETE FROM ${schema.mediaTable} WHERE id = ?`, [mediaId]);
       return existing;
     },
@@ -60,6 +83,7 @@ function createDestinationsRepository({ db, schema }) {
     async findSeasons(destinationId) {
       return db.findMany(schema.seasonsTable, {
         destination_id: destinationId,
+        is_deleted: false,
       });
     },
 
@@ -68,7 +92,7 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async createSeason(data) {
-      return db.insert(schema.seasonsTable, data);
+      return db.insert(schema.seasonsTable, { ...data, is_deleted: false });
     },
 
     async updateSeason(seasonId, data) {
@@ -76,6 +100,15 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async deleteSeason(seasonId) {
+      const existing = await db.findById(schema.seasonsTable, seasonId);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.seasonsTable, seasonId, { is_deleted: true });
+      return db.findById(schema.seasonsTable, seasonId);
+    },
+
+    async hardDeleteSeason(seasonId) {
       const existing = await db.findById(schema.seasonsTable, seasonId);
       if (!existing) {
         return null;
@@ -95,6 +128,7 @@ function createDestinationsRepository({ db, schema }) {
          WHERE dpm.destination_id = ?
            AND p.publish_to_website = true
            AND p.is_deleted = false
+           AND dpm.is_deleted = false
            AND (mp.country IS NULL OR d.country IS NULL OR LOWER(mp.country) = LOWER(d.country))
          ORDER BY dpm.display_order`,
         [destinationId],
@@ -103,7 +137,7 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async createPackageMap(data) {
-      return db.insert(schema.packagesMapTable, data);
+      return db.insert(schema.packagesMapTable, { ...data, is_deleted: false });
     },
 
     async findMainPackageById(id) {
@@ -111,6 +145,15 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async deletePackageMap(id) {
+      const existing = await db.findById(schema.packagesMapTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.packagesMapTable, id, { is_deleted: true });
+      return db.findById(schema.packagesMapTable, id);
+    },
+
+    async hardDeletePackageMap(id) {
       const existing = await db.findById(schema.packagesMapTable, id);
       if (!existing) {
         return null;

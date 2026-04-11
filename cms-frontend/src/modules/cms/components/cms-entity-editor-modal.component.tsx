@@ -155,6 +155,13 @@ class CmsEntityEditorModalComponent extends Component<
       .trim();
   }
 
+  private getMediaKindForFile(file: File): string {
+    if (file.type.startsWith("video/")) {
+      return "video";
+    }
+    return "image";
+  }
+
   private toNonEmptyString(value: unknown): string {
     if (typeof value !== "string") {
       return "";
@@ -314,6 +321,7 @@ class CmsEntityEditorModalComponent extends Component<
         title: item.title || "",
         altText: item.altText || "",
         isPrimary: item.isPrimary,
+        mediaKind: item.mediaKind || "image",
         pendingFile: null,
         previewUrl: undefined,
       }));
@@ -417,6 +425,24 @@ class CmsEntityEditorModalComponent extends Component<
     return result.isValid;
   }
 
+  private validateDestinationMedia(): string | null {
+    if (this.props.sectionKey !== "destinations") {
+      return null;
+    }
+    const primary = this.state.mediaItems.find((item) => item.isPrimary);
+    if (!primary) {
+      return "Title image is required.";
+    }
+    if ((primary.mediaKind || "image") !== "image") {
+      return "Title image must be an image.";
+    }
+    const galleryCount = this.state.mediaItems.filter((item) => !item.isPrimary).length;
+    if (galleryCount > 4) {
+      return "Gallery supports up to 4 items.";
+    }
+    return null;
+  }
+
   private createPayload(
     mediaItemsOverride?: CmsEntityMediaEditorItem[],
   ): Record<string, unknown> {
@@ -477,6 +503,7 @@ class CmsEntityEditorModalComponent extends Component<
         ...item,
         mediaUrl: uploadedUrl,
         thumbnailUrl: uploadedUrl,
+        mediaKind: item.mediaKind ?? this.getMediaKindForFile(item.pendingFile),
         pendingFile: null,
         previewUrl: undefined,
       });
@@ -519,6 +546,7 @@ class CmsEntityEditorModalComponent extends Component<
       const item = this.state.mediaItems[index];
       let mediaUrl = item.mediaUrl;
       let thumbnailUrl = item.thumbnailUrl || item.mediaUrl;
+      const mediaKind = item.mediaKind ?? "image";
       if (item.pendingFile) {
         const uploadedUrl = await this.cmsService.uploadMedia(item.pendingFile);
         mediaUrl = uploadedUrl;
@@ -531,6 +559,7 @@ class CmsEntityEditorModalComponent extends Component<
         altText: item.altText,
         isPrimary: item.isPrimary,
         displayOrder: index + 1,
+        mediaKind,
       };
       if (item.id) await this.cmsService.updateMedia(item.id, payload);
       else await this.cmsService.createMedia(entityType, entityId, payload);
@@ -558,6 +587,13 @@ class CmsEntityEditorModalComponent extends Component<
 
   private onSubmit = async (): Promise<void> => {
     if (!this.validate()) return;
+    const destinationMediaError = this.validateDestinationMedia();
+    if (destinationMediaError) {
+      this.setState({
+        mediaErrorMessage: destinationMediaError,
+      });
+      return;
+    }
     this.setState({ isSubmitting: true, mediaErrorMessage: "" });
     try {
       const uploadedMediaItems = await this.uploadPendingMediaFiles();
@@ -631,9 +667,18 @@ class CmsEntityEditorModalComponent extends Component<
   };
 
   private onUploadMedia = async (file: File): Promise<void> => {
-    if (!file.type.startsWith("image/")) {
+    const allowVideo = this.props.sectionKey === "destinations";
+    if (!file.type.startsWith("image/") && !(allowVideo && file.type.startsWith("video/"))) {
       this.setState({
-        mediaErrorMessage: "Only image files are supported.",
+        mediaErrorMessage: allowVideo ? "Only image or video files are supported." : "Only image files are supported.",
+        mediaInfoMessage: "",
+      });
+      return;
+    }
+
+    if (this.props.sectionKey === "destinations" && this.state.mediaItems.length >= 5) {
+      this.setState({
+        mediaErrorMessage: "Gallery limit reached (1 title + 4 gallery).",
         mediaInfoMessage: "",
       });
       return;
@@ -649,6 +694,7 @@ class CmsEntityEditorModalComponent extends Component<
       const defaultLabel = this.toDefaultMediaLabel(file.name);
       const previewUrl = URL.createObjectURL(file);
 
+      const mediaKind = this.getMediaKindForFile(file);
       this.setState((prev) => ({
         isMediaUploading: false,
         mediaItems: [
@@ -660,7 +706,11 @@ class CmsEntityEditorModalComponent extends Component<
             thumbnailUrl: previewUrl,
             title: defaultLabel,
             altText: defaultLabel,
-            isPrimary: prev.mediaItems.length === 0,
+            isPrimary:
+              this.props.sectionKey === "destinations" ?
+                mediaKind === "image" && prev.mediaItems.every((item) => !item.isPrimary)
+              : prev.mediaItems.length === 0,
+            mediaKind,
             pendingFile: file,
             previewUrl,
           },
@@ -682,7 +732,11 @@ class CmsEntityEditorModalComponent extends Component<
     this.setState((prev) => ({
       mediaItems: prev.mediaItems.map((media) => ({
         ...media,
-        isPrimary: media.clientId === clientId,
+        isPrimary:
+          this.props.sectionKey === "destinations" &&
+          media.mediaKind === "video" ?
+            media.isPrimary
+          : media.clientId === clientId,
       })),
     }));
   };
@@ -720,6 +774,250 @@ class CmsEntityEditorModalComponent extends Component<
       removedMediaIds: item.id ? [...prev.removedMediaIds, item.id] : prev.removedMediaIds,
     }));
   };
+
+  private onUploadDestinationTitleImage = async (file: File): Promise<void> => {
+    if (!file.type.startsWith("image/")) {
+      this.setState({
+        mediaErrorMessage: "Title image must be an image file.",
+        mediaInfoMessage: "",
+      });
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    const defaultLabel = this.toDefaultMediaLabel(file.name);
+
+    this.setState((prev) => {
+      const nextItems = [...prev.mediaItems];
+      const primaryIndex = nextItems.findIndex((item) => item.isPrimary);
+      if (primaryIndex >= 0) {
+        this.revokeBlobUrl(nextItems[primaryIndex].previewUrl);
+        nextItems[primaryIndex] = {
+          ...nextItems[primaryIndex],
+          mediaUrl: previewUrl,
+          thumbnailUrl: previewUrl,
+          title: defaultLabel,
+          altText: defaultLabel,
+          mediaKind: "image",
+          pendingFile: file,
+          previewUrl,
+          isPrimary: true,
+        };
+      } else {
+        nextItems.unshift({
+          id: null,
+          clientId: this.createClientId(),
+          mediaUrl: previewUrl,
+          thumbnailUrl: previewUrl,
+          title: defaultLabel,
+          altText: defaultLabel,
+          isPrimary: true,
+          mediaKind: "image",
+          pendingFile: file,
+          previewUrl,
+        });
+      }
+      return {
+        mediaItems: nextItems,
+        mediaErrorMessage: "",
+        mediaInfoMessage: `${file.name} selected. Upload on save.`,
+      };
+    });
+  };
+
+  private onUploadDestinationGalleryMedia = async (file: File): Promise<void> => {
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      this.setState({
+        mediaErrorMessage: "Only image or video files are supported.",
+        mediaInfoMessage: "",
+      });
+      return;
+    }
+
+    const galleryCount = this.state.mediaItems.filter((item) => !item.isPrimary).length;
+    if (galleryCount >= 4) {
+      this.setState({
+        mediaErrorMessage: "Gallery supports up to 4 items.",
+        mediaInfoMessage: "",
+      });
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    const defaultLabel = this.toDefaultMediaLabel(file.name);
+    const mediaKind = this.getMediaKindForFile(file);
+
+    this.setState((prev) => ({
+      mediaItems: [
+        ...prev.mediaItems,
+        {
+          id: null,
+          clientId: this.createClientId(),
+          mediaUrl: previewUrl,
+          thumbnailUrl: previewUrl,
+          title: defaultLabel,
+          altText: defaultLabel,
+          isPrimary: false,
+          mediaKind,
+          pendingFile: file,
+          previewUrl,
+        },
+      ],
+      mediaErrorMessage: "",
+      mediaInfoMessage: `${file.name} selected. Upload on save.`,
+    }));
+  };
+
+  private moveDestinationGalleryItem(index: number, direction: -1 | 1): void {
+    this.setState((prev) => {
+      const primary = prev.mediaItems.filter((item) => item.isPrimary);
+      const gallery = prev.mediaItems.filter((item) => !item.isPrimary);
+      const target = index + direction;
+      if (target < 0 || target >= gallery.length) {
+        return null;
+      }
+      const nextGallery = [...gallery];
+      const temp = nextGallery[target];
+      nextGallery[target] = nextGallery[index];
+      nextGallery[index] = temp;
+      return { mediaItems: [...primary, ...nextGallery] };
+    });
+  }
+
+  private renderDestinationMediaSection() {
+    const primary = this.state.mediaItems.find((item) => item.isPrimary) || null;
+    const gallery = this.state.mediaItems.filter((item) => !item.isPrimary);
+
+    return (
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+        <h4 className="text-sm font-semibold text-[var(--text-primary)]">Media</h4>
+        {this.state.mediaInfoMessage && !this.state.mediaErrorMessage && (
+          <p className="mt-2 text-xs text-[var(--success)]">{this.state.mediaInfoMessage}</p>
+        )}
+        {this.state.mediaErrorMessage && (
+          <p className="mt-2 text-xs text-[var(--danger)]">{this.state.mediaErrorMessage}</p>
+        )}
+        <div className="mt-3 grid gap-3 lg:grid-cols-[1.05fr_1.95fr]">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-[var(--text-primary)]">Title Image</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">1 image</p>
+              </div>
+              <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--border)] px-3 text-[11px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
+                Upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void this.onUploadDestinationTitleImage(file);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background-soft)]">
+              {primary ? (
+                <img
+                  src={primary.thumbnailUrl || primary.mediaUrl}
+                  alt={primary.altText || primary.title || "Title image"}
+                  className="h-32 w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-32 items-center justify-center text-xs text-[var(--text-secondary)]">
+                  No title image selected.
+                </div>
+              )}
+            </div>
+            {primary && (
+              <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                <span>{primary.pendingFile ? "Pending upload" : "Uploaded"}</span>
+                <button
+                  type="button"
+                  onClick={() => this.onRemoveMedia(primary)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] px-2 py-1 text-[var(--danger)]"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-[var(--text-primary)]">Gallery</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">Up to 4 images or videos</p>
+              </div>
+              <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--border)] px-3 text-[11px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
+                Add Media
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void this.onUploadDestinationGalleryMedia(file);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {gallery.map((item, index) => (
+                <div key={item.clientId} className="rounded-2xl border border-[var(--border)] p-2">
+                  {item.mediaKind === "video" ? (
+                    <video
+                      src={item.mediaUrl}
+                      className="h-24 w-full rounded-xl object-cover"
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={item.thumbnailUrl || item.mediaUrl}
+                      alt={item.altText || item.title || "Gallery"}
+                      className="h-24 w-full rounded-xl object-cover"
+                    />
+                  )}
+                  <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                    <span>#{index + 1}</span>
+                    <span>{item.mediaKind === "video" ? "Video" : "Image"}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => this.moveDestinationGalleryItem(index, -1)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-secondary)]"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => this.moveDestinationGalleryItem(index, 1)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-secondary)]"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => this.onRemoveMedia(item)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] text-[var(--danger)]"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   render() {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
@@ -763,19 +1061,22 @@ class CmsEntityEditorModalComponent extends Component<
             }
           />
 
-          {definition.mediaEnabled && (
-            <CmsEntityMediaEditorComponent
-              mediaItems={this.state.mediaItems}
-              mediaErrorMessage={this.state.mediaErrorMessage}
-              mediaInfoMessage={this.state.mediaInfoMessage}
-              isMediaUploading={this.state.isMediaUploading}
-              onUploadMedia={this.onUploadMedia}
-              onSetCoverMedia={this.onSetCoverMedia}
-              onMoveMediaUp={this.onMoveMediaUp}
-              onMoveMediaDown={this.onMoveMediaDown}
-              onRemoveMedia={this.onRemoveMedia}
-            />
-          )}
+          {definition.mediaEnabled &&
+            (this.props.sectionKey === "destinations" ? (
+              this.renderDestinationMediaSection()
+            ) : (
+              <CmsEntityMediaEditorComponent
+                mediaItems={this.state.mediaItems}
+                mediaErrorMessage={this.state.mediaErrorMessage}
+                mediaInfoMessage={this.state.mediaInfoMessage}
+                isMediaUploading={this.state.isMediaUploading}
+                onUploadMedia={this.onUploadMedia}
+                onSetCoverMedia={this.onSetCoverMedia}
+                onMoveMediaUp={this.onMoveMediaUp}
+                onMoveMediaDown={this.onMoveMediaDown}
+                onRemoveMedia={this.onRemoveMedia}
+              />
+            ))}
         </div>
       </CmsModalShellComponent>
     );

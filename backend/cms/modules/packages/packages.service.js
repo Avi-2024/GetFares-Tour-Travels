@@ -95,6 +95,11 @@ function createCmsPackagesService({ repository }) {
       return rows.map(toPackage);
     },
 
+    async listDeleted(filters = {}) {
+      const rows = await repository.findDeletedPackages(filters);
+      return rows.map(toPackage);
+    },
+
     async getPackageById(id) {
       const row = await repository.findPackageById(id);
       if (!row || row.is_deleted) {
@@ -266,8 +271,23 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
+    async hardDeletePublishedPackage(id) {
+      const existing = await repository.findPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeletePackageById(id);
+      return { success: true };
+    },
+
     async listMainPackages(filters = {}) {
       const rows = await repository.findAllMainPackages(filters);
+      return rows.map(toMainPackage);
+    },
+
+    async listDeletedMainPackages(filters = {}) {
+      const rows = await repository.findDeletedMainPackages(filters);
       return rows.map(toMainPackage);
     },
 
@@ -357,6 +377,16 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
+    async hardDeleteMainPackage(id) {
+      const existing = await repository.findMainPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Main package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteMainPackage(id);
+      return { success: true };
+    },
+
     async listSubPackages(mainPackageId, filters = {}) {
       const mainPackage = await repository.findMainPackageById(mainPackageId);
       if (!mainPackage) {
@@ -371,6 +401,11 @@ function createCmsPackagesService({ repository }) {
       }
 
       const rows = await repository.findSubPackages(mainPackageId);
+      return rows.map(toSubPackage);
+    },
+
+    async listDeletedSubPackages(filters = {}) {
+      const rows = await repository.findDeletedSubPackages(filters);
       return rows.map(toSubPackage);
     },
 
@@ -437,6 +472,16 @@ function createCmsPackagesService({ repository }) {
       }
 
       await repository.deleteSubPackage(id);
+      return { success: true };
+    },
+
+    async hardDeleteSubPackage(id) {
+      const existing = await repository.findSubPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Sub package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteSubPackage(id);
       return { success: true };
     },
   });

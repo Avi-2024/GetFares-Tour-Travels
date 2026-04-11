@@ -8,6 +8,7 @@ function createLandingRoutes({ controller, upload }) {
     .route("/")
     .get(controller.list)
     .post(upload.any(), controller.create);
+  router.route("/deleted").get(controller.listDeleted);
   router.route("/reorder").patch(controller.reorder);
   router.route(`/${uuidParam}/status`).patch(controller.updateStatus);
   router
@@ -15,6 +16,7 @@ function createLandingRoutes({ controller, upload }) {
     .get(controller.getById)
     .put(upload.any(), controller.update)
     .delete(controller.delete);
+  router.route(`/${uuidParam}/hard-delete`).delete(controller.hardDelete);
 
   return router;
 }

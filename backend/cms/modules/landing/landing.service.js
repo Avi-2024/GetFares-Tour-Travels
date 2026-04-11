@@ -56,6 +56,13 @@ function createLandingService({ repository }) {
         .sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
+    async listDeleted(filters = {}) {
+      const rows = await repository.findAll({ ...filters, is_deleted: true });
+      return rows
+        .map(toLandingPlace)
+        .sort((a, b) => a.displayOrder - b.displayOrder);
+    },
+
     async getById(id) {
       const row = await repository.findById(id);
       if (!row) {
@@ -185,6 +192,16 @@ function createLandingService({ repository }) {
       }
 
       await repository.delete(id);
+      return { success: true };
+    },
+
+    async hardDelete(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Landing place not found", "NOT_FOUND");
+      }
+
+      await repository.hardDelete(id);
       return { success: true };
     },
 

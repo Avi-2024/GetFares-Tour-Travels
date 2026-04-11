@@ -63,7 +63,6 @@ class CmsSectionCatalog {
         new CmsTableColumn("destination", "Destination", true),
         new CmsTableColumn("region", "Region"),
         new CmsTableColumn("travelType", "Travel Type"),
-        new CmsTableColumn("media", "Media"),
         new CmsTableColumn("seo", "SEO"),
         new CmsTableColumn("status", "Status"),
       ],

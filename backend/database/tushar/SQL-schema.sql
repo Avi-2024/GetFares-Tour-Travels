@@ -20,9 +20,7 @@ SET @sql = IF(
 );
 
 PREPARE stmt FROM @sql;
-
 EXECUTE stmt;
-
 DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
@@ -1791,6 +1789,7 @@ CREATE TABLE landing_places (
     image_url TEXT NOT NULL,
     display_order INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -1833,6 +1832,8 @@ ALTER TABLE destinations ADD COLUMN meta_title VARCHAR(180);
 
 ALTER TABLE destinations ADD COLUMN meta_description TEXT;
 
+ALTER TABLE destinations ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
+
 ALTER TABLE destinations ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE destinations ADD CONSTRAINT destinations_rating_check
@@ -1862,6 +1863,7 @@ CREATE TABLE destination_media (
     caption TEXT,
     display_order INT DEFAULT 0,
     is_featured BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -1889,6 +1891,7 @@ CREATE TABLE season_cards (
     icon_color VARCHAR(20),
     bg_color VARCHAR(20),
     display_order INT DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -1909,6 +1912,7 @@ CREATE TABLE main_packages (
     country VARCHAR(100),
     display_order INT DEFAULT 0,
     is_featured BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(package_id)
@@ -1926,6 +1930,7 @@ CREATE TABLE destination_package_map (
     destination_id CHAR(36) NOT NULL REFERENCES destinations(id) ON DELETE CASCADE,
     main_package_id CHAR(36) NOT NULL REFERENCES main_packages(id) ON DELETE CASCADE,
     display_order INT DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(destination_id, main_package_id)
@@ -1941,6 +1946,7 @@ CREATE TABLE sub_packages (
     main_package_id CHAR(36) NOT NULL REFERENCES main_packages(id) ON DELETE CASCADE,
     package_id CHAR(36) NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
     display_order INT DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(main_package_id, package_id)
@@ -1957,16 +1963,27 @@ CREATE INDEX idx_sub_packages_package ON sub_packages(package_id);
 CREATE TABLE visa_destinations (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     country VARCHAR(100),
+    destination VARCHAR(120),
     title VARCHAR(150) NOT NULL,
     slug VARCHAR(180) UNIQUE NOT NULL,
+    sub_description TEXT,
     subtitle VARCHAR(200),
     description TEXT,
+    description_items JSON DEFAULT (JSON_ARRAY()),
+    subtitle_items JSON DEFAULT (JSON_ARRAY()),
     image_url TEXT NOT NULL,
     hero_image_url TEXT,
     processing_time VARCHAR(100),
     support_info TEXT,
+    support_title VARCHAR(200),
+    support_description TEXT,
+    support_list JSON DEFAULT (JSON_ARRAY()),
+    icon_name VARCHAR(80),
+    highlights JSON DEFAULT (JSON_ARRAY()),
+    cta_text VARCHAR(50) DEFAULT 'View Details',
     display_order INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -1981,10 +1998,15 @@ CREATE INDEX idx_visa_destinations_country_active ON visa_destinations(country, 
 CREATE TABLE visa_destination_details (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     visa_destination_id CHAR(36) NOT NULL REFERENCES visa_destinations(id) ON DELETE CASCADE,
-    section_type VARCHAR(50) NOT NULL CHECK (section_type IN ('overview', 'fact', 'requirement', 'note')),
+    section_type VARCHAR(50) NOT NULL CHECK (section_type IN ('overview', 'fact', 'requirement', 'note', 'hero_paragraph', 'hero_chip', 'support_title', 'support_body', 'support_item')),
     label VARCHAR(200),
+    icon_name VARCHAR(80),
+    col_span TINYINT NOT NULL DEFAULT 1 CHECK (col_span IN (1, 2)),
+    display_style VARCHAR(30) NOT NULL DEFAULT 'card' CHECK (display_style IN ('card', 'checklist', 'text', 'chip', 'badge')),
+    accent_color VARCHAR(30),
     value TEXT NOT NULL,
     display_order INT DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -1992,7 +2014,7 @@ CREATE TABLE visa_destination_details (
 CREATE INDEX idx_visa_details_destination ON visa_destination_details(visa_destination_id, section_type, display_order);
 
 CREATE UNIQUE INDEX ux_visa_details_destination_section_label
-  ON visa_destination_details(visa_destination_id, section_type, label);
+  ON visa_destination_details(visa_destination_id, section_type, label(100));
 
 -- =========================================
 -- 7. FEATURED/HOT PICKS (Optional)
@@ -2015,6 +2037,7 @@ CREATE TABLE featured_picks (
     button_text VARCHAR(50) DEFAULT 'Book Now',
     display_order INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -2064,6 +2087,7 @@ CREATE TABLE IF NOT EXISTS landing_hero_sections (
     secondary_cta_url TEXT,
     background_image_url TEXT,
     is_active BOOLEAN DEFAULT TRUE,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -2073,7 +2097,6 @@ ALTER TABLE landing_places ADD COLUMN country VARCHAR(100);
 
 ALTER TABLE main_packages ADD COLUMN country VARCHAR(100);
 
-ALTER TABLE visa_destinations ADD COLUMN country VARCHAR(100);
 
 UPDATE landing_hero_sections SET country = 'GLOBAL' WHERE country IS NULL;
 
@@ -2110,12 +2133,6 @@ ALTER TABLE season_cards ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
 
 ALTER TABLE season_cards ADD COLUMN image_url TEXT;
 
-ALTER TABLE visa_destinations ADD COLUMN icon_name VARCHAR(80);
-
-ALTER TABLE visa_destinations ADD COLUMN highlights JSON DEFAULT (JSON_ARRAY());
-
-ALTER TABLE visa_destinations ADD COLUMN cta_text VARCHAR(50) DEFAULT 'View Details';
-
 -- =========================================
 -- 10. GENERIC MEDIA ASSETS FOR CMS ENTITIES
 -- =========================================
@@ -2132,6 +2149,7 @@ CREATE TABLE IF NOT EXISTS cms_media_assets (
     display_order INT DEFAULT 0,
     is_primary BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

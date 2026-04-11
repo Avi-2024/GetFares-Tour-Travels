@@ -7,6 +7,7 @@ import type { CmsSectionKey } from "../cms-section.models";
 
 interface ICmsSectionRepository {
   list(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]>;
+  listDeleted(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]>;
   listAdminMainPackages(): Promise<CmsTableEntry[]>;
   create(sectionKey: CmsSectionKey, payload: Record<string, unknown>): Promise<Record<string, unknown> | null>;
   update(
@@ -15,6 +16,7 @@ interface ICmsSectionRepository {
     payload: Record<string, unknown> | string,
   ): Promise<Record<string, unknown> | null>;
   remove(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void>;
+  hardDelete(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void>;
   getMediaEntityType(sectionKey: CmsSectionKey): string;
   listMedia(entityType: string, entityId: string): Promise<CmsMediaAsset[]>;
   createMedia(

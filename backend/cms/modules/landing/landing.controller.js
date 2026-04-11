@@ -19,6 +19,18 @@ function createLandingController({ service, uploadService }) {
       });
     }),
 
+    listDeleted: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      const places = await service.listDeleted(filters);
+      res.json({
+        success: true,
+        data: places,
+      });
+    }),
+
     getById: asyncHandler(async (req, res) => {
       const place = await service.getById(req.params.id);
       res.json({
@@ -95,6 +107,11 @@ function createLandingController({ service, uploadService }) {
 
     delete: asyncHandler(async (req, res) => {
       const result = await service.delete(req.params.id);
+      res.json(result);
+    }),
+
+    hardDelete: asyncHandler(async (req, res) => {
+      const result = await service.hardDelete(req.params.id);
       res.json(result);
     }),
 
