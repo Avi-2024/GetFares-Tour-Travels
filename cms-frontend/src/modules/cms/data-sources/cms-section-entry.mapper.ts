@@ -138,8 +138,18 @@ class CmsSectionEntryMapper {
             this.accessor.getText(record, "name", "packageName"),
           ),
           destination: new CmsTableCell(this.accessor.getText(record, "destination")),
-          duration: new CmsTableCell(duration),
-          price: new CmsTableCell(priceText),
+          price: new CmsTableCell(
+            this.accessor.getText(
+              record,
+              "startingPrice",
+              "starting_price",
+              "price",
+            ),
+          ),
+          publishState: new CmsTableCell(
+            isPublished ? "Published" : "Not Published",
+            isPublished ? "success" : "warning",
+          ),
           crmState: new CmsTableCell(statusLabel, statusTone),
           syncAt: new CmsTableCell(this.accessor.getText(record, "updatedAt", "updated_at")),
         }),
