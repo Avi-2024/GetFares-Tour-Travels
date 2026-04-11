@@ -79,16 +79,7 @@ class TopbarComponent extends Component<TopbarProps, TopbarState> {
 
           <div className="flex items-center gap-3">
             <div className="hidden lg:flex items-center gap-3">
-              <img
-                alt="Tabby"
-                className="h-6 w-auto object-contain"
-                src="tabby.svg"
-              />
-              <img
-                alt="Tamara"
-                className="h-6 w-auto object-contain"
-                src="tamara.svg"
-              />
+             
             </div>
             <ThemeToggle />
 
