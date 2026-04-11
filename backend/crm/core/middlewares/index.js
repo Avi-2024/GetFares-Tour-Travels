@@ -13,13 +13,6 @@ export {
 };
 
 export {
-  createAuthRateLimiter,
-  createRegisterRateLimiter,
-  createRefreshRateLimiter,
-  createApiRateLimiter,
-} from "./rateLimiter.js";
-
-export {
   createOwnershipMiddleware,
   applyOwnershipFilter,
   canAccessResource,
