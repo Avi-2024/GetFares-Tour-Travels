@@ -6,6 +6,7 @@ import CmsSectionPage from "./modules/cms/cms-section.page";
 import { cmsRouteDefinitions } from "./modules/cms/cms-route.config";
 import MainLayout from "./modules/layout/layout";
 import NotFoundPage from "./modules/not_found/not_found.page";
+import ToastViewportComponent from "./shared/components/toast-viewport.component";
 import { ThemeProvider } from "./shared/contexts/theme.context";
 
 class App extends Component {
@@ -13,6 +14,7 @@ class App extends Component {
     return (
       <ThemeProvider defaultTheme="light">
         <BrowserRouter>
+          <ToastViewportComponent />
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />

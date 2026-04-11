@@ -72,9 +72,20 @@ function createVisaRepository({ db, schema }) {
     },
 
     async findDeleted(filters = {}) {
-      return runWithColumnFallback({ ...filters, is_deleted: true }, (safeFilters) =>
-        db.findMany(schema.tableName, safeFilters),
-      );
+      try {
+        return await db.findMany(schema.tableName, { ...filters, is_deleted: true });
+      } catch (error) {
+        const missingColumn = getMissingColumnName(error);
+        if (!missingColumn) {
+          throw error;
+        }
+        if (missingColumn === "is_deleted") {
+          return [];
+        }
+        return runWithColumnFallback({ ...filters, is_deleted: true }, (safeFilters) =>
+          db.findMany(schema.tableName, safeFilters),
+        );
+      }
     },
 
     async findById(id) {
@@ -124,7 +135,18 @@ function createVisaRepository({ db, schema }) {
     },
 
     async findDeletedDetails(filters = {}) {
-      return db.findMany(schema.detailsTable, { ...filters, is_deleted: true });
+      try {
+        return await db.findMany(schema.detailsTable, { ...filters, is_deleted: true });
+      } catch (error) {
+        const missingColumn = getMissingColumnName(error);
+        if (!missingColumn) {
+          throw error;
+        }
+        if (missingColumn === "is_deleted") {
+          return [];
+        }
+        throw error;
+      }
     },
 
     async findDetailById(detailId) {

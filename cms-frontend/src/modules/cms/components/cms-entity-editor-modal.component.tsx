@@ -14,6 +14,7 @@ import {
 import type { CmsSectionKey } from "../cms-section.models";
 import { CmsServiceContainer } from "../core/cms.service.container";
 import { CmsEntityFormValidator } from "../validators/cms-entity-form.validator";
+import { ToastService } from "../../../shared/core/toast.service";
 
 interface CmsEntityEditorModalProps {
   isOpen: boolean;
@@ -659,28 +660,35 @@ class CmsEntityEditorModalComponent extends Component<
       this.setState({ isSubmitting: false });
       this.props.onClose();
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save.";
       this.setState({
         isSubmitting: false,
-        mediaErrorMessage: error instanceof Error ? error.message : "Failed to save.",
+        mediaErrorMessage: message,
       });
+      ToastService.error(message);
     }
   };
 
   private onUploadMedia = async (file: File): Promise<void> => {
     const allowVideo = this.props.sectionKey === "destinations";
     if (!file.type.startsWith("image/") && !(allowVideo && file.type.startsWith("video/"))) {
+      const message =
+        allowVideo ? "Only image or video files are supported." : "Only image files are supported.";
       this.setState({
-        mediaErrorMessage: allowVideo ? "Only image or video files are supported." : "Only image files are supported.",
+        mediaErrorMessage: message,
         mediaInfoMessage: "",
       });
+      ToastService.error(message);
       return;
     }
 
     if (this.props.sectionKey === "destinations" && this.state.mediaItems.length >= 5) {
+      const message = "Only 4 gallery items allowed.";
       this.setState({
-        mediaErrorMessage: "Gallery limit reached (1 title + 4 gallery).",
+        mediaErrorMessage: message,
         mediaInfoMessage: "",
       });
+      ToastService.warning(message);
       return;
     }
 
@@ -718,13 +726,15 @@ class CmsEntityEditorModalComponent extends Component<
         mediaErrorMessage: "",
         mediaInfoMessage: `${file.name} selected. Upload on save.`,
       }));
+      ToastService.success("Media selected. Upload on save.");
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Media selection failed.";
       this.setState({
         isMediaUploading: false,
         mediaInfoMessage: "",
-        mediaErrorMessage:
-          error instanceof Error ? error.message : "Media selection failed.",
+        mediaErrorMessage: message,
       });
+      ToastService.error(message);
     }
   };
 
@@ -777,10 +787,12 @@ class CmsEntityEditorModalComponent extends Component<
 
   private onUploadDestinationTitleImage = async (file: File): Promise<void> => {
     if (!file.type.startsWith("image/")) {
+      const message = "Title image must be an image file.";
       this.setState({
-        mediaErrorMessage: "Title image must be an image file.",
+        mediaErrorMessage: message,
         mediaInfoMessage: "",
       });
+      ToastService.error(message);
       return;
     }
 
@@ -823,23 +835,28 @@ class CmsEntityEditorModalComponent extends Component<
         mediaInfoMessage: `${file.name} selected. Upload on save.`,
       };
     });
+    ToastService.success("Title image selected. Upload on save.");
   };
 
   private onUploadDestinationGalleryMedia = async (file: File): Promise<void> => {
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      const message = "Only image or video files are supported.";
       this.setState({
-        mediaErrorMessage: "Only image or video files are supported.",
+        mediaErrorMessage: message,
         mediaInfoMessage: "",
       });
+      ToastService.error(message);
       return;
     }
 
     const galleryCount = this.state.mediaItems.filter((item) => !item.isPrimary).length;
     if (galleryCount >= 4) {
+      const message = "Only 4 gallery items allowed.";
       this.setState({
-        mediaErrorMessage: "Gallery supports up to 4 items.",
+        mediaErrorMessage: message,
         mediaInfoMessage: "",
       });
+      ToastService.warning(message);
       return;
     }
 
@@ -866,6 +883,7 @@ class CmsEntityEditorModalComponent extends Component<
       mediaErrorMessage: "",
       mediaInfoMessage: `${file.name} selected. Upload on save.`,
     }));
+    ToastService.success("Gallery media selected. Upload on save.");
   };
 
   private moveDestinationGalleryItem(index: number, direction: -1 | 1): void {
@@ -891,12 +909,6 @@ class CmsEntityEditorModalComponent extends Component<
     return (
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
         <h4 className="text-sm font-semibold text-[var(--text-primary)]">Media</h4>
-        {this.state.mediaInfoMessage && !this.state.mediaErrorMessage && (
-          <p className="mt-2 text-xs text-[var(--success)]">{this.state.mediaInfoMessage}</p>
-        )}
-        {this.state.mediaErrorMessage && (
-          <p className="mt-2 text-xs text-[var(--danger)]">{this.state.mediaErrorMessage}</p>
-        )}
         <div className="mt-3 grid gap-3 lg:grid-cols-[1.05fr_1.95fr]">
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
             <div className="flex items-center justify-between">

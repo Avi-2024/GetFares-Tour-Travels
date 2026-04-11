@@ -75,6 +75,9 @@ function createLandingRepository({ db, schema }) {
           query.is_deleted = false;
         }
       } else {
+        if (query.is_deleted !== undefined) {
+          return [];
+        }
         delete query.is_deleted;
       }
       return db.findMany(schema.tableName, query);
@@ -124,6 +127,18 @@ function createLandingRepository({ db, schema }) {
         return null;
       }
       await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+      return existing;
+    },
+
+    async restore(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      if (await supportsIsDeletedColumn()) {
+        await db.update(schema.tableName, id, { is_deleted: false });
+        return db.findById(schema.tableName, id);
+      }
       return existing;
     },
 
