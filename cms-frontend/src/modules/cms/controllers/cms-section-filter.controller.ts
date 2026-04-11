@@ -245,12 +245,20 @@ class CmsSectionFilterController {
     if (values.length === 0) {
       return false;
     }
+
+    const reference = `${key} ${label}`.toLowerCase();
+    
+    // Explicitly exclude columns that should never be dates
+    const excludeTokens = ["duration", "price", "display", "order", "displayorder"];
+    if (excludeTokens.some(token => reference.includes(token))) {
+      return false;
+    }
+
     const parseableCount = values.filter((value) => this.parseDateValue(value)).length;
     if (parseableCount === 0) {
       return false;
     }
 
-    const reference = `${key} ${label}`.toLowerCase();
     const hasDateToken =
       reference.includes("date") ||
       reference.includes("updated") ||

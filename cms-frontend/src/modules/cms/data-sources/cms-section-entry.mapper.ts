@@ -126,6 +126,10 @@ class CmsSectionEntryMapper {
         : isPublished ? "success"
         : "info";
 
+      const duration = this.accessor.getText(record, "duration") || "--";
+      const price = this.accessor.getNumber(record, "startingPrice", "starting_price", "price");
+      const priceText = price !== null ? `₹${price.toLocaleString()}` : "--";
+
       entries.push({
         id,
         raw: record,
@@ -134,15 +138,8 @@ class CmsSectionEntryMapper {
             this.accessor.getText(record, "name", "packageName"),
           ),
           destination: new CmsTableCell(this.accessor.getText(record, "destination")),
-          duration: new CmsTableCell(this.accessor.getText(record, "duration")),
-          price: new CmsTableCell(
-            this.accessor.getText(
-              record,
-              "startingPrice",
-              "starting_price",
-              "price",
-            ),
-          ),
+          duration: new CmsTableCell(duration),
+          price: new CmsTableCell(priceText),
           crmState: new CmsTableCell(statusLabel, statusTone),
           syncAt: new CmsTableCell(this.accessor.getText(record, "updatedAt", "updated_at")),
         }),
@@ -235,6 +232,10 @@ class CmsSectionEntryMapper {
           const displayOrder =
             this.accessor.getNumber(subPackage, "displayOrder", "display_order") ??
             0;
+          const duration = this.accessor.getText(subPackage, "duration") || "--";
+          const price = this.accessor.getNumber(subPackage, "startingPrice", "starting_price");
+          const priceText = price !== null ? `₹${price.toLocaleString()}` : "--";
+
           entries.push({
             id,
             raw: subPackage,
@@ -245,10 +246,8 @@ class CmsSectionEntryMapper {
               mainPackage: new CmsTableCell(
                 this.accessor.getText(mainPackage, "packageName", "name"),
               ),
-              duration: new CmsTableCell(this.accessor.getText(subPackage, "duration")),
-              priceBand: new CmsTableCell(
-                this.accessor.getText(subPackage, "startingPrice", "starting_price"),
-              ),
+              duration: new CmsTableCell(duration),
+              priceBand: new CmsTableCell(priceText),
               displayOrder: new CmsTableCell(`#${displayOrder}`),
               updatedAt: new CmsTableCell(
                 this.accessor.getText(subPackage, "updatedAt", "updated_at"),
@@ -389,6 +388,8 @@ class CmsSectionEntryMapper {
         continue;
       }
 
+      const displayOrder = this.accessor.getNumber(detail, "displayOrder", "display_order") ?? 0;
+
       entries.push({
         id: detailId,
         raw: detail,
@@ -400,11 +401,7 @@ class CmsSectionEntryMapper {
           ),
           label: new CmsTableCell(this.accessor.getText(detail, "label")),
           value: new CmsTableCell(this.accessor.getText(detail, "value")),
-          displayOrder: new CmsTableCell(
-            `#${
-              this.accessor.getNumber(detail, "displayOrder", "display_order") ?? 0
-            }`,
-          ),
+          displayOrder: new CmsTableCell(`#${displayOrder}`),
           updatedAt: new CmsTableCell(
             this.accessor.getText(detail, "updatedAt", "updated_at"),
           ),

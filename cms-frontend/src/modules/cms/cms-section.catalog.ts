@@ -131,7 +131,7 @@ class CmsSectionCatalog {
         new CmsTableColumn("country", "Country", true),
         new CmsTableColumn("slug", "Slug"),
         new CmsTableColumn("processingTime", "Processing Time"),
-        new CmsTableColumn("supportInfo", "Support"),
+        new CmsTableColumn("supportInfo", "Support Info"),
         new CmsTableColumn("heroReady", "Hero Ready"),
         new CmsTableColumn("status", "Status"),
       ],
