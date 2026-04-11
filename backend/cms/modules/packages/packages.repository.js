@@ -6,10 +6,7 @@ function createCmsPackagesRepository({ db, schema }) {
   return Object.freeze({
     async findPublishedPackages(filters = {}) {
       const values = [];
-      const clauses = [
-        "p.publish_to_website = true",
-        "p.is_deleted = false",
-      ];
+      const clauses = ["p.is_deleted = false"];
 
       const country = normalizeCountry(filters.country);
       if (country) {

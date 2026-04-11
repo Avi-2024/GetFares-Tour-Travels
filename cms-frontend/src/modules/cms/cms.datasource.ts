@@ -314,7 +314,7 @@ class CmsDatasource {
     return this.accessor.toRecord(response);
   }
 
-  public async remove(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+  public async remove(_sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
     if (entry.readOnly) {
       throw new Error("This row is read-only.");
     }
@@ -322,10 +322,6 @@ class CmsDatasource {
       throw new Error("Delete path is unavailable for this row.");
     }
 
-    if (sectionKey === "destinations" || entry.deleteMode === "softDeactivate") {
-      await this.httpClient.put(entry.deletePath, { isActive: false });
-      return;
-    }
     await this.httpClient.delete(entry.deletePath);
   }
 

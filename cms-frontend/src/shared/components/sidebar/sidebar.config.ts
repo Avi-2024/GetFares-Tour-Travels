@@ -32,9 +32,9 @@ class SidebarConfig {
     new SidebarSection("Packages", [
       new SidebarItem(
         "published-packages",
-        "Published Packages",
+        "Packages",
         "/cms/packages/published",
-        "Synced from CRM catalog",
+        "All package inventory",
         PackageSearch,
       ),
       new SidebarItem(

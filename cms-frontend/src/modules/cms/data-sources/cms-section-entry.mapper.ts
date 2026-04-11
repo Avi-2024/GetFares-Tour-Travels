@@ -96,7 +96,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
-        deleteMode: "softDeactivate",
+        deleteMode: "delete",
         editableField: "name",
         readOnly: false,
       });
@@ -134,7 +134,6 @@ class CmsSectionEntryMapper {
             this.accessor.getText(record, "name", "packageName"),
           ),
           destination: new CmsTableCell(this.accessor.getText(record, "destination")),
-          duration: new CmsTableCell(this.accessor.getText(record, "duration")),
           price: new CmsTableCell(
             this.accessor.getText(
               record,
@@ -142,6 +141,10 @@ class CmsSectionEntryMapper {
               "starting_price",
               "price",
             ),
+          ),
+          publishState: new CmsTableCell(
+            isPublished ? "Published" : "Not Published",
+            isPublished ? "success" : "warning",
           ),
           crmState: new CmsTableCell(statusLabel, statusTone),
           syncAt: new CmsTableCell(this.accessor.getText(record, "updatedAt", "updated_at")),

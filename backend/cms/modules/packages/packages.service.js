@@ -7,16 +7,24 @@ import {
 } from "../../core/utils/index.js";
 
 function createCmsPackagesService({ repository }) {
-  function toPackage(row) {
-    if (!row) return null;
-    let galleryImageUrls = [];
-    if (row.gallery_image_urls) {
+  function parseJsonValue(value, fallback) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "string") {
       try {
-        galleryImageUrls = typeof row.gallery_image_urls === 'string' ? JSON.parse(row.gallery_image_urls) : row.gallery_image_urls;
+        return JSON.parse(value);
       } catch {
-        galleryImageUrls = [];
+        return fallback;
       }
     }
+    return value;
+  }
+
+  function toPackage(row) {
+    if (!row) return null;
+    const galleryImageUrls = parseJsonValue(row.gallery_image_urls, []);
+    const itinerary = parseJsonValue(row.itinerary, null);
     return {
       id: row.id,
       name: row.name,
@@ -28,8 +36,8 @@ function createCmsPackagesService({ repository }) {
       hotelDetails: row.hotel_details,
       packageCategory: row.package_category,
       bannerImageUrl: row.banner_image_url,
-      galleryImageUrls: row.gallery_image_urls || [],
-      itinerary: row.itinerary,
+      galleryImageUrls: Array.isArray(galleryImageUrls) ? galleryImageUrls : [],
+      itinerary,
       validFrom: row.valid_from,
       validTo: row.valid_to,
       cancellationPolicy: row.cancellation_policy,

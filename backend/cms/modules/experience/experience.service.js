@@ -2,8 +2,26 @@ import { AppError } from "../../core/middlewares/errorHandler.js";
 import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createExperienceService({ repository }) {
+  function parseJsonValue(value, fallback) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return fallback;
+      }
+    }
+    return value;
+  }
+
   function toFeaturedPick(row) {
     if (!row) return null;
+    const tags = parseJsonValue(row.tags, []);
+    const highlights = parseJsonValue(row.highlights, []);
+    const metadata = parseJsonValue(row.metadata, {});
+
     return {
       id: row.id,
       slug: row.slug,
@@ -25,9 +43,9 @@ function createExperienceService({ repository }) {
       buttonText: row.button_text,
       ctaUrl: row.cta_url,
       expiresOn: row.expires_on,
-      tags: row.tags || [],
-      highlights: row.highlights || [],
-      metadata: row.metadata || {},
+      tags: Array.isArray(tags) ? tags : [],
+      highlights: Array.isArray(highlights) ? highlights : [],
+      metadata: metadata && typeof metadata === "object" ? metadata : {},
       displayOrder: row.display_order || 0,
       isActive: row.is_active !== false,
       createdAt: row.created_at,
