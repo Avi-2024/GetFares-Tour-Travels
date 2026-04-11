@@ -182,8 +182,8 @@ class InMemoryDatabase {
       id: payload.id || randomUUID(),
       created_at: createdAt,
       createdAt,
-      updated_at: nowIso,
-      updatedAt: nowIso,
+      updated_at: istDate,
+      updatedAt: istDate,
     };
 
     table.set(row.id, row);
@@ -247,8 +247,8 @@ class InMemoryDatabase {
       ...existing,
       ...payload,
       id,
-      updated_at: nowIso,
-      updatedAt: nowIso,
+      updated_at: istDate,
+      updatedAt: istDate,
     };
 
     table.set(id, updated);
@@ -423,11 +423,27 @@ class MySQLDatabase {
 }
 
 function createDatabaseConnection({ config, logger }) {
-  const mysqlHost = process.env.MYSQL_HOST;
-  const mysqlUser = process.env.MYSQL_USER;
-  const mysqlPassword = process.env.MYSQL_PASSWORD;
-  const mysqlDatabase = process.env.MYSQL_DATABASE;
-  const mysqlPort = Number(process.env.MYSQL_PORT) || 3306;
+  const mysqlHost =
+    process.env.MYSQL_HOST ||
+    process.env.DB_HOST ||
+    config?.database?.mysql?.host;
+  const mysqlUser =
+    process.env.MYSQL_USER ||
+    process.env.DB_USER ||
+    config?.database?.mysql?.user;
+  const mysqlPassword =
+    process.env.MYSQL_PASSWORD ||
+    process.env.DB_PASSWORD ||
+    config?.database?.mysql?.password;
+  const mysqlDatabase =
+    process.env.MYSQL_DATABASE ||
+    process.env.DB_NAME ||
+    config?.database?.mysql?.database;
+  const mysqlPort =
+    Number(process.env.MYSQL_PORT || process.env.DB_PORT || config?.database?.mysql?.port) ||
+    3306;
+  const allowInMemory =
+    process.env.ALLOW_IN_MEMORY_DB === "true" || process.env.NODE_ENV === "test";
 
   if (mysqlHost && mysqlDatabase) {
     const isServerless =
@@ -464,7 +480,15 @@ function createDatabaseConnection({ config, logger }) {
     return new MySQLDatabase({ pool });
   }
 
-  logger.warn("MYSQL_HOST / MYSQL_DATABASE not set. Falling back to in-memory adapter.");
+  if (!allowInMemory) {
+    throw new Error(
+      "MySQL configuration missing. Set MYSQL_HOST/MYSQL_DATABASE (or DB_HOST/DB_NAME).",
+    );
+  }
+
+  logger.warn(
+    "MySQL config missing. Falling back to in-memory adapter because ALLOW_IN_MEMORY_DB=true or NODE_ENV=test.",
+  );
   return new InMemoryDatabase();
 }
 

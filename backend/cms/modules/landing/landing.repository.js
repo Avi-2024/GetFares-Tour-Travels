@@ -6,7 +6,7 @@ function createLandingRepository({ db, schema }) {
       return countryColumnSupported;
     }
 
-    if (typeof db?.query !== "function") {
+    if (db?.adapter === "in-memory" || typeof db?.query !== "function") {
       countryColumnSupported = true;
       return countryColumnSupported;
     }

@@ -111,17 +111,6 @@ class SidebarComponent extends Component<object, SidebarState> {
           ))}
         </div>
 
-        <div className="mt-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
-          <p className={ClassName.merge("text-xs font-semibold text-[var(--text-primary)]", collapsed && "sr-only")}>
-            API Health
-          </p>
-          <p className={ClassName.merge("mt-1 text-xs text-[var(--text-secondary)]", collapsed && "sr-only")}>
-            49 endpoints synced
-          </p>
-          <div className={ClassName.merge("mt-2 h-2 rounded-full bg-[var(--background-soft)]", collapsed && "mt-0")}>
-            <div className="h-full w-[82%] rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)]" />
-          </div>
-        </div>
       </motion.aside>
     );
   }

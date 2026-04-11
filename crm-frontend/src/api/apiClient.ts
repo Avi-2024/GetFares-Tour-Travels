@@ -34,7 +34,16 @@ export const getApiErrorMessage = (
   fallback = "Something went wrong",
 ) => {
   if (isApiError(error) && error.message?.trim()) {
-    return error.message.trim();
+    const message = error.message.trim();
+    const readMatch = message.match(/^Missing permission:\s*([a-z_]+):read$/i);
+    if (readMatch) {
+      const entity = readMatch[1].replace(/_/g, " ").trim();
+      return `You dont have permission to view ${entity} in the crm frontend`;
+    }
+    if (/^Missing permission:\s*[a-z_]+:[a-z_]+$/i.test(message)) {
+      return "You dont have permission to perform this action in the crm frontend";
+    }
+    return message;
   }
   return fallback;
 };
@@ -97,24 +106,44 @@ const isFormData = (data: unknown) => {
   return data instanceof FormData;
 };
 
+const normalizePermissionMessage = (message: string) => {
+  const readMatch = message.match(/^Missing permission:\s*([a-z_]+):read$/i);
+  if (readMatch) {
+    const entity = readMatch[1].replace(/_/g, " ").trim();
+    return `You dont have permission to view ${entity} in the crm frontend`;
+  }
+
+  if (/^Missing permission:\s*[a-z_]+:[a-z_]+$/i.test(message)) {
+    return "You dont have permission to perform this action in the crm frontend";
+  }
+
+  return message;
+};
+
 const extractMessage = (data: unknown) => {
   if (!data) return null;
-  if (typeof data === "string") return data;
+  if (typeof data === "string") return normalizePermissionMessage(data);
   if (typeof data === "object") {
     const obj = data as Record<string, unknown>;
-    if ("message" in obj && obj.message) return String(obj.message);
+    if ("message" in obj && obj.message) {
+      return normalizePermissionMessage(String(obj.message));
+    }
     if ("error" in obj && obj.error) {
-      if (typeof obj.error === "string") return obj.error;
+      if (typeof obj.error === "string") {
+        return normalizePermissionMessage(obj.error);
+      }
       if (typeof obj.error === "object") {
         const nested = obj.error as Record<string, unknown>;
-        if ("message" in nested && nested.message) return String(nested.message);
+        if ("message" in nested && nested.message) {
+          return normalizePermissionMessage(String(nested.message));
+        }
       }
     }
   }
   if (typeof data === "object" && "error" in data) {
     const error = (data as { error?: { message?: unknown } }).error;
     const message = error?.message;
-    return message ? String(message) : null;
+    return message ? normalizePermissionMessage(String(message)) : null;
   }
   return null;
 };
