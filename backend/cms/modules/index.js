@@ -13,10 +13,14 @@ import {
 import { createMemoryUpload } from "../../crm/core/uploads/index.js";
 
 function createCmsModules({ db, storage, logger, upload }) {
-  const uploadMiddleware =
-    upload || createMemoryUpload({ maxFileSizeMb: 10 });
+  const uploadMiddleware = upload || createMemoryUpload({ maxFileSizeMb: 10 });
 
-  const landing = createLandingModule({ db, storage, upload: uploadMiddleware, logger });
+  const landing = createLandingModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
   const destinations = createDestinationsModule({
     db,
     storage,
@@ -29,14 +33,24 @@ function createCmsModules({ db, storage, logger, upload }) {
     upload: uploadMiddleware,
     logger,
   });
-  const visa = createVisaModule({ db, storage, upload: uploadMiddleware, logger });
+  const visa = createVisaModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
   const experience = createExperienceModule({
     db,
     storage,
     upload: uploadMiddleware,
     logger,
   });
-  const media = createCmsMediaModule({ db, storage, upload: uploadMiddleware, logger });
+  const media = createCmsMediaModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
   const publicCms = createPublicCmsModule({
     landingService: landing.service,
     destinationsService: destinations.service,

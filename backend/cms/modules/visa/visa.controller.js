@@ -18,6 +18,19 @@ function createVisaController({ service, uploadService }) {
       });
     }),
 
+    listDeleted: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+
+      const visaDestinations = await service.listDeleted(filters);
+      res.json({
+        success: true,
+        data: visaDestinations,
+      });
+    }),
+
     getById: asyncHandler(async (req, res) => {
       const visaDestination = await service.getById(req.params.id);
       res.json({
@@ -108,6 +121,11 @@ function createVisaController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDelete: asyncHandler(async (req, res) => {
+      const result = await service.hardDelete(req.params.id);
+      res.json(result);
+    }),
+
     // Details endpoints
     getDetails: asyncHandler(async (req, res) => {
       const sectionType = req.query.sectionType || null;
@@ -136,6 +154,19 @@ function createVisaController({ service, uploadService }) {
 
     deleteDetail: asyncHandler(async (req, res) => {
       const result = await service.deleteDetail(req.params.detailId);
+      res.json(result);
+    }),
+
+    listDeletedDetails: asyncHandler(async (_req, res) => {
+      const rows = await service.listDeletedDetails({});
+      res.json({
+        success: true,
+        data: rows,
+      });
+    }),
+
+    hardDeleteDetail: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteDetail(req.params.detailId);
       res.json(result);
     }),
   });

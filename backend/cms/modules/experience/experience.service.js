@@ -2,8 +2,26 @@ import { AppError } from "../../core/middlewares/errorHandler.js";
 import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createExperienceService({ repository }) {
+  function parseJsonValue(value, fallback) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return fallback;
+      }
+    }
+    return value;
+  }
+
   function toFeaturedPick(row) {
     if (!row) return null;
+    const tags = parseJsonValue(row.tags, []);
+    const highlights = parseJsonValue(row.highlights, []);
+    const metadata = parseJsonValue(row.metadata, {});
+
     return {
       id: row.id,
       slug: row.slug,
@@ -25,9 +43,9 @@ function createExperienceService({ repository }) {
       buttonText: row.button_text,
       ctaUrl: row.cta_url,
       expiresOn: row.expires_on,
-      tags: row.tags || [],
-      highlights: row.highlights || [],
-      metadata: row.metadata || {},
+      tags: Array.isArray(tags) ? tags : [],
+      highlights: Array.isArray(highlights) ? highlights : [],
+      metadata: metadata && typeof metadata === "object" ? metadata : {},
       displayOrder: row.display_order || 0,
       isActive: row.is_active !== false,
       createdAt: row.created_at,
@@ -83,6 +101,13 @@ function createExperienceService({ repository }) {
   return Object.freeze({
     async listFeaturedPicks(filters = {}) {
       const rows = await repository.findFeaturedPicks(filters);
+      return rows
+        .map(toFeaturedPick)
+        .sort((first, second) => first.displayOrder - second.displayOrder);
+    },
+
+    async listDeletedFeaturedPicks(filters = {}) {
+      const rows = await repository.findDeletedFeaturedPicks(filters);
       return rows
         .map(toFeaturedPick)
         .sort((first, second) => first.displayOrder - second.displayOrder);
@@ -233,8 +258,23 @@ function createExperienceService({ repository }) {
       return { success: true };
     },
 
+    async hardDeleteFeaturedPick(id) {
+      const existing = await repository.findFeaturedPickById(id);
+      if (!existing) {
+        throw new AppError(404, "Featured pick not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteFeaturedPick(id);
+      return { success: true };
+    },
+
     async listSeasonCards(filters = {}) {
       const rows = await repository.findSeasonCards(filters);
+      return rows.map(toSeasonCard);
+    },
+
+    async listDeletedSeasonCards(filters = {}) {
+      const rows = await repository.findDeletedSeasonCards(filters);
       return rows.map(toSeasonCard);
     },
 
@@ -325,6 +365,16 @@ function createExperienceService({ repository }) {
       }
 
       await repository.deleteSeasonCard(id);
+      return { success: true };
+    },
+
+    async hardDeleteSeasonCard(id) {
+      const existing = await repository.findSeasonCardById(id);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteSeasonCard(id);
       return { success: true };
     },
 

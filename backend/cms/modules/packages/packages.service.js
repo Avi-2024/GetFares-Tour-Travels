@@ -7,16 +7,24 @@ import {
 } from "../../core/utils/index.js";
 
 function createCmsPackagesService({ repository }) {
-  function toPackage(row) {
-    if (!row) return null;
-    let galleryImageUrls = [];
-    if (row.gallery_image_urls) {
+  function parseJsonValue(value, fallback) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "string") {
       try {
-        galleryImageUrls = typeof row.gallery_image_urls === 'string' ? JSON.parse(row.gallery_image_urls) : row.gallery_image_urls;
+        return JSON.parse(value);
       } catch {
-        galleryImageUrls = [];
+        return fallback;
       }
     }
+    return value;
+  }
+
+  function toPackage(row) {
+    if (!row) return null;
+    const galleryImageUrls = parseJsonValue(row.gallery_image_urls, []);
+    const itinerary = parseJsonValue(row.itinerary, null);
     return {
       id: row.id,
       name: row.name,
@@ -28,8 +36,8 @@ function createCmsPackagesService({ repository }) {
       hotelDetails: row.hotel_details,
       packageCategory: row.package_category,
       bannerImageUrl: row.banner_image_url,
-      galleryImageUrls: row.gallery_image_urls || [],
-      itinerary: row.itinerary,
+      galleryImageUrls: Array.isArray(galleryImageUrls) ? galleryImageUrls : [],
+      itinerary,
       validFrom: row.valid_from,
       validTo: row.valid_to,
       cancellationPolicy: row.cancellation_policy,
@@ -84,6 +92,11 @@ function createCmsPackagesService({ repository }) {
   return Object.freeze({
     async listPublished(filters = {}) {
       const rows = await repository.findPublishedPackages(filters);
+      return rows.map(toPackage);
+    },
+
+    async listDeleted(filters = {}) {
+      const rows = await repository.findDeletedPackages(filters);
       return rows.map(toPackage);
     },
 
@@ -258,8 +271,23 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
+    async hardDeletePublishedPackage(id) {
+      const existing = await repository.findPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeletePackageById(id);
+      return { success: true };
+    },
+
     async listMainPackages(filters = {}) {
       const rows = await repository.findAllMainPackages(filters);
+      return rows.map(toMainPackage);
+    },
+
+    async listDeletedMainPackages(filters = {}) {
+      const rows = await repository.findDeletedMainPackages(filters);
       return rows.map(toMainPackage);
     },
 
@@ -349,6 +377,16 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
+    async hardDeleteMainPackage(id) {
+      const existing = await repository.findMainPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Main package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteMainPackage(id);
+      return { success: true };
+    },
+
     async listSubPackages(mainPackageId, filters = {}) {
       const mainPackage = await repository.findMainPackageById(mainPackageId);
       if (!mainPackage) {
@@ -363,6 +401,11 @@ function createCmsPackagesService({ repository }) {
       }
 
       const rows = await repository.findSubPackages(mainPackageId);
+      return rows.map(toSubPackage);
+    },
+
+    async listDeletedSubPackages(filters = {}) {
+      const rows = await repository.findDeletedSubPackages(filters);
       return rows.map(toSubPackage);
     },
 
@@ -429,6 +472,16 @@ function createCmsPackagesService({ repository }) {
       }
 
       await repository.deleteSubPackage(id);
+      return { success: true };
+    },
+
+    async hardDeleteSubPackage(id) {
+      const existing = await repository.findSubPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Sub package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteSubPackage(id);
       return { success: true };
     },
   });

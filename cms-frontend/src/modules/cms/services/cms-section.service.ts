@@ -19,6 +19,10 @@ class CmsSectionService implements ICmsSectionService {
     return this.repository.list(sectionKey);
   }
 
+  public listDeleted(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
+    return this.repository.listDeleted(sectionKey);
+  }
+
   public listAdminMainPackages(): Promise<CmsTableEntry[]> {
     return this.repository.listAdminMainPackages();
   }
@@ -40,6 +44,10 @@ class CmsSectionService implements ICmsSectionService {
 
   public remove(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
     return this.repository.remove(sectionKey, entry);
+  }
+
+  public hardDelete(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+    return this.repository.hardDelete(sectionKey, entry);
   }
 
   public getMediaEntityType(sectionKey: CmsSectionKey): string {

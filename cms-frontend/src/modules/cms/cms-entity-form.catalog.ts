@@ -404,7 +404,7 @@ class CmsEntityFormCatalog {
           relationSource: "published-packages",
           required: true,
           groupKey: "basic",
-          helperText: "If this list is empty, first publish a package in the Published Packages page.",
+          helperText: "If this list is empty, first enable publishing in the Packages page.",
         },
         { key: "country", label: "Country", type: "text", required: true, groupKey: "basic" },
         { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "status" },

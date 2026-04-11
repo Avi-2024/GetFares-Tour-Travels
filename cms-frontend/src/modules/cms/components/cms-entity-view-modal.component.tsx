@@ -282,11 +282,20 @@ class CmsEntityViewModalComponent extends Component<
                         onClick={() => onOpenImage(item.mediaUrl, item.title || title)}
                         className="overflow-hidden rounded-xl border border-[var(--border)] text-left"
                       >
-                        <img
-                          src={item.thumbnailUrl || item.mediaUrl}
-                          alt={item.altText || item.title || title}
-                          className="h-28 w-full object-cover"
-                        />
+                        {item.mediaKind === "video" ? (
+                          <video
+                            src={item.mediaUrl}
+                            className="h-28 w-full object-cover"
+                            muted
+                            playsInline
+                          />
+                        ) : (
+                          <img
+                            src={item.thumbnailUrl || item.mediaUrl}
+                            alt={item.altText || item.title || title}
+                            className="h-28 w-full object-cover"
+                          />
+                        )}
                         <div className="px-2 py-1.5 text-xs text-[var(--text-secondary)]">
                           {item.title || "Media asset"}
                         </div>

@@ -8,6 +8,7 @@ function createVisaRoutes({ controller, upload }) {
     .route("/")
     .get(controller.list)
     .post(upload.any(), controller.create);
+  router.route("/deleted").get(controller.listDeleted);
   router.route("/slug/:slug").get(controller.getBySlug);
   router.route("/:id/status").patch(controller.updateStatus);
   router
@@ -15,10 +16,13 @@ function createVisaRoutes({ controller, upload }) {
     .get(controller.getById)
     .put(upload.any(), controller.update)
     .delete(controller.delete);
+  router.route("/:id/hard-delete").delete(controller.hardDelete);
 
   // Details routes
   router.route("/:id/details").get(controller.getDetails).post(controller.addDetail);
   router.route("/:id/details/:detailId").put(controller.updateDetail).delete(controller.deleteDetail);
+  router.route("/details/deleted").get(controller.listDeletedDetails);
+  router.route("/details/:detailId/hard-delete").delete(controller.hardDeleteDetail);
 
   return router;
 }

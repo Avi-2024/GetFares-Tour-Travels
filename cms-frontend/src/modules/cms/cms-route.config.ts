@@ -26,9 +26,9 @@ const cmsRouteDefinitions: CmsRouteDefinition[] = [
   {
     path: "/cms/packages/published",
     sectionKey: "published-packages",
-    title: "Published Packages",
-    subtitle: "Mirror CRM-ready inventory into CMS experience layers.",
-    breadcrumb: "CMS / Packages / Published",
+    title: "Packages",
+    subtitle: "Manage package inventory and website publishing state.",
+    breadcrumb: "CMS / Packages",
   },
   {
     path: "/cms/packages/main",

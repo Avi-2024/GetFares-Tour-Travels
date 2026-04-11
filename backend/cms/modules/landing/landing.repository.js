@@ -1,5 +1,6 @@
 function createLandingRepository({ db, schema }) {
   let countryColumnSupported = null;
+  let isDeletedColumnSupported = null;
 
   async function supportsCountryColumn() {
     if (countryColumnSupported !== null) {
@@ -30,6 +31,35 @@ function createLandingRepository({ db, schema }) {
     return countryColumnSupported;
   }
 
+  async function supportsIsDeletedColumn() {
+    if (isDeletedColumnSupported !== null) {
+      return isDeletedColumnSupported;
+    }
+
+    if (db?.adapter === "in-memory" || typeof db?.query !== "function") {
+      isDeletedColumnSupported = true;
+      return isDeletedColumnSupported;
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+           AND table_name = ?
+           AND column_name = 'is_deleted'
+         LIMIT 1`,
+        [schema.tableName],
+      );
+      isDeletedColumnSupported =
+        (result?.rowCount ?? result?.rows?.length ?? 0) > 0;
+    } catch {
+      isDeletedColumnSupported = false;
+    }
+
+    return isDeletedColumnSupported;
+  }
+
   return Object.freeze({
     async findAll(filters = {}) {
       const query = { ...filters };
@@ -39,6 +69,16 @@ function createLandingRepository({ db, schema }) {
       }
       if (!(await supportsCountryColumn())) {
         delete query.country;
+      }
+      if (await supportsIsDeletedColumn()) {
+        if (query.is_deleted === undefined) {
+          query.is_deleted = false;
+        }
+      } else {
+        if (query.is_deleted !== undefined) {
+          return [];
+        }
+        delete query.is_deleted;
       }
       return db.findMany(schema.tableName, query);
     },
@@ -51,6 +91,11 @@ function createLandingRepository({ db, schema }) {
       const payload = { ...data };
       if (!(await supportsCountryColumn())) {
         delete payload.country;
+      }
+      if (await supportsIsDeletedColumn()) {
+        payload.is_deleted = false;
+      } else {
+        delete payload.is_deleted;
       }
       return db.insert(schema.tableName, payload);
     },
@@ -68,7 +113,32 @@ function createLandingRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
+      if (await supportsIsDeletedColumn()) {
+        await db.update(schema.tableName, id, { is_deleted: true });
+        return db.findById(schema.tableName, id);
+      }
       await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+      return existing;
+    },
+
+    async hardDelete(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+      return existing;
+    },
+
+    async restore(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      if (await supportsIsDeletedColumn()) {
+        await db.update(schema.tableName, id, { is_deleted: false });
+        return db.findById(schema.tableName, id);
+      }
       return existing;
     },
 
@@ -81,6 +151,10 @@ function createLandingRepository({ db, schema }) {
 
     async supportsCountry() {
       return supportsCountryColumn();
+    },
+
+    async supportsIsDeleted() {
+      return supportsIsDeletedColumn();
     },
   });
 }

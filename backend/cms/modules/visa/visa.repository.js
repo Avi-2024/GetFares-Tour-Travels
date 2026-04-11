@@ -62,9 +62,30 @@ async function runWithColumnFallback(input, runner) {
 function createVisaRepository({ db, schema }) {
   return Object.freeze({
     async findAll(filters = {}) {
-      return runWithColumnFallback(filters, (safeFilters) =>
+      const nextFilters = { ...filters };
+      if (nextFilters.is_deleted === undefined) {
+        nextFilters.is_deleted = false;
+      }
+      return runWithColumnFallback(nextFilters, (safeFilters) =>
         db.findMany(schema.tableName, safeFilters),
       );
+    },
+
+    async findDeleted(filters = {}) {
+      try {
+        return await db.findMany(schema.tableName, { ...filters, is_deleted: true });
+      } catch (error) {
+        const missingColumn = getMissingColumnName(error);
+        if (!missingColumn) {
+          throw error;
+        }
+        if (missingColumn === "is_deleted") {
+          return [];
+        }
+        return runWithColumnFallback({ ...filters, is_deleted: true }, (safeFilters) =>
+          db.findMany(schema.tableName, safeFilters),
+        );
+      }
     },
 
     async findById(id) {
@@ -76,7 +97,7 @@ function createVisaRepository({ db, schema }) {
     },
 
     async create(data) {
-      return runWithColumnFallback(data, (safeData) =>
+      return runWithColumnFallback({ ...data, is_deleted: false }, (safeData) =>
         db.insert(schema.tableName, safeData),
       );
     },
@@ -92,6 +113,15 @@ function createVisaRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
+      await db.update(schema.tableName, id, { is_deleted: true });
+      return db.findById(schema.tableName, id);
+    },
+
+    async hardDelete(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
       await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
       return existing;
     },
@@ -100,7 +130,23 @@ function createVisaRepository({ db, schema }) {
     async findDetails(visaDestinationId, sectionType = null) {
       const filters = { visa_destination_id: visaDestinationId };
       if (sectionType) filters.section_type = sectionType;
+      filters.is_deleted = false;
       return db.findMany(schema.detailsTable, filters);
+    },
+
+    async findDeletedDetails(filters = {}) {
+      try {
+        return await db.findMany(schema.detailsTable, { ...filters, is_deleted: true });
+      } catch (error) {
+        const missingColumn = getMissingColumnName(error);
+        if (!missingColumn) {
+          throw error;
+        }
+        if (missingColumn === "is_deleted") {
+          return [];
+        }
+        throw error;
+      }
     },
 
     async findDetailById(detailId) {
@@ -108,7 +154,7 @@ function createVisaRepository({ db, schema }) {
     },
 
     async createDetail(data) {
-      return db.insert(schema.detailsTable, data);
+      return db.insert(schema.detailsTable, { ...data, is_deleted: false });
     },
 
     async updateDetail(detailId, data) {
@@ -116,6 +162,15 @@ function createVisaRepository({ db, schema }) {
     },
 
     async deleteDetail(detailId) {
+      const existing = await db.findById(schema.detailsTable, detailId);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.detailsTable, detailId, { is_deleted: true });
+      return db.findById(schema.detailsTable, detailId);
+    },
+
+    async hardDeleteDetail(detailId) {
       const existing = await db.findById(schema.detailsTable, detailId);
       if (!existing) {
         return null;

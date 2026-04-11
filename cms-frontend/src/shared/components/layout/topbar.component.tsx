@@ -79,7 +79,16 @@ class TopbarComponent extends Component<TopbarProps, TopbarState> {
 
           <div className="flex items-center gap-3">
             <div className="hidden lg:flex items-center gap-3">
-             
+              <img
+                alt="Tabby"
+                className="h-6 w-auto object-contain"
+                src="/tabby.svg"
+              />
+              <img
+                alt="Tamara"
+                className="h-6 w-auto object-contain"
+                src="/tamara.svg"
+              />
             </div>
             <ThemeToggle />
 
@@ -107,7 +116,7 @@ class TopbarComponent extends Component<TopbarProps, TopbarState> {
                 </span>
               </button>
 
-              {isProfileMenuOpen ? (
+              {isProfileMenuOpen ?
                 <div
                   role="menu"
                   className="absolute right-0 mt-2 w-48 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-xl"
@@ -123,7 +132,7 @@ class TopbarComponent extends Component<TopbarProps, TopbarState> {
                     Logout
                   </button>
                 </div>
-              ) : null}
+              : null}
             </div>
           </div>
         </div>

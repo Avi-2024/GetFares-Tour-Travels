@@ -32,9 +32,9 @@ class SidebarConfig {
     new SidebarSection("Packages", [
       new SidebarItem(
         "published-packages",
-        "Published Packages",
+        "Packages",
         "/cms/packages/published",
-        "Synced from CRM catalog",
+        "All package inventory",
         PackageSearch,
       ),
       new SidebarItem(
@@ -82,6 +82,15 @@ class SidebarConfig {
         "/cms/destination-map",
         "Geo preview and clusters",
         MapPinned,
+      ),
+    ]),
+    new SidebarSection("Deleted Objects", [
+      new SidebarItem(
+        "deleted-objects",
+        "Deleted Objects",
+        "/cms/deleted",
+        "Hard delete archived records",
+        PackageSearch,
       ),
     ]),
   ];
