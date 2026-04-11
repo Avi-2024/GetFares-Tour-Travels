@@ -254,6 +254,21 @@ class CmsDeletedPage extends Component<unknown, CmsDeletedPageState> {
     }
   };
 
+  private handleRestore = async (entry: CmsTableEntry): Promise<void> => {
+    this.setState({ isModalSubmitting: true, modalErrorMessage: "" });
+    try {
+      await this.cmsService.restore(this.state.activeKey, entry);
+      await this.loadRows();
+      this.setSuccess("Record restored.");
+    } catch (error) {
+      this.setError(
+        error instanceof Error ? error.message : "Restore failed.",
+      );
+    } finally {
+      this.setState({ isModalSubmitting: false });
+    }
+  };
+
   render() {
     const {
       activeKey,
@@ -359,11 +374,13 @@ class CmsDeletedPage extends Component<unknown, CmsDeletedPageState> {
           supportsCreate={false}
           supportsEdit={false}
           supportsDelete
+          supportsRestore
           dateColumnKeys={dateColumnKeys}
           onCreate={() => undefined}
           onView={this.openViewModal}
           onEdit={() => undefined}
           onDelete={this.openDeleteModal}
+          onRestore={this.handleRestore}
           onImagePreview={this.openImagePreview}
           getImageUrl={(entry) => this.mediaResolver.getImageUrlFromEntry(entry)}
           getEntryLabel={(entry) => this.mediaResolver.getEntryLabel(entry)}

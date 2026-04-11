@@ -16,12 +16,14 @@ function createVisaRoutes({ controller, upload }) {
     .get(controller.getById)
     .put(upload.any(), controller.update)
     .delete(controller.delete);
+  router.route("/:id/restore").patch(controller.restore);
   router.route("/:id/hard-delete").delete(controller.hardDelete);
 
   // Details routes
   router.route("/:id/details").get(controller.getDetails).post(controller.addDetail);
   router.route("/:id/details/:detailId").put(controller.updateDetail).delete(controller.deleteDetail);
   router.route("/details/deleted").get(controller.listDeletedDetails);
+  router.route("/details/:detailId/restore").patch(controller.restoreDetail);
   router.route("/details/:detailId/hard-delete").delete(controller.hardDeleteDetail);
 
   return router;

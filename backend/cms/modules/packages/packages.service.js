@@ -281,6 +281,16 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
+    async restorePublishedPackage(id) {
+      const existing = await repository.findPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Package not found", "NOT_FOUND");
+      }
+
+      await repository.restorePackageById(id);
+      return { success: true };
+    },
+
     async listMainPackages(filters = {}) {
       const rows = await repository.findAllMainPackages(filters);
       return rows.map(toMainPackage);
@@ -387,6 +397,16 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
+    async restoreMainPackage(id) {
+      const existing = await repository.findMainPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Main package not found", "NOT_FOUND");
+      }
+
+      await repository.restoreMainPackage(id);
+      return { success: true };
+    },
+
     async listSubPackages(mainPackageId, filters = {}) {
       const mainPackage = await repository.findMainPackageById(mainPackageId);
       if (!mainPackage) {
@@ -400,7 +420,10 @@ function createCmsPackagesService({ repository }) {
         throw new AppError(404, "Main package not found", "NOT_FOUND");
       }
 
-      const rows = await repository.findSubPackages(mainPackageId);
+      const rows = await repository.findSubPackages(
+        mainPackageId,
+        filters.includeDeleted === true || filters.includeDeleted === "true",
+      );
       return rows.map(toSubPackage);
     },
 
@@ -482,6 +505,16 @@ function createCmsPackagesService({ repository }) {
       }
 
       await repository.hardDeleteSubPackage(id);
+      return { success: true };
+    },
+
+    async restoreSubPackage(id) {
+      const existing = await repository.findSubPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Sub package not found", "NOT_FOUND");
+      }
+
+      await repository.restoreSubPackage(id);
       return { success: true };
     },
   });

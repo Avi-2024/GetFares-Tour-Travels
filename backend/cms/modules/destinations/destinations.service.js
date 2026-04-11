@@ -237,6 +237,16 @@ function createDestinationsService({ repository }) {
       return { success: true };
     },
 
+    async restore(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      await repository.restore(id);
+      return { success: true };
+    },
+
     async getMedia(destinationId) {
       await this.getById(destinationId);
       const rows = await repository.findMedia(destinationId);

@@ -12,6 +12,7 @@ function createDestinationsRoutes({ controller, upload }) {
     .get(controller.getById)
     .put(destinationUpload, controller.update)
     .delete(controller.delete);
+  router.route("/:id/restore").patch(controller.restore);
   router.route("/:id/hard-delete").delete(controller.hardDelete);
   router.route("/:id/status").patch(controller.updateStatus);
 

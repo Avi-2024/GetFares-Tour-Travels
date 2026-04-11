@@ -253,10 +253,20 @@ function createVisaService({ repository }) {
       return { success: true };
     },
 
+    async restore(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Visa destination not found", "NOT_FOUND");
+      }
+
+      await repository.restore(id);
+      return { success: true };
+    },
+
     // Details methods
-    async getDetails(visaDestinationId, sectionType = null) {
+    async getDetails(visaDestinationId, sectionType = null, includeDeleted = false) {
       await this.getById(visaDestinationId); // Verify exists
-      const rows = await repository.findDetails(visaDestinationId, sectionType);
+      const rows = await repository.findDetails(visaDestinationId, sectionType, includeDeleted);
       return rows.map(toDetail).sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
@@ -323,6 +333,16 @@ function createVisaService({ repository }) {
       }
 
       await repository.hardDeleteDetail(detailId);
+      return { success: true };
+    },
+
+    async restoreDetail(detailId) {
+      const existing = await repository.findDetailById(detailId);
+      if (!existing) {
+        throw new AppError(404, "Detail not found", "NOT_FOUND");
+      }
+
+      await repository.restoreDetail(detailId);
       return { success: true };
     },
   });

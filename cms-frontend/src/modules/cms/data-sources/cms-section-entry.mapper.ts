@@ -44,6 +44,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "name",
         readOnly: false,
@@ -87,6 +88,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "name",
         readOnly: false,
@@ -142,6 +144,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `/cms/packages/published/${id}`,
         deletePath: `/cms/packages/published/${id}`,
+        restorePath: `/cms/packages/published/${id}/restore`,
         deleteMode: "delete",
         editableField: "publishToWebsite",
         readOnly: false,
@@ -191,6 +194,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "displayOrder",
         readOnly: false,
@@ -202,8 +206,12 @@ class CmsSectionEntryMapper {
   public async mapSubPackageEntries(
     mainPath: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const options = country ? { params: { country } } : undefined;
+    const options =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     const mainPayload = await this.httpClient.get<unknown>(mainPath, options);
     const mainPackages = this.accessor.toArray(mainPayload);
     const entries: CmsTableEntry[] = [];
@@ -250,6 +258,7 @@ class CmsSectionEntryMapper {
             }),
             updatePath: `${mainPath.replace("/main", "/sub")}/${id}`,
             deletePath: `${mainPath.replace("/main", "/sub")}/${id}`,
+            restorePath: `${mainPath.replace("/main", "/sub")}/${id}/restore`,
             deleteMode: "delete",
             editableField: "displayOrder",
             readOnly: false,
@@ -295,6 +304,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "displayOrder",
         readOnly: false,
@@ -341,6 +351,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,
@@ -352,8 +363,12 @@ class CmsSectionEntryMapper {
   public async mapVisaDetailEntries(
     visaBasePath: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const options = country ? { params: { country } } : undefined;
+    const options =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     const visaPayload = await this.httpClient.get<unknown>(visaBasePath, options);
     const visaDestinations = this.accessor.toArray(visaPayload);
     const entries: CmsTableEntry[] = [];
@@ -368,6 +383,7 @@ class CmsSectionEntryMapper {
           visaBasePath,
           destinationId,
           destination,
+          includeDeleted,
         );
         entries.push(...detailEntries);
       } catch {
@@ -381,8 +397,12 @@ class CmsSectionEntryMapper {
     visaBasePath: string,
     destinationId: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const destinationOptions = country ? { params: { country } } : undefined;
+    const destinationOptions =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     let destinationRecord: JsonRecord | null = null;
 
     try {
@@ -399,6 +419,7 @@ class CmsSectionEntryMapper {
       visaBasePath,
       destinationId,
       destinationRecord ?? { id: destinationId, title: destinationId },
+      includeDeleted,
     );
   }
 
@@ -406,9 +427,11 @@ class CmsSectionEntryMapper {
     visaBasePath: string,
     destinationId: string,
     destinationRecord: JsonRecord,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
     const detailsPayload = await this.httpClient.get<unknown>(
       `${visaBasePath}/${destinationId}/details`,
+      includeDeleted ? { params: { includeDeleted: true } } : undefined,
     );
     const details = this.accessor.toArray(detailsPayload);
     const destinationLabel = this.accessor.getText(
@@ -446,6 +469,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
         deletePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
+        restorePath: `/cms/visa/details/${detailId}/restore`,
         deleteMode: "delete",
         editableField: "value",
         readOnly: false,
@@ -488,6 +512,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${detailId}`,
         deletePath: `${basePath}/${detailId}`,
+        restorePath: `${basePath}/${detailId}/restore`,
         deleteMode: "delete",
         editableField: "value",
         readOnly: false,
@@ -546,6 +571,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/featured-picks/${id}`,
         deletePath: `${basePath}/featured-picks/${id}`,
+        restorePath: `${basePath}/featured-picks/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,
@@ -585,6 +611,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/season-cards/${id}`,
         deletePath: `${basePath}/season-cards/${id}`,
+        restorePath: `${basePath}/season-cards/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,

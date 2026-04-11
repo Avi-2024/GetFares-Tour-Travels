@@ -63,8 +63,16 @@ function createVisaRepository({ db, schema }) {
   return Object.freeze({
     async findAll(filters = {}) {
       const nextFilters = { ...filters };
+      const includeDeleted =
+        nextFilters.includeDeleted === true || nextFilters.includeDeleted === "true";
+      if (nextFilters.includeDeleted !== undefined) {
+        delete nextFilters.includeDeleted;
+      }
       if (nextFilters.is_deleted === undefined) {
         nextFilters.is_deleted = false;
+      }
+      if (includeDeleted) {
+        delete nextFilters.is_deleted;
       }
       return runWithColumnFallback(nextFilters, (safeFilters) =>
         db.findMany(schema.tableName, safeFilters),
@@ -126,11 +134,29 @@ function createVisaRepository({ db, schema }) {
       return existing;
     },
 
+    async restore(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      try {
+        await db.update(schema.tableName, id, { is_deleted: false });
+        return db.findById(schema.tableName, id);
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+        return existing;
+      }
+    },
+
     // Details methods
-    async findDetails(visaDestinationId, sectionType = null) {
+    async findDetails(visaDestinationId, sectionType = null, includeDeleted = false) {
       const filters = { visa_destination_id: visaDestinationId };
       if (sectionType) filters.section_type = sectionType;
-      filters.is_deleted = false;
+      if (!includeDeleted) {
+        filters.is_deleted = false;
+      }
       return db.findMany(schema.detailsTable, filters);
     },
 
@@ -177,6 +203,22 @@ function createVisaRepository({ db, schema }) {
       }
       await db.query(`DELETE FROM ${schema.detailsTable} WHERE id = ?`, [detailId]);
       return existing;
+    },
+
+    async restoreDetail(detailId) {
+      const existing = await db.findById(schema.detailsTable, detailId);
+      if (!existing) {
+        return null;
+      }
+      try {
+        await db.update(schema.detailsTable, detailId, { is_deleted: false });
+        return db.findById(schema.detailsTable, detailId);
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+        return existing;
+      }
     },
   });
 }

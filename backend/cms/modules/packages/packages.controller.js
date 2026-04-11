@@ -11,6 +11,9 @@ function createCmsPackagesController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const packages = await service.listPublished(filters);
       res.json({
@@ -135,6 +138,11 @@ function createCmsPackagesController({ service, uploadService }) {
       res.json(result);
     }),
 
+    restorePublishedPackage: asyncHandler(async (req, res) => {
+      const result = await service.restorePublishedPackage(req.params.id);
+      res.json(result);
+    }),
+
     // Main packages
     listMainPackages: asyncHandler(async (req, res) => {
       const filters = {};
@@ -143,6 +151,9 @@ function createCmsPackagesController({ service, uploadService }) {
       }
       if (req.query.isFeatured !== undefined) {
         filters.is_featured = req.query.isFeatured === "true";
+      }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
       }
 
       const packages = await service.listMainPackages(filters);
@@ -208,11 +219,19 @@ function createCmsPackagesController({ service, uploadService }) {
       res.json(result);
     }),
 
+    restoreMainPackage: asyncHandler(async (req, res) => {
+      const result = await service.restoreMainPackage(req.params.id);
+      res.json(result);
+    }),
+
     // Sub packages
     listSubPackages: asyncHandler(async (req, res) => {
       const filters = {};
       if (req.query.country) {
         filters.country = req.query.country;
+      }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
       }
 
       const packages = await service.listSubPackages(req.params.mainPackageId, filters);
@@ -253,6 +272,11 @@ function createCmsPackagesController({ service, uploadService }) {
 
     hardDeleteSubPackage: asyncHandler(async (req, res) => {
       const result = await service.hardDeleteSubPackage(req.params.id);
+      res.json(result);
+    }),
+
+    restoreSubPackage: asyncHandler(async (req, res) => {
+      const result = await service.restoreSubPackage(req.params.id);
       res.json(result);
     }),
   });

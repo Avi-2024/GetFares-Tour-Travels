@@ -2,8 +2,16 @@ function createExperienceRepository({ db, schema }) {
   return Object.freeze({
     async findFeaturedPicks(filters = {}) {
       const query = { ...filters };
-      if (query.is_deleted === undefined) {
+      const includeDeleted =
+        query.includeDeleted === true || query.includeDeleted === "true";
+      if (query.includeDeleted !== undefined) {
+        delete query.includeDeleted;
+      }
+      if (!includeDeleted && query.is_deleted === undefined) {
         query.is_deleted = false;
+      }
+      if (includeDeleted) {
+        delete query.is_deleted;
       }
       return db.findMany(schema.featuredTable, query);
     },
@@ -42,6 +50,15 @@ function createExperienceRepository({ db, schema }) {
       return existing;
     },
 
+    async restoreFeaturedPick(id) {
+      const existing = await db.findById(schema.featuredTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.featuredTable, id, { is_deleted: false });
+      return db.findById(schema.featuredTable, id);
+    },
+
     async deactivateFeaturedPick(id) {
       return this.deleteFeaturedPick(id);
     },
@@ -49,6 +66,8 @@ function createExperienceRepository({ db, schema }) {
     async findSeasonCards(filters = {}) {
       const values = [];
       let whereClause = "TRUE";
+      const includeDeleted =
+        filters.includeDeleted === true || filters.includeDeleted === "true";
 
       if (filters.destinationId) {
         values.push(filters.destinationId);
@@ -73,7 +92,7 @@ function createExperienceRepository({ db, schema }) {
         LEFT JOIN ${schema.destinationsTable} d
           ON d.id = sc.destination_id
         WHERE ${whereClause}
-          AND sc.is_deleted = false
+          ${includeDeleted ? "" : "AND sc.is_deleted = false"}
         ORDER BY sc.display_order ASC, sc.created_at DESC`,
         values,
       );
@@ -139,6 +158,15 @@ function createExperienceRepository({ db, schema }) {
       }
       await db.query(`DELETE FROM ${schema.seasonsTable} WHERE id = ?`, [id]);
       return existing;
+    },
+
+    async restoreSeasonCard(id) {
+      const existing = await db.findById(schema.seasonsTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.seasonsTable, id, { is_deleted: false });
+      return db.findById(schema.seasonsTable, id);
     },
 
     async findHeroSections(filters = {}) {

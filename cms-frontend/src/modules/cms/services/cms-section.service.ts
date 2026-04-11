@@ -50,6 +50,10 @@ class CmsSectionService implements ICmsSectionService {
     return this.repository.hardDelete(sectionKey, entry);
   }
 
+  public restore(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+    return this.repository.restore(sectionKey, entry);
+  }
+
   public getMediaEntityType(sectionKey: CmsSectionKey): string {
     return this.repository.getMediaEntityType(sectionKey);
   }

@@ -205,6 +205,16 @@ function createLandingService({ repository }) {
       return { success: true };
     },
 
+    async restore(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Landing place not found", "NOT_FOUND");
+      }
+
+      await repository.restore(id);
+      return { success: true };
+    },
+
     async reorder(items) {
       if (!Array.isArray(items)) {
         throw new AppError(400, "Items must be an array", "INVALID_INPUT");

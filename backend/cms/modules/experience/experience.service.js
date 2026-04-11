@@ -268,6 +268,16 @@ function createExperienceService({ repository }) {
       return { success: true };
     },
 
+    async restoreFeaturedPick(id) {
+      const existing = await repository.findFeaturedPickById(id);
+      if (!existing) {
+        throw new AppError(404, "Featured pick not found", "NOT_FOUND");
+      }
+
+      await repository.restoreFeaturedPick(id);
+      return { success: true };
+    },
+
     async listSeasonCards(filters = {}) {
       const rows = await repository.findSeasonCards(filters);
       return rows.map(toSeasonCard);
@@ -375,6 +385,16 @@ function createExperienceService({ repository }) {
       }
 
       await repository.hardDeleteSeasonCard(id);
+      return { success: true };
+    },
+
+    async restoreSeasonCard(id) {
+      const existing = await repository.findSeasonCardById(id);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      await repository.restoreSeasonCard(id);
       return { success: true };
     },
 

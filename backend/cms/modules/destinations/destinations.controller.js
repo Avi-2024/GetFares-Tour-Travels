@@ -40,6 +40,9 @@ function createDestinationsController({ service, uploadService }) {
         filters.is_active = req.query.isActive === "true";
       if (req.query.isPopular !== undefined)
         filters.is_popular = req.query.isPopular === "true";
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const destinations = await service.list(filters);
       res.json({
@@ -185,6 +188,11 @@ function createDestinationsController({ service, uploadService }) {
 
     hardDelete: asyncHandler(async (req, res) => {
       const result = await service.hardDelete(req.params.id);
+      res.json(result);
+    }),
+
+    restore: asyncHandler(async (req, res) => {
+      const result = await service.restore(req.params.id);
       res.json(result);
     }),
 

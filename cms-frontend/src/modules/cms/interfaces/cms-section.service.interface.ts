@@ -17,6 +17,7 @@ interface ICmsSectionService {
   ): Promise<Record<string, unknown> | null>;
   remove(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void>;
   hardDelete(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void>;
+  restore(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void>;
   getMediaEntityType(sectionKey: CmsSectionKey): string;
   listMedia(entityType: string, entityId: string): Promise<CmsMediaAsset[]>;
   createMedia(

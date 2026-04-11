@@ -13,6 +13,7 @@ function createCmsPackagesRoutes({ controller, upload }) {
     .get(controller.getPackageById)
     .put(upload.any(), controller.updatePublishedPackage)
     .delete(controller.deletePublishedPackage);
+  router.route("/published/:id/restore").patch(controller.restorePublishedPackage);
   router.route("/published/:id/hard-delete").delete(controller.hardDeletePublishedPackage);
 
   router
@@ -25,6 +26,7 @@ function createCmsPackagesRoutes({ controller, upload }) {
     .get(controller.getMainPackageById)
     .put(controller.updateMainPackage)
     .delete(controller.deleteMainPackage);
+  router.route("/main/:id/restore").patch(controller.restoreMainPackage);
   router.route("/main/:id/hard-delete").delete(controller.hardDeleteMainPackage);
 
   router.route("/main/:mainPackageId/sub").get(controller.listSubPackages);
@@ -34,6 +36,7 @@ function createCmsPackagesRoutes({ controller, upload }) {
     .route("/sub/:id")
     .put(controller.updateSubPackage)
     .delete(controller.deleteSubPackage);
+  router.route("/sub/:id/restore").patch(controller.restoreSubPackage);
   router.route("/sub/:id/hard-delete").delete(controller.hardDeleteSubPackage);
 
   return router;

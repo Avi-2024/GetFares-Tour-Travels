@@ -6,7 +6,12 @@ function createCmsPackagesRepository({ db, schema }) {
   return Object.freeze({
     async findPublishedPackages(filters = {}) {
       const values = [];
-      const clauses = ["p.is_deleted = false"];
+      const clauses = [];
+      const includeDeleted =
+        filters.includeDeleted === true || filters.includeDeleted === "true";
+      if (!includeDeleted) {
+        clauses.push("p.is_deleted = false");
+      }
 
       const country = normalizeCountry(filters.country);
       if (country) {
@@ -51,7 +56,7 @@ function createCmsPackagesRepository({ db, schema }) {
       const result = await db.query(
         `SELECT p.*
          FROM ${schema.packagesTable} p
-         WHERE ${clauses.join(" AND ")}
+         WHERE ${clauses.length ? clauses.join(" AND ") : "TRUE"}
          ORDER BY p.created_at DESC`,
         values,
       );
@@ -93,9 +98,23 @@ function createCmsPackagesRepository({ db, schema }) {
       return existing;
     },
 
+    async restorePackageById(id) {
+      const existing = await db.findById(schema.packagesTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.packagesTable, id, { is_deleted: false });
+      return db.findById(schema.packagesTable, id);
+    },
+
     async findAllMainPackages(filters = {}) {
       const values = [];
-      const clauses = ["p.is_deleted = false", "mp.is_deleted = false"];
+      const clauses = [];
+      const includeDeleted =
+        filters.includeDeleted === true || filters.includeDeleted === "true";
+      if (!includeDeleted) {
+        clauses.push("p.is_deleted = false", "mp.is_deleted = false");
+      }
 
       const country = normalizeCountry(filters.country);
       if (country) {
@@ -135,7 +154,7 @@ function createCmsPackagesRepository({ db, schema }) {
                 p.banner_image_url, p.publish_to_website
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
-         WHERE ${clauses.join(" AND ")}
+         WHERE ${clauses.length ? clauses.join(" AND ") : "TRUE"}
          ORDER BY mp.display_order`,
         values,
       );
@@ -181,15 +200,24 @@ function createCmsPackagesRepository({ db, schema }) {
       return existing;
     },
 
-    async findSubPackages(mainPackageId) {
+    async restoreMainPackage(id) {
+      const existing = await db.findById(schema.mainPackagesTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.mainPackagesTable, id, { is_deleted: false });
+      return db.findById(schema.mainPackagesTable, id);
+    },
+
+    async findSubPackages(mainPackageId, includeDeleted = false) {
       const result = await db.query(
         `SELECT sp.*, p.name, p.starting_price, p.duration, p.banner_image_url
          FROM ${schema.subPackagesTable} sp
          JOIN ${schema.packagesTable} p ON sp.package_id = p.id
          WHERE sp.main_package_id = ?
-           AND sp.is_deleted = false
-           AND p.is_deleted = false
-           AND p.publish_to_website = true
+           ${includeDeleted ? "" : "AND sp.is_deleted = false"}
+           ${includeDeleted ? "" : "AND p.is_deleted = false"}
+           ${includeDeleted ? "" : "AND p.publish_to_website = true"}
          ORDER BY sp.display_order`,
         [mainPackageId],
       );
@@ -243,6 +271,15 @@ function createCmsPackagesRepository({ db, schema }) {
       }
       await db.query(`DELETE FROM ${schema.subPackagesTable} WHERE id = ?`, [id]);
       return existing;
+    },
+
+    async restoreSubPackage(id) {
+      const existing = await db.findById(schema.subPackagesTable, id);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.subPackagesTable, id, { is_deleted: false });
+      return db.findById(schema.subPackagesTable, id);
     },
   });
 }

@@ -49,6 +49,10 @@ class CmsSectionRepository implements ICmsSectionRepository {
     return this.datasource.hardDelete(sectionKey, entry);
   }
 
+  public restore(sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+    return this.datasource.restore(sectionKey, entry);
+  }
+
   public getMediaEntityType(sectionKey: CmsSectionKey): string {
     return this.datasource.getMediaEntityType(sectionKey);
   }

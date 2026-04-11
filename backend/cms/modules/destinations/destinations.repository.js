@@ -69,8 +69,15 @@ function createDestinationsRepository({ db, schema }) {
   return Object.freeze({
     async findAll(filters = {}) {
       const query = { ...filters };
+      const includeDeleted = query.includeDeleted === true || query.includeDeleted === "true";
+      if (query.includeDeleted !== undefined) {
+        delete query.includeDeleted;
+      }
       if (query.is_deleted === undefined) {
         query.is_deleted = false;
+      }
+      if (includeDeleted) {
+        delete query.is_deleted;
       }
       try {
         return await db.findMany(schema.tableName, query);
@@ -79,7 +86,7 @@ function createDestinationsRepository({ db, schema }) {
         if (!missingColumn) {
           throw error;
         }
-        if (missingColumn === "is_deleted" && filters.is_deleted !== undefined) {
+        if (missingColumn === "is_deleted" && filters.is_deleted !== undefined && !includeDeleted) {
           return [];
         }
         return runWithColumnFallback(query, (safeQuery) =>
@@ -130,6 +137,22 @@ function createDestinationsRepository({ db, schema }) {
       }
       await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
       return existing;
+    },
+
+    async restore(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      try {
+        await db.update(schema.tableName, id, { is_deleted: false });
+        return db.findById(schema.tableName, id);
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+        return existing;
+      }
     },
 
     async findMedia(destinationId, filters = {}) {

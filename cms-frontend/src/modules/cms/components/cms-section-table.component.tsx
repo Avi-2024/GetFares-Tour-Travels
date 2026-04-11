@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { CirclePlus, Eye, PencilLine, Trash2 } from "lucide-react";
+import { CirclePlus, Eye, PencilLine, RotateCcw, Trash2 } from "lucide-react";
 import SurfaceCardComponent from "../../../shared/components/cards/surface-card.component";
 import type { CmsTableEntry } from "../types/cms-table-entry.type";
 
@@ -13,11 +13,13 @@ interface CmsSectionTableProps {
   supportsCreate: boolean;
   supportsEdit: boolean;
   supportsDelete: boolean;
+  supportsRestore?: boolean;
   dateColumnKeys: Set<string>;
   onCreate: () => void;
   onView: (entry: CmsTableEntry) => void;
   onEdit: (entry: CmsTableEntry) => void;
   onDelete: (entry: CmsTableEntry) => void;
+  onRestore?: (entry: CmsTableEntry) => void;
   onImagePreview: (url: string, label: string) => void;
   getImageUrl: (entry: CmsTableEntry) => string | null;
   getEntryLabel: (entry: CmsTableEntry | null) => string;
@@ -96,10 +98,12 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
       supportsCreate,
       supportsEdit,
       supportsDelete,
+      supportsRestore = false,
       onCreate,
       onView,
       onEdit,
       onDelete,
+      onRestore,
       onImagePreview,
       getImageUrl,
       getEntryLabel,
@@ -173,7 +177,7 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                         </td>
                       )}
                       <td className="w-[132px] px-4 py-3">
-                        <div className="inline-grid grid-cols-3 gap-1.5">
+                        <div className={`inline-grid gap-1.5 ${supportsRestore ? "grid-cols-4" : "grid-cols-3"}`}>
                           {this.renderActionButton({
                             label: `View ${entryLabel}`,
                             title: "View",
@@ -187,6 +191,15 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                             onClick: () => onEdit(entry),
                             icon: <PencilLine size={14} />,
                           })}
+                          {supportsRestore &&
+                            onRestore &&
+                            this.renderActionButton({
+                              label: `Restore ${entryLabel}`,
+                              title: "Restore",
+                              disabled: entry.readOnly,
+                              onClick: () => onRestore(entry),
+                              icon: <RotateCcw size={14} />,
+                            })}
                           {this.renderActionButton({
                             label: `Delete ${entryLabel}`,
                             title: "Delete",

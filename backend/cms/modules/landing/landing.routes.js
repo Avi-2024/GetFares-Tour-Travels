@@ -16,6 +16,7 @@ function createLandingRoutes({ controller, upload }) {
     .get(controller.getById)
     .put(upload.any(), controller.update)
     .delete(controller.delete);
+  router.route(`/${uuidParam}/restore`).patch(controller.restore);
   router.route(`/${uuidParam}/hard-delete`).delete(controller.hardDelete);
 
   return router;

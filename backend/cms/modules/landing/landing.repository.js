@@ -67,15 +67,22 @@ function createLandingRepository({ db, schema }) {
         query.is_active = filters.active;
         delete query.active;
       }
+      const includeDeleted = query.includeDeleted === true || query.includeDeleted === "true";
+      if (query.includeDeleted !== undefined) {
+        delete query.includeDeleted;
+      }
       if (!(await supportsCountryColumn())) {
         delete query.country;
       }
       if (await supportsIsDeletedColumn()) {
-        if (query.is_deleted === undefined) {
+        if (!includeDeleted && query.is_deleted === undefined) {
           query.is_deleted = false;
         }
+        if (includeDeleted) {
+          delete query.is_deleted;
+        }
       } else {
-        if (query.is_deleted !== undefined) {
+        if (!includeDeleted && query.is_deleted !== undefined) {
           return [];
         }
         delete query.is_deleted;
