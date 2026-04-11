@@ -72,16 +72,6 @@ class DashboardRepository {
   getPeriodStartSql(period) {
     switch (period) {
       case 'day':
-<<<<<<< HEAD
-        return "DATE(NOW())";
-      case 'week':
-        return "DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)";
-      case 'year':
-        return "DATE_FORMAT(NOW(), '%Y-01-01')";
-      case 'month':
-      default:
-        return "DATE_FORMAT(NOW(), '%Y-%m-01')";
-=======
         return 'CURRENT_DATE';
       case 'week':
         return "DATE_SUB(CURRENT_DATE, INTERVAL WEEKDAY(CURRENT_DATE) DAY)";
@@ -90,21 +80,20 @@ class DashboardRepository {
       case 'month':
       default:
         return "DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')";
->>>>>>> development
     }
   }
 
-  getPeriodIntervalSql(period) {
+  getPeriodInterval(period) {
     switch (period) {
       case 'day':
-        return 'INTERVAL 1 DAY';
+        return '1 day';
       case 'week':
-        return 'INTERVAL 1 WEEK';
+        return '1 week';
       case 'year':
-        return 'INTERVAL 1 YEAR';
+        return '1 year';
       case 'month':
       default:
-        return 'INTERVAL 1 MONTH';
+        return '1 month';
     }
   }
 
@@ -438,7 +427,7 @@ class DashboardRepository {
 
   async getSoftDeleteClause(tableName, alias) {
     if (await this.hasColumn(tableName, 'is_deleted')) {
-      return ` AND COALESCE(${alias}.is_deleted, 0) = 0`;
+      return ` AND COALESCE(${alias}.is_deleted, FALSE) = FALSE`;
     }
 
     return '';
@@ -459,332 +448,6 @@ class DashboardRepository {
   }
 
   async getStats(period = 'month') {
-<<<<<<< HEAD
-    try {
-      if (!this.canUseRawQuery()) {
-        return DEFAULT_STATS;
-      }
-
-      const normalizedPeriod = this.normalizePeriod(period);
-      const periodStartSql = this.getPeriodStartSql(normalizedPeriod);
-      const intervalSql = this.getPeriodIntervalSql(normalizedPeriod);
-      const previousStartSql = `DATE_SUB(${periodStartSql}, ${intervalSql})`;
-
-      const revenueExpression = await this.resolveRevenueExpression('q');
-      const quotationSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.quotations,
-        'q',
-      );
-      const leadSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.leads,
-        'l',
-      );
-
-      const currentQuery = `
-        SELECT
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.leads} l
-            WHERE l.created_at >= ${periodStartSql}
-            ${leadSoftDeleteClause}
-          ) AS total_leads,
-          (
-            SELECT ROUND(COALESCE(SUM(${revenueExpression}), 0), 2)
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= ${periodStartSql}
-              AND q.status = 'APPROVED'
-              ${quotationSoftDeleteClause}
-          ) AS revenue,
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.leads} l
-            WHERE l.next_followup_date IS NOT NULL
-              AND l.next_followup_date <= CURDATE()
-              AND COALESCE(l.status, '') IN (?)
-              ${leadSoftDeleteClause}
-          ) AS pending_calls,
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= ${periodStartSql}
-          ) AS bookings
-      `;
-
-      const previousQuery = `
-        SELECT
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.leads} l
-            WHERE l.created_at >= ${previousStartSql}
-              AND l.created_at < ${periodStartSql}
-            ${leadSoftDeleteClause}
-          ) AS total_leads,
-          (
-            SELECT ROUND(COALESCE(SUM(${revenueExpression}), 0), 2)
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= ${previousStartSql}
-              AND q.created_at < ${periodStartSql}
-              AND q.status = 'APPROVED'
-              ${quotationSoftDeleteClause}
-          ) AS revenue,
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.leads} l
-            WHERE l.next_followup_date IS NOT NULL
-              AND l.next_followup_date < ${periodStartSql}
-              AND COALESCE(l.status, '') IN (?)
-              ${leadSoftDeleteClause}
-          ) AS pending_calls,
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= ${previousStartSql}
-              AND b.created_at < ${periodStartSql}
-          ) AS bookings
-      `;
-
-      const [currentResult, previousResult] = await Promise.all([
-        this.querySingle(currentQuery, [PENDING_LEAD_STATUSES]),
-        this.querySingle(previousQuery, [PENDING_LEAD_STATUSES]),
-      ]);
-
-      return {
-        current: {
-          totalLeads: this.toNumber(currentResult?.total_leads),
-          revenue: this.toNumber(currentResult?.revenue),
-          pendingCalls: this.toNumber(currentResult?.pending_calls),
-          bookings: this.toNumber(currentResult?.bookings),
-        },
-        previous: {
-          totalLeads: this.toNumber(previousResult?.total_leads),
-          revenue: this.toNumber(previousResult?.revenue),
-          pendingCalls: this.toNumber(previousResult?.pending_calls),
-          bookings: this.toNumber(previousResult?.bookings),
-        },
-      };
-    } catch (error) {
-      this.log.error({ err: error, period }, 'Error fetching dashboard stats.');
-      return DEFAULT_STATS;
-    }
-  }
-
-  async getRevenue(range = 'week') {
-    try {
-      // RISKY: getRevenue uses PostgreSQL generate_series CTE which has no MySQL equivalent.
-      // Returns empty array on MySQL adapter.
-      if (!this.canUseRawQuery() || this.db.adapter === 'mysql') {
-        return DEFAULT_REVENUE;
-      }
-
-      const normalizedRange = this.normalizeRange(range);
-      const bookingRevenueExpression = `COALESCE(b.total_amount, 0)`;
-      const bookingSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.bookings,
-        'b',
-      );
-
-      const bookedRevenueWhere = `COALESCE(b.status::text, '') <> 'CANCELLED'${bookingSoftDeleteClause}`;
-
-      const queries = {
-        today: `
-          WITH hourly_slots AS (
-            SELECT generate_series(
-              DATE_TRUNC('day', CURRENT_TIMESTAMP),
-              DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '23 hours',
-              INTERVAL '1 hour'
-            ) AS slot_start
-          ),
-          current_period AS (
-            SELECT
-              DATE_TRUNC('hour', b.created_at) AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP)
-              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          ),
-          previous_period AS (
-            SELECT
-              DATE_TRUNC('hour', b.created_at + INTERVAL '1 day') AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '1 day'
-              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP)
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          )
-          SELECT
-            TO_CHAR(h.slot_start, 'HH24:00') AS name,
-            COALESCE(c.revenue, 0)::numeric(14,2) AS revenue,
-            COALESCE(p.revenue, 0)::numeric(14,2) AS last
-          FROM hourly_slots h
-          LEFT JOIN current_period c ON c.slot_start = h.slot_start
-          LEFT JOIN previous_period p ON p.slot_start = h.slot_start
-          ORDER BY h.slot_start
-        `,
-        week: `
-          WITH daily_slots AS (
-            SELECT generate_series(
-              DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days',
-              DATE_TRUNC('day', CURRENT_TIMESTAMP),
-              INTERVAL '1 day'
-            ) AS slot_start
-          ),
-          current_period AS (
-            SELECT
-              DATE_TRUNC('day', b.created_at) AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days'
-              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          ),
-          previous_period AS (
-            SELECT
-              DATE_TRUNC('day', b.created_at + INTERVAL '7 days') AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '13 days'
-              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          )
-          SELECT
-            TO_CHAR(d.slot_start, 'Dy') AS name,
-            COALESCE(c.revenue, 0)::numeric(14,2) AS revenue,
-            COALESCE(p.revenue, 0)::numeric(14,2) AS last
-          FROM daily_slots d
-          LEFT JOIN current_period c ON c.slot_start = d.slot_start
-          LEFT JOIN previous_period p ON p.slot_start = d.slot_start
-          ORDER BY d.slot_start
-        `,
-        month: `
-          WITH weekly_slots AS (
-            SELECT generate_series(
-              DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks',
-              DATE_TRUNC('week', CURRENT_TIMESTAMP),
-              INTERVAL '1 week'
-            ) AS slot_start
-          ),
-          current_period AS (
-            SELECT
-              DATE_TRUNC('week', b.created_at) AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks'
-              AND b.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) + INTERVAL '1 week'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          ),
-          previous_period AS (
-            SELECT
-              DATE_TRUNC('week', b.created_at + INTERVAL '4 weeks') AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '7 weeks'
-              AND b.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          )
-          SELECT
-            CONCAT('W', ROW_NUMBER() OVER (ORDER BY w.slot_start)) AS name,
-            COALESCE(c.revenue, 0)::numeric(14,2) AS revenue,
-            COALESCE(p.revenue, 0)::numeric(14,2) AS last
-          FROM weekly_slots w
-          LEFT JOIN current_period c ON c.slot_start = w.slot_start
-          LEFT JOIN previous_period p ON p.slot_start = w.slot_start
-          ORDER BY w.slot_start
-        `,
-        year: `
-          WITH monthly_slots AS (
-            SELECT generate_series(
-              DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months',
-              DATE_TRUNC('month', CURRENT_TIMESTAMP),
-              INTERVAL '1 month'
-            ) AS slot_start
-          ),
-          current_period AS (
-            SELECT
-              DATE_TRUNC('month', b.created_at) AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months'
-              AND b.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) + INTERVAL '1 month'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          ),
-          previous_period AS (
-            SELECT
-              DATE_TRUNC('month', b.created_at + INTERVAL '1 year') AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '23 months'
-              AND b.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          )
-          SELECT
-            TO_CHAR(m.slot_start, 'Mon') AS name,
-            COALESCE(c.revenue, 0)::numeric(14,2) AS revenue,
-            COALESCE(p.revenue, 0)::numeric(14,2) AS last
-          FROM monthly_slots m
-          LEFT JOIN current_period c ON c.slot_start = m.slot_start
-          LEFT JOIN previous_period p ON p.slot_start = m.slot_start
-          ORDER BY m.slot_start
-        `,
-      };
-
-      const rows = await this.queryRows(queries[normalizedRange]);
-      return rows.map((row) => ({
-        name: String(row.name ?? ''),
-        revenue: this.toNumber(row.revenue),
-        last: this.toNumber(row.last),
-      }));
-    } catch (error) {
-      this.log.error({ err: error, range }, 'Error fetching revenue data.');
-      return DEFAULT_REVENUE;
-    }
-  }
-
-  async getLeadSources(period = 'month') {
-    try {
-      if (!this.canUseRawQuery()) {
-        return DEFAULT_LEAD_SOURCES;
-      }
-
-      const normalizedPeriod = this.normalizePeriod(period);
-      const periodStartSql = this.getPeriodStartSql(normalizedPeriod);
-      const leadSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.leads,
-        'l',
-      );
-
-      const rows = await this.queryRows(`
-        SELECT
-          COALESCE(NULLIF(TRIM(l.source), ''), 'Unknown') AS name,
-          COUNT(*) AS source_count,
-          ROUND(
-            COUNT(*) * 100.0 / NULLIF(SUM(COUNT(*)) OVER (), 0),
-            1
-          ) AS value
-        FROM ${this.tables.leads} l
-        WHERE l.created_at >= ${periodStartSql}
-        ${leadSoftDeleteClause}
-        GROUP BY name
-        ORDER BY source_count DESC, name ASC
-      `);
-
-      return rows.map((row) => ({
-        name: String(row.name ?? 'Unknown'),
-        value: this.toNumber(row.value),
-      }));
-    } catch (error) {
-      this.log.error({ err: error, period }, 'Error fetching lead sources.');
-      return DEFAULT_LEAD_SOURCES;
-    }
-=======
     return this.getStatsFallback(period);
   }
 
@@ -794,7 +457,6 @@ class DashboardRepository {
 
   async getLeadSources(period = 'month') {
     return this.getLeadSourcesFallback(period);
->>>>>>> development
   }
 }
 

@@ -1591,23 +1591,31 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
         );
       }
 
-      if (
-        ![
-          QUOTATION_STATUS.DRAFT,
-          QUOTATION_STATUS.SENT,
-          QUOTATION_STATUS.VIEWED,
-        ].includes(quotation.status)
-      ) {
+      const currentStatus = String(quotation.status ?? "")
+        .trim()
+        .toUpperCase();
+      const allowedFrom = new Set([
+        QUOTATION_STATUS.DRAFT,
+        QUOTATION_STATUS.PENDING,
+        QUOTATION_STATUS.SENT,
+        QUOTATION_STATUS.VIEWED,
+      ]);
+      if (!allowedFrom.has(currentStatus)) {
         throw new AppError(
           409,
-          "Invalid status transition",
+          `Invalid status transition (current: ${currentStatus || "unknown"})`,
           "QUOTATION_INVALID_STATUS_TRANSITION",
         );
       }
 
+      const sentOrViewed = new Set([
+        QUOTATION_STATUS.SENT,
+        QUOTATION_STATUS.VIEWED,
+      ]);
       if (
         payload.status === QUOTATION_STATUS.APPROVED &&
-        quotation.requiresApproval
+        quotation.requiresApproval &&
+        !sentOrViewed.has(currentStatus)
       ) {
         throw new AppError(
           409,

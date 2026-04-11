@@ -26,17 +26,10 @@ function createAuthRepository({ db, logger, schema }) {
     try {
       const result = await db.query(
         `SELECT 1
-<<<<<<< HEAD
            FROM information_schema.COLUMNS
           WHERE TABLE_SCHEMA = DATABASE()
             AND TABLE_NAME = ?
             AND COLUMN_NAME = ?
-=======
-           FROM information_schema.columns
-          WHERE table_schema = DATABASE()
-            AND table_name = ?
-            AND column_name = ?
->>>>>>> development
           LIMIT 1`,
         [schema.usersTable, columnName],
       );
@@ -85,15 +78,7 @@ function createAuthRepository({ db, logger, schema }) {
           description: `Auto-created role: ${roleName}`,
         });
       } catch (error) {
-<<<<<<< HEAD
-        const isDupEntry =
-          error?.code === "ER_DUP_ENTRY" ||
-          error?.errno === 1062 ||
-          error?.code === "23505";
-        if (!isDupEntry) {
-=======
         if (!isDuplicateKeyError(error)) {
->>>>>>> development
           throw error;
         }
         roleRecord = await db.findOne(schema.rolesTable, { name: roleName });

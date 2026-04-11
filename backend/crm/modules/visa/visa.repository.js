@@ -3,7 +3,7 @@ function createVisaRepository({ db, logger, schema }) {
   const columnsCache = new Map();
 
   function canIntrospect() {
-    return typeof db.query === "function" && db.adapter === "mysql";
+    return typeof db.query === "function" && Boolean(db.pool);
   }
 
   function toBoolean(value, fallback = false) {
@@ -65,11 +65,7 @@ function createVisaRepository({ db, logger, schema }) {
 
     try {
       const result = await db.query(
-<<<<<<< HEAD
-        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
-=======
         `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name=? LIMIT 1`,
->>>>>>> development
         [tableName],
       );
       const exists = result.rowCount > 0;
@@ -98,11 +94,7 @@ function createVisaRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-<<<<<<< HEAD
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
-=======
       `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
->>>>>>> development
       [tableName],
     );
     const columns = new Set(result.rows.map((row) => row.column_name));
@@ -443,15 +435,11 @@ function createVisaRepository({ db, logger, schema }) {
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'BIOMETRICS_SCHEDULED' THEN 1 ELSE 0 END) AS biometrics_scheduled,
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'UNDER_PROCESS' THEN 1 ELSE 0 END) AS under_process,
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DELIVERED' THEN 1 ELSE 0 END) AS delivered,
-<<<<<<< HEAD
-          SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 14 DAY) THEN 1 ELSE 0 END) AS expiring_soon_count,
-=======
           SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) THEN 1 ELSE 0 END) AS expiring_soon_count,
->>>>>>> development
           AVG(
             CASE
               WHEN vc.submission_date IS NOT NULL AND vc.visa_valid_until IS NOT NULL
-              THEN DATEDIFF(vc.visa_valid_until, vc.submission_date)
+              THEN (vc.visa_valid_until - vc.submission_date)
               ELSE NULL
             END
           ) AS avg_processing_days
@@ -463,7 +451,7 @@ function createVisaRepository({ db, logger, schema }) {
         SELECT COUNT(*) AS pending_document_count
         FROM ${schema.documentsTable} vd
         INNER JOIN ${schema.tableName} vc ON vc.id = vd.visa_case_id
-        ${whereSql ? `${whereSql} AND` : "WHERE"} COALESCE(vd.is_verified, 0) = 0
+        ${whereSql ? `${whereSql} AND` : "WHERE"} COALESCE(vd.is_verified, FALSE) = FALSE
       `;
 
       const [summaryResult, pendingDocsResult] = await Promise.all([

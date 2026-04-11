@@ -4,16 +4,12 @@ function createReportsRepository({ db, schema, logger }) {
   }
 
   function canUseRawQuery() {
-<<<<<<< HEAD
-    return typeof db.query === "function" && db.adapter === "mysql";
-=======
     const adapter = getAdapterName();
     return (
       typeof db.query === "function" &&
       Boolean(db.pool) &&
       adapter === "mysql"
     );
->>>>>>> development
   }
 
   function toNumber(value, fallback = 0) {
@@ -24,23 +20,27 @@ function createReportsRepository({ db, schema, logger }) {
     return Number.isFinite(parsed) ? parsed : fallback;
   }
 
-  function buildDateRangeClause(columnName, filters = {}) {
+  function buildDateRangeClause(columnName, filters = {}, startIndex = 1) {
     const clauses = [];
     const params = [];
+    let nextIndex = startIndex;
 
     if (filters.from) {
       clauses.push(`${columnName} >= ?`);
       params.push(filters.from);
+      nextIndex += 1;
     }
 
     if (filters.to) {
       clauses.push(`${columnName} <= ?`);
       params.push(filters.to);
+      nextIndex += 1;
     }
 
     return {
       sql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
       params,
+      nextIndex,
     };
   }
 
@@ -102,12 +102,8 @@ function createReportsRepository({ db, schema, logger }) {
         : [];
 
       if (filters.userId) {
-<<<<<<< HEAD
-=======
         whereClauses.push(`l.assigned_to = ?`);
->>>>>>> development
         params.push(filters.userId);
-        whereClauses.push(`l.assigned_to = ?`);
       }
 
       const whereSql = whereClauses.length
@@ -124,11 +120,7 @@ function createReportsRepository({ db, schema, logger }) {
             AVG(
               CASE
                 WHEN l.response_at IS NOT NULL AND l.created_at IS NOT NULL
-<<<<<<< HEAD
-                THEN TIMESTAMPDIFF(SECOND, l.created_at, l.response_at) / 60.0
-=======
                 THEN TIMESTAMPDIFF(MINUTE, l.created_at, l.response_at)
->>>>>>> development
                 ELSE NULL
               END
             ) AS avg_response_minutes
@@ -168,11 +160,7 @@ function createReportsRepository({ db, schema, logger }) {
             l.assigned_to,
             u.full_name AS consultant_name,
             l.created_at,
-<<<<<<< HEAD
-            TIMESTAMPDIFF(SECOND, l.created_at, NOW()) / 3600.0 AS age_hours
-=======
             TIMESTAMPDIFF(HOUR, l.created_at, CURRENT_TIMESTAMP) AS age_hours
->>>>>>> development
           FROM ${schema.leadsTable} l
           LEFT JOIN ${schema.usersTable} u ON u.id = l.assigned_to
           ${range.sql}
@@ -447,8 +435,7 @@ function createReportsRepository({ db, schema, logger }) {
         where.push(`q.created_at <= ?`);
       }
       if (filters.currency) {
-        const cur = String(filters.currency).trim().toUpperCase();
-        params.push(cur, cur, cur);
+        params.push(String(filters.currency).trim().toUpperCase());
         where.push(`(
           UPPER(COALESCE(NULLIF(q.cost_currency, ''), '')) = ?
           OR UPPER(COALESCE(NULLIF(q.client_currency, ''), '')) = ?
@@ -524,12 +511,8 @@ function createReportsRepository({ db, schema, logger }) {
           LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
           ORDER BY q.created_at DESC
-<<<<<<< HEAD
-          LIMIT ? OFFSET ?
-=======
           LIMIT ?
           OFFSET ?
->>>>>>> development
         `,
         rowParams,
       );
@@ -592,19 +575,8 @@ function createReportsRepository({ db, schema, logger }) {
     },
 
     async getFinanceSupplierServices(filters = {}) {
-      // RISKY: This report relies on PostgreSQL JSONB operators
-      // (jsonb_array_elements, CROSS JOIN LATERAL, ::jsonb) which have no
-      // direct MySQL equivalent. Returns empty result set on MySQL.
       const page = Math.max(toNumber(filters.page, 1), 1);
       const limit = Math.min(Math.max(toNumber(filters.limit, 20), 1), 200);
-      if (true) {
-        return {
-          rows: [],
-          summary: { totalItems: 0 },
-          pagination: { page, limit, totalItems: 0, totalPages: 1 },
-        };
-      }
-
       const offset = (page - 1) * limit;
       const params = [];
       const where = ["COALESCE(q.is_deleted, FALSE) = FALSE"];
@@ -617,38 +589,10 @@ function createReportsRepository({ db, schema, logger }) {
         params.push(filters.to);
         where.push(`q.created_at <= ?`);
       }
-<<<<<<< HEAD
-      if (filters.supplierId) {
-        params.push(String(filters.supplierId).trim());
-        where.push(`service_rows.supplier_id = ?`);
-      }
-
-      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-      const baseSql = `
-        WITH eligible_bookings AS (
-          SELECT
-            b.id,
-            b.quotation_id,
-            b.booking_number,
-            b.status AS booking_status,
-            b.payment_status,
-            COALESCE(b.advance_received, 0) AS advance_received
-          FROM ${schema.bookingsTable} b
-          WHERE COALESCE(b.is_deleted, 0) = 0
-            AND (
-              UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) = 'CONFIRMED'
-              OR COALESCE(b.advance_received, 0) > 0
-              OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
-            )
-        ),
-        quotation_snapshot AS (
-=======
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
       const quotationRows = await queryRows(
         `
->>>>>>> development
           SELECT
             q.id AS quotation_id,
             q.quote_number,
@@ -665,102 +609,6 @@ function createReportsRepository({ db, schema, logger }) {
             b.payment_status,
             COALESCE(b.advance_received, 0) AS advance_received
           FROM ${schema.quotationsTable} q
-<<<<<<< HEAD
-          INNER JOIN eligible_bookings eb ON eb.quotation_id = q.id
-        ),
-        service_rows AS (
-          SELECT
-            qs.quotation_id,
-            qs.quote_number,
-            qs.created_at,
-            qs.quotation_status,
-            qs.lead_id,
-            qs.client_currency,
-            qs.cost_currency,
-            qs.supplier_currency,
-            COALESCE(
-              NULLIF(TRIM(srv.item ->> 'supplierId'), ''),
-              NULLIF(TRIM(qs.snapshot_json -> 'supplierDetails' ->> 'supplierId'), ''),
-              'UNASSIGNED'
-            ) AS supplier_id,
-            COALESCE(
-              NULLIF(TRIM(srv.item ->> 'supplierName'), ''),
-              NULLIF(TRIM(qs.snapshot_json -> 'supplierDetails' ->> 'supplierName'), ''),
-              'Not selected'
-            ) AS supplier_name,
-            COALESCE(
-              NULLIF(TRIM(srv.item ->> 'label'), ''),
-              NULLIF(TRIM(srv.item ->> 'serviceName'), ''),
-              CASE LOWER(COALESCE(NULLIF(TRIM(srv.item ->> 'key'), ''), ''))
-                WHEN 'hotel' THEN 'Accommodation'
-                WHEN 'flights' THEN 'Flights'
-                WHEN 'tours' THEN 'Tours & Activities'
-                WHEN 'visa' THEN 'Visa Services'
-                WHEN 'insurance' THEN 'Insurance'
-                WHEN 'insurance2' THEN 'Land Arrangement'
-                ELSE NULL
-              END,
-              CASE UPPER(COALESCE(NULLIF(TRIM(srv.item ->> 'itemType'), ''), ''))
-                WHEN 'HOTEL' THEN 'Accommodation'
-                WHEN 'FLIGHT' THEN 'Flights'
-                WHEN 'TRANSFER' THEN 'Land Arrangement'
-                WHEN 'VISA' THEN 'Visa Services'
-                WHEN 'INSURANCE' THEN 'Insurance'
-                WHEN 'OTHER' THEN 'Other'
-                ELSE NULL
-              END,
-              NULLIF(TRIM(srv.item ->> 'itemType'), ''),
-              NULLIF(TRIM(srv.item ->> 'key'), ''),
-              'Other'
-            ) AS service_label,
-            CASE
-              WHEN COALESCE(srv.item ->> 'baseCost', '') ~ '^-?\\d+(\\.\\d+)?$'
-              THEN (srv.item ->> 'baseCost')::numeric(14,2)
-              ELSE 0::numeric(14,2)
-            END AS base_price
-          FROM quotation_snapshot qs
-          CROSS JOIN LATERAL jsonb_array_elements(
-            CASE
-              WHEN jsonb_typeof(qs.snapshot_json -> 'serviceRows') = 'array'
-              THEN qs.snapshot_json -> 'serviceRows'
-              WHEN jsonb_typeof(qs.snapshot_json -> 'builderSnapshot' -> 'serviceRows') = 'array'
-              THEN qs.snapshot_json -> 'builderSnapshot' -> 'serviceRows'
-              ELSE '[]'::jsonb
-            END
-          ) AS srv(item)
-        )
-        SELECT
-          service_rows.quotation_id,
-          COALESCE(NULLIF(TRIM(service_rows.quote_number), ''), LEFT(CONVERT(service_rows.quotation_id, CHAR), 8)) AS quote_number,
-          COALESCE(NULLIF(TRIM(l.full_name), ''), 'Unknown lead') AS lead_name,
-          service_rows.service_label,
-          service_rows.supplier_id,
-          COALESCE(NULLIF(TRIM(s.name), ''), service_rows.supplier_name) AS supplier_name,
-          service_rows.base_price,
-          COALESCE(
-            NULLIF(TRIM(service_rows.client_currency), ''),
-            NULLIF(TRIM(service_rows.cost_currency), ''),
-            NULLIF(TRIM(service_rows.supplier_currency), ''),
-            'INR'
-          ) AS currency,
-          service_rows.quotation_status,
-          service_rows.created_at,
-          eb.id AS booking_id,
-          eb.booking_number,
-          eb.booking_status,
-          eb.payment_status,
-          eb.advance_received
-        FROM service_rows
-        LEFT JOIN ${schema.leadsTable} l ON l.id = service_rows.lead_id
-        LEFT JOIN ${schema.suppliersTable} s ON CONVERT(s.id, CHAR) = service_rows.supplier_id
-        LEFT JOIN eligible_bookings eb ON eb.quotation_id = service_rows.quotation_id
-      `;
-
-      const countRows = await queryRows(
-        `
-          SELECT COUNT(*) AS total_items
-          FROM (${baseSql} ${whereSql}) AS filtered
-=======
           INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
           ${whereSql}
             AND COALESCE(b.is_deleted, FALSE) = FALSE
@@ -770,7 +618,6 @@ function createReportsRepository({ db, schema, logger }) {
               OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
             )
           ORDER BY q.created_at DESC, q.quote_number ASC
->>>>>>> development
         `,
         params,
       );
@@ -906,7 +753,7 @@ function createReportsRepository({ db, schema, logger }) {
             AVG(
               CASE
                 WHEN vc.submission_date IS NOT NULL AND vc.appointment_date IS NOT NULL
-                THEN DATEDIFF(vc.appointment_date, vc.submission_date)
+                THEN (vc.appointment_date - vc.submission_date)
                 ELSE NULL
               END
             ) AS average_processing_days
@@ -976,11 +823,7 @@ function createReportsRepository({ db, schema, logger }) {
           FROM ${schema.followupsTable} f
           LEFT JOIN ${schema.leadsTable} l ON l.id = f.lead_id
           WHERE DATE(f.followup_date) < ?
-<<<<<<< HEAD
-            AND COALESCE(f.is_completed, 0) = 0
-=======
             AND COALESCE(f.is_completed, FALSE) = FALSE
->>>>>>> development
           ORDER BY f.followup_date ASC
         `,
         [date],
@@ -1163,7 +1006,7 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(
               CASE
                 WHEN DATE(f.followup_date) >= CURRENT_DATE
-                  AND COALESCE(f.is_completed, 0) = 0
+                  AND COALESCE(f.is_completed, FALSE) = FALSE
                 THEN 1
                 ELSE 0
               END
@@ -1171,7 +1014,7 @@ function createReportsRepository({ db, schema, logger }) {
             SUM(
               CASE
                 WHEN DATE(f.followup_date) < CURRENT_DATE
-                  AND COALESCE(f.is_completed, 0) = 0
+                  AND COALESCE(f.is_completed, FALSE) = FALSE
                 THEN 1
                 ELSE 0
               END
@@ -1185,8 +1028,8 @@ function createReportsRepository({ db, schema, logger }) {
           SELECT
             COUNT(*) AS active_agents
           FROM ${schema.usersTable} u
-          WHERE COALESCE(u.is_active, 1) = 1
-            AND COALESCE(u.is_on_leave, 0) = 0
+          WHERE COALESCE(u.is_active, TRUE) = TRUE
+            AND COALESCE(u.is_on_leave, FALSE) = FALSE
         `,
       );
 
@@ -1196,11 +1039,7 @@ function createReportsRepository({ db, schema, logger }) {
             AVG(
               CASE
                 WHEN r.processed_at IS NOT NULL
-<<<<<<< HEAD
-                THEN TIMESTAMPDIFF(SECOND, r.created_at, r.processed_at) / 86400.0
-=======
                 THEN TIMESTAMPDIFF(SECOND, r.created_at, r.processed_at) / 86400
->>>>>>> development
                 ELSE NULL
               END
             ) AS avg_refund_turnaround_days
@@ -1430,7 +1269,7 @@ function createReportsRepository({ db, schema, logger }) {
             AVG(
               CASE
                 WHEN vc.submission_date IS NOT NULL AND vc.appointment_date IS NOT NULL
-                THEN DATEDIFF(vc.appointment_date, vc.submission_date)
+                THEN (vc.appointment_date - vc.submission_date)
                 ELSE NULL
               END
             ) AS avg_processing_days
@@ -1483,11 +1322,7 @@ function createReportsRepository({ db, schema, logger }) {
             COUNT(*) AS total_leads,
             SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
           FROM ${schema.leadsTable} l
-<<<<<<< HEAD
-          WHERE l.created_at >= NOW() - INTERVAL 90 DAY
-=======
           WHERE l.created_at >= (CURRENT_TIMESTAMP - INTERVAL 90 DAY)
->>>>>>> development
         `,
       );
 
@@ -1496,11 +1331,7 @@ function createReportsRepository({ db, schema, logger }) {
           SELECT
             AVG(COALESCE(b.total_amount, 0)) AS avg_booking_value
           FROM ${schema.bookingsTable} b
-<<<<<<< HEAD
-          WHERE b.created_at >= NOW() - INTERVAL 90 DAY
-=======
           WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL 90 DAY)
->>>>>>> development
         `,
       );
 
@@ -1510,11 +1341,7 @@ function createReportsRepository({ db, schema, logger }) {
             DATE_FORMAT(b.created_at, '%Y-%m') AS month,
             SUM(COALESCE(b.total_amount, 0)) AS revenue
           FROM ${schema.bookingsTable} b
-<<<<<<< HEAD
-          WHERE b.created_at >= NOW() - INTERVAL 12 MONTH
-=======
           WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL 12 MONTH)
->>>>>>> development
           GROUP BY DATE_FORMAT(b.created_at, '%Y-%m')
           ORDER BY DATE_FORMAT(b.created_at, '%Y-%m')
         `,

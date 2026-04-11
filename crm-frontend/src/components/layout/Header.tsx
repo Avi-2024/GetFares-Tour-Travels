@@ -52,7 +52,6 @@ const Header: React.FC<{
   const { unreadCount } = useNotifications();
 
   const [dark, setDark] = useState(() => {
-<<<<<<< HEAD
     if (typeof window === 'undefined') return false
     return localStorage.getItem('theme') === 'dark'
   })
@@ -64,17 +63,6 @@ const Header: React.FC<{
   })
   const [togglingWorkingMode, setTogglingWorkingMode] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
-=======
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("theme") === "dark";
-  });
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [workingMode, setWorkingMode] = useState<boolean | null>(
-    typeof user?.active === "boolean" ? user.active : null,
-  );
-  const [togglingWorkingMode, setTogglingWorkingMode] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
->>>>>>> development
 
   const displayName = getDisplayName(user?.name, user?.email);
   const roleLabel = formatRoleLabel(user?.role);
@@ -85,7 +73,6 @@ const Header: React.FC<{
   }, [dark]);
 
   useEffect(() => {
-<<<<<<< HEAD
     if (typeof user?.active === 'boolean') {
       setWorkingMode(user.active)
     } else if (typeof user?.isActive === 'boolean') {
@@ -94,10 +81,6 @@ const Header: React.FC<{
       setWorkingMode(null)
     }
   }, [user?.active, user?.isActive])
-=======
-    setWorkingMode(typeof user?.active === "boolean" ? user.active : null);
-  }, [user?.active]);
->>>>>>> development
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
@@ -138,18 +121,11 @@ const Header: React.FC<{
       email: payload.email || user?.email || "",
       role: payload.role ?? user?.role,
       roleId: payload.roleId ?? user?.roleId,
-<<<<<<< HEAD
       active: normalizeBooleanFlag(payload.active ?? payload.isActive),
       isActive:
         normalizeBooleanFlag(payload.isActive ?? payload.active) ?? undefined,
     })
   }
-=======
-      active: payload.active ?? null,
-      isActive: payload.isActive,
-    });
-  };
->>>>>>> development
 
   const handleToggleWorkingMode = async () => {
     if (togglingWorkingMode || workingMode === null) return;
@@ -157,23 +133,14 @@ const Header: React.FC<{
     const next = !workingMode;
     setTogglingWorkingMode(true);
     try {
-<<<<<<< HEAD
       const response = await authApi.toggleActive(next)
       const payload = response?.data
       const confirmed = normalizeBooleanFlag(payload?.active ?? payload?.isActive)
       setWorkingMode(confirmed)
-=======
-      const response = await authApi.toggleActive(next);
-      const payload = response?.data;
-      const confirmed =
-        typeof payload?.active === "boolean" ? payload.active : null;
-      setWorkingMode(confirmed);
->>>>>>> development
       if (payload) {
         syncPresenceUser(payload);
       }
     } catch {
-<<<<<<< HEAD
       setWorkingMode(
         typeof user?.active === 'boolean'
           ? user.active
@@ -181,9 +148,6 @@ const Header: React.FC<{
           ? user.isActive
           : null,
       )
-=======
-      setWorkingMode(typeof user?.active === "boolean" ? user.active : null);
->>>>>>> development
     } finally {
       setTogglingWorkingMode(false);
     }

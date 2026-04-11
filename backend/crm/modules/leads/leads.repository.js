@@ -23,6 +23,7 @@ function createLeadsRepository({ db, logger, schema }) {
   });
   const tableColumnsCache = new Map();
   const tableExistsCache = new Map();
+  const mysqlColumnExistsCache = new Map();
 
   function isDuplicateKeyError(error) {
     const code = String(error?.code || "").toUpperCase();
@@ -498,17 +499,47 @@ function createLeadsRepository({ db, logger, schema }) {
     };
   }
 
+  /**
+   * Prefer this for JOIN decisions: matches MySQL table name casing and does not rely on full column list cache.
+   */
+  async function mysqlColumnExists(tableName, columnName) {
+    if (!canIntrospect()) {
+      return false;
+    }
+    const cacheKey = `${String(tableName).toLowerCase()}|${String(columnName).toLowerCase()}`;
+    if (mysqlColumnExistsCache.has(cacheKey)) {
+      return mysqlColumnExistsCache.get(cacheKey);
+    }
+    let exists = false;
+    try {
+      const result = await db.query(
+        `SELECT 1 AS ok FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND LOWER(TABLE_NAME) = LOWER(?)
+           AND LOWER(COLUMN_NAME) = LOWER(?)
+         LIMIT 1`,
+        [tableName, columnName],
+      );
+      exists = (result.rows?.length ?? 0) > 0;
+    } catch {
+      exists = false;
+    }
+    mysqlColumnExistsCache.set(cacheKey, exists);
+    return exists;
+  }
+
   async function getTableColumns(tableName) {
     if (!canIntrospect()) {
       return null;
     }
 
-    if (tableColumnsCache.has(tableName)) {
-      return tableColumnsCache.get(tableName);
+    const cacheKey = String(tableName).toLowerCase();
+    if (tableColumnsCache.has(cacheKey)) {
+      return tableColumnsCache.get(cacheKey);
     }
 
     const result = await db.query(
-      `SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?)`,
       [tableName],
     );
 
@@ -517,7 +548,7 @@ function createLeadsRepository({ db, logger, schema }) {
         String(row.column_name ?? row.COLUMN_NAME ?? "").toLowerCase(),
       ),
     );
-    tableColumnsCache.set(tableName, columns);
+    tableColumnsCache.set(cacheKey, columns);
     return columns;
   }
 
@@ -893,7 +924,7 @@ function createLeadsRepository({ db, logger, schema }) {
         .toUpperCase();
 
       if (db.adapter === "mysql" && typeof db.query === "function") {
-        const hasLeadCustomerId = await hasColumn(
+        const hasLeadCustomerId = await mysqlColumnExists(
           schema.tableName,
           "customer_id",
         );
@@ -1049,7 +1080,6 @@ function createLeadsRepository({ db, logger, schema }) {
             where.push(
               `(LOWER(CAST(l.id AS CHAR)) = LOWER(?) OR LOWER(COALESCE(l.lead_code, '')) = LOWER(?) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER(?))`,
             );
-            params.push(leadId, leadId);
           }
         }
 
@@ -1140,7 +1170,6 @@ function createLeadsRepository({ db, logger, schema }) {
             `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id`
           : null,
           `LEFT JOIN ${schema.destinationsTable} d ON d.id = l.destination_id`,
-          joinCustomers ? `LEFT JOIN ${schema.customersTable} c ON c.id = l.customer_id` : null,
           `WHERE ${where.join(" AND ")}`,
         ]
           .filter(Boolean)
@@ -1150,7 +1179,7 @@ function createLeadsRepository({ db, logger, schema }) {
         const countResult = await db.query(countSql, params);
         const total = Number(countResult.rows?.[0]?.total || 0);
 
-        const sortClause = joinCustomers
+        const sortClause = hasLeadCustomerId
           ? buildSortClause(filters.sortBy)
           : filters.sortBy === "NAME_A_Z"
             ? "ORDER BY LOWER(COALESCE(NULLIF(l.full_name, ''), '')) ASC, l.created_at DESC"
@@ -1159,7 +1188,7 @@ function createLeadsRepository({ db, logger, schema }) {
         const dataSql = [
           `SELECT l.*`,
           baseSql,
-          buildSortClause(filters.sortBy),
+          sortClause,
           `LIMIT ? OFFSET ?`,
         ]
           .filter(Boolean)
@@ -2384,7 +2413,6 @@ function createLeadsRepository({ db, logger, schema }) {
 }
 
 export { createLeadsRepository };
-
 
 
 

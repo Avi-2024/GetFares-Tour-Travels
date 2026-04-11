@@ -146,11 +146,7 @@ function createNotificationsRepository({ db, logger, schema }) {
       identity.teamId || null,
     ];
     const result = await db.query(sql, params);
-<<<<<<< HEAD
-    return result.rowCount;
-=======
     return Number(result.rowCount || result?.rows?.length || 0);
->>>>>>> development
   }
 
   function canUseRawQuery() {

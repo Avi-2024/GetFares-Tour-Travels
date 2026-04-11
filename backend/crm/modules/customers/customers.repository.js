@@ -13,12 +13,13 @@ function createCustomersRepository({ db, logger, schema }) {
       return null;
     }
 
-    if (tableColumnsCache.has(tableName)) {
-      return tableColumnsCache.get(tableName);
+    const cacheKey = String(tableName).toLowerCase();
+    if (tableColumnsCache.has(cacheKey)) {
+      return tableColumnsCache.get(cacheKey);
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?)`,
       [tableName],
     );
 
@@ -27,7 +28,7 @@ function createCustomersRepository({ db, logger, schema }) {
         String(row.column_name ?? row.COLUMN_NAME ?? "").toLowerCase(),
       ),
     );
-    tableColumnsCache.set(tableName, columns);
+    tableColumnsCache.set(cacheKey, columns);
     return columns;
   }
 
@@ -140,7 +141,6 @@ function createCustomersRepository({ db, logger, schema }) {
       const placeholders = ids.map(() => "?").join(", ");
       const query = `
         SELECT
-<<<<<<< HEAD
           CONVERT(l.customer_id, CHAR) AS customer_id,
           COUNT(DISTINCT b.id) AS total_bookings,
           MAX(COALESCE(b.created_at, b.travel_start_date)) AS last_booking_date,
@@ -152,28 +152,11 @@ function createCustomersRepository({ db, logger, schema }) {
               ${bookingSubDeleteClause}
             ORDER BY COALESCE(b2.created_at, b2.travel_start_date) DESC
             LIMIT 1
-=======
-          l.customer_id AS customer_id,
-          COUNT(DISTINCT b.id) AS total_bookings,
-          MAX(COALESCE(b.created_at, b.travel_start_date)) AS last_booking_date,
-          SUBSTRING_INDEX(
-            GROUP_CONCAT(
-              COALESCE(NULLIF(b.booking_number, ''), b.id)
-              ORDER BY COALESCE(b.created_at, b.travel_start_date) DESC, b.created_at DESC
-              SEPARATOR ','
-            ),
-            ',',
-            1
->>>>>>> development
           ) AS last_booking_number
         FROM ${schema.leadsTable} l
         INNER JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
         INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
-<<<<<<< HEAD
         WHERE l.customer_id IN (${placeholders})
-=======
-        WHERE l.customer_id IN (?)
->>>>>>> development
           ${leadSoftDeleteClause}
           ${quotationSoftDeleteClause}
           ${bookingSoftDeleteClause}

@@ -1,4 +1,4 @@
-﻿function createQuotationsController({ service }) {
+function createQuotationsController({ service }) {
   function extractIp(req) {
     const forwarded = req.headers["x-forwarded-for"];
     if (Array.isArray(forwarded) && forwarded.length) {
@@ -91,7 +91,13 @@
         req.validated.body,
         req.context,
       );
-      res.status(200).json({ data: result });
+      // Service returns { quotation, booking }; expose quotation as `data` (same shape as getById) so `data.status` is APPROVED/REJECTED.
+      const quotation = result?.quotation ?? result;
+      const booking = result?.booking ?? null;
+      res.status(200).json({
+        data:
+          booking != null ? { ...quotation, booking } : quotation,
+      });
     },
 
     async listViews(req, res) {

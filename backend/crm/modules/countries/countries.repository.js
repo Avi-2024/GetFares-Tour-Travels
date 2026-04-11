@@ -5,19 +5,14 @@ function createCountriesRepository({ db, logger, schema }) {
       const filters = [];
 
       if (!includeInactive) {
-        filters.push("c.is_active = 1");
+        filters.push("c.is_active = TRUE");
       }
       if (search) {
         values.push(`%${search}%`);
-<<<<<<< HEAD
-        values.push(`%${search}%`);
-        filters.push(`(c.name LIKE ? OR c.code LIKE ?)`);
-=======
         filters.push(
           `(c.name LIKE ? OR c.code LIKE ?)`,
         );
         values.push(`%${search}%`);
->>>>>>> development
       }
 
       const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";

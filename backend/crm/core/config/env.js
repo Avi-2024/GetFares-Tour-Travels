@@ -31,11 +31,7 @@ const envSchema = z.object({
   DATABASE_CLIENT: z.string().optional(),
   DATABASE_URL: z.string().optional(),
   MYSQL_HOST: z.string().optional(),
-<<<<<<< HEAD
   MYSQL_PORT: z.coerce.number().int().positive().default(3306),
-=======
-  MYSQL_PORT: z.coerce.number().int().positive().optional(),
->>>>>>> development
   MYSQL_USER: z.string().optional(),
   MYSQL_PASSWORD: z.string().optional(),
   MYSQL_DATABASE: z.string().optional(),

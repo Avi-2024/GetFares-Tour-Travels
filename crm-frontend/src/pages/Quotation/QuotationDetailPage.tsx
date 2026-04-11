@@ -189,7 +189,7 @@ const QuotationDetailPage: React.FC = () => {
   const loadDetails = useCallback(async () => {
     if (!id) {
       setLoading(false)
-      return
+      return null
     }
 
     setLoading(true)
@@ -285,6 +285,7 @@ const QuotationDetailPage: React.FC = () => {
       })
 
       setLogs(mappedLogs)
+      return quoteData
     } catch (err) {
       console.error('Failed to load quotation detail:', err)
       setError(getApiErrorMessage(err, 'Failed to load quotation details'))
@@ -292,6 +293,7 @@ const QuotationDetailPage: React.FC = () => {
       setRows([])
       setVersions([])
       setLogs([])
+      return null
     } finally {
       setLoading(false)
     }
@@ -564,9 +566,19 @@ const QuotationDetailPage: React.FC = () => {
     setSavingStatus(true)
     setError('')
     try {
-      await quotationsApi.changeStatus(id, { status: 'APPROVED' })
-      setStatus('APPROVED')
-      await loadDetails()
+      const res = await quotationsApi.changeStatus(id, { status: 'APPROVED' })
+      const payload = unwrapData<any>(res)
+      if (payload?.status) {
+        setStatus(mapStatus(payload.status))
+      } else {
+        setStatus('APPROVED')
+      }
+      const latest = await loadDetails()
+      if (latest && mapStatus(latest.status) !== 'APPROVED') {
+        setError(
+          'Approval did not save. Approve margin first if required, then retry.'
+        )
+      }
     } catch (err) {
       console.error('Failed to approve quotation:', err)
       setError(getApiErrorMessage(err, 'Failed to approve quotation'))

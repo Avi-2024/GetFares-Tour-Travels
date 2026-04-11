@@ -31,6 +31,13 @@ function createQuotationsRepository({ db, logger, schema }) {
       }
     }
 
+    if (typeof Buffer !== "undefined" && Buffer.isBuffer?.(value)) {
+      if (value.length === 0) {
+        return fallback;
+      }
+      return value[0] === 1;
+    }
+
     return Boolean(value);
   }
 
@@ -79,44 +86,6 @@ function createQuotationsRepository({ db, logger, schema }) {
     return typeof db.query === "function" && db.pool;
   }
 
-<<<<<<< HEAD
-  async function getTableColumns(tableName) {
-    if (!canUseRawQuery()) {
-      return null;
-    }
-
-    if (tableColumnsCache.has(tableName)) {
-      return tableColumnsCache.get(tableName);
-    }
-
-    const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
-      [tableName],
-    );
-
-    const columns = new Set(result.rows.map((row) => row.column_name));
-    tableColumnsCache.set(tableName, columns);
-    return columns;
-  }
-
-  async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(
-      ([, value]) => value !== undefined,
-    );
-    if (!entries.length) {
-      return {};
-    }
-
-    const columns = await getTableColumns(tableName);
-    if (columns === null) {
-      return Object.fromEntries(entries);
-    }
-
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
-  }
-
-=======
->>>>>>> development
   function toQuotation(row) {
     if (!row) {
       return null;
@@ -198,7 +167,10 @@ function createQuotationsRepository({ db, logger, schema }) {
       approvalNote: row.approval_note ?? row.approvalNote ?? null,
       importantNotes: row.important_notes ?? row.importantNotes ?? null,
       versionNumber: Number(row.version_number ?? row.versionNumber ?? 1),
-      status: row.status,
+      status:
+        row.status === null || row.status === undefined ?
+          null
+        : String(row.status).trim(),
       pdfUrl: row.pdf_url ?? row.pdfUrl ?? null,
       pdfGeneratedAt: toDate(row.pdf_generated_at ?? row.pdfGeneratedAt),
       pdfGeneratedBy: row.pdf_generated_by ?? row.pdfGeneratedBy ?? null,
@@ -719,11 +691,7 @@ function createQuotationsRepository({ db, logger, schema }) {
           const values = ["APPROVED"];
           const clauses = [
             "q.status = ?",
-<<<<<<< HEAD
             "q.is_deleted = 0",
-=======
-            "q.is_deleted = FALSE",
->>>>>>> development
             "b.id IS NULL",
           ];
 
@@ -745,19 +713,11 @@ function createQuotationsRepository({ db, logger, schema }) {
           }
           if (filters.quotationTitle) {
             values.push(`%${String(filters.quotationTitle).trim()}%`);
-<<<<<<< HEAD
-            clauses.push(`q.quotation_title LIKE ?`);
-          }
-          if (filters.tripDestination) {
-            values.push(`%${String(filters.tripDestination).trim()}%`);
-            clauses.push(`q.trip_destination LIKE ?`);
-=======
             clauses.push(`LOWER(COALESCE(q.quotation_title, '')) LIKE LOWER(?)`);
           }
           if (filters.tripDestination) {
             values.push(`%${String(filters.tripDestination).trim()}%`);
             clauses.push(`LOWER(COALESCE(q.trip_destination, '')) LIKE LOWER(?)`);
->>>>>>> development
           }
           if (filters.durationNights !== undefined) {
             values.push(Number(filters.durationNights));
@@ -972,7 +932,6 @@ function createQuotationsRepository({ db, logger, schema }) {
     },
 
     async incrementViewStats(quotationId) {
-<<<<<<< HEAD
       if (canUseRawQuery()) {
         await db.query(
           `
@@ -993,8 +952,6 @@ function createQuotationsRepository({ db, logger, schema }) {
         return toQuotation(fetchResult.rows[0]);
       }
 
-=======
->>>>>>> development
       const current = await db.findById(schema.tableName, quotationId);
       if (!current) {
         return null;
@@ -1202,19 +1159,11 @@ function createQuotationsRepository({ db, logger, schema }) {
       }
       if (filters.quotationTitle) {
         params.push(`%${String(filters.quotationTitle).trim()}%`);
-<<<<<<< HEAD
-        where.push(`q.quotation_title LIKE ?`);
-      }
-      if (filters.tripDestination) {
-        params.push(`%${String(filters.tripDestination).trim()}%`);
-        where.push(`q.trip_destination LIKE ?`);
-=======
         where.push(`LOWER(COALESCE(q.quotation_title, '')) LIKE LOWER(?)`);
       }
       if (filters.tripDestination) {
         params.push(`%${String(filters.tripDestination).trim()}%`);
         where.push(`LOWER(COALESCE(q.trip_destination, '')) LIKE LOWER(?)`);
->>>>>>> development
       }
       if (filters.durationNights !== undefined) {
         params.push(Number(filters.durationNights));
@@ -1238,7 +1187,6 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*) AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotes,
-<<<<<<< HEAD
           ROUND(AVG(TIMESTAMPDIFF(SECOND, l.created_at, q.created_at) / 60.0), 2) AS avg_lead_to_quote_created_minutes,
           ROUND(AVG(
             CASE
@@ -1250,19 +1198,6 @@ function createQuotationsRepository({ db, logger, schema }) {
           ROUND(AVG(q.final_price), 2) AS avg_quote_value,
           ROUND(AVG(q.margin_percent), 2) AS avg_margin_percent,
           SUM(CASE WHEN q.response_sla_breached = 1 THEN 1 ELSE 0 END) AS sla_breached_quotes
-=======
-          AVG(TIMESTAMPDIFF(MINUTE, l.created_at, q.created_at)) AS avg_lead_to_quote_created_minutes,
-          AVG(
-            CASE
-              WHEN q.sent_at IS NOT NULL
-              THEN TIMESTAMPDIFF(MINUTE, l.created_at, q.sent_at)
-              ELSE NULL
-            END
-          ) AS avg_lead_to_quote_sent_minutes,
-          AVG(q.final_price) AS avg_quote_value,
-          AVG(q.margin_percent) AS avg_margin_percent,
-          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END) AS sla_breached_quotes
->>>>>>> development
         FROM quotations q
         LEFT JOIN users u ON u.id = q.created_by
         LEFT JOIN leads l ON l.id = q.lead_id
@@ -1276,7 +1211,6 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*) AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotes,
-<<<<<<< HEAD
           ROUND(AVG(TIMESTAMPDIFF(SECOND, l.created_at, q.created_at) / 60.0), 2) AS avg_lead_to_quote_created_minutes,
           ROUND(AVG(
             CASE
@@ -1288,19 +1222,6 @@ function createQuotationsRepository({ db, logger, schema }) {
           ROUND(AVG(q.final_price), 2) AS avg_quote_value,
           ROUND(AVG(q.margin_percent), 2) AS avg_margin_percent,
           SUM(CASE WHEN q.response_sla_breached = 1 THEN 1 ELSE 0 END) AS sla_breached_quotes
-=======
-          AVG(TIMESTAMPDIFF(MINUTE, l.created_at, q.created_at)) AS avg_lead_to_quote_created_minutes,
-          AVG(
-            CASE
-              WHEN q.sent_at IS NOT NULL
-              THEN TIMESTAMPDIFF(MINUTE, l.created_at, q.sent_at)
-              ELSE NULL
-            END
-          ) AS avg_lead_to_quote_sent_minutes,
-          AVG(q.final_price) AS avg_quote_value,
-          AVG(q.margin_percent) AS avg_margin_percent,
-          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END) AS sla_breached_quotes
->>>>>>> development
         FROM quotations q
         LEFT JOIN leads l ON l.id = q.lead_id
         WHERE ${whereSql}
