@@ -217,7 +217,16 @@ function createBookingsService({ repository, logger, events, config }) {
   }
 
   async function ensureQuotationExists(quotationId) {
-    const quotation = await repository.findQuotationById(quotationId);
+    const normalizedQuotationId = String(quotationId || "").trim();
+    if (!normalizedQuotationId) {
+      throw new AppError(
+        400,
+        "quotationId is required",
+        "BOOKING_QUOTATION_ID_REQUIRED",
+      );
+    }
+
+    const quotation = await repository.findQuotationById(normalizedQuotationId);
     if (!quotation) {
       throw new AppError(
         404,
@@ -620,7 +629,7 @@ function createBookingsService({ repository, logger, events, config }) {
     }
 
     return {
-      quotation_id: payload.quotationId,
+      quotation_id: String(payload.quotationId || "").trim(),
       booking_number: payload.bookingNumber || buildBookingNumber(),
       travel_start_date: toDateString(payload.travelStartDate),
       travel_end_date: toDateString(payload.travelEndDate),
@@ -676,10 +685,11 @@ function createBookingsService({ repository, logger, events, config }) {
     getById,
 
     async create(payload, context = {}) {
-      await ensureQuotationExists(payload.quotationId);
+      const normalizedQuotationId = String(payload.quotationId || "").trim();
+      await ensureQuotationExists(normalizedQuotationId);
 
       const existingForQuotation = await repository.findByQuotationId(
-        payload.quotationId,
+        normalizedQuotationId,
       );
       if (existingForQuotation && !existingForQuotation.isDeleted) {
         throw new AppError(
@@ -689,10 +699,28 @@ function createBookingsService({ repository, logger, events, config }) {
         );
       }
 
-      const record = buildCreateRecord(payload, context);
+      const record = buildCreateRecord(
+        { ...payload, quotationId: normalizedQuotationId },
+        context,
+      );
       await ensureBookingNumberUnique(record.booking_number);
-
-      const created = await repository.create(record);
+      let created;
+      try {
+        created = await repository.create(record);
+      } catch (error) {
+        const mysqlFkViolation =
+          error?.code === "ER_NO_REFERENCED_ROW_2" ||
+          error?.errno === 1452 ||
+          /foreign key constraint fails/i.test(String(error?.message || ""));
+        if (mysqlFkViolation) {
+          throw new AppError(
+            409,
+            "Selected quotation does not exist. Refresh quotations and select again.",
+            "BOOKING_QUOTATION_NOT_FOUND",
+          );
+        }
+        throw error;
+      }
 
       await appendStatusHistory({
         bookingId: created.id,
