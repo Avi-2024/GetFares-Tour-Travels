@@ -258,9 +258,10 @@ class CmsEntityFormCatalog {
           groupKey: "basic",
         },
         {
-          key: "destination",
+          key: "destinationId",
           label: "Destination",
-          type: "text",
+          type: "searchable-select",
+          relationSource: "destinations",
           required: true,
           groupKey: "basic",
         },

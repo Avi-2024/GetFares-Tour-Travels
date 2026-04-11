@@ -41,7 +41,7 @@ class CmsPayloadMapper {
     if (sectionKey === "published-packages") {
       return {
         name: payload.name,
-        destination: payload.destination,
+        destinationId: payload.destinationId,
         duration: payload.duration,
         startingPrice: payload.startingPrice,
         inclusions: payload.inclusions,

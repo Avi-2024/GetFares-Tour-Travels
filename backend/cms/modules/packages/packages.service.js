@@ -111,7 +111,19 @@ function createCmsPackagesService({ repository }) {
 
     async createPublishedPackage(data) {
       const name = normalizeText(data.name);
-      const destination = normalizeText(data.destination);
+      const destinationId = normalizeText(data.destinationId);
+      let destination = normalizeText(data.destination);
+      if (!destination && destinationId) {
+        const destinationRow = await repository.findDestinationById(destinationId);
+        if (!destinationRow) {
+          throw new AppError(
+            400,
+            "Destination not found",
+            "DESTINATION_NOT_FOUND",
+          );
+        }
+        destination = normalizeText(destinationRow.name);
+      }
       if (!name || !destination) {
         throw new AppError(
           400,
@@ -186,7 +198,25 @@ function createCmsPackagesService({ repository }) {
         }
         updates.name = name;
       }
-      if (data.destination !== undefined) {
+      if (data.destinationId !== undefined) {
+        const destinationId = normalizeText(data.destinationId);
+        if (!destinationId) {
+          throw new AppError(
+            400,
+            "Destination cannot be empty",
+            "VALIDATION_ERROR",
+          );
+        }
+        const destinationRow = await repository.findDestinationById(destinationId);
+        if (!destinationRow) {
+          throw new AppError(
+            400,
+            "Destination not found",
+            "DESTINATION_NOT_FOUND",
+          );
+        }
+        updates.destination = normalizeText(destinationRow.name);
+      } else if (data.destination !== undefined) {
         const destination = normalizeText(data.destination);
         if (!destination) {
           throw new AppError(

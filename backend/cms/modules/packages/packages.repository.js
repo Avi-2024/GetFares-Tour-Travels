@@ -75,6 +75,11 @@ function createCmsPackagesRepository({ db, schema }) {
       });
     },
 
+    async findDestinationById(id) {
+      if (!id) return null;
+      return db.findById(schema.destinationsTable, id);
+    },
+
     async createPackage(data) {
       return db.insert(schema.packagesTable, data);
     },
@@ -132,10 +137,9 @@ function createCmsPackagesRepository({ db, schema }) {
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
                 p.banner_image_url, p.publish_to_website,
-                d.name AS destination_name
+                p.destination AS destination_name
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
-         LEFT JOIN ${schema.destinationsTable} d ON mp.destination_id = d.id
          WHERE ${whereClause}
          ORDER BY mp.display_order`,
         values,
@@ -156,10 +160,9 @@ function createCmsPackagesRepository({ db, schema }) {
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
                 p.banner_image_url, p.publish_to_website,
-                d.name AS destination_name
+                p.destination AS destination_name
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
-         LEFT JOIN ${schema.destinationsTable} d ON mp.destination_id = d.id
          WHERE ${clauses.length ? clauses.join(" AND ") : "TRUE"}
          ORDER BY mp.display_order`,
         values,
@@ -171,10 +174,9 @@ function createCmsPackagesRepository({ db, schema }) {
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
                 p.banner_image_url, p.publish_to_website,
-                d.name AS destination_name
+                p.destination AS destination_name
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
-         LEFT JOIN ${schema.destinationsTable} d ON mp.destination_id = d.id
          WHERE mp.id = ?
          LIMIT 1`,
         [id],
