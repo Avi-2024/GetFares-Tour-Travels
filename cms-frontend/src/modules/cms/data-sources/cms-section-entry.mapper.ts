@@ -172,20 +172,19 @@ class CmsSectionEntryMapper {
           mainPackage: new CmsTableCell(
             this.accessor.getText(record, "packageName", "name"),
           ),
-          sourcePackage: new CmsTableCell(
-            this.accessor.getText(record, "packageId", "package_id"),
+          destination: new CmsTableCell(
+            this.accessor.getText(
+              record,
+              "destination",
+              "destinationName",
+              "destination_name",
+              "destinationId",
+              "destination_id",
+            ),
           ),
           featured: new CmsTableCell(
             featured ? "Yes" : "No",
             featured ? "success" : "warning",
-          ),
-          linkedDestinations: new CmsTableCell(
-            this.accessor.getText(
-              record,
-              "mappedDestinations",
-              "destinationCount",
-              "destination_count",
-            ),
           ),
           displayOrder: new CmsTableCell(`#${displayOrder}`),
           updatedAt: new CmsTableCell(

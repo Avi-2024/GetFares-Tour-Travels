@@ -329,24 +329,6 @@ class CmsEntityEditorModalComponent extends Component<
       this.setState({ mediaItems: mapped });
     }
 
-    if (this.props.entry && this.props.sectionKey === "destinations") {
-      const mappings = await this.cmsService
-        .listDestinationPackages(this.props.entry.id)
-        .catch(() => []);
-      const byMain: Record<string, string> = {};
-      mappings.forEach((item: { mainPackageId: string; id: string }) => {
-        byMain[item.mainPackageId] = item.id;
-      });
-      this.setState((prev) => ({
-        destinationPackageMapByMainId: byMain,
-        formValues: {
-          ...prev.formValues,
-          relatedMainPackageIds: mappings.map(
-            (item: { mainPackageId: string }) => item.mainPackageId,
-          ),
-        },
-      }));
-    }
 
     this.setState({
       relationOptions: nextOptions,
@@ -476,7 +458,6 @@ class CmsEntityEditorModalComponent extends Component<
         );
       }
       if (this.props.sectionKey === "creative-toolkit") payload.imageUrl = primary.mediaUrl;
-      if (this.props.sectionKey === "destination-map") payload.imageUrl = primary.mediaUrl;
     }
     return payload;
   }
@@ -567,24 +548,6 @@ class CmsEntityEditorModalComponent extends Component<
     }
   }
 
-  private async syncDestinationMappings(destinationId: string): Promise<void> {
-    if (this.props.sectionKey !== "destinations") return;
-    const selected = Array.isArray(this.state.formValues.relatedMainPackageIds) ?
-        (this.state.formValues.relatedMainPackageIds as string[])
-      : [];
-    const previousMap = this.state.destinationPackageMapByMainId;
-    for (const [mainId, mapId] of Object.entries(previousMap)) {
-      if (!selected.includes(mainId)) {
-        await this.cmsService.unmapDestinationPackage(destinationId, mapId);
-      }
-    }
-    for (let index = 0; index < selected.length; index += 1) {
-      const mainId = selected[index];
-      if (!previousMap[mainId]) {
-        await this.cmsService.mapDestinationPackage(destinationId, mainId, index + 1);
-      }
-    }
-  }
 
   private onSubmit = async (): Promise<void> => {
     if (!this.validate()) return;
@@ -646,13 +609,11 @@ class CmsEntityEditorModalComponent extends Component<
           (created?.["id"] as string | undefined) ??
           "";
         if (entityId) {
-          await this.syncDestinationMappings(entityId);
           await this.syncMedia(entityId);
         }
         await this.props.onSaved("Record created successfully.");
       } else if (this.props.entry) {
         await this.cmsService.update(this.props.sectionKey, this.props.entry, payload);
-        await this.syncDestinationMappings(this.props.entry.id);
         await this.syncMedia(this.props.entry.id);
         await this.props.onSaved("Record updated successfully.");
       }

@@ -176,14 +176,6 @@ class CmsDatasource {
       return this.accessor.toRecord(response);
     }
 
-    if (sectionKey === "destination-map") {
-      const response = await this.httpClient.post(
-        "/cms/experience/season-cards",
-        mappedPayload,
-        countryOptions,
-      );
-      return this.accessor.toRecord(response);
-    }
 
     throw new Error("Create is not supported for this section yet.");
   }
@@ -349,16 +341,6 @@ class CmsDatasource {
       );
     }
 
-    if (sectionKey === "destination-map") {
-      const payload = await this.httpClient.get<unknown>(
-        "/cms/experience/season-cards",
-        this.withCountryParams({ includeDeleted }),
-      );
-      return this.sectionEntryMapper.mapSeasonCardEntries(
-        this.accessor.toArray(payload),
-        "/cms/experience",
-      );
-    }
 
     throw new Error(`Unsupported section key: ${sectionKey}`);
   }

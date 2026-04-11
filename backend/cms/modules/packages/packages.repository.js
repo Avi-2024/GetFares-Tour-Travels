@@ -26,10 +26,11 @@ function createCmsPackagesRepository({ db, schema }) {
         );
       }
 
+      const whereClause = clauses.length ? clauses.join(" AND ") : "TRUE";
       const result = await db.query(
         `SELECT p.*
          FROM ${schema.packagesTable} p
-         WHERE ${clauses.join(" AND ")}
+         WHERE ${whereClause}
          ORDER BY p.created_at DESC`,
         values,
       );
@@ -127,12 +128,15 @@ function createCmsPackagesRepository({ db, schema }) {
         clauses.push("mp.is_featured = ?");
       }
 
+      const whereClause = clauses.length ? clauses.join(" AND ") : "TRUE";
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
-                p.banner_image_url, p.publish_to_website
+                p.banner_image_url, p.publish_to_website,
+                d.name AS destination_name
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
-         WHERE ${clauses.join(" AND ")}
+         LEFT JOIN ${schema.destinationsTable} d ON mp.destination_id = d.id
+         WHERE ${whereClause}
          ORDER BY mp.display_order`,
         values,
       );
@@ -151,9 +155,11 @@ function createCmsPackagesRepository({ db, schema }) {
 
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
-                p.banner_image_url, p.publish_to_website
+                p.banner_image_url, p.publish_to_website,
+                d.name AS destination_name
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
+         LEFT JOIN ${schema.destinationsTable} d ON mp.destination_id = d.id
          WHERE ${clauses.length ? clauses.join(" AND ") : "TRUE"}
          ORDER BY mp.display_order`,
         values,
@@ -164,9 +170,11 @@ function createCmsPackagesRepository({ db, schema }) {
     async findMainPackageById(id) {
       const result = await db.query(
         `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
-                p.banner_image_url, p.publish_to_website
+                p.banner_image_url, p.publish_to_website,
+                d.name AS destination_name
          FROM ${schema.mainPackagesTable} mp
          JOIN ${schema.packagesTable} p ON mp.package_id = p.id
+         LEFT JOIN ${schema.destinationsTable} d ON mp.destination_id = d.id
          WHERE mp.id = ?
          LIMIT 1`,
         [id],

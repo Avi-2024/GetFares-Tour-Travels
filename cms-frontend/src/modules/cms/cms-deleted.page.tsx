@@ -30,7 +30,6 @@ const deletedTabs: DeletedTab[] = [
   { key: "visa-destinations", label: "Visa Destinations" },
   { key: "visa-details", label: "Visa Details" },
   { key: "creative-toolkit", label: "Creative Toolkit" },
-  { key: "destination-map", label: "Destination Map" },
 ];
 
 interface CmsDeletedPageState {

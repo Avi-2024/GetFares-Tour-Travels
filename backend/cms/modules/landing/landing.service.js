@@ -14,7 +14,7 @@ function createLandingService({ repository }) {
     return false;
   }
 
-  async function assertActiveLimit({ excludeId = null }) {
+  async function assertActiveLimit({ excludeId = null } = {}) {
     const activeRows = await repository.findAll({ is_active: true });
     const activeCount = activeRows.filter((row) => {
       if (excludeId && row.id === excludeId) return false;

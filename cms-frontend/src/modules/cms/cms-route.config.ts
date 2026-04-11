@@ -65,13 +65,6 @@ const cmsRouteDefinitions: CmsRouteDefinition[] = [
     subtitle: "Templates, brand assets, and reusable campaign blocks.",
     breadcrumb: "CMS / Experience / Creative Toolkit",
   },
-  {
-    path: "/cms/destination-map",
-    sectionKey: "destination-map",
-    title: "Destination Map",
-    subtitle: "Geo-clustered destination planning and content density checks.",
-    breadcrumb: "CMS / Experience / Destination Map",
-  },
 ];
 
 export type { CmsRouteDefinition };

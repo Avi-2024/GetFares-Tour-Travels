@@ -64,6 +64,7 @@ class CmsPayloadMapper {
     if (sectionKey === "main-packages") {
       return {
         packageId: payload.packageId,
+        destinationId: payload.destinationId,
         country: payload.country,
         displayOrder: payload.displayOrder,
         isFeatured: payload.isFeatured,
@@ -125,22 +126,6 @@ class CmsPayloadMapper {
         expiresOn: payload.expiresOn,
         tags: payload.tags,
         highlights: payload.highlights,
-        displayOrder: payload.displayOrder,
-        isActive: payload.isActive,
-      };
-    }
-    if (sectionKey === "destination-map") {
-      return {
-        destinationId: payload.destinationId,
-        title: payload.title,
-        fromMonth: payload.fromMonth,
-        toMonth: payload.toMonth,
-        description: payload.description,
-        tag: payload.tag,
-        imageUrl: payload.imageUrl,
-        iconName: payload.iconName,
-        iconColor: payload.iconColor,
-        bgColor: payload.bgColor,
         displayOrder: payload.displayOrder,
         isActive: payload.isActive,
       };

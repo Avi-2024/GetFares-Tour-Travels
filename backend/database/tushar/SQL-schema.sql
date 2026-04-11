@@ -1664,6 +1664,7 @@ CREATE TABLE season_cards (
 CREATE TABLE main_packages (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     package_id CHAR(36) NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    destination_id CHAR(36),
     country VARCHAR(100),
     display_order INT DEFAULT 0,
     is_featured BOOLEAN DEFAULT FALSE,

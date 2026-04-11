@@ -59,9 +59,10 @@ function createCmsPackagesService({ repository }) {
     return {
       id: row.id,
       packageId: row.package_id,
+      destinationId: row.destination_id ?? null,
       country: row.country,
       packageName: row.name,
-      destination: row.destination,
+      destination: row.destination_name || row.destination,
       startingPrice: parseFloat(row.starting_price) || 0,
       duration: row.duration,
       bannerImageUrl: row.banner_image_url,
@@ -328,9 +329,17 @@ function createCmsPackagesService({ repository }) {
           "COUNTRY_REQUIRED",
         );
       }
+      if (!normalizeText(data.destinationId)) {
+        throw new AppError(
+          400,
+          "Destination is required for main package",
+          "DESTINATION_REQUIRED",
+        );
+      }
 
       const row = await repository.createMainPackage({
         package_id: data.packageId,
+        destination_id: normalizeText(data.destinationId),
         country: normalizeText(data.country),
         display_order: toNumber(data.displayOrder, 0),
         is_featured: toBoolean(data.isFeatured, false),
@@ -339,6 +348,7 @@ function createCmsPackagesService({ repository }) {
       return {
         id: row.id,
         packageId: row.package_id,
+        destinationId: row.destination_id ?? null,
         country: row.country,
         displayOrder: row.display_order,
         isFeatured: row.is_featured,
@@ -354,6 +364,17 @@ function createCmsPackagesService({ repository }) {
       }
 
       const updates = {};
+      if (data.destinationId !== undefined) {
+        const destinationId = normalizeText(data.destinationId);
+        if (!destinationId) {
+          throw new AppError(
+            400,
+            "Destination cannot be empty",
+            "INVALID_DESTINATION",
+          );
+        }
+        updates.destination_id = destinationId;
+      }
       if (data.country !== undefined) {
         const country = normalizeText(data.country);
         if (!country) {
@@ -370,6 +391,7 @@ function createCmsPackagesService({ repository }) {
       return {
         id: updated.id,
         packageId: updated.package_id,
+        destinationId: updated.destination_id ?? null,
         country: updated.country,
         displayOrder: updated.display_order,
         isFeatured: updated.is_featured,
