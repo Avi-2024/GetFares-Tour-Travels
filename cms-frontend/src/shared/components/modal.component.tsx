@@ -163,7 +163,7 @@ const ModalComponent = ({
               exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className={ClassName.merge(
-                "relative z-10 flex h-[min(92vh,920px)] w-full flex-col overflow-hidden rounded-3xl border border-[color-mix(in_srgb,var(--border)_85%,transparent)] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] shadow-[0_28px_80px_color-mix(in_srgb,var(--primary)_18%,transparent)] sm:h-auto",
+                "relative isolate z-10 flex h-[min(92vh,920px)] w-full flex-col overflow-hidden rounded-3xl border border-[color-mix(in_srgb,var(--border)_85%,transparent)] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] shadow-[0_28px_80px_color-mix(in_srgb,var(--primary)_18%,transparent)] sm:h-auto",
                 sizeClass,
                 className,
               )}
@@ -171,7 +171,7 @@ const ModalComponent = ({
             >
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--primary)_34%,transparent)_0%,color-mix(in_srgb,var(--accent)_20%,transparent)_44%,transparent_72%)] blur-2xl"
+                className="pointer-events-none absolute -bottom-24 -right-24 z-0 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--primary)_34%,transparent)_0%,color-mix(in_srgb,var(--accent)_20%,transparent)_44%,transparent_72%)] blur-2xl"
               />
 
               <motion.header
@@ -204,7 +204,7 @@ const ModalComponent = ({
 
               <motion.div
                 className={ClassName.merge(
-                  "hide-scrollbar max-h-[70vh] overflow-y-auto px-6 py-5 sm:px-8",
+                  "hide-scrollbar relative z-10 max-h-[70vh] overflow-y-auto px-6 py-5 sm:px-8",
                   contentClassName,
                 )}
                 initial={{ opacity: 0, y: 10 }}

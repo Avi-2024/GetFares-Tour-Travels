@@ -8,6 +8,7 @@ interface CmsTableEntry {
   raw: JsonRecord;
   updatePath?: string;
   deletePath?: string;
+  restorePath?: string;
   deleteMode?: DeleteMode;
   editableField?: string;
   readOnly: boolean;

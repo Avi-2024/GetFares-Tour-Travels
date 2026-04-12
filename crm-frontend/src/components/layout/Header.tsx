@@ -52,17 +52,17 @@ const Header: React.FC<{
   const { unreadCount } = useNotifications();
 
   const [dark, setDark] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('theme') === 'dark'
-  })
-  const [menuOpen, setMenuOpen] = useState(false)
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("theme") === "dark";
+  });
+  const [menuOpen, setMenuOpen] = useState(false);
   const [workingMode, setWorkingMode] = useState<boolean | null>(() => {
-    if (typeof user?.active === 'boolean') return user.active
-    if (typeof user?.isActive === 'boolean') return user.isActive
-    return null
-  })
-  const [togglingWorkingMode, setTogglingWorkingMode] = useState(false)
-  const ref = useRef<HTMLDivElement | null>(null)
+    if (typeof user?.active === "boolean") return user.active;
+    if (typeof user?.isActive === "boolean") return user.isActive;
+    return null;
+  });
+  const [togglingWorkingMode, setTogglingWorkingMode] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
 
   const displayName = getDisplayName(user?.name, user?.email);
   const roleLabel = formatRoleLabel(user?.role);
@@ -73,14 +73,14 @@ const Header: React.FC<{
   }, [dark]);
 
   useEffect(() => {
-    if (typeof user?.active === 'boolean') {
-      setWorkingMode(user.active)
-    } else if (typeof user?.isActive === 'boolean') {
-      setWorkingMode(user.isActive)
+    if (typeof user?.active === "boolean") {
+      setWorkingMode(user.active);
+    } else if (typeof user?.isActive === "boolean") {
+      setWorkingMode(user.isActive);
     } else {
-      setWorkingMode(null)
+      setWorkingMode(null);
     }
-  }, [user?.active, user?.isActive])
+  }, [user?.active, user?.isActive]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
@@ -100,14 +100,14 @@ const Header: React.FC<{
   };
 
   const normalizeBooleanFlag = (value: unknown): boolean | null => {
-    if (value === true || value === 1 || value === '1' || value === 'true') {
-      return true
+    if (value === true || value === 1 || value === "1" || value === "true") {
+      return true;
     }
-    if (value === false || value === 0 || value === '0' || value === 'false') {
-      return false
+    if (value === false || value === 0 || value === "0" || value === "false") {
+      return false;
     }
-    return null
-  }
+    return null;
+  };
 
   const syncPresenceUser = (payload: PresencePayload) => {
     if (!token) return;
@@ -124,8 +124,8 @@ const Header: React.FC<{
       active: normalizeBooleanFlag(payload.active ?? payload.isActive),
       isActive:
         normalizeBooleanFlag(payload.isActive ?? payload.active) ?? undefined,
-    })
-  }
+    });
+  };
 
   const handleToggleWorkingMode = async () => {
     if (togglingWorkingMode || workingMode === null) return;
@@ -133,21 +133,21 @@ const Header: React.FC<{
     const next = !workingMode;
     setTogglingWorkingMode(true);
     try {
-      const response = await authApi.toggleActive(next)
-      const payload = response?.data
-      const confirmed = normalizeBooleanFlag(payload?.active ?? payload?.isActive)
-      setWorkingMode(confirmed)
+      const response = await authApi.toggleActive(next);
+      const payload = response?.data;
+      const confirmed = normalizeBooleanFlag(
+        payload?.active ?? payload?.isActive,
+      );
+      setWorkingMode(confirmed);
       if (payload) {
         syncPresenceUser(payload);
       }
     } catch {
       setWorkingMode(
-        typeof user?.active === 'boolean'
-          ? user.active
-          : typeof user?.isActive === 'boolean'
-          ? user.isActive
-          : null,
-      )
+        typeof user?.active === "boolean" ? user.active
+        : typeof user?.isActive === "boolean" ? user.isActive
+        : null,
+      );
     } finally {
       setTogglingWorkingMode(false);
     }
@@ -198,12 +198,12 @@ const Header: React.FC<{
         <img
           alt="Tabby"
           className="h-6 w-auto object-contain"
-          src="tabby.svg"
+          src="/tabby.svg"
         />
         <img
           alt="Tamara"
           className="h-6 w-auto object-contain"
-          src="tamara.svg"
+          src="/tamara.svg"
         />
       </div>
       <div className="width:10px"></div>

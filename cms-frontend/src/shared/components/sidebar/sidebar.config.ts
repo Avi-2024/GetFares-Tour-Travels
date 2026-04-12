@@ -84,6 +84,15 @@ class SidebarConfig {
         MapPinned,
       ),
     ]),
+    new SidebarSection("Deleted Objects", [
+      new SidebarItem(
+        "deleted-objects",
+        "Deleted Objects",
+        "/cms/deleted",
+        "Hard delete archived records",
+        PackageSearch,
+      ),
+    ]),
   ];
 }
 

@@ -67,14 +67,24 @@ function createLandingRepository({ db, schema }) {
         query.is_active = filters.active;
         delete query.active;
       }
+      const includeDeleted = query.includeDeleted === true || query.includeDeleted === "true";
+      if (query.includeDeleted !== undefined) {
+        delete query.includeDeleted;
+      }
       if (!(await supportsCountryColumn())) {
         delete query.country;
       }
       if (await supportsIsDeletedColumn()) {
-        if (query.is_deleted === undefined) {
+        if (!includeDeleted && query.is_deleted === undefined) {
           query.is_deleted = false;
         }
+        if (includeDeleted) {
+          delete query.is_deleted;
+        }
       } else {
+        if (!includeDeleted && query.is_deleted !== undefined) {
+          return [];
+        }
         delete query.is_deleted;
       }
       return db.findMany(schema.tableName, query);
@@ -124,6 +134,18 @@ function createLandingRepository({ db, schema }) {
         return null;
       }
       await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+      return existing;
+    },
+
+    async restore(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      if (await supportsIsDeletedColumn()) {
+        await db.update(schema.tableName, id, { is_deleted: false });
+        return db.findById(schema.tableName, id);
+      }
       return existing;
     },
 

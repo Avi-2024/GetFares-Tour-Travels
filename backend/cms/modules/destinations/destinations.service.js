@@ -75,6 +75,11 @@ function createDestinationsService({ repository }) {
       return rows.map(toDestination);
     },
 
+    async listDeleted(filters = {}) {
+      const rows = await repository.findAll({ ...filters, is_deleted: true });
+      return rows.map(toDestination);
+    },
+
     async getById(id) {
       const row = await repository.findById(id);
       if (!row) {
@@ -222,6 +227,26 @@ function createDestinationsService({ repository }) {
       return { success: true };
     },
 
+    async hardDelete(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      await repository.hardDelete(id);
+      return { success: true };
+    },
+
+    async restore(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      await repository.restore(id);
+      return { success: true };
+    },
+
     async getMedia(destinationId) {
       await this.getById(destinationId);
       const rows = await repository.findMedia(destinationId);
@@ -280,6 +305,16 @@ function createDestinationsService({ repository }) {
       }
 
       await repository.deleteMedia(mediaId);
+      return { success: true };
+    },
+
+    async hardDeleteMedia(mediaId) {
+      const existing = await repository.findMediaById(mediaId);
+      if (!existing) {
+        throw new AppError(404, "Media not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteMedia(mediaId);
       return { success: true };
     },
 
@@ -346,6 +381,16 @@ function createDestinationsService({ repository }) {
       return { success: true };
     },
 
+    async hardDeleteSeason(seasonId) {
+      const existing = await repository.findSeasonById(seasonId);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteSeason(seasonId);
+      return { success: true };
+    },
+
     async getPackages(destinationId) {
       await this.getById(destinationId);
       const rows = await repository.findPackageMaps(destinationId);
@@ -402,6 +447,11 @@ function createDestinationsService({ repository }) {
 
     async unmapPackage(mapId) {
       await repository.deletePackageMap(mapId);
+      return { success: true };
+    },
+
+    async hardUnmapPackage(mapId) {
+      await repository.hardDeletePackageMap(mapId);
       return { success: true };
     },
   });

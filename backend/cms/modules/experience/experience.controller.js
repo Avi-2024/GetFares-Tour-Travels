@@ -17,8 +17,27 @@ function createExperienceController({ service, uploadService }) {
       if (req.query.campaignType) {
         filters.campaign_type = req.query.campaignType;
       }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const rows = await service.listFeaturedPicks(filters);
+      res.json({ success: true, data: rows });
+    }),
+
+    listDeletedFeaturedPicks: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      if (req.query.sectionKey) {
+        filters.section_key = req.query.sectionKey;
+      }
+      if (req.query.campaignType) {
+        filters.campaign_type = req.query.campaignType;
+      }
+
+      const rows = await service.listDeletedFeaturedPicks(filters);
       res.json({ success: true, data: rows });
     }),
 
@@ -86,6 +105,16 @@ function createExperienceController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDeleteFeaturedPick: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteFeaturedPick(req.params.id);
+      res.json(result);
+    }),
+
+    restoreFeaturedPick: asyncHandler(async (req, res) => {
+      const result = await service.restoreFeaturedPick(req.params.id);
+      res.json(result);
+    }),
+
     listSeasonCards: asyncHandler(async (req, res) => {
       const filters = {};
       if (req.query.country) {
@@ -97,7 +126,22 @@ function createExperienceController({ service, uploadService }) {
       if (req.query.isActive !== undefined) {
         filters.isActive = req.query.isActive === "true";
       }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
       const rows = await service.listSeasonCards(filters);
+      res.json({ success: true, data: rows });
+    }),
+
+    listDeletedSeasonCards: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      if (req.query.destinationId) {
+        filters.destinationId = req.query.destinationId;
+      }
+      const rows = await service.listDeletedSeasonCards(filters);
       res.json({ success: true, data: rows });
     }),
 
@@ -156,6 +200,16 @@ function createExperienceController({ service, uploadService }) {
 
     deleteSeasonCard: asyncHandler(async (req, res) => {
       const result = await service.deleteSeasonCard(req.params.id);
+      res.json(result);
+    }),
+
+    hardDeleteSeasonCard: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteSeasonCard(req.params.id);
+      res.json(result);
+    }),
+
+    restoreSeasonCard: asyncHandler(async (req, res) => {
+      const result = await service.restoreSeasonCard(req.params.id);
       res.json(result);
     }),
 

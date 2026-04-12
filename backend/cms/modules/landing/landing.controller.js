@@ -11,8 +11,23 @@ function createLandingController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const places = await service.list(filters);
+      res.json({
+        success: true,
+        data: places,
+      });
+    }),
+
+    listDeleted: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      const places = await service.listDeleted(filters);
       res.json({
         success: true,
         data: places,
@@ -95,6 +110,16 @@ function createLandingController({ service, uploadService }) {
 
     delete: asyncHandler(async (req, res) => {
       const result = await service.delete(req.params.id);
+      res.json(result);
+    }),
+
+    hardDelete: asyncHandler(async (req, res) => {
+      const result = await service.hardDelete(req.params.id);
+      res.json(result);
+    }),
+
+    restore: asyncHandler(async (req, res) => {
+      const result = await service.restore(req.params.id);
       res.json(result);
     }),
 

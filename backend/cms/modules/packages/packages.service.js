@@ -59,9 +59,10 @@ function createCmsPackagesService({ repository }) {
     return {
       id: row.id,
       packageId: row.package_id,
+      destinationId: row.destination_id ?? null,
       country: row.country,
       packageName: row.name,
-      destination: row.destination,
+      destination: row.destination_name || row.destination,
       startingPrice: parseFloat(row.starting_price) || 0,
       duration: row.duration,
       bannerImageUrl: row.banner_image_url,
@@ -95,6 +96,11 @@ function createCmsPackagesService({ repository }) {
       return rows.map(toPackage);
     },
 
+    async listDeleted(filters = {}) {
+      const rows = await repository.findDeletedPackages(filters);
+      return rows.map(toPackage);
+    },
+
     async getPackageById(id) {
       const row = await repository.findPackageById(id);
       if (!row || row.is_deleted) {
@@ -105,7 +111,19 @@ function createCmsPackagesService({ repository }) {
 
     async createPublishedPackage(data) {
       const name = normalizeText(data.name);
-      const destination = normalizeText(data.destination);
+      const destinationId = normalizeText(data.destinationId);
+      let destination = normalizeText(data.destination);
+      if (!destination && destinationId) {
+        const destinationRow = await repository.findDestinationById(destinationId);
+        if (!destinationRow) {
+          throw new AppError(
+            400,
+            "Destination not found",
+            "DESTINATION_NOT_FOUND",
+          );
+        }
+        destination = normalizeText(destinationRow.name);
+      }
       if (!name || !destination) {
         throw new AppError(
           400,
@@ -180,7 +198,25 @@ function createCmsPackagesService({ repository }) {
         }
         updates.name = name;
       }
-      if (data.destination !== undefined) {
+      if (data.destinationId !== undefined) {
+        const destinationId = normalizeText(data.destinationId);
+        if (!destinationId) {
+          throw new AppError(
+            400,
+            "Destination cannot be empty",
+            "VALIDATION_ERROR",
+          );
+        }
+        const destinationRow = await repository.findDestinationById(destinationId);
+        if (!destinationRow) {
+          throw new AppError(
+            400,
+            "Destination not found",
+            "DESTINATION_NOT_FOUND",
+          );
+        }
+        updates.destination = normalizeText(destinationRow.name);
+      } else if (data.destination !== undefined) {
         const destination = normalizeText(data.destination);
         if (!destination) {
           throw new AppError(
@@ -266,8 +302,33 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
+    async hardDeletePublishedPackage(id) {
+      const existing = await repository.findPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeletePackageById(id);
+      return { success: true };
+    },
+
+    async restorePublishedPackage(id) {
+      const existing = await repository.findPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Package not found", "NOT_FOUND");
+      }
+
+      await repository.restorePackageById(id);
+      return { success: true };
+    },
+
     async listMainPackages(filters = {}) {
       const rows = await repository.findAllMainPackages(filters);
+      return rows.map(toMainPackage);
+    },
+
+    async listDeletedMainPackages(filters = {}) {
+      const rows = await repository.findDeletedMainPackages(filters);
       return rows.map(toMainPackage);
     },
 
@@ -298,9 +359,17 @@ function createCmsPackagesService({ repository }) {
           "COUNTRY_REQUIRED",
         );
       }
+      if (!normalizeText(data.destinationId)) {
+        throw new AppError(
+          400,
+          "Destination is required for main package",
+          "DESTINATION_REQUIRED",
+        );
+      }
 
       const row = await repository.createMainPackage({
         package_id: data.packageId,
+        destination_id: normalizeText(data.destinationId),
         country: normalizeText(data.country),
         display_order: toNumber(data.displayOrder, 0),
         is_featured: toBoolean(data.isFeatured, false),
@@ -309,6 +378,7 @@ function createCmsPackagesService({ repository }) {
       return {
         id: row.id,
         packageId: row.package_id,
+        destinationId: row.destination_id ?? null,
         country: row.country,
         displayOrder: row.display_order,
         isFeatured: row.is_featured,
@@ -324,6 +394,17 @@ function createCmsPackagesService({ repository }) {
       }
 
       const updates = {};
+      if (data.destinationId !== undefined) {
+        const destinationId = normalizeText(data.destinationId);
+        if (!destinationId) {
+          throw new AppError(
+            400,
+            "Destination cannot be empty",
+            "INVALID_DESTINATION",
+          );
+        }
+        updates.destination_id = destinationId;
+      }
       if (data.country !== undefined) {
         const country = normalizeText(data.country);
         if (!country) {
@@ -340,6 +421,7 @@ function createCmsPackagesService({ repository }) {
       return {
         id: updated.id,
         packageId: updated.package_id,
+        destinationId: updated.destination_id ?? null,
         country: updated.country,
         displayOrder: updated.display_order,
         isFeatured: updated.is_featured,
@@ -357,6 +439,26 @@ function createCmsPackagesService({ repository }) {
       return { success: true };
     },
 
+    async hardDeleteMainPackage(id) {
+      const existing = await repository.findMainPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Main package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteMainPackage(id);
+      return { success: true };
+    },
+
+    async restoreMainPackage(id) {
+      const existing = await repository.findMainPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Main package not found", "NOT_FOUND");
+      }
+
+      await repository.restoreMainPackage(id);
+      return { success: true };
+    },
+
     async listSubPackages(mainPackageId, filters = {}) {
       const mainPackage = await repository.findMainPackageById(mainPackageId);
       if (!mainPackage) {
@@ -370,7 +472,15 @@ function createCmsPackagesService({ repository }) {
         throw new AppError(404, "Main package not found", "NOT_FOUND");
       }
 
-      const rows = await repository.findSubPackages(mainPackageId);
+      const rows = await repository.findSubPackages(
+        mainPackageId,
+        filters.includeDeleted === true || filters.includeDeleted === "true",
+      );
+      return rows.map(toSubPackage);
+    },
+
+    async listDeletedSubPackages(filters = {}) {
+      const rows = await repository.findDeletedSubPackages(filters);
       return rows.map(toSubPackage);
     },
 
@@ -437,6 +547,26 @@ function createCmsPackagesService({ repository }) {
       }
 
       await repository.deleteSubPackage(id);
+      return { success: true };
+    },
+
+    async hardDeleteSubPackage(id) {
+      const existing = await repository.findSubPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Sub package not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteSubPackage(id);
+      return { success: true };
+    },
+
+    async restoreSubPackage(id) {
+      const existing = await repository.findSubPackageById(id);
+      if (!existing) {
+        throw new AppError(404, "Sub package not found", "NOT_FOUND");
+      }
+
+      await repository.restoreSubPackage(id);
       return { success: true };
     },
   });

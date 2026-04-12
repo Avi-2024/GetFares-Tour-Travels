@@ -9,6 +9,7 @@ interface CmsEntityMediaEditorItem {
   title: string;
   altText: string;
   isPrimary: boolean;
+  mediaKind?: string;
   pendingFile?: File | null;
   previewUrl?: string;
 }
@@ -77,11 +78,20 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {mediaItems.map((item, index) => (
             <div key={item.clientId} className="rounded-2xl border border-[var(--border)] p-2">
-              <img
-                src={item.thumbnailUrl || item.mediaUrl}
-                alt={item.altText || item.title || "Media"}
-                className="h-24 w-full rounded-xl object-cover"
-              />
+              {item.mediaKind === "video" ? (
+                <video
+                  src={item.mediaUrl}
+                  className="h-24 w-full rounded-xl object-cover"
+                  muted
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={item.thumbnailUrl || item.mediaUrl}
+                  alt={item.altText || item.title || "Media"}
+                  className="h-24 w-full rounded-xl object-cover"
+                />
+              )}
               <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
                 <span>
                   #{index + 1}

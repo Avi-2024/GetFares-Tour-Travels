@@ -11,6 +11,8 @@ function createExperienceRoutes({ controller, upload }) {
     .route("/creative-toolkit")
     .get(controller.listFeaturedPicks)
     .post(upload.any(), controller.createFeaturedPick);
+  router.route("/featured-picks/deleted").get(controller.listDeletedFeaturedPicks);
+  router.route("/creative-toolkit/deleted").get(controller.listDeletedFeaturedPicks);
 
   router
     .route("/featured-picks/:id/status")
@@ -28,11 +30,14 @@ function createExperienceRoutes({ controller, upload }) {
     .get(controller.getFeaturedPickById)
     .put(upload.any(), controller.updateFeaturedPick)
     .delete(controller.deleteFeaturedPick);
+  router.route("/featured-picks/:id/hard-delete").delete(controller.hardDeleteFeaturedPick);
+  router.route("/creative-toolkit/:id/hard-delete").delete(controller.hardDeleteFeaturedPick);
 
   router
     .route("/season-cards")
     .get(controller.listSeasonCards)
     .post(upload.any(), controller.createSeasonCard);
+  router.route("/season-cards/deleted").get(controller.listDeletedSeasonCards);
 
   router
     .route("/season-cards/:id/status")
@@ -42,6 +47,7 @@ function createExperienceRoutes({ controller, upload }) {
     .get(controller.getSeasonCardById)
     .put(upload.any(), controller.updateSeasonCard)
     .delete(controller.deleteSeasonCard);
+  router.route("/season-cards/:id/hard-delete").delete(controller.hardDeleteSeasonCard);
 
   router.route("/hero-sections").get(controller.listHeroSections);
   router

@@ -1,7 +1,11 @@
 function createCmsMediaRepository({ db, schema }) {
   return Object.freeze({
     async findAll(filters = {}) {
-      return db.findMany(schema.tableName, filters);
+      const query = { ...filters };
+      if (query.is_deleted === undefined) {
+        query.is_deleted = false;
+      }
+      return db.findMany(schema.tableName, query);
     },
 
     async findById(id) {
@@ -9,7 +13,7 @@ function createCmsMediaRepository({ db, schema }) {
     },
 
     async create(data) {
-      return db.insert(schema.tableName, data);
+      return db.insert(schema.tableName, { ...data, is_deleted: false });
     },
 
     async update(id, data) {
@@ -17,6 +21,15 @@ function createCmsMediaRepository({ db, schema }) {
     },
 
     async delete(id) {
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) {
+        return null;
+      }
+      await db.update(schema.tableName, id, { is_deleted: true });
+      return db.findById(schema.tableName, id);
+    },
+
+    async hardDelete(id) {
       const existing = await db.findById(schema.tableName, id);
       if (!existing) {
         return null;

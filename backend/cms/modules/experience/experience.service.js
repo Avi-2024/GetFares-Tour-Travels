@@ -106,6 +106,13 @@ function createExperienceService({ repository }) {
         .sort((first, second) => first.displayOrder - second.displayOrder);
     },
 
+    async listDeletedFeaturedPicks(filters = {}) {
+      const rows = await repository.findDeletedFeaturedPicks(filters);
+      return rows
+        .map(toFeaturedPick)
+        .sort((first, second) => first.displayOrder - second.displayOrder);
+    },
+
     async getFeaturedPickById(id) {
       const row = await repository.findFeaturedPickById(id);
       if (!row) {
@@ -251,8 +258,33 @@ function createExperienceService({ repository }) {
       return { success: true };
     },
 
+    async hardDeleteFeaturedPick(id) {
+      const existing = await repository.findFeaturedPickById(id);
+      if (!existing) {
+        throw new AppError(404, "Featured pick not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteFeaturedPick(id);
+      return { success: true };
+    },
+
+    async restoreFeaturedPick(id) {
+      const existing = await repository.findFeaturedPickById(id);
+      if (!existing) {
+        throw new AppError(404, "Featured pick not found", "NOT_FOUND");
+      }
+
+      await repository.restoreFeaturedPick(id);
+      return { success: true };
+    },
+
     async listSeasonCards(filters = {}) {
       const rows = await repository.findSeasonCards(filters);
+      return rows.map(toSeasonCard);
+    },
+
+    async listDeletedSeasonCards(filters = {}) {
+      const rows = await repository.findDeletedSeasonCards(filters);
       return rows.map(toSeasonCard);
     },
 
@@ -343,6 +375,26 @@ function createExperienceService({ repository }) {
       }
 
       await repository.deleteSeasonCard(id);
+      return { success: true };
+    },
+
+    async hardDeleteSeasonCard(id) {
+      const existing = await repository.findSeasonCardById(id);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteSeasonCard(id);
+      return { success: true };
+    },
+
+    async restoreSeasonCard(id) {
+      const existing = await repository.findSeasonCardById(id);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      await repository.restoreSeasonCard(id);
       return { success: true };
     },
 

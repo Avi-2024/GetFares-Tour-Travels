@@ -10,8 +10,24 @@ function createVisaController({ service, uploadService }) {
       }
       if (req.query.isActive !== undefined)
         filters.is_active = req.query.isActive === "true";
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const visaDestinations = await service.list(filters);
+      res.json({
+        success: true,
+        data: visaDestinations,
+      });
+    }),
+
+    listDeleted: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+
+      const visaDestinations = await service.listDeleted(filters);
       res.json({
         success: true,
         data: visaDestinations,
@@ -108,10 +124,25 @@ function createVisaController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDelete: asyncHandler(async (req, res) => {
+      const result = await service.hardDelete(req.params.id);
+      res.json(result);
+    }),
+
+    restore: asyncHandler(async (req, res) => {
+      const result = await service.restore(req.params.id);
+      res.json(result);
+    }),
+
     // Details endpoints
     getDetails: asyncHandler(async (req, res) => {
       const sectionType = req.query.sectionType || null;
-      const details = await service.getDetails(req.params.id, sectionType);
+      const includeDeleted = req.query.includeDeleted === "true";
+      const details = await service.getDetails(
+        req.params.id,
+        sectionType,
+        includeDeleted,
+      );
       res.json({
         success: true,
         data: details,
@@ -136,6 +167,24 @@ function createVisaController({ service, uploadService }) {
 
     deleteDetail: asyncHandler(async (req, res) => {
       const result = await service.deleteDetail(req.params.detailId);
+      res.json(result);
+    }),
+
+    listDeletedDetails: asyncHandler(async (_req, res) => {
+      const rows = await service.listDeletedDetails({});
+      res.json({
+        success: true,
+        data: rows,
+      });
+    }),
+
+    hardDeleteDetail: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteDetail(req.params.detailId);
+      res.json(result);
+    }),
+
+    restoreDetail: asyncHandler(async (req, res) => {
+      const result = await service.restoreDetail(req.params.detailId);
       res.json(result);
     }),
   });

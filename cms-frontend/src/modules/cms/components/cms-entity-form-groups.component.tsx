@@ -1,4 +1,5 @@
 import { Component, type ChangeEvent } from "react";
+import SearchDropDown from "../../../shared/components/search-dropdown.component";
 import type {
   CmsEntityFieldDefinition,
   CmsEntityFormDefinition,
@@ -171,40 +172,45 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
       });
       const hasOptions = options.length > 0;
 
-      return (
-        <div className="space-y-1">
-          {field.type === "searchable-select" && (
-            <input
-              type="search"
-              value={relationSearch[field.key] ?? ""}
-              onChange={(event) =>
-                onRelationSearchChange(field.key, event.target.value)
-              }
-              className={className}
-              placeholder={
-                hasOptions ?
-                  `Search ${field.label.toLowerCase()}...`
-                : `No ${field.label.toLowerCase()} options available`
-              }
-              disabled={!hasOptions}
-            />
-          )}
-          <select
+      if (field.type === "searchable-select") {
+        return (
+          <SearchDropDown
             value={String(value ?? "")}
-            onChange={(event) => onFieldChange(field, event.target.value)}
-            className={className}
+            options={filteredOptions.map((option) => ({
+              label: option.label,
+              value: option.value,
+            }))}
+            searchValue={relationSearch[field.key] ?? ""}
+            placeholder={
+              hasOptions ?
+                `Select ${field.label}`
+              : `No ${field.label} available`
+            }
             disabled={!hasOptions}
-          >
-            <option value="">
-              {hasOptions ? `Select ${field.label}` : `No ${field.label} available`}
+            onSearchChange={(nextValue) =>
+              onRelationSearchChange(field.key, nextValue)
+            }
+            onChange={(nextValue) => onFieldChange(field, nextValue)}
+          />
+        );
+      }
+
+      return (
+        <select
+          value={String(value ?? "")}
+          onChange={(event) => onFieldChange(field, event.target.value)}
+          className={className}
+          disabled={!hasOptions}
+        >
+          <option value="">
+            {hasOptions ? `Select ${field.label}` : `No ${field.label} available`}
+          </option>
+          {filteredOptions.map((option) => (
+            <option key={`${field.key}-${option.value}`} value={option.value}>
+              {option.label}
             </option>
-            {filteredOptions.map((option) => (
-              <option key={`${field.key}-${option.value}`} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+          ))}
+        </select>
       );
     }
 

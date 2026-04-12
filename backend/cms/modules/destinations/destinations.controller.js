@@ -10,7 +10,7 @@ function createDestinationsController({ service, uploadService }) {
       files,
       prefix: "cms/destinations/gallery",
       allowVideo: true,
-      maxCount: 50,
+      maxCount: 4,
     });
 
     const createdMedia = [];
@@ -40,8 +40,21 @@ function createDestinationsController({ service, uploadService }) {
         filters.is_active = req.query.isActive === "true";
       if (req.query.isPopular !== undefined)
         filters.is_popular = req.query.isPopular === "true";
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const destinations = await service.list(filters);
+      res.json({
+        success: true,
+        data: destinations,
+      });
+    }),
+
+    listDeleted: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) filters.country = req.query.country;
+      const destinations = await service.listDeleted(filters);
       res.json({
         success: true,
         data: destinations,
@@ -173,6 +186,16 @@ function createDestinationsController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDelete: asyncHandler(async (req, res) => {
+      const result = await service.hardDelete(req.params.id);
+      res.json(result);
+    }),
+
+    restore: asyncHandler(async (req, res) => {
+      const result = await service.restore(req.params.id);
+      res.json(result);
+    }),
+
     // Media endpoints
     getMedia: asyncHandler(async (req, res) => {
       const media = await service.getMedia(req.params.id);
@@ -233,6 +256,11 @@ function createDestinationsController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDeleteMedia: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteMedia(req.params.mediaId);
+      res.json(result);
+    }),
+
     // Season endpoints
     getSeasons: asyncHandler(async (req, res) => {
       const seasons = await service.getSeasons(req.params.id);
@@ -263,6 +291,11 @@ function createDestinationsController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDeleteSeason: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteSeason(req.params.seasonId);
+      res.json(result);
+    }),
+
     // Package mapping endpoints
     getPackages: asyncHandler(async (req, res) => {
       const packages = await service.getPackages(req.params.id);
@@ -287,6 +320,11 @@ function createDestinationsController({ service, uploadService }) {
 
     unmapPackage: asyncHandler(async (req, res) => {
       const result = await service.unmapPackage(req.params.mapId);
+      res.json(result);
+    }),
+
+    hardUnmapPackage: asyncHandler(async (req, res) => {
+      const result = await service.hardUnmapPackage(req.params.mapId);
       res.json(result);
     }),
   });

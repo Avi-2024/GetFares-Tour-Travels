@@ -14,7 +14,7 @@ function createLandingService({ repository }) {
     return false;
   }
 
-  async function assertActiveLimit({ excludeId = null }) {
+  async function assertActiveLimit({ excludeId = null } = {}) {
     const activeRows = await repository.findAll({ is_active: true });
     const activeCount = activeRows.filter((row) => {
       if (excludeId && row.id === excludeId) return false;
@@ -51,6 +51,13 @@ function createLandingService({ repository }) {
   return Object.freeze({
     async list(filters = {}) {
       const rows = await repository.findAll(filters);
+      return rows
+        .map(toLandingPlace)
+        .sort((a, b) => a.displayOrder - b.displayOrder);
+    },
+
+    async listDeleted(filters = {}) {
+      const rows = await repository.findAll({ ...filters, is_deleted: true });
       return rows
         .map(toLandingPlace)
         .sort((a, b) => a.displayOrder - b.displayOrder);
@@ -185,6 +192,26 @@ function createLandingService({ repository }) {
       }
 
       await repository.delete(id);
+      return { success: true };
+    },
+
+    async hardDelete(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Landing place not found", "NOT_FOUND");
+      }
+
+      await repository.hardDelete(id);
+      return { success: true };
+    },
+
+    async restore(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Landing place not found", "NOT_FOUND");
+      }
+
+      await repository.restore(id);
       return { success: true };
     },
 

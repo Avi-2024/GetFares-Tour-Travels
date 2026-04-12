@@ -44,6 +44,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "name",
         readOnly: false,
@@ -76,15 +77,6 @@ class CmsSectionEntryMapper {
           travelType: new CmsTableCell(
             this.accessor.getText(record, "travelType", "travel_type"),
           ),
-          media: new CmsTableCell(
-            this.accessor.getText(
-              record,
-              "mediaCount",
-              "media_count",
-              "galleryCount",
-              "gallery_count",
-            ),
-          ),
           seo: new CmsTableCell(
             hasSeo ? "Ready" : "Missing Meta",
             hasSeo ? "success" : "warning",
@@ -96,6 +88,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "name",
         readOnly: false,
@@ -151,6 +144,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `/cms/packages/published/${id}`,
         deletePath: `/cms/packages/published/${id}`,
+        restorePath: `/cms/packages/published/${id}/restore`,
         deleteMode: "delete",
         editableField: "publishToWebsite",
         readOnly: false,
@@ -178,20 +172,19 @@ class CmsSectionEntryMapper {
           mainPackage: new CmsTableCell(
             this.accessor.getText(record, "packageName", "name"),
           ),
-          sourcePackage: new CmsTableCell(
-            this.accessor.getText(record, "packageId", "package_id"),
+          destination: new CmsTableCell(
+            this.accessor.getText(
+              record,
+              "destination",
+              "destinationName",
+              "destination_name",
+              "destinationId",
+              "destination_id",
+            ),
           ),
           featured: new CmsTableCell(
             featured ? "Yes" : "No",
             featured ? "success" : "warning",
-          ),
-          linkedDestinations: new CmsTableCell(
-            this.accessor.getText(
-              record,
-              "mappedDestinations",
-              "destinationCount",
-              "destination_count",
-            ),
           ),
           displayOrder: new CmsTableCell(`#${displayOrder}`),
           updatedAt: new CmsTableCell(
@@ -200,6 +193,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "displayOrder",
         readOnly: false,
@@ -211,8 +205,12 @@ class CmsSectionEntryMapper {
   public async mapSubPackageEntries(
     mainPath: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const options = country ? { params: { country } } : undefined;
+    const options =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     const mainPayload = await this.httpClient.get<unknown>(mainPath, options);
     const mainPackages = this.accessor.toArray(mainPayload);
     const entries: CmsTableEntry[] = [];
@@ -259,6 +257,7 @@ class CmsSectionEntryMapper {
             }),
             updatePath: `${mainPath.replace("/main", "/sub")}/${id}`,
             deletePath: `${mainPath.replace("/main", "/sub")}/${id}`,
+            restorePath: `${mainPath.replace("/main", "/sub")}/${id}/restore`,
             deleteMode: "delete",
             editableField: "displayOrder",
             readOnly: false,
@@ -267,6 +266,48 @@ class CmsSectionEntryMapper {
       } catch {
         // continue with next package
       }
+    }
+    return entries;
+  }
+
+  public mapSubPackageFlatEntries(
+    data: JsonRecord[],
+    basePath: string,
+  ): CmsTableEntry[] {
+    const entries: CmsTableEntry[] = [];
+    for (const record of data) {
+      const id = this.accessor.getId(record);
+      if (!id) {
+        continue;
+      }
+      const displayOrder =
+        this.accessor.getNumber(record, "displayOrder", "display_order") ?? 0;
+      entries.push({
+        id,
+        raw: record,
+        row: new CmsTableRow(id, {
+          variant: new CmsTableCell(
+            this.accessor.getText(record, "packageName", "name"),
+          ),
+          mainPackage: new CmsTableCell(
+            this.accessor.getText(record, "mainPackageId", "main_package_id"),
+          ),
+          duration: new CmsTableCell(this.accessor.getText(record, "duration")),
+          priceBand: new CmsTableCell(
+            this.accessor.getText(record, "startingPrice", "starting_price"),
+          ),
+          displayOrder: new CmsTableCell(`#${displayOrder}`),
+          updatedAt: new CmsTableCell(
+            this.accessor.getText(record, "updatedAt", "updated_at"),
+          ),
+        }),
+        updatePath: `${basePath}/${id}`,
+        deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
+        deleteMode: "delete",
+        editableField: "displayOrder",
+        readOnly: false,
+      });
     }
     return entries;
   }
@@ -309,6 +350,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,
@@ -320,8 +362,12 @@ class CmsSectionEntryMapper {
   public async mapVisaDetailEntries(
     visaBasePath: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const options = country ? { params: { country } } : undefined;
+    const options =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     const visaPayload = await this.httpClient.get<unknown>(visaBasePath, options);
     const visaDestinations = this.accessor.toArray(visaPayload);
     const entries: CmsTableEntry[] = [];
@@ -336,6 +382,7 @@ class CmsSectionEntryMapper {
           visaBasePath,
           destinationId,
           destination,
+          includeDeleted,
         );
         entries.push(...detailEntries);
       } catch {
@@ -349,8 +396,12 @@ class CmsSectionEntryMapper {
     visaBasePath: string,
     destinationId: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const destinationOptions = country ? { params: { country } } : undefined;
+    const destinationOptions =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     let destinationRecord: JsonRecord | null = null;
 
     try {
@@ -367,6 +418,7 @@ class CmsSectionEntryMapper {
       visaBasePath,
       destinationId,
       destinationRecord ?? { id: destinationId, title: destinationId },
+      includeDeleted,
     );
   }
 
@@ -374,9 +426,11 @@ class CmsSectionEntryMapper {
     visaBasePath: string,
     destinationId: string,
     destinationRecord: JsonRecord,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
     const detailsPayload = await this.httpClient.get<unknown>(
       `${visaBasePath}/${destinationId}/details`,
+      includeDeleted ? { params: { includeDeleted: true } } : undefined,
     );
     const details = this.accessor.toArray(detailsPayload);
     const destinationLabel = this.accessor.getText(
@@ -414,6 +468,50 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
         deletePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
+        restorePath: `/cms/visa/details/${detailId}/restore`,
+        deleteMode: "delete",
+        editableField: "value",
+        readOnly: false,
+      });
+    }
+    return entries;
+  }
+
+  public mapVisaDetailFlatEntries(
+    data: JsonRecord[],
+    basePath: string,
+  ): CmsTableEntry[] {
+    const entries: CmsTableEntry[] = [];
+    for (const detail of data) {
+      const detailId = this.accessor.getId(detail);
+      if (!detailId) {
+        continue;
+      }
+      entries.push({
+        id: detailId,
+        raw: detail,
+        row: new CmsTableRow(detailId, {
+          destination: new CmsTableCell(
+            this.accessor.getText(detail, "visaDestinationId", "visa_destination_id"),
+          ),
+          sectionType: new CmsTableCell(
+            this.accessor.getText(detail, "sectionType", "section_type"),
+            "info",
+          ),
+          label: new CmsTableCell(this.accessor.getText(detail, "label")),
+          value: new CmsTableCell(this.accessor.getText(detail, "value")),
+          displayOrder: new CmsTableCell(
+            `#${
+              this.accessor.getNumber(detail, "displayOrder", "display_order") ?? 0
+            }`,
+          ),
+          updatedAt: new CmsTableCell(
+            this.accessor.getText(detail, "updatedAt", "updated_at"),
+          ),
+        }),
+        updatePath: `${basePath}/${detailId}`,
+        deletePath: `${basePath}/${detailId}`,
+        restorePath: `${basePath}/${detailId}/restore`,
         deleteMode: "delete",
         editableField: "value",
         readOnly: false,
@@ -472,6 +570,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/featured-picks/${id}`,
         deletePath: `${basePath}/featured-picks/${id}`,
+        restorePath: `${basePath}/featured-picks/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,
@@ -511,6 +610,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/season-cards/${id}`,
         deletePath: `${basePath}/season-cards/${id}`,
+        restorePath: `${basePath}/season-cards/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,
