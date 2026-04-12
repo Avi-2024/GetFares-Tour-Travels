@@ -19,7 +19,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 
 type Status = 'pending' | 'accepted' | 'expired' | 'rejected' | 'draft'
@@ -391,7 +391,7 @@ const QuotationsPage: React.FC = () => {
         }
       } catch (error: any) {
         console.error('Failed to load quotations:', error)
-        setError(getApiErrorMessage(error, 'Failed to load quotations.'))
+        reportApiError(error, 'Failed to load quotations.', setError)
 
         // No fallback data on error
         setQuotations([])
@@ -732,7 +732,7 @@ const QuotationsPage: React.FC = () => {
       setError('')
     } catch (error) {
       console.error('Failed to reject quotation:', error)
-      setError(getApiErrorMessage(error, 'Failed to reject quotation'))
+      reportApiError(error, 'Failed to reject quotation', setError)
     } finally {
       setIsMutating(false)
     }
@@ -779,8 +779,10 @@ const QuotationsPage: React.FC = () => {
       setError('')
     } catch (error) {
       console.error('Failed to send via WhatsApp:', error)
-      setError(
-        getApiErrorMessage(error, 'Failed to send quotation via WhatsApp')
+      reportApiError(
+        error,
+        'Failed to send quotation via WhatsApp',
+        setError
       )
     } finally {
       setIsMutating(false)

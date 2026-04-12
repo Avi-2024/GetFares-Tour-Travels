@@ -11,7 +11,7 @@ import {
   FaDollarSign,
 } from "react-icons/fa";
 import { customersApi } from "../../api/customers";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 
 interface CustomerFormData {
   fullName: string;
@@ -161,7 +161,7 @@ const NewCustomerPage: React.FC = () => {
       // Navigate back to customers list
       navigate("/customers");
     } catch (error) {
-      setError(getApiErrorMessage(error, "Failed to create customer"));
+      reportApiError(error, "Failed to create customer", setError);
     } finally {
       setLoading(false);
     }

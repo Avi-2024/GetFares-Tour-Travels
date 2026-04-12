@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FaArrowLeft,
@@ -25,7 +25,7 @@ import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { suppliersApi } from '../../api/suppliers'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { getCurrencyOptions } from '../../utils/currency'
@@ -253,18 +253,39 @@ function resolveLeadDisplayId (
   lead:
     | Pick<
         LeadOption,
-        'leadId' | 'leadCode' | 'lead_code' | 'code' | 'id'
+        | 'leadId'
+        | 'leadCode'
+        | 'lead_code'
+        | 'metaLeadId'
+        | 'meta_lead_id'
+        | 'code'
+        | 'id'
       >
     | null
 ): string {
   if (!lead) return ''
-  return firstNonEmptyString(
-    lead.leadId,
+  const isUuidLike = (value: unknown): boolean =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      toTrimmedString(value)
+    )
+
+  const preferredCode = firstNonEmptyString(
     lead.leadCode,
     lead.lead_code,
-    lead.code,
-    lead.id
+    lead.metaLeadId,
+    lead.meta_lead_id,
+    lead.code
   )
+  if (preferredCode && !isUuidLike(preferredCode)) {
+    return preferredCode
+  }
+
+  const leadIdValue = firstNonEmptyString(lead.leadId)
+  if (leadIdValue && !isUuidLike(leadIdValue)) {
+    return leadIdValue
+  }
+
+  return firstNonEmptyString(preferredCode, leadIdValue, lead.id)
 }
 
 function toFiniteNumber (value: unknown, fallback = 0): number {
@@ -1058,9 +1079,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       } catch (error) {
         console.error('Failed to load leads:', error)
         setLeads([])
-        setLeadsError(
-          getApiErrorMessage(error, 'Failed to load leads from API.')
-        )
+        reportApiError(error, 'Failed to load leads from API.', setLeadsError)
       } finally {
         setLeadsLoading(false)
       }
@@ -1091,8 +1110,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     } catch (error) {
       console.error('Failed to load quotation templates:', error)
       setTemplates([])
-      setTemplatesError(
-        getApiErrorMessage(error, 'Failed to load quotation templates.')
+      reportApiError(
+        error,
+        'Failed to load quotation templates.',
+        setTemplatesError
       )
     } finally {
       setTemplatesLoading(false)
@@ -1852,25 +1873,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             : Number.isFinite(snapshotServiceFeeTotal)
             ? Math.max(0, snapshotServiceFeeTotal - snapshotFlightServiceCharge)
             : Math.max(0, persistedServiceFeeTotal - snapshotFlightServiceCharge)
-          const persistedTaxAmount = Math.max(
-            0,
-            toFiniteNumber(
-              quotation.taxAmount ?? quotation.tax,
-              toFiniteNumber(snapshotPricing?.taxAmount, 0)
-            )
-          )
-          const preTaxBase = Math.max(
-            0,
-            toFiniteNumber(quotation.supplierCost, 0) +
-              toFiniteNumber(quotation.markupAmount, 0) +
-              toFiniteNumber(quotation.serviceFeeAmount, 0) -
-              toFiniteNumber(quotation.discount, 0)
-          )
-          const derivedTaxPercent =
-            preTaxBase > 0
-              ? Number(((persistedTaxAmount / preTaxBase) * 100).toFixed(2))
-              : 0
-
           setCosts(prev => ({
             supplierCost: Math.max(
               0,
@@ -1893,13 +1895,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 prev.serviceFee
               )
             ),
-            taxPercent: Math.max(
-              0,
-              toFiniteNumber(
-                snapshotPricing?.taxPercent,
-                Number.isFinite(derivedTaxPercent) ? derivedTaxPercent : prev.taxPercent
-              )
-            ),
+            taxPercent: 0,
             discount: Math.max(
               0,
               toFiniteNumber(
@@ -1911,17 +1907,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           
           setFinance(prev => ({
             ...prev,
-            supplierTaxPercent: Math.max(
-              0,
-              toFiniteNumber(
-                quotation.supplierTaxPercent ?? snapshotPricing?.supplierTaxPercent ?? 0,
-                0
-              )
-            ),
-            supplierTaxAmount: Math.max(
-              0,
-              toFiniteNumber(quotation.supplierTaxAmount ?? 0, 0)
-            ),
+            supplierTaxPercent: 0,
+            supplierTaxAmount: 0,
             gstEnabled: toBoolean(
               snapshotPricing?.gstEnabled,
               toFiniteNumber(quotation.gstAmount ?? 0, 0) > 0
@@ -1984,8 +1971,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       } catch (error) {
         console.error('Failed to load quotation for edit:', error)
         if (!cancelled) {
-          setSaveError(
-            getApiErrorMessage(error, 'Failed to load quotation for editing.')
+          reportApiError(
+            error,
+            'Failed to load quotation for editing.',
+            setSaveError
           )
         }
       } finally {
@@ -2105,11 +2094,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
   // Auto-calculate finance breakdown from service rows + add-ons
   useEffect(() => {
-    const serviceBaseTotal = Number(
-      serviceCostRows
-        .reduce((sum, row) => sum + (Number(row.baseCost) || 0), 0)
-        .toFixed(2)
-    )
     const serviceSellTotal = Number(
       serviceCostRows
         .reduce((sum, row) => sum + (Number(row.sellValue) || 0), 0)
@@ -2125,25 +2109,22 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         )
         .toFixed(2)
     )
-    const totalSupplierCost = Number(
-      (serviceBaseTotal + addOnBaseCostTotal).toFixed(2)
-    )
-    const supplierTaxAmount =
-      (totalSupplierCost * finance.supplierTaxPercent) / 100
+   
     const markupAmount = Number((serviceMarkupTotal + addOnMarkupTotal).toFixed(2))
     const serviceFeeAmount = Number(costs.serviceFee) || 0
-    const subtotal = serviceSellTotal + addOnTotal + serviceFeeAmount + supplierTaxAmount
+    const subtotal = serviceSellTotal + addOnTotal + serviceFeeAmount
     const gstPercent = finance.gstEnabled ? finance.gstPercent : 0
     const tcsPercent = finance.tcsEnabled ? finance.tcsPercent : 0
     const gstAmount = (subtotal * gstPercent) / 100
     const tcsAmount = (subtotal * tcsPercent) / 100
     const discount = Number(costs.discount) || 0
     const totalSaleValue = subtotal + gstAmount + tcsAmount - discount
-    const taxAmount = supplierTaxAmount + gstAmount + tcsAmount
+    const taxAmount = gstAmount + tcsAmount
 
     setFinance(prev => ({
       ...prev,
-      supplierTaxAmount: Number(supplierTaxAmount.toFixed(2)),
+      supplierTaxPercent: 0,
+      supplierTaxAmount: 0,
       gstAmount: Number(gstAmount.toFixed(2)),
       tcsAmount: Number(tcsAmount.toFixed(2)),
       totalSaleValue: Number(Math.max(0, totalSaleValue).toFixed(2)),
@@ -2157,7 +2138,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     addOnTotal,
     costs.serviceFee,
     costs.discount,
-    finance.supplierTaxPercent,
     finance.gstEnabled,
     finance.gstPercent,
     finance.tcsEnabled,
@@ -2324,16 +2304,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const computed = useMemo(() => {
     const supplier = serviceBaseCostTotal
     const serviceFee = Number(costs.serviceFee) || 0
-    const taxPercent = Number(costs.taxPercent) || 0
     const discount = Number(costs.discount) || 0
 
     // Calculate from effective sell values so manual overrides are reflected.
     const servicesMarkup = totalMarkupFromServices
-    const servicesSellTotal = serviceCostRows.reduce((sum, row) => sum + row.sellValue, 0)
-
-    const preTax = Number((servicesSellTotal + addOnTotal + serviceFee).toFixed(2))
-    const taxVal = Number((preTax * (taxPercent / 100)).toFixed(2))
-    const totalPrice = Math.max(Number((preTax + taxVal - discount).toFixed(2)), 0)
+    const totalPrice = Number(finance.totalSaleValue) || 0
+    const taxVal = Number(finance.taxAmount) || 0
     const profit = Number((servicesMarkup + addOnMarkupTotal).toFixed(2))
     const margin = totalPrice ? Number(((profit / totalPrice) * 100).toFixed(2)) : 0
 
@@ -2348,13 +2324,20 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       profit,
       margin
     }
-  }, [addOnTotal, costs, serviceCostRows, addOnMarkupTotal])
+  }, [
+    addOnTotal,
+    costs.discount,
+    costs.serviceFee,
+    finance.taxAmount,
+    finance.totalSaleValue,
+    serviceBaseCostTotal,
+    totalMarkupFromServices,
+    addOnMarkupTotal
+  ])
 
-  const subtotal = Number(
-    (serviceChargesTotal + computed.serviceFee).toFixed(2)
-  )
-  const taxes = computed.taxVal
-  const total = computed.totalPrice
+  const subtotal = Number(finance.subtotal || 0)
+  const taxes = Number(finance.taxAmount || 0)
+  const total = Number(finance.totalSaleValue || 0)
   const quoteDisplayNumber = form.quote.trim() || 'AUTO-GENERATED'
 
   const pricingFieldErrors = useMemo<PricingFieldErrors>(() => {
@@ -2821,13 +2804,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         serviceFee: Number(
           ((Number(costs.serviceFee) || 0) + flightServiceChargeTotal).toFixed(2)
         ),
-        taxPercent: Number(costs.taxPercent) || 0,
+        taxPercent: 0,
         discount: Number(costs.discount) || 0,
-        taxAmount: Number(computed.taxVal) || 0,
-        totalPrice: Number(computed.totalPrice) || 0,
+        taxAmount: Number(finance.taxAmount) || 0,
+        totalPrice: Number(finance.totalSaleValue) || 0,
         profit: Number(computed.profit) || 0,
         margin: Number(computed.margin) || 0,
-        supplierTaxPercent: Number(finance.supplierTaxPercent) || 0,
+        supplierTaxPercent: 0,
         gstEnabled: Boolean(finance.gstEnabled),
         gstPercent: Number(finance.gstPercent) || 0,
         tcsEnabled: Boolean(finance.tcsEnabled),
@@ -2973,7 +2956,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         }))
       ]
 
-      const taxPercent = Number(costs.taxPercent) || 0
       const discount = Number(costs.discount) || 0
 
       const expiresInHours = (() => {
@@ -2992,16 +2974,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         components,
         marginPercent: Number(costs.markupPercent) || 0,
         discount,
-        taxPercent,
+        taxPercent: 0,
         supplierCost: totalSupplierCost,
         markupAmount,
         serviceFeeAmount: serviceFee,
-        taxAmount: Number(computed.taxVal) || 0,
+        taxAmount: Number(finance.taxAmount) || 0,
         // Finance breakdown fields
-        supplierTaxAmount: finance.supplierTaxAmount,
+        supplierTaxAmount: 0,
         gstAmount: finance.gstAmount,
         tcsAmount: finance.tcsAmount,
-        totalSaleValue: Number(computed.totalPrice) || 0,
+        totalSaleValue: Number(finance.totalSaleValue) || 0,
         // Currency fields
         costCurrency: currencies.costCurrency,
         clientCurrency: currencies.clientCurrency,
@@ -3022,13 +3004,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       setTimeout(() => navigate(quotationReturnPath), 1200)
     } catch (error) {
       console.error('Failed to save quotation:', error)
-      setSaveError(
-        getApiErrorMessage(
-          error,
-          isEditMode
-            ? 'Failed to update quotation.'
-            : 'Failed to create quotation.'
-        )
+      reportApiError(
+        error,
+        isEditMode
+          ? 'Failed to update quotation.'
+          : 'Failed to create quotation.',
+        setSaveError
       )
     } finally {
       setSaving(false)
@@ -3074,14 +3055,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 ? 'Update your draft quotation with the same builder experience.'
                 : 'Create and preview polished quotations quickly.'}
             </p>
-            <div className='mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700'>
-              <p className='font-semibold'>How Template Works</p>
-              <p className='mt-1'>
-                1) Create template in Templates page. 2) Select template here.
-                3) Save quote to lock snapshot with quotation for audit-safe
-                rendering.
-              </p>
-            </div>
+          
             {saveError ? (
               <p className='mt-2 text-sm text-red-600'>{saveError}</p>
             ) : null}
@@ -3168,7 +3142,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <label className='field-label'>Lead ID</label>
                   <input
                     type='text'
-                    className='field-input'
+                    className='field-input overflow-hidden text-ellipsis'
                     value={selectedLeadDisplayId}
                     placeholder='Select lead to view ID'
                     readOnly
@@ -3218,7 +3192,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     </p>
                   ) : null}
 
-                  <div>
+                  <div className='mt-3'>
                     <label className='field-label'>Supplier</label>
                     <SearchableDropdown
                       value={selectedSupplierId}
@@ -3262,304 +3236,322 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   ) : null}
                 </div>
 
-                <Field
-                  label='Quotation / Package Title'
-                  value={form.quotationTitle}
-                  onChange={v => setForm(p => ({ ...p, quotationTitle: v }))}
-                />
-                <Field
-                  label='Customer Name'
-                  value={form.customer}
-                  onChange={v => setForm(p => ({ ...p, customer: v }))}
-                />
-                <Field
-                  label='Email'
-                  value={form.email}
-                  onChange={v => setForm(p => ({ ...p, email: v }))}
-                />
-                <div>
-                  <label className='field-label'>Phone</label>
-                  <input
-                    type='tel'
-                    className='field-input'
-                    value={form.phone || ''}
-                    onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
-                    placeholder='Customer phone number'
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Lead Country</label>
-                  <SearchableDropdown
-                    value={form.leadCountry || ''}
-                    options={countryOptions}
-                    searchPlaceholder='Search country...'
-                    onChange={value => setForm(p => ({ ...p, leadCountry: value }))}
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Nationality</label>
-                  <SearchableDropdown
-                    value={form.nationality || ''}
-                    options={nationalityOptions}
-                    searchPlaceholder='Search nationality...'
-                    onChange={value => setForm(p => ({ ...p, nationality: value }))}
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Client Currency</label>
-                  <SearchableDropdown
-                    value={currency}
-                    options={currencyOptions}
-                    searchPlaceholder='Search currency...'
-                    onChange={value => setCurrency(String(value || 'INR').toUpperCase())}
-                  />
-                </div>
-                <Field
-                  label='Destination'
-                  value={form.destination}
-                  onChange={v => setForm(p => ({ ...p, destination: v }))}
-                />
-                <div className='md:col-span-2'>
-                  <label className='field-label'>Address / Location</label>
-                  <textarea
-                    className='field-input'
-                    rows={2}
-                    placeholder='Enter customer address or location'
-                    value={form.addressLine || ''}
-                    onChange={e => setForm(p => ({ ...p, addressLine: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>PAN Number (optional)</label>
-                  <input
-                    className='field-input'
-                    placeholder='Enter PAN number'
-                    value={form.panNumber || ''}
-                    onChange={e => setForm(p => ({ ...p, panNumber: e.target.value.toUpperCase() }))}
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Budget</label>
-                  <input
-                    type='number'
-                    min='0'
-                    className='field-input overflow-hidden text-ellipsis'
-                    placeholder='Customer budget'
-                    value={form.budget || ''}
-                    onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Visa Requirement</label>
-                  <SearchableDropdown
-                    value={form.visaRequired}
-                    options={visaOptions}
-                    searchPlaceholder='Search visa requirement...'
-                    onChange={value => setForm(p => ({ ...p, visaRequired: value }))}
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Preferred Hotel Category</label>
-                  <SearchableDropdown
-                    value={form.preferredHotelCategory}
-                    options={hotelCategoryOptions}
-                    searchPlaceholder='Search hotel category...'
-                    onChange={value => setForm(p => ({ ...p, preferredHotelCategory: value }))}
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Travel Purpose</label>
-                  <input
-                    className='field-input'
-                    placeholder='Travel purpose'
-                    value={form.travelPurpose}
-                    onChange={e => setForm(p => ({ ...p, travelPurpose: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Lead Source</label>
-                  <SearchableDropdown
-                    value={form.leadSource}
-                    options={leadSourceOptions}
-                    searchPlaceholder='Search source...'
-                    onChange={value => setForm(p => ({ ...p, leadSource: value }))}
-                  />
-                </div>
-               {/* <div>
-                  <label className='field-label'>Campaign</label>
-                  <SearchableDropdown
-                    value={form.campaignId}
-                    options={campaignOptions}
-                    searchPlaceholder='Search campaign...'
-                    onChange={value => setForm(p => ({ ...p, campaignId: value }))}
-                  />
-                </div> */}
-                <Field
-                  label='Quote Reference'
-                  value={form.quote}
-                  onChange={v => setForm(p => ({ ...p, quote: v }))}
-                />
-                <div>
-                  <label className='field-label'>Start Date *</label>
-                  <input
-                    type='date'
-                    className='field-input'
-                    value={form.startDate}
-                    onChange={e =>
-                      setForm(p => ({ ...p, startDate: e.target.value }))
-                    }
-                  />
-                  {!form.startDate && selectedLead?.travelDate ? (
-                    <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                      Using lead travel date: {toDateInputString(selectedLead.travelDate)}
-                    </p>
-                  ) : null}
-                </div>
-                <div>
-                  <label className='field-label'>End Date</label>
-                  <input
-                    type='date'
-                    className='field-input'
-                    min={form.startDate || undefined}
-                    value={form.endDate}
-                    onChange={e =>
-                      setForm(p => ({ ...p, endDate: e.target.value }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Valid Until</label>
-                  <input
-                    type='datetime-local'
-                    className='field-input'
-                    value={form.validUntil}
-                    onChange={e =>
-                      setForm(p => ({ ...p, validUntil: e.target.value }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Duration</label>
-                  <div className='grid grid-cols-2 gap-2'>
+                <div className='md:col-span-2 rounded-xl border border-gray-200 bg-gray-50/40 p-3 dark:border-gray-700 dark:bg-gray-900/20'>
+                  <p className='text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                    Customer Profile
+                  </p>
+                  <div className='mt-3 grid grid-cols-1 gap-4 md:grid-cols-2'>
+                    <Field
+                      label='Quotation / Package Title'
+                      value={form.quotationTitle}
+                      onChange={v => setForm(p => ({ ...p, quotationTitle: v }))}
+                    />
+                    <Field
+                      label='Customer Name'
+                      value={form.customer}
+                      onChange={v => setForm(p => ({ ...p, customer: v }))}
+                    />
+                    <Field
+                      label='Email'
+                      value={form.email}
+                      onChange={v => setForm(p => ({ ...p, email: v }))}
+                    />
                     <div>
-                      <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Nights</label>
+                      <label className='field-label'>Phone</label>
                       <input
-                        type='number'
-                        min='0'
-                        className='field-input overflow-hidden text-ellipsis'
-                        placeholder='Nights'
-                        value={form.nights}
-                        onChange={e => {
-                          const nights = Number(e.target.value || 0)
-                          const days = nights + 1
-                          setForm(p => ({
-                            ...p,
-                            nights,
-                            durationDays: String(days)
-                          }))
-                        }}
+                        type='tel'
+                        className='field-input'
+                        value={form.phone || ''}
+                        onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                        placeholder='Customer phone number'
                       />
                     </div>
                     <div>
-                      <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Days</label>
+                      <label className='field-label'>Lead Country</label>
+                      <SearchableDropdown
+                        value={form.leadCountry || ''}
+                        options={countryOptions}
+                        searchPlaceholder='Search country...'
+                        onChange={value => setForm(p => ({ ...p, leadCountry: value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className='field-label'>Nationality</label>
+                      <SearchableDropdown
+                        value={form.nationality || ''}
+                        options={nationalityOptions}
+                        searchPlaceholder='Search nationality...'
+                        onChange={value => setForm(p => ({ ...p, nationality: value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className='field-label'>Client Currency</label>
+                      <SearchableDropdown
+                        value={currency}
+                        options={currencyOptions}
+                        searchPlaceholder='Search currency...'
+                        onChange={value => setCurrency(String(value || 'INR').toUpperCase())}
+                      />
+                    </div>
+                    <div className='md:col-span-2'>
+                      <label className='field-label'>Address / Location</label>
+                      <textarea
+                        className='field-input'
+                        rows={2}
+                        placeholder='Enter customer address or location'
+                        value={form.addressLine || ''}
+                        onChange={e => setForm(p => ({ ...p, addressLine: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className='md:col-span-2 rounded-xl border border-gray-200 bg-gray-50/40 p-3 dark:border-gray-700 dark:bg-gray-900/20'>
+                  <p className='text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                    Trip Plan
+                  </p>
+                  <div className='mt-2 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3'>
+                    <Field
+                      label='Destination'
+                      value={form.destination}
+                      onChange={v => setForm(p => ({ ...p, destination: v }))}
+                    />
+                    <div>
+                      <label className='field-label'>Start Date *</label>
+                      <input
+                        type='date'
+                        className='field-input'
+                        value={form.startDate}
+                        onChange={e =>
+                          setForm(p => ({ ...p, startDate: e.target.value }))
+                        }
+                      />
+                      {!form.startDate && selectedLead?.travelDate ? (
+                        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                          Using lead travel date: {toDateInputString(selectedLead.travelDate)}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className='field-label'>End Date</label>
+                      <input
+                        type='date'
+                        className='field-input'
+                        min={form.startDate || undefined}
+                        value={form.endDate}
+                        onChange={e =>
+                          setForm(p => ({ ...p, endDate: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className='field-label'>Valid Until</label>
+                      <input
+                        type='datetime-local'
+                        className='field-input'
+                        value={form.validUntil}
+                        onChange={e =>
+                          setForm(p => ({ ...p, validUntil: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className='md:col-span-2 lg:col-span-1'>
+                      <label className='field-label'>Duration</label>
+                      <div className='grid grid-cols-2 gap-2'>
+                        <div>
+                          <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Nights</label>
+                          <input
+                            type='number'
+                            min='0'
+                            className='field-input overflow-hidden text-ellipsis'
+                            placeholder='Nights'
+                            value={form.nights}
+                            onChange={e => {
+                              const nights = Number(e.target.value || 0)
+                              const days = nights + 1
+                              setForm(p => ({
+                                ...p,
+                                nights,
+                                durationDays: String(days)
+                              }))
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Days</label>
+                          <input
+                            type='number'
+                            min='1'
+                            className='field-input overflow-hidden text-ellipsis'
+                            placeholder='Days'
+                            value={form.durationDays}
+                            onChange={e => {
+                              const days = Number(e.target.value || 0)
+                              const nights = Math.max(0, days - 1)
+                              setForm(p => ({
+                                ...p,
+                                durationDays: e.target.value,
+                                nights
+                              }))
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <p className='mt-0.5 text-xs text-gray-500'>
+                        Duration saves as {previewDurationLabel || '0N/0D'}.
+                      </p>
+                    </div>
+                    <div>
+                      <label className='field-label'>Adults</label>
                       <input
                         type='number'
                         min='1'
                         className='field-input overflow-hidden text-ellipsis'
-                        placeholder='Days'
-                        value={form.durationDays}
-                        onChange={e => {
-                          const days = Number(e.target.value || 0)
-                          const nights = Math.max(0, days - 1)
+                        value={form.adults}
+                        onChange={e =>
                           setForm(p => ({
                             ...p,
-                            durationDays: e.target.value,
-                            nights
+                            adults: Math.max(1, Number(e.target.value || 1))
                           }))
+                        }
+                      />
+                    </div>
+                    <div className='lg:col-span-1'>
+                      <label className='field-label'>Children</label>
+                      <input
+                        type='number'
+                        min='0'
+                        className='field-input overflow-hidden text-ellipsis'
+                        value={form.children}
+                        onChange={e => {
+                          const nextChildren = Math.max(0, Number(e.target.value || 0))
+                          setForm(prev => {
+                            const currentAges = Array.isArray(prev.childAges)
+                              ? prev.childAges
+                              : []
+                            const nextAges = Array.from({ length: nextChildren }, (_, i) =>
+                              currentAges[i] ?? ''
+                            )
+                            return {
+                              ...prev,
+                              children: nextChildren,
+                              childAges: nextAges
+                            }
+                          })
                         }}
                       />
                     </div>
+                    {Number(form.children) > 0 ? (
+                      <div className='md:col-span-1 lg:col-span-2'>
+                        <label className='field-label'>Child Ages</label>
+                        <div
+                          className={`grid gap-2 ${
+                            Number(form.children) === 1
+                              ? 'grid-cols-1'
+                              : 'grid-cols-2 md:grid-cols-4'
+                          }`}
+                        >
+                          {Array.from({ length: Number(form.children) }).map((_, index) => (
+                            <input
+                              key={index}
+                              type='number'
+                              min='0'
+                              max='18'
+                              className='field-input overflow-hidden text-ellipsis'
+                              placeholder={`Age ${index + 1}`}
+                              value={form.childAges?.[index] ?? ''}
+                              onChange={e => {
+                                const nextValue = e.target.value
+                                setForm(prev => {
+                                  const currentAges = Array.isArray(prev.childAges)
+                                    ? [...prev.childAges]
+                                    : []
+                                  currentAges[index] = nextValue
+                                  return {
+                                    ...prev,
+                                    childAges: currentAges
+                                  }
+                                })
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <p className='mt-0.5 text-xs text-gray-500'>
+                          Enter age for each child (0-18).
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
-                  <p className='mt-1 text-xs text-gray-500'>
-                    Duration saves with the quotation itself as{' '}
-                    {previewDurationLabel || '0N/0D'}. Auto-calculates: Days =
-                    Nights + 1.
+                </div>
+
+                <div className='md:col-span-2 rounded-xl border border-gray-200 bg-gray-50/40 p-3 dark:border-gray-700 dark:bg-gray-900/20'>
+                  <p className='text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+                    Preferences & Lead Meta
                   </p>
-                </div>
-                <div>
-                  <label className='field-label'>Adults</label>
-                  <input
-                    type='number'
-                    min='1'
-                    className='field-input overflow-hidden text-ellipsis'
-                    value={form.adults}
-                    onChange={e =>
-                      setForm(p => ({
-                        ...p,
-                        adults: Math.max(1, Number(e.target.value || 1))
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className='field-label'>Children</label>
-                  <input
-                    type='number'
-                    min='0'
-                    className='field-input overflow-hidden text-ellipsis'
-                    value={form.children}
-                    onChange={e => {
-                      const nextChildren = Math.max(0, Number(e.target.value || 0))
-                      setForm(prev => {
-                        const currentAges = Array.isArray(prev.childAges)
-                          ? prev.childAges
-                          : []
-                        const nextAges = Array.from({ length: nextChildren }, (_, i) =>
-                          currentAges[i] ?? ''
-                        )
-                        return {
-                          ...prev,
-                          children: nextChildren,
-                          childAges: nextAges
-                        }
-                      })
-                    }}
-                  />
-                </div>
-                {Number(form.children) > 0 ? (
-                  <div className='col-span-1 md:col-span-2'>
-                    <label className='field-label'>Child Ages</label>
-                    <div className='grid grid-cols-2 gap-2'>
-                      {Array.from({ length: Number(form.children) }).map((_, index) => (
-                        <input
-                          key={index}
-                          type='number'
-                          min='0'
-                          max='18'
-                          className='field-input overflow-hidden text-ellipsis'
-                          placeholder={`Age ${index + 1}`}
-                          value={form.childAges?.[index] ?? ''}
-                          onChange={e => {
-                            const nextValue = e.target.value
-                            setForm(prev => {
-                              const currentAges = Array.isArray(prev.childAges)
-                                ? [...prev.childAges]
-                                : []
-                              currentAges[index] = nextValue
-                              return {
-                                ...prev,
-                                childAges: currentAges
-                              }
-                            })
-                          }}
-                        />
-                      ))}
+                  <div className='mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
+                    <div>
+                      <label className='field-label'>Budget</label>
+                      <input
+                        type='number'
+                        min='0'
+                        className='field-input overflow-hidden text-ellipsis'
+                        placeholder='Customer budget'
+                        value={form.budget || ''}
+                        onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
+                      />
                     </div>
-                    <p className='mt-1 text-xs text-gray-500'>
-                      Enter age for each child (0-18). Leave blank to skip.
-                    </p>
+                    <div>
+                      <label className='field-label'>Visa Requirement</label>
+                      <SearchableDropdown
+                        value={form.visaRequired}
+                        options={visaOptions}
+                        searchPlaceholder='Search visa requirement...'
+                        onChange={value => setForm(p => ({ ...p, visaRequired: value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className='field-label'>Preferred Hotel Category</label>
+                      <SearchableDropdown
+                        value={form.preferredHotelCategory}
+                        options={hotelCategoryOptions}
+                        searchPlaceholder='Search hotel category...'
+                        onChange={value => setForm(p => ({ ...p, preferredHotelCategory: value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className='field-label'>Travel Purpose</label>
+                      <input
+                        className='field-input'
+                        placeholder='Travel purpose'
+                        value={form.travelPurpose}
+                        onChange={e => setForm(p => ({ ...p, travelPurpose: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className='field-label'>Lead Source</label>
+                      <SearchableDropdown
+                        value={form.leadSource}
+                        options={leadSourceOptions}
+                        searchPlaceholder='Search source...'
+                        onChange={value => setForm(p => ({ ...p, leadSource: value }))}
+                      />
+                    </div>
+                    <Field
+                      label='Quote Reference'
+                      value={form.quote}
+                      onChange={v => setForm(p => ({ ...p, quote: v }))}
+                    />
+                    <div>
+                      <label className='field-label'>PAN Number (optional)</label>
+                      <input
+                        className='field-input'
+                        placeholder='Enter PAN number'
+                        value={form.panNumber || ''}
+                        onChange={e => setForm(p => ({ ...p, panNumber: e.target.value.toUpperCase() }))}
+                      />
+                    </div>
                   </div>
-                ) : null}
+                </div>
               </div>
             </SurfaceCard>
             <SurfaceCard>
@@ -4887,10 +4879,7 @@ const SummaryPanel = ({
     setCosts(previous => {
       const next = Number(value)
       if (!Number.isFinite(next)) return previous
-      const bounded =
-        field === 'taxPercent'
-          ? Math.max(0, Math.min(100, next))
-          : Math.max(0, next)
+      const bounded = Math.max(0, next)
       return {
         ...previous,
         [field]: bounded
@@ -4899,7 +4888,7 @@ const SummaryPanel = ({
   }
 
   const updateFinancePercent = (
-    field: 'supplierTaxPercent' | 'gstPercent' | 'tcsPercent',
+    field: 'gstPercent' | 'tcsPercent',
     value: string
   ) => {
     setFinance(previous => {
@@ -4998,33 +4987,6 @@ const SummaryPanel = ({
           <p className='-mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
             Manual {money(costs.serviceFee)} + Flight charge {money(flightServiceCharge)}
           </p>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Tax %</span>
-            <input
-              type='number'
-              min='0'
-              max='100'
-              step='0.1'
-              value={costs.taxPercent}
-              onFocus={event => event.currentTarget.select()}
-              onChange={event => updateCost('taxPercent', event.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Supplier Tax %</span>
-            <input
-              type='number'
-              min='0'
-              step='0.1'
-              value={finance.supplierTaxPercent}
-              onFocus={event => event.currentTarget.select()}
-              onChange={event =>
-                updateFinancePercent('supplierTaxPercent', event.target.value)
-              }
-              className={inputClass}
-            />
-          </div>
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Apply GST</span>
             <select
@@ -5125,12 +5087,6 @@ const SummaryPanel = ({
               <span>Total Markup</span>
               <span className='font-medium tabular-nums truncate max-w-[120px]'>
                 {money(Math.min(totalMarkup, 999999999999))}
-              </span>
-            </div>
-            <div className='flex items-center justify-between'>
-              <span>Flight Service Charge</span>
-              <span className='font-medium tabular-nums'>
-                {money(flightServiceCharge)}
               </span>
             </div>
             <div className='flex items-center justify-between'>

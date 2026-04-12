@@ -12,7 +12,7 @@ import {
   notificationsApi,
   type NotificationsListQuery,
 } from "../../api/notifications";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import { useNotifications } from "../../context/NotificationsContext";
 import { useDateTimePreferences } from "../../context/DateTimePreferencesContext";
 import { parseApiDateTime } from "../../utils/dateTimePreferences";
@@ -271,7 +271,7 @@ const NotificationsPage: React.FC = () => {
         setNotifications([]);
         setUnreadCount(0);
         setTotal(0);
-        setError(getApiErrorMessage(err, "Failed to load notifications."));
+        reportApiError(err, "Failed to load notifications.", setError);
       } finally {
         if (isSilent) {
           setRefreshing(false);
@@ -431,7 +431,7 @@ const NotificationsPage: React.FC = () => {
       await notificationsApi.markRead(id);
       await Promise.all([loadNotifications({ silent: true }), refreshGlobalNotifications()]);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to mark notification as read."));
+      reportApiError(err, "Failed to mark notification as read.", setError);
     } finally {
       setActionLoadingId("");
     }
@@ -443,7 +443,7 @@ const NotificationsPage: React.FC = () => {
       await notificationsApi.markAllRead();
       await Promise.all([loadNotifications({ silent: true }), refreshGlobalNotifications()]);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to mark all notifications as read."));
+      reportApiError(err, "Failed to mark all notifications as read.", setError);
     } finally {
       setActionLoadingAll(false);
     }

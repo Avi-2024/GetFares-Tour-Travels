@@ -31,6 +31,8 @@ class MongoLogStore {
     this.lastFailureAt = 0;
     this.retryDelayMs = 30_000;
     this.useDirectConnection = false;
+    this.isClosing = false;
+    this.isClosed = false;
   }
 
   isEnabled() {
@@ -46,6 +48,9 @@ class MongoLogStore {
 
   async ensureConnected() {
     if (!this.isEnabled()) {
+      return null;
+    }
+    if (this.isClosing || this.isClosed) {
       return null;
     }
 
@@ -86,6 +91,7 @@ class MongoLogStore {
       this.client = client;
       this.collection = db.collection(this.collectionName);
       this.lastFailureAt = 0;
+      this.isClosed = false;
       await this.ensureIndexes();
       return this.collection;
     })().catch((error) => {
@@ -146,6 +152,9 @@ class MongoLogStore {
     if (!this.isEnabled()) {
       return;
     }
+    if (this.isClosing || this.isClosed) {
+      return;
+    }
 
     try {
       const collection = await this.ensureConnected();
@@ -154,6 +163,16 @@ class MongoLogStore {
       }
       await collection.insertOne(document);
     } catch (error) {
+      const sessionEndedError =
+        error?.name === "MongoExpiredSessionError" ||
+        /session that has ended/i.test(String(error?.message || ""));
+      if (sessionEndedError) {
+        this.collection = null;
+        this.connectPromise = null;
+        if (this.isClosing || this.isClosed) {
+          return;
+        }
+      }
       this.fallbackLogger?.warn(
         { err: error, module: "logger", fileName: "mongo-log.store.js" },
         "Failed to persist log document",
@@ -162,6 +181,7 @@ class MongoLogStore {
   }
 
   async close() {
+    this.isClosing = true;
     try {
       if (this.client) {
         await this.client.close();
@@ -178,6 +198,8 @@ class MongoLogStore {
       this.indexPromise = null;
       this.lastFailureAt = 0;
       this.useDirectConnection = false;
+      this.isClosing = false;
+      this.isClosed = true;
     }
   }
 }

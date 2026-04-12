@@ -31,7 +31,11 @@ type DateTimePreferencesContextValue = {
   refreshPreferences: () => Promise<void>;
   parseApiDateTime: (value: unknown) => Date | null;
   formatDate: (value: unknown, fallback?: string) => string;
-  formatDateTime: (value: unknown, fallback?: string) => string;
+  formatDateTime: (
+    value: unknown,
+    fallback?: string,
+    timeZoneOverride?: string | null,
+  ) => string;
 };
 
 const DateTimePreferencesContext =
@@ -167,8 +171,13 @@ export const DateTimePreferencesProvider = ({
       parseApiDateTime,
       formatDate: (input, fallback = "N/A") =>
         formatDateWithPreferences(input, preferences, fallback),
-      formatDateTime: (input, fallback = "N/A") =>
-        formatDateTimeWithPreferences(input, preferences, fallback),
+      formatDateTime: (input, fallback = "N/A", timeZoneOverride?: string | null) =>
+        formatDateTimeWithPreferences(
+          input,
+          preferences,
+          fallback,
+          timeZoneOverride,
+        ),
     }),
     [preferences, refreshPreferences, updatePreferences],
   );

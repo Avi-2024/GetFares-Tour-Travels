@@ -13,7 +13,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import TextInput from '../../components/form/TextInput'
 import NumberInput from '../../components/form/NumberInput'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 
 type TemplateType = 'READY_PACKAGE' | 'VISA' | 'CUSTOM_ITINERARY'
 
@@ -104,7 +104,7 @@ const QuotationTemplatesPage: React.FC = () => {
       const response = await quotationsApi.listTemplates()
       setRows(unwrapList(response).map(mapTemplate))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load quotation templates'))
+      reportApiError(err, 'Failed to load quotation templates', setError)
       setRows([])
     } finally {
       setLoading(false)
@@ -286,7 +286,7 @@ const QuotationTemplatesPage: React.FC = () => {
       setShowForm(false)
       await loadTemplates()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to save template'))
+      reportApiError(err, 'Failed to save template', setError)
     } finally {
       setSaving(false)
     }
@@ -321,13 +321,7 @@ const QuotationTemplatesPage: React.FC = () => {
         </div>
       </div>
 
-      <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>
-        <p className='text-sm text-blue-800 dark:text-blue-200'>
-          How Template Works: Create/update template here, select it in
-          Quotation Builder, then save quote with `templateId`. A template
-          snapshot is stored on each quotation for audit-safe rendering.
-        </p>
-      </SurfaceCard>
+     
 
       {notice ? (
         <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200'>

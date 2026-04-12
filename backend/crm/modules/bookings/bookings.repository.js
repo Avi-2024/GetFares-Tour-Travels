@@ -12,7 +12,10 @@ function createBookingsRepository({ db, logger, schema }) {
   const DEADLINE_ALERT_LOG_JSON_COLUMNS = new Set(["metadata"]);
 
   function canIntrospect() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
+    );
   }
 
   function toNumber(value, fallback = 0) {
@@ -304,11 +307,16 @@ function createBookingsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      result.rows
+        .map((row) => row.column_name ?? row.COLUMN_NAME ?? null)
+        .filter(Boolean)
+        .map((column) => String(column).toLowerCase()),
+    );
     columnCache.set(tableName, columns);
     return columns;
   }
@@ -319,7 +327,7 @@ function createBookingsRepository({ db, logger, schema }) {
       return true;
     }
 
-    return columns.has(columnName);
+    return columns.has(String(columnName).toLowerCase());
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
@@ -335,7 +343,9 @@ function createBookingsRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    return Object.fromEntries(
+      entries.filter(([key]) => columns.has(String(key).toLowerCase())),
+    );
   }
 
   function mapListFilters(filters = {}) {
@@ -462,7 +472,8 @@ function createBookingsRepository({ db, logger, schema }) {
       return limit ? filtered.slice(0, limit) : filtered;
     }
 
-    const params = [scheduledFor];
+    // Placeholder order must match SQL: JOIN (reminder_type, scheduled_for) then WHERE (dateColumn).
+    const params = [];
     let joinClause = "";
     const conditions = [
       "TRUE",
@@ -488,6 +499,8 @@ function createBookingsRepository({ db, logger, schema }) {
       joinClause = join;
       conditions.push("r.id IS NULL");
     }
+
+    params.push(scheduledFor);
 
     let sql = `SELECT b.* FROM ${schema.tableName} b`;
     if (joinClause) {
@@ -799,6 +812,13 @@ function createBookingsRepository({ db, logger, schema }) {
       };
     },
 
+    async findUserById(id) {
+      if (!id) {
+        return null;
+      }
+      return db.findById(schema.usersTable, id);
+    },
+
     async create(payload) {
       logger.debug({ module: "bookings", payload }, "Creating booking");
       const sanitized = await sanitizeForTable(
@@ -1050,5 +1070,3 @@ function createBookingsRepository({ db, logger, schema }) {
 }
 
 export { createBookingsRepository };
-
-

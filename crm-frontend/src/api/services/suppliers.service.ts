@@ -20,9 +20,6 @@ export class SuppliersService {
     if (!payload.name || payload.name.trim().length === 0) {
       throw new Error('Supplier name is required');
     }
-    if (!payload.type) {
-      throw new Error('Supplier type is required');
-    }
 
     const response = await suppliersEndpoints.create(payload);
     return response.data;
@@ -44,7 +41,7 @@ export class SuppliersService {
   }
 
   async createPayable(id: string, payload: CreatePayablePayload) {
-    if (payload.amount <= 0) {
+    if (payload.payableAmount <= 0) {
       throw new Error('Amount must be greater than 0');
     }
     if (!payload.dueDate) {

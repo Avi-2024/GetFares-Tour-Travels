@@ -3,7 +3,7 @@ import { FaPlus, FaSave, FaTrash } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { usePackagesService } from '../../hooks/usePackagesService'
 import type {
   PackageCategory,
@@ -563,7 +563,7 @@ const PackagesPage: React.FC = () => {
         setSelectedId('')
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load packages.'))
+      reportApiError(err, 'Failed to load packages.', setError)
       setItems([])
     } finally {
       setLoading(false)
@@ -739,7 +739,7 @@ const PackagesPage: React.FC = () => {
       await loadPackages()
       setViewMode('VIEW')
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not save package.'))
+      reportApiError(err, 'Could not save package.', setError)
     } finally {
       setSaving(false)
     }

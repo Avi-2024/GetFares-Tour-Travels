@@ -13,7 +13,7 @@ import {
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { suppliersApi } from '../../api/suppliers'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 
 
 interface Supplier {
@@ -22,7 +22,15 @@ interface Supplier {
   contactPerson?: string
   phone?: string
   email?: string
+  panNumber?: string
+  gstNumber?: string
+  addressLine?: string
   country?: string
+  invoiceBeneficiaryName?: string
+  invoiceBankName?: string
+  invoiceAccountNumber?: string
+  invoiceIfscSwift?: string
+  invoiceUpiId?: string
   supplierCurrency?: string
   contractUrl?: string
   rateValidUntil?: string
@@ -36,7 +44,15 @@ type SupplierForm = {
   contactPerson: string
   phone: string
   email: string
+  panNumber: string
+  gstNumber: string
+  addressLine: string
   country: string
+  invoiceBeneficiaryName: string
+  invoiceBankName: string
+  invoiceAccountNumber: string
+  invoiceIfscSwift: string
+  invoiceUpiId: string
   supplierCurrency: string
   contractUrl: string
   rateValidUntil: string
@@ -50,7 +66,15 @@ const emptySupplierForm: SupplierForm = {
   contactPerson: '',
   phone: '',
   email: '',
+  panNumber: '',
+  gstNumber: '',
+  addressLine: '',
   country: '',
+  invoiceBeneficiaryName: '',
+  invoiceBankName: '',
+  invoiceAccountNumber: '',
+  invoiceIfscSwift: '',
+  invoiceUpiId: '',
   supplierCurrency: 'INR',
   contractUrl: '',
   rateValidUntil: '',
@@ -61,9 +85,15 @@ const emptySupplierForm: SupplierForm = {
 
 const normalizeDate = (value?: string | null) => {
   if (!value) return ''
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10)
+  }
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return ''
-  return parsed.toISOString().slice(0, 10)
+  const year = parsed.getFullYear()
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const day = String(parsed.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 const unwrapList = (payload: unknown): any[] => {
@@ -87,7 +117,15 @@ const mapSupplier = (raw: any): Supplier => ({
   contactPerson: raw?.contactPerson ?? raw?.contact_person ?? '',
   phone: raw?.phone ?? '',
   email: raw?.email ?? '',
+  panNumber: raw?.panNumber ?? raw?.pan_number ?? '',
+  gstNumber: raw?.gstNumber ?? raw?.gst_number ?? '',
+  addressLine: raw?.addressLine ?? raw?.address_line ?? raw?.address ?? '',
   country: raw?.country ?? '',
+  invoiceBeneficiaryName: raw?.invoiceBeneficiaryName ?? raw?.invoice_beneficiary_name ?? '',
+  invoiceBankName: raw?.invoiceBankName ?? raw?.invoice_bank_name ?? '',
+  invoiceAccountNumber: raw?.invoiceAccountNumber ?? raw?.invoice_account_number ?? '',
+  invoiceIfscSwift: raw?.invoiceIfscSwift ?? raw?.invoice_ifsc_swift ?? '',
+  invoiceUpiId: raw?.invoiceUpiId ?? raw?.invoice_upi_id ?? '',
   supplierCurrency: raw?.supplierCurrency ?? raw?.supplier_currency ?? 'INR',
   contractUrl: raw?.contractUrl ?? raw?.contract_url ?? '',
   rateValidUntil: raw?.rateValidUntil ?? raw?.rate_valid_until ?? '',
@@ -168,7 +206,7 @@ const SuppliersPage: React.FC = () => {
       const rows = unwrapList(response).map(mapSupplier)
       setSuppliers(rows)
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load suppliers'))
+      reportApiError(err, 'Failed to load suppliers', setError)
     } finally {
       setLoadingSuppliers(false)
     }
@@ -195,7 +233,15 @@ const SuppliersPage: React.FC = () => {
       contactPerson: supplier.contactPerson || '',
       phone: supplier.phone || '',
       email: supplier.email || '',
+      panNumber: supplier.panNumber || '',
+      gstNumber: supplier.gstNumber || '',
+      addressLine: supplier.addressLine || '',
       country: supplier.country || '',
+      invoiceBeneficiaryName: supplier.invoiceBeneficiaryName || '',
+      invoiceBankName: supplier.invoiceBankName || '',
+      invoiceAccountNumber: supplier.invoiceAccountNumber || '',
+      invoiceIfscSwift: supplier.invoiceIfscSwift || '',
+      invoiceUpiId: supplier.invoiceUpiId || '',
       supplierCurrency: supplier.supplierCurrency || 'INR',
       contractUrl: supplier.contractUrl || '',
       rateValidUntil: normalizeDate(supplier.rateValidUntil),
@@ -222,7 +268,17 @@ const SuppliersPage: React.FC = () => {
         contactPerson: supplierForm.contactPerson.trim() || undefined,
         phone: supplierForm.phone.trim() || undefined,
         email: supplierForm.email.trim() || undefined,
+        panNumber: supplierForm.panNumber.trim() || undefined,
+        gstNumber: supplierForm.gstNumber.trim() || undefined,
+        addressLine: supplierForm.addressLine.trim() || undefined,
         country: supplierForm.country.trim() || undefined,
+        invoiceBeneficiaryName:
+          supplierForm.invoiceBeneficiaryName.trim() || undefined,
+        invoiceBankName: supplierForm.invoiceBankName.trim() || undefined,
+        invoiceAccountNumber:
+          supplierForm.invoiceAccountNumber.trim() || undefined,
+        invoiceIfscSwift: supplierForm.invoiceIfscSwift.trim() || undefined,
+        invoiceUpiId: supplierForm.invoiceUpiId.trim() || undefined,
         supplierCurrency: supplierForm.supplierCurrency.trim() || undefined,
         contractUrl: supplierForm.contractUrl.trim() || undefined,
         rateValidUntil: supplierForm.rateValidUntil || undefined,
@@ -245,7 +301,7 @@ const SuppliersPage: React.FC = () => {
 
       resetSupplierForm()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to save supplier'))
+      reportApiError(err, 'Failed to save supplier', setError)
     } finally {
       setSavingSupplier(false)
     }
@@ -457,137 +513,215 @@ const SuppliersPage: React.FC = () => {
       </SurfaceCard>
 
       {showCreateModal && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
-          <div className='w-full max-w-2xl rounded-lg bg-white p-6 dark:bg-gray-900'>
-            <div className='mb-4 flex items-center justify-between'>
-              <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-                {editingSupplierId ? 'Edit Supplier' : 'Create Supplier'}
-              </h2>
-              <button onClick={resetSupplierForm} className='text-gray-500 hover:text-gray-700'>
-                <FaXmark />
-              </button>
-            </div>
+        <div className='fixed inset-0 z-50 bg-black/50 p-3 sm:p-4'>
+          <div className='mx-auto flex h-full w-full max-w-5xl items-center justify-center'>
+            <div className='flex max-h-[94vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-900'>
+              <div className='flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-6'>
+                <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+                  {editingSupplierId ? 'Edit Supplier' : 'Create Supplier'}
+                </h2>
+                <button onClick={resetSupplierForm} className='rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800'>
+                  <FaXmark />
+                </button>
+              </div>
 
-            <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-              <div className='md:col-span-2'>
-                <label className='field-label'>Supplier Name *</label>
-                <input
-                  value={supplierForm.name}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, name: e.target.value }))}
-                  className='field-input'
-                  placeholder='Enter supplier name'
-                />
+              <div className='flex-1 overflow-y-auto px-4 py-4 sm:px-6'>
+                <div className='grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3'>
+                  <div className='md:col-span-2 lg:col-span-3'>
+                    <label className='field-label'>Supplier Name *</label>
+                    <input
+                      value={supplierForm.name}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, name: e.target.value }))}
+                      className='field-input'
+                      placeholder='Enter supplier name'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Contact Person</label>
+                    <input
+                      value={supplierForm.contactPerson}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, contactPerson: e.target.value }))}
+                      className='field-input'
+                      placeholder='Enter contact person'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Phone</label>
+                    <input
+                      value={supplierForm.phone}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, phone: e.target.value }))}
+                      className='field-input'
+                      placeholder='Enter phone number'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Email</label>
+                    <input
+                      type='email'
+                      value={supplierForm.email}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
+                      className='field-input'
+                      placeholder='Enter email address'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Country</label>
+                    <input
+                      value={supplierForm.country}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, country: e.target.value }))}
+                      className='field-input'
+                      placeholder='Enter country'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Supplier Currency</label>
+                    <input
+                      value={supplierForm.supplierCurrency}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, supplierCurrency: e.target.value.toUpperCase() }))}
+                      className='field-input'
+                      placeholder='INR / USD / AED'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>PAN Number</label>
+                    <input
+                      value={supplierForm.panNumber}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, panNumber: e.target.value.toUpperCase() }))}
+                      className='field-input'
+                      placeholder='ABCDE1234F'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>GST Number</label>
+                    <input
+                      value={supplierForm.gstNumber}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))}
+                      className='field-input'
+                      placeholder='27ABCDE1234F1Z5'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Rate Valid Until</label>
+                    <input
+                      type='date'
+                      value={supplierForm.rateValidUntil}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, rateValidUntil: e.target.value }))}
+                      className='field-input'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Payment Deadline</label>
+                    <input
+                      type='date'
+                      value={supplierForm.paymentDeadlineDate}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, paymentDeadlineDate: e.target.value }))}
+                      className='field-input'
+                    />
+                  </div>
+                  <div className='md:col-span-2 lg:col-span-2'>
+                    <label className='field-label'>Contract URL</label>
+                    <input
+                      type='url'
+                      value={supplierForm.contractUrl}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, contractUrl: e.target.value }))}
+                      className='field-input'
+                      placeholder='https://...'
+                    />
+                  </div>
+                  <div className='md:col-span-2 lg:col-span-3'>
+                    <label className='field-label'>Address</label>
+                    <textarea
+                      rows={2}
+                      value={supplierForm.addressLine}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, addressLine: e.target.value }))}
+                      className='field-input'
+                      placeholder='Supplier address'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Beneficiary Name</label>
+                    <input
+                      value={supplierForm.invoiceBeneficiaryName}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, invoiceBeneficiaryName: e.target.value }))}
+                      className='field-input'
+                      placeholder='Beneficiary name'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Bank Name</label>
+                    <input
+                      value={supplierForm.invoiceBankName}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, invoiceBankName: e.target.value }))}
+                      className='field-input'
+                      placeholder='Bank name'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>Account Number</label>
+                    <input
+                      value={supplierForm.invoiceAccountNumber}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, invoiceAccountNumber: e.target.value }))}
+                      className='field-input'
+                      placeholder='Account number'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>IFSC / SWIFT</label>
+                    <input
+                      value={supplierForm.invoiceIfscSwift}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, invoiceIfscSwift: e.target.value.toUpperCase() }))}
+                      className='field-input'
+                      placeholder='IFSC / SWIFT'
+                    />
+                  </div>
+                  <div>
+                    <label className='field-label'>UPI ID</label>
+                    <input
+                      value={supplierForm.invoiceUpiId}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, invoiceUpiId: e.target.value }))}
+                      className='field-input'
+                      placeholder='name@upi'
+                    />
+                  </div>
+                  <div className='md:col-span-2 lg:col-span-3'>
+                    <label className='field-label'>Production Commitment</label>
+                    <textarea
+                      rows={3}
+                      value={supplierForm.productionCommitment}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, productionCommitment: e.target.value }))}
+                      className='field-input'
+                      placeholder='Write production commitment details'
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className='field-label'>Contact Person</label>
-                <input
-                  value={supplierForm.contactPerson}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, contactPerson: e.target.value }))}
-                  className='field-input'
-                  placeholder='Enter contact person'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Phone</label>
-                <input
-                  value={supplierForm.phone}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className='field-input'
-                  placeholder='Enter phone number'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Email</label>
-                <input
-                  value={supplierForm.email}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
-                  className='field-input'
-                  placeholder='Enter email address'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Country</label>
-                <input
-                  value={supplierForm.country}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, country: e.target.value }))}
-                  className='field-input'
-                  placeholder='Enter country'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Supplier Currency</label>
-                <input
-                  value={supplierForm.supplierCurrency}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, supplierCurrency: e.target.value.toUpperCase() }))}
-                  className='field-input'
-                  placeholder='INR / USD / AED'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Rate Valid Until</label>
-                <input
-                  type='date'
-                  value={supplierForm.rateValidUntil}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, rateValidUntil: e.target.value }))}
-                  className='field-input'
-                />
-              </div>
-              <div>
-                <label className='field-label'>Payment Deadline</label>
-                <input
-                  type='date'
-                  value={supplierForm.paymentDeadlineDate}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, paymentDeadlineDate: e.target.value }))}
-                  className='field-input'
-                />
-              </div>
-              <div className='md:col-span-2'>
-                <label className='field-label'>Contract URL</label>
-                <input
-                  value={supplierForm.contractUrl}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, contractUrl: e.target.value }))}
-                  className='field-input'
-                  placeholder='https://...'
-                />
-              </div>
-              <div className='md:col-span-2'>
-                <label className='field-label'>Production Commitment</label>
-                <textarea
-                  rows={3}
-                  value={supplierForm.productionCommitment}
-                  onChange={e => setSupplierForm(prev => ({ ...prev, productionCommitment: e.target.value }))}
-                  className='field-input'
-                  placeholder='Write production commitment details'
-                />
-              </div>
-            </div>
 
-            <div className='mt-3 flex items-center gap-2'>
-              <input
-                id='supplier-active-modal'
-                type='checkbox'
-                checked={supplierForm.isActive}
-                onChange={e => setSupplierForm(prev => ({ ...prev, isActive: e.target.checked }))}
-              />
-              <label htmlFor='supplier-active-modal' className='text-sm text-gray-700 dark:text-gray-300'>
-                Supplier is active
-              </label>
-            </div>
-
-            <div className='mt-6 flex gap-2'>
-              <button
-                onClick={() => void handleSaveSupplier()}
-                disabled={savingSupplier}
-                className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60'
-              >
-                <FaCircleCheck /> {editingSupplierId ? 'Update' : 'Create'}
-              </button>
-              <button
-                onClick={resetSupplierForm}
-                className='rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-              >
-                Cancel
-              </button>
+              <div className='flex flex-col gap-3 border-t border-gray-200 px-4 py-3 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:px-6'>
+                <label htmlFor='supplier-active-modal' className='inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300'>
+                  <input
+                    id='supplier-active-modal'
+                    type='checkbox'
+                    checked={supplierForm.isActive}
+                    onChange={e => setSupplierForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                  />
+                  Supplier is active
+                </label>
+                <div className='flex flex-wrap gap-2'>
+                  <button
+                    onClick={resetSupplierForm}
+                    className='rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void handleSaveSupplier()}
+                    disabled={savingSupplier}
+                    className='inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60'
+                  >
+                    <FaCircleCheck /> {editingSupplierId ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

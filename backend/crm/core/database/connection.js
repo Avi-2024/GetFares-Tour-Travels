@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import mysql from "mysql2/promise";
+import { MssqlDatabase } from "./mssql-database.js";
 
 const RESERVED_FILTER_KEYS = new Set([
   "page",
@@ -37,13 +38,47 @@ function normalizeFilters(filters = {}) {
   });
 }
 
+function toMysqlUtcDateTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
+    date.getUTCDate(),
+  )} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(
+    date.getUTCSeconds(),
+  )}`;
+}
+
+function maybeNormalizeIsoDateTimeString(value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+  const trimmed = value.trim();
+  // datetime-local sends "YYYY-MM-DDTHH:mm" with NO seconds — old regex required :ss and skipped these.
+  // Passing that through raw let MySQL/TIMESTAMP mis-parse. Normalize any date+time string via Date.
+  if (!/^\d{4}-\d{2}-\d{2}([T ]\d)/.test(trimmed)) {
+    return value;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  const normalized = toMysqlUtcDateTime(parsed);
+  return normalized || value;
+}
+
 // Plain objects must become JSON strings for MySQL JSON columns (pg/jsonb passed objects through).
 function bindValueForMysql(value) {
   if (value === null || value === undefined) {
     return value;
   }
   if (value instanceof Date) {
-    return value;
+    return toMysqlUtcDateTime(value);
+  }
+  if (typeof value === "string") {
+    return maybeNormalizeIsoDateTimeString(value);
   }
   if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
     return value;
@@ -391,7 +426,18 @@ class MySQLDatabase {
   }
 
   async query(sql, params = []) {
-    const [result, fields] = await this.pool.query(sql, params);
+    const normalizedParams = Array.isArray(params)
+      ? params.map((param) => {
+          if (param instanceof Date) {
+            return toMysqlUtcDateTime(param);
+          }
+          if (typeof param === "string") {
+            return maybeNormalizeIsoDateTimeString(param);
+          }
+          return param;
+        })
+      : params;
+    const [result, fields] = await this.pool.query(sql, normalizedParams);
     const rows = Array.isArray(result) ? result : [];
     return {
       rows,
@@ -422,7 +468,99 @@ class MySQLDatabase {
   }
 }
 
+function resolveMysqlSslFlag() {
+  const raw = String(process.env.MYSQL_SSL ?? "")
+    .trim()
+    .toLowerCase();
+  if (["0", "false", "no", "off"].includes(raw)) {
+    return false;
+  }
+  if (["1", "true", "yes", "on"].includes(raw)) {
+    return true;
+  }
+  return null;
+}
+
+function shouldUseMysqlTls(host, flag) {
+  if (flag === true) {
+    return true;
+  }
+  if (flag === false) {
+    return false;
+  }
+  return String(host || "").includes(".mysql.database.azure.com");
+}
+
 function createDatabaseConnection({ config, logger }) {
+  const explicitClient = String(
+    process.env.DATABASE_CLIENT || config?.database?.client || "",
+  )
+    .trim()
+    .toLowerCase();
+
+  if (explicitClient === "mssql") {
+    const azure = config?.database?.azureSql;
+    const server =
+      process.env.AZURE_SQL_SERVER ||
+      azure?.server ||
+      process.env.DB_HOST;
+    const database =
+      process.env.AZURE_SQL_DATABASE ||
+      azure?.database ||
+      process.env.DB_NAME;
+    const user =
+      process.env.AZURE_SQL_USER ||
+      azure?.user ||
+      process.env.DB_USER;
+    const password =
+      process.env.AZURE_SQL_PASSWORD ||
+      azure?.password ||
+      process.env.DB_PASSWORD;
+    const port = Number(
+      process.env.AZURE_SQL_PORT ||
+        azure?.port ||
+        process.env.DB_PORT ||
+        1433,
+    );
+
+    if (!server || !database || !user || password === undefined) {
+      throw new Error(
+        "Azure SQL / MSSQL config missing. Set AZURE_SQL_SERVER, AZURE_SQL_DATABASE, AZURE_SQL_USER, AZURE_SQL_PASSWORD (or DB_*), DATABASE_CLIENT=mssql.",
+      );
+    }
+
+    const trustCert =
+      String(process.env.AZURE_SQL_TRUST_SERVER_CERTIFICATE || "")
+        .trim()
+        .toLowerCase() === "true" ||
+      config?.database?.azureSql?.trustServerCertificate === true;
+
+    const poolConfig = {
+      server,
+      database,
+      user,
+      password,
+      port,
+      options: {
+        encrypt: true,
+        trustServerCertificate: trustCert,
+        enableArithAbort: true,
+      },
+      pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 30000,
+      },
+    };
+
+    logger.info(
+      { server, database, port, adapter: "mssql" },
+      "Using Azure SQL / MSSQL database adapter.",
+    );
+
+    return new MssqlDatabase({ poolConfig, logger });
+  }
+
   const mysqlHost =
     process.env.MYSQL_HOST ||
     process.env.DB_HOST ||
@@ -462,11 +600,20 @@ function createDatabaseConnection({ config, logger }) {
       timezone: "+05:30",
     };
 
+    const sslFlag = resolveMysqlSslFlag();
+    if (shouldUseMysqlTls(mysqlHost, sslFlag)) {
+      poolConfig.ssl = {
+        minVersion: "TLSv1.2",
+        rejectUnauthorized: true,
+      };
+    }
+
     logger.info(
       {
         mysqlHost,
         mysqlDatabase,
         mysqlPort,
+        mysqlTls: Boolean(poolConfig.ssl),
         isServerless,
         poolConfig: {
           connectionLimit: poolConfig.connectionLimit,

@@ -20,7 +20,7 @@ import { DateInput } from '../../components/form'
 import FilterTabs from '../../components/ui/FilterTabs'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { reportsApi } from '../../api/reports'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 
 type ReportTabId =
   | 'dashboard_executive_kpis'
@@ -474,7 +474,7 @@ const ReportsHubPage = () => {
         setRows([])
         setColumns([])
         setChartValueKey('')
-        setError(getApiErrorMessage(err, 'Failed to load report data'))
+        reportApiError(err, 'Failed to load report data', setError)
       } finally {
         if (!cancelled) {
           setLoading(false)

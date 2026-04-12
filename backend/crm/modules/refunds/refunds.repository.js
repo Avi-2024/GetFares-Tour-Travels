@@ -1,6 +1,9 @@
 function createRefundsRepository({ db, logger, schema }) {
   function canUseRawQuery() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
+    );
   }
 
   function toNumber(value, fallback = 0) {

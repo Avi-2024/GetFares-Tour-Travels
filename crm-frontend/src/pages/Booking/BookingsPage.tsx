@@ -30,7 +30,7 @@ import { useBookingsService } from "../../hooks/useBookingsService";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { quotationsApi } from "../../api/quotations";
 import { suppliersApi } from "../../api/suppliers";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import { getCurrencyOptions } from "../../utils/currency";
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
@@ -465,7 +465,7 @@ const CreateBookingModal = ({
       setQuotationOptions(options);
     } catch (error) {
       console.error("Failed to load quotations:", error);
-      setQuotationError(getApiErrorMessage(error, "Failed to load quotations"));
+      reportApiError(error, "Failed to load quotations", setQuotationError);
       setQuotationOptions([]);
     } finally {
       setQuotationLoading(false);
@@ -510,7 +510,7 @@ const CreateBookingModal = ({
       setSupplierOptions(options);
     } catch (error) {
       console.error("Failed to load suppliers:", error);
-      setSupplierError(getApiErrorMessage(error, "Failed to load suppliers"));
+      reportApiError(error, "Failed to load suppliers", setSupplierError);
       setSupplierOptions([]);
     } finally {
       setSupplierLoading(false);
@@ -786,8 +786,10 @@ const CreateBookingModal = ({
       }
     } catch (error) {
       console.error("Failed to load quotation:", error);
-      setQuotationError(
-        getApiErrorMessage(error, "Failed to load quotation details"),
+      reportApiError(
+        error,
+        "Failed to load quotation details",
+        setQuotationError,
       );
     } finally {
       setQuotationAutofillLoading(false);
@@ -2155,8 +2157,8 @@ const BookingsPage: React.FC = () => {
       setStats(calculateStats(mapped));
     } catch (err) {
       console.error("Failed to load bookings:", err);
-      setError(getApiErrorMessage(err, "Failed to load bookings"));
-      setStatsError(getApiErrorMessage(err, "Failed to load booking stats"));
+      const message = reportApiError(err, "Failed to load bookings", setError);
+      setStatsError(message);
       setBookingItems([]);
     } finally {
       setLoading(false);
@@ -2184,10 +2186,7 @@ const BookingsPage: React.FC = () => {
       showToast("Booking confirmed successfully", "success");
     } catch (error) {
       console.error("Failed to send confirmation:", error);
-      showToast(
-        getApiErrorMessage(error, "Failed to confirm booking"),
-        "error",
-      );
+      reportApiError(error, "Failed to confirm booking");
     } finally {
       setLoading(false);
     }
@@ -2206,10 +2205,7 @@ const BookingsPage: React.FC = () => {
       showToast("Booking approved successfully", "success");
     } catch (error) {
       console.error("Failed to approve booking:", error);
-      showToast(
-        getApiErrorMessage(error, "Failed to approve booking"),
-        "error",
-      );
+      reportApiError(error, "Failed to approve booking");
     } finally {
       setLoading(false);
     }
@@ -2231,7 +2227,7 @@ const BookingsPage: React.FC = () => {
       showToast("Payment recorded successfully", "success");
     } catch (error) {
       console.error("Failed to record payment:", error);
-      showToast(getApiErrorMessage(error, "Failed to record payment"), "error");
+      reportApiError(error, "Failed to record payment");
     } finally {
       setLoading(false);
     }
@@ -2244,10 +2240,7 @@ const BookingsPage: React.FC = () => {
       showToast("Invoice generated successfully", "success");
     } catch (error) {
       console.error("Failed to generate invoice:", error);
-      showToast(
-        getApiErrorMessage(error, "Failed to generate invoice"),
-        "error",
-      );
+      reportApiError(error, "Failed to generate invoice");
     } finally {
       setLoading(false);
     }
@@ -2294,7 +2287,7 @@ const BookingsPage: React.FC = () => {
       return true;
     } catch (error) {
       console.error("Failed to create booking:", error);
-      showToast(getApiErrorMessage(error, "Failed to create booking"), "error");
+      reportApiError(error, "Failed to create booking");
       return false;
     } finally {
       setLoading(false);
@@ -2327,7 +2320,7 @@ const BookingsPage: React.FC = () => {
       showToast("Booking cancelled successfully", "success");
     } catch (error) {
       console.error("Failed to cancel booking:", error);
-      showToast(getApiErrorMessage(error, "Failed to cancel booking"), "error");
+      reportApiError(error, "Failed to cancel booking");
     } finally {
       setLoading(false);
     }

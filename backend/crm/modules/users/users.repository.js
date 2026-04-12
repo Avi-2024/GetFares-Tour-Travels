@@ -1,5 +1,24 @@
+import { isRelationalAdapter } from "../../core/database/adapter-utils.js";
+
 function createUsersRepository({ db, logger, schema }) {
   async function hasColumn(tableName, columnName) {
+    if (db.adapter === "mssql") {
+      try {
+        const result = await db.query(
+          `
+            SELECT TOP 1 1 AS x
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = SCHEMA_NAME()
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+          `,
+          [tableName, columnName],
+        );
+        return result.rowCount > 0;
+      } catch {
+        return false;
+      }
+    }
     if (db.adapter !== "mysql") {
       return false;
     }
@@ -50,7 +69,7 @@ function createUsersRepository({ db, logger, schema }) {
   async function countActiveUsersByRoleId(roleId, { excludeUserId } = {}) {
     if (!roleId) return 0;
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const values = [roleId];
       const filters = ["u.role_id = ?", "u.is_active = 1"];
       if (excludeUserId) {
@@ -81,7 +100,7 @@ function createUsersRepository({ db, logger, schema }) {
       .filter(Boolean);
     if (!normalized.length) return [];
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       try {
         const placeholders = normalized.map(() => "?").join(", ");
         const result = await db.query(
@@ -115,7 +134,7 @@ function createUsersRepository({ db, logger, schema }) {
       return new Map();
     }
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       let result;
       try {
         const placeholders = normalized.map(() => "?").join(", ");
@@ -174,7 +193,7 @@ function createUsersRepository({ db, logger, schema }) {
     const normalized = [...new Set(countryIds.map((id) => String(id || "").trim()))]
       .filter(Boolean);
 
-    if (db.adapter !== "mysql") {
+    if (!isRelationalAdapter(db)) {
       return [];
     }
 

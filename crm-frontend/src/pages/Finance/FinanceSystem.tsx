@@ -21,7 +21,7 @@ import { suppliersApi } from '../../api/suppliers'
 import { paymentsApi } from '../../api/payments'
 import { bookingsApi } from '../../api/bookings'
 import { reportsApi } from '../../api/reports'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 
 // Types
 interface Client {
@@ -1035,7 +1035,7 @@ const FinanceSystem: React.FC = () => {
       const response = await customersApi.list({ page: 1, limit: 300 })
       setClients(unwrapList(response).map(mapClient))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load clients'))
+      reportApiError(err, 'Failed to load clients', setError)
     } finally {
       setLoading(false)
     }
@@ -1047,7 +1047,7 @@ const FinanceSystem: React.FC = () => {
       const response = await suppliersApi.list({ page: 1, limit: 300 })
       setSuppliers(unwrapList(response).map(mapSupplier))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load suppliers'))
+      reportApiError(err, 'Failed to load suppliers', setError)
     } finally {
       setLoading(false)
     }
@@ -1081,7 +1081,7 @@ const FinanceSystem: React.FC = () => {
       })
       setPayments([...firstRows, ...remainingRows].map(mapPayment))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load payments'))
+      reportApiError(err, 'Failed to load payments', setError)
     } finally {
       setLoading(false)
     }
@@ -1181,7 +1181,7 @@ const FinanceSystem: React.FC = () => {
         totalPages: Math.max(1, toNumber(data?.pagination?.totalPages, 1))
       })
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load cost break-up report'))
+      reportApiError(err, 'Failed to load cost break-up report', setError)
       setCostBreakup(emptyCostBreakup)
       setCurrencyBreakup([])
       setCostRows([])
@@ -1444,7 +1444,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Client created successfully')
       await fetchClients()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to create client'))
+      reportApiError(err, 'Failed to create client', setError)
     } finally {
       setSaving(false)
     }
@@ -1469,7 +1469,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Client updated successfully')
       await fetchClients()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to update client'))
+      reportApiError(err, 'Failed to update client', setError)
     } finally {
       setSaving(false)
     }
@@ -1485,7 +1485,7 @@ const FinanceSystem: React.FC = () => {
         setNotice('Client deleted')
         await fetchClients()
       } catch (err) {
-        setError(getApiErrorMessage(err, 'Failed to delete client'))
+        reportApiError(err, 'Failed to delete client', setError)
       } finally {
         setSaving(false)
       }
@@ -1515,7 +1515,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Supplier created successfully')
       await fetchSuppliers()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to create supplier'))
+      reportApiError(err, 'Failed to create supplier', setError)
     } finally {
       setSaving(false)
     }
@@ -1546,7 +1546,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Supplier updated successfully')
       await fetchSuppliers()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to update supplier'))
+      reportApiError(err, 'Failed to update supplier', setError)
     } finally {
       setSaving(false)
     }
@@ -1562,7 +1562,7 @@ const FinanceSystem: React.FC = () => {
         setNotice('Supplier deactivated')
         await fetchSuppliers()
       } catch (err) {
-        setError(getApiErrorMessage(err, 'Failed to deactivate supplier'))
+        reportApiError(err, 'Failed to deactivate supplier', setError)
       } finally {
         setSaving(false)
       }
@@ -1586,7 +1586,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Payment recorded successfully')
       await fetchPayments()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to record payment'))
+      reportApiError(err, 'Failed to record payment', setError)
     } finally {
       setSaving(false)
     }
@@ -1601,7 +1601,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Payment verified')
       await fetchPayments()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to verify payment'))
+      reportApiError(err, 'Failed to verify payment', setError)
     } finally {
       setSaving(false)
     }

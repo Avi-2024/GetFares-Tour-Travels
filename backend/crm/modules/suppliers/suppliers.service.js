@@ -68,33 +68,76 @@ function toSupplier(entity) {
     return null;
   }
 
+  const pick = (...values) => values.find((value) => value !== undefined);
+  const toBoolean = (value) => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "number") {
+      return value === 1;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0") {
+      return false;
+    }
+    return Boolean(value);
+  };
+
   return {
-    id: entity.id,
-    name: entity.name,
-    contactPerson: entity.contact_person,
-    phone: entity.phone,
-    email: entity.email,
-    panNumber: entity.pan_number,
-    gstNumber: entity.gst_number,
-    address: entity.address,
-    addressLine: entity.address_line,
-    country: entity.country,
-    invoiceBeneficiaryName: entity.invoice_beneficiary_name,
-    invoiceBankName: entity.invoice_bank_name,
-    invoiceAccountNumber: entity.invoice_account_number,
-    invoiceIfscSwift: entity.invoice_ifsc_swift,
-    invoiceUpiId: entity.invoice_upi_id,
-    bankName: entity.bank_name,
-    bankAccountNumber: entity.bank_account_number,
-    ifscCode: entity.ifsc_code,
-    supplierCurrency: entity.supplier_currency,
-    contractUrl: entity.contract_url,
-    rateValidUntil: entity.rate_valid_until,
-    productionCommitment: entity.production_commitment,
-    paymentDeadlineDate: entity.payment_deadline_date,
-    isActive: entity.is_active,
-    isDeleted: entity.is_deleted,
-    createdAt: entity.created_at,
+    id: pick(entity.id),
+    name: pick(entity.name),
+    contactPerson: pick(entity.contact_person, entity.contactPerson),
+    phone: pick(entity.phone),
+    email: pick(entity.email),
+    panNumber: pick(entity.pan_number, entity.panNumber),
+    gstNumber: pick(entity.gst_number, entity.gstNumber),
+    address: pick(entity.address),
+    addressLine: pick(entity.address_line, entity.addressLine, entity.address),
+    country: pick(entity.country),
+    invoiceBeneficiaryName: pick(
+      entity.invoice_beneficiary_name,
+      entity.invoiceBeneficiaryName,
+    ),
+    invoiceBankName: pick(entity.invoice_bank_name, entity.invoiceBankName),
+    invoiceAccountNumber: pick(
+      entity.invoice_account_number,
+      entity.invoiceAccountNumber,
+    ),
+    invoiceIfscSwift: pick(
+      entity.invoice_ifsc_swift,
+      entity.invoiceIfscSwift,
+    ),
+    invoiceUpiId: pick(entity.invoice_upi_id, entity.invoiceUpiId),
+    bankName: pick(entity.bank_name, entity.bankName),
+    bankAccountNumber: pick(
+      entity.bank_account_number,
+      entity.bankAccountNumber,
+    ),
+    ifscCode: pick(entity.ifsc_code, entity.ifscCode),
+    supplierCurrency: pick(
+      entity.supplier_currency,
+      entity.supplierCurrency,
+      "INR",
+    ),
+    contractUrl: pick(entity.contract_url, entity.contractUrl),
+    rateValidUntil: pick(entity.rate_valid_until, entity.rateValidUntil),
+    productionCommitment: pick(
+      entity.production_commitment,
+      entity.productionCommitment,
+    ),
+    paymentDeadlineDate: pick(
+      entity.payment_deadline_date,
+      entity.paymentDeadlineDate,
+    ),
+    isActive: toBoolean(pick(entity.is_active, entity.isActive)),
+    isDeleted: toBoolean(pick(entity.is_deleted, entity.isDeleted)),
+    createdAt: pick(entity.created_at, entity.createdAt),
   };
 }
 
@@ -200,6 +243,17 @@ function createSuppliersService({ repository, logger, events }) {
     return undefined;
   }
 
+  function pickDate(payload, keys = []) {
+    const value = pickFirst(payload, keys);
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (String(value).trim() === "") {
+      return null;
+    }
+    return toDateOnly(value);
+  }
+
   function toDateOnly(value) {
     if (!value) {
       return null;
@@ -262,12 +316,12 @@ function createSuppliersService({ repository, logger, events }) {
         "currency",
       ]),
       contract_url: pickText(payload, ["contractUrl", "contract_url"]),
-      rate_valid_until: pickText(payload, ["rateValidUntil", "rate_valid_until"]),
+      rate_valid_until: pickDate(payload, ["rateValidUntil", "rate_valid_until"]),
       production_commitment: pickText(payload, [
         "productionCommitment",
         "production_commitment",
       ]),
-      payment_deadline_date: pickText(payload, [
+      payment_deadline_date: pickDate(payload, [
         "paymentDeadlineDate",
         "payment_deadline_date",
       ]),
@@ -311,12 +365,12 @@ function createSuppliersService({ repository, logger, events }) {
         "currency",
       ]),
       contract_url: pickText(payload, ["contractUrl", "contract_url"]),
-      rate_valid_until: pickText(payload, ["rateValidUntil", "rate_valid_until"]),
+      rate_valid_until: pickDate(payload, ["rateValidUntil", "rate_valid_until"]),
       production_commitment: pickText(payload, [
         "productionCommitment",
         "production_commitment",
       ]),
-      payment_deadline_date: pickText(payload, [
+      payment_deadline_date: pickDate(payload, [
         "paymentDeadlineDate",
         "payment_deadline_date",
       ]),

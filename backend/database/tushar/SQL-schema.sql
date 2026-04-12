@@ -180,7 +180,8 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 
 DEALLOCATE PREPARE stmt;
-
+CREATE DATABASE IF NOT EXISTS get2vacations;
+USE get2vacations;
 CREATE TABLE IF NOT EXISTS roles (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     name VARCHAR(50) UNIQUE NOT NULL,
@@ -1189,7 +1190,8 @@ SET response_sla_breached = CASE
   WHEN lead_to_quote_sent_minutes IS NULL OR response_sla_minutes IS NULL THEN FALSE
   WHEN lead_to_quote_sent_minutes > response_sla_minutes THEN TRUE
   ELSE FALSE
-END;
+END
+WHERE TRUE;
 
 CREATE INDEX idx_quotations_response_category
   ON quotations(response_category);
@@ -1364,8 +1366,7 @@ WHERE response_at IS NOT NULL
   AND response_deadline IS NOT NULL
   AND sla_breached != (response_at > response_deadline);
 
-ALTER TABLE users
-ADD COLUMN active BOOLEAN DEFAULT TRUE;
+
 
 UPDATE users
 SET active = TRUE
@@ -1715,7 +1716,8 @@ SET l.lead_code = CONCAT(
   MOD(FLOOR((seq.rn - 1) / 26), 10),
   CHAR(65 + MOD(FLOOR((seq.rn - 1) / 10), 26)),
   MOD((seq.rn - 1), 10)
-);
+)
+WHERE l.id IS NOT NULL;
 
 ALTER TABLE leads
   ADD CONSTRAINT chk_leads_lead_code_format
@@ -2069,7 +2071,7 @@ CREATE TABLE IF NOT EXISTS landing_hero_sections (
 );
 
 -- Existing table extensions for richer website cards
-ALTER TABLE landing_places ADD COLUMN country VARCHAR(100);
+ALTER TABLE  landing_places ADD COLUMN country VARCHAR(100);
 
 ALTER TABLE main_packages ADD COLUMN country VARCHAR(100);
 

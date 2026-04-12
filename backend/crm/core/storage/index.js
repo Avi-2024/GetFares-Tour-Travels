@@ -1,1 +1,2 @@
-export { createS3Service } from "./s3.service.js";
+export { createBlobStorageService } from "./blob.service.js";
+export { createBlobStorageService as createS3Service } from "./blob.service.js";

@@ -2,29 +2,57 @@ import { z } from "zod";
 
 const customerSegment = z.enum(["PLATINUM", "GOLD", "SILVER", "NEW"]);
 
+/** Empty string from forms is not a value — treat as omitted for optional fields. */
+function emptyToUndefined(value) {
+  if (value === "" || value === null) {
+    return undefined;
+  }
+  return value;
+}
+
+const optionalPan = z.preprocess(
+  emptyToUndefined,
+  z.string().trim().min(5).max(20).optional(),
+);
+
+const optionalPhone = z.preprocess(
+  emptyToUndefined,
+  z.string().trim().min(6).max(20).optional(),
+);
+
+const optionalEmail = z.preprocess(
+  emptyToUndefined,
+  z.string().email().max(150).optional(),
+);
+
+const optionalClientCurrency = z.preprocess(
+  emptyToUndefined,
+  z.string().trim().min(3).max(10).optional(),
+);
+
 const createPayload = z.object({
   fullName: z.string().trim().min(2).max(150),
-  phone: z.string().trim().min(6).max(20).optional(),
-  email: z.string().email().max(150).optional(),
+  phone: optionalPhone,
+  email: optionalEmail,
   preferences: z.string().trim().max(5000).optional(),
   lifetimeValue: z.coerce.number().nonnegative().optional(),
   segment: customerSegment.optional(),
-  panNumber: z.string().trim().min(5).max(20).optional(),
+  panNumber: optionalPan,
   addressLine: z.string().trim().max(2000).optional(),
-  clientCurrency: z.string().trim().min(3).max(10).optional(),
+  clientCurrency: optionalClientCurrency,
 });
 
 const updatePayload = z
   .object({
     fullName: z.string().trim().min(2).max(150).optional(),
-    phone: z.string().trim().min(6).max(20).optional(),
-    email: z.string().email().max(150).optional(),
+    phone: optionalPhone,
+    email: optionalEmail,
     preferences: z.string().trim().max(5000).optional(),
     lifetimeValue: z.coerce.number().nonnegative().optional(),
     segment: customerSegment.optional(),
-    panNumber: z.string().trim().min(5).max(20).optional(),
+    panNumber: optionalPan,
     addressLine: z.string().trim().max(2000).optional(),
-    clientCurrency: z.string().trim().min(3).max(10).optional(),
+    clientCurrency: optionalClientCurrency,
   })
   .refine(
     (value) => Object.keys(value).length > 0,

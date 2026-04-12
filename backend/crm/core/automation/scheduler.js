@@ -81,10 +81,21 @@ function createAutomationScheduler({
     }
 
     try {
-      const result = await db.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
-        [tableName],
-      );
+      const adapter = String(db?.adapter || "").toLowerCase();
+      let result;
+      if (adapter === "mysql") {
+        result = await db.query(
+          `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
+          [tableName],
+        );
+      } else if (adapter === "mssql") {
+        result = await db.query(
+          `SELECT TOP 1 1 AS x FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = SCHEMA_NAME() AND TABLE_NAME = ?`,
+          [tableName],
+        );
+      } else {
+        return false;
+      }
       const exists = result.rowCount > 0;
       tableCache.set(tableName, exists);
       return exists;
@@ -99,7 +110,6 @@ function createAutomationScheduler({
 
     if (canUseDbLock() && String(db?.adapter || "").toLowerCase() === "mysql") {
       try {
-        const lockName = `crm_lock_${lockKey}`;
         const result = await db.query(
           "SELECT GET_LOCK(?, 0) AS locked",
           [lockName],
@@ -160,7 +170,7 @@ function createAutomationScheduler({
       return db.insert(AUTOMATION_RUNS_TABLE, {
         job_name: jobName,
         status: "RUNNING",
-        started_at: new Date().toISOString(),
+        started_at: new Date(),
         lock_owner: `pid:${process.pid}`,
       });
     } catch (error) {
@@ -180,7 +190,7 @@ function createAutomationScheduler({
     try {
       await db.update(AUTOMATION_RUNS_TABLE, runRecord.id, {
         status: payload.status,
-        finished_at: new Date().toISOString(),
+        finished_at: new Date(),
         records_processed: payload.recordsProcessed,
         details: payload.details,
         error_message: payload.errorMessage || null,

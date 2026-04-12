@@ -8,7 +8,7 @@ import Timeline from '../../components/ui/Timeline'
 import { complaintsApi } from '../../api/complaints'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useUsersService } from '../../hooks/useUsersService'
 import { useLeadsService } from '../../hooks/useLeadsService'
 
@@ -255,11 +255,10 @@ const ComplaintsPage = () => {
         }
       } catch (err) {
         console.error('Failed to fetch complaints:', err)
-        setError(
-          getApiErrorMessage(
-            err,
-            'Authentication required. Please login to view complaints.'
-          )
+        reportApiError(
+          err,
+          'Authentication required. Please login to view complaints.',
+          setError
         )
         // Keep using seed data on error
       } finally {
@@ -482,8 +481,10 @@ const ComplaintsPage = () => {
       }
     } catch (err) {
       console.error('Failed to create complaint:', err)
-      setError(
-        getApiErrorMessage(err, 'Failed to create complaint. Please try again.')
+      reportApiError(
+        err,
+        'Failed to create complaint. Please try again.',
+        setError
       )
     } finally {
       setLoading(false)

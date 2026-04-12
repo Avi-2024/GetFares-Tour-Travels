@@ -13,7 +13,7 @@ import {
   FaEnvelope
 } from 'react-icons/fa'
 import { MdOutlineSegment } from 'react-icons/md'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { customersApi } from '../../api/customers'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 
@@ -296,8 +296,7 @@ const CustomersPage: React.FC = () => {
       const response = await customersApi.list()
       setCustomers(normalizeCustomers(response))
     } catch (err) {
-      const message = getApiErrorMessage(err, 'Unable to load customers')
-      setError(message)
+      reportApiError(err, 'Unable to load customers', setError)
     } finally {
       setLoading(false)
     }
@@ -317,8 +316,7 @@ const CustomersPage: React.FC = () => {
       await customersApi.delete(id)
       await loadCustomers()
     } catch (err) {
-      const message = getApiErrorMessage(err, 'Failed to delete customer')
-      setError(message)
+      reportApiError(err, 'Failed to delete customer', setError)
     } finally {
       setLoading(false)
     }
@@ -422,7 +420,7 @@ const CustomersPage: React.FC = () => {
       setEditingCustomer(null)
       await loadCustomers()
     } catch (error) {
-      setError(getApiErrorMessage(error, 'Failed to update customer'))
+      reportApiError(error, 'Failed to update customer', setError)
     } finally {
       setLoading(false)
     }

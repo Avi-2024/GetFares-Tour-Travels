@@ -15,7 +15,7 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
 
 type QuoteStatus =
@@ -216,14 +216,34 @@ const QuotationDetailPage: React.FC = () => {
       setQuotation(quoteData)
       setStatus(mapStatus(quoteData.status))
 
-      const itemRows = Array.isArray(quoteData.items)
+      const snapshotServiceRows = Array.isArray(
+        quoteData.templateSnapshot?.serviceRows
+      )
+        ? quoteData.templateSnapshot.serviceRows
+        : Array.isArray(quoteData.templateSnapshot?.builderSnapshot?.serviceRows)
+          ? quoteData.templateSnapshot.builderSnapshot.serviceRows
+          : []
+
+      const itemRows = Array.isArray(quoteData.items) && quoteData.items.length
         ? quoteData.items.map((item: any) => ({
             id: String(item.id ?? `${item.itemType}-${item.description}`),
             itemType: (item.itemType || 'OTHER') as ComponentRow['itemType'],
             description: String(item.description || 'N/A'),
             cost: toNumber(item.cost, 0)
           }))
-        : []
+        : snapshotServiceRows.map((item: any, index: number) => ({
+            id: String(item.id ?? `${item.key ?? index}`),
+            itemType: (item.itemType || 'OTHER') as ComponentRow['itemType'],
+            description: String(
+              item.description ??
+                `${item.label ?? item.key ?? 'Service'} - ${
+                  quoteData.tripDestination ??
+                  quoteData.templateSnapshot?.destination ??
+                  'N/A'
+                }`
+            ),
+            cost: toNumber(item.baseCost ?? item.cost, 0)
+          }))
       setRows(itemRows)
 
       const versionRowsRaw =
@@ -288,7 +308,7 @@ const QuotationDetailPage: React.FC = () => {
       return quoteData
     } catch (err) {
       console.error('Failed to load quotation detail:', err)
-      setError(getApiErrorMessage(err, 'Failed to load quotation details'))
+      reportApiError(err, 'Failed to load quotation details', setError)
       setQuotation(null)
       setRows([])
       setVersions([])
@@ -307,6 +327,7 @@ const QuotationDetailPage: React.FC = () => {
   const snapshot = quotation?.templateSnapshot ?? null
   const snapshotBuilder = snapshot?.builderSnapshot ?? null
   const snapshotLead = snapshot?.lead ?? snapshot?.builderSnapshot?.lead ?? null
+  const snapshotPricing = snapshot?.pricing ?? snapshotBuilder?.pricing ?? null
   const packageSnapshot =
     snapshot?.package ?? snapshot?.builderSnapshot?.package ?? null
   const destination =
@@ -415,18 +436,57 @@ const QuotationDetailPage: React.FC = () => {
       )
     ) ||
       'N/A')
-  const displayTravellerSummary = pluralize(
-    Math.max(0, toNumber(snapshot?.adults ?? snapshotBuilder?.adults, 0)),
-    'adult'
+  const displayAdultsCount = Math.max(
+    0,
+    toNumber(
+      snapshot?.adults ??
+        snapshotBuilder?.adults ??
+        lead?.adultsCount ??
+        lead?.adults_count,
+      0
+    )
   )
+  const displayChildrenCount = Math.max(
+    0,
+    toNumber(
+      snapshot?.children ??
+        snapshotBuilder?.children ??
+        lead?.childrenCount ??
+        lead?.children_count,
+      0
+    )
+  )
+  const displayChildAges = (
+    snapshot?.childAges ??
+    snapshotBuilder?.childAges ??
+    lead?.childAges ??
+    []
+  )
+    .map((value: unknown) => Number(value))
+    .filter((value: number) => Number.isFinite(value) && value >= 0)
+
+  const displayTravellerSummary = [
+    pluralize(displayAdultsCount, 'adult'),
+    displayChildrenCount > 0
+      ? pluralize(displayChildrenCount, 'child', 'children')
+      : null,
+    displayChildAges.length ? `Ages ${displayChildAges.join(', ')}` : null
+  ]
+    .filter(Boolean)
+    .join(', ')
+
   const displayTravelStartDate =
-    quotation?.travelStartDate ??
     snapshot?.travelStartDate ??
     snapshotBuilder?.travelStartDate ??
+    quotation?.travelStartDate ??
     lead?.travelDate ??
     null
   const displayTravelEndDate =
-    snapshot?.travelEndDate ?? snapshotBuilder?.travelEndDate ?? null
+    snapshot?.travelEndDate ??
+    snapshotBuilder?.travelEndDate ??
+    quotation?.travelEndDate ??
+    lead?.travelEndDate ??
+    null
   const displayValidUntil =
     snapshot?.validUntil ??
     snapshotBuilder?.validUntil ??
@@ -475,19 +535,28 @@ const QuotationDetailPage: React.FC = () => {
     const value =
       quotation?.clientCurrency ??
       quotation?.costCurrency ??
+      snapshot?.currency ??
+      snapshotBuilder?.currency ??
+      snapshotPricing?.clientCurrency ??
+      snapshotPricing?.costCurrency ??
       quotation?.pricing?.clientCurrency ??
       quotation?.pricing?.costCurrency ??
       'INR'
     return String(value || 'INR').toUpperCase()
-  }, [quotation])
+  }, [quotation, snapshot, snapshotBuilder, snapshotPricing])
 
   const summary = useMemo(() => {
     const totalCost =
       toNumber(quotation?.totalCost, NaN) ||
+      toNumber(snapshotPricing?.supplierCost, NaN) ||
       rows.reduce((sum, row) => sum + toNumber(row.cost, 0), 0)
-    const persistedMarginPercent = toNumber(quotation?.marginPercent, NaN)
+    const persistedMarginPercent =
+      toNumber(quotation?.marginPercent, NaN) ||
+      toNumber(snapshotPricing?.margin, NaN)
     const markupAmount = Number.isFinite(toNumber(quotation?.markupAmount, NaN))
       ? toNumber(quotation?.markupAmount, 0)
+      : Number.isFinite(toNumber(snapshotPricing?.profit, NaN))
+        ? toNumber(snapshotPricing?.profit, 0)
       : Number(
           (
             totalCost *
@@ -502,49 +571,87 @@ const QuotationDetailPage: React.FC = () => {
       Number.isFinite(persistedMarginPercent) && persistedMarginPercent > 0
         ? persistedMarginPercent
         : derivedMarginPercent
-    const discount = toNumber(quotation?.discount, 0)
-    const taxAmount = toNumber(quotation?.taxAmount ?? quotation?.tax, 0)
+    const discount = toNumber(quotation?.discount ?? snapshotPricing?.discount, 0)
+    const taxAmount = toNumber(
+      quotation?.taxAmount ?? quotation?.tax ?? snapshotPricing?.taxAmount,
+      0
+    )
     const finalPrice = toNumber(
-      quotation?.finalPrice ?? quotation?.totalSaleValue,
+      quotation?.finalPrice ??
+        quotation?.totalSaleValue ??
+        snapshotPricing?.totalPrice,
       totalCost - discount + taxAmount
     )
 
     return { totalCost, marginPercent, markupAmount, discount, taxAmount, finalPrice }
-  }, [quotation, rows])
+  }, [quotation, rows, snapshotPricing])
 
   const commercial = useMemo(() => {
     const supplierCost =
       toNumber(quotation?.supplierCost, NaN) ||
+      toNumber(snapshotPricing?.supplierCost, NaN) ||
       rows.reduce((sum, row) => sum + toNumber(row.cost, 0), 0)
     const markupAmount =
       toNumber(quotation?.markupAmount, NaN) ||
-      supplierCost * (toNumber(quotation?.marginPercent, 0) / 100)
-    const serviceFeeAmount = toNumber(quotation?.serviceFeeAmount, 0)
-    const baseTaxAmount = toNumber(quotation?.taxAmount ?? quotation?.tax, 0)
-    const supplierTaxAmount = toNumber(quotation?.supplierTaxAmount, 0)
-    const supplierTaxPercent = toNumber(quotation?.supplierTaxPercent, 0)
-    const gstAmount = toNumber(quotation?.gstAmount, 0)
-    const gstPercent = toNumber(quotation?.gstPercent, 0)
-    const tcsAmount = toNumber(quotation?.tcsAmount, 0)
-    const tcsPercent = toNumber(quotation?.tcsPercent, 0)
-    const taxAmount = Number(
-      (baseTaxAmount + supplierTaxAmount + gstAmount + tcsAmount).toFixed(2)
+      toNumber(snapshotPricing?.profit, NaN) ||
+      supplierCost *
+        (toNumber(quotation?.marginPercent ?? snapshotPricing?.margin, 0) / 100)
+    const serviceFeeAmount = toNumber(
+      quotation?.serviceFeeAmount ?? snapshotPricing?.serviceFee,
+      0
     )
+    const persistedTotalTax = toNumber(
+      quotation?.taxAmount ?? quotation?.tax ?? snapshotPricing?.taxAmount,
+      NaN
+    )
+    const supplierTaxAmount = toNumber(quotation?.supplierTaxAmount, 0)
+    const supplierTaxPercent = toNumber(
+      quotation?.supplierTaxPercent ?? snapshotPricing?.supplierTaxPercent,
+      0
+    )
+    const gstAmount = toNumber(quotation?.gstAmount, 0)
+    const gstPercent = toNumber(
+      quotation?.gstPercent ?? snapshotPricing?.gstPercent,
+      0
+    )
+    const tcsAmount = toNumber(quotation?.tcsAmount, 0)
+    const tcsPercent = toNumber(
+      quotation?.tcsPercent ?? snapshotPricing?.tcsPercent,
+      0
+    )
+    const computedTaxAmount = Number(
+      (supplierTaxAmount + gstAmount + tcsAmount).toFixed(2)
+    )
+    const taxAmount = Number.isFinite(persistedTotalTax)
+      ? persistedTotalTax
+      : computedTaxAmount
     const discount = toNumber(quotation?.discount, 0)
     const subtotal = supplierCost + markupAmount + serviceFeeAmount
     const taxableBase = Math.max(subtotal - discount, 0)
     const effectiveTaxPercent =
       taxableBase > 0 ? Number(((taxAmount / taxableBase) * 100).toFixed(2)) : 0
     const finalAmount = toNumber(
-      quotation?.totalSaleValue ?? quotation?.finalPrice,
+      quotation?.totalSaleValue ??
+        quotation?.finalPrice ??
+        snapshotPricing?.totalPrice,
       Math.max(subtotal + taxAmount - discount, 0)
     )
+    const rawMarginPercent = toNumber(
+      quotation?.marginPercent ?? snapshotPricing?.margin,
+      NaN
+    )
+    const derivedMarginPercent =
+      supplierCost > 0
+        ? Number(((markupAmount / supplierCost) * 100).toFixed(2))
+        : 0
 
     return {
       supplierCost,
       markupAmount,
       serviceFeeAmount,
-      baseTaxAmount,
+      persistedTotalTax: Number.isFinite(persistedTotalTax)
+        ? persistedTotalTax
+        : null,
       supplierTaxAmount,
       supplierTaxPercent,
       gstAmount,
@@ -557,9 +664,12 @@ const QuotationDetailPage: React.FC = () => {
       discount,
       subtotal,
       finalAmount,
-      marginPercent: toNumber(quotation?.marginPercent, 0)
+      marginPercent:
+        Number.isFinite(rawMarginPercent) && rawMarginPercent > 0
+          ? rawMarginPercent
+          : derivedMarginPercent
     }
-  }, [quotation, rows])
+  }, [quotation, rows, snapshotPricing])
 
   const handleApprove = async () => {
     if (!id) return
@@ -581,7 +691,7 @@ const QuotationDetailPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to approve quotation:', err)
-      setError(getApiErrorMessage(err, 'Failed to approve quotation'))
+      reportApiError(err, 'Failed to approve quotation', setError)
     } finally {
       setSavingStatus(false)
     }
@@ -612,7 +722,7 @@ const QuotationDetailPage: React.FC = () => {
       await loadDetails()
     } catch (err) {
       console.error('Failed to reject quotation:', err)
-      setRejectError(getApiErrorMessage(err, 'Failed to reject quotation'))
+      reportApiError(err, 'Failed to reject quotation', setRejectError)
     } finally {
       setSavingStatus(false)
     }
@@ -648,7 +758,7 @@ const QuotationDetailPage: React.FC = () => {
       await loadDetails()
     } catch (err) {
       console.error('Failed to send quotation:', err)
-      setError(getApiErrorMessage(err, 'Failed to send quotation'))
+      reportApiError(err, 'Failed to send quotation', setError)
     } finally {
       setSavingStatus(false)
     }
@@ -770,7 +880,7 @@ const QuotationDetailPage: React.FC = () => {
       pdf.save(`quotation-${quoteRef}.pdf`)
     } catch (err) {
       console.error('Failed to download PDF:', err)
-      setError(getApiErrorMessage(err, 'Failed to download PDF'))
+      reportApiError(err, 'Failed to download PDF', setError)
     } finally {
       exportRoot.classList.remove('quotation-detail-pdf-export')
       exportStyle.remove()
@@ -860,9 +970,7 @@ const QuotationDetailPage: React.FC = () => {
                     await quotationsApi.approveMargin(id!)
                     await loadDetails()
                   } catch (err) {
-                    setError(
-                      getApiErrorMessage(err, 'Failed to approve margin')
-                    )
+                    reportApiError(err, 'Failed to approve margin', setError)
                   } finally {
                     setSavingStatus(false)
                   }
@@ -1120,7 +1228,7 @@ const QuotationDetailPage: React.FC = () => {
               </p>
             </div>
             <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-              <p className='text-xs text-gray-500'>Tax</p>
+              <p className='text-xs text-gray-500'>Tax (Client Bill)</p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
                 {formatMoney(commercial.taxAmount, displayCurrency)}
               </p>
@@ -1128,18 +1236,29 @@ const QuotationDetailPage: React.FC = () => {
                 {commercial.effectiveTaxPercent}% on{' '}
                 {formatMoney(commercial.taxableBase, displayCurrency)}
               </p>
-              <p className='text-[11px] text-gray-500'>
-                GST ({commercial.gstPercent}%):{' '}
-                {formatMoney(commercial.gstAmount, displayCurrency)}
-              </p>
-              <p className='text-[11px] text-gray-500'>
-                TCS ({commercial.tcsPercent}%):{' '}
-                {formatMoney(commercial.tcsAmount, displayCurrency)}
-              </p>
-              <p className='text-[11px] text-gray-500'>
-                Supplier Tax ({commercial.supplierTaxPercent}%):{' '}
-                {formatMoney(commercial.supplierTaxAmount, displayCurrency)}
-              </p>
+              {commercial.persistedTotalTax !== null ? (
+                <p className='text-[11px] text-gray-500'>
+                  Source: quotation tax total
+                </p>
+              ) : null}
+              {commercial.gstAmount > 0 ? (
+                <p className='text-[11px] text-gray-500'>
+                  GST (Government Tax, {commercial.gstPercent}%):{' '}
+                  {formatMoney(commercial.gstAmount, displayCurrency)}
+                </p>
+              ) : null}
+              {commercial.tcsAmount > 0 ? (
+                <p className='text-[11px] text-gray-500'>
+                  TCS (Collected from Client, {commercial.tcsPercent}%):{' '}
+                  {formatMoney(commercial.tcsAmount, displayCurrency)}
+                </p>
+              ) : null}
+              {commercial.supplierTaxAmount > 0 ? (
+                <p className='text-[11px] text-gray-500'>
+                  Supplier Tax (Vendor Side, {commercial.supplierTaxPercent}%):{' '}
+                  {formatMoney(commercial.supplierTaxAmount, displayCurrency)}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -1570,7 +1689,7 @@ const QuotationDetailPage: React.FC = () => {
                 </div>
                 <div className='flex items-center justify-between'>
                   <span className='text-gray-600 dark:text-gray-400'>Margin</span>
-                  <span className='font-semibold'>{commercial.marginPercent}%</span>
+                  <span className='font-semibold'>{summary.marginPercent}%</span>
                 </div>
                 <div className='flex items-center justify-between'>
                   <span className='text-gray-600 dark:text-gray-400'>Views</span>
