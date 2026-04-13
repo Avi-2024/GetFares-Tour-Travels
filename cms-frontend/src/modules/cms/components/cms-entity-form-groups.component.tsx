@@ -13,9 +13,7 @@ interface CmsEntityFormGroupsProps {
   formErrors: Record<string, string>;
   imageFieldPreviews?: Record<string, string>;
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
-  relationSearch: Record<string, string>;
   onFieldChange: (field: CmsEntityFieldDefinition, nextValue: unknown) => void;
-  onRelationSearchChange: (fieldKey: string, value: string) => void;
   onFieldFileUpload?: (
     field: CmsEntityFieldDefinition,
     file: File,
@@ -63,11 +61,9 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
     const {
       formValues,
       relationOptions,
-      relationSearch,
       imageFieldPreviews = {},
       uploadingFieldKey = null,
       onFieldChange,
-      onRelationSearchChange,
     } = this.props;
 
     const value = formValues[field.key];
@@ -166,51 +162,22 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
     }
 
     if (field.type === "select" || field.type === "searchable-select") {
-      const filteredOptions = options.filter((option) => {
-        const query = (relationSearch[field.key] ?? "").toLowerCase();
-        return !query || option.label.toLowerCase().includes(query);
-      });
       const hasOptions = options.length > 0;
 
-      if (field.type === "searchable-select") {
-        return (
-          <SearchDropDown
-            value={String(value ?? "")}
-            options={filteredOptions.map((option) => ({
-              label: option.label,
-              value: option.value,
-            }))}
-            searchValue={relationSearch[field.key] ?? ""}
-            placeholder={
-              hasOptions ?
-                `Select ${field.label}`
-              : `No ${field.label} available`
-            }
-            disabled={!hasOptions}
-            onSearchChange={(nextValue) =>
-              onRelationSearchChange(field.key, nextValue)
-            }
-            onChange={(nextValue) => onFieldChange(field, nextValue)}
-          />
-        );
-      }
-
       return (
-        <select
+        <SearchDropDown
           value={String(value ?? "")}
-          onChange={(event) => onFieldChange(field, event.target.value)}
-          className={className}
+          options={options.map((option) => ({
+            label: option.label,
+            value: option.value,
+            meta: option.meta,
+          }))}
+          placeholder={
+            hasOptions ? `Select ${field.label}` : `No ${field.label} available`
+          }
           disabled={!hasOptions}
-        >
-          <option value="">
-            {hasOptions ? `Select ${field.label}` : `No ${field.label} available`}
-          </option>
-          {filteredOptions.map((option) => (
-            <option key={`${field.key}-${option.value}`} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          onChange={(nextValue) => onFieldChange(field, nextValue)}
+        />
       );
     }
 

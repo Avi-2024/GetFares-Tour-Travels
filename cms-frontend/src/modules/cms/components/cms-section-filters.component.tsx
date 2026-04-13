@@ -1,5 +1,6 @@
 import { Component, type ChangeEvent } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
+import SearchDropDown from "../../../shared/components/search-dropdown.component";
 import SurfaceCardComponent from "../../../shared/components/cards/surface-card.component";
 import type {
   ColumnFilterDefinition,
@@ -84,20 +85,19 @@ class CmsSectionFiltersComponent extends Component<CmsSectionFiltersProps> {
                 >
                   {definition.label}
                   {definition.type === "dropdown" && (
-                    <select
-                      value={columnFilters[definition.key] ?? ""}
-                      onChange={(event) =>
-                        onColumnFilterChange(definition.key, event.target.value)
-                      }
-                      className="mt-1.5 h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-sm font-medium normal-case tracking-normal text-[var(--text-primary)]"
-                    >
-                      <option value="">All</option>
-                      {definition.options.map((option) => (
-                        <option key={`${definition.key}-${option}`} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1.5">
+                      <SearchDropDown
+                        value={columnFilters[definition.key] ?? ""}
+                        options={definition.options.map((option) => ({
+                          label: option,
+                          value: option,
+                        }))}
+                        placeholder="All"
+                        onChange={(nextValue) =>
+                          onColumnFilterChange(definition.key, nextValue)
+                        }
+                      />
+                    </div>
                   )}
                   {definition.type === "text" && (
                     <input

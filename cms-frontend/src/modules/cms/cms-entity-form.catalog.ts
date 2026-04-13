@@ -22,6 +22,7 @@ type RelationSourceKey =
 interface CmsFieldOption {
   label: string;
   value: string;
+  meta?: Record<string, unknown>;
 }
 
 interface CmsEntityFieldDefinition {
@@ -104,6 +105,41 @@ class CmsEntityFormCatalog {
     { label: "Adventure", value: "Adventure" },
   ];
 
+  private static countryOptions: CmsFieldOption[] = [
+    "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda",
+    "Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain",
+    "Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan",
+    "Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria",
+    "Burkina Faso","Burundi","Cabo Verde","Cambodia","Cameroon","Canada",
+    "Central African Republic","Chad","Chile","China","Colombia","Comoros",
+    "Congo (Congo-Brazzaville)","Costa Rica","Croatia","Cuba","Cyprus",
+    "Czechia (Czech Republic)","Côte d’Ivoire","Denmark","Djibouti","Dominica",
+    "Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea",
+    "Eritrea","Estonia","Eswatini (fmr. Swaziland)","Ethiopia","Fiji","Finland",
+    "France","Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada",
+    "Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","Hungary",
+    "Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy",
+    "Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kuwait",
+    "Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya",
+    "Liechtenstein","Lithuania","Luxembourg","Madagascar","Malawi","Malaysia",
+    "Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius",
+    "Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco",
+    "Mozambique","Myanmar (formerly Burma)","Namibia","Nauru","Nepal",
+    "Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea",
+    "North Macedonia","Norway","Oman","Pakistan","Palau","Palestine State",
+    "Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland",
+    "Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis",
+    "Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino",
+    "Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles",
+    "Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia",
+    "South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan",
+    "Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania",
+    "Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia",
+    "Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates",
+    "United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu",
+    "Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"
+  ].map((country) => ({ label: country, value: country }));
+
   private static sectionByKey: Record<CmsSectionKey, CmsEntityFormDefinition> = {
     "landing-places": {
       sectionKey: "landing-places",
@@ -141,7 +177,7 @@ class CmsEntityFormCatalog {
       ],
       fields: [
         { key: "name", label: "Title", type: "text", required: true, groupKey: "basic" },
-        { key: "country", label: "Country", type: "text", groupKey: "basic", helperText: "Optional when landing places are not configured country-wise." },
+        { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, groupKey: "basic", helperText: "Optional when landing places are not configured country-wise." },
         { key: "tag", label: "Tag", type: "text", groupKey: "basic" },
         { key: "imageUrl", label: "Img", type: "url", required: true, groupKey: "basic" },
         { key: "description", label: "Description", type: "textarea", required: true, groupKey: "content" },
@@ -193,7 +229,7 @@ class CmsEntityFormCatalog {
       fields: [
         { key: "name", label: "Destination Name", type: "text", required: true, groupKey: "basic" },
         { key: "slug", label: "Slug", type: "text", required: true, groupKey: "basic", autoSlugSource: "name" },
-        { key: "country", label: "Country", type: "text", required: true, groupKey: "basic" },
+        { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, required: true, groupKey: "basic" },
         { key: "region", label: "Region", type: "select", options: CmsEntityFormCatalog.destinationRegionOptions, required: true, groupKey: "basic" },
         { key: "category", label: "Category", type: "select", options: CmsEntityFormCatalog.destinationCategoryOptions, required: true, groupKey: "basic" },
         { key: "travelType", label: "Travel Type", type: "select", options: CmsEntityFormCatalog.destinationTravelTypeOptions, groupKey: "basic" },
@@ -407,7 +443,7 @@ class CmsEntityFormCatalog {
           required: true,
           groupKey: "basic",
         },
-        { key: "country", label: "Country", type: "text", required: true, groupKey: "basic" },
+        { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, required: true, groupKey: "basic" },
         { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "status" },
         { key: "isFeatured", label: "Featured", type: "switch", groupKey: "status" },
       ],
@@ -491,7 +527,7 @@ class CmsEntityFormCatalog {
       fields: [
         { key: "title", label: "Country / Destination", type: "text", required: true, groupKey: "basic" },
         { key: "slug", label: "Slug", type: "text", required: true, groupKey: "basic", autoSlugSource: "title" },
-        { key: "country", label: "Country", type: "text", required: true, groupKey: "basic" },
+        { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, required: true, groupKey: "basic" },
         { key: "subtitle", label: "Subtitle", type: "text", groupKey: "basic" },
         { key: "processingTime", label: "Processing Time", type: "text", required: true, groupKey: "content" },
         { key: "supportInfo", label: "Support Info", type: "textarea", groupKey: "content" },
@@ -579,7 +615,7 @@ class CmsEntityFormCatalog {
         { key: "title", label: "Title", type: "text", required: true, groupKey: "basic" },
         { key: "slug", label: "Slug", type: "text", required: true, groupKey: "basic", autoSlugSource: "title" },
         { key: "subtitle", label: "Subtitle", type: "text", groupKey: "basic" },
-        { key: "country", label: "Country", type: "text", groupKey: "basic" },
+        { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, groupKey: "basic" },
         { key: "category", label: "Category", type: "select", required: true, groupKey: "basic", options: [{ label: "Package", value: "package" }, { label: "Destination", value: "destination" }, { label: "Visa Service", value: "visa_service" }] },
         { key: "referenceId", label: "Reference", type: "searchable-select", relationSource: "featured-references", groupKey: "basic" },
         { key: "campaignType", label: "Campaign Type", type: "select", groupKey: "basic", options: [{ label: "Featured", value: "featured" }, { label: "Early Bird", value: "early_bird" }] },

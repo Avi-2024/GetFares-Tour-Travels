@@ -37,7 +37,6 @@ interface CmsEntityEditorModalState {
   fieldImageFiles: Record<string, File | null>;
   fieldImagePreviews: Record<string, string>;
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
-  relationSearch: Record<string, string>;
   mediaItems: CmsEntityMediaEditorItem[];
   removedMediaIds: string[];
   mediaErrorMessage: string;
@@ -70,7 +69,6 @@ class CmsEntityEditorModalComponent extends Component<
       "visa-destinations": [],
       "featured-references": [],
     },
-    relationSearch: {},
     mediaItems: [],
     removedMediaIds: [],
     mediaErrorMessage: "",
@@ -192,6 +190,9 @@ class CmsEntityEditorModalComponent extends Component<
         ...packages.map((item) => ({
           value: item.id,
           label: `Package - ${item.row.cells.package?.value ?? item.id}`,
+          meta: {
+            destinationName: item.row.cells.destination?.value ?? "",
+          },
         })),
         ...destinations.map((item) => ({
           value: item.id,
@@ -219,20 +220,43 @@ class CmsEntityEditorModalComponent extends Component<
       "visa-destinations": "visa-destinations",
     };
     const rows = await this.cmsService.list(sectionMap[source]);
+    if (source === "published-packages") {
+      return rows.map((item) => ({
+        value: item.id,
+        label: item.row.cells.package?.value || item.id,
+        meta: {
+          destinationName: item.row.cells.destination?.value ?? "",
+        },
+      }));
+    }
+
+    if (source === "destinations") {
+      return rows.map((item) => ({
+        value: item.id,
+        label: item.row.cells.destination?.value || item.id,
+      }));
+    }
+
+    if (source === "main-packages") {
+      return rows.map((item) => ({
+        value: item.id,
+        label: item.row.cells.mainPackage?.value || item.id,
+      }));
+    }
+
+    if (source === "visa-destinations") {
+      return rows.map((item) => ({
+        value: item.id,
+        label: item.row.cells.country?.value || item.id,
+      }));
+    }
+
     return rows.map((item) => {
       const titleFallback = this.toNonEmptyString(this.getRawValue(item, "title"));
       const slugFallback = this.toNonEmptyString(this.getRawValue(item, "slug"));
-
       return {
         value: item.id,
-        label:
-          item.row.cells.destination?.value ||
-          item.row.cells.package?.value ||
-          item.row.cells.mainPackage?.value ||
-          item.row.cells.country?.value ||
-          titleFallback ||
-          slugFallback ||
-          item.id,
+        label: titleFallback || slugFallback || item.id,
       };
     });
   }
@@ -339,6 +363,26 @@ class CmsEntityEditorModalComponent extends Component<
   private onFieldChange = (field: CmsEntityFieldDefinition, nextValue: unknown): void => {
     this.setState((prev) => {
       const formValues = { ...prev.formValues, [field.key]: nextValue };
+      if (
+        this.props.sectionKey === "main-packages" &&
+        field.key === "packageId" &&
+        typeof nextValue === "string"
+      ) {
+        const packageOption = prev.relationOptions["published-packages"]?.find(
+          (option) => option.value === nextValue,
+        );
+        const destinationName =
+          (packageOption?.meta?.destinationName as string | undefined) || "";
+        if (destinationName) {
+          const destinationOption = prev.relationOptions.destinations?.find(
+            (option) =>
+              option.label.toLowerCase() === destinationName.toLowerCase(),
+          );
+          if (destinationOption) {
+            formValues.destinationId = destinationOption.value;
+          }
+        }
+      }
       if (!prev.slugTouched) {
         const slugField = CmsEntityFormCatalog.get(this.props.sectionKey).fields.find(
           (item) => item.autoSlugSource === field.key,
@@ -1022,16 +1066,10 @@ class CmsEntityEditorModalComponent extends Component<
             formErrors={this.state.formErrors}
             imageFieldPreviews={this.state.fieldImagePreviews}
             relationOptions={this.state.relationOptions}
-            relationSearch={this.state.relationSearch}
             onFieldChange={this.onFieldChange}
             onFieldFileUpload={this.onFieldFileUpload}
             onFieldImageClear={this.onFieldImageClear}
             uploadingFieldKey={this.state.uploadingFieldKey}
-            onRelationSearchChange={(fieldKey, value) =>
-              this.setState((prev) => ({
-                relationSearch: { ...prev.relationSearch, [fieldKey]: value },
-              }))
-            }
           />
 
           {definition.mediaEnabled &&
