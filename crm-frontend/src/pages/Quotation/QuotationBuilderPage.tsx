@@ -30,6 +30,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { getCurrencyOptions } from '../../utils/currency'
 import { getNationalityOptions } from '../../utils/nationality'
+import { nowWallClockString } from '../../utils/clientWallClock'
+import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
 import { Country } from 'country-state-city'
 
 type Currency = string
@@ -2889,6 +2891,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
       const leadPayload = {
         fullName: (form.customer || '').trim() || 'Unknown Customer',
+        clientCreatedAt: nowWallClockString(),
+        clientTimezone: getBrowserTimeZone(),
         email: (form.email || '').trim() || undefined,
         phone: (form.phone || '').trim(),
         destinationName: (form.destination || '').trim() || undefined,

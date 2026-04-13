@@ -18,6 +18,30 @@ const dateTimeString = z
     message: "Invalid date-time",
   });
 
+/** User wall clock `YYYY-MM-DD HH:mm:ss` — stored as-is, no conversion. */
+const wallClockString = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+  .max(32);
+
+const optionalWallClock = z.preprocess(
+  (v) =>
+    v === "" || v === null || v === undefined ? undefined : v,
+  wallClockString.optional(),
+);
+
+const optionalClientTimezone = z.preprocess(
+  (v) =>
+    v === "" || v === null || v === undefined ? undefined : String(v).trim(),
+  z.string().min(2).max(80).optional(),
+);
+
+const requiredClientTimezone = z
+  .string()
+  .trim()
+  .min(2)
+  .max(50);
+
 /** Accepts YYYY-MM-DD or ISO datetimes; maps "", null to undefined (omit). */
 function preprocessOptionalDateOnly(val) {
   if (val === undefined || val === null) return undefined;
@@ -82,6 +106,10 @@ const basePayload = z.object({
   closedReason: z.string().max(1000).optional(),
   nextFollowupDate: z.string().date().optional(),
   notes: z.string().max(2000).optional(),
+  clientCreatedAt: optionalWallClock,
+  clientTimezone: optionalClientTimezone,
+  activityCreatedAt: optionalWallClock,
+  activityTimezone: optionalClientTimezone,
 });
 
 const create = z.object({
@@ -175,6 +203,8 @@ const assign = z.object({
         ])
         .optional(),
       roleName: z.enum(["agent", "manager"]).optional(),
+      activityCreatedAt: optionalWallClock,
+      activityTimezone: optionalClientTimezone,
     })
     .optional(),
   params: z.object({ id: z.string().uuid() }),
@@ -212,13 +242,13 @@ const createFollowup = z.object({
       .optional(),
     followupNumber: z.coerce.number().int().min(1).max(4).optional(),
     cadenceCode: z.string().max(50).optional(),
-    followupDate: dateTimeString,
+    /** @deprecated optional duplicate; server uses followupLocalAt only */
+    followupDate: z.string().optional(),
     notes: z.string().max(2000).optional(),
-    clientTimezone: z.preprocess(
-      (v) =>
-        v === "" || v === null || v === undefined ? undefined : String(v).trim(),
-      z.string().min(2).max(80).optional(),
-    ),
+    followupLocalAt: wallClockString,
+    clientTimezone: requiredClientTimezone,
+    activityCreatedAt: optionalWallClock,
+    activityTimezone: optionalClientTimezone,
   }),
   params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
@@ -285,9 +315,31 @@ const processCadenceAutomation = z.object({
 const disableCalls = z.object({
   body: z.object({
     disabled: z.boolean(),
+    activityCreatedAt: optionalWallClock,
+    activityTimezone: optionalClientTimezone,
   }),
   params: z.object({ id: z.string().uuid() }),
   query: z.object({}).optional(),
+});
+
+const createLeadActivity = z.object({
+  body: z.object({
+    lead_id: z.string().uuid(),
+    notes: z.string().max(4000).optional(),
+    created_at: wallClockString,
+    timezone: z.string().trim().min(1).max(50),
+    activity_type: z.string().max(100).optional(),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const listLeadActivities = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({
+    lead_id: z.string().uuid(),
+  }),
 });
 
 const LeadsValidation = {
@@ -306,6 +358,8 @@ const LeadsValidation = {
   processNonResponsive,
   processCadenceAutomation,
   disableCalls,
+  createLeadActivity,
+  listLeadActivities,
 };
 
 export { LeadsValidation };

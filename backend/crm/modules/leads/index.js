@@ -2,6 +2,7 @@ import { createLeadsController } from "./leads.controller.js";
 import { createLeadsService } from "./leads.service.js";
 import { createLeadsRepository } from "./leads.repository.js";
 import { createLeadsRoutes } from "./leads.routes.js";
+import { createLeadActivitiesRoutes } from "./leadActivities.routes.js";
 import { LeadsValidation } from "./leads.validation.js";
 import { LeadsSchema } from "./leads.schema.js";
 import { createLeadsEvents } from "./leads.events.js";
@@ -35,9 +36,18 @@ function createLeadsModule({ dependencies }) {
     authorize: dependencies.middlewares.authorize,
   });
 
+  const leadActivitiesRouter = createLeadActivitiesRoutes({
+    controller,
+    validation: LeadsValidation,
+    validateRequest: dependencies.middlewares.validateRequest,
+    requireAuth: dependencies.middlewares.requireAuth,
+    authorize: dependencies.middlewares.authorize,
+  });
+
   return Object.freeze({
     name: "leads",
     router,
+    leadActivitiesRouter,
     controller,
     service,
     repository,

@@ -56,6 +56,10 @@ function maybeNormalizeIsoDateTimeString(value) {
     return value;
   }
   const trimmed = value.trim();
+  // Fixed wall-clock storage (client_created_at, followup_local_at, etc.): digits only, no UTC rewrite.
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
   // datetime-local sends "YYYY-MM-DDTHH:mm" with NO seconds — old regex required :ss and skipped these.
   // Passing that through raw let MySQL/TIMESTAMP mis-parse. Normalize any date+time string via Date.
   if (!/^\d{4}-\d{2}-\d{2}([T ]\d)/.test(trimmed)) {

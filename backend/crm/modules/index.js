@@ -22,6 +22,7 @@ import { createPackagesModule } from "./packages/index.js";
 import { createSuppliersModule } from "./suppliers/index.js";
 import { createCountriesModule } from "./countries/index.js";
 import { createMailModule } from "./mail/index.js";
+import { createHistoryModule } from "./history/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -70,6 +71,7 @@ function registerModules(app, dependencies) {
     ["packages", createPackagesModule],
     ["suppliers", createSuppliersModule],
     ["countries", createCountriesModule],
+    ["history", createHistoryModule],
     ["customers", createCustomersModule],
     ["complaints", createComplaintsModule],
     ["reports", createReportsModule],
@@ -81,6 +83,9 @@ function registerModules(app, dependencies) {
     const moduleInstance = factory({ dependencies: featureDependencies });
     mountedModules[name] = moduleInstance;
     app.use(`/api/${name}`, moduleInstance.router);
+    if (name === "leads" && moduleInstance.leadActivitiesRouter) {
+      app.use("/api/lead-activities", moduleInstance.leadActivitiesRouter);
+    }
     if (moduleInstance?.service) {
       featureDependencies.services[name] = moduleInstance.service;
     }
@@ -142,6 +147,7 @@ export {
   createPackagesModule,
   createSuppliersModule,
   createCountriesModule,
+  createHistoryModule,
   createCustomersModule,
   createComplaintsModule,
   createReportsModule,
