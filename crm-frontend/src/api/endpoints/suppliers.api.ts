@@ -8,7 +8,7 @@ import { apiClient, withQuery } from '../core';
 export interface Supplier {
   id: string;
   name: string;
-  type: string;
+  type?: string;
   contactPerson?: string;
   email?: string;
   phone?: string;
@@ -30,7 +30,21 @@ export interface Payable {
 
 export interface CreateSupplierPayload {
   name: string;
-  type: string;
+  type?: string;
+  panNumber?: string;
+  gstNumber?: string;
+  addressLine?: string;
+  supplierCurrency?: string;
+  contractUrl?: string;
+  rateValidUntil?: string;
+  paymentDeadlineDate?: string;
+  productionCommitment?: string;
+  invoiceBeneficiaryName?: string;
+  invoiceBankName?: string;
+  invoiceAccountNumber?: string;
+  invoiceIfscSwift?: string;
+  invoiceUpiId?: string;
+  isActive?: boolean;
   contactPerson?: string;
   email?: string;
   phone?: string;
@@ -39,9 +53,11 @@ export interface CreateSupplierPayload {
 
 export interface CreatePayablePayload {
   bookingId?: string;
-  amount: number;
+  payableAmount: number;
+  paidAmount?: number;
   dueDate: string;
-  notes?: string;
+  status?: "PENDING" | "PARTIAL" | "PAID";
+  paymentReference?: string;
 }
 
 export interface SettlePayablePayload {

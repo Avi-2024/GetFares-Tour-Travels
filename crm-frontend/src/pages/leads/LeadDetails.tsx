@@ -4,8 +4,7 @@ import { FaArrowLeft, FaCheckCircle, FaClock } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
-import FollowupsDebug from '../../components/debug/FollowupsDebug'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
 import { usersApi } from '../../api/users'
@@ -200,16 +199,16 @@ const LeadDetails: React.FC = () => {
 
   const resolveFollowupActionDate = useCallback(
     (item: any): Date | null => {
+      const scheduledRaw = item?.followupDate ?? item?.followup_date ?? null
+      const scheduled = scheduledRaw ? parseApiDateTime(scheduledRaw) : null
+      if (scheduled && !Number.isNaN(scheduled.getTime())) {
+        return scheduled
+      }
+
       const actionTimeRaw = item?.createdAt ?? item?.created_at ?? null
       const actionTime = actionTimeRaw ? parseApiDateTime(actionTimeRaw) : null
       if (actionTime && !Number.isNaN(actionTime.getTime())) {
         return actionTime
-      }
-
-      const fallbackRaw = item?.followupDate ?? item?.followup_date ?? null
-      const fallback = fallbackRaw ? parseApiDateTime(fallbackRaw) : null
-      if (fallback && !Number.isNaN(fallback.getTime())) {
-        return fallback
       }
 
       return null
@@ -325,7 +324,7 @@ const LeadDetails: React.FC = () => {
         hydrateQualification(data)
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load lead details.'))
+      reportApiError(err, 'Failed to load lead details.', setError)
       setLead(null)
     } finally {
       setLoading(false)
@@ -341,8 +340,10 @@ const LeadDetails: React.FC = () => {
       setFollowups(rows)
     } catch (err) {
       setFollowups([])
-      setFollowupsError(
-        getApiErrorMessage(err, 'Could not load follow-ups. Check login and API URL.')
+      reportApiError(
+        err,
+        'Could not load follow-ups. Check login and API URL.',
+        setFollowupsError
       )
     } finally {
       setLoadingFollowups(false)
@@ -477,31 +478,46 @@ const LeadDetails: React.FC = () => {
     void loadCampaigns()
   }, [loadCampaigns])
 
-  const visibleHistoryFollowups = useMemo(
+  /** Compliance counts: workflow rows only (not schedule-only reminders). */
+  const followupsForCompliance = useMemo(
     () => followups.filter(item => !item?.isScheduleOnly),
     [followups]
   )
+
+  const visibleHistoryFollowups = useMemo(() => followups, [followups])
 
   const visibleScheduledFollowups = useMemo(
     () => followups.filter(item => item?.isScheduleOnly),
     [followups]
   )
 
+  const latestScheduleForWorkflow = useMemo(() => {
+    const rows = followups.filter(f => f?.isScheduleOnly)
+    if (!rows.length) return null
+    return [...rows].sort((a, b) => {
+      const ca =
+        parseApiDateTime(a.createdAt ?? a.created_at)?.getTime() ?? 0
+      const cb =
+        parseApiDateTime(b.createdAt ?? b.created_at)?.getTime() ?? 0
+      return cb - ca
+    })[0]
+  }, [followups, parseApiDateTime])
+
   const compliance = useMemo(() => {
     const summary = {
-      total: visibleHistoryFollowups.length,
+      total: followupsForCompliance.length,
       calls: 0,
       whatsapp: 0,
       finalReminders: 0
     }
-    visibleHistoryFollowups.forEach(item => {
+    followupsForCompliance.forEach(item => {
       const type = String(item?.followupType || '').toUpperCase()
       if (type === 'CALL') summary.calls += 1
       if (type === 'WHATSAPP') summary.whatsapp += 1
       if (type === 'FINAL_REMINDER') summary.finalReminders += 1
     })
     return summary
-  }, [visibleHistoryFollowups])
+  }, [followupsForCompliance])
 
   const statusOptions = useMemo(
     () =>
@@ -810,7 +826,7 @@ const LeadDetails: React.FC = () => {
       setShowSavedQualification(true)
       setTimeout(() => setShowSavedQualification(false), 2500)
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Could not update qualification.'))
+      reportApiError(err, 'Could not update qualification.', setStatusError)
     }
   }
 
@@ -938,11 +954,10 @@ const LeadDetails: React.FC = () => {
               status: 'APPROVED'
             })
           } catch (err) {
-            setStatusError(
-              getApiErrorMessage(
-                err,
-                'Lead was updated but the quotation could not be approved.'
-              )
+            reportApiError(
+              err,
+              'Lead was updated but the quotation could not be approved.',
+              setStatusError
             )
             await loadLead()
             await loadLeadQuotationsForLead()
@@ -1002,11 +1017,10 @@ const LeadDetails: React.FC = () => {
                     )}…).`
                   : 'Booking was created from this quotation.'
               } catch (cErr) {
-                setStatusError(
-                  getApiErrorMessage(
-                    cErr,
-                    'Lead converted but booking could not be created.'
-                  )
+                reportApiError(
+                  cErr,
+                  'Lead converted but booking could not be created.',
+                  setStatusError
                 )
                 await loadLead()
                 await loadLeadQuotationsForLead()
@@ -1028,7 +1042,7 @@ const LeadDetails: React.FC = () => {
       setStatusNotes('')
       setClosedReason('')
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Could not update lead status.'))
+      reportApiError(err, 'Could not update lead status.', setStatusError)
     } finally {
       setStatusSaving(false)
     }
@@ -1059,13 +1073,11 @@ const LeadDetails: React.FC = () => {
       })
       await Promise.all([loadLead(), loadFollowups()])
       setFollowupScheduleOk(
-        'Saved. It appears under Scheduled Follow-ups (not Follow-up History).'
+        'Saved. Shown under Scheduled Follow-ups and Follow-up History.'
       )
       window.setTimeout(() => setFollowupScheduleOk(''), 6000)
     } catch (err) {
-      setFollowupScheduleError(
-        getApiErrorMessage(err, 'Could not schedule follow-up.')
-      )
+      reportApiError(err, 'Could not schedule follow-up.', setFollowupScheduleError)
     } finally {
       setFollowupSaving(false)
     }
@@ -1123,9 +1135,7 @@ const LeadDetails: React.FC = () => {
       await loadLead()
       await loadLeadQuotationsForLead()
     } catch (error) {
-      setQuotationActionError(
-        getApiErrorMessage(error, 'Failed to send quotation.')
-      )
+      reportApiError(error, 'Failed to send quotation.', setQuotationActionError)
     } finally {
       setQuotationActionLoadingKey('')
     }
@@ -1139,8 +1149,9 @@ const LeadDetails: React.FC = () => {
       setShowDisablePopup(true)
       window.setTimeout(() => setShowDisablePopup(false), 2500)
       await loadLead()
-    } catch {
+    } catch (err) {
       setShowDisablePopup(false)
+      reportApiError(err, 'Could not update call preference.')
     }
   }
 
@@ -1156,7 +1167,7 @@ const LeadDetails: React.FC = () => {
       await loadLead()
       setSelectedAssigneeId('')
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Unable to assign lead.'))
+      reportApiError(err, 'Unable to assign lead.', setStatusError)
     } finally {
       setAssigning(false)
     }
@@ -1661,9 +1672,21 @@ const LeadDetails: React.FC = () => {
               }
             />
             <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-              Workflow Action history will use this selected type. Schedule
-              Follow-up reminders stay separate.
+              Workflow Action history uses this type for status changes. Schedule
+              Follow-up also logs below with the same scheduled date and time.
             </p>
+            {latestScheduleForWorkflow?.followupDate ? (
+              <p className='mt-2 text-xs font-medium text-gray-700 dark:text-gray-200'>
+                Latest scheduled action time:{' '}
+                {formatDateTime(
+                  latestScheduleForWorkflow.followupDate,
+                  String(latestScheduleForWorkflow.followupDate),
+                  latestScheduleForWorkflow.clientTimezone ??
+                    latestScheduleForWorkflow.client_timezone ??
+                    null
+                )}
+              </p>
+            ) : null}
             {selectedStatusLabel === 'CONVERTED' ? (
               <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-sm dark:border-gray-600 dark:bg-gray-800/40'>
                 <p className='font-medium text-gray-900 dark:text-gray-100'>
@@ -2103,7 +2126,7 @@ const LeadDetails: React.FC = () => {
       ) : null}
 
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-2'>
-        {id && <FollowupsDebug leadId={id} />}
+   
         
         <SurfaceCard className='h-full'>
           <div className='flex items-center justify-between'>
@@ -2159,7 +2182,8 @@ const LeadDetails: React.FC = () => {
                         {item.followupDate
                           ? formatDateTime(
                               item.followupDate,
-                              String(item.followupDate)
+                              String(item.followupDate),
+                              item.clientTimezone ?? item.client_timezone ?? null
                             )
                           : 'No date'}
                       </span>
@@ -2198,8 +2222,8 @@ const LeadDetails: React.FC = () => {
             <p className='mt-3 text-sm text-gray-500'>Loading follow-ups...</p>
           ) : visibleHistoryFollowups.length === 0 ? (
             <p className='mt-3 text-sm text-gray-500'>
-              No workflow follow-ups yet. History fills when compliance/status
-              workflow logs actions—not from the Schedule Follow-up form above.
+              No follow-up rows yet. Schedule a call/WhatsApp above or log
+              actions from status workflow.
             </p>
           ) : (
             <div className='mt-3 space-y-2'>
@@ -2232,6 +2256,11 @@ const LeadDetails: React.FC = () => {
                             {item.cadenceCode}
                           </span>
                         ) : null}
+                        {item.isScheduleOnly ? (
+                          <span className='rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'>
+                            Schedule form
+                          </span>
+                        ) : null}
                       </div>
                       <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
                         <FaClock />
@@ -2239,12 +2268,13 @@ const LeadDetails: React.FC = () => {
                           ? formatDateTime(
                               resolveFollowupActionDate(item) as Date,
                               String(
-                                item?.createdAt ??
-                                  item?.created_at ??
-                                  item?.followupDate ??
+                                item?.followupDate ??
                                   item?.followup_date ??
+                                  item?.createdAt ??
+                                  item?.created_at ??
                                   ''
-                              )
+                              ),
+                              item.clientTimezone ?? item.client_timezone ?? null
                             )
                           : 'No date'}
                       </span>

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FaArrowRotateRight,
-  FaCircleInfo,
   FaEarthAmericas,
   FaEnvelope,
   FaFloppyDisk,
@@ -10,7 +9,7 @@ import {
   FaUser,
   FaXmark
 } from 'react-icons/fa6'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { authApi } from '../../api/auth'
 import { usersApi } from '../../api/users'
 import { useAuth } from '../../context/AuthContext'
@@ -141,7 +140,7 @@ const ProfilePage = () => {
       return nextProfile
     } catch (err) {
       setProfile(null)
-      setProfileError(getApiErrorMessage(err, 'Failed to load profile.'))
+      reportApiError(err, 'Failed to load profile.', setProfileError)
       return null
     } finally {
       setLoadingProfile(false)
@@ -238,7 +237,7 @@ const ProfilePage = () => {
       setIsEditing(false)
       showToast('Profile updated successfully.', 'success')
     } catch (err) {
-      showToast(getApiErrorMessage(err, 'Unable to update profile.'), 'error')
+      reportApiError(err, 'Unable to update profile.')
     } finally {
       setSaving(false)
     }

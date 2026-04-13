@@ -1,3 +1,5 @@
+import { isRelationalAdapter } from "../../core/database/adapter-utils.js";
+
 function createRbacRepository({ db, logger, schema }) {
   const normalizePermissionKeys = (permissionKeys = []) =>
     [...new Set(permissionKeys.map((value) => String(value || "").trim()))]
@@ -9,6 +11,9 @@ function createRbacRepository({ db, logger, schema }) {
   function quotedColumn(columnName) {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(columnName)) {
       throw new Error(`Unsafe column name: ${columnName}`);
+    }
+    if (String(db.adapter || "").toLowerCase() === "mssql") {
+      return `[${columnName}]`;
     }
     return `\`${columnName}\``;
   }
@@ -22,53 +27,82 @@ function createRbacRepository({ db, logger, schema }) {
       return capabilitiesPromise;
     }
 
-    capabilitiesPromise =
-      db.adapter === "mysql" ?
-        db
+    capabilitiesPromise = (() => {
+      const defaults = {
+        hasPermissionKey: false,
+        hasPermissionName: true,
+        hasPermissionDescription: false,
+        hasPermissionIsActive: false,
+        hasRoleIsActive: false,
+        hasRoleCountry: false,
+        hasRolePermissionIsActive: false,
+      };
+
+      if (!isRelationalAdapter(db)) {
+        return Promise.resolve(defaults);
+      }
+
+      const build = (result) => {
+        const hasColumn = (tableName, columnName) =>
+          (result.rows || []).some((row) => {
+            const tn = row.table_name ?? row.TABLE_NAME;
+            const cn = row.column_name ?? row.COLUMN_NAME;
+            return tn === tableName && cn === columnName;
+          });
+
+        return {
+          hasPermissionKey: hasColumn(schema.permissionsTable, "key"),
+          hasPermissionName: hasColumn(schema.permissionsTable, "name"),
+          hasPermissionDescription: hasColumn(
+            schema.permissionsTable,
+            "description",
+          ),
+          hasPermissionIsActive: hasColumn(
+            schema.permissionsTable,
+            "is_active",
+          ),
+          hasRoleIsActive: hasColumn(schema.rolesTable, "is_active"),
+          hasRoleCountry: hasColumn(schema.rolesTable, "country"),
+          hasRolePermissionIsActive: hasColumn(
+            schema.rolePermissionsTable,
+            "is_active",
+          ),
+        };
+      };
+
+      const params = [
+        schema.rolesTable,
+        schema.permissionsTable,
+        schema.rolePermissionsTable,
+      ];
+
+      if (String(db.adapter || "").toLowerCase() === "mssql") {
+        return db
           .query(
             `
-              SELECT table_name, column_name
-              FROM information_schema.columns
-              WHERE table_schema = DATABASE()
-                AND table_name IN (?, ?, ?)
+              SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name
+              FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_CATALOG = DB_NAME()
+                AND TABLE_SCHEMA = SCHEMA_NAME()
+                AND TABLE_NAME IN (?, ?, ?)
             `,
-            [schema.rolesTable, schema.permissionsTable, schema.rolePermissionsTable],
+            params,
           )
-          .then((result) => {
-            const hasColumn = (tableName, columnName) =>
-              (result.rows || []).some(
-                (row) =>
-                  row.table_name === tableName && row.column_name === columnName,
-              );
+          .then(build);
+      }
 
-            return {
-              hasPermissionKey: hasColumn(schema.permissionsTable, "key"),
-              hasPermissionName: hasColumn(schema.permissionsTable, "name"),
-              hasPermissionDescription: hasColumn(
-                schema.permissionsTable,
-                "description",
-              ),
-              hasPermissionIsActive: hasColumn(
-                schema.permissionsTable,
-                "is_active",
-              ),
-              hasRoleIsActive: hasColumn(schema.rolesTable, "is_active"),
-              hasRoleCountry: hasColumn(schema.rolesTable, "country"),
-              hasRolePermissionIsActive: hasColumn(
-                schema.rolePermissionsTable,
-                "is_active",
-              ),
-            };
-          })
-      : Promise.resolve({
-          hasPermissionKey: false,
-          hasPermissionName: true,
-          hasPermissionDescription: false,
-          hasPermissionIsActive: false,
-          hasRoleIsActive: false,
-          hasRoleCountry: false,
-          hasRolePermissionIsActive: false,
-        });
+      return db
+        .query(
+          `
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name IN (?, ?, ?)
+          `,
+          params,
+        )
+        .then(build);
+    })();
 
     return capabilitiesPromise;
   }
@@ -76,14 +110,29 @@ function createRbacRepository({ db, logger, schema }) {
   async function findRoleById(roleId) {
     if (!roleId) return null;
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const capabilities = await getCapabilities();
-      const roleIsActiveSql =
-        capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
+      const isMs = String(db.adapter || "").toLowerCase() === "mssql";
+      const roleIsActiveSql = capabilities.hasRoleIsActive
+        ? "r.is_active"
+        : isMs
+          ? "CAST(1 AS BIT)"
+          : "TRUE";
       const roleCountrySql =
         capabilities.hasRoleCountry ? "r.country" : "NULL";
       const result = await db.query(
+        isMs
+          ? `
+          SELECT TOP (1)
+            r.id,
+            r.name,
+            r.description,
+            ${roleCountrySql} AS country,
+            ${roleIsActiveSql} AS is_active
+          FROM ${schema.rolesTable} r
+          WHERE r.id = ?
         `
+          : `
           SELECT
             r.id,
             r.name,
@@ -113,7 +162,7 @@ function createRbacRepository({ db, logger, schema }) {
   async function findRoleByName(roleName) {
     if (!roleName) return null;
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const capabilities = await getCapabilities();
       const roleIsActiveSql =
         capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
@@ -154,7 +203,7 @@ function createRbacRepository({ db, logger, schema }) {
     }
 
     const description = `Auto-created role: ${roleName}`;
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const capabilities = await getCapabilities();
       const columns = ["name", "description"];
       const placeholders = ["?", "?"];
@@ -186,7 +235,7 @@ function createRbacRepository({ db, logger, schema }) {
   }
 
   async function listRoles({ includeInactive = true } = {}) {
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const capabilities = await getCapabilities();
       const roleIsActiveSql =
         capabilities.hasRoleIsActive ? "r.is_active" : "TRUE";
@@ -236,7 +285,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const keySql = `p.${quotedColumn(keyColumn)}`;
       const descriptionSql =
         capabilities.hasPermissionDescription ? "p.description" : "NULL";
@@ -292,7 +341,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const keySql = `p.${quotedColumn(keyColumn)}`;
       const descriptionSql =
         capabilities.hasPermissionDescription ? "p.description" : "NULL";
@@ -347,7 +396,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const keySql = `p.${quotedColumn(keyColumn)}`;
       const descriptionSql =
         capabilities.hasPermissionDescription ? "p.description" : "NULL";
@@ -406,7 +455,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter !== "mysql") {
+    if (!isRelationalAdapter(db)) {
       const created = await db.insert(schema.permissionsTable, {
         [keyColumn]: key,
         description,
@@ -468,7 +517,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter !== "mysql") {
+    if (!isRelationalAdapter(db)) {
       const payload = {};
       if (key !== undefined) payload[keyColumn] = key;
       if (description !== undefined) payload.description = description;
@@ -522,7 +571,7 @@ function createRbacRepository({ db, logger, schema }) {
   async function getRoleForUser(userId) {
     if (!userId) return null;
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const result = await db.query(
         `
           SELECT
@@ -571,7 +620,7 @@ function createRbacRepository({ db, logger, schema }) {
       return [];
     }
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const placeholders = normalized.map(() => '?').join(',');
       const result = await db.query(
         `
@@ -621,7 +670,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const keySql = `p.${quotedColumn(keyColumn)}`;
       const filters = ["rp.role_id = ?"];
       if (capabilities.hasRolePermissionIsActive) {
@@ -673,7 +722,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const keySql = `p.${quotedColumn(keyColumn)}`;
       const placeholders = normalizedRoleIds.map(() => '?').join(',');
       const filters = [`rp.role_id IN (${placeholders})`];
@@ -737,7 +786,7 @@ function createRbacRepository({ db, logger, schema }) {
       return [];
     }
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const capabilities = await getCapabilities();
       const keyColumn = getPermissionColumn(capabilities);
       const keySql = `p.${quotedColumn(keyColumn)}`;
@@ -810,7 +859,7 @@ function createRbacRepository({ db, logger, schema }) {
   async function countActiveUsersByRoleId(roleId, { excludeUserId = null } = {}) {
     if (!roleId) return 0;
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const values = [roleId];
       const filters = ["u.role_id = ?", "u.is_active = TRUE"];
       if (excludeUserId) {
@@ -847,7 +896,7 @@ function createRbacRepository({ db, logger, schema }) {
     const capabilities = await getCapabilities();
     const keyColumn = getPermissionColumn(capabilities);
 
-    if (db.adapter !== "mysql") {
+    if (!isRelationalAdapter(db)) {
       const rows = await db.findMany(schema.permissionsTable, {});
       const records = rows
         .filter((row) => normalizedKeys.includes(row[keyColumn] || row.name))
@@ -906,7 +955,7 @@ function createRbacRepository({ db, logger, schema }) {
   }
 
   async function setRolePermissionsByRoleId(roleId, assignments = []) {
-    if (db.adapter !== "mysql") {
+    if (!isRelationalAdapter(db)) {
       throw new Error("Role permission updates require MySQL adapter.");
     }
 
@@ -951,7 +1000,7 @@ function createRbacRepository({ db, logger, schema }) {
   }
 
   async function replaceRolePermissionsByRoleId(roleId, permissionIds = []) {
-    if (db.adapter !== "mysql") {
+    if (!isRelationalAdapter(db)) {
       throw new Error("Role permission updates require MySQL adapter.");
     }
 
@@ -1003,7 +1052,7 @@ function createRbacRepository({ db, logger, schema }) {
   }
 
   async function setRolePermissions(roleName, permissionKeys = []) {
-    if (db.adapter !== "mysql") {
+    if (!isRelationalAdapter(db)) {
       throw new Error("Role permission updates require MySQL adapter.");
     }
 

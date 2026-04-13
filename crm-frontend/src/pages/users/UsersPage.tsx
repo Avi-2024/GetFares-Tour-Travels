@@ -19,7 +19,7 @@ import {
   type PhoneInputRefType
 } from 'react-international-phone'
 import 'react-international-phone/style.css'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { usersApi } from '../../api/users'
 import { useAuth } from '../../context/AuthContext'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
@@ -845,8 +845,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       const response = await usersApi.list()
       setUsers(normalizeUsers(response))
     } catch (err) {
-      const message = getApiErrorMessage(err, 'Unable to load users')
-      setLoadingError(message)
+      reportApiError(err, 'Unable to load users', setLoadingError)
     } finally {
       setLoading(false)
     }
@@ -955,8 +954,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       showToast('User created successfully', 'success')
       await loadUsers()
     } catch (err) {
-      const message = getApiErrorMessage(err, 'Unable to create user')
-      showToast(message, 'error')
+      reportApiError(err, 'Unable to create user')
     }
   }
 
@@ -1004,8 +1002,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       showToast('User updated successfully', 'success')
       await loadUsers()
     } catch (err) {
-      const message = getApiErrorMessage(err, 'Unable to update user')
-      showToast(message, 'error')
+      reportApiError(err, 'Unable to update user')
     }
   }
 
@@ -1034,8 +1031,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       showToast('Role assigned successfully', 'success')
       await loadUsers()
     } catch (err) {
-      const message = getApiErrorMessage(err, 'Unable to assign role')
-      showToast(message, 'error')
+      reportApiError(err, 'Unable to assign role')
     }
   }
 
@@ -1053,8 +1049,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
       showToast('User deactivated successfully', 'success')
       await loadUsers()
     } catch (err) {
-      const message = getApiErrorMessage(err, 'Unable to deactivate user')
-      showToast(message, 'error')
+      reportApiError(err, 'Unable to deactivate user')
     }
   }
 

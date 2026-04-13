@@ -2,6 +2,19 @@ function createSuppliersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
   const tableExistsCache = new Map();
 
+  function toMysqlUtcDateTime(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
+      date.getUTCDate(),
+    )} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(
+      date.getUTCSeconds(),
+    )}`;
+  }
+
   function getAdapterName() {
     return String(db.adapter || "").toLowerCase();
   }
@@ -82,11 +95,16 @@ function createSuppliersRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      result.rows
+        .map((row) => row.column_name ?? row.COLUMN_NAME ?? null)
+        .filter(Boolean)
+        .map((column) => String(column).toLowerCase()),
+    );
     tableColumnsCache.set(tableName, columns);
     return columns;
   }
@@ -104,7 +122,9 @@ function createSuppliersRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    return Object.fromEntries(
+      entries.filter(([key]) => columns.has(String(key).toLowerCase())),
+    );
   }
 
   async function findAll(filters = {}) {
@@ -512,7 +532,9 @@ function createSuppliersRepository({ db, logger, schema }) {
   } = {}) {
     const amount = toNumber(settlementAmount, 0);
     const tableExists = await hasTable(schema.settlementsTable);
-    const when = settlementDate || new Date().toISOString();
+    const when =
+      toMysqlUtcDateTime(settlementDate || new Date()) ||
+      toMysqlUtcDateTime(new Date());
     const mode = String(paymentMode || "BANK_TRANSFER")
       .trim()
       .toUpperCase();
@@ -739,8 +761,6 @@ function createSuppliersRepository({ db, logger, schema }) {
 }
 
 export { createSuppliersRepository };
-
-
 
 
 

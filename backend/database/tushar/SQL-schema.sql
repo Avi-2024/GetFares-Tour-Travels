@@ -1258,6 +1258,12 @@ SET response_sla_breached = CASE
   ELSE FALSE
 END;
 
+CREATE INDEX idx_quotations_response_category
+  ON quotations(response_category);
+
+CREATE INDEX idx_quotations_response_sla_breached
+  ON quotations(response_sla_breached, sent_at DESC);
+
 ALTER TABLE leads
   ADD COLUMN preferred_hotel_category VARCHAR(20);
 
@@ -1322,8 +1328,7 @@ WHERE response_at IS NOT NULL
   AND response_deadline IS NOT NULL
   AND sla_breached != (response_at > response_deadline);
 
-ALTER TABLE users
-ADD COLUMN active BOOLEAN DEFAULT TRUE;
+
 
 UPDATE users
 SET active = TRUE
@@ -1524,7 +1529,8 @@ SET l.lead_code = CONCAT(
   MOD(FLOOR((seq.rn - 1) / 26), 10),
   CHAR(65 + MOD(FLOOR((seq.rn - 1) / 10), 26)),
   MOD((seq.rn - 1), 10)
-);
+)
+WHERE l.id IS NOT NULL;
 
 ALTER TABLE leads
   ADD CONSTRAINT chk_leads_lead_code_format
@@ -1816,7 +1822,7 @@ CREATE TABLE IF NOT EXISTS landing_hero_sections (
 );
 
 -- Existing table extensions for richer website cards
-ALTER TABLE landing_places ADD COLUMN country VARCHAR(100);
+ALTER TABLE  landing_places ADD COLUMN country VARCHAR(100);
 
 ALTER TABLE main_packages ADD COLUMN country VARCHAR(100);
 

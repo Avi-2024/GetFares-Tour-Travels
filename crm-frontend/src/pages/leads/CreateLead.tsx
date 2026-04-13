@@ -10,7 +10,7 @@ import 'react-international-phone/style.css'
 import CurrencyInput, { formatValue } from 'react-currency-input-field'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
 import { Country } from 'country-state-city'
@@ -706,8 +706,7 @@ const CreateLead: React.FC = () => {
       })
       navigate('/leads')
     } catch (error) {
-      const errorMessage = getApiErrorMessage(error, 'Could not create lead.')
-      setApiError(errorMessage)
+      reportApiError(error, 'Could not create lead.', setApiError)
       setLoading(false)
     }
   }

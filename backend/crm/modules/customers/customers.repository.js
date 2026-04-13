@@ -1,10 +1,25 @@
 function createCustomersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
 
+  function normalizeEmail(value) {
+    if (!value) {
+      return "";
+    }
+    return String(value).trim().toLowerCase();
+  }
+
+  function normalizePhone(value) {
+    if (!value) {
+      return "";
+    }
+    const compact = String(value).trim().replace(/\s+/g, "");
+    return compact.replace(/[^\d+]/g, "");
+  }
+
   function canUseRawQuery() {
     return (
       typeof db.query === "function" &&
-      (db.adapter === "mysql" || Boolean(db.pool))
+      (db.adapter === "mysql" || db.adapter === "mssql")
     );
   }
 
@@ -104,6 +119,61 @@ function createCustomersRepository({ db, logger, schema }) {
     logger.debug({ module: "customers", id, payload }, "Updating record");
     const sanitized = await sanitizeForTable(schema.tableName, payload);
     return db.update(schema.tableName, id, sanitized);
+  }
+
+  async function backfillFromLeads() {
+    const [leadRows, customerRows] = await Promise.all([
+      db.findMany(schema.leadsTable, {}),
+      db.findMany(schema.tableName, {}),
+    ]);
+
+    const existingEmails = new Set();
+    const existingPhones = new Set();
+    (Array.isArray(customerRows) ? customerRows : []).forEach((row) => {
+      if (row?.is_deleted ?? row?.isDeleted ?? false) return;
+      const email = normalizeEmail(row?.email);
+      const phone = normalizePhone(row?.phone);
+      if (email) existingEmails.add(email);
+      if (phone) existingPhones.add(phone);
+    });
+
+    let created = 0;
+    for (const lead of Array.isArray(leadRows) ? leadRows : []) {
+      if (lead?.is_deleted ?? lead?.isDeleted ?? false) continue;
+      const email = normalizeEmail(lead?.email);
+      const phone = normalizePhone(lead?.phone);
+      if ((email && existingEmails.has(email)) || (phone && existingPhones.has(phone))) {
+        continue;
+      }
+
+      const fullName =
+        lead?.full_name ??
+        lead?.fullName ??
+        (email ? email.split("@")[0] : null) ??
+        phone ??
+        null;
+
+      if (!fullName && !email && !phone) {
+        continue;
+      }
+
+      const sanitized = await sanitizeForTable(schema.tableName, {
+        full_name: fullName,
+        email: email || null,
+        phone: phone || null,
+        client_currency: lead?.client_currency ?? lead?.clientCurrency ?? "INR",
+      });
+      if (!Object.keys(sanitized).length) {
+        continue;
+      }
+
+      await db.insert(schema.tableName, sanitized);
+      created += 1;
+      if (email) existingEmails.add(email);
+      if (phone) existingPhones.add(phone);
+    }
+
+    return created;
   }
 
   async function findBookingSummaryByCustomerIds(customerIds = []) {
@@ -274,6 +344,7 @@ function createCustomersRepository({ db, logger, schema }) {
     findById,
     create,
     update,
+    backfillFromLeads,
     findBookingSummaryByCustomerIds,
   });
 }

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { FaArrowLeft, FaRotate, FaWallet, FaUsers, FaMoneyBill, FaCircleCheck, FaCircleXmark } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { suppliersApi } from '../../api/suppliers'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { formatCurrency } from '../../utils/currency'
 
 interface Supplier {
@@ -154,7 +154,7 @@ const SupplierDetailPage: React.FC = () => {
       const response = await suppliersApi.getById(id)
       setSupplier(mapSupplier(unwrapObject(response)))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load supplier'))
+      reportApiError(err, 'Failed to load supplier', setError)
     } finally {
       setLoading(false)
     }
@@ -167,7 +167,7 @@ const SupplierDetailPage: React.FC = () => {
       const response = await suppliersApi.listPayables(id, { page: 1, limit: 200 })
       setPayables(unwrapList(response).map(mapPayable))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load payables'))
+      reportApiError(err, 'Failed to load payables', setError)
     } finally {
       setLoadingPayables(false)
     }
@@ -206,7 +206,7 @@ const SupplierDetailPage: React.FC = () => {
       
       setBookings(mapped)
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load bookings'))
+      reportApiError(err, 'Failed to load bookings', setError)
     } finally {
       setLoadingBookings(false)
     }

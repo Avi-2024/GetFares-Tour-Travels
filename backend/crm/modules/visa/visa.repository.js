@@ -3,7 +3,10 @@ function createVisaRepository({ db, logger, schema }) {
   const columnsCache = new Map();
 
   function canIntrospect() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
+    );
   }
 
   function toBoolean(value, fallback = false) {
@@ -94,10 +97,15 @@ function createVisaRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      result.rows
+        .map((row) => row.column_name ?? row.COLUMN_NAME ?? null)
+        .filter(Boolean)
+        .map((column) => String(column).toLowerCase()),
+    );
     columnsCache.set(tableName, columns);
     return columns;
   }
@@ -115,7 +123,9 @@ function createVisaRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    return Object.fromEntries(
+      entries.filter(([key]) => columns.has(String(key).toLowerCase())),
+    );
   }
 
   function toVisaCase(row) {
@@ -501,4 +511,3 @@ function createVisaRepository({ db, logger, schema }) {
 }
 
 export { createVisaRepository };
-

@@ -3,7 +3,10 @@ function createPaymentsRepository({ db, logger, schema }) {
   const columnCache = new Map();
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
+    );
   }
 
   function toNumber(value, fallback = 0) {
@@ -138,11 +141,16 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      result.rows
+        .map((row) => row.column_name ?? row.COLUMN_NAME ?? null)
+        .filter(Boolean)
+        .map((column) => String(column).toLowerCase()),
+    );
     columnCache.set(tableName, columns);
     return columns;
   }
@@ -153,7 +161,7 @@ function createPaymentsRepository({ db, logger, schema }) {
       return true;
     }
 
-    return columns.has(columnName);
+    return columns.has(String(columnName).toLowerCase());
   }
 
   async function hasColumnFresh(tableName, columnName) {
@@ -544,4 +552,3 @@ function createPaymentsRepository({ db, logger, schema }) {
 }
 
 export { createPaymentsRepository };
-

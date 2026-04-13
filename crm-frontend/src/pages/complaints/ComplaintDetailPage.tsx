@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaPlus, FaUser, FaXmark } from "react-icons/fa6";
 import { complaintsApi } from "../../api/complaints";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import { useUsersService } from "../../hooks/useUsersService";
 
 interface Complaint {
@@ -153,8 +153,10 @@ const ComplaintDetailPage: React.FC = () => {
         }
       } catch (error) {
         console.error("Failed to load complaint data:", error);
-        setError(
-          getApiErrorMessage(error, "Failed to load complaint data. Using default data."),
+        reportApiError(
+          error,
+          "Failed to load complaint data. Using default data.",
+          setError,
         );
         // Keep the seed data that's already set in state
       } finally {
@@ -232,7 +234,7 @@ const ComplaintDetailPage: React.FC = () => {
       setError("");
     } catch (error) {
       console.error("Failed to update status:", error);
-      setError(getApiErrorMessage(error, "Failed to update complaint status"));
+      reportApiError(error, "Failed to update complaint status", setError);
     }
   };
 
@@ -266,7 +268,7 @@ const ComplaintDetailPage: React.FC = () => {
       }));
     } catch (error) {
       console.error("Failed to add note:", error);
-      setError(getApiErrorMessage(error, "Failed to add note"));
+      reportApiError(error, "Failed to add note", setError);
     }
   };
 
@@ -300,7 +302,7 @@ const ComplaintDetailPage: React.FC = () => {
       setError("");
     } catch (error) {
       console.error("Failed to assign complaint:", error);
-      setError(getApiErrorMessage(error, "Failed to assign complaint"));
+      reportApiError(error, "Failed to assign complaint", setError);
     } finally {
       setAssignmentLoading(false);
     }
@@ -328,7 +330,7 @@ const ComplaintDetailPage: React.FC = () => {
       setError("");
     } catch (error) {
       console.error("Failed to escalate complaint:", error);
-      setError(getApiErrorMessage(error, "Failed to escalate complaint"));
+      reportApiError(error, "Failed to escalate complaint", setError);
     }
   };
 
@@ -347,7 +349,7 @@ const ComplaintDetailPage: React.FC = () => {
       setError("");
     } catch (error) {
       console.error("Failed to update complaint:", error);
-      setError(getApiErrorMessage(error, "Failed to update complaint"));
+      reportApiError(error, "Failed to update complaint", setError);
     }
   };
 

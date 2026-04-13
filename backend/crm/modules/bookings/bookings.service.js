@@ -547,7 +547,7 @@ function createBookingsService({ repository, logger, events, config }) {
     return [...new Set(alerts)];
   }
 
-  function buildCreateRecord(payload, context = {}) {
+  function buildCreateRecord(payload, context = {}, options = {}) {
     const totalAmount = toNumber(payload.totalAmount, 0);
     const costAmount = toNumber(payload.costAmount, 0);
     const nonRefundable = Boolean(payload.isNonRefundable);
@@ -628,6 +628,11 @@ function createBookingsService({ repository, logger, events, config }) {
       );
     }
 
+    const createdBy =
+      options.createdBy !== undefined
+        ? options.createdBy
+        : context.user?.id || null;
+
     return {
       quotation_id: String(payload.quotationId || "").trim(),
       booking_number: payload.bookingNumber || buildBookingNumber(),
@@ -655,9 +660,21 @@ function createBookingsService({ repository, logger, events, config }) {
       balance_due_by: insights.balanceDueBy,
       deadline_risk_level: insights.deadlineRiskLevel,
       deadline_last_evaluated_at: insights.deadlineLastEvaluatedAt,
-      created_by: context.user?.id || null,
+      created_by: createdBy,
       updated_at: new Date().toISOString(),
     };
+  }
+
+  async function resolveBookingCreatorId(userId) {
+    const normalized = String(userId || "").trim();
+    if (!normalized) {
+      return null;
+    }
+    if (typeof repository.findUserById !== "function") {
+      return normalized;
+    }
+    const userRow = await repository.findUserById(normalized);
+    return userRow?.id ? normalized : null;
   }
 
   return Object.freeze({
@@ -699,24 +716,50 @@ function createBookingsService({ repository, logger, events, config }) {
         );
       }
 
+      const creatorId = await resolveBookingCreatorId(context.user?.id);
       const record = buildCreateRecord(
         { ...payload, quotationId: normalizedQuotationId },
         context,
+        { createdBy: creatorId },
       );
       await ensureBookingNumberUnique(record.booking_number);
       let created;
       try {
         created = await repository.create(record);
       } catch (error) {
+        const message = String(error?.message || "");
         const mysqlFkViolation =
           error?.code === "ER_NO_REFERENCED_ROW_2" ||
           error?.errno === 1452 ||
-          /foreign key constraint fails/i.test(String(error?.message || ""));
-        if (mysqlFkViolation) {
+          /foreign key constraint fails/i.test(message);
+        if (
+          mysqlFkViolation &&
+          /bookings_ibfk_1/i.test(message)
+        ) {
+          const quotationStillExists = await repository
+            .findQuotationById(normalizedQuotationId)
+            .catch(() => null);
+          if (quotationStillExists && !quotationStillExists.isDeleted) {
+            throw new AppError(
+              409,
+              "Booking could not be linked to selected quotation due to database constraint. Retry once.",
+              "BOOKING_QUOTATION_LINK_FAILED",
+            );
+          }
           throw new AppError(
             409,
             "Selected quotation does not exist. Refresh quotations and select again.",
             "BOOKING_QUOTATION_NOT_FOUND",
+          );
+        }
+        if (
+          mysqlFkViolation &&
+          /bookings_ibfk_2/i.test(message)
+        ) {
+          throw new AppError(
+            401,
+            "Current user session is stale. Please logout and login again.",
+            "BOOKING_CREATOR_NOT_FOUND",
           );
         }
         throw error;

@@ -1,5 +1,19 @@
 import { env } from "./env.js";
 
+function resolveAzureStorageConnectionString() {
+  const direct = String(env.AZURE_STORAGE_CONNECTION_STRING || "").trim();
+  if (direct) {
+    return direct;
+  }
+  const name = String(env.AZURE_STORAGE_ACCOUNT_NAME || "").trim();
+  const key = String(env.AZURE_STORAGE_ACCOUNT_KEY || "").trim();
+  if (!name || !key) {
+    return undefined;
+  }
+  const suffix = String(env.AZURE_STORAGE_ENDPOINT_SUFFIX || "core.windows.net").trim() || "core.windows.net";
+  return `DefaultEndpointsProtocol=https;AccountName=${name};AccountKey=${key};EndpointSuffix=${suffix}`;
+}
+
 const config = Object.freeze({
   env: env.NODE_ENV,
   app: {
@@ -26,6 +40,15 @@ const config = Object.freeze({
       user: env.MYSQL_USER,
       password: env.MYSQL_PASSWORD,
       database: env.MYSQL_DATABASE,
+      ssl: env.MYSQL_SSL,
+    },
+    azureSql: {
+      server: env.AZURE_SQL_SERVER,
+      database: env.AZURE_SQL_DATABASE,
+      user: env.AZURE_SQL_USER,
+      password: env.AZURE_SQL_PASSWORD,
+      port: env.AZURE_SQL_PORT || 1433,
+      trustServerCertificate: env.AZURE_SQL_TRUST_SERVER_CERTIFICATE ?? false,
     },
   },
   logger: {
@@ -91,14 +114,12 @@ const config = Object.freeze({
       supplierPayables: env.AUTOMATION_SUPPLIER_PAYABLE_INTERVAL_MS,
     },
   },
-  aws: {
-    accessKeyId: env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    region: env.AWS_REGION,
-    bucket: env.AWS_S3_BUCKET_NAME || env.AWS_S3_BUCKET,
-    publicRead: env.AWS_S3_PUBLIC_READ ?? false,
-    publicBaseUrl: env.AWS_S3_PUBLIC_BASE_URL,
-    uploadPrefix: env.AWS_S3_UPLOAD_PREFIX,
+  azureBlob: {
+    connectionString: resolveAzureStorageConnectionString(),
+    containerName: env.AZURE_STORAGE_CONTAINER,
+    publicRead: env.AZURE_STORAGE_PUBLIC_READ ?? false,
+    publicBaseUrl: env.AZURE_STORAGE_PUBLIC_BASE_URL,
+    uploadPrefix: env.AZURE_STORAGE_UPLOAD_PREFIX,
     maxUploadSizeMb: env.UPLOAD_MAX_SIZE_MB || 10,
   },
   uploads: {

@@ -7,8 +7,7 @@ function createReportsRepository({ db, schema, logger }) {
     const adapter = getAdapterName();
     return (
       typeof db.query === "function" &&
-      Boolean(db.pool) &&
-      adapter === "mysql"
+      (adapter === "mysql" || adapter === "mssql")
     );
   }
 

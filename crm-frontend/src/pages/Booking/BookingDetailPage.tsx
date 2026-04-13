@@ -17,7 +17,7 @@ import {
 import { bookingsApi } from "../../api/bookings";
 import { paymentsApi } from "../../api/payments";
 import { quotationsApi } from "../../api/quotations";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
 
 // Types
@@ -1641,12 +1641,9 @@ const BookingDetailPage: React.FC = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(objectUrl);
     } catch (error) {
-      showToast(
-        getApiErrorMessage(
-          error,
-          `Failed to download ${attachmentType === "invoice" ? "invoice" : "proof"}`,
-        ),
-        "error",
+      reportApiError(
+        error,
+        `Failed to download ${attachmentType === "invoice" ? "invoice" : "proof"}`,
       );
     }
   };
@@ -1920,9 +1917,7 @@ const BookingDetailPage: React.FC = () => {
       }
     } catch (err) {
       console.error("Failed to load booking details:", err);
-      const message = getApiErrorMessage(err, "Failed to load booking details");
-      setError(message);
-      showToast(message, "error");
+      reportApiError(err, "Failed to load booking details", setError);
     } finally {
       setLoading(false);
     }
@@ -1952,10 +1947,7 @@ const BookingDetailPage: React.FC = () => {
       await fetchBookingData();
       showToast(`Booking status updated to ${newStatus}`, "success");
     } catch (err) {
-      showToast(
-        getApiErrorMessage(err, "Failed to update booking status"),
-        "error",
-      );
+      reportApiError(err, "Failed to update booking status");
     } finally {
       setLoading(false);
     }
@@ -1977,7 +1969,7 @@ const BookingDetailPage: React.FC = () => {
       setCancelError("");
       showToast("Booking cancelled successfully", "success");
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to cancel booking"), "error");
+      reportApiError(err, "Failed to cancel booking");
     } finally {
       setLoading(false);
     }
@@ -2014,10 +2006,7 @@ const BookingDetailPage: React.FC = () => {
         "success",
       );
     } catch (err) {
-      showToast(
-        getApiErrorMessage(err, "Failed to mark invoice as paid"),
-        "error",
-      );
+      reportApiError(err, "Failed to mark invoice as paid");
     } finally {
       setLoading(false);
     }
@@ -2109,7 +2098,7 @@ const BookingDetailPage: React.FC = () => {
       setShowAddPaymentModal(false);
       showToast("Payment recorded successfully", "success");
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to record payment"), "error");
+      reportApiError(err, "Failed to record payment");
     } finally {
       setSavingPayment(false);
     }

@@ -6,7 +6,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { reportsApi } from '../../api/reports'
 import { suppliersApi } from '../../api/suppliers'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 
 type SupplierServiceBreakdownProps = { refreshKey?: number }
 
@@ -192,7 +192,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
       })
     } catch (err) {
       setRows([])
-      setError(getApiErrorMessage(err, 'Failed to load supplier-service rows'))
+      reportApiError(err, 'Failed to load supplier-service rows', setError)
     } finally {
       setLoading(false)
     }
@@ -219,7 +219,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
       setPayablesBySupplier(Object.fromEntries(pairs))
     } catch (err) {
       setPayablesBySupplier({})
-      setError(getApiErrorMessage(err, 'Failed to load supplier payables'))
+      reportApiError(err, 'Failed to load supplier payables', setError)
     } finally {
       setPayablesLoading(false)
     }
@@ -241,7 +241,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
         const payables = payablesBySupplier[supplierId] || []
         if (!payables.length) {
           setLedgerRows([])
-          setError(getApiErrorMessage(err, 'Failed to load settlement history'))
+          reportApiError(err, 'Failed to load settlement history', setError)
         } else {
           const settled = await Promise.allSettled(
             payables.map(payable => suppliersApi.listPayableSettlements(payable.id, { page: 1, limit: 50 }))
@@ -394,9 +394,8 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
         await fetchLedger(selectedSupplierId)
       }
     } catch (err) {
-      setCreateModal(prev =>
-        prev ? { ...prev, error: getApiErrorMessage(err, 'Failed to create payable') } : prev
-      )
+      const msg = reportApiError(err, 'Failed to create payable')
+      setCreateModal(prev => (prev ? { ...prev, error: msg } : prev))
     } finally {
       setActionLoading(false)
     }
@@ -429,9 +428,8 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
       await fetchPayables(rows)
       await fetchLedger(settleModal.row.supplierId || selectedSupplierId)
     } catch (err) {
-      setSettleModal(prev =>
-        prev ? { ...prev, error: getApiErrorMessage(err, 'Failed to settle payable') } : prev
-      )
+      const msg = reportApiError(err, 'Failed to settle payable')
+      setSettleModal(prev => (prev ? { ...prev, error: msg } : prev))
     } finally {
       setActionLoading(false)
     }

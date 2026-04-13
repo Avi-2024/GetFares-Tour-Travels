@@ -15,7 +15,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { visaApi } from '../../api/visa'
 import { bookingsApi } from '../../api/bookings'
 import { suppliersApi } from '../../api/suppliers'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { validateVisaTransition } from '../../utils/workflowValidation'
 import {
   DOCUMENT_TYPE_OPTIONS,
@@ -267,7 +267,7 @@ const VisaDetailPage = () => {
         setChecklist(mapChecklist(chk || {}))
       } catch (err) {
         console.error('Failed to load visa case:', err)
-        setPageError(getApiErrorMessage(err, 'Failed to load visa case.'))
+        reportApiError(err, 'Failed to load visa case.', setPageError)
       } finally {
         setLoading(false)
       }
@@ -425,10 +425,7 @@ const VisaDetailPage = () => {
       )
     } catch (err) {
       console.error('Failed to update visa workflow:', err)
-      showMessage(
-        getApiErrorMessage(err, 'Failed to update visa workflow.'),
-        'error'
-      )
+      reportApiError(err, 'Failed to update visa workflow.')
     } finally {
       setSaving(false)
     }
@@ -445,10 +442,7 @@ const VisaDetailPage = () => {
       showMessage('Document verified successfully.', 'success')
     } catch (err) {
       console.error('Failed to verify visa document:', err)
-      showMessage(
-        getApiErrorMessage(err, 'Failed to verify document.'),
-        'error'
-      )
+      reportApiError(err, 'Failed to verify document.')
     }
   }
 
@@ -473,10 +467,7 @@ const VisaDetailPage = () => {
             : item
         )
       )
-      showMessage(
-        getApiErrorMessage(err, 'Failed to update checklist.'),
-        'error'
-      )
+      reportApiError(err, 'Failed to update checklist.')
     }
   }
 
@@ -496,10 +487,7 @@ const VisaDetailPage = () => {
       showMessage('Document uploaded successfully.', 'success')
     } catch (err) {
       console.error('Failed to upload visa document:', err)
-      showMessage(
-        getApiErrorMessage(err, 'Failed to upload document.'),
-        'error'
-      )
+      reportApiError(err, 'Failed to upload document.')
     }
   }
 

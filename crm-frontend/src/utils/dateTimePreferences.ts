@@ -48,6 +48,17 @@ function isValidTimeZone(value: string) {
   }
 }
 
+function resolveDisplayTimeZone(
+  preferences: DateTimePreferences,
+  override?: string | null,
+): string {
+  const raw = String(override ?? "").trim();
+  if (raw && isValidTimeZone(raw)) {
+    return raw;
+  }
+  return preferences.timezone;
+}
+
 function normalizeLocale(value?: string) {
   const raw = String(value || "").trim();
   if (!raw) {
@@ -112,6 +123,11 @@ export function saveDateTimePreferencesToStorage(
   localStorage.setItem(DATE_TIME_PREFERENCES_STORAGE_KEY, JSON.stringify(value));
 }
 
+/** True when the API sent a calendar date only (no time), e.g. travel date. */
+function isDateOnlyString(raw: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw);
+}
+
 export function parseApiDateTime(value: unknown): Date | null {
   if (!value) return null;
   if (value instanceof Date) {
@@ -121,27 +137,41 @@ export function parseApiDateTime(value: unknown): Date | null {
   const raw = String(value).trim();
   if (!raw) return null;
 
-  // Extract just the date part (YYYY-MM-DD) to avoid timezone conversion
-  // This ensures we show the exact date from the database
-  const dateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (dateMatch) {
-    const [, year, month, day] = dateMatch;
-    // Create date in local timezone without time component
-    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  // Datetime strings (ISO Z/offset, or MySQL "YYYY-MM-DD HH:mm:ss") — keep full instant.
+  if (/^\d{4}-\d{2}-\d{2}([T ]\d)/.test(raw)) {
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
-  // Fallback for other date formats
+  // Pure date YYYY-MM-DD — local midnight, no timezone shift for "day" fields
+  if (isDateOnlyString(raw)) {
+    const [, y, m, d] = raw.split("-");
+    return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  }
+
   const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function getDateParts(date: Date) {
-  // Extract date parts directly from the Date object without timezone conversion
-  // This ensures we show the exact date from the backend
-  const year = String(date.getFullYear()).padStart(4, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
+function getDateParts(date: Date, timeZone?: string) {
+  if (timeZone) {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = fmt.formatToParts(date);
+    const y = parts.find((p) => p.type === "year")?.value ?? "";
+    const m = parts.find((p) => p.type === "month")?.value ?? "";
+    const d = parts.find((p) => p.type === "day")?.value ?? "";
+    if (y && m && d) {
+      return { year: y, month: m, day: d };
+    }
+  }
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return { year, month, day };
 }
 
@@ -171,13 +201,31 @@ export function formatDateTimeWithPreferences(
   value: unknown,
   preferences: DateTimePreferences,
   fallback = "N/A",
+  timeZoneOverride?: string | null,
 ) {
   const date = parseApiDateTime(value);
   if (!date) return fallback;
 
-  const datePart = formatDateWithPreferences(date, preferences, fallback);
+  const tz = resolveDisplayTimeZone(preferences, timeZoneOverride);
+  const { year, month, day } = getDateParts(date, tz);
+  let datePart: string;
+  switch (preferences.dateFormat) {
+    case "MM/DD/YYYY":
+      datePart = `${month}/${day}/${year}`;
+      break;
+    case "YYYY-MM-DD":
+      datePart = `${year}-${month}-${day}`;
+      break;
+    case "DD-MM-YYYY":
+      datePart = `${day}-${month}-${year}`;
+      break;
+    case "DD/MM/YYYY":
+    default:
+      datePart = `${day}/${month}/${year}`;
+      break;
+  }
   const timePart = new Intl.DateTimeFormat(preferences.locale, {
-    timeZone: preferences.timezone,
+    timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);

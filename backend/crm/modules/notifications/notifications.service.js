@@ -3,7 +3,7 @@ import { toPagination } from "../../core/utils/index.js";
 import { NotificationStatus } from "./notifications.schema.js";
 
 const ROLE_BY_DOMAIN = Object.freeze({
-  leads: ["manager"],
+  leads: ["manager", "department_head", "team_lead"],
   quotations: ["manager", "sales_consultant"],
   bookings: ["manager", "sales_consultant"],
   payments: ["accounts", "manager"],
@@ -139,6 +139,15 @@ function createNotificationsService({
       return String(payload.message);
     }
 
+    if (eventName === "leads.sla_breached") {
+      const label =
+        payload.fullName ||
+        payload.leadName ||
+        extractEntityId(payload) ||
+        "Lead";
+      return `No first contact within 15 minutes — ${label}. Review or reassign.`;
+    }
+
     const domain = toDomain(eventName);
     const entityId = extractEntityId(payload);
     if (!entityId) {
@@ -232,10 +241,13 @@ function createNotificationsService({
   function buildDomainRecipients(eventName, payload = {}) {
     const domain = toDomain(eventName);
     const userIds = extractUsersFromPayload(payload);
+    const baseRoles = ROLE_BY_DOMAIN[domain] || ["manager"];
+    const explicitRoles = Array.isArray(payload.roles) ? payload.roles : [];
+
     const roles =
       eventName === "leads.followup_due_soon" ?
-        []
-      : (ROLE_BY_DOMAIN[domain] || ["manager"]);
+        unique(explicitRoles)
+      : unique([...explicitRoles, ...baseRoles]);
 
     return normalizeRecipients({
       userIds,
@@ -245,11 +257,16 @@ function createNotificationsService({
   }
 
   async function captureDomainEvent({ eventName, payload = {} }) {
+    const title =
+      eventName === "leads.sla_breached" ?
+        "Lead SLA: no response in 15 minutes"
+      : toTitle(eventName);
+
     return publish({
       eventName,
       entityType: toDomain(eventName),
       entityId: extractEntityId(payload),
-      title: toTitle(eventName),
+      title,
       message: buildNotificationMessage(eventName, payload),
       payload,
       recipients: buildDomainRecipients(eventName, payload),

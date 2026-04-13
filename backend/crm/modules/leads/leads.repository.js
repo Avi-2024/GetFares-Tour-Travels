@@ -40,7 +40,7 @@ function createLeadsRepository({ db, logger, schema }) {
   function canIntrospect() {
     return (
       typeof db.query === "function" &&
-      (db.adapter === "mysql" || Boolean(db.pool))
+      (db.adapter === "mysql" || db.adapter === "mssql")
     );
   }
 
@@ -128,7 +128,7 @@ function createLeadsRepository({ db, logger, schema }) {
   }
 
   async function reserveNextLeadCodeSerial() {
-    if (db.adapter === "mysql" && typeof db.query === "function") {
+    if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
       try {
         const result = await db.query(
           `SELECT nextval('leads_lead_code_seq') AS serial`,
@@ -923,7 +923,7 @@ function createLeadsRepository({ db, logger, schema }) {
         .trim()
         .toUpperCase();
 
-      if (db.adapter === "mysql" && typeof db.query === "function") {
+      if ((db.adapter === "mysql" || db.adapter === "mssql") && typeof db.query === "function") {
         const hasLeadCustomerId = await mysqlColumnExists(
           schema.tableName,
           "customer_id",
@@ -1387,7 +1387,7 @@ function createLeadsRepository({ db, logger, schema }) {
         return null;
       }
 
-      if (db.adapter === "mysql") {
+      if (db.adapter === "mysql" || db.adapter === "mssql") {
         const result = await db.query(
           `SELECT * FROM ${schema.destinationsTable} WHERE LOWER(name) = LOWER(?) LIMIT 1`,
           [normalized],
@@ -1535,7 +1535,7 @@ function createLeadsRepository({ db, logger, schema }) {
     async findUserAgentCountry(userId) {
       if (!userId) return null;
 
-      if (db.adapter === "mysql") {
+      if (db.adapter === "mysql" || db.adapter === "mssql") {
         const [hasUserCountriesTable, hasCountriesTable] = await Promise.all([
           hasTable(schema.userCountriesTable),
           hasTable(schema.countriesTable),
@@ -1565,7 +1565,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findUserCountryNames(userId) {
       if (!userId) return [];
-      if (db.adapter === "mysql") {
+      if (db.adapter === "mysql" || db.adapter === "mssql") {
         const [hasUserCountriesTable, hasCountriesTable] = await Promise.all([
           hasTable(schema.userCountriesTable),
           hasTable(schema.countriesTable),
@@ -1741,7 +1741,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findManagedAgentIds(managerId) {
       if (!managerId) return [];
-      if (db.adapter === "mysql") {
+      if (db.adapter === "mysql" || db.adapter === "mssql") {
         const hasParentId = await hasColumn(schema.usersTable, "parent_id");
         if (hasParentId) {
           const result = await db.query(
@@ -1877,7 +1877,7 @@ function createLeadsRepository({ db, logger, schema }) {
       }
       const normalizedLimit = toPositiveInt(limit, 50);
 
-      if (db.adapter === "mysql") {
+      if (db.adapter === "mysql" || db.adapter === "mssql") {
         const result = await db.query(
           `SELECT * FROM ${tableName} WHERE processed_at IS NULL ORDER BY queued_at ASC LIMIT ?`,
           [normalizedLimit],
@@ -1995,7 +1995,7 @@ function createLeadsRepository({ db, logger, schema }) {
 
     async findSlaBreachCandidates({ limit = 100 } = {}) {
       const normalizedLimit = toPositiveInt(limit, 100);
-      if (db.adapter === "mysql") {
+      if (db.adapter === "mysql" || db.adapter === "mssql") {
         const result = await db.query(
           `
             SELECT *
@@ -2219,7 +2219,10 @@ function createLeadsRepository({ db, logger, schema }) {
       }
 
       let rows;
-      if (typeof db.query === "function" && db.pool) {
+      if (
+        typeof db.query === "function" &&
+        (db.adapter === "mysql" || db.adapter === "mssql")
+      ) {
         const table = schema.followupsTable;
         const result = await db.query(
           `

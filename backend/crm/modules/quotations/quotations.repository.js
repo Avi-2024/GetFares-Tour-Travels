@@ -83,7 +83,10 @@ function createQuotationsRepository({ db, logger, schema }) {
   }
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
+    );
   }
 
   function toQuotation(row) {

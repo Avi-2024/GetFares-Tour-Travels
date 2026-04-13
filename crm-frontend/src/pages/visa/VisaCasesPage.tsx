@@ -17,7 +17,7 @@ import { SUPPLIERS } from "../../data/staticLists";
 import { visaApi } from "../../api/visa";
 import { bookingsApi } from "../../api/bookings";
 import { suppliersApi } from "../../api/suppliers";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import { useAuth } from "../../context/AuthContext";
 import {
   humanizeVisaStage,
@@ -141,7 +141,7 @@ const VisaCasesPage = () => {
       } catch (err) {
         console.error("Failed to load visa cases:", err);
         setRows([]);
-        setError(getApiErrorMessage(err, "Failed to load visa cases."));
+        reportApiError(err, "Failed to load visa cases.", setError);
       } finally {
         setLoading(false);
       }

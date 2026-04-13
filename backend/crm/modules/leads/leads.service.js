@@ -1523,7 +1523,12 @@ function createLeadsService({ repository, logger, events }) {
         leadId: existing.id,
         reason,
         role: roleName,
-        roles: roleName === ASSIGNMENT_ROLES.MANAGER ? ["manager"] : undefined,
+        fullName: existing.fullName || existing.name || null,
+        message:
+          reason === "NO_ASSIGNABLE_AGENT" ?
+            "No agent available to assign this lead — managers please review."
+          : undefined,
+        roles: ["manager", "department_head", "team_lead"],
       });
 
       if (roleName !== ASSIGNMENT_ROLES.MANAGER) {
@@ -1658,17 +1663,14 @@ function createLeadsService({ repository, logger, events }) {
       }
     }
 
-    let customer = null;
-    if (useCustomerLinking) {
-      customer = await repository.findOrCreateCustomer({
-        fullName: payload.fullName,
-        phone: payload.phone,
-        email: payload.email,
-        panNumber: payload.panNumber,
-        addressLine: payload.addressLine,
-        clientCurrency: payload.clientCurrency,
-      });
-    }
+    const customer = await repository.findOrCreateCustomer({
+      fullName: payload.fullName,
+      phone: payload.phone,
+      email: payload.email,
+      panNumber: payload.panNumber,
+      addressLine: payload.addressLine,
+      clientCurrency: payload.clientCurrency,
+    });
 
     const created = await repository.create(
       buildCreateRecord(payload, {
@@ -2350,6 +2352,8 @@ function createLeadsService({ repository, logger, events }) {
         events.emitEscalated({
           leadId: lead.id,
           reason: "AUTO_NON_RESPONSIVE",
+          fullName: lead.fullName || lead.name || null,
+          roles: ["manager", "department_head", "team_lead"],
         });
 
         summary.marked += 1;
@@ -2487,15 +2491,20 @@ function createLeadsService({ repository, logger, events }) {
           ? "Lead SLA breached: first contact was not completed within 15 minutes. Reassigned to another agent and manager notified."
           : "Lead SLA breached: first contact was not completed within 15 minutes. No alternate agent available, lead remains queued and manager notified.";
 
+        const managementRoles = ["manager", "department_head", "team_lead"];
+        const leadLabel = lead.fullName || lead.name || null;
+
         events.emitSlaBreached({
           id: lead.id,
           leadId: lead.id,
+          fullName: leadLabel,
+          leadName: leadLabel,
           assignedTo: lead.assignedTo,
           previousAssigneeId,
           escalatedTo,
           responseDeadline: lead.responseDeadline,
           message: breachMessage,
-          roles: ["manager"],
+          roles: managementRoles,
         });
 
         events.emitEscalated({
@@ -2503,8 +2512,10 @@ function createLeadsService({ repository, logger, events }) {
           reason: "SLA_BREACH_15_MIN",
           previousAssigneeId,
           escalatedTo,
+          fullName: leadLabel,
+          leadName: leadLabel,
           message: breachMessage,
-          roles: ["manager"],
+          roles: managementRoles,
         });
 
         summary.processed += 1;
@@ -2645,11 +2656,21 @@ function createLeadsService({ repository, logger, events }) {
         : await repository.findById(id);
 
       if (shouldCreateWorkflowHistory && workflowFollowupType && workflowRecordedAt) {
+        let workflowFollowupDate = workflowRecordedAt;
+        const scheduledAt = scheduledReminder?.followupDate;
+        if (scheduledAt) {
+          const parsed = new Date(scheduledAt);
+          if (!Number.isNaN(parsed.getTime())) {
+            workflowFollowupDate = parsed.toISOString();
+          }
+        }
+
         await repository.createFollowup({
           leadId: id,
           userId: context.user?.id || updated?.assignedTo || existing.assignedTo || null,
           followupType: workflowFollowupType,
-          followupDate: workflowRecordedAt,
+          followupDate: workflowFollowupDate,
+          clientTimezone: scheduledReminder?.clientTimezone || null,
           statusSnapshot: workflowStatusSnapshot,
           notes: payload.notes || null,
           isCompleted: true,
@@ -2678,21 +2699,26 @@ function createLeadsService({ repository, logger, events }) {
       });
 
       if (lead.slaBreached && !existing.slaBreached) {
+        const mgmt = ["manager", "department_head", "team_lead"];
+        const nm = lead.fullName || lead.name || null;
         events.emitSlaBreached({
           id: lead.id,
           leadId: lead.id,
+          fullName: nm,
+          leadName: nm,
           assignedTo: lead.assignedTo,
           responseDeadline: lead.responseDeadline,
           message:
             "Lead SLA breached: contact happened after 15-minute response window.",
-          roles: ["manager"],
+          roles: mgmt,
         });
         events.emitEscalated({
           leadId: lead.id,
           reason: "SLA_BREACH_15_MIN",
+          fullName: nm,
           message:
             "Lead SLA breach auto-alert to manager due to delayed first contact.",
-          roles: ["manager"],
+          roles: mgmt,
         });
       }
       events.emitUpdated(lead);
@@ -2702,4 +2728,3 @@ function createLeadsService({ repository, logger, events }) {
 }
 
 export { createLeadsService, LEAD_TEMPERATURE };
-

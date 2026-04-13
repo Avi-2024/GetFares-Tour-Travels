@@ -44,6 +44,14 @@ const envSchema = z.object({
   MYSQL_USER: z.string().optional(),
   MYSQL_PASSWORD: z.string().optional(),
   MYSQL_DATABASE: z.string().optional(),
+  /** "true" | "false" | omit (auto: SSL on for *.mysql.database.azure.com) */
+  MYSQL_SSL: z.string().optional(),
+  AZURE_SQL_SERVER: z.string().optional(),
+  AZURE_SQL_DATABASE: z.string().optional(),
+  AZURE_SQL_USER: z.string().optional(),
+  AZURE_SQL_PASSWORD: z.string().optional(),
+  AZURE_SQL_PORT: z.coerce.number().int().positive().optional(),
+  AZURE_SQL_TRUST_SERVER_CERTIFICATE: z.coerce.boolean().optional(),
   LOG_LEVEL: z.string().default("info"),
   LOG_DB_URL: z.string().optional(),
   LOG_DB_DIRECT_URL: z.string().optional(),
@@ -141,14 +149,14 @@ const envSchema = z.object({
     .min(1)
     .max(60)
     .default(2),
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
-  AWS_REGION: z.string().optional(),
-  AWS_S3_BUCKET_NAME: z.string().optional(),
-  AWS_S3_BUCKET: z.string().optional(),
-  AWS_S3_PUBLIC_READ: z.coerce.boolean().optional(),
-  AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
-  AWS_S3_UPLOAD_PREFIX: z.string().optional(),
+  AZURE_STORAGE_CONNECTION_STRING: z.string().optional(),
+  AZURE_STORAGE_ACCOUNT_NAME: z.string().optional(),
+  AZURE_STORAGE_ACCOUNT_KEY: z.string().optional(),
+  AZURE_STORAGE_ENDPOINT_SUFFIX: z.string().optional(),
+  AZURE_STORAGE_CONTAINER: z.string().optional(),
+  AZURE_STORAGE_PUBLIC_READ: z.coerce.boolean().optional(),
+  AZURE_STORAGE_PUBLIC_BASE_URL: z.string().url().optional(),
+  AZURE_STORAGE_UPLOAD_PREFIX: z.string().optional(),
   UPLOAD_MAX_SIZE_MB: z.coerce.number().int().positive().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -182,11 +190,47 @@ const envSchema = z.object({
     }
   }
 
-  if (explicitClient && explicitClient !== "mysql" && explicitClient !== "mariadb") {
+  if (explicitClient === "mssql") {
+    const server = String(
+      data.AZURE_SQL_SERVER || process.env.DB_HOST || "",
+    ).trim();
+    const database = String(
+      data.AZURE_SQL_DATABASE ||
+        process.env.DB_NAME ||
+        process.env.MYSQL_DATABASE ||
+        "",
+    ).trim();
+    const user = String(
+      data.AZURE_SQL_USER ||
+        process.env.DB_USER ||
+        process.env.MYSQL_USER ||
+        "",
+    ).trim();
+    const password =
+      data.AZURE_SQL_PASSWORD ??
+      process.env.DB_PASSWORD ??
+      process.env.MYSQL_PASSWORD;
+    if (!server || !database || !user || password === undefined || password === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["AZURE_SQL_SERVER"],
+        message:
+          "For DATABASE_CLIENT=mssql set AZURE_SQL_SERVER, AZURE_SQL_DATABASE, AZURE_SQL_USER, AZURE_SQL_PASSWORD (or DB_* / MYSQL_* fallbacks).",
+      });
+    }
+  }
+
+  if (
+    explicitClient &&
+    explicitClient !== "mysql" &&
+    explicitClient !== "mariadb" &&
+    explicitClient !== "mssql"
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["DATABASE_CLIENT"],
-      message: "Only MySQL is supported. Use DATABASE_CLIENT=mysql.",
+      message:
+        "Unsupported DATABASE_CLIENT. Use mysql, mariadb, or mssql (Azure SQL).",
     });
   }
 

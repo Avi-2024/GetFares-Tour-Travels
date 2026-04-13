@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaCalendarPlus,
@@ -17,7 +17,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { useDateTimePreferences } from "../../context/DateTimePreferencesContext";
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
@@ -75,8 +75,6 @@ const formatPaxSummary = (lead: LeadListItem) => {
   return `${adultLabel}, ${children} ${children === 1 ? "Child" : "Children"}`;
 };
 
-const formatChildAges = (lead: LeadListItem) =>
-  lead.childAges.length > 0 ? `Child Ages: ${lead.childAges.join(", ")}` : "";
 
 const truncateEmail = (value: string, maxLength = 26) => {
   const safe = (value || "").trim();
@@ -162,9 +160,15 @@ const Leads: React.FC = () => {
     [],
   );
 
-  const buildLeadQuery = (queryPage: number, queryLimit: number) => ({
-    page: queryPage,
-    limit: queryLimit,
+  const buildLeadQuery = (queryPage: number, queryLimit: number) => {
+    const normalizedLeadId = appliedFilters.leadId.trim().toUpperCase();
+    const leadIdMode = Boolean(normalizedLeadId);
+    const effectivePage = leadIdMode ? 1 : queryPage;
+    const effectiveLimit = leadIdMode ? 500 : queryLimit;
+
+    return {
+    page: effectivePage,
+    limit: effectiveLimit,
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(quickFilter !== "ALL" ? { quickFilter } : {}),
     ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
@@ -173,7 +177,7 @@ const Leads: React.FC = () => {
       : {}),
     ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
     ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
-    ...(appliedFilters.leadId.trim() ? { leadId: appliedFilters.leadId.trim().toUpperCase() } : {}),
+    ...(normalizedLeadId ? { leadId: normalizedLeadId } : {}),
     ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
     ...(appliedFilters.toDate ? { toDate: appliedFilters.toDate } : {}),
     ...(appliedFilters.destination
@@ -181,7 +185,8 @@ const Leads: React.FC = () => {
       : {}),
     ...(appliedFilters.sla !== "ALL" ? { sla: appliedFilters.sla } : {}),
     ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
-  });
+  };
+  };
 
   useEffect(() => {
     // Extract unique destinations from fetched leads
@@ -218,7 +223,7 @@ const Leads: React.FC = () => {
           },
         );
       } catch (err) {
-        setError(getApiErrorMessage(err, "Failed to load leads"));
+        reportApiError(err, "Failed to load leads", setError);
         setFetchedLeads([]);
         setPagination({
           page: 1,
@@ -247,7 +252,21 @@ const Leads: React.FC = () => {
   }, [page, pagination]);
 
   const totalPages = Math.max(1, pagination?.totalPages ?? 1);
-  const rows = fetchedLeads;
+  const leadIdFilter = appliedFilters.leadId.trim().toUpperCase();
+  const rows = useMemo(() => {
+    if (!leadIdFilter) {
+      return fetchedLeads;
+    }
+    return fetchedLeads.filter((lead) => {
+      const candidates = [
+        String(lead.leadId || "").trim().toUpperCase(),
+        String(lead.id || "").trim().toUpperCase(),
+      ];
+      return candidates.some((candidate) => candidate === leadIdFilter);
+    });
+  }, [fetchedLeads, leadIdFilter]);
+  const leadIdModeActive = Boolean(leadIdFilter);
+  const effectiveTotalPages = leadIdModeActive ? 1 : totalPages;
 
   const leadStats = useMemo<LeadStats>(
     () => ({
@@ -391,7 +410,7 @@ const Leads: React.FC = () => {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to export leads"));
+      reportApiError(err, "Failed to export leads", setError);
     } finally {
       setExporting(false);
     }
@@ -760,21 +779,7 @@ const Leads: React.FC = () => {
                               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                 {lead.name}
                               </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatPaxSummary(lead)}
-                              </p>
-                              {formatChildAges(lead) ? (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  {formatChildAges(lead)}
-                                </p>
-                              ) : null}
-                              {lead.assignedBy && (
-                                <p className="text-xs text-blue-600 dark:text-blue-400">
-                                  Assigned by: {lead.assignedBy}
-                                </p>
-                              )}
-                            </div>
-                            <span
+                              <span
                               className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                                 lead.priority === "High"
                                   ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
@@ -785,6 +790,17 @@ const Leads: React.FC = () => {
                             >
                               {lead.priority === "High" ? "🔥 Hot" : lead.priority === "Medium" ? "⚡ Warm" : "❄️ Cold"}
                             </span>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatPaxSummary(lead)}
+                              </p>
+                             
+                              {lead.assignedBy && (
+                                <p className="text-xs text-blue-600 dark:text-blue-400">
+                                  Assigned by: {lead.assignedBy}
+                                </p>
+                              )}
+                            </div>
+                           
                           </div>
                         </td>
                         <td className="px-4 py-3 text-left leading-tight whitespace-nowrap">
@@ -885,11 +901,7 @@ const Leads: React.FC = () => {
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {formatPaxSummary(lead)}
                         </p>
-                        {formatChildAges(lead) ? (
-                          <p className="mt-1 text-xs text-blue-600 dark:text-blue-300">
-                            {formatChildAges(lead)}
-                          </p>
-                        ) : null}
+                      
                         {lead.assignedBy && (
                           <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
                             Assigned by: {lead.assignedBy}
@@ -943,42 +955,50 @@ const Leads: React.FC = () => {
                 ))}
               </div>
 
-	              <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 dark:border-gray-800">
-	                <p className="text-sm text-gray-500 dark:text-gray-400">
-	                  Showing{" "}
-	                  {pagination?.total
-	                    ? (page - 1) * (pagination.limit || pageSize) + 1
-	                    : 0}
-	                  -
-	                  {pagination?.total
-	                    ? Math.min(
-	                        pagination.total,
-	                        (page - 1) * (pagination.limit || pageSize) +
-	                          rows.length,
-	                      )
-	                    : 0}{" "}
-	                  of {pagination?.total ?? rows.length}
-	                </p>
-	                <div className="flex items-center gap-2">
-	                  <button
-	                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-	                    disabled={page === 1 || loading}
-	                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
-	                  >
-                    <FaChevronLeft />
-                  </button>
-                  <span className="px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium">
-                    {page}
-                  </span>
-	                  <button
-	                    onClick={() =>
-	                      setPage((prev) => Math.min(totalPages, prev + 1))
-	                    }
-	                    disabled={page === totalPages || loading}
-	                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
-	                  >
-                    <FaChevronRight />
-                  </button>
+		              <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 dark:border-gray-800">
+		                <p className="text-sm text-gray-500 dark:text-gray-400">
+		                  Showing{" "}
+		                  {leadIdModeActive
+		                    ? (rows.length ? 1 : 0)
+		                    : pagination?.total
+		                      ? (page - 1) * (pagination.limit || pageSize) + 1
+		                      : 0}
+		                  -
+		                  {leadIdModeActive
+		                    ? rows.length
+		                    : pagination?.total
+		                      ? Math.min(
+		                          pagination.total,
+		                          (page - 1) * (pagination.limit || pageSize) +
+		                            rows.length,
+		                        )
+		                      : 0}{" "}
+		                  of {leadIdModeActive ? rows.length : (pagination?.total ?? rows.length)}
+		                </p>
+		                <div className="flex items-center gap-2">
+		                  <button
+		                    onClick={() => {
+		                      if (leadIdModeActive) return;
+		                      setPage((prev) => Math.max(1, prev - 1));
+		                    }}
+		                    disabled={leadIdModeActive || page === 1 || loading}
+		                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
+		                  >
+	                    <FaChevronLeft />
+	                  </button>
+	                  <span className="px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium">
+	                    {leadIdModeActive ? 1 : page}
+	                  </span>
+		                  <button
+		                    onClick={() => {
+		                      if (leadIdModeActive) return;
+		                      setPage((prev) => Math.min(effectiveTotalPages, prev + 1));
+		                    }}
+		                    disabled={leadIdModeActive || page === effectiveTotalPages || loading}
+		                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
+		                  >
+	                    <FaChevronRight />
+	                  </button>
                 </div>
               </div>
             </>

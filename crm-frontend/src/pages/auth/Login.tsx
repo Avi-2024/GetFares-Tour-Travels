@@ -9,7 +9,7 @@ import {
   FaLock
 } from 'react-icons/fa'
 import { authApi } from '../../api'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 
 const DEMO_EMAIL = ''
@@ -237,11 +237,10 @@ const Login = () => {
         }
       })
     } catch (err) {
-      setApiError(
-        getApiErrorMessage(
-          err,
-          'Unable to sign in right now. Please try again.'
-        )
+      reportApiError(
+        err,
+        'Unable to sign in right now. Please try again.',
+        setApiError
       )
     } finally {
       setSubmitting(false)

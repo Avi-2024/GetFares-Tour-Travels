@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { Toaster } from "sonner";
 import "./index.css";
 import App from "./App.tsx";
 import { AuthProvider } from "./context/AuthContext.tsx";
@@ -14,6 +15,7 @@ createRoot(document.getElementById("root")!).render(
         <ServiceProvider>
           <NotificationsProvider>
             <App />
+            <Toaster richColors position="top-right" closeButton />
           </NotificationsProvider>
         </ServiceProvider>
       </DateTimePreferencesProvider>

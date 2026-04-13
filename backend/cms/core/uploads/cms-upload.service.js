@@ -133,7 +133,7 @@ function createCmsUploadService({ s3, logger, fallbackToLocal }) {
 
         logger?.debug?.(
           { module: "cms-upload", key: uploaded.key, mediaType },
-          "Uploaded CMS media file to S3",
+          "Uploaded CMS media file to Azure Blob Storage",
         );
 
         return {
@@ -167,7 +167,7 @@ function createCmsUploadService({ s3, logger, fallbackToLocal }) {
     if (!allowLocalFallback) {
       throw new AppError(
         500,
-        "CMS media storage fallback disabled. Configure S3 credentials.",
+        "CMS media storage fallback disabled. Configure AZURE_STORAGE_* for blob uploads.",
         "CMS_STORAGE_NOT_CONFIGURED",
       );
     }

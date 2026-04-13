@@ -152,7 +152,7 @@ function createNotificationsRepository({ db, logger, schema }) {
   function canUseRawQuery() {
     return (
       typeof db.query === "function" &&
-      db.pool
+      (db.adapter === "mysql" || db.adapter === "mssql")
     );
   }
 

@@ -23,7 +23,7 @@ import { bookingsApi } from '../../api/bookings'
 import { paymentsApi } from '../../api/payments'
 import { customersApi } from '../../api/customers'
 import { leadsApi } from '../../api/leads'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 import { getCurrencyOptions, formatCurrency } from '../../utils/currency'
 
@@ -1111,7 +1111,7 @@ const RefundsPage = () => {
       } catch (err) {
         console.error('Failed to load refunds:', err)
         setRows([])
-        setError(getApiErrorMessage(err, 'Failed to load refunds.'))
+        reportApiError(err, 'Failed to load refunds.', setError)
       } finally {
         setLoading(false)
       }
@@ -1315,7 +1315,7 @@ const RefundsPage = () => {
       setShowForm(false)
     } catch (err) {
       console.error('Failed to create refund:', err)
-      showToast(getApiErrorMessage(err, 'Failed to create refund'), 'error')
+      reportApiError(err, 'Failed to create refund')
     } finally {
       setLoading(false)
     }
@@ -1346,7 +1346,7 @@ const RefundsPage = () => {
       })
       .catch(err => {
         console.error('Failed to approve refund:', err)
-        showToast(getApiErrorMessage(err, 'Failed to approve refund'), 'error')
+        reportApiError(err, 'Failed to approve refund')
       })
       .finally(() => {
         setShowApproveConfirm(false)
@@ -1382,7 +1382,7 @@ const RefundsPage = () => {
       })
       .catch(err => {
         console.error('Failed to reject refund:', err)
-        showToast(getApiErrorMessage(err, 'Failed to reject refund'), 'error')
+        reportApiError(err, 'Failed to reject refund')
       })
       .finally(() => {
         setShowRejectModal(false)
@@ -1418,7 +1418,7 @@ const RefundsPage = () => {
       })
       .catch(err => {
         console.error('Failed to process refund:', err)
-        showToast(getApiErrorMessage(err, 'Failed to process refund'), 'error')
+        reportApiError(err, 'Failed to process refund')
       })
       .finally(() => {
         setShowProcessModal(false)
