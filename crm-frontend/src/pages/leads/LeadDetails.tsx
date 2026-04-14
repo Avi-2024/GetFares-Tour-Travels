@@ -5,6 +5,7 @@ import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { reportApiError } from '../../lib/notify'
+import { toast } from 'sonner'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
 import { usersApi } from '../../api/users'
@@ -935,9 +936,7 @@ const LeadDetails: React.FC = () => {
       qualificationMissing.length
     ) {
       setStatusSaving(false)
-      setStatusError(
-        `Missing required fields: ${qualificationMissing.join(', ')}`
-      )
+      toast.error(`Missing required fields: ${qualificationMissing.join(', ')}`)
       return
     }
     if (
@@ -946,14 +945,12 @@ const LeadDetails: React.FC = () => {
       !isComplianceComplete
     ) {
       setStatusSaving(false)
-      setStatusError(
-        'Follow-up compliance is incomplete. Required: 6 calls + 7 WhatsApp + 1 final reminder.'
-      )
+      toast.error('Follow-up compliance is incomplete. Required: 6 calls + 7 WhatsApp + 1 final reminder.')
       return
     }
     if (conversion.canonical === 'LOST' && !closedReason.trim()) {
       setStatusSaving(false)
-      setStatusError('closedReason is required for LOST.')
+      toast.error('Closed reason is required for LOST.')
       return
     }
     if (
@@ -961,19 +958,19 @@ const LeadDetails: React.FC = () => {
       compliance.calls >= REQUIRED_COMPLIANCE.calls
     ) {
       setStatusSaving(false)
-      setStatusError('CALL limit reached (6). Use WhatsApp or Final Reminder.')
+      toast.error('CALL limit reached (6). Use WhatsApp or Final Reminder.')
       return
     }
 
     if (conversion.canonical === 'CONVERTED') {
       if (loadingSentQuotations) {
         setStatusSaving(false)
-        setStatusError('Loading sent quotations… please wait.')
+        toast.error('Loading sent quotations… please wait.')
         return
       }
       if (!eligibleConversionQuotations.length) {
         setStatusSaving(false)
-        setStatusError(
+        toast.error(
           sentQuotations.length > 0
             ? 'Sent quotations need margin approval before conversion. Open the quotation and approve margin, then try again.'
             : 'No quotations have been sent to this lead yet. Send a quotation first, then convert.'
@@ -985,9 +982,7 @@ const LeadDetails: React.FC = () => {
       )
       if (!selectedConversionQuotationId || !picked) {
         setStatusSaving(false)
-        setStatusError(
-          'Choose the accepted quotation from the dropdown before converting.'
-        )
+        toast.error('Choose the accepted quotation from the dropdown before converting.')
         return
       }
     }
@@ -1154,7 +1149,7 @@ const LeadDetails: React.FC = () => {
   const scheduleFollowup = async () => {
     if (!id) return
     if (!followupDraft.followupDate) {
-      setFollowupScheduleError('Please select follow-up date/time.')
+      toast.error('Please select follow-up date/time.')
       return
     }
     setFollowupSaving(true)
@@ -1178,9 +1173,8 @@ const LeadDetails: React.FC = () => {
         notes: ''
       })
       await Promise.all([loadLead(), loadFollowups()])
-      setFollowupScheduleOk(
-        'Saved. Shown under Scheduled Follow-ups.'
-      )
+      toast.success('Follow-up scheduled successfully.')
+      setFollowupScheduleOk('Saved. Shown under Scheduled Follow-ups.')
       window.setTimeout(() => setFollowupScheduleOk(''), 6000)
     } catch (err) {
       reportApiError(err, 'Could not schedule follow-up.', setFollowupScheduleError)
@@ -1267,7 +1261,6 @@ const LeadDetails: React.FC = () => {
   const assignLeadNow = async () => {
     if (!id || !selectedAssigneeId) return
     setAssigning(true)
-    setStatusError('')
     try {
       await leadsService.assignLead(id, {
         assignedTo: selectedAssigneeId,
@@ -1277,8 +1270,10 @@ const LeadDetails: React.FC = () => {
       })
       await loadLead()
       setSelectedAssigneeId('')
+      const assignedName = assigneeOptions.find(o => o.value === selectedAssigneeId)?.label ?? 'Agent'
+      toast.success(`Lead assigned to ${assignedName}`)
     } catch (err) {
-      reportApiError(err, 'Unable to assign lead.', setStatusError)
+      reportApiError(err, 'Unable to assign lead.')
     } finally {
       setAssigning(false)
     }
