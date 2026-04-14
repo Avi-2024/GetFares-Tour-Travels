@@ -1,3 +1,5 @@
+import { AppError } from "../../core/errors/index.js";
+
 function createLeadsRepository({ db, logger, schema }) {
   const ASSIGNABLE_ROLES = new Set([
     "sales_consultant",
@@ -414,6 +416,10 @@ function createLeadsRepository({ db, logger, schema }) {
       isDeleted: row.is_deleted ?? row.isDeleted ?? false,
       createdAt: row.created_at ?? row.createdAt ?? null,
       updatedAt: row.updated_at ?? row.updatedAt ?? null,
+      clientCreatedAt:
+        row.client_created_at ?? row.clientCreatedAt ?? null,
+      clientTimezone:
+        row.client_timezone ?? row.clientTimezone ?? null,
     };
   }
 
@@ -468,6 +474,8 @@ function createLeadsRepository({ db, logger, schema }) {
       notes: row.notes ?? null,
       clientTimezone:
         row.client_timezone ?? row.clientTimezone ?? null,
+      followupLocalAt:
+        row.followup_local_at ?? row.followupLocalAt ?? null,
       isCompleted: coalesceBool(row.is_completed ?? row.isCompleted, false),
       isScheduleOnly: coalesceBool(row.is_schedule_only ?? row.isScheduleOnly, false),
       countsTowardCompliance: coalesceBool(
@@ -2145,12 +2153,64 @@ function createLeadsRepository({ db, logger, schema }) {
     },
 
     async createActivity(payload) {
+      const createdAt = payload.createdAt ?? payload.created_at ?? null;
+      const timezone = payload.timezone ?? payload.clientTimezone ?? null;
+      if (!createdAt || !timezone) {
+        throw new AppError(
+          400,
+          "createdAt and timezone are required for lead activities",
+          "ACTIVITY_WALL_CLOCK_REQUIRED",
+        );
+      }
+      if (typeof db.query === "function") {
+        const result = await db.query(
+          `
+            INSERT INTO \`${schema.activitiesTable}\`
+              (lead_id, user_id, activity_type, notes, created_at, timezone)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `,
+          [
+            payload.leadId,
+            payload.userId || null,
+            payload.activityType,
+            payload.notes || null,
+            createdAt,
+            timezone,
+          ],
+        );
+        return result?.rows?.[0] || null;
+      }
       return db.insert(schema.activitiesTable, {
         lead_id: payload.leadId,
         user_id: payload.userId || null,
         activity_type: payload.activityType,
         notes: payload.notes || null,
+        created_at: createdAt,
+        timezone,
       });
+    },
+
+    async listActivitiesByLeadId(leadId) {
+      const id = String(leadId ?? "").trim();
+      if (!id) {
+        return [];
+      }
+      if (typeof db.query === "function") {
+        const result = await db.query(
+          `
+            SELECT *
+            FROM \`${schema.activitiesTable}\`
+            WHERE lead_id = ?
+            ORDER BY created_at DESC
+          `,
+          [id],
+        );
+        return Array.isArray(result.rows) ? result.rows : [];
+      }
+      const rows = await db.findMany(schema.activitiesTable, {
+        lead_id: id,
+      });
+      return Array.isArray(rows) ? rows : [];
     },
 
     async createFollowup(payload) {
@@ -2163,6 +2223,7 @@ function createLeadsRepository({ db, logger, schema }) {
         status_snapshot: payload.statusSnapshot || null,
         notes: payload.notes || null,
         client_timezone: payload.clientTimezone || null,
+        followup_local_at: payload.followupLocalAt || null,
         is_completed: payload.isCompleted ?? false,
         is_schedule_only: payload.isScheduleOnly ?? false,
         counts_toward_compliance: payload.countsTowardCompliance ?? true,
@@ -2416,7 +2477,6 @@ function createLeadsRepository({ db, logger, schema }) {
 }
 
 export { createLeadsRepository };
-
 
 
 

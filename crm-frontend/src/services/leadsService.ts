@@ -1,4 +1,5 @@
 import type {
+  LeadActivityCreatePayload,
   LeadApiRecord,
   LeadDestinationRecord,
   LeadFollowupRecord,
@@ -20,6 +21,8 @@ export type LeadListItem = {
   id: number | string;
   leadId: string;
   createdAt: string | null;
+  clientCreatedAt?: string | null;
+  clientTimezone?: string | null;
   name: string;
   email: string;
   phone: string;
@@ -312,6 +315,8 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     id: lead.id ?? index,
     leadId: leadIdFromBackend || "N/A",
     createdAt: lead.createdAt ?? lead.created_at ?? null,
+    clientCreatedAt: lead.clientCreatedAt ?? lead.client_created_at ?? null,
+    clientTimezone: lead.clientTimezone ?? lead.client_timezone ?? null,
     name: lead.name ?? lead.fullName ?? lead.customerName ?? "Unknown",
     email: lead.email ?? "N/A",
     phone: lead.phone ?? lead.mobile ?? "N/A",
@@ -411,8 +416,14 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     datasource.processNonResponsive(payload),
   processCadenceAutomation: (payload?: { staleDays?: number; limit?: number }) =>
     datasource.processCadenceAutomation(payload),
-  disableCalls: (id: string, disabled: boolean) =>
-    datasource.disableCalls(id, disabled),
+  createLeadActivity: (payload: LeadActivityCreatePayload) =>
+    datasource.createLeadActivity(payload),
+  listLeadActivities: (leadId: string) => datasource.listLeadActivities(leadId),
+  disableCalls: (
+    id: string,
+    disabled: boolean,
+    extra?: { activityCreatedAt?: string; activityTimezone?: string },
+  ) => datasource.disableCalls(id, disabled, extra),
   submitPublicLead: (payload: unknown) => datasource.publicCapture(payload),
 });
 

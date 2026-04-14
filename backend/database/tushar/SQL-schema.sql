@@ -1,6 +1,8 @@
 -- STRICT MYSQL SCHEMA (REWRITTEN)
 SET time_zone = '+05:30';
 SET FOREIGN_KEY_CHECKS = 0;
+CREATE DATABASE IF NOT EXISTS get2vacations;
+USE get2vacations;
 DROP TABLE IF EXISTS roles;
 DROP TABLE IF EXISTS permissions;
 DROP TABLE IF EXISTS role_permissions;
@@ -172,6 +174,8 @@ CREATE TABLE IF NOT EXISTS leads (
     closed_reason TEXT,
     next_followup_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    client_created_at VARCHAR(32) NULL,
+    client_timezone VARCHAR(80) NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (destination_id) REFERENCES destinations(id) ON DELETE SET NULL,
     FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
@@ -196,7 +200,8 @@ CREATE TABLE IF NOT EXISTS lead_activities (
     user_id CHAR(36),
     activity_type VARCHAR(100),
     notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL,
+    timezone VARCHAR(50) NOT NULL,
     FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
@@ -207,6 +212,8 @@ CREATE TABLE IF NOT EXISTS followups (
     user_id CHAR(36),
     followup_type VARCHAR(50),
     followup_date TIMESTAMP,
+    followup_local_at VARCHAR(32) NULL,
+    client_timezone VARCHAR(80) NULL,
     notes TEXT,
     is_completed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1270,9 +1277,6 @@ ALTER TABLE leads
 ALTER TABLE followups
   ADD COLUMN cadence_code VARCHAR(50);
 
-ALTER TABLE packages
-  ADD COLUMN base_cost DECIMAL(12,2) DEFAULT 0 CHECK (base_cost >= 0),
-  ADD COLUMN markup_percent DECIMAL(5,2) DEFAULT 0 CHECK (markup_percent >= 0 AND markup_percent <= 100);
 
 ALTER TABLE bookings
   ADD COLUMN supplier_details JSON DEFAULT (JSON_OBJECT()),
@@ -1344,13 +1348,9 @@ ALTER TABLE users ADD COLUMN agent_type VARCHAR(50);
 
 ALTER TABLE leads ADD COLUMN calls_disabled BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE packages ADD COLUMN package_kind VARCHAR(20) DEFAULT 'READY';
 
-ALTER TABLE packages ADD COLUMN custom_services JSON DEFAULT (JSON_ARRAY());
 
-ALTER TABLE packages ADD COLUMN visa_details TEXT;
 
-ALTER TABLE packages ADD COLUMN payment_terms TEXT;
 
 ALTER TABLE quotations
   ADD COLUMN source_package_id CHAR(36),
@@ -1822,9 +1822,7 @@ CREATE TABLE IF NOT EXISTS landing_hero_sections (
 );
 
 -- Existing table extensions for richer website cards
-ALTER TABLE  landing_places ADD COLUMN country VARCHAR(100);
 
-ALTER TABLE main_packages ADD COLUMN country VARCHAR(100);
 
 UPDATE landing_hero_sections SET country = 'GLOBAL' WHERE country IS NULL;
 
@@ -2190,29 +2188,16 @@ CREATE INDEX idx_visa_details_dest_section_order ON visa_destination_details (vi
 -- CMS SOFT DELETE COLUMNS (APPENDED)
 -- =========================================
 
-ALTER TABLE destinations ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE packages ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE landing_places ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE destination_media ADD COLUMN  is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE season_cards ADD COLUMN  is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE main_packages ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE sub_packages ADD COLUMN  is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE featured_picks ADD COLUMN  is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE visa_destinations ADD COLUMN  is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE visa_destination_details ADD COLUMN  is_deleted BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE landing_hero_sections ADD COLUMN  is_deleted BOOLEAN DEFAULT FALSE;
-
-ALTER TABLE cms_media_assets ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
 
 --/ ===========================================================================
 --/ ===========================================================================
@@ -2368,11 +2353,8 @@ CREATE INDEX idx_role_permissions_role_active
 CREATE INDEX idx_role_permissions_permission_active
   ON role_permissions(permission_id, is_active);
 
-CREATE INDEX idx_quotations_response_category
-  ON quotations(response_category);
 
-CREATE INDEX idx_quotations_response_sla_breached
-  ON quotations(response_sla_breached, sent_at DESC);
+
 
 CREATE INDEX idx_followups_lead_cadence_code
   ON followups(lead_id, cadence_code);
@@ -2443,7 +2425,6 @@ CREATE INDEX idx_users_agent_country
 CREATE INDEX idx_users_agent_type
   ON users(agent_type);
 
-CREATE INDEX idx_packages_kind ON packages(package_kind, is_deleted);
 
 CREATE INDEX idx_users_manager_id ON users(manager_id);
 
@@ -2551,8 +2532,6 @@ CREATE INDEX idx_visa_destinations_country_active ON visa_destinations(country, 
 
 CREATE INDEX idx_visa_details_destination ON visa_destination_details(visa_destination_id, section_type, display_order);
 
-CREATE UNIQUE INDEX ux_visa_details_destination_section_label
-  ON visa_destination_details(visa_destination_id, section_type, label(100));
 
 CREATE INDEX idx_featured_picks_active ON featured_picks(is_active, display_order);
 

@@ -103,6 +103,52 @@ const DEFAULT_SYSTEM_DATE_TIME_PREFERENCES = Object.freeze({
 });
 const SYSTEM_DATE_TIME_PREFERENCES_CACHE_TTL_MS = 5 * 60 * 1000;
 
+/** ISO / MySQL datetime → `YYYY-MM-DD HH:mm:ss` for followup_local_at (display, no conversion). */
+function followupInstantToWallClock(value) {
+  if (!value) return null;
+  const s = String(value).trim();
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(s);
+  if (!m) return null;
+  const sec = String(m[4] != null ? m[4] : "00").padStart(2, "0");
+  return `${m[1]} ${m[2]}:${m[3]}:${sec}`;
+}
+
+const WALL_CLOCK_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+
+function normalizeActivityWallClock(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return null;
+  }
+  return WALL_CLOCK_REGEX.test(raw) ? raw : null;
+}
+
+function normalizeActivityTimezone(value) {
+  const raw = String(value ?? "").trim();
+  return raw || null;
+}
+
+function resolveActivityStamp(payload = {}) {
+  const createdAt = normalizeActivityWallClock(
+    payload.activityCreatedAt ??
+      payload.created_at ??
+      payload.createdAt ??
+      payload.clientCreatedAt ??
+      null,
+  );
+  const timezone = normalizeActivityTimezone(
+    payload.activityTimezone ??
+      payload.timezone ??
+      payload.clientTimezone ??
+      payload.client_timezone ??
+      null,
+  );
+  if (!createdAt || !timezone) {
+    return null;
+  }
+  return { createdAt, timezone };
+}
+
 // In-memory cache for agents by country
 class AgentCache {
   constructor(ttlMinutes = 5) {
@@ -959,6 +1005,8 @@ function createLeadsService({ repository, logger, events }) {
       child_ages: Array.isArray(payload.childAges)
         ? JSON.stringify(payload.childAges)
         : null,
+      client_created_at: payload.clientCreatedAt || null,
+      client_timezone: payload.clientTimezone || null,
     };
 
     if (useCustomerLinking) {
@@ -1561,12 +1609,17 @@ function createLeadsService({ repository, logger, events }) {
       previousAssigneeId && previousAssigneeId !== assignee.id,
     );
 
-    await repository.createActivity({
-      leadId: existing.id,
-      userId: context.user?.id || null,
-      activityType: isReassign ? "LEAD_REASSIGNED" : "LEAD_ASSIGNED",
-      notes: payload.reason || null,
-    });
+    const assignmentActivityStamp = resolveActivityStamp(payload);
+    if (assignmentActivityStamp) {
+      await repository.createActivity({
+        leadId: existing.id,
+        userId: context.user?.id || null,
+        activityType: isReassign ? "LEAD_REASSIGNED" : "LEAD_ASSIGNED",
+        notes: payload.reason || null,
+        createdAt: assignmentActivityStamp.createdAt,
+        timezone: assignmentActivityStamp.timezone,
+      });
+    }
 
     await repository.createAssignmentHistory({
       leadId: existing.id,
@@ -1616,6 +1669,15 @@ function createLeadsService({ repository, logger, events }) {
     const normalizedStatus = normalizeLeadStatus(payload.status);
     payload.status = normalizedStatus;
     if (context.user?.id) {
+      const wall = String(payload.clientCreatedAt || "").trim();
+      const tz = String(payload.clientTimezone || "").trim();
+      if (!wall || !tz) {
+        throw new AppError(
+          400,
+          "clientCreatedAt and clientTimezone are required",
+          "WALL_CLOCK_REQUIRED",
+        );
+      }
       if (!payload.leadCountry && !payload.country) {
         throw new AppError(
           400,
@@ -1689,12 +1751,20 @@ function createLeadsService({ repository, logger, events }) {
     }
 
     if (payload.notes) {
+      const createActivityStamp = resolveActivityStamp({
+        activityCreatedAt: payload.clientCreatedAt,
+        activityTimezone: payload.clientTimezone,
+      });
+      if (createActivityStamp) {
       await repository.createActivity({
         leadId: created.id,
         userId: context.user?.id,
         activityType: "LEAD_CREATED",
         notes: payload.notes,
+        createdAt: createActivityStamp.createdAt,
+        timezone: createActivityStamp.timezone,
       });
+      }
     }
 
     let lead = withTemperature(createdWithLeadCode || created, {
@@ -1714,6 +1784,8 @@ function createLeadsService({ repository, logger, events }) {
           mode: "AUTO_CREATE",
           reason: "AUTO_ASSIGN_ON_CREATE",
           skipAccessCheck: true,
+          activityCreatedAt: payload.clientCreatedAt,
+          activityTimezone: payload.clientTimezone,
         },
         context,
       );
@@ -2013,14 +2085,25 @@ function createLeadsService({ repository, logger, events }) {
         normalizedType = "WHATSAPP";
       }
 
+      const wall = String(payload.followupLocalAt || "").trim();
+      const tz = String(payload.clientTimezone || "").trim();
+      if (!wall || !tz) {
+        throw new AppError(
+          400,
+          "followupLocalAt and clientTimezone are required",
+          "WALL_CLOCK_REQUIRED",
+        );
+      }
+
       const followup = await repository.createFollowup({
         leadId: lead.id,
         userId: payload.userId || context.user?.id || lead.assignedTo || null,
         followupType: normalizedType,
-        followupDate: payload.followupDate,
+        followupDate: wall,
         cadenceCode: payload.cadenceCode || null,
         notes: payload.notes,
-        clientTimezone: payload.clientTimezone || null,
+        clientTimezone: tz,
+        followupLocalAt: wall,
         isScheduleOnly: true,
         countsTowardCompliance: false,
       });
@@ -2037,25 +2120,26 @@ function createLeadsService({ repository, logger, events }) {
         ) || String(followup.followupDate || "").trim();
       const note = String(payload.notes || "").trim();
 
-      await repository.createActivity({
-        leadId: lead.id,
-        userId: context.user?.id || followup.userId || null,
-        activityType: "FOLLOWUP_SCHEDULED",
-        notes: [
-          `Scheduled ${typeLabel} follow-up${followupLabel ? ` for ${followupLabel}` : ""}.`,
-          note && !note.startsWith("AUTO_CADENCE:") ? `Note: ${note}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      });
+      const scheduleActivityStamp = resolveActivityStamp(payload);
+      if (scheduleActivityStamp) {
+        await repository.createActivity({
+          leadId: lead.id,
+          userId: context.user?.id || followup.userId || null,
+          activityType: "FOLLOWUP_SCHEDULED",
+          notes: [
+            `Scheduled ${typeLabel} follow-up${followupLabel ? ` for ${followupLabel}` : ""}.`,
+            note && !note.startsWith("AUTO_CADENCE:") ? `Note: ${note}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          createdAt: scheduleActivityStamp.createdAt,
+          timezone: scheduleActivityStamp.timezone,
+        });
+      }
 
-      const followupDate = new Date(followup.followupDate);
       const updatePayload = {};
-
-      if (!Number.isNaN(followupDate.getTime())) {
-        updatePayload.next_followup_date = followupDate
-          .toISOString()
-          .slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}/.test(wall)) {
+        updatePayload.next_followup_date = wall.slice(0, 10);
       }
 
       if (Object.keys(updatePayload).length) {
@@ -2079,12 +2163,17 @@ function createLeadsService({ repository, logger, events }) {
         updated_at: nowIso,
       });
 
-      await repository.createActivity({
-        leadId: lead.id,
-        userId: context.user?.id || null,
-        activityType: disabled ? "CALLS_DISABLED" : "CALLS_ENABLED",
-        notes: payload.notes || null,
-      });
+      const callsActivityStamp = resolveActivityStamp(payload);
+      if (callsActivityStamp) {
+        await repository.createActivity({
+          leadId: lead.id,
+          userId: context.user?.id || null,
+          activityType: disabled ? "CALLS_DISABLED" : "CALLS_ENABLED",
+          notes: payload.notes || null,
+          createdAt: callsActivityStamp.createdAt,
+          timezone: callsActivityStamp.timezone,
+        });
+      }
 
       const mapped = withTemperature(updated);
       events.emitUpdated(mapped);
@@ -2098,6 +2187,28 @@ function createLeadsService({ repository, logger, events }) {
         return [];
       }
       return repository.listFollowupsByLeadId(pk);
+    },
+
+    async createLeadActivity(payload, context = {}) {
+      const leadId = String(payload.lead_id || "").trim();
+      if (!leadId) {
+        throw new AppError(400, "lead_id is required", "LEAD_ID_REQUIRED");
+      }
+      await getById(leadId, context);
+      return repository.createActivity({
+        leadId,
+        userId: context.user?.id || null,
+        activityType: payload.activity_type || "USER_NOTE",
+        notes: payload.notes || null,
+        createdAt: payload.created_at,
+        timezone: payload.timezone,
+      });
+    },
+
+    async listLeadActivities(leadId, context = {}) {
+      const pk = String(leadId ?? "").trim();
+      await getById(pk, context);
+      return repository.listActivitiesByLeadId(pk);
     },
 
     async processUpcomingFollowupReminders(payload = {}) {
@@ -2342,12 +2453,17 @@ function createLeadsService({ repository, logger, events }) {
           updated_at: nowIso,
         });
 
-        await repository.createActivity({
-          leadId: lead.id,
-          userId: context.user?.id || null,
-          activityType: "LEAD_NON_RESPONSIVE",
-          notes: `Auto-marked NON_RESPONSIVE after ${staleDays} day(s) and follow-up compliance`,
-        });
+        const nonResponsiveActivityStamp = resolveActivityStamp(payload);
+        if (nonResponsiveActivityStamp) {
+          await repository.createActivity({
+            leadId: lead.id,
+            userId: context.user?.id || null,
+            activityType: "LEAD_NON_RESPONSIVE",
+            notes: `Auto-marked NON_RESPONSIVE after ${staleDays} day(s) and follow-up compliance`,
+            createdAt: nonResponsiveActivityStamp.createdAt,
+            timezone: nonResponsiveActivityStamp.timezone,
+          });
+        }
 
         events.emitEscalated({
           leadId: lead.id,
@@ -2397,11 +2513,19 @@ function createLeadsService({ repository, logger, events }) {
             continue;
           }
 
+          const cadenceWall = followupInstantToWallClock(
+            slot.followupDate.toISOString(),
+          );
+          if (!cadenceWall) {
+            continue;
+          }
           await repository.createFollowup({
             leadId: lead.id,
             userId: lead.assignedTo || context.user?.id || null,
             followupType: slot.type,
-            followupDate: slot.followupDate.toISOString(),
+            followupDate: cadenceWall,
+            followupLocalAt: cadenceWall,
+            clientTimezone: DEFAULT_SYSTEM_DATE_TIME_PREFERENCES.timezone,
             cadenceCode: slot.code,
             notes: `AUTO_CADENCE:${slot.code}`,
             isCompleted: false,
@@ -2465,12 +2589,17 @@ function createLeadsService({ repository, logger, events }) {
         const previousAssigneeId = lead.assignedTo || null;
         await repository.markSlaBreached(lead.id);
 
-        await repository.createActivity({
-          leadId: lead.id,
-          userId: context.user?.id || null,
-          activityType: "SLA_BREACHED",
-          notes: "Lead was not first-contacted within the 15-minute response SLA.",
-        });
+        const slaActivityStamp = resolveActivityStamp(payload);
+        if (slaActivityStamp) {
+          await repository.createActivity({
+            leadId: lead.id,
+            userId: context.user?.id || null,
+            activityType: "SLA_BREACHED",
+            notes: "Lead was not first-contacted within the 15-minute response SLA.",
+            createdAt: slaActivityStamp.createdAt,
+            timezone: slaActivityStamp.timezone,
+          });
+        }
 
         const reassigned = await assignLead(
           lead.id,
@@ -2608,14 +2737,17 @@ function createLeadsService({ repository, logger, events }) {
         shouldCreateWorkflowHistory && WORKFLOW_COMPLIANCE_STATUSES.has(nextStatus);
       let workflowFollowupType = null;
       let workflowRecordedAt = null;
+      let workflowActionTimezone = null;
       let scheduledReminder = null;
       let workflowStatusSnapshot = null;
       if (shouldCreateWorkflowHistory) {
+        const workflowActionStamp = resolveActivityStamp(payload);
         scheduledReminder = await repository.findPendingScheduleOnlyFollowupByLeadId(
           id,
           { referenceDate: new Date().toISOString() },
         );
-        workflowRecordedAt = new Date().toISOString();
+        workflowRecordedAt = workflowActionStamp?.createdAt || null;
+        workflowActionTimezone = workflowActionStamp?.timezone || null;
         if (shouldTrackWorkflowFollowup) {
           const compliance = await repository.getFollowupComplianceStats(id);
           const nextAttempt = compliance.total + 1;
@@ -2634,7 +2766,7 @@ function createLeadsService({ repository, logger, events }) {
                 "FINAL_REMINDER"
               : `FOLLOW_UP_${Math.min(nextAttempt, 4)}`;
           }
-          if (workflowFollowupType === "FINAL_REMINDER") {
+          if (workflowFollowupType === "FINAL_REMINDER" && workflowRecordedAt) {
             mapped.final_reminder_at = workflowRecordedAt;
           }
         } else {
@@ -2656,21 +2788,29 @@ function createLeadsService({ repository, logger, events }) {
         : await repository.findById(id);
 
       if (shouldCreateWorkflowHistory && workflowFollowupType && workflowRecordedAt) {
-        let workflowFollowupDate = workflowRecordedAt;
         const scheduledAt = scheduledReminder?.followupDate;
-        if (scheduledAt) {
-          const parsed = new Date(scheduledAt);
-          if (!Number.isNaN(parsed.getTime())) {
-            workflowFollowupDate = parsed.toISOString();
-          }
+        const wall =
+          scheduledReminder?.followupLocalAt ||
+          followupInstantToWallClock(scheduledAt) ||
+          workflowRecordedAt ||
+          null;
+
+        if (!wall) {
+          throw new AppError(
+            500,
+            "Could not derive wall-clock time for workflow follow-up",
+            "WALL_CLOCK_MISSING",
+          );
         }
 
         await repository.createFollowup({
           leadId: id,
           userId: context.user?.id || updated?.assignedTo || existing.assignedTo || null,
           followupType: workflowFollowupType,
-          followupDate: workflowFollowupDate,
-          clientTimezone: scheduledReminder?.clientTimezone || null,
+          followupDate: wall,
+          clientTimezone:
+            workflowActionTimezone || scheduledReminder?.clientTimezone || null,
+          followupLocalAt: wall,
           statusSnapshot: workflowStatusSnapshot,
           notes: payload.notes || null,
           isCompleted: true,
@@ -2686,12 +2826,17 @@ function createLeadsService({ repository, logger, events }) {
       }
 
       if (payload.notes) {
-        await repository.createActivity({
-          leadId: id,
-          userId: context.user?.id,
-          activityType: "LEAD_UPDATED",
-          notes: payload.notes,
-        });
+        const updateActivityStamp = resolveActivityStamp(payload);
+        if (updateActivityStamp) {
+          await repository.createActivity({
+            leadId: id,
+            userId: context.user?.id,
+            activityType: "LEAD_UPDATED",
+            notes: payload.notes,
+            createdAt: updateActivityStamp.createdAt,
+            timezone: updateActivityStamp.timezone,
+          });
+        }
       }
 
       const lead = withTemperature(updated, {
