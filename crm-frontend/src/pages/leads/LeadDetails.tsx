@@ -30,7 +30,6 @@ import { getNationalityOptions } from '../../utils/nationality'
 import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
 import {
   nowWallClockString,
-  nowUtcIsoString,
   parseWallClockLocal,
   wallClockFromDatetimeLocal
 } from '../../utils/clientWallClock'
@@ -142,7 +141,7 @@ const LeadDetails: React.FC = () => {
   const leadsService = useLeadsService()
   const campaignsService = useCampaignsService()
   const { hasPermission, user } = useAuth()
-  const { parseApiDateTime, formatDate, formatDateTime } =
+  const { formatDate, formatDateTime } =
     useDateTimePreferences()
 
   const [lead, setLead] = useState<any>(null)
