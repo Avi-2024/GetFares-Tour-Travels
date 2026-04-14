@@ -45,3 +45,8 @@ export function nowWallClockString(): string {
   const pad = (x: number) => String(x).padStart(2, "0");
   return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
 }
+
+/** Returns current time as UTC ISO string so backend stores the correct instant. */
+export function nowUtcIsoString(): string {
+  return new Date().toISOString();
+}
