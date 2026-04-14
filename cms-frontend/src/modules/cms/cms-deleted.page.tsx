@@ -318,14 +318,14 @@ class CmsDeletedPage extends Component<unknown, CmsDeletedPageState> {
     );
 
     return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2.5 sm:p-3">
           {deletedTabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => this.setActiveKey(tab.key)}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                 activeKey === tab.key ?
                   "border-transparent bg-[var(--primary)] text-white shadow"
                 : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--background-soft)]"
@@ -337,12 +337,12 @@ class CmsDeletedPage extends Component<unknown, CmsDeletedPageState> {
         </div>
 
         {successMessage && (
-          <div className="rounded-xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)] px-3 py-2 text-sm text-[var(--success)]">
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)] px-3 py-2 text-xs text-[var(--success)] sm:text-sm">
             {successMessage}
           </div>
         )}
         {errorMessage && (
-          <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--danger)]">
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs text-[var(--danger)] sm:text-sm">
             {errorMessage}
           </div>
         )}
@@ -365,7 +365,7 @@ class CmsDeletedPage extends Component<unknown, CmsDeletedPageState> {
 
         <CmsSectionTableComponent
           title={`Deleted ${section.title}`}
-          actionLabel="Hard Delete"
+          actionLabel="Permanently Delete"
           columns={section.columns}
           rows={filteredRows}
           isLoading={isLoading}
@@ -374,6 +374,8 @@ class CmsDeletedPage extends Component<unknown, CmsDeletedPageState> {
           supportsEdit={false}
           supportsDelete
           supportsRestore
+          deleteActionLabel="Permanently Delete"
+          emptyStateMessage="Items moved to trash will appear here."
           dateColumnKeys={dateColumnKeys}
           onCreate={() => undefined}
           onView={this.openViewModal}
@@ -393,6 +395,7 @@ class CmsDeletedPage extends Component<unknown, CmsDeletedPageState> {
           recordLabel={this.mediaResolver.getEntryLabel(selectedEntry)}
           isSubmitting={isModalSubmitting}
           errorMessage={modalErrorMessage}
+          mode="hard"
           onCancel={this.closeModal}
           onConfirm={() => void this.handleDeleteConfirm()}
         />
@@ -421,7 +424,7 @@ class CmsDeletedPage extends Component<unknown, CmsDeletedPageState> {
               <img
                 src={imagePreviewUrl}
                 alt={imagePreviewLabel || "Preview"}
-                className="max-h-[70vh] w-full object-contain"
+                className="max-h-[72vh] w-full object-contain sm:max-h-[70vh]"
               />
             </div>
           )}

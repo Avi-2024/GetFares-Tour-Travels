@@ -9,6 +9,8 @@ type CmsFieldType =
   | "date"
   | "select"
   | "searchable-select"
+  | "list-text"
+  | "list-object"
   | "multi-select"
   | "switch";
 
@@ -25,6 +27,13 @@ interface CmsFieldOption {
   meta?: Record<string, unknown>;
 }
 
+interface CmsListObjectField {
+  key: string;
+  label: string;
+  type?: "text" | "textarea" | "number";
+  placeholder?: string;
+}
+
 interface CmsEntityFieldDefinition {
   key: string;
   label: string;
@@ -35,6 +44,8 @@ interface CmsEntityFieldDefinition {
   helperText?: string;
   options?: CmsFieldOption[];
   relationSource?: RelationSourceKey;
+  itemFields?: CmsListObjectField[];
+  addLabel?: string;
   groupKey: string;
   autoSlugSource?: string;
 }
@@ -65,21 +76,6 @@ interface CmsEntityFormDefinition {
 }
 
 class CmsEntityFormCatalog {
-  private static monthOptions: CmsFieldOption[] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ].map((month) => ({ label: month, value: month }));
-
   private static destinationRegionOptions: CmsFieldOption[] = [
     { label: "Asia", value: "Asia" },
     { label: "Europe", value: "Europe" },
@@ -89,20 +85,20 @@ class CmsEntityFormCatalog {
   ];
 
   private static destinationCategoryOptions: CmsFieldOption[] = [
-    { label: "Luxury", value: "Luxury" },
-    { label: "Culture", value: "Culture" },
-    { label: "Family", value: "Family" },
-    { label: "Adventure", value: "Adventure" },
-    { label: "Safari", value: "Safari" },
-    { label: "Budget", value: "Budget" },
+    { label: "All", value: "all" },
+    { label: "Honeymoon", value: "honeymoon" },
+    { label: "Family", value: "family" },
+    { label: "Adventure", value: "adventure" },
+    { label: "Cultural", value: "cultural" },
   ];
 
-  private static destinationTravelTypeOptions: CmsFieldOption[] = [
-    { label: "Leisure", value: "Leisure" },
-    { label: "Luxury", value: "Luxury" },
-    { label: "Culture", value: "Culture" },
-    { label: "Safari", value: "Safari" },
-    { label: "Adventure", value: "Adventure" },
+  private static destinationSeasonOptions: CmsFieldOption[] = [
+    { label: "Spring", value: "spring" },
+    { label: "Summer", value: "summer" },
+    { label: "Autumn", value: "autumn" },
+    { label: "Winter", value: "winter" },
+    { label: "Monsoon", value: "monsoon" },
+    { label: "All Season", value: "all" },
   ];
 
   private static countryOptions: CmsFieldOption[] = [
@@ -232,14 +228,47 @@ class CmsEntityFormCatalog {
         { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, required: true, groupKey: "basic" },
         { key: "region", label: "Region", type: "select", options: CmsEntityFormCatalog.destinationRegionOptions, required: true, groupKey: "basic" },
         { key: "category", label: "Category", type: "select", options: CmsEntityFormCatalog.destinationCategoryOptions, required: true, groupKey: "basic" },
-        { key: "travelType", label: "Travel Type", type: "select", options: CmsEntityFormCatalog.destinationTravelTypeOptions, groupKey: "basic" },
-        { key: "season", label: "Season Focus", type: "select", options: CmsEntityFormCatalog.monthOptions, groupKey: "basic" },
+        { key: "season", label: "Season Focus", type: "select", options: CmsEntityFormCatalog.destinationSeasonOptions, groupKey: "basic" },
         { key: "rating", label: "Rating", type: "number", groupKey: "basic" },
         { key: "shortDescription", label: "Short Description", type: "textarea", groupKey: "content" },
         { key: "description", label: "Description", type: "textarea", required: true, groupKey: "content" },
+        {
+          key: "keyHighlights",
+          label: "Key Highlights",
+          type: "list-text",
+          groupKey: "content",
+          addLabel: "Add Highlight",
+        },
+        {
+          key: "services",
+          label: "Services",
+          type: "list-object",
+          groupKey: "content",
+          addLabel: "Add Service",
+          itemFields: [
+            { key: "title", label: "Title" },
+            { key: "description", label: "Description", type: "textarea" },
+          ],
+        },
+        {
+          key: "bestTimeToVisit",
+          label: "Best Time To Visit",
+          type: "list-object",
+          groupKey: "content",
+          addLabel: "Add Time Card",
+          itemFields: [
+            { key: "iconName", label: "Icon Name" },
+            { key: "color", label: "Color (Hex)" },
+            { key: "title", label: "Title" },
+            { key: "from", label: "From" },
+            { key: "to", label: "To" },
+            { key: "description", label: "Description", type: "textarea" },
+            { key: "suggestion", label: "Suggestion", type: "textarea" },
+          ],
+        },
         { key: "metaTitle", label: "Meta Title", type: "text", groupKey: "seo" },
         { key: "metaDescription", label: "Meta Description", type: "textarea", groupKey: "seo" },
-        { key: "isPopular", label: "Featured / Popular", type: "switch", groupKey: "status" },
+        { key: "isPopular", label: "Featured", type: "switch", groupKey: "status" },
         { key: "isNew", label: "Mark As New", type: "switch", groupKey: "status" },
         { key: "isActive", label: "Active", type: "switch", groupKey: "status" },
       ],
@@ -249,7 +278,7 @@ class CmsEntityFormCatalog {
       createSize: "5xl",
       editSize: "5xl",
       viewSize: "5xl",
-      supportsCreate: true,
+      supportsCreate: false,
       supportsEdit: true,
       supportsDelete: true,
       titleKey: "name",
@@ -400,23 +429,36 @@ class CmsEntityFormCatalog {
     },
     "main-packages": {
       sectionKey: "main-packages",
-      createSize: "4xl",
-      editSize: "4xl",
-      viewSize: "4xl",
+      createSize: "5xl",
+      editSize: "5xl",
+      viewSize: "5xl",
       supportsCreate: true,
       supportsEdit: true,
       supportsDelete: true,
-      titleKey: "packageName",
+      titleKey: "title",
       subtitleKey: "destination",
       statusKey: "isFeatured",
-      descriptionKey: "duration",
+      descriptionKey: "amount",
       mediaEnabled: true,
       groups: [
         {
           key: "basic",
           title: "Basic Information",
-          description: "Parent package mapping configuration.",
+          description: "Main package info.",
           columns: 2,
+        },
+        {
+          key: "content",
+          title: "Content",
+          description: "Features and inclusions.",
+          columns: 2,
+        },
+        {
+          key: "seo",
+          title: "SEO",
+          description: "Search metadata.",
+          columns: 2,
+          collapsible: true,
         },
         {
           key: "status",
@@ -426,15 +468,8 @@ class CmsEntityFormCatalog {
         },
       ],
       fields: [
-        {
-          key: "packageId",
-          label: "Package",
-          type: "searchable-select",
-          relationSource: "published-packages",
-          required: true,
-          groupKey: "basic",
-          helperText: "Create the package in Packages first.",
-        },
+        { key: "title", label: "Title", type: "text", required: true, groupKey: "basic" },
+        { key: "amount", label: "Amount", type: "number", required: true, groupKey: "basic" },
         {
           key: "destinationId",
           label: "Destination",
@@ -444,6 +479,31 @@ class CmsEntityFormCatalog {
           groupKey: "basic",
         },
         { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, required: true, groupKey: "basic" },
+        {
+          key: "features",
+          label: "Features",
+          type: "list-object",
+          groupKey: "content",
+          addLabel: "Add Feature",
+          itemFields: [
+            { key: "iconName", label: "Icon Name" },
+            { key: "description", label: "Description", type: "textarea" },
+          ],
+        },
+        {
+          key: "inclusions",
+          label: "Inclusions",
+          type: "list-object",
+          groupKey: "content",
+          addLabel: "Add Inclusion",
+          itemFields: [
+            { key: "iconName", label: "Icon Name" },
+            { key: "description", label: "Description", type: "textarea" },
+          ],
+        },
+        { key: "metaTitle", label: "Meta Title", type: "text", groupKey: "seo" },
+        { key: "metaDescription", label: "Meta Description", type: "textarea", groupKey: "seo" },
+        { key: "keywords", label: "Keywords", type: "text", groupKey: "seo" },
         { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "status" },
         { key: "isFeatured", label: "Featured", type: "switch", groupKey: "status" },
       ],
@@ -464,8 +524,27 @@ class CmsEntityFormCatalog {
         {
           key: "basic",
           title: "Basic Information",
-          description: "Child package variant mapping.",
+          description: "Sub package details.",
           columns: 2,
+        },
+        {
+          key: "content",
+          title: "Content",
+          description: "Narrative and itinerary.",
+          columns: 2,
+        },
+        {
+          key: "lists",
+          title: "Lists",
+          description: "Highlights and policy lists.",
+          columns: 2,
+        },
+        {
+          key: "seo",
+          title: "SEO",
+          description: "Search metadata.",
+          columns: 2,
+          collapsible: true,
         },
       ],
       fields: [
@@ -478,15 +557,50 @@ class CmsEntityFormCatalog {
           groupKey: "basic",
           helperText: "Select a main package.",
         },
+        { key: "title", label: "Title", type: "text", required: true, groupKey: "basic" },
+        { key: "image", label: "Image", type: "url", required: true, groupKey: "basic" },
+        { key: "rating", label: "Rating", type: "number", groupKey: "basic", defaultValue: 0 },
+        { key: "location", label: "Location", type: "text", groupKey: "basic" },
+        { key: "durationDays", label: "Duration Days", type: "number", groupKey: "basic" },
+        { key: "durationNights", label: "Duration Nights", type: "number", groupKey: "basic" },
+        { key: "startingPrice", label: "Starting Price", type: "number", groupKey: "basic" },
+        { key: "transport", label: "Transport", type: "text", groupKey: "basic" },
+        { key: "description", label: "Description", type: "textarea", groupKey: "content" },
+        { key: "snapshot", label: "Snapshot", type: "textarea", groupKey: "content" },
         {
-          key: "packageId",
-          label: "Package",
-          type: "searchable-select",
-          relationSource: "published-packages",
-          required: true,
-          groupKey: "basic",
-          helperText: "Create the package in Packages first.",
+          key: "features",
+          label: "Features",
+          type: "list-object",
+          groupKey: "content",
+          addLabel: "Add Feature",
+          itemFields: [
+            { key: "title", label: "Title" },
+            { key: "description", label: "Description", type: "textarea" },
+          ],
         },
+        {
+          key: "itineraries",
+          label: "Itineraries",
+          type: "list-object",
+          groupKey: "content",
+          addLabel: "Add Itinerary Day",
+          itemFields: [
+            { key: "day", label: "Day", type: "number" },
+            { key: "title", label: "Title" },
+            { key: "description", label: "Description", type: "textarea" },
+            { key: "features", label: "Features (JSON/Text)", type: "textarea" },
+          ],
+        },
+        { key: "highlights", label: "Highlights", type: "list-text", groupKey: "lists", addLabel: "Add Highlight" },
+        { key: "inclusions", label: "Inclusions", type: "list-text", groupKey: "lists", addLabel: "Add Inclusion" },
+        { key: "exclusions", label: "Exclusions", type: "list-text", groupKey: "lists", addLabel: "Add Exclusion" },
+        { key: "paymentTerms", label: "Payment Terms", type: "list-text", groupKey: "lists", addLabel: "Add Term" },
+        { key: "cancellationPolicy", label: "Cancellation Policy", type: "list-text", groupKey: "lists", addLabel: "Add Policy" },
+        { key: "tnc", label: "T&C", type: "list-text", groupKey: "lists", addLabel: "Add T&C Point" },
+        { key: "impNotes", label: "Important Notes", type: "list-text", groupKey: "lists", addLabel: "Add Note" },
+        { key: "metaTitle", label: "Meta Title", type: "text", groupKey: "seo" },
+        { key: "metaDescription", label: "Meta Description", type: "textarea", groupKey: "seo" },
+        { key: "keywords", label: "Keywords", type: "text", groupKey: "seo" },
         { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "basic" },
       ],
     },

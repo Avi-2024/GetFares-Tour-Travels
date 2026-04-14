@@ -28,6 +28,11 @@ export type LeadApiRecord = {
   code?: string;
   createdAt?: string | null;
   created_at?: string | null;
+  /** Wall clock when lead was created in creator's UI (`YYYY-MM-DD HH:mm:ss`). */
+  clientCreatedAt?: string | null;
+  client_created_at?: string | null;
+  clientTimezone?: string | null;
+  client_timezone?: string | null;
   updatedAt?: string | null;
   updated_at?: string | null;
   fullName?: string | null;
@@ -97,6 +102,9 @@ export type LeadFollowupRecord = {
   followupType?: "CALL" | "WHATSAPP" | "EMAIL" | "FINAL_REMINDER" | "TASK";
   followupTypeCode?: number;
   followupDate?: string | null;
+  /** Same picker value as string, for display without conversion. */
+  followupLocalAt?: string | null;
+  followup_local_at?: string | null;
   cadenceCode?: string | null;
   statusSnapshot?: string | null;
   notes?: string | null;
@@ -115,6 +123,14 @@ export type LeadFollowupsResponse =
   | { data?: { data?: LeadFollowupRecord[]; items?: LeadFollowupRecord[] } }
   | { data?: LeadFollowupRecord[] }
   | LeadFollowupRecord[];
+
+export type LeadActivityCreatePayload = {
+  lead_id: string;
+  notes?: string;
+  created_at: string;
+  timezone: string;
+  activity_type?: string;
+};
 
 export const createLeadsDatasource = (client: HttpClient) => ({
   list: (params?: LeadsQuery) =>
@@ -153,8 +169,24 @@ export const createLeadsDatasource = (client: HttpClient) => ({
     client.post("/api/leads/followups/process-non-responsive", payload),
   processCadenceAutomation: (payload?: { staleDays?: number; limit?: number }) =>
     client.post("/api/leads/followups/process-cadence-automation", payload),
-  disableCalls: (id: string, disabled: boolean) =>
-    client.post(`/api/leads/${id}/disable-calls`, { disabled }),
+  createLeadActivity: (payload: LeadActivityCreatePayload) => {
+    if (!payload?.created_at || !payload?.timezone) {
+      throw new Error("Time generation failed");
+    }
+    console.log("SENDING:", payload.created_at);
+    return client.post("/api/lead-activities", payload);
+  },
+  listLeadActivities: (leadId: string) =>
+    client.get("/api/lead-activities", { params: { lead_id: leadId } }),
+  disableCalls: (
+    id: string,
+    disabled: boolean,
+    extra?: { activityCreatedAt?: string; activityTimezone?: string },
+  ) =>
+    client.post(`/api/leads/${id}/disable-calls`, {
+      disabled,
+      ...extra,
+    }),
   publicCapture: (payload: unknown) =>
     client.post("/api/webhooks/website-enquiry", payload, { skipAuth: true }),
 });

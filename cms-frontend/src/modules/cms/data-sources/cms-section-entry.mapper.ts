@@ -74,9 +74,7 @@ class CmsSectionEntryMapper {
             this.accessor.getText(record, "name", "title"),
           ),
           region: new CmsTableCell(this.accessor.getText(record, "region")),
-          travelType: new CmsTableCell(
-            this.accessor.getText(record, "travelType", "travel_type"),
-          ),
+          category: new CmsTableCell(this.accessor.getText(record, "category")),
           seo: new CmsTableCell(
             hasSeo ? "Ready" : "Missing Meta",
             hasSeo ? "success" : "warning",
@@ -170,7 +168,7 @@ class CmsSectionEntryMapper {
         raw: record,
         row: new CmsTableRow(id, {
           mainPackage: new CmsTableCell(
-            this.accessor.getText(record, "packageName", "name"),
+            this.accessor.getText(record, "title", "packageName", "name"),
           ),
           destination: new CmsTableCell(
             this.accessor.getText(
@@ -241,10 +239,10 @@ class CmsSectionEntryMapper {
             raw: subPackage,
             row: new CmsTableRow(id, {
               variant: new CmsTableCell(
-                this.accessor.getText(subPackage, "packageName", "name"),
+                this.accessor.getText(subPackage, "title", "packageName", "name"),
               ),
               mainPackage: new CmsTableCell(
-                this.accessor.getText(mainPackage, "packageName", "name"),
+                this.accessor.getText(mainPackage, "title", "packageName", "name"),
               ),
               duration: new CmsTableCell(this.accessor.getText(subPackage, "duration")),
               priceBand: new CmsTableCell(
@@ -287,10 +285,16 @@ class CmsSectionEntryMapper {
         raw: record,
         row: new CmsTableRow(id, {
           variant: new CmsTableCell(
-            this.accessor.getText(record, "packageName", "name"),
+            this.accessor.getText(record, "title", "packageName", "name"),
           ),
           mainPackage: new CmsTableCell(
-            this.accessor.getText(record, "mainPackageId", "main_package_id"),
+            this.accessor.getText(
+              record,
+              "mainPackageTitle",
+              "main_package_title",
+              "mainPackageId",
+              "main_package_id",
+            ),
           ),
           duration: new CmsTableCell(this.accessor.getText(record, "duration")),
           priceBand: new CmsTableCell(

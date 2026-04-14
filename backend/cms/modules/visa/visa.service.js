@@ -48,6 +48,8 @@ function createVisaService({ repository }) {
       ctaText: row.cta_text,
       displayOrder: row.display_order,
       isActive: row.is_active,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -66,6 +68,8 @@ function createVisaService({ repository }) {
       accentColor: row.accent_color,
       value: row.value,
       displayOrder: row.display_order,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

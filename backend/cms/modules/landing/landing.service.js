@@ -43,6 +43,8 @@ function createLandingService({ repository }) {
       imageUrl: row.image_url,
       displayOrder: row.display_order,
       isActive: row.is_active,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

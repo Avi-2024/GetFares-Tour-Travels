@@ -150,7 +150,7 @@ const ModalComponent = ({
             onClick={closeOnBackdrop ? onClose : undefined}
           />
 
-          <div className="relative flex min-h-full items-center justify-center p-4 sm:p-6">
+          <div className="relative flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4 lg:p-6">
             <motion.section
               ref={dialogRef}
               role="dialog"
@@ -163,7 +163,7 @@ const ModalComponent = ({
               exit={{ opacity: 0, scale: 0.97, y: 10 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className={ClassName.merge(
-                "relative isolate z-10 flex h-[min(92vh,920px)] w-full flex-col overflow-hidden rounded-3xl border border-[color-mix(in_srgb,var(--border)_85%,transparent)] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] shadow-[0_28px_80px_color-mix(in_srgb,var(--primary)_18%,transparent)] sm:h-auto",
+                "relative isolate z-10 flex h-[96vh] w-full flex-col overflow-hidden rounded-t-3xl border border-[color-mix(in_srgb,var(--border)_85%,transparent)] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] shadow-[0_28px_80px_color-mix(in_srgb,var(--primary)_18%,transparent)] sm:h-[min(92vh,920px)] sm:rounded-3xl md:h-auto",
                 sizeClass,
                 className,
               )}
@@ -175,18 +175,18 @@ const ModalComponent = ({
               />
 
               <motion.header
-                className="sticky top-0 z-20 border-b border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8"
+                className="sticky top-0 z-20 border-b border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-4 py-3 backdrop-blur-xl sm:px-6 md:px-8"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.04, duration: 0.18, ease: "easeOut" }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 id={titleId} className="font-display text-xl font-semibold text-(--text-primary) ">
+                    <h2 id={titleId} className="font-display text-lg font-semibold text-(--text-primary) sm:text-xl">
                       {title}
                     </h2>
                     {description && (
-                      <p id={descriptionId} className="mt-1 text-sm text-(--text-secondary)">
+                      <p id={descriptionId} className="mt-1 text-xs text-(--text-secondary) sm:text-sm">
                         {description}
                       </p>
                     )}
@@ -194,7 +194,7 @@ const ModalComponent = ({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-(--border) bg-(--surface) text-(--text-secondary) transition hover:bg-(--background-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring)"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-(--border) bg-(--surface) text-(--text-secondary) transition hover:bg-(--background-soft) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring)"
                     aria-label="Close modal"
                   >
                     <span aria-hidden="true">&times;</span>
@@ -204,7 +204,7 @@ const ModalComponent = ({
 
               <motion.div
                 className={ClassName.merge(
-                  "hide-scrollbar relative z-10 max-h-[70vh] overflow-y-auto px-6 py-5 sm:px-8",
+                  "hide-scrollbar relative z-10 max-h-[72vh] overflow-y-auto px-4 py-4 sm:max-h-[70vh] sm:px-6 sm:py-5 md:px-8",
                   contentClassName,
                 )}
                 initial={{ opacity: 0, y: 10 }}
@@ -216,7 +216,7 @@ const ModalComponent = ({
 
               {footer && (
                 <motion.footer
-                  className="sticky bottom-0 z-20 border-t border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-6 py-4 backdrop-blur-xl sm:px-8"
+                  className="sticky bottom-0 z-20 border-t border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-4 py-3 backdrop-blur-xl sm:px-6 sm:py-4 md:px-8"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.12, duration: 0.18, ease: "easeOut" }}

@@ -32,6 +32,8 @@ function createExperienceRoutes({ controller, upload }) {
     .delete(controller.deleteFeaturedPick);
   router.route("/featured-picks/:id/hard-delete").delete(controller.hardDeleteFeaturedPick);
   router.route("/creative-toolkit/:id/hard-delete").delete(controller.hardDeleteFeaturedPick);
+  router.route("/featured-picks/:id/restore").patch(controller.restoreFeaturedPick);
+  router.route("/creative-toolkit/:id/restore").patch(controller.restoreFeaturedPick);
 
   router
     .route("/season-cards")
@@ -48,6 +50,7 @@ function createExperienceRoutes({ controller, upload }) {
     .put(upload.any(), controller.updateSeasonCard)
     .delete(controller.deleteSeasonCard);
   router.route("/season-cards/:id/hard-delete").delete(controller.hardDeleteSeasonCard);
+  router.route("/season-cards/:id/restore").patch(controller.restoreSeasonCard);
 
   router.route("/hero-sections").get(controller.listHeroSections);
   router

@@ -1,4 +1,57 @@
 function createCmsPackagesRepository({ db, schema }) {
+  function isMissingColumnError(error) {
+    if (!error || typeof error !== "object") {
+      return false;
+    }
+    const message = String(error.message || "");
+    return (
+      error.code === "42703" ||
+      error.code === "ER_BAD_FIELD_ERROR" ||
+      /unknown column/i.test(message) ||
+      /does not exist/i.test(message)
+    );
+  }
+
+  function getMissingColumnName(error) {
+    if (!isMissingColumnError(error)) {
+      return null;
+    }
+    const message = String(error.message || "");
+    const mysqlQuoteMatch = message.match(/unknown column\s+'([^']+)'/i);
+    if (mysqlQuoteMatch?.[1]) {
+      return mysqlQuoteMatch[1].split(".").pop();
+    }
+    const mysqlTickMatch = message.match(/unknown column\s+`([^`]+)`/i);
+    if (mysqlTickMatch?.[1]) {
+      return mysqlTickMatch[1].split(".").pop();
+    }
+    const pgMatch = message.match(/column\s+"([^"]+)"/i);
+    if (pgMatch?.[1]) {
+      return pgMatch[1];
+    }
+    return null;
+  }
+
+  async function runWithColumnFallback(input, runner) {
+    const mutableInput = { ...input };
+    const removedColumns = new Set();
+    while (true) {
+      try {
+        return await runner(mutableInput);
+      } catch (error) {
+        const missingColumn = getMissingColumnName(error);
+        if (!missingColumn) {
+          throw error;
+        }
+        if (!(missingColumn in mutableInput) || removedColumns.has(missingColumn)) {
+          throw error;
+        }
+        delete mutableInput[missingColumn];
+        removedColumns.add(missingColumn);
+      }
+    }
+  }
+
   function normalizeCountry(country) {
     return typeof country === "string" ? country.trim() : "";
   }
@@ -91,7 +144,6 @@ function createCmsPackagesRepository({ db, schema }) {
     async softDeletePackageById(id) {
       return db.update(schema.packagesTable, id, {
         is_deleted: true,
-        publish_to_website: false,
       });
     },
 
@@ -119,7 +171,7 @@ function createCmsPackagesRepository({ db, schema }) {
       const includeDeleted =
         filters.includeDeleted === true || filters.includeDeleted === "true";
       if (!includeDeleted) {
-        clauses.push("p.is_deleted = false", "mp.is_deleted = false");
+        clauses.push("mp.is_deleted = false");
       }
 
       const country = normalizeCountry(filters.country);
@@ -135,11 +187,14 @@ function createCmsPackagesRepository({ db, schema }) {
 
       const whereClause = clauses.length ? clauses.join(" AND ") : "TRUE";
       const result = await db.query(
-        `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
-                p.banner_image_url, p.publish_to_website,
-                p.destination AS destination_name
+        `SELECT mp.*,
+                d.name AS destination_name,
+                d.country AS destination_country,
+                p.name AS legacy_package_name,
+                p.destination AS legacy_destination
          FROM ${schema.mainPackagesTable} mp
-         JOIN ${schema.packagesTable} p ON mp.package_id = p.id
+         LEFT JOIN ${schema.destinationsTable} d ON d.id = mp.destination_id
+         LEFT JOIN ${schema.packagesTable} p ON p.id = mp.package_id
          WHERE ${whereClause}
          ORDER BY mp.display_order`,
         values,
@@ -158,11 +213,14 @@ function createCmsPackagesRepository({ db, schema }) {
       }
 
       const result = await db.query(
-        `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
-                p.banner_image_url, p.publish_to_website,
-                p.destination AS destination_name
+        `SELECT mp.*,
+                d.name AS destination_name,
+                d.country AS destination_country,
+                p.name AS legacy_package_name,
+                p.destination AS legacy_destination
          FROM ${schema.mainPackagesTable} mp
-         JOIN ${schema.packagesTable} p ON mp.package_id = p.id
+         LEFT JOIN ${schema.destinationsTable} d ON d.id = mp.destination_id
+         LEFT JOIN ${schema.packagesTable} p ON p.id = mp.package_id
          WHERE ${clauses.length ? clauses.join(" AND ") : "TRUE"}
          ORDER BY mp.display_order`,
         values,
@@ -172,11 +230,14 @@ function createCmsPackagesRepository({ db, schema }) {
 
     async findMainPackageById(id) {
       const result = await db.query(
-        `SELECT mp.*, p.name, p.destination, p.starting_price, p.duration,
-                p.banner_image_url, p.publish_to_website,
-                p.destination AS destination_name
+        `SELECT mp.*,
+                d.name AS destination_name,
+                d.country AS destination_country,
+                p.name AS legacy_package_name,
+                p.destination AS legacy_destination
          FROM ${schema.mainPackagesTable} mp
-         JOIN ${schema.packagesTable} p ON mp.package_id = p.id
+         LEFT JOIN ${schema.destinationsTable} d ON d.id = mp.destination_id
+         LEFT JOIN ${schema.packagesTable} p ON p.id = mp.package_id
          WHERE mp.id = ?
          LIMIT 1`,
         [id],
@@ -185,11 +246,15 @@ function createCmsPackagesRepository({ db, schema }) {
     },
 
     async createMainPackage(data) {
-      return db.insert(schema.mainPackagesTable, data);
+      return runWithColumnFallback(data, (safeData) =>
+        db.insert(schema.mainPackagesTable, safeData),
+      );
     },
 
     async updateMainPackage(id, data) {
-      return db.update(schema.mainPackagesTable, id, data);
+      return runWithColumnFallback(data, (safeData) =>
+        db.update(schema.mainPackagesTable, id, safeData),
+      );
     },
 
     async deleteMainPackage(id) {
@@ -221,13 +286,14 @@ function createCmsPackagesRepository({ db, schema }) {
 
     async findSubPackages(mainPackageId, includeDeleted = false) {
       const result = await db.query(
-        `SELECT sp.*, p.name, p.starting_price, p.duration, p.banner_image_url
+        `SELECT sp.*,
+                COALESCE(p.name, mp.package_id) AS main_package_title,
+                p.name AS legacy_package_name
          FROM ${schema.subPackagesTable} sp
-         JOIN ${schema.packagesTable} p ON sp.package_id = p.id
+         LEFT JOIN ${schema.mainPackagesTable} mp ON mp.id = sp.main_package_id
+         LEFT JOIN ${schema.packagesTable} p ON p.id = sp.package_id
          WHERE sp.main_package_id = ?
            ${includeDeleted ? "" : "AND sp.is_deleted = false"}
-           ${includeDeleted ? "" : "AND p.is_deleted = false"}
-           ${includeDeleted ? "" : "AND p.publish_to_website = true"}
          ORDER BY sp.display_order`,
         [mainPackageId],
       );
@@ -243,9 +309,12 @@ function createCmsPackagesRepository({ db, schema }) {
       }
 
       const result = await db.query(
-        `SELECT sp.*, p.name, p.starting_price, p.duration, p.banner_image_url
+        `SELECT sp.*,
+                COALESCE(p.name, mp.package_id) AS main_package_title,
+                p.name AS legacy_package_name
          FROM ${schema.subPackagesTable} sp
-         JOIN ${schema.packagesTable} p ON sp.package_id = p.id
+         LEFT JOIN ${schema.mainPackagesTable} mp ON mp.id = sp.main_package_id
+         LEFT JOIN ${schema.packagesTable} p ON p.id = sp.package_id
          WHERE ${clauses.join(" AND ")}
          ORDER BY sp.display_order`,
         values,
@@ -258,11 +327,16 @@ function createCmsPackagesRepository({ db, schema }) {
     },
 
     async createSubPackage(data) {
-      return db.insert(schema.subPackagesTable, { ...data, is_deleted: false });
+      return runWithColumnFallback(
+        { ...data, is_deleted: false },
+        (safeData) => db.insert(schema.subPackagesTable, safeData),
+      );
     },
 
     async updateSubPackage(id, data) {
-      return db.update(schema.subPackagesTable, id, data);
+      return runWithColumnFallback(data, (safeData) =>
+        db.update(schema.subPackagesTable, id, safeData),
+      );
     },
 
     async deleteSubPackage(id) {

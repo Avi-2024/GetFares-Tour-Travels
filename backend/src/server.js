@@ -1,10 +1,10 @@
 import http from "node:http";
-import dns from "node:dns";
+// import dns from "node:dns";
 import { createApp } from "./app.js";
 import { createSocketServer } from "../crm/core/realtime/index.js";
 import { createAutomationRuntime } from "../crm/core/automation/index.js";
 
-dns.setServers(["1.1.1.1"]);
+// dns.setServers(["1.1.1.1"]);
 
 const { app, container, modules, runtime } = createApp();
 const httpServer = http.createServer(app);

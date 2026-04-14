@@ -48,6 +48,8 @@ function createExperienceService({ repository }) {
       metadata: metadata && typeof metadata === "object" ? metadata : {},
       displayOrder: row.display_order || 0,
       isActive: row.is_active !== false,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -72,6 +74,8 @@ function createExperienceService({ repository }) {
       bgColor: row.bg_color,
       displayOrder: row.display_order || 0,
       isActive: row.is_active !== false,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

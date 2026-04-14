@@ -7,6 +7,40 @@ import {
 } from "../../core/utils/index.js";
 
 function createDestinationsService({ repository }) {
+  function parseJsonValue(value, fallback) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return fallback;
+      }
+    }
+    return value;
+  }
+
+  function normalizeStringList(value) {
+    const parsed = parseJsonValue(value, []);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => normalizeText(item))
+      .filter((item) => Boolean(item));
+  }
+
+  function normalizeObjectList(value, mapper) {
+    const parsed = parseJsonValue(value, []);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item, index) => mapper(item, index))
+      .filter((item) => Boolean(item));
+  }
+
   function toDestination(row) {
     if (!row) return null;
     return {
@@ -19,15 +53,42 @@ function createDestinationsService({ repository }) {
       region: row.region,
       category: row.category,
       rating: parseFloat(row.rating) || 0,
+      titleImageUrl: row.title_image_url || row.thumbnail_url || null,
       heroImageUrl: row.hero_image_url,
       thumbnailUrl: row.thumbnail_url,
       isPopular: row.is_popular,
       isNew: row.is_new,
       travelType: row.travel_type,
       season: row.season,
+      keyHighlights: normalizeStringList(row.key_highlights),
+      services: normalizeObjectList(row.services, (item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        return {
+          title: normalizeText(item.title),
+          description: normalizeText(item.description),
+        };
+      }),
+      bestTimeToVisit: normalizeObjectList(row.best_time_to_visit, (item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        return {
+          iconName: normalizeText(item.iconName || item.icon_name),
+          color: normalizeText(item.color),
+          title: normalizeText(item.title),
+          from: normalizeText(item.from),
+          to: normalizeText(item.to),
+          description: normalizeText(item.description),
+          suggestion: normalizeText(item.suggestion),
+        };
+      }),
       metaTitle: row.meta_title,
       metaDescription: row.meta_description,
       isActive: row.is_active,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -132,11 +193,15 @@ function createDestinationsService({ repository }) {
           return rating;
         })(),
         hero_image_url: normalizeText(data.heroImageUrl),
-        thumbnail_url: normalizeText(data.thumbnailUrl),
+        thumbnail_url: normalizeText(data.thumbnailUrl || data.titleImageUrl),
+        title_image_url: normalizeText(data.titleImageUrl || data.thumbnailUrl),
         is_popular: toBoolean(data.isPopular, false),
         is_new: toBoolean(data.isNew, false),
         travel_type: normalizeText(data.travelType),
         season: normalizeText(data.season),
+        key_highlights: Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
+        services: Array.isArray(data.services) ? data.services : [],
+        best_time_to_visit: Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
         is_active: toBoolean(data.isActive, true),
@@ -187,6 +252,10 @@ function createDestinationsService({ repository }) {
         updates.hero_image_url = normalizeText(data.heroImageUrl);
       if (data.thumbnailUrl !== undefined)
         updates.thumbnail_url = normalizeText(data.thumbnailUrl);
+      if (data.titleImageUrl !== undefined) {
+        updates.title_image_url = normalizeText(data.titleImageUrl);
+        updates.thumbnail_url = normalizeText(data.titleImageUrl);
+      }
       if (data.isPopular !== undefined)
         updates.is_popular = toBoolean(data.isPopular, false);
       if (data.isNew !== undefined) updates.is_new = toBoolean(data.isNew, false);
@@ -194,6 +263,19 @@ function createDestinationsService({ repository }) {
         updates.travel_type = normalizeText(data.travelType);
       if (data.season !== undefined)
         updates.season = normalizeText(data.season);
+      if (data.keyHighlights !== undefined) {
+        updates.key_highlights = Array.isArray(data.keyHighlights)
+          ? data.keyHighlights
+          : [];
+      }
+      if (data.services !== undefined) {
+        updates.services = Array.isArray(data.services) ? data.services : [];
+      }
+      if (data.bestTimeToVisit !== undefined) {
+        updates.best_time_to_visit = Array.isArray(data.bestTimeToVisit)
+          ? data.bestTimeToVisit
+          : [];
+      }
       if (data.metaTitle !== undefined)
         updates.meta_title = normalizeText(data.metaTitle);
       if (data.metaDescription !== undefined)

@@ -28,6 +28,42 @@ import { Country } from 'country-state-city'
 import { getCurrencyOptions } from '../../utils/currency'
 import { getNationalityOptions } from '../../utils/nationality'
 import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
+import {
+  nowWallClockString,
+  parseWallClockLocal,
+  wallClockFromDatetimeLocal
+} from '../../utils/clientWallClock'
+
+function followupSortKey(item: any): number {
+  const local = item?.followupLocalAt ?? item?.followup_local_at
+  if (local && String(local).trim()) {
+    const d = parseWallClockLocal(String(local))
+    if (d) return d.getTime()
+  }
+  const raw = normalizeWallClockDisplay(item?.followupDate ?? item?.followup_date)
+  if (!raw) return 0
+  return parseWallClockLocal(raw)?.getTime() || 0
+}
+
+function isScheduleOnlyFollowup(item: any): boolean {
+  const raw = item?.isScheduleOnly ?? item?.is_schedule_only
+  if (typeof raw === 'boolean') return raw
+  if (typeof raw === 'number') return raw === 1
+  const text = String(raw ?? '').trim().toLowerCase()
+  return text === '1' || text === 'true' || text === 'yes'
+}
+
+function normalizeWallClockDisplay(rawValue: unknown): string | null {
+  const raw = String(rawValue ?? '').trim()
+  if (!raw) return null
+  const m =
+    /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(raw)
+  if (!m) return raw
+  const hh = String(m[2] || '00').padStart(2, '0')
+  const mm = String(m[3] || '00').padStart(2, '0')
+  const ss = String(m[4] || '00').padStart(2, '0')
+  return `${m[1]} ${hh}:${mm}:${ss}`
+}
 
 type QualificationForm = {
   panNumber: string
@@ -105,7 +141,7 @@ const LeadDetails: React.FC = () => {
   const leadsService = useLeadsService()
   const campaignsService = useCampaignsService()
   const { hasPermission, user } = useAuth()
-  const { parseApiDateTime, formatDate, formatDateTime } =
+  const { formatDate, formatDateTime } =
     useDateTimePreferences()
 
   const [lead, setLead] = useState<any>(null)
@@ -160,6 +196,13 @@ const LeadDetails: React.FC = () => {
   const [showSavedQualification, setShowSavedQualification] = useState(false)
 
   const createdAtLabel = useMemo(() => {
+    const wall = lead?.clientCreatedAt ?? lead?.client_created_at
+    const tz = lead?.clientTimezone ?? lead?.client_timezone
+    if (wall && String(wall).trim()) {
+      const w = String(wall).trim()
+      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+      return `${w}${t}`
+    }
     const raw =
       lead?.createdAt ??
       lead?.created_at ??
@@ -173,16 +216,20 @@ const LeadDetails: React.FC = () => {
 
   const firstFollowupLabel = useMemo(() => {
     if (!followups.length) return 'N/A'
-    const dates = followups
-      .map(item => item?.followupDate || item?.followup_date || null)
-      .filter(Boolean)
-      .map(value => parseApiDateTime(value))
-      .filter((value): value is Date => Boolean(value))
-      .filter(value => !Number.isNaN(value.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime())
-    if (!dates.length) return 'N/A'
-    return formatDateTime(dates[0], 'N/A')
-  }, [followups, formatDateTime, parseApiDateTime])
+    const sorted = [...followups].sort((a, b) => followupSortKey(a) - followupSortKey(b))
+    const first = sorted[0]
+    const local = first?.followupLocalAt ?? first?.followup_local_at
+    const tz = first?.clientTimezone ?? first?.client_timezone
+    if (local && String(local).trim()) {
+      const w = String(local).trim()
+      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+      return `${w}${t}` || 'N/A'
+    }
+    const raw = normalizeWallClockDisplay(first?.followupDate ?? first?.followup_date)
+    if (!raw) return 'N/A'
+    const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+    return `${raw}${t}`
+  }, [followups])
 
   const resolveFollowupActorName = useCallback((item: any) => {
     const name = String(
@@ -199,22 +246,67 @@ const LeadDetails: React.FC = () => {
 
   const resolveFollowupActionDate = useCallback(
     (item: any): Date | null => {
-      const scheduledRaw = item?.followupDate ?? item?.followup_date ?? null
-      const scheduled = scheduledRaw ? parseApiDateTime(scheduledRaw) : null
+      const localRaw = item?.followupLocalAt ?? item?.followup_local_at ?? null
+      if (localRaw) {
+        const fromWall = parseWallClockLocal(String(localRaw))
+        if (fromWall && !Number.isNaN(fromWall.getTime())) {
+          return fromWall
+        }
+      }
+      const scheduledRaw = normalizeWallClockDisplay(
+        item?.followupDate ?? item?.followup_date ?? null
+      )
+      const scheduled = scheduledRaw ? parseWallClockLocal(scheduledRaw) : null
       if (scheduled && !Number.isNaN(scheduled.getTime())) {
         return scheduled
       }
 
-      const actionTimeRaw = item?.createdAt ?? item?.created_at ?? null
-      const actionTime = actionTimeRaw ? parseApiDateTime(actionTimeRaw) : null
+      const actionTimeRaw = normalizeWallClockDisplay(
+        item?.createdAt ?? item?.created_at ?? null
+      )
+      const actionTime = actionTimeRaw ? parseWallClockLocal(actionTimeRaw) : null
       if (actionTime && !Number.isNaN(actionTime.getTime())) {
         return actionTime
       }
 
       return null
     },
-    [parseApiDateTime]
+    []
   )
+
+  const formatFollowupDisplay = useCallback(
+    (item: any) => {
+      const local = item?.followupLocalAt ?? item?.followup_local_at
+      const tz = item?.clientTimezone ?? item?.client_timezone
+      if (local && String(local).trim()) {
+        const w = String(local).trim()
+        const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+        return `${w}${t}`
+      }
+      const raw = normalizeWallClockDisplay(item?.followupDate ?? item?.followup_date)
+      if (raw) {
+        const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+        return `${raw}${t}`
+      }
+      const created = normalizeWallClockDisplay(item?.createdAt ?? item?.created_at)
+      if (created) {
+        const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+        return `${created}${t}`
+      }
+      return 'No date'
+    },
+    []
+  )
+
+  const formatHistoryActionDisplay = useCallback((item: any) => {
+    const created = normalizeWallClockDisplay(item?.createdAt ?? item?.created_at)
+    if (created) {
+      const tz = item?.clientTimezone ?? item?.client_timezone
+      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+      return `${created}${t}`
+    }
+    return 'No date'
+  }, [])
 
   const assignedLeadAgentName = useMemo(() => {
     const name = String(
@@ -480,28 +572,29 @@ const LeadDetails: React.FC = () => {
 
   /** Compliance counts: workflow rows only (not schedule-only reminders). */
   const followupsForCompliance = useMemo(
-    () => followups.filter(item => !item?.isScheduleOnly),
+    () => followups.filter(item => !isScheduleOnlyFollowup(item)),
     [followups]
   )
 
-  const visibleHistoryFollowups = useMemo(() => followups, [followups])
+  const visibleHistoryFollowups = useMemo(
+    () => followups.filter(item => !isScheduleOnlyFollowup(item)),
+    [followups]
+  )
 
   const visibleScheduledFollowups = useMemo(
-    () => followups.filter(item => item?.isScheduleOnly),
+    () => followups.filter(item => isScheduleOnlyFollowup(item)),
     [followups]
   )
 
   const latestScheduleForWorkflow = useMemo(() => {
-    const rows = followups.filter(f => f?.isScheduleOnly)
+    const rows = followups.filter(f => isScheduleOnlyFollowup(f))
     if (!rows.length) return null
     return [...rows].sort((a, b) => {
-      const ca =
-        parseApiDateTime(a.createdAt ?? a.created_at)?.getTime() ?? 0
-      const cb =
-        parseApiDateTime(b.createdAt ?? b.created_at)?.getTime() ?? 0
+      const ca = followupSortKey(a)
+      const cb = followupSortKey(b)
       return cb - ca
     })[0]
-  }, [followups, parseApiDateTime])
+  }, [followups])
 
   const compliance = useMemo(() => {
     const summary = {
@@ -863,6 +956,14 @@ const LeadDetails: React.FC = () => {
       setStatusError('closedReason is required for LOST.')
       return
     }
+    if (
+      selectedWorkflowFollowupType === 'CALL' &&
+      compliance.calls >= REQUIRED_COMPLIANCE.calls
+    ) {
+      setStatusSaving(false)
+      setStatusError('CALL limit reached (6). Use WhatsApp or Final Reminder.')
+      return
+    }
 
     if (conversion.canonical === 'CONVERTED') {
       if (loadingSentQuotations) {
@@ -897,6 +998,8 @@ const LeadDetails: React.FC = () => {
         subStatus: conversion.subStatus,
         followupType: selectedWorkflowFollowupType,
         notes: statusNotes.trim() || undefined,
+        activityCreatedAt: nowWallClockString(),
+        activityTimezone: getBrowserTimeZone(),
         closedReason:
           conversion.canonical === 'LOST' || conversion.canonical === 'NON_RESPONSIVE'
             ? closedReason.trim() || undefined
@@ -1058,12 +1161,15 @@ const LeadDetails: React.FC = () => {
     setFollowupScheduleError('')
     setFollowupScheduleOk('')
     try {
+      const wall = wallClockFromDatetimeLocal(followupDraft.followupDate)
       await leadsService.addFollowup(id, {
         followupType: followupDraft.followupType,
-        followupDate: new Date(followupDraft.followupDate).toISOString(),
+        followupLocalAt: wall,
         cadenceCode: followupDraft.cadenceCode || undefined,
         notes: followupDraft.notes || undefined,
-        clientTimezone: getBrowserTimeZone()
+        clientTimezone: getBrowserTimeZone(),
+        activityCreatedAt: nowWallClockString(),
+        activityTimezone: getBrowserTimeZone()
       })
       setFollowupDraft({
         followupType: 'CALL',
@@ -1073,7 +1179,7 @@ const LeadDetails: React.FC = () => {
       })
       await Promise.all([loadLead(), loadFollowups()])
       setFollowupScheduleOk(
-        'Saved. Shown under Scheduled Follow-ups and Follow-up History.'
+        'Saved. Shown under Scheduled Follow-ups.'
       )
       window.setTimeout(() => setFollowupScheduleOk(''), 6000)
     } catch (err) {
@@ -1145,7 +1251,10 @@ const LeadDetails: React.FC = () => {
     if (!id) return
     const newState = !isCallsDisabled
     try {
-      await leadsService.disableCalls(id, newState)
+      await leadsService.disableCalls(id, newState, {
+        activityCreatedAt: nowWallClockString(),
+        activityTimezone: getBrowserTimeZone()
+      })
       setShowDisablePopup(true)
       window.setTimeout(() => setShowDisablePopup(false), 2500)
       await loadLead()
@@ -1162,7 +1271,9 @@ const LeadDetails: React.FC = () => {
     try {
       await leadsService.assignLead(id, {
         assignedTo: selectedAssigneeId,
-        force: true
+        force: true,
+        activityCreatedAt: nowWallClockString(),
+        activityTimezone: getBrowserTimeZone()
       })
       await loadLead()
       setSelectedAssigneeId('')
@@ -1675,16 +1786,12 @@ const LeadDetails: React.FC = () => {
               Workflow Action history uses this type for status changes. Schedule
               Follow-up also logs below with the same scheduled date and time.
             </p>
-            {latestScheduleForWorkflow?.followupDate ? (
+            {latestScheduleForWorkflow?.followupDate ||
+            latestScheduleForWorkflow?.followupLocalAt ||
+            latestScheduleForWorkflow?.followup_local_at ? (
               <p className='mt-2 text-xs font-medium text-gray-700 dark:text-gray-200'>
                 Latest scheduled action time:{' '}
-                {formatDateTime(
-                  latestScheduleForWorkflow.followupDate,
-                  String(latestScheduleForWorkflow.followupDate),
-                  latestScheduleForWorkflow.clientTimezone ??
-                    latestScheduleForWorkflow.client_timezone ??
-                    null
-                )}
+                {formatFollowupDisplay(latestScheduleForWorkflow)}
               </p>
             ) : null}
             {selectedStatusLabel === 'CONVERTED' ? (
@@ -2042,10 +2149,10 @@ const LeadDetails: React.FC = () => {
               Schedule Follow-up
             </p>
             <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-              Date/time uses your device clock and zone (
-              {getBrowserTimeZone()}). The exact instant is stored in UTC;
-              lists and reminders use your CRM date/time settings. Assigned
-              agent gets an in-app reminder in a ~1 minute window about{' '}
+              Date/time uses your device clock. The same wall-clock value and
+              IANA zone ({getBrowserTimeZone()}) are stored for display and
+              reference. Reminders still use the scheduled instant server-side.
+              Assigned agent gets an in-app reminder in a ~1 minute window about{' '}
               <span className='font-semibold text-gray-700 dark:text-gray-200'>
                 5 minutes before
               </span>{' '}
@@ -2149,11 +2256,11 @@ const LeadDetails: React.FC = () => {
             <div className='mt-3 space-y-2'>
               {visibleScheduledFollowups
                 .slice()
-                .sort((a, b) => {
-                  const left = parseApiDateTime(a.followupDate)?.getTime() || 0
-                  const right = parseApiDateTime(b.followupDate)?.getTime() || 0
-                  return left - right
-                })
+                .sort(
+                  (a, b) =>
+                    followupSortKey(a) -
+                    followupSortKey(b)
+                )
                 .map(item => (
                   <div
                     key={item.id}
@@ -2179,13 +2286,7 @@ const LeadDetails: React.FC = () => {
                       </div>
                       <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
                         <FaClock />
-                        {item.followupDate
-                          ? formatDateTime(
-                              item.followupDate,
-                              String(item.followupDate),
-                              item.clientTimezone ?? item.client_timezone ?? null
-                            )
-                          : 'No date'}
+                        {formatHistoryActionDisplay(item)}
                       </span>
                     </div>
                     <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
@@ -2256,27 +2357,10 @@ const LeadDetails: React.FC = () => {
                             {item.cadenceCode}
                           </span>
                         ) : null}
-                        {item.isScheduleOnly ? (
-                          <span className='rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'>
-                            Schedule form
-                          </span>
-                        ) : null}
                       </div>
                       <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
                         <FaClock />
-                        {resolveFollowupActionDate(item)
-                          ? formatDateTime(
-                              resolveFollowupActionDate(item) as Date,
-                              String(
-                                item?.followupDate ??
-                                  item?.followup_date ??
-                                  item?.createdAt ??
-                                  item?.created_at ??
-                                  ''
-                              ),
-                              item.clientTimezone ?? item.client_timezone ?? null
-                            )
-                          : 'No date'}
+                        {formatFollowupDisplay(item)}
                       </span>
                     </div>
                     <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>

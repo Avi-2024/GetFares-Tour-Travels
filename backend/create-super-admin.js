@@ -1,3 +1,15 @@
+/**
+ * Ensures `super_admin` role + all permissions, then creates/updates one user.
+ *
+ * Uses the same DB config as the API (MYSQL_* / DB_* from env or crm config).
+ *
+ * Run: node create-super-admin.js
+ *
+ * Optional env (defaults shown):
+ *   SUPER_ADMIN_EMAIL=get2vacations@gmail.com
+ *   SUPER_ADMIN_NAME=Super Admin
+ *   SUPER_ADMIN_PASSWORD=12345678
+ */
 import { createDatabaseConnection } from "./crm/core/database/connection.js";
 import { createLogger } from "./crm/core/logger/index.js";
 import { config } from "./crm/core/config/index.js";
@@ -5,11 +17,21 @@ import bcrypt from "bcrypt";
 
 const logger = createLogger({ service: "create-super-admin" });
 
-const SUPER_ADMIN_EMAIL = "get2vacations@gmail.com";
-const SUPER_ADMIN_NAME = "Super Admin";
-const PLAIN_PASSWORD = "12345678";
+const SUPER_ADMIN_EMAIL =
+  String(process.env.SUPER_ADMIN_EMAIL || "").trim() ||
+  "get2vacations@gmail.com";
+const SUPER_ADMIN_NAME =
+  String(process.env.SUPER_ADMIN_NAME || "").trim() || "Super Admin";
+const PLAIN_PASSWORD =
+  String(process.env.SUPER_ADMIN_PASSWORD || "").trim() || "12345678";
 
 async function createSuperAdmin() {
+  if (PLAIN_PASSWORD.length < 8) {
+    throw new Error(
+      "SUPER_ADMIN_PASSWORD must be at least 8 characters (set env or use default).",
+    );
+  }
+
   const db = createDatabaseConnection({ config, logger });
 
   try {

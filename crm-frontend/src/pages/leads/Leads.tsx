@@ -768,9 +768,15 @@ const Leads: React.FC = () => {
                       >
                         <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                            {lead.createdAt
-                              ? formatDate(lead.createdAt, "-")
-                              : "-"}
+                            {lead.clientCreatedAt
+                              ? `${lead.clientCreatedAt}${
+                                  lead.clientTimezone
+                                    ? ` ${lead.clientTimezone}`
+                                    : ""
+                                }`
+                              : lead.createdAt
+                                ? formatDate(lead.createdAt, "-")
+                                : "-"}
                           </p>
                         </td>
                         <td className="px-4 py-3 leading-tight">

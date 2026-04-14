@@ -25,6 +25,10 @@ class CmsEntityFormValidator extends BaseValidator<CmsEntityValidationInput> {
           if (!Array.isArray(value) || value.length === 0) {
             errors[field.key] = `${field.label} is required.`;
           }
+        } else if (field.type === "list-text" || field.type === "list-object") {
+          if (!Array.isArray(value) || value.length === 0) {
+            errors[field.key] = `${field.label} is required.`;
+          }
         } else if (
           field.type !== "switch" &&
           String(value ?? "").trim().length === 0 &&

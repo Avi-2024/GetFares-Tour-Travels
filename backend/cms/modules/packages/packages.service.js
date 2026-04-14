@@ -21,6 +21,26 @@ function createCmsPackagesService({ repository }) {
     return value;
   }
 
+  function normalizeStringList(value) {
+    const parsed = parseJsonValue(value, []);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => normalizeText(item))
+      .filter((item) => Boolean(item));
+  }
+
+  function normalizeObjectList(value, mapper) {
+    const parsed = parseJsonValue(value, []);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item, index) => mapper(item, index))
+      .filter((item) => Boolean(item));
+  }
+
   function toPackage(row) {
     if (!row) return null;
     const galleryImageUrls = parseJsonValue(row.gallery_image_urls, []);
@@ -56,19 +76,48 @@ function createCmsPackagesService({ repository }) {
 
   function toMainPackage(row) {
     if (!row) return null;
+    const features = normalizeObjectList(row.features, (item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      return {
+        iconName: normalizeText(item.iconName || item.icon_name),
+        description: normalizeText(item.description),
+      };
+    });
+    const inclusions = normalizeObjectList(row.inclusions, (item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      return {
+        iconName: normalizeText(item.iconName || item.icon_name),
+        description: normalizeText(item.description),
+      };
+    });
     return {
       id: row.id,
       packageId: row.package_id,
       destinationId: row.destination_id ?? null,
-      country: row.country,
-      packageName: row.name,
-      destination: row.destination_name || row.destination,
-      startingPrice: parseFloat(row.starting_price) || 0,
-      duration: row.duration,
-      bannerImageUrl: row.banner_image_url,
+      country: row.country || row.destination_country || "",
+      title: normalizeText(row.title || row.package_name || row.legacy_package_name),
+      amount:
+        toNumber(
+          row.amount ??
+            row.starting_price ??
+            row.startingPrice,
+          0,
+        ) || 0,
+      destination:
+        normalizeText(
+          row.destination_name || row.destination || row.legacy_destination,
+        ) || "--",
+      features,
+      inclusions,
+      metaTitle: row.meta_title || null,
+      metaDescription: row.meta_description || null,
+      keywords: row.keywords || null,
       displayOrder: row.display_order,
       isFeatured: row.is_featured,
-      publishToWebsite: row.publish_to_website,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -76,14 +125,61 @@ function createCmsPackagesService({ repository }) {
 
   function toSubPackage(row) {
     if (!row) return null;
+    const features = normalizeObjectList(row.features, (item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      return {
+        title: normalizeText(item.title),
+        description: normalizeText(item.description),
+      };
+    });
+    const itineraries = normalizeObjectList(row.itineraries, (item, index) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      return {
+        day: toNumber(item.day, index + 1) || index + 1,
+        title: normalizeText(item.title),
+        description: normalizeText(item.description),
+        features: normalizeObjectList(item.features, (feature) => {
+          if (!feature || typeof feature !== "object") {
+            return null;
+          }
+          return {
+            title: normalizeText(feature.title),
+            description: normalizeText(feature.description),
+          };
+        }),
+      };
+    });
     return {
       id: row.id,
       mainPackageId: row.main_package_id,
       packageId: row.package_id,
-      packageName: row.name,
-      startingPrice: parseFloat(row.starting_price) || 0,
-      duration: row.duration,
-      bannerImageUrl: row.banner_image_url,
+      title: normalizeText(row.title || row.package_name || row.legacy_package_name),
+      image: row.image || null,
+      rating: toNumber(row.rating, 0) || 0,
+      location: row.location || null,
+      durationDays: toNumber(row.duration_days, 0) || 0,
+      durationNights: toNumber(row.duration_nights, 0) || 0,
+      duration: row.duration || null,
+      startingPrice: toNumber(row.starting_price, 0) || 0,
+      transport: row.transport || null,
+      description: row.description || null,
+      snapshot: row.snapshot || null,
+      features,
+      itineraries,
+      highlights: normalizeStringList(row.highlights),
+      inclusions: normalizeStringList(row.inclusions),
+      exclusions: normalizeStringList(row.exclusions),
+      paymentTerms: normalizeStringList(row.payment_terms),
+      cancellationPolicy: normalizeStringList(row.cancellation_policy),
+      tnc: normalizeStringList(row.tnc),
+      impNotes: normalizeStringList(row.imp_notes),
+      metaTitle: row.meta_title || null,
+      metaDescription: row.meta_description || null,
+      keywords: row.keywords || null,
       displayOrder: row.display_order,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -341,50 +437,40 @@ function createCmsPackagesService({ repository }) {
     },
 
     async createMainPackage(data) {
-      const pkg = await repository.findPackageById(data.packageId);
-      if (!pkg) {
-        throw new AppError(404, "Package not found", "NOT_FOUND");
-      }
-      if (!pkg.publish_to_website) {
-        throw new AppError(
-          400,
-          "Package must be published to website",
-          "NOT_PUBLISHED",
-        );
-      }
-      if (!normalizeText(data.country)) {
-        throw new AppError(
-          400,
-          "Country is required for main package",
-          "COUNTRY_REQUIRED",
-        );
-      }
-      if (!normalizeText(data.destinationId)) {
+      const destinationId = normalizeText(data.destinationId);
+      if (!destinationId) {
         throw new AppError(
           400,
           "Destination is required for main package",
           "DESTINATION_REQUIRED",
         );
       }
+      const destination = await repository.findDestinationById(destinationId);
+      if (!destination) {
+        throw new AppError(404, "Destination not found", "DESTINATION_NOT_FOUND");
+      }
+      const title = normalizeText(data.title);
+      if (!title) {
+        throw new AppError(400, "Title is required", "TITLE_REQUIRED");
+      }
 
       const row = await repository.createMainPackage({
-        package_id: data.packageId,
-        destination_id: normalizeText(data.destinationId),
-        country: normalizeText(data.country),
+        package_id: normalizeText(data.packageId) || null,
+        destination_id: destinationId,
+        country: normalizeText(data.country) || normalizeText(destination.country),
+        title,
+        amount: toNumber(data.amount, 0),
+        features: Array.isArray(data.features) ? data.features : [],
+        inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
+        meta_title: normalizeText(data.metaTitle),
+        meta_description: normalizeText(data.metaDescription),
+        keywords: normalizeText(data.keywords),
         display_order: toNumber(data.displayOrder, 0),
         is_featured: toBoolean(data.isFeatured, false),
       });
 
-      return {
-        id: row.id,
-        packageId: row.package_id,
-        destinationId: row.destination_id ?? null,
-        country: row.country,
-        displayOrder: row.display_order,
-        isFeatured: row.is_featured,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      };
+      const withJoin = await repository.findMainPackageById(row.id);
+      return toMainPackage(withJoin || row);
     },
 
     async updateMainPackage(id, data) {
@@ -403,6 +489,10 @@ function createCmsPackagesService({ repository }) {
             "INVALID_DESTINATION",
           );
         }
+        const destination = await repository.findDestinationById(destinationId);
+        if (!destination) {
+          throw new AppError(404, "Destination not found", "DESTINATION_NOT_FOUND");
+        }
         updates.destination_id = destinationId;
       }
       if (data.country !== undefined) {
@@ -412,21 +502,39 @@ function createCmsPackagesService({ repository }) {
         }
         updates.country = country;
       }
+      if (data.title !== undefined) {
+        const title = normalizeText(data.title);
+        if (!title) {
+          throw new AppError(400, "Title cannot be empty", "INVALID_TITLE");
+        }
+        updates.title = title;
+      }
+      if (data.amount !== undefined) {
+        updates.amount = toNumber(data.amount, 0);
+      }
+      if (data.features !== undefined) {
+        updates.features = Array.isArray(data.features) ? data.features : [];
+      }
+      if (data.inclusions !== undefined) {
+        updates.inclusions = Array.isArray(data.inclusions) ? data.inclusions : [];
+      }
+      if (data.metaTitle !== undefined) {
+        updates.meta_title = normalizeText(data.metaTitle);
+      }
+      if (data.metaDescription !== undefined) {
+        updates.meta_description = normalizeText(data.metaDescription);
+      }
+      if (data.keywords !== undefined) {
+        updates.keywords = normalizeText(data.keywords);
+      }
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
       if (data.isFeatured !== undefined)
         updates.is_featured = toBoolean(data.isFeatured, false);
 
       const updated = await repository.updateMainPackage(id, updates);
-      return {
-        id: updated.id,
-        packageId: updated.package_id,
-        destinationId: updated.destination_id ?? null,
-        country: updated.country,
-        displayOrder: updated.display_order,
-        isFeatured: updated.is_featured,
-        updatedAt: updated.updated_at,
-      };
+      const withJoin = await repository.findMainPackageById(updated.id);
+      return toMainPackage(withJoin || updated);
     },
 
     async deleteMainPackage(id) {
@@ -491,33 +599,50 @@ function createCmsPackagesService({ repository }) {
       if (!mainPackage) {
         throw new AppError(404, "Main package not found", "NOT_FOUND");
       }
-
-      const pkg = await repository.findPackageById(data.packageId);
-      if (!pkg) {
-        throw new AppError(404, "Package not found", "NOT_FOUND");
+      const title = normalizeText(data.title);
+      if (!title) {
+        throw new AppError(400, "Title is required", "TITLE_REQUIRED");
       }
-      if (!pkg.publish_to_website) {
-        throw new AppError(
-          400,
-          "Package must be published to website",
-          "NOT_PUBLISHED",
-        );
-      }
+      const itineraries = Array.isArray(data.itineraries) ? data.itineraries : [];
+      const normalizedItineraries = itineraries.map((item, index) => ({
+        day: toNumber(item?.day, index + 1) || index + 1,
+        title: normalizeText(item?.title),
+        description: normalizeText(item?.description),
+        features: Array.isArray(item?.features) ? item.features : [],
+      }));
 
       const row = await repository.createSubPackage({
         main_package_id: data.mainPackageId,
-        package_id: data.packageId,
+        package_id: normalizeText(data.packageId) || null,
+        title,
+        image: normalizeText(data.image),
+        rating: toNumber(data.rating, 0),
+        location: normalizeText(data.location),
+        duration_days: toNumber(data.durationDays, 0),
+        duration_nights: toNumber(data.durationNights, 0),
+        duration: normalizeText(data.duration),
+        starting_price: toNumber(data.startingPrice, 0),
+        transport: normalizeText(data.transport),
+        description: normalizeText(data.description),
+        snapshot: normalizeText(data.snapshot),
+        features: Array.isArray(data.features) ? data.features : [],
+        itineraries: normalizedItineraries,
+        highlights: Array.isArray(data.highlights) ? data.highlights : [],
+        inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
+        exclusions: Array.isArray(data.exclusions) ? data.exclusions : [],
+        payment_terms: Array.isArray(data.paymentTerms) ? data.paymentTerms : [],
+        cancellation_policy: Array.isArray(data.cancellationPolicy)
+          ? data.cancellationPolicy
+          : [],
+        tnc: Array.isArray(data.tnc) ? data.tnc : [],
+        imp_notes: Array.isArray(data.impNotes) ? data.impNotes : [],
+        meta_title: normalizeText(data.metaTitle),
+        meta_description: normalizeText(data.metaDescription),
+        keywords: normalizeText(data.keywords),
         display_order: toNumber(data.displayOrder, 0),
       });
 
-      return {
-        id: row.id,
-        mainPackageId: row.main_package_id,
-        packageId: row.package_id,
-        displayOrder: row.display_order,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      };
+      return toSubPackage(row);
     },
 
     async updateSubPackage(id, data) {
@@ -527,17 +652,76 @@ function createCmsPackagesService({ repository }) {
       }
 
       const updates = {};
+      if (data.title !== undefined) {
+        const title = normalizeText(data.title);
+        if (!title) {
+          throw new AppError(400, "Title cannot be empty", "INVALID_TITLE");
+        }
+        updates.title = title;
+      }
+      if (data.image !== undefined) updates.image = normalizeText(data.image);
+      if (data.rating !== undefined) updates.rating = toNumber(data.rating, 0);
+      if (data.location !== undefined) updates.location = normalizeText(data.location);
+      if (data.durationDays !== undefined) {
+        updates.duration_days = toNumber(data.durationDays, 0);
+      }
+      if (data.durationNights !== undefined) {
+        updates.duration_nights = toNumber(data.durationNights, 0);
+      }
+      if (data.duration !== undefined) updates.duration = normalizeText(data.duration);
+      if (data.startingPrice !== undefined) {
+        updates.starting_price = toNumber(data.startingPrice, 0);
+      }
+      if (data.transport !== undefined) updates.transport = normalizeText(data.transport);
+      if (data.description !== undefined) {
+        updates.description = normalizeText(data.description);
+      }
+      if (data.snapshot !== undefined) updates.snapshot = normalizeText(data.snapshot);
+      if (data.features !== undefined) {
+        updates.features = Array.isArray(data.features) ? data.features : [];
+      }
+      if (data.itineraries !== undefined) {
+        const itineraries = Array.isArray(data.itineraries) ? data.itineraries : [];
+        updates.itineraries = itineraries.map((item, index) => ({
+          day: toNumber(item?.day, index + 1) || index + 1,
+          title: normalizeText(item?.title),
+          description: normalizeText(item?.description),
+          features: Array.isArray(item?.features) ? item.features : [],
+        }));
+      }
+      if (data.highlights !== undefined) {
+        updates.highlights = Array.isArray(data.highlights) ? data.highlights : [];
+      }
+      if (data.inclusions !== undefined) {
+        updates.inclusions = Array.isArray(data.inclusions) ? data.inclusions : [];
+      }
+      if (data.exclusions !== undefined) {
+        updates.exclusions = Array.isArray(data.exclusions) ? data.exclusions : [];
+      }
+      if (data.paymentTerms !== undefined) {
+        updates.payment_terms = Array.isArray(data.paymentTerms) ? data.paymentTerms : [];
+      }
+      if (data.cancellationPolicy !== undefined) {
+        updates.cancellation_policy = Array.isArray(data.cancellationPolicy)
+          ? data.cancellationPolicy
+          : [];
+      }
+      if (data.tnc !== undefined) {
+        updates.tnc = Array.isArray(data.tnc) ? data.tnc : [];
+      }
+      if (data.impNotes !== undefined) {
+        updates.imp_notes = Array.isArray(data.impNotes) ? data.impNotes : [];
+      }
+      if (data.metaTitle !== undefined) updates.meta_title = normalizeText(data.metaTitle);
+      if (data.metaDescription !== undefined) {
+        updates.meta_description = normalizeText(data.metaDescription);
+      }
+      if (data.keywords !== undefined) updates.keywords = normalizeText(data.keywords);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
 
       const updated = await repository.updateSubPackage(id, updates);
-      return {
-        id: updated.id,
-        mainPackageId: updated.main_package_id,
-        packageId: updated.package_id,
-        displayOrder: updated.display_order,
-        updatedAt: updated.updated_at,
-      };
+      return toSubPackage(updated);
     },
 
     async deleteSubPackage(id) {

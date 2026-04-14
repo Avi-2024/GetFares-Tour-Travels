@@ -18,6 +18,8 @@ import {
   getCurrencyLocaleByCode
 } from '../../utils/currency'
 import { getNationalityOptions } from '../../utils/nationality'
+import { nowWallClockString } from '../../utils/clientWallClock'
+import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
 
 type LeadType = 'HOLIDAY' | 'VISA' | null
 
@@ -677,6 +679,8 @@ const CreateLead: React.FC = () => {
         fullName,
         email: form.email.trim(),
         phone: normalizedPhone,
+        clientCreatedAt: nowWallClockString(),
+        clientTimezone: getBrowserTimeZone(),
         leadCountry: form.leadCountry,
         nationality: form.nationality.trim(),
         addressLine: form.location.trim() || undefined,

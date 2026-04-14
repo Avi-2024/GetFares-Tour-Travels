@@ -21,8 +21,14 @@ class CmsDatasource {
     this.httpClient = httpClient;
     this.accessor = new CmsRecordAccessor();
     this.payloadMapper = new CmsPayloadMapper();
-    this.sectionEntryMapper = new CmsSectionEntryMapper(this.httpClient, this.accessor);
-    this.mediaDatasource = new CmsMediaDatasource(this.httpClient, this.accessor);
+    this.sectionEntryMapper = new CmsSectionEntryMapper(
+      this.httpClient,
+      this.accessor,
+    );
+    this.mediaDatasource = new CmsMediaDatasource(
+      this.httpClient,
+      this.accessor,
+    );
   }
 
   private getCountryParam(): string | null {
@@ -30,7 +36,9 @@ class CmsDatasource {
       return null;
     }
 
-    const urlCountry = new URLSearchParams(window.location.search).get("country");
+    const urlCountry = new URLSearchParams(window.location.search).get(
+      "country",
+    );
     const normalized = (urlCountry || "").trim();
     return normalized || null;
   }
@@ -85,8 +93,24 @@ class CmsDatasource {
   }
 
   public async list(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
-    const entries = await this.fetchAll(sectionKey);
+    const entries = await this.fetchAll(sectionKey, false);
     return this.filterDeleted(entries, false);
+  }
+
+  private resolveHardDeletePath(entry: CmsTableEntry): string {
+    if (entry.hardDeletePath) {
+      return entry.hardDeletePath;
+    }
+    if (entry.restorePath && entry.restorePath.includes("/restore")) {
+      return entry.restorePath.replace(/\/restore$/, "/hard-delete");
+    }
+    if (entry.deletePath) {
+      if (entry.deletePath.includes("/hard-delete")) {
+        return entry.deletePath;
+      }
+      return `${entry.deletePath}/hard-delete`;
+    }
+    throw new Error("Hard delete path is unavailable for this row.");
   }
 
   public async listAdminMainPackages(): Promise<CmsTableEntry[]> {
@@ -102,7 +126,11 @@ class CmsDatasource {
     const countryOptions = this.withCountryParams();
 
     if (sectionKey === "landing-places") {
-      const response = await this.httpClient.post("/cms", mappedPayload, countryOptions);
+      const response = await this.httpClient.post(
+        "/cms",
+        mappedPayload,
+        countryOptions,
+      );
       return this.accessor.toRecord(response);
     }
 
@@ -153,7 +181,9 @@ class CmsDatasource {
 
     if (sectionKey === "visa-details") {
       const visaDestinationId = String(
-        mappedPayload.visaDestinationId ?? mappedPayload.visa_destination_id ?? "",
+        mappedPayload.visaDestinationId ??
+          mappedPayload.visa_destination_id ??
+          "",
       );
       if (!visaDestinationId) {
         throw new Error("visaDestinationId is required in payload.");
@@ -175,7 +205,6 @@ class CmsDatasource {
       );
       return this.accessor.toRecord(response);
     }
-
 
     throw new Error("Create is not supported for this section yet.");
   }
@@ -205,7 +234,10 @@ class CmsDatasource {
     return this.accessor.toRecord(response);
   }
 
-  public async remove(_sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+  public async remove(
+    _sectionKey: CmsSectionKey,
+    entry: CmsTableEntry,
+  ): Promise<void> {
     if (entry.readOnly) {
       throw new Error("This row is read-only.");
     }
@@ -223,21 +255,24 @@ class CmsDatasource {
     if (entry.readOnly) {
       throw new Error("This row is read-only.");
     }
-    if (!entry.deletePath) {
-      throw new Error("Delete path is unavailable for this row.");
-    }
-    await this.httpClient.delete(entry.deletePath);
+    const hardDeletePath = this.resolveHardDeletePath(entry);
+    await this.httpClient.delete(hardDeletePath);
   }
 
-  public async listDeleted(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
-    const entries = await this.listAll(sectionKey);
+  public async listDeleted(
+    sectionKey: CmsSectionKey,
+  ): Promise<CmsTableEntry[]> {
+    const entries = await this.fetchDeleted(sectionKey);
     return this.filterDeleted(entries, true).map((entry) => ({
       ...entry,
       deleteMode: "hard-delete",
     }));
   }
 
-  public async restore(_sectionKey: CmsSectionKey, entry: CmsTableEntry): Promise<void> {
+  public async restore(
+    _sectionKey: CmsSectionKey,
+    entry: CmsTableEntry,
+  ): Promise<void> {
     if (entry.readOnly) {
       throw new Error("This row is read-only.");
     }
@@ -247,16 +282,14 @@ class CmsDatasource {
     await this.httpClient.patch(entry.restorePath);
   }
 
-  private async listAll(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
-    return this.fetchAll(sectionKey);
-  }
-
-  private async fetchAll(sectionKey: CmsSectionKey): Promise<CmsTableEntry[]> {
-    const includeDeleted = true;
+  private async fetchAll(
+    sectionKey: CmsSectionKey,
+    includeDeleted = false,
+  ): Promise<CmsTableEntry[]> {
     if (sectionKey === "landing-places") {
       const payload = await this.httpClient.get<unknown>(
         "/cms",
-        this.withCountryParams({ includeDeleted }),
+        this.withCountryParams(includeDeleted ? { includeDeleted } : {}),
       );
       return this.sectionEntryMapper.mapLandingEntries(
         this.accessor.toArray(payload),
@@ -267,7 +300,7 @@ class CmsDatasource {
     if (sectionKey === "destinations") {
       const payload = await this.httpClient.get<unknown>(
         "/cms/destinations",
-        this.withCountryParams({ includeDeleted }),
+        this.withCountryParams(includeDeleted ? { includeDeleted } : {}),
       );
       return this.sectionEntryMapper.mapDestinationEntries(
         this.accessor.toArray(payload),
@@ -278,15 +311,17 @@ class CmsDatasource {
     if (sectionKey === "published-packages") {
       const payload = await this.httpClient.get<unknown>(
         "/cms/packages/published",
-        this.withCountryParams({ includeDeleted }),
+        this.withCountryParams(includeDeleted ? { includeDeleted } : {}),
       );
-      return this.sectionEntryMapper.mapPublishedEntries(this.accessor.toArray(payload));
+      return this.sectionEntryMapper.mapPublishedEntries(
+        this.accessor.toArray(payload),
+      );
     }
 
     if (sectionKey === "main-packages") {
       const payload = await this.httpClient.get<unknown>(
         "/cms/packages/main",
-        this.withCountryParams({ includeDeleted }),
+        this.withCountryParams(includeDeleted ? { includeDeleted } : {}),
       );
       return this.sectionEntryMapper.mapMainPackageEntries(
         this.accessor.toArray(payload),
@@ -305,7 +340,9 @@ class CmsDatasource {
     if (sectionKey === "visa-destinations") {
       const payload = await this.httpClient.get<unknown>(
         "/cms/visa",
-        this.withCountryParams({ includeDeleted }, { includeIsActive: true }),
+        this.withCountryParams(includeDeleted ? { includeDeleted } : {}, {
+          includeIsActive: true,
+        }),
       );
       return this.sectionEntryMapper.mapVisaDestinationEntries(
         this.accessor.toArray(payload),
@@ -333,7 +370,7 @@ class CmsDatasource {
     if (sectionKey === "creative-toolkit") {
       const payload = await this.httpClient.get<unknown>(
         "/cms/experience/creative-toolkit",
-        this.withCountryParams({ includeDeleted }),
+        this.withCountryParams(includeDeleted ? { includeDeleted } : {}),
       );
       return this.sectionEntryMapper.mapFeaturedEntries(
         this.accessor.toArray(payload),
@@ -341,13 +378,112 @@ class CmsDatasource {
       );
     }
 
+    throw new Error(`Unsupported section key: ${sectionKey}`);
+  }
+
+  private async fetchDeleted(
+    sectionKey: CmsSectionKey,
+  ): Promise<CmsTableEntry[]> {
+    if (sectionKey === "landing-places") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/deleted",
+        this.withCountryParams(),
+      );
+      return this.sectionEntryMapper.mapLandingEntries(
+        this.accessor.toArray(payload),
+        "/cms",
+      );
+    }
+
+    if (sectionKey === "destinations") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/destinations/deleted",
+        this.withCountryParams(),
+      );
+      return this.sectionEntryMapper.mapDestinationEntries(
+        this.accessor.toArray(payload),
+        "/cms/destinations",
+      );
+    }
+
+    if (sectionKey === "published-packages") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/packages/published/deleted",
+        this.withCountryParams(),
+      );
+      return this.sectionEntryMapper.mapPublishedEntries(
+        this.accessor.toArray(payload),
+      );
+    }
+
+    if (sectionKey === "main-packages") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/packages/main/deleted",
+        this.withCountryParams(),
+      );
+      return this.sectionEntryMapper.mapMainPackageEntries(
+        this.accessor.toArray(payload),
+        "/cms/packages/main",
+      );
+    }
+
+    if (sectionKey === "sub-packages") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/packages/sub/deleted",
+        this.withCountryParams(),
+      );
+      return this.sectionEntryMapper.mapSubPackageFlatEntries(
+        this.accessor.toArray(payload),
+        "/cms/packages/sub",
+      );
+    }
+
+    if (sectionKey === "visa-destinations") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/visa/deleted",
+        this.withCountryParams({}, { includeIsActive: true }),
+      );
+      return this.sectionEntryMapper.mapVisaDestinationEntries(
+        this.accessor.toArray(payload),
+        "/cms/visa",
+      );
+    }
+
+    if (sectionKey === "visa-details") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/visa/details/deleted",
+        this.withCountryParams(),
+      );
+      return this.sectionEntryMapper.mapVisaDetailFlatEntries(
+        this.accessor.toArray(payload),
+        "/cms/visa/details",
+      );
+    }
+
+    if (sectionKey === "creative-toolkit") {
+      const payload = await this.httpClient.get<unknown>(
+        "/cms/experience/creative-toolkit/deleted",
+        this.withCountryParams(),
+      );
+      return this.sectionEntryMapper.mapFeaturedEntries(
+        this.accessor.toArray(payload),
+        "/cms/experience",
+      );
+    }
 
     throw new Error(`Unsupported section key: ${sectionKey}`);
   }
 
-  private filterDeleted(entries: CmsTableEntry[], showDeleted: boolean): CmsTableEntry[] {
+  private filterDeleted(
+    entries: CmsTableEntry[],
+    showDeleted: boolean,
+  ): CmsTableEntry[] {
     return entries.filter((entry) => {
-      const isDeleted = this.accessor.getBoolean(entry.raw, "isDeleted", "is_deleted");
+      const isDeleted = this.accessor.getBoolean(
+        entry.raw,
+        "isDeleted",
+        "is_deleted",
+      );
       return showDeleted ? isDeleted : !isDeleted;
     });
   }
@@ -356,7 +492,10 @@ class CmsDatasource {
     return this.mediaDatasource.getMediaEntityType(sectionKey);
   }
 
-  public listMedia(entityType: string, entityId: string): Promise<CmsMediaAsset[]> {
+  public listMedia(
+    entityType: string,
+    entityId: string,
+  ): Promise<CmsMediaAsset[]> {
     return this.mediaDatasource.listMedia(entityType, entityId);
   }
 
@@ -422,7 +561,10 @@ class CmsDatasource {
     destinationId: string,
     mappingId: string,
   ): Promise<void> {
-    return this.mediaDatasource.unmapDestinationPackage(destinationId, mappingId);
+    return this.mediaDatasource.unmapDestinationPackage(
+      destinationId,
+      mappingId,
+    );
   }
 }
 
