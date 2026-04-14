@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 
 type SearchDropdownOption = {
   label: string;
@@ -63,7 +69,7 @@ const SearchDropDown = ({
   }, [value, isOpen]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: globalThis.MouseEvent) => {
       if (!rootRef.current) {
         return;
       }
@@ -106,7 +112,7 @@ const SearchDropDown = ({
     setIsOpen(false);
   };
 
-  const handleClear = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleClear = (event: ReactMouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     onClear?.();
@@ -123,9 +129,7 @@ const SearchDropDown = ({
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((prev) =>
-        Math.min(prev + 1, filteredOptions.length - 1),
-      );
+      setActiveIndex((prev) => Math.min(prev + 1, filteredOptions.length - 1));
     }
 
     if (event.key === "ArrowUp") {
@@ -147,10 +151,10 @@ const SearchDropDown = ({
     }
   };
 
-  const inputValue = isOpen ? query : selectedOption?.label ?? "";
+  const inputValue = isOpen ? query : (selectedOption?.label ?? "");
   const resolvedClassName =
     className ||
-    "h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-9 pr-9 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]";
+    "h-10 w-full rounded-xl border border-[var(--border)] bg-(--surface) px-9 pr-9 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]";
 
   return (
     <div ref={rootRef} className="relative">
@@ -231,8 +235,10 @@ const SearchDropDown = ({
       <div
         id={listboxId.current}
         role="listbox"
-        className={`absolute left-0 right-0 z-[9999] mt-2 max-h-64 overflow-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_12px_32px_rgba(15,23,42,0.18)] transition ${
-          isOpen ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
+        className={`absolute left-0 right-0 z-[9999] mt-2 max-h-64 overflow-auto rounded-xl border border-[var(--border)] bg-(--surface) shadow-[0_12px_32px_rgba(15,23,42,0.18)] transition ${
+          isOpen ?
+            "scale-100 opacity-100"
+          : "pointer-events-none scale-95 opacity-0"
         }`}
       >
         {loading && (
@@ -259,14 +265,16 @@ const SearchDropDown = ({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => handleSelect(option)}
                 className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition ${
-                  active
-                    ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-[var(--primary)]"
-                    : "text-[var(--text-primary)] hover:bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]"
+                  active ?
+                    "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-[var(--primary)]"
+                  : "text-[var(--text-primary)] hover:bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]"
                 }`}
               >
                 <span className="truncate">{option.label}</span>
                 {selected && (
-                  <span className="text-xs text-[var(--text-tertiary)]">Selected</span>
+                  <span className="text-xs text-[var(--text-tertiary)]">
+                    Selected
+                  </span>
                 )}
               </button>
             );

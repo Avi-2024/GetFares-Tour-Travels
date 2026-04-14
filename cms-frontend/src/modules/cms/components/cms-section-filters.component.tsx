@@ -51,7 +51,7 @@ class CmsSectionFiltersComponent extends Component<CmsSectionFiltersProps> {
 
     return (
       <SurfaceCardComponent>
-        <div className="grid gap-3 lg:grid-cols-[1.4fr_auto]">
+        <div className="grid gap-2 sm:gap-3 lg:grid-cols-[1.4fr_auto]">
           <label className="relative">
             <Search
               size={14}
@@ -62,13 +62,13 @@ class CmsSectionFiltersComponent extends Component<CmsSectionFiltersProps> {
               value={searchQuery}
               onChange={onSearchChange}
               placeholder={`Search in ${sectionTitle.toLowerCase()}...`}
-              className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]"
+              className="h-10 w-full rounded-xl border border-[var(--border)] bg-(--surface) pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)] sm:h-11"
             />
           </label>
           <button
             type="button"
             onClick={onToggleAdvancedFilters}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--text-secondary)]"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-(--surface) px-3 text-sm text-[var(--text-secondary)] sm:h-11 lg:w-auto"
           >
             <SlidersHorizontal size={14} />
             Filters
@@ -107,7 +107,7 @@ class CmsSectionFiltersComponent extends Component<CmsSectionFiltersProps> {
                         onColumnFilterChange(definition.key, event.target.value)
                       }
                       placeholder={`Filter ${definition.label.toLowerCase()}...`}
-                      className="mt-1.5 h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-sm normal-case tracking-normal text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]"
+                      className="mt-1.5 h-9 w-full rounded-lg border border-[var(--border)] bg-(--surface) px-2 text-sm normal-case tracking-normal text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]"
                     />
                   )}
                   {definition.type === "date" && (
@@ -123,10 +123,14 @@ class CmsSectionFiltersComponent extends Component<CmsSectionFiltersProps> {
                           )
                         }
                         onBlur={(event) =>
-                          onDateInputBlur(definition.key, "from", event.target.value)
+                          onDateInputBlur(
+                            definition.key,
+                            "from",
+                            event.target.value,
+                          )
                         }
                         placeholder="dd/mm/yyyy"
-                        className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-sm normal-case tracking-normal text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]"
+                        className="h-9 w-full rounded-lg border border-[var(--border)] bg-(--surface) px-2 text-sm normal-case tracking-normal text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]"
                       />
                       <input
                         type="text"
@@ -139,10 +143,14 @@ class CmsSectionFiltersComponent extends Component<CmsSectionFiltersProps> {
                           )
                         }
                         onBlur={(event) =>
-                          onDateInputBlur(definition.key, "to", event.target.value)
+                          onDateInputBlur(
+                            definition.key,
+                            "to",
+                            event.target.value,
+                          )
                         }
                         placeholder="dd/mm/yyyy"
-                        className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-sm normal-case tracking-normal text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]"
+                        className="h-9 w-full rounded-lg border border-[var(--border)] bg-(--surface) px-2 text-sm normal-case tracking-normal text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]"
                       />
                     </div>
                   )}
@@ -155,7 +163,7 @@ class CmsSectionFiltersComponent extends Component<CmsSectionFiltersProps> {
                 type="button"
                 onClick={onClearFilters}
                 disabled={!hasActiveFilters}
-                className="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--border)] bg-(--surface) px-3 text-xs font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Clear Filters
               </button>

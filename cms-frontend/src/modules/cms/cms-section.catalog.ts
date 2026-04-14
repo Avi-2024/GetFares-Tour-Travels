@@ -62,7 +62,7 @@ class CmsSectionCatalog {
       [
         new CmsTableColumn("destination", "Destination", true),
         new CmsTableColumn("region", "Region"),
-        new CmsTableColumn("travelType", "Travel Type"),
+        new CmsTableColumn("category", "Category"),
         new CmsTableColumn("seo", "SEO"),
         new CmsTableColumn("status", "Status"),
       ],
@@ -90,7 +90,7 @@ class CmsSectionCatalog {
       "main-packages",
       "Package Architecture",
       "Main Packages",
-      "Manage website main package mappings.",
+      "Manage curated main package records.",
       "Create Main Package",
       [
         new CmsTableColumn("mainPackage", "Main Package", true),
@@ -100,7 +100,7 @@ class CmsSectionCatalog {
         new CmsTableColumn("updatedAt", "Updated At"),
       ],
       "No main packages found",
-      "Create main packages by mapping CRM published packages.",
+      "Create first main package to start catalog.",
     ),
     "sub-packages": CmsSectionCatalog.createSection(
       "sub-packages",
@@ -115,7 +115,7 @@ class CmsSectionCatalog {
         new CmsTableColumn("updatedAt", "Updated At"),
       ],
       "No sub packages found",
-      "Create sub packages under main package groups.",
+      "Create sub packages under main packages.",
     ),
     "visa-destinations": CmsSectionCatalog.createSection(
       "visa-destinations",

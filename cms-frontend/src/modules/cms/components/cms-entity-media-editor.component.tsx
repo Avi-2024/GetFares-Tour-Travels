@@ -48,10 +48,12 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
     } = this.props;
 
     return (
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-        <h4 className="text-sm font-semibold text-[var(--text-primary)]">Media</h4>
+      <section className="rounded-2xl border border-[var(--border)] bg-(--surface) p-4">
+        <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+          Media
+        </h4>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
+          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-(--surface) px-3 text-xs font-semibold text-[var(--text-primary)] transition hover:bg-(--background-soft)">
             <Upload size={13} />
             {isMediaUploading ? "Selecting..." : "Add Image"}
             <input
@@ -68,30 +70,36 @@ class CmsEntityMediaEditorComponent extends Component<CmsEntityMediaEditorProps>
         </div>
 
         {mediaInfoMessage && !mediaErrorMessage && (
-          <p className="mt-2 text-xs text-[var(--success)]">{mediaInfoMessage}</p>
+          <p className="mt-2 text-xs text-[var(--success)]">
+            {mediaInfoMessage}
+          </p>
         )}
 
         {mediaErrorMessage && (
-          <p className="mt-2 text-xs text-[var(--danger)]">{mediaErrorMessage}</p>
+          <p className="mt-2 text-xs text-[var(--danger)]">
+            {mediaErrorMessage}
+          </p>
         )}
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {mediaItems.map((item, index) => (
-            <div key={item.clientId} className="rounded-2xl border border-[var(--border)] p-2">
-              {item.mediaKind === "video" ? (
+            <div
+              key={item.clientId}
+              className="rounded-2xl border border-[var(--border)] p-2"
+            >
+              {item.mediaKind === "video" ?
                 <video
                   src={item.mediaUrl}
                   className="h-24 w-full rounded-xl object-cover"
                   muted
                   playsInline
                 />
-              ) : (
-                <img
+              : <img
                   src={item.thumbnailUrl || item.mediaUrl}
                   alt={item.altText || item.title || "Media"}
                   className="h-24 w-full rounded-xl object-cover"
                 />
-              )}
+              }
               <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
                 <span>
                   #{index + 1}

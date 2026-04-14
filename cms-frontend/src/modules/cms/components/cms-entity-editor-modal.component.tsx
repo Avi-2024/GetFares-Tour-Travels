@@ -136,7 +136,11 @@ class CmsEntityEditorModalComponent extends Component<
       if (normalized === "true" || normalized === "1") {
         return true;
       }
-      if (normalized === "false" || normalized === "0" || normalized.length === 0) {
+      if (
+        normalized === "false" ||
+        normalized === "0" ||
+        normalized.length === 0
+      ) {
         return false;
       }
     }
@@ -148,10 +152,7 @@ class CmsEntityEditorModalComponent extends Component<
 
   private toDefaultMediaLabel(fileName: string): string {
     const withoutExt = fileName.replace(/\.[^/.]+$/, "");
-    return withoutExt
-      .replace(/[_-]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    return withoutExt.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
   }
 
   private getMediaKindForFile(file: File): string {
@@ -168,6 +169,25 @@ class CmsEntityEditorModalComponent extends Component<
     return value.trim();
   }
 
+  private parseArrayValue(value: unknown): unknown[] {
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const text = value.trim();
+      if (!text) {
+        return [];
+      }
+      try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
   private getRawValue(entry: CmsTableEntry, key: string): unknown {
     if (entry.raw[key] !== undefined) {
       return entry.raw[key];
@@ -179,7 +199,9 @@ class CmsEntityEditorModalComponent extends Component<
     return undefined;
   }
 
-  private async loadRelationOptions(source: RelationSourceKey): Promise<CmsFieldOption[]> {
+  private async loadRelationOptions(
+    source: RelationSourceKey,
+  ): Promise<CmsFieldOption[]> {
     if (source === "featured-references") {
       const [packages, destinations, visa] = await Promise.all([
         this.cmsService.list("published-packages"),
@@ -205,7 +227,10 @@ class CmsEntityEditorModalComponent extends Component<
       ];
     }
 
-    if (source === "main-packages" && this.props.sectionKey === "sub-packages") {
+    if (
+      source === "main-packages" &&
+      this.props.sectionKey === "sub-packages"
+    ) {
       const rows = await this.cmsService.listAdminMainPackages();
       return rows.map((item) => ({
         value: item.id,
@@ -213,7 +238,10 @@ class CmsEntityEditorModalComponent extends Component<
       }));
     }
 
-    const sectionMap: Record<Exclude<RelationSourceKey, "featured-references">, CmsSectionKey> = {
+    const sectionMap: Record<
+      Exclude<RelationSourceKey, "featured-references">,
+      CmsSectionKey
+    > = {
       destinations: "destinations",
       "published-packages": "published-packages",
       "main-packages": "main-packages",
@@ -252,8 +280,12 @@ class CmsEntityEditorModalComponent extends Component<
     }
 
     return rows.map((item) => {
-      const titleFallback = this.toNonEmptyString(this.getRawValue(item, "title"));
-      const slugFallback = this.toNonEmptyString(this.getRawValue(item, "slug"));
+      const titleFallback = this.toNonEmptyString(
+        this.getRawValue(item, "title"),
+      );
+      const slugFallback = this.toNonEmptyString(
+        this.getRawValue(item, "slug"),
+      );
       return {
         value: item.id,
         label: titleFallback || slugFallback || item.id,
@@ -274,6 +306,8 @@ class CmsEntityEditorModalComponent extends Component<
       }
       if (field.type === "switch") {
         formValues[field.key] = true;
+      } else if (field.type === "list-text" || field.type === "list-object") {
+        formValues[field.key] = [];
       } else if (field.type === "multi-select") {
         formValues[field.key] = [];
       } else {
@@ -283,13 +317,17 @@ class CmsEntityEditorModalComponent extends Component<
 
     if (this.props.mode === "edit" && this.props.entry) {
       definition.fields.forEach((field) => {
-        const value = this.getRawValue(this.props.entry as CmsTableEntry, field.key);
+        const value = this.getRawValue(
+          this.props.entry as CmsTableEntry,
+          field.key,
+        );
         if (value === undefined || value === null) {
           return;
         }
         if (field.type === "multi-select") {
           formValues[field.key] =
-            Array.isArray(value) ? value.map((item) => String(item))
+            Array.isArray(value) ?
+              value.map((item) => String(item))
             : String(value)
                 .split(",")
                 .map((item) => item.trim())
@@ -298,6 +336,10 @@ class CmsEntityEditorModalComponent extends Component<
         }
         if (field.type === "switch") {
           formValues[field.key] = this.toBooleanValue(value);
+          return;
+        }
+        if (field.type === "list-text" || field.type === "list-object") {
+          formValues[field.key] = this.parseArrayValue(value);
           return;
         }
         formValues[field.key] = String(value);
@@ -332,12 +374,18 @@ class CmsEntityEditorModalComponent extends Component<
     );
     const nextOptions = { ...this.state.relationOptions };
     for (const source of relationSources) {
-      nextOptions[source] = await this.loadRelationOptions(source).catch(() => []);
+      nextOptions[source] = await this.loadRelationOptions(source).catch(
+        () => [],
+      );
     }
 
     if (this.props.entry && definition.mediaEnabled) {
-      const entityType = this.cmsService.getMediaEntityType(this.props.sectionKey);
-      const media = await this.cmsService.listMedia(entityType, this.props.entry.id).catch(() => []);
+      const entityType = this.cmsService.getMediaEntityType(
+        this.props.sectionKey,
+      );
+      const media = await this.cmsService
+        .listMedia(entityType, this.props.entry.id)
+        .catch(() => []);
       const mapped = media.map((item) => ({
         id: item.id,
         clientId: item.id,
@@ -353,14 +401,16 @@ class CmsEntityEditorModalComponent extends Component<
       this.setState({ mediaItems: mapped });
     }
 
-
     this.setState({
       relationOptions: nextOptions,
       isBootstrapping: false,
     });
   }
 
-  private onFieldChange = (field: CmsEntityFieldDefinition, nextValue: unknown): void => {
+  private onFieldChange = (
+    field: CmsEntityFieldDefinition,
+    nextValue: unknown,
+  ): void => {
     this.setState((prev) => {
       const formValues = { ...prev.formValues, [field.key]: nextValue };
       if (
@@ -384,9 +434,9 @@ class CmsEntityEditorModalComponent extends Component<
         }
       }
       if (!prev.slugTouched) {
-        const slugField = CmsEntityFormCatalog.get(this.props.sectionKey).fields.find(
-          (item) => item.autoSlugSource === field.key,
-        );
+        const slugField = CmsEntityFormCatalog.get(
+          this.props.sectionKey,
+        ).fields.find((item) => item.autoSlugSource === field.key);
         if (slugField) {
           formValues[slugField.key] = this.slugify(String(nextValue || ""));
         }
@@ -420,7 +470,10 @@ class CmsEntityEditorModalComponent extends Component<
         formUploadErrorMessage: "",
         formErrors: { ...prev.formErrors, [field.key]: "" },
         fieldImageFiles: { ...prev.fieldImageFiles, [field.key]: file },
-        fieldImagePreviews: { ...prev.fieldImagePreviews, [field.key]: previewUrl },
+        fieldImagePreviews: {
+          ...prev.fieldImagePreviews,
+          [field.key]: previewUrl,
+        },
       };
     });
   };
@@ -463,7 +516,9 @@ class CmsEntityEditorModalComponent extends Component<
     if ((primary.mediaKind || "image") !== "image") {
       return "Title image must be an image.";
     }
-    const galleryCount = this.state.mediaItems.filter((item) => !item.isPrimary).length;
+    const galleryCount = this.state.mediaItems.filter(
+      (item) => !item.isPrimary,
+    ).length;
     if (galleryCount > 4) {
       return "Gallery supports up to 4 items.";
     }
@@ -486,7 +541,8 @@ class CmsEntityEditorModalComponent extends Component<
     const mediaItems = mediaItemsOverride ?? this.state.mediaItems;
     const primary = mediaItems.find((item) => item.isPrimary) ?? mediaItems[0];
     if (primary) {
-      if (this.props.sectionKey === "landing-places") payload.imageUrl = primary.mediaUrl;
+      if (this.props.sectionKey === "landing-places")
+        payload.imageUrl = primary.mediaUrl;
       if (this.props.sectionKey === "destinations") {
         payload.heroImageUrl = primary.mediaUrl;
         payload.thumbnailUrl = primary.thumbnailUrl || primary.mediaUrl;
@@ -497,11 +553,10 @@ class CmsEntityEditorModalComponent extends Component<
       }
       if (this.props.sectionKey === "published-packages") {
         payload.bannerImageUrl = primary.mediaUrl;
-        payload.galleryImageUrls = mediaItems.map(
-          (item) => item.mediaUrl,
-        );
+        payload.galleryImageUrls = mediaItems.map((item) => item.mediaUrl);
       }
-      if (this.props.sectionKey === "creative-toolkit") payload.imageUrl = primary.mediaUrl;
+      if (this.props.sectionKey === "creative-toolkit")
+        payload.imageUrl = primary.mediaUrl;
     }
     return payload;
   }
@@ -511,7 +566,9 @@ class CmsEntityEditorModalComponent extends Component<
       return this.state.mediaItems;
     }
 
-    const pendingItems = this.state.mediaItems.filter((item) => item.pendingFile);
+    const pendingItems = this.state.mediaItems.filter(
+      (item) => item.pendingFile,
+    );
     if (!pendingItems.length) {
       return this.state.mediaItems;
     }
@@ -564,7 +621,9 @@ class CmsEntityEditorModalComponent extends Component<
   private async syncMedia(entityId: string): Promise<void> {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     if (!definition.mediaEnabled) return;
-    const entityType = this.cmsService.getMediaEntityType(this.props.sectionKey);
+    const entityType = this.cmsService.getMediaEntityType(
+      this.props.sectionKey,
+    );
     for (const mediaId of this.state.removedMediaIds) {
       await this.cmsService.deleteMedia(mediaId);
     }
@@ -591,7 +650,6 @@ class CmsEntityEditorModalComponent extends Component<
       else await this.cmsService.createMedia(entityType, entityId, payload);
     }
   }
-
 
   private onSubmit = async (): Promise<void> => {
     if (!this.validate()) return;
@@ -640,14 +698,18 @@ class CmsEntityEditorModalComponent extends Component<
           isSubmitting: false,
           formErrors: {
             ...prev.formErrors,
-            websiteSlug: "Website Slug is required when Publish To Website is enabled.",
+            websiteSlug:
+              "Website Slug is required when Publish To Website is enabled.",
           },
         }));
         return;
       }
 
       if (this.props.mode === "create") {
-        const created = await this.cmsService.create(this.props.sectionKey, payload);
+        const created = await this.cmsService.create(
+          this.props.sectionKey,
+          payload,
+        );
         const entityId =
           (created?.id as string | undefined) ??
           (created?.["id"] as string | undefined) ??
@@ -657,7 +719,11 @@ class CmsEntityEditorModalComponent extends Component<
         }
         await this.props.onSaved("Record created successfully.");
       } else if (this.props.entry) {
-        await this.cmsService.update(this.props.sectionKey, this.props.entry, payload);
+        await this.cmsService.update(
+          this.props.sectionKey,
+          this.props.entry,
+          payload,
+        );
         await this.syncMedia(this.props.entry.id);
         await this.props.onSaved("Record updated successfully.");
       }
@@ -665,7 +731,8 @@ class CmsEntityEditorModalComponent extends Component<
       this.setState({ isSubmitting: false });
       this.props.onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to save.";
+      const message =
+        error instanceof Error ? error.message : "Failed to save.";
       this.setState({
         isSubmitting: false,
         mediaErrorMessage: message,
@@ -676,9 +743,14 @@ class CmsEntityEditorModalComponent extends Component<
 
   private onUploadMedia = async (file: File): Promise<void> => {
     const allowVideo = this.props.sectionKey === "destinations";
-    if (!file.type.startsWith("image/") && !(allowVideo && file.type.startsWith("video/"))) {
+    if (
+      !file.type.startsWith("image/") &&
+      !(allowVideo && file.type.startsWith("video/"))
+    ) {
       const message =
-        allowVideo ? "Only image or video files are supported." : "Only image files are supported.";
+        allowVideo ?
+          "Only image or video files are supported."
+        : "Only image files are supported.";
       this.setState({
         mediaErrorMessage: message,
         mediaInfoMessage: "",
@@ -687,7 +759,10 @@ class CmsEntityEditorModalComponent extends Component<
       return;
     }
 
-    if (this.props.sectionKey === "destinations" && this.state.mediaItems.length >= 5) {
+    if (
+      this.props.sectionKey === "destinations" &&
+      this.state.mediaItems.length >= 5
+    ) {
       const message = "Only 4 gallery items allowed.";
       this.setState({
         mediaErrorMessage: message,
@@ -721,7 +796,8 @@ class CmsEntityEditorModalComponent extends Component<
             altText: defaultLabel,
             isPrimary:
               this.props.sectionKey === "destinations" ?
-                mediaKind === "image" && prev.mediaItems.every((item) => !item.isPrimary)
+                mediaKind === "image" &&
+                prev.mediaItems.every((item) => !item.isPrimary)
               : prev.mediaItems.length === 0,
             mediaKind,
             pendingFile: file,
@@ -733,7 +809,8 @@ class CmsEntityEditorModalComponent extends Component<
       }));
       ToastService.success("Media selected. Upload on save.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Media selection failed.";
+      const message =
+        error instanceof Error ? error.message : "Media selection failed.";
       this.setState({
         isMediaUploading: false,
         mediaInfoMessage: "",
@@ -748,8 +825,10 @@ class CmsEntityEditorModalComponent extends Component<
       mediaItems: prev.mediaItems.map((media) => ({
         ...media,
         isPrimary:
-          this.props.sectionKey === "destinations" &&
-          media.mediaKind === "video" ?
+          (
+            this.props.sectionKey === "destinations" &&
+            media.mediaKind === "video"
+          ) ?
             media.isPrimary
           : media.clientId === clientId,
       })),
@@ -785,8 +864,11 @@ class CmsEntityEditorModalComponent extends Component<
   private onRemoveMedia = (item: CmsEntityMediaEditorItem): void => {
     this.revokeBlobUrl(item.previewUrl);
     this.setState((prev) => ({
-      mediaItems: prev.mediaItems.filter((media) => media.clientId !== item.clientId),
-      removedMediaIds: item.id ? [...prev.removedMediaIds, item.id] : prev.removedMediaIds,
+      mediaItems: prev.mediaItems.filter(
+        (media) => media.clientId !== item.clientId,
+      ),
+      removedMediaIds:
+        item.id ? [...prev.removedMediaIds, item.id] : prev.removedMediaIds,
     }));
   };
 
@@ -843,7 +925,9 @@ class CmsEntityEditorModalComponent extends Component<
     ToastService.success("Title image selected. Upload on save.");
   };
 
-  private onUploadDestinationGalleryMedia = async (file: File): Promise<void> => {
+  private onUploadDestinationGalleryMedia = async (
+    file: File,
+  ): Promise<void> => {
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
       const message = "Only image or video files are supported.";
       this.setState({
@@ -854,7 +938,9 @@ class CmsEntityEditorModalComponent extends Component<
       return;
     }
 
-    const galleryCount = this.state.mediaItems.filter((item) => !item.isPrimary).length;
+    const galleryCount = this.state.mediaItems.filter(
+      (item) => !item.isPrimary,
+    ).length;
     if (galleryCount >= 4) {
       const message = "Only 4 gallery items allowed.";
       this.setState({
@@ -908,20 +994,27 @@ class CmsEntityEditorModalComponent extends Component<
   }
 
   private renderDestinationMediaSection() {
-    const primary = this.state.mediaItems.find((item) => item.isPrimary) || null;
+    const primary =
+      this.state.mediaItems.find((item) => item.isPrimary) || null;
     const gallery = this.state.mediaItems.filter((item) => !item.isPrimary);
 
     return (
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-        <h4 className="text-sm font-semibold text-[var(--text-primary)]">Media</h4>
+      <section className="rounded-2xl border border-[var(--border)] bg-(--surface) p-4">
+        <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+          Media
+        </h4>
         <div className="mt-3 grid gap-3 lg:grid-cols-[1.05fr_1.95fr]">
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+          <div className="rounded-2xl border border-[var(--border)] bg-(--surface) p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-[var(--text-primary)]">Title Image</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">1 image</p>
+                <p className="text-xs font-semibold text-[var(--text-primary)]">
+                  Title Image
+                </p>
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  1 image
+                </p>
               </div>
-              <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--border)] px-3 text-[11px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
+              <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--border)] px-3 text-[11px] font-semibold text-[var(--text-primary)] transition hover:bg-(--background-soft)">
                 Upload
                 <input
                   type="file"
@@ -935,22 +1028,23 @@ class CmsEntityEditorModalComponent extends Component<
                 />
               </label>
             </div>
-            <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background-soft)]">
-              {primary ? (
+            <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border)] bg-(--background-soft)">
+              {primary ?
                 <img
                   src={primary.thumbnailUrl || primary.mediaUrl}
                   alt={primary.altText || primary.title || "Title image"}
                   className="h-32 w-full object-cover"
                 />
-              ) : (
-                <div className="flex h-32 items-center justify-center text-xs text-[var(--text-secondary)]">
+              : <div className="flex h-32 items-center justify-center text-xs text-[var(--text-secondary)]">
                   No title image selected.
                 </div>
-              )}
+              }
             </div>
             {primary && (
               <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                <span>{primary.pendingFile ? "Pending upload" : "Uploaded"}</span>
+                <span>
+                  {primary.pendingFile ? "Pending upload" : "Uploaded"}
+                </span>
                 <button
                   type="button"
                   onClick={() => this.onRemoveMedia(primary)}
@@ -962,13 +1056,17 @@ class CmsEntityEditorModalComponent extends Component<
             )}
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+          <div className="rounded-2xl border border-[var(--border)] bg-(--surface) p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-[var(--text-primary)]">Gallery</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">Up to 4 images or videos</p>
+                <p className="text-xs font-semibold text-[var(--text-primary)]">
+                  Gallery
+                </p>
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  Up to 4 images or videos
+                </p>
               </div>
-              <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--border)] px-3 text-[11px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--background-soft)]">
+              <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--border)] px-3 text-[11px] font-semibold text-[var(--text-primary)] transition hover:bg-(--background-soft)">
                 Add Media
                 <input
                   type="file"
@@ -985,24 +1083,28 @@ class CmsEntityEditorModalComponent extends Component<
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {gallery.map((item, index) => (
-                <div key={item.clientId} className="rounded-2xl border border-[var(--border)] p-2">
-                  {item.mediaKind === "video" ? (
+                <div
+                  key={item.clientId}
+                  className="rounded-2xl border border-[var(--border)] p-2"
+                >
+                  {item.mediaKind === "video" ?
                     <video
                       src={item.mediaUrl}
                       className="h-24 w-full rounded-xl object-cover"
                       muted
                       playsInline
                     />
-                  ) : (
-                    <img
+                  : <img
                       src={item.thumbnailUrl || item.mediaUrl}
                       alt={item.altText || item.title || "Gallery"}
                       className="h-24 w-full rounded-xl object-cover"
                     />
-                  )}
+                  }
                   <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
                     <span>#{index + 1}</span>
-                    <span>{item.mediaKind === "video" ? "Video" : "Image"}</span>
+                    <span>
+                      {item.mediaKind === "video" ? "Video" : "Image"}
+                    </span>
                   </div>
                   <div className="mt-2 flex items-center gap-1">
                     <button
@@ -1043,8 +1145,14 @@ class CmsEntityEditorModalComponent extends Component<
         isOpen={this.props.isOpen}
         title={`${this.props.mode === "create" ? "Create" : "Edit"} ${this.props.sectionTitle} Record`}
         description="Structured enterprise form with validated fields and media controls."
-        size={this.props.mode === "create" ? definition.createSize : definition.editSize}
-        confirmLabel={this.props.mode === "create" ? "Create Record" : "Save Changes"}
+        size={
+          this.props.mode === "create" ?
+            definition.createSize
+          : definition.editSize
+        }
+        confirmLabel={
+          this.props.mode === "create" ? "Create Record" : "Save Changes"
+        }
         isSubmitting={this.state.isSubmitting}
         confirmDisabled={
           this.state.isBootstrapping ||
@@ -1073,10 +1181,9 @@ class CmsEntityEditorModalComponent extends Component<
           />
 
           {definition.mediaEnabled &&
-            (this.props.sectionKey === "destinations" ? (
+            (this.props.sectionKey === "destinations" ?
               this.renderDestinationMediaSection()
-            ) : (
-              <CmsEntityMediaEditorComponent
+            : <CmsEntityMediaEditorComponent
                 mediaItems={this.state.mediaItems}
                 mediaErrorMessage={this.state.mediaErrorMessage}
                 mediaInfoMessage={this.state.mediaInfoMessage}
@@ -1086,8 +1193,7 @@ class CmsEntityEditorModalComponent extends Component<
                 onMoveMediaUp={this.onMoveMediaUp}
                 onMoveMediaDown={this.onMoveMediaDown}
                 onRemoveMedia={this.onRemoveMedia}
-              />
-            ))}
+              />)}
         </div>
       </CmsModalShellComponent>
     );
@@ -1095,4 +1201,3 @@ class CmsEntityEditorModalComponent extends Component<
 }
 
 export default CmsEntityEditorModalComponent;
-

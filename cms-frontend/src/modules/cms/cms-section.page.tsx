@@ -40,7 +40,10 @@ interface CmsSectionPageState {
   imagePreviewLabel: string;
 }
 
-class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState> {
+class CmsSectionPage extends Component<
+  CmsSectionPageProps,
+  CmsSectionPageState
+> {
   private readonly cmsService = CmsServiceContainer.getSectionService();
   private readonly filterController = new CmsSectionFilterController();
   private readonly mediaResolver = new CmsEntryMediaResolver();
@@ -308,10 +311,8 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
     } = this.state;
 
     const section = CmsSectionCatalog.getByKey(sectionKey);
-    const columnFilterDefinitions = this.filterController.buildColumnFilterDefinitions(
-      rows,
-      section.columns,
-    );
+    const columnFilterDefinitions =
+      this.filterController.buildColumnFilterDefinitions(rows, section.columns);
     const filteredRows = rows.filter(
       (entry) =>
         this.filterController.matchesSearch(entry, searchQuery) &&
@@ -337,14 +338,14 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
     );
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {successMessage && (
-          <div className="rounded-xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)] px-3 py-2 text-sm text-[var(--success)]">
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)] px-3 py-2 text-xs text-[var(--success)] sm:text-sm">
             {successMessage}
           </div>
         )}
         {errorMessage && (
-          <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--danger)]">
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs text-[var(--danger)] sm:text-sm">
             {errorMessage}
           </div>
         )}
@@ -375,13 +376,17 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
           supportsCreate={CmsEntityFormCatalog.get(sectionKey).supportsCreate}
           supportsEdit={CmsEntityFormCatalog.get(sectionKey).supportsEdit}
           supportsDelete={CmsEntityFormCatalog.get(sectionKey).supportsDelete}
+          deleteActionLabel="Move to Trash"
+          emptyStateMessage="No records found for the selected filters."
           dateColumnKeys={dateColumnKeys}
           onCreate={this.openCreateModal}
           onView={this.openViewModal}
           onEdit={this.openEditModal}
           onDelete={this.openDeleteModal}
           onImagePreview={this.openImagePreview}
-          getImageUrl={(entry) => this.mediaResolver.getImageUrlFromEntry(entry)}
+          getImageUrl={(entry) =>
+            this.mediaResolver.getImageUrlFromEntry(entry)
+          }
           getEntryLabel={(entry) => this.mediaResolver.getEntryLabel(entry)}
           getToneClass={(tone) => this.toneResolver.getToneClass(tone)}
           formatDateValue={(value) => this.filterController.toDDMMYYYY(value)}
@@ -403,6 +408,7 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
           recordLabel={this.mediaResolver.getEntryLabel(selectedEntry)}
           isSubmitting={isModalSubmitting}
           errorMessage={modalErrorMessage}
+          mode="soft"
           onCancel={this.closeModal}
           onConfirm={() => void this.handleDeleteConfirm()}
         />
@@ -427,11 +433,11 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
           onCancel={this.closeImagePreview}
         >
           {imagePreviewUrl && (
-            <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+            <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-(--surface)">
               <img
                 src={imagePreviewUrl}
                 alt={imagePreviewLabel || "Preview"}
-                className="max-h-[70vh] w-full object-contain"
+                className="max-h-[72vh] w-full object-contain sm:max-h-[70vh]"
               />
             </div>
           )}

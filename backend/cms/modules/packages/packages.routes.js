@@ -31,10 +31,10 @@ function createCmsPackagesRoutes({ controller, upload }) {
 
   router.route("/main/:mainPackageId/sub").get(controller.listSubPackages);
   router.route("/sub/deleted").get(controller.listDeletedSubPackages);
-  router.route("/sub").post(controller.createSubPackage);
+  router.route("/sub").post(upload.any(), controller.createSubPackage);
   router
     .route("/sub/:id")
-    .put(controller.updateSubPackage)
+    .put(upload.any(), controller.updateSubPackage)
     .delete(controller.deleteSubPackage);
   router.route("/sub/:id/restore").patch(controller.restoreSubPackage);
   router.route("/sub/:id/hard-delete").delete(controller.hardDeleteSubPackage);

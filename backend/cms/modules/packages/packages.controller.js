@@ -250,7 +250,22 @@ function createCmsPackagesController({ service, uploadService }) {
     }),
 
     createSubPackage: asyncHandler(async (req, res) => {
-      const pkg = await service.createSubPackage(req.body);
+      const payload = { ...req.body };
+      const imageFile = getFirstRequestFile(req, [
+        "image",
+        "bannerImage",
+        "file",
+      ]);
+      if (imageFile) {
+        const uploaded = await uploadService.uploadSingle({
+          file: imageFile,
+          prefix: "cms/packages/sub",
+          allowVideo: false,
+          required: false,
+        });
+        payload.image = uploaded?.url || payload.image;
+      }
+      const pkg = await service.createSubPackage(payload);
       res.status(201).json({
         success: true,
         data: pkg,
@@ -258,7 +273,22 @@ function createCmsPackagesController({ service, uploadService }) {
     }),
 
     updateSubPackage: asyncHandler(async (req, res) => {
-      const pkg = await service.updateSubPackage(req.params.id, req.body);
+      const payload = { ...req.body };
+      const imageFile = getFirstRequestFile(req, [
+        "image",
+        "bannerImage",
+        "file",
+      ]);
+      if (imageFile) {
+        const uploaded = await uploadService.uploadSingle({
+          file: imageFile,
+          prefix: "cms/packages/sub",
+          allowVideo: false,
+          required: false,
+        });
+        payload.image = uploaded?.url || payload.image;
+      }
+      const pkg = await service.updateSubPackage(req.params.id, payload);
       res.json({
         success: true,
         data: pkg,
