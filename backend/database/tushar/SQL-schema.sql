@@ -1,5 +1,7 @@
 -- STRICT MYSQL SCHEMA (REWRITTEN)
-SET time_zone = '+05:30';
+
+--! STRICT !!
+/* SET time_zone = '+05:30';
 SET FOREIGN_KEY_CHECKS = 0;
 CREATE DATABASE IF NOT EXISTS get2vacations;
 USE get2vacations;
@@ -56,6 +58,7 @@ DROP TABLE IF EXISTS lead_assignment_history;
 DROP TABLE IF EXISTS token_blacklist;
 DROP TABLE IF EXISTS supplier_payable_settlements;
 SET FOREIGN_KEY_CHECKS = 1;
+*/
 
 CREATE TABLE IF NOT EXISTS roles (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
