@@ -333,7 +333,7 @@ function createQuotationsRepository({ db, logger, schema }) {
       addressLine: row.address_line ?? row.addressLine ?? null,
       budget: row.budget ?? null,
       travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
-      source: row.source ?? null,
+      source: row.source ?? null
     };
   }
 
