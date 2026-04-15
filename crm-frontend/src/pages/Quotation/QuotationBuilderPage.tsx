@@ -4133,7 +4133,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     mobile ? 'max-w-[360px]' : 'max-w-3xl'
                   }`}
                 >
-                  <div className='mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800'>
+                  <div className='mb-6 flex flex-col sm:items-start items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-gray-800'>
                     <div className='flex items-center gap-2'>
                       <div className='flex h-8 w-8 items-center justify-center rounded-lg'>
                         <img
@@ -4151,11 +4151,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         </p>
                       </div>
                     </div>
-                    <div className='text-right'>
+                    <div className='text-center sm:text-right'>
                       <p className='text-lg font-bold text-blue-600'>
                         QUOTATION
                       </p>
-                      <p className='text-xs text-gray-500'>
+                      <p className='text-xs text-gray-500 whitespace-nowrap'>
                         #{quoteDisplayNumber}
                       </p>
                     </div>
