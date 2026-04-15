@@ -216,14 +216,16 @@ const NewCustomerPage: React.FC = () => {
                 <input
                   type="text"
                   value={formData.fullName}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const value = e.target.value
+                    const Onlyletter = /^[a-zA-Z\s]*$/
+                    if (!Onlyletter.test(value)) return
                     handleInputChange("fullName", e.target.value)
-                  }
-                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors ${
-                    formErrors.fullName
-                      ? "border-red-500 dark:border-red-500"
-                      : "border-gray-300 dark:border-gray-700"
-                  }`}
+                  }}
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors ${formErrors.fullName
+                    ? "border-red-500 dark:border-red-500"
+                    : "border-gray-300 dark:border-gray-700"
+                    }`}
                   placeholder="Enter customer full name"
                 />
                 {formErrors.fullName && (
@@ -243,12 +245,16 @@ const NewCustomerPage: React.FC = () => {
                   <input
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value)}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors ${
-                      formErrors.phone
-                        ? "border-red-500 dark:border-red-500"
-                        : "border-gray-300 dark:border-gray-700"
-                    }`}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      const DigitOnly= /^[\d\s\-\+\(\)]*$/
+                      if (!DigitOnly.test(value) || value.length > 12) return
+                      handleInputChange("phone", e.target.value)
+                    }}
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors ${formErrors.phone
+                      ? "border-red-500 dark:border-red-500"
+                      : "border-gray-300 dark:border-gray-700"
+                      }`}
                     placeholder="+1 555 0123"
                   />
                 </div>
@@ -270,11 +276,10 @@ const NewCustomerPage: React.FC = () => {
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors ${
-                      formErrors.email
-                        ? "border-red-500 dark:border-red-500"
-                        : "border-gray-300 dark:border-gray-700"
-                    }`}
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors ${formErrors.email
+                      ? "border-red-500 dark:border-red-500"
+                      : "border-gray-300 dark:border-gray-700"
+                      }`}
                     placeholder="customer@example.com"
                   />
                 </div>
@@ -288,7 +293,7 @@ const NewCustomerPage: React.FC = () => {
               {/* PAN Number */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  PAN Number <span className="text-red-500">*</span>
+                  PAN Number 
                 </label>
                 <div className="relative">
                   <FaCreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm" />
@@ -301,11 +306,10 @@ const NewCustomerPage: React.FC = () => {
                         e.target.value.toUpperCase(),
                       )
                     }
-                    className={`w-full pl-10 pr-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors ${
-                      formErrors.panNumber
-                        ? "border-red-500 dark:border-red-500"
-                        : "border-gray-300 dark:border-gray-700"
-                    }`}
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors ${formErrors.panNumber
+                      ? "border-red-500 dark:border-red-500"
+                      : "border-gray-300 dark:border-gray-700"
+                      }`}
                     placeholder="ABCDE1234F"
                     maxLength={10}
                   />
@@ -353,11 +357,10 @@ const NewCustomerPage: React.FC = () => {
                       handleInputChange("addressLine", e.target.value)
                     }
                     rows={3}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors resize-none ${
-                      formErrors.addressLine
-                        ? "border-red-500 dark:border-red-500"
-                        : "border-gray-300 dark:border-gray-700"
-                    }`}
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 transition-colors resize-none ${formErrors.addressLine
+                      ? "border-red-500 dark:border-red-500"
+                      : "border-gray-300 dark:border-gray-700"
+                      }`}
                     placeholder="Enter complete address including city, state, and postal code"
                   />
                 </div>

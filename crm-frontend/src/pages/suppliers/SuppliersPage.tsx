@@ -32,6 +32,9 @@ interface Supplier {
   email?: string
   panNumber?: string
   ssnNumber?: string
+  ninoNumber?: string
+  sinNumber?: string
+  tfnNumber?: string
   gstNumber?: string
   addressLine?: string
   country?: string
@@ -54,7 +57,10 @@ type SupplierForm = {
   phone: string
   email: string
   panNumber: string
-  ssnNumber?: string
+  ssnNumber: string
+  ninoNumber: string
+  sinNumber: string
+  tfnNumber: string
   gstNumber: string
   addressLine: string
   country: string
@@ -78,6 +84,9 @@ const emptySupplierForm: SupplierForm = {
   email: '',
   panNumber: '',
   ssnNumber: '',
+  ninoNumber: '',
+  sinNumber: '',
+  tfnNumber: '',
   gstNumber: '',
   addressLine: '',
   country: '',
@@ -142,6 +151,9 @@ const mapSupplier = (raw: any): Supplier => ({
   email: raw?.email ?? '',
   panNumber: raw?.panNumber ?? raw?.pan_number ?? '',
   gstNumber: raw?.gstNumber ?? raw?.gst_number ?? '',
+  ninoNumber: raw?.ninoNumber ?? raw?.nino_number ?? '',
+  sinNumber: raw?.sinNumber ?? raw?.sin_number ?? '',
+  tfnNumber: raw?.tfnNumber ?? raw?.tfn_number ?? '',
   addressLine: raw?.addressLine ?? raw?.address_line ?? raw?.address ?? '',
   country: raw?.country ?? '',
   invoiceBeneficiaryName: raw?.invoiceBeneficiaryName ?? raw?.invoice_beneficiary_name ?? '',
@@ -179,7 +191,11 @@ const SuppliersPage: React.FC = () => {
   const [phoneCountryIso2, setPhoneCountryIso2] = useState<CountryIso2>(() =>
     detectLocaleCountryIso2()
   )
+
+
   const phoneInputRef = useRef<PhoneInputRefType>(null)
+
+
   const countries = useMemo(() => {
     const uniqueCountries = new Set(suppliers.map(s => s.country).filter(Boolean))
     return Array.from(uniqueCountries).sort()
@@ -260,6 +276,10 @@ const SuppliersPage: React.FC = () => {
       phone: supplier.phone || '',
       email: supplier.email || '',
       panNumber: supplier.panNumber || '',
+      ssnNumber: supplier.ssnNumber || '',
+      ninoNumber: supplier.ninoNumber || '',
+      sinNumber: supplier.sinNumber || '',
+      tfnNumber: supplier.tfnNumber || '',
       gstNumber: supplier.gstNumber || '',
       addressLine: supplier.addressLine || '',
       country: supplier.country || '',
@@ -342,110 +362,110 @@ const SuppliersPage: React.FC = () => {
     }
   }
 
-  
-const createCountryCurrencyMap = (): Record<string, string> => {
-  const map: Record<string, string> = {
-    'India': 'INR',
-    'United States': 'USD',
-    'United Kingdom': 'GBP',
-    'United Arab Emirates': 'AED',
-    'Saudi Arabia': 'SAR',
-    'Qatar': 'QAR',
-    'Kuwait': 'KWD',
-    'Oman': 'OMR',
-    'Bahrain': 'BHD',
-    'Canada': 'CAD',
-    'Australia': 'AUD',
-    'Singapore': 'SGD',
-    'Malaysia': 'MYR',
-    'Thailand': 'THB',
-    'Indonesia': 'IDR',
-    'Japan': 'JPY',
-    'China': 'CNY',
-    'South Korea': 'KRW',
-    'Hong Kong': 'HKD',
-    'New Zealand': 'NZD',
-    'Switzerland': 'CHF',
-    'Sweden': 'SEK',
-    'Norway': 'NOK',
-    'Denmark': 'DKK',
-    'Poland': 'PLN',
-    'Czech Republic': 'CZK',
-    'Hungary': 'HUF',
-    'Russia': 'RUB',
-    'Turkey': 'TRY',
-    'South Africa': 'ZAR',
-    'Egypt': 'EGP',
-    'Nigeria': 'NGN',
-    'Kenya': 'KES',
-    'Brazil': 'BRL',
-    'Mexico': 'MXN',
-    'Argentina': 'ARS',
-    'Chile': 'CLP',
-    'Colombia': 'COP',
-    'Peru': 'PEN',
-    'Israel': 'ILS',
-    'Philippines': 'PHP',
-    'Vietnam': 'VND',
-    'Bangladesh': 'BDT',
-    'Pakistan': 'PKR',
-    'Sri Lanka': 'LKR',
-    'Nepal': 'NPR',
-    'Maldives': 'MVR',
-    'Mauritius': 'MUR',
-    'Seychelles': 'SCR'
+
+  const createCountryCurrencyMap = (): Record<string, string> => {
+    const map: Record<string, string> = {
+      'India': 'INR',
+      'United States': 'USD',
+      'United Kingdom': 'GBP',
+      'United Arab Emirates': 'AED',
+      'Saudi Arabia': 'SAR',
+      'Qatar': 'QAR',
+      'Kuwait': 'KWD',
+      'Oman': 'OMR',
+      'Bahrain': 'BHD',
+      'Canada': 'CAD',
+      'Australia': 'AUD',
+      'Singapore': 'SGD',
+      'Malaysia': 'MYR',
+      'Thailand': 'THB',
+      'Indonesia': 'IDR',
+      'Japan': 'JPY',
+      'China': 'CNY',
+      'South Korea': 'KRW',
+      'Hong Kong': 'HKD',
+      'New Zealand': 'NZD',
+      'Switzerland': 'CHF',
+      'Sweden': 'SEK',
+      'Norway': 'NOK',
+      'Denmark': 'DKK',
+      'Poland': 'PLN',
+      'Czech Republic': 'CZK',
+      'Hungary': 'HUF',
+      'Russia': 'RUB',
+      'Turkey': 'TRY',
+      'South Africa': 'ZAR',
+      'Egypt': 'EGP',
+      'Nigeria': 'NGN',
+      'Kenya': 'KES',
+      'Brazil': 'BRL',
+      'Mexico': 'MXN',
+      'Argentina': 'ARS',
+      'Chile': 'CLP',
+      'Colombia': 'COP',
+      'Peru': 'PEN',
+      'Israel': 'ILS',
+      'Philippines': 'PHP',
+      'Vietnam': 'VND',
+      'Bangladesh': 'BDT',
+      'Pakistan': 'PKR',
+      'Sri Lanka': 'LKR',
+      'Nepal': 'NPR',
+      'Maldives': 'MVR',
+      'Mauritius': 'MUR',
+      'Seychelles': 'SCR'
+    }
+
+    const euroCountries = [
+      'Germany', 'France', 'Italy', 'Spain', 'Portugal', 'Netherlands',
+      'Belgium', 'Austria', 'Greece', 'Ireland', 'Finland', 'Luxembourg',
+      'Slovenia', 'Cyprus', 'Malta', 'Slovakia', 'Estonia', 'Latvia',
+      'Lithuania', 'Croatia'
+    ]
+    euroCountries.forEach(country => {
+      map[country] = 'EUR'
+    })
+
+    return map
   }
-  
-  const euroCountries = [
-    'Germany', 'France', 'Italy', 'Spain', 'Portugal', 'Netherlands',
-    'Belgium', 'Austria', 'Greece', 'Ireland', 'Finland', 'Luxembourg',
-    'Slovenia', 'Cyprus', 'Malta', 'Slovakia', 'Estonia', 'Latvia',
-    'Lithuania', 'Croatia'
-  ]
-  euroCountries.forEach(country => {
-    map[country] = 'EUR'
-  })
-  
-  return map
-}
 
-const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
+  const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
 
-    const currencyOptions = useMemo(
-      () => [
-        { value: '', label: 'Select currency' },
-        { value: 'INR', label: 'INR - Indian Rupee' },
-        { value: 'USD', label: 'USD - US Dollar' },
-        { value: 'EUR', label: 'EUR - Euro' },
-        { value: 'GBP', label: 'GBP - British Pound' },
-        { value: 'AED', label: 'AED - UAE Dirham' },
-        { value: 'SAR', label: 'SAR - Saudi Riyal' },
-        { value: 'QAR', label: 'QAR - Qatari Riyal' },
-        { value: 'KWD', label: 'KWD - Kuwaiti Dinar' },
-        { value: 'OMR', label: 'OMR - Omani Rial' },
-        { value: 'BHD', label: 'BHD - Bahraini Dinar' },
-        { value: 'CAD', label: 'CAD - Canadian Dollar' },
-        { value: 'AUD', label: 'AUD - Australian Dollar' },
-        { value: 'SGD', label: 'SGD - Singapore Dollar' },
-        { value: 'MYR', label: 'MYR - Malaysian Ringgit' },
-        { value: 'THB', label: 'THB - Thai Baht' },
-        { value: 'JPY', label: 'JPY - Japanese Yen' },
-        { value: 'CNY', label: 'CNY - Chinese Yuan' },
-        { value: 'CHF', label: 'CHF - Swiss Franc' },
-        { value: 'ZAR', label: 'ZAR - South African Rand' },
-        { value: 'BRL', label: 'BRL - Brazilian Real' },
-        { value: 'MXN', label: 'MXN - Mexican Peso' },
-        { value: 'TRY', label: 'TRY - Turkish Lira' },
-        { value: 'RUB', label: 'RUB - Russian Ruble' }
-      ],
-      []
-    )
-  
+  const currencyOptions = useMemo(
+    () => [
+      { value: '', label: 'Select currency' },
+      { value: 'INR', label: 'INR - Indian Rupee' },
+      { value: 'USD', label: 'USD - US Dollar' },
+      { value: 'EUR', label: 'EUR - Euro' },
+      { value: 'GBP', label: 'GBP - British Pound' },
+      { value: 'AED', label: 'AED - UAE Dirham' },
+      { value: 'SAR', label: 'SAR - Saudi Riyal' },
+      { value: 'QAR', label: 'QAR - Qatari Riyal' },
+      { value: 'KWD', label: 'KWD - Kuwaiti Dinar' },
+      { value: 'OMR', label: 'OMR - Omani Rial' },
+      { value: 'BHD', label: 'BHD - Bahraini Dinar' },
+      { value: 'CAD', label: 'CAD - Canadian Dollar' },
+      { value: 'AUD', label: 'AUD - Australian Dollar' },
+      { value: 'SGD', label: 'SGD - Singapore Dollar' },
+      { value: 'MYR', label: 'MYR - Malaysian Ringgit' },
+      { value: 'THB', label: 'THB - Thai Baht' },
+      { value: 'JPY', label: 'JPY - Japanese Yen' },
+      { value: 'CNY', label: 'CNY - Chinese Yuan' },
+      { value: 'CHF', label: 'CHF - Swiss Franc' },
+      { value: 'ZAR', label: 'ZAR - South African Rand' },
+      { value: 'BRL', label: 'BRL - Brazilian Real' },
+      { value: 'MXN', label: 'MXN - Mexican Peso' },
+      { value: 'TRY', label: 'TRY - Turkish Lira' },
+      { value: 'RUB', label: 'RUB - Russian Ruble' }
+    ],
+    []
+  )
+
 
   const countryMetaByName = useMemo(() => {
     const map = new Map<
       string,
-      { iso2: CountryIso2 ,currency: string}
+      { iso2: CountryIso2, currency: string }
     >()
 
     Country.getAllCountries().forEach(country => {
@@ -474,7 +494,7 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
   const resolveCurrencybyIso2 = (iso2: CountryIso2): string => {
     const countryName = countryNameByIso2.get(iso2)
     if (!countryName) return 'INR'
-    return COUNTRY_CURRENCY_NAME_MAP[countryName]  || 'INR'
+    return COUNTRY_CURRENCY_NAME_MAP[countryName] || 'INR'
   }
   // const allCountryNames = useMemo(
   //   () => Country.getAllCountries().map(country => country.name),
@@ -502,7 +522,7 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
     setPhoneCountryIso2(meta.iso2)
     setSupplierForm(prev => ({
       ...prev,
-      country:countryName,
+      country: countryName,
       supplierCurrency: meta.currency || prev.supplierCurrency || 'INR'
     }))
   }
@@ -511,6 +531,11 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
     phone: string,
     meta: { country: { iso2: CountryIso2 } }
   ) => {
+
+    const digitsOnly = phone.replace(/\D/g, '');
+    if (digitsOnly.length > 12) return
+
+
     const iso2 = meta.country?.iso2
     if (!iso2) {
       setSupplierForm(prev => ({ ...prev, phone }))
@@ -523,11 +548,75 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
       ...prev,
       phone,
       country: mappedCountryName || prev.country,
-      supplierCurrency:resolveCurrencybyIso2(iso2) 
+      supplierCurrency: resolveCurrencybyIso2(iso2)
     }))
   }
 
- 
+  const taxfields = () => {
+    switch (supplierForm.country) {
+      case 'United States':
+        return (
+          <div id='ssnnumber'>
+            <label className='field-label'>SSN Number</label>
+            <input
+              value={supplierForm.ssnNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, ssnNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder='123-45-6789'
+            />
+          </div>
+        )
+      case 'United Kingdom':
+        return (
+          <div id='ninonumber'>
+            <label className='field-label'>NINO Number</label>
+            <input
+              value={supplierForm.ninoNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, ninoNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder='QQ 12 34 56 C'
+            />
+          </div>
+        )
+      case 'Canada':
+        return (
+          <div id='sinnumber'>
+            <label className='field-label'>SIN Number</label>
+            <input
+              value={supplierForm.sinNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, sinNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder=''
+            />
+          </div>
+        )
+      case 'Australia':
+        return (
+          <div id='tfnnumber'>
+            <label className='field-label'>TFN Number</label>
+            <input
+              value={supplierForm.tfnNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, tfnNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder='XXX-XXX-XXX'
+            />
+          </div>
+        )
+      default:
+        return (
+          <div id='pannumber'>
+            <label className='field-label'>PAN Number</label>
+            <input
+              value={supplierForm.panNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, panNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder='ABCDE1234F'
+            />
+          </div>)
+    }
+
+  }
+
   return (
     <div className='space-y-5'>
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
@@ -743,7 +832,11 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
                     <label className='field-label'>Supplier Name *</label>
                     <input
                       value={supplierForm.name}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, name: e.target.value }))}
+                      onChange={e =>{
+                           const value = e.target.value
+                        const OnlyLetters = /^[a-zA-Z\s]*$/
+                        if (!OnlyLetters.test(value)) return
+                        setSupplierForm(prev => ({ ...prev, name: value }))}}
                       className='field-input'
                       placeholder='Enter supplier name'
                     />
@@ -752,8 +845,13 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
                     <label className='field-label'>Contact Person</label>
                     <input
                       value={supplierForm.contactPerson}
-                      required={true}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, contactPerson: e.target.value }))}
+                      onChange={e => {
+                        const value = e.target.value
+                        const OnlyLetters = /^[a-zA-Z\s]*$/
+                        if (!OnlyLetters.test(value)) return
+
+                        setSupplierForm(prev => ({ ...prev, contactPerson: value }))
+                      }}
                       className='field-input'
                       placeholder='Enter contact person'
                     />
@@ -786,6 +884,7 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
                       onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
                       className='field-input'
                       placeholder='Enter email address'
+                      required
                     />
                   </div>
                   <div>
@@ -806,33 +905,7 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
                       searchPlaceholder='INR / USD / AED'
                     />
                   </div>
-                 {supplierForm.country === 'United States' ? (
-                  <div id='ssnnumber'>
-                    <label className='field-label'>SSN Number</label>
-                    <input
-                      value={supplierForm.ssnNumber}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, ssnNumber: e.target.value.toUpperCase() }))}
-                      className='field-input'
-                      placeholder='123-45-6789'
-                    />
-                  </div>):( <div id='ssnnumber'>
-                    <label className='field-label'>PAN Number</label>
-                    <input
-                      value={supplierForm.panNumber}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, panNumber: e.target.value.toUpperCase() }))}
-                      className='field-input'
-                      placeholder='ABCDE1234F'
-                    />
-                  </div>)}
-                  <div>
-                    <label className='field-label'>GST Number</label>
-                    <input
-                      value={supplierForm.gstNumber}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))}
-                      className='field-input'
-                      placeholder='27ABCDE1234F1Z5'
-                    />
-                  </div>
+
                   <div>
                     <label className='field-label'>Rate Valid Until</label>
                     <input
@@ -851,6 +924,21 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
                       className='field-input'
                     />
                   </div>
+
+                  <div >
+                    {taxfields()}
+                  </div>
+
+                  <div>
+                    <label className='field-label'>GST Number</label>
+                    <input
+                      value={supplierForm.gstNumber}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))}
+                      className='field-input'
+                      placeholder='27ABCDE1234F1Z5'
+                    />
+                  </div>
+
                   <div className='md:col-span-2 lg:col-span-2'>
                     <label className='field-label'>Contract URL</label>
                     <input
@@ -962,6 +1050,7 @@ const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
     </div>
   )
   }
+
 
 
 const StatCard = ({ title, value, color }: { title: string; value: number; color: 'blue' | 'green' | 'gray' }) => {
