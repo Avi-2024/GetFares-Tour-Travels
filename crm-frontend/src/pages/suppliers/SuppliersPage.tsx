@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaCircleCheck,
@@ -14,6 +14,14 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { suppliersApi } from '../../api/suppliers'
 import { reportApiError } from '../../lib/notify'
+import {
+  PhoneInput,
+  type CountryIso2,
+  type PhoneInputRefType
+} from 'react-international-phone'
+import 'react-international-phone/style.css'
+import { Country } from 'country-state-city'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
 
 
 interface Supplier {
@@ -23,6 +31,7 @@ interface Supplier {
   phone?: string
   email?: string
   panNumber?: string
+  ssnNumber?: string
   gstNumber?: string
   addressLine?: string
   country?: string
@@ -45,6 +54,7 @@ type SupplierForm = {
   phone: string
   email: string
   panNumber: string
+  ssnNumber?: string
   gstNumber: string
   addressLine: string
   country: string
@@ -67,6 +77,7 @@ const emptySupplierForm: SupplierForm = {
   phone: '',
   email: '',
   panNumber: '',
+  ssnNumber: '',
   gstNumber: '',
   addressLine: '',
   country: '',
@@ -81,6 +92,18 @@ const emptySupplierForm: SupplierForm = {
   paymentDeadlineDate: '',
   productionCommitment: '',
   isActive: true
+}
+
+
+
+
+const detectLocaleCountryIso2 = (): CountryIso2 => {
+  if (typeof navigator === 'undefined' || !navigator.language) {
+    return 'in'
+  }
+  const locale = navigator.language
+  const region = locale.includes('-') ? locale.split('-')[1]?.toLowerCase() : ''
+  return (region || 'in') as CountryIso2
 }
 
 const normalizeDate = (value?: string | null) => {
@@ -153,7 +176,10 @@ const SuppliersPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingSupplierId, setEditingSupplierId] = useState<string>('')
   const [supplierForm, setSupplierForm] = useState<SupplierForm>(emptySupplierForm)
-
+  const [phoneCountryIso2, setPhoneCountryIso2] = useState<CountryIso2>(() =>
+    detectLocaleCountryIso2()
+  )
+  const phoneInputRef = useRef<PhoneInputRefType>(null)
   const countries = useMemo(() => {
     const uniqueCountries = new Set(suppliers.map(s => s.country).filter(Boolean))
     return Array.from(uniqueCountries).sort()
@@ -316,6 +342,192 @@ const SuppliersPage: React.FC = () => {
     }
   }
 
+  
+const createCountryCurrencyMap = (): Record<string, string> => {
+  const map: Record<string, string> = {
+    'India': 'INR',
+    'United States': 'USD',
+    'United Kingdom': 'GBP',
+    'United Arab Emirates': 'AED',
+    'Saudi Arabia': 'SAR',
+    'Qatar': 'QAR',
+    'Kuwait': 'KWD',
+    'Oman': 'OMR',
+    'Bahrain': 'BHD',
+    'Canada': 'CAD',
+    'Australia': 'AUD',
+    'Singapore': 'SGD',
+    'Malaysia': 'MYR',
+    'Thailand': 'THB',
+    'Indonesia': 'IDR',
+    'Japan': 'JPY',
+    'China': 'CNY',
+    'South Korea': 'KRW',
+    'Hong Kong': 'HKD',
+    'New Zealand': 'NZD',
+    'Switzerland': 'CHF',
+    'Sweden': 'SEK',
+    'Norway': 'NOK',
+    'Denmark': 'DKK',
+    'Poland': 'PLN',
+    'Czech Republic': 'CZK',
+    'Hungary': 'HUF',
+    'Russia': 'RUB',
+    'Turkey': 'TRY',
+    'South Africa': 'ZAR',
+    'Egypt': 'EGP',
+    'Nigeria': 'NGN',
+    'Kenya': 'KES',
+    'Brazil': 'BRL',
+    'Mexico': 'MXN',
+    'Argentina': 'ARS',
+    'Chile': 'CLP',
+    'Colombia': 'COP',
+    'Peru': 'PEN',
+    'Israel': 'ILS',
+    'Philippines': 'PHP',
+    'Vietnam': 'VND',
+    'Bangladesh': 'BDT',
+    'Pakistan': 'PKR',
+    'Sri Lanka': 'LKR',
+    'Nepal': 'NPR',
+    'Maldives': 'MVR',
+    'Mauritius': 'MUR',
+    'Seychelles': 'SCR'
+  }
+  
+  const euroCountries = [
+    'Germany', 'France', 'Italy', 'Spain', 'Portugal', 'Netherlands',
+    'Belgium', 'Austria', 'Greece', 'Ireland', 'Finland', 'Luxembourg',
+    'Slovenia', 'Cyprus', 'Malta', 'Slovakia', 'Estonia', 'Latvia',
+    'Lithuania', 'Croatia'
+  ]
+  euroCountries.forEach(country => {
+    map[country] = 'EUR'
+  })
+  
+  return map
+}
+
+const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
+
+    const currencyOptions = useMemo(
+      () => [
+        { value: '', label: 'Select currency' },
+        { value: 'INR', label: 'INR - Indian Rupee' },
+        { value: 'USD', label: 'USD - US Dollar' },
+        { value: 'EUR', label: 'EUR - Euro' },
+        { value: 'GBP', label: 'GBP - British Pound' },
+        { value: 'AED', label: 'AED - UAE Dirham' },
+        { value: 'SAR', label: 'SAR - Saudi Riyal' },
+        { value: 'QAR', label: 'QAR - Qatari Riyal' },
+        { value: 'KWD', label: 'KWD - Kuwaiti Dinar' },
+        { value: 'OMR', label: 'OMR - Omani Rial' },
+        { value: 'BHD', label: 'BHD - Bahraini Dinar' },
+        { value: 'CAD', label: 'CAD - Canadian Dollar' },
+        { value: 'AUD', label: 'AUD - Australian Dollar' },
+        { value: 'SGD', label: 'SGD - Singapore Dollar' },
+        { value: 'MYR', label: 'MYR - Malaysian Ringgit' },
+        { value: 'THB', label: 'THB - Thai Baht' },
+        { value: 'JPY', label: 'JPY - Japanese Yen' },
+        { value: 'CNY', label: 'CNY - Chinese Yuan' },
+        { value: 'CHF', label: 'CHF - Swiss Franc' },
+        { value: 'ZAR', label: 'ZAR - South African Rand' },
+        { value: 'BRL', label: 'BRL - Brazilian Real' },
+        { value: 'MXN', label: 'MXN - Mexican Peso' },
+        { value: 'TRY', label: 'TRY - Turkish Lira' },
+        { value: 'RUB', label: 'RUB - Russian Ruble' }
+      ],
+      []
+    )
+  
+
+  const countryMetaByName = useMemo(() => {
+    const map = new Map<
+      string,
+      { iso2: CountryIso2 ,currency: string}
+    >()
+
+    Country.getAllCountries().forEach(country => {
+      if (country.name) {
+        map.set(country.name, {
+          iso2: String(country.isoCode || '').toLowerCase() as CountryIso2,
+          currency: COUNTRY_CURRENCY_NAME_MAP[country.name] || ''
+        })
+      }
+    })
+
+    return map
+  }, [])
+
+  const countryNameByIso2 = useMemo(() => {
+    const map = new Map<CountryIso2, string>()
+    Country.getAllCountries().forEach(country => {
+      const iso2 = String(country.isoCode || '').toLowerCase() as CountryIso2
+      if (country.name) {
+        map.set(iso2, country.name)
+      }
+    })
+    return map
+  }, [])
+
+  const resolveCurrencybyIso2 = (iso2: CountryIso2): string => {
+    const countryName = countryNameByIso2.get(iso2)
+    if (!countryName) return 'INR'
+    return COUNTRY_CURRENCY_NAME_MAP[countryName]  || 'INR'
+  }
+  // const allCountryNames = useMemo(
+  //   () => Country.getAllCountries().map(country => country.name),
+  //   []
+  // )
+
+  const countryOptions = useMemo(() => {
+    return Country.getAllCountries().map(c => ({
+      label: c.name,
+      value: c.name,
+      isoCode: c.isoCode
+    }))
+  }, [])
+
+  const handleSupplierCountryChange = (countryName: string) => {
+    const meta = countryMetaByName.get(countryName)
+    if (!meta) {
+      setSupplierForm(prev => ({
+        ...prev,
+        country: countryName
+      }))
+      return
+    }
+
+    setPhoneCountryIso2(meta.iso2)
+    setSupplierForm(prev => ({
+      ...prev,
+      country:countryName,
+      supplierCurrency: meta.currency || prev.supplierCurrency || 'INR'
+    }))
+  }
+
+  const handlePhoneChange = (
+    phone: string,
+    meta: { country: { iso2: CountryIso2 } }
+  ) => {
+    const iso2 = meta.country?.iso2
+    if (!iso2) {
+      setSupplierForm(prev => ({ ...prev, phone }))
+      return
+    }
+
+    const mappedCountryName = countryNameByIso2.get(iso2)
+    setPhoneCountryIso2(iso2)
+    setSupplierForm(prev => ({
+      ...prev,
+      phone,
+      country: mappedCountryName || prev.country,
+      supplierCurrency:resolveCurrencybyIso2(iso2) 
+    }))
+  }
+
+ 
   return (
     <div className='space-y-5'>
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
@@ -540,6 +752,7 @@ const SuppliersPage: React.FC = () => {
                     <label className='field-label'>Contact Person</label>
                     <input
                       value={supplierForm.contactPerson}
+                      required={true}
                       onChange={e => setSupplierForm(prev => ({ ...prev, contactPerson: e.target.value }))}
                       className='field-input'
                       placeholder='Enter contact person'
@@ -547,17 +760,28 @@ const SuppliersPage: React.FC = () => {
                   </div>
                   <div>
                     <label className='field-label'>Phone</label>
-                    <input
+                    <PhoneInput
+                      ref={phoneInputRef}
+                      defaultCountry={phoneCountryIso2}
                       value={supplierForm.phone}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, phone: e.target.value }))}
-                      className='field-input'
-                      placeholder='Enter phone number'
+                      onChange={handlePhoneChange}
+                      inputClassName="field-input"
+                      countrySelectorStyleProps={{
+                        buttonClassName: "phone-flag-btn"
+                      }}
                     />
+
+                    {supplierForm.phone && (
+                      <p style={{ color: 'green', fontSize: '12px' }}>
+                        Phone number format looks valid.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className='field-label'>Email</label>
                     <input
                       type='email'
+                      required={true}
                       value={supplierForm.email}
                       onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
                       className='field-input'
@@ -566,23 +790,32 @@ const SuppliersPage: React.FC = () => {
                   </div>
                   <div>
                     <label className='field-label'>Country</label>
-                    <input
+                    <SearchableDropdown
                       value={supplierForm.country}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, country: e.target.value }))}
-                      className='field-input'
+                      options={countryOptions}
+                      onChange={handleSupplierCountryChange}
                       placeholder='Enter country'
                     />
                   </div>
                   <div>
                     <label className='field-label'>Supplier Currency</label>
-                    <input
+                    <SearchableDropdown
                       value={supplierForm.supplierCurrency}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, supplierCurrency: e.target.value.toUpperCase() }))}
-                      className='field-input'
-                      placeholder='INR / USD / AED'
+                      options={currencyOptions}
+                      onChange={value => setSupplierForm(prev => ({ ...prev, supplierCurrency: String(value || '').toUpperCase() }))}
+                      searchPlaceholder='INR / USD / AED'
                     />
                   </div>
-                  <div>
+                 {supplierForm.country === 'United States' ? (
+                  <div id='ssnnumber'>
+                    <label className='field-label'>SSN Number</label>
+                    <input
+                      value={supplierForm.ssnNumber}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, ssnNumber: e.target.value.toUpperCase() }))}
+                      className='field-input'
+                      placeholder='123-45-6789'
+                    />
+                  </div>):( <div id='ssnnumber'>
                     <label className='field-label'>PAN Number</label>
                     <input
                       value={supplierForm.panNumber}
@@ -590,7 +823,7 @@ const SuppliersPage: React.FC = () => {
                       className='field-input'
                       placeholder='ABCDE1234F'
                     />
-                  </div>
+                  </div>)}
                   <div>
                     <label className='field-label'>GST Number</label>
                     <input
@@ -728,7 +961,8 @@ const SuppliersPage: React.FC = () => {
       )}
     </div>
   )
-}
+  }
+
 
 const StatCard = ({ title, value, color }: { title: string; value: number; color: 'blue' | 'green' | 'gray' }) => {
   const colorClasses = {
@@ -744,5 +978,6 @@ const StatCard = ({ title, value, color }: { title: string; value: number; color
     </div>
   )
 }
+
 
 export default SuppliersPage
