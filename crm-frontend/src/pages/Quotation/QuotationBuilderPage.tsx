@@ -5239,32 +5239,32 @@ const SummaryPanel = ({
               <span className='truncate block'>{money(Math.min(totalMarkup + addOnMarkup, 999999999999))}</span>
             </div>
           </div>
-          <div className='space-y-1.5 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
-            <div className='flex min-w-0 items-center justify-between gap-2'>
+          <div className='space-y-1.5 overflow-hidden  rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5  text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+            <div className='flex min-w-0 flex-col items-center pb-5 justify-between gap-2'>
               <span className='min-w-0'>Total Markup</span>
               <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(totalMarkup, 999999999999))}
               </span>
             </div>
-            <div className='flex min-w-0 items-center justify-between gap-2'>
-              <span className='min-w-0'>Flight Service Charge</span>
+            <div className='flex min-w-0 flex-col items-center pb-5 justify-between gap-2'>
+              <span className='min-w-0 text-center'>Flight Service Charge</span>
               <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(flightServiceCharge)}
               </span>
             </div>
-            <div className='flex min-w-0 items-center justify-between gap-2'>
+            <div className='flex min-w-0 items-center flex-col pb-5 justify-between gap-2'>
               <span className='min-w-0'>Add-ons</span>
               <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(addOnTotal, 999999999999))}
               </span>
             </div>
-            <div className='flex min-w-0 items-center justify-between gap-2'>
+            <div className='flex min-w-0 items-center pb-5 flex-col justify-between gap-2'>
               <span className='min-w-0'>Subtotal</span>
               <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(subtotal, 999999999999))}
               </span>
             </div>
-            <div className='flex min-w-0 items-center justify-between gap-2'>
+            <div className='flex min-w-0 items-center flex-col justify-between gap-2'>
               <span className='min-w-0'>Tax Amount</span>
               <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(taxes, 999999999999))}
