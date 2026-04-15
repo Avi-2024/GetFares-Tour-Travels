@@ -3295,7 +3295,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   ) : null}
                 </div>
                 <div>
-                  <label className='field-label'>Lead ID</label>
+                  <label className='field-label'>Lead ID </label>
                   <input
                     type='text'
                     className='field-input overflow-hidden text-ellipsis'
