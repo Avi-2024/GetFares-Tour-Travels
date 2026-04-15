@@ -28,6 +28,20 @@ function toNonNegativeInt(value) {
   return parsed;
 }
 
+function toBoundedInt(value, { min, max, fallback }) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    return fallback;
+  }
+  if (parsed < min) {
+    return min;
+  }
+  if (parsed > max) {
+    return max;
+  }
+  return parsed;
+}
+
 function normalizeFilters(filters = {}) {
   return Object.entries(filters).filter(([key, value]) => {
     if (RESERVED_FILTER_KEYS.has(key)) {
@@ -590,6 +604,24 @@ function createDatabaseConnection({ config, logger }) {
   if (mysqlHost && mysqlDatabase) {
     const isServerless =
       process.env.VERCEL === "1" || process.env.AWS_EXECUTION_ENV;
+    const desiredPoolMax = toBoundedInt(
+      process.env.MYSQL_POOL_MAX ||
+        config?.database?.mysql?.poolMax ||
+        (isServerless ? 4 : 50),
+      { min: 2, max: 200, fallback: isServerless ? 4 : 50 },
+    );
+    const desiredQueueLimit = toBoundedInt(
+      process.env.MYSQL_POOL_QUEUE_LIMIT ||
+        config?.database?.mysql?.poolQueueLimit ||
+        0,
+      { min: 0, max: 100000, fallback: 0 },
+    );
+    const desiredConnectTimeout = toBoundedInt(
+      process.env.MYSQL_CONNECT_TIMEOUT_MS ||
+        config?.database?.mysql?.connectTimeoutMs ||
+        (isServerless ? 7000 : 15000),
+      { min: 1000, max: 120000, fallback: isServerless ? 7000 : 15000 },
+    );
 
     const poolConfig = {
       host: mysqlHost,
@@ -598,9 +630,9 @@ function createDatabaseConnection({ config, logger }) {
       password: mysqlPassword,
       database: mysqlDatabase,
       waitForConnections: true,
-      connectionLimit: isServerless ? 2 : 10,
-      queueLimit: 0,
-      connectTimeout: isServerless ? 7000 : 15000,
+      connectionLimit: desiredPoolMax,
+      queueLimit: desiredQueueLimit,
+      connectTimeout: desiredConnectTimeout,
       timezone: "+05:30",
     };
 

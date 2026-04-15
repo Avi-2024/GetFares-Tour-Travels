@@ -1,0 +1,144 @@
+{
+  "info": {
+    "name": "Travel CRM - Website Enquiries (3 Sites)",
+    "description": "Use this collection to test lead capture from three websites (Global, India, UAE).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Website Enquiries Capture",
+      "item": [
+        {
+          "name": "Global - Help & Support",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/website-enquiries/capture",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "website-enquiries",
+                "capture"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Global User {{$timestamp}}\",\n  \"email\": \"global.{{$timestamp}}@example.com\",\n  \"phone\": \"9199000{{$randomInt}}\",\n  \"subject\": \"Holiday planning help\",\n  \"message\": \"Need 6N/7D itinerary for Europe.\",\n  \"source\": \"Website Global - Help & Support\",\n  \"sourcePage\": \"Help & Support\",\n  \"leadCountry\": \"Global\",\n  \"country\": \"Global\",\n  \"pagePath\": \"/help-and-support\",\n  \"pageUrl\": \"https://localhost:5174/help-and-support\",\n  \"utmSource\": \"website_global\",\n  \"utmMedium\": \"contact_form\",\n  \"utmCampaign\": \"support_enquiry\"\n}"
+            },
+            "description": "Simulates form submit from Global website Help page."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200/201', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "India - Destination Inquiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/website-enquiries/capture",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "website-enquiries",
+                "capture"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"India User {{$timestamp}}\",\n  \"email\": \"india.{{$timestamp}}@example.com\",\n  \"phone\": \"9188000{{$randomInt}}\",\n  \"destination\": \"Maldives\",\n  \"travelDate\": \"2026-05-20\",\n  \"numberOfDays\": 5,\n  \"numberOfTravellers\": 2,\n  \"nationality\": \"Indian\",\n  \"budget\": 150000,\n  \"source\": \"Website India - Destination Inquiry\",\n  \"sourcePage\": \"Destination\",\n  \"leadCountry\": \"India\",\n  \"country\": \"India\",\n  \"pagePath\": \"/destination#custom-itinerary\",\n  \"pageUrl\": \"https://localhost:5174/destination#custom-itinerary\",\n  \"utmSource\": \"website_india\",\n  \"utmMedium\": \"contact_form\",\n  \"utmCampaign\": \"destination_inquiry\"\n}"
+            },
+            "description": "Simulates India website custom-itinerary popup submit."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200/201', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "UAE - Visa Application",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/website-enquiries/capture",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "website-enquiries",
+                "capture"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"UAE User {{$timestamp}}\",\n  \"email\": \"uae.{{$timestamp}}@example.com\",\n  \"phone\": \"9715000{{$randomInt}}\",\n  \"destination\": \"Australia eVisa\",\n  \"nationality\": \"Indian\",\n  \"message\": \"Need urgent visa support.\",\n  \"leadType\": \"VISA\",\n  \"source\": \"Website UAE - Visa Application\",\n  \"sourcePage\": \"Visa Services\",\n  \"leadCountry\": \"UAE\",\n  \"country\": \"UAE\",\n  \"pagePath\": \"/visa-services\",\n  \"pageUrl\": \"https://localhost:5174/visa-services?destination=australia-e-visa#visa-application-form\",\n  \"utmSource\": \"website_uae\",\n  \"utmMedium\": \"visa_form\",\n  \"utmCampaign\": \"visa_application\"\n}"
+            },
+            "description": "Simulates UAE website visa form submit."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200/201', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
