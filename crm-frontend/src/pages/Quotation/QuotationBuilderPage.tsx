@@ -3825,7 +3825,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   </p>
                 </div>
               </div>
-              <div className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]'>
+              <div className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,3.5fr)_minmax(0,1fr)]'>
                 <div className='space-y-4'>
                   <PricingTable
                     rows={serviceCostRows}
@@ -4115,9 +4115,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       <FaMobileScreen className='mr-1 inline' /> Mobile
                     </button>
                   </div>
-                  <div className='flex gap-2'>
+                  <div className='flex gap-2 ml-2'>
                     <button className='rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700'>
-                      <FaArrowRotateRight className='mr-1 inline' /> Refresh
+                      <FaArrowRotateRight className='mr-1  inline' /> Refresh
                     </button>
                     <button
                       onClick={() => setShowPreview(false)}
@@ -5029,7 +5029,7 @@ const SummaryPanel = ({
   money: (value: number) => string
 }) => {
   const inputClass =
-    'h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+    'h-10 w-[89%]  rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
   const totalServiceFee = Number((costs.serviceFee + flightServiceCharge).toFixed(2))
 
   const updateCost = (field: keyof PricingCosts, value: string) => {
@@ -5116,7 +5116,7 @@ const SummaryPanel = ({
         <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
           Financial Summary
         </p>
-        <div className='mt-3 space-y-3'>
+        <div className='mt-3 space-y-3 '>
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Supplier Cost</span>
             <input
@@ -5217,7 +5217,7 @@ const SummaryPanel = ({
           </div> */}
           <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
             <span className='text-xs text-gray-500'>Effective Markup %</span>
-            <div className='h-10 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
+            <div className='h-10 w-[89%] rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
               {effectiveMarkupPercent.toFixed(2)}
             </div>
           </div>
