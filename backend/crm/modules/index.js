@@ -17,6 +17,7 @@ import { createNotificationsModule } from "./notifications/index.js";
 import { createDashboardModule } from "./dashboard/index.js";
 import { createMetaWebhookModule } from "./metaWebhook/index.js";
 import { createWhatsappModule } from "./whatsapp/index.js";
+import { createWebsiteEnquiriesModule } from "./websiteEnquiries/index.js";
 import { createDestinationsModule } from "./destinations/index.js";
 import { createPackagesModule } from "./packages/index.js";
 import { createSuppliersModule } from "./suppliers/index.js";
@@ -98,6 +99,13 @@ function registerModules(app, dependencies) {
   mountedModules.webhooks = webhooksModule;
   app.use("/api/webhooks", webhooksModule.router);
 
+  const websiteEnquiriesModule = createWebsiteEnquiriesModule({
+    dependencies: featureDependencies,
+    leadsService: mountedModules.leads?.service,
+  });
+  mountedModules.websiteEnquiries = websiteEnquiriesModule;
+  app.use("/api/website-enquiries", websiteEnquiriesModule.router);
+
   const metaWebhookModule = createMetaWebhookModule({
     dependencies: featureDependencies,
     leadsService: mountedModules.leads?.service,
@@ -152,6 +160,7 @@ export {
   createComplaintsModule,
   createReportsModule,
   createSettingsModule,
+  createWebsiteEnquiriesModule,
   createWebhooksModule,
   createMetaWebhookModule,
   createWhatsappModule,

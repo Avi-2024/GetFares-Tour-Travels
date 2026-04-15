@@ -1,5 +1,6 @@
-function createAuthRepository({ db, logger, schema }) {
+function createAuthRepository({ db, logger, schema, authConfig }) {
   const columnCache = new Map();
+  const authSlowQueryMs = Number(authConfig?.dbSlowQueryMs || 150);
 
   function isDuplicateKeyError(error) {
     const code = String(error?.code || "").toUpperCase();
@@ -114,6 +115,72 @@ function createAuthRepository({ db, logger, schema }) {
     return toDomainUser(userRow, { roleName, roleId, roleCountry });
   }
 
+  function logQueryTiming(queryName, startedAt, metadata = {}) {
+    const durationMs = Date.now() - startedAt;
+    const level = durationMs >= authSlowQueryMs ? "warn" : "debug";
+    logger?.[level]?.(
+      {
+        module: "auth",
+        fileName: "auth.repository.js",
+        functionName: queryName,
+        metadata: {
+          durationMs,
+          slowThresholdMs: authSlowQueryMs,
+          ...metadata,
+        },
+      },
+      durationMs >= authSlowQueryMs ? "Slow auth DB query" : "Auth DB query",
+    );
+  }
+
+  function mapJoinedUser(row) {
+    if (!row) {
+      return null;
+    }
+    return toDomainUser(row, {
+      roleName: row.role_name ?? row.role ?? null,
+      roleId: row.role_id ?? row.roleId ?? null,
+      roleCountry: row.role_country ?? null,
+    });
+  }
+
+  async function findUserWithRoleBy(column, value) {
+    if (typeof db?.query !== "function") {
+      const startedAt = Date.now();
+      const row = await db.findOne(schema.usersTable, { [column]: value });
+      const mapped = await attachRole(row);
+      logQueryTiming(`findUserWithRoleBy.${column}.fallback`, startedAt);
+      return mapped;
+    }
+
+    const startedAt = Date.now();
+    const sql = `
+      SELECT
+        u.id,
+        u.full_name,
+        u.email,
+        u.phone,
+        u.password_hash,
+        u.role_id,
+        u.is_active,
+        u.active,
+        u.agent_country,
+        u.agent_type,
+        u.created_at,
+        u.updated_at,
+        r.name AS role_name,
+        r.country AS role_country
+      FROM \`${schema.usersTable}\` AS u
+      LEFT JOIN \`${schema.rolesTable}\` AS r
+        ON r.id = u.role_id
+      WHERE u.\`${column}\` = ?
+      LIMIT 1
+    `;
+    const result = await db.query(sql, [value]);
+    logQueryTiming(`findUserWithRoleBy.${column}`, startedAt);
+    return mapJoinedUser(result.rows[0] || null);
+  }
+
   return Object.freeze({
     async createUser(payload) {
       logger.debug(
@@ -142,13 +209,11 @@ function createAuthRepository({ db, logger, schema }) {
     },
 
     async findUserByEmail(email) {
-      const row = await db.findOne(schema.usersTable, { email });
-      return attachRole(row);
+      return findUserWithRoleBy("email", email);
     },
 
     async findUserById(id) {
-      const row = await db.findById(schema.usersTable, id);
-      return attachRole(row);
+      return findUserWithRoleBy("id", id);
     },
 
     async saveSession(payload) {

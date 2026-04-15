@@ -48,7 +48,7 @@ type LeadFilterState = {
   phone: string;
   leadId: string;
   status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
-  sla: "ALL" | "BREACHED" | "ON_REQUEST";
+  sla: "ALL" | "OVERDUE" | "WITHIN_SLA" | "PENDING";
   sortBy: "NEWEST_FIRST" | "OLDEST_FIRST" | "NAME_A_Z" | "STATUS";
 };
 
@@ -61,7 +61,7 @@ const defaultFilters: LeadFilterState = {
   phone: "",
   leadId: "",
   status: "ALL",
-  sla: "ALL",
+  sla: "ALL" as const,
   sortBy: "NEWEST_FIRST",
 };
 
@@ -144,8 +144,9 @@ const Leads: React.FC = () => {
   const slaOptions = useMemo(
     () => [
       { value: "ALL", label: "All SLA" },
-      { value: "BREACHED", label: "Breached" },
-      { value: "ON_REQUEST", label: "On Request (Not Breached)" },
+      { value: "OVERDUE", label: "Overdue (Breached)" },
+      { value: "WITHIN_SLA", label: "Within SLA" },
+      { value: "PENDING", label: "Pending" },
     ],
     [],
   );

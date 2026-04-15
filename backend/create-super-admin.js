@@ -35,7 +35,7 @@ async function createSuperAdmin() {
   const db = createDatabaseConnection({ config, logger });
 
   try {
-    const hashedPassword = await bcrypt.hash(PLAIN_PASSWORD, 10);
+    const hashedPassword = await bcrypt.hash(PLAIN_PASSWORD, 8);
 
     let roleRows = await db.query(
       "SELECT id FROM roles WHERE name = ? LIMIT 1",

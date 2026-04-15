@@ -151,7 +151,7 @@ async function ensureCmsAccessUser(client) {
     throw new Error("Failed to resolve CMS_ACCESS role.");
   }
 
-  const passwordHash = await bcrypt.hash(CMS_ADMIN_USER.password, 12);
+  const passwordHash = await bcrypt.hash(CMS_ADMIN_USER.password, 8);
 
   await client.query(
     `

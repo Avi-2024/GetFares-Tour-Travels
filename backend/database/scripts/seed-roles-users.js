@@ -251,7 +251,7 @@ async function seed() {
 
     // 4. Create users (1 per role, skip super_admin)
     console.log("\n👥 Creating users...");
-    const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+    const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 8);
 
     for (const u of USERS) {
       const roleId = roleIdMap[u.role];
