@@ -5029,7 +5029,7 @@ const SummaryPanel = ({
   money: (value: number) => string
 }) => {
   const inputClass =
-    'h-10 w-[89%]  rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+    'h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
   const totalServiceFee = Number((costs.serviceFee + flightServiceCharge).toFixed(2))
 
   const updateCost = (field: keyof PricingCosts, value: string) => {
@@ -5112,13 +5112,13 @@ const SummaryPanel = ({
         </div>
       </div>
 
-      <div className='rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900'>
+      <div className='overflow-x-hidden rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900'>
         <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
           Financial Summary
         </p>
-        <div className='mt-3 space-y-3 '>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Supplier Cost</span>
+        <div className='mt-3 space-y-3'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Supplier Cost</span>
             <input
               type='number'
               min='0'
@@ -5129,8 +5129,8 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Service Fee</span>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Service Fee</span>
             <input
               type='number'
               min='0'
@@ -5141,25 +5141,25 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <p className='-mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+          <p className='-mt-1 break-words text-[11px] text-gray-500 dark:text-gray-400'>
             Manual {money(costs.serviceFee)} + Flight charge {money(flightServiceCharge)}
           </p>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Apply GST</span>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Apply GST</span>
             <select
               value={finance.gstEnabled ? 'yes' : 'no'}
               onChange={event =>
                 toggleFinanceFlag('gstEnabled', event.target.value === 'yes')
               }
-              className='h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+              className='h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
             >
               <option value='no'>No</option>
               <option value='yes'>Yes</option>
             </select>
           </div>
           {finance.gstEnabled ? (
-            <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-              <span className='text-xs text-gray-500'>GST %</span>
+            <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+              <span className='min-w-0 text-xs leading-snug text-gray-500'>GST %</span>
               <input
                 type='number'
                 min='0'
@@ -5173,22 +5173,22 @@ const SummaryPanel = ({
               />
             </div>
           ) : null}
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Apply TCS</span>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Apply TCS</span>
             <select
               value={finance.tcsEnabled ? 'yes' : 'no'}
               onChange={event =>
                 toggleFinanceFlag('tcsEnabled', event.target.value === 'yes')
               }
-              className='h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+              className='h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
             >
               <option value='no'>No</option>
               <option value='yes'>Yes</option>
             </select>
           </div>
           {finance.tcsEnabled ? (
-            <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-              <span className='text-xs text-gray-500'>TCS %</span>
+            <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+              <span className='min-w-0 text-xs leading-snug text-gray-500'>TCS %</span>
               <input
                 type='number'
                 min='0'
@@ -5215,14 +5215,14 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div> */}
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Effective Markup %</span>
-            <div className='h-10 w-[89%] rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Effective Markup %</span>
+            <div className='h-10 w-full min-w-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
               {effectiveMarkupPercent.toFixed(2)}
             </div>
           </div>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Discount</span>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Discount</span>
             <input
               type='number'
               min='0'
@@ -5233,42 +5233,43 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500 font-medium'>Profit (Auto)</span>
-            <div className='h-10 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 overflow-hidden'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <span className='min-w-0 text-xs font-medium leading-snug text-gray-500'>Profit (Auto)</span>
+            <div className='h-10 min-w-0 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 overflow-hidden'>
               <span className='truncate block'>{money(Math.min(totalMarkup + addOnMarkup, 999999999999))}</span>
             </div>
           </div>
-          <div className='space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
-            <div className='flex items-center justify-between'>
-              <span>Total Markup</span>
-              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+          <div className='space-y-1.5 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+            <div className='flex min-w-0 items-center justify-between gap-2'>
+              <span className='min-w-0'>Total Markup</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(totalMarkup, 999999999999))}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
-              <span>Flight Service Charge</span>
-              <span className='font-medium tabular-nums'>
+            <div className='flex min-w-0 items-center justify-between gap-2'>
+              <span className='min-w-0'>Flight Service Charge</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(flightServiceCharge)}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
-              <span>Add-ons</span>
-              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+            <div className='flex min-w-0 items-center justify-between gap-2'>
+              <span className='min-w-0'>Add-ons</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(addOnTotal, 999999999999))}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
-              <span>Subtotal</span>
-              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+            <div className='flex min-w-0 items-center justify-between gap-2'>
+              <span className='min-w-0'>Subtotal</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(subtotal, 999999999999))}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
-              <span>Tax Amount</span>
-              <span className='font-medium tabular-nums truncate max-w-[120px]'>{money(Math.min(taxes, 999999999999))}</span>
+            <div className='flex min-w-0 items-center justify-between gap-2'>
+              <span className='min-w-0'>Tax Amount</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
+                {money(Math.min(taxes, 999999999999))}
+              </span>
             </div>
-            
           </div>
           <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
             <p className='text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300'>
