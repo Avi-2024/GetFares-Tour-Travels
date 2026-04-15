@@ -100,6 +100,14 @@ const Dashboard: React.FC = () => {
     () => rev.some(point => point.revenue > 0 || point.last > 0),
     [rev]
   )
+  const leadSourceTotal = useMemo(
+    () => leadSources.reduce((sum, source) => sum + Number(source.value || 0), 0),
+    [leadSources]
+  )
+  const hasLeadSourceChartData = useMemo(
+    () => leadSources.some(source => Number(source.value || 0) > 0),
+    [leadSources]
+  )
   const formatStatNumber = (
     value: unknown,
     formatter: (num: number) => string
@@ -471,31 +479,62 @@ const Dashboard: React.FC = () => {
             Channel split for new leads.
           </p>
           {leadSourcesLoaded ? (
-            <ResponsiveContainer width='100%' height={280}>
-              <PieChart>
-                <Pie
-                  data={leadSources}
-                  innerRadius={65}
-                  outerRadius={95}
-                  paddingAngle={4}
-                  dataKey='value'
-                  nameKey='name'
-                >
-                  {leadSources.map((_, i) => (
-                    <Cell key={i} fill={colors[i % colors.length]} />
+            hasLeadSourceChartData ? (
+              <div>
+                <div className='h-[220px] sm:h-[260px]'>
+                  <ResponsiveContainer width='100%' height='100%'>
+                    <PieChart>
+                      <Pie
+                        data={leadSources}
+                        cx='50%'
+                        cy='50%'
+                        innerRadius='55%'
+                        outerRadius='82%'
+                        paddingAngle={2}
+                        dataKey='value'
+                        nameKey='name'
+                      >
+                        {leadSources.map((_, i) => (
+                          <Cell key={i} fill={colors[i % colors.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(v: number | string | undefined, _name, item) => {
+                          const percentage = Number(v ?? 0)
+                          const actualCount =
+                            leadSourceTotal > 0
+                              ? Math.round((percentage / 100) * leadSourceTotal)
+                              : 0
+                          const percentLabel = `${percentage
+                            .toFixed(1)
+                            .replace(/\.0$/, '')}%`
+                          return [`${actualCount} (${percentLabel})`, item?.name || 'Leads']
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className='mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2'>
+                  {leadSources.map((source, i) => (
+                    <div
+                      key={`${source.name}-${i}`}
+                      className='flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300'
+                    >
+                      <span
+                        className='mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full'
+                        style={{ backgroundColor: colors[i % colors.length] }}
+                      />
+                      <span className='break-words leading-5'>{source.name}</span>
+                    </div>
                   ))}
-                </Pie>
-                <Tooltip
-                  formatter={(v: number | string | undefined) => {
-                    const count = Number(v ?? 0);
-                    const total = leadSources.reduce((sum, source) => sum + source.value, 0);
-                    const actualCount = Math.round((count / 100) * total);
-                    return [`${actualCount} (${count}%)`, ''];
-                  }}
-                />
-                <Legend iconType='circle' />
-              </PieChart>
-            </ResponsiveContainer>
+                </div>
+              </div>
+            ) : (
+              <div className='flex h-[220px] items-center justify-center text-sm text-gray-400'>
+                No lead source data yet.
+              </div>
+            )
           ) : (
             <div className='flex h-[280px] items-center justify-center text-sm text-gray-400'>
               N/A

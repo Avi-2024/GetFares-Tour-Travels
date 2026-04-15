@@ -40,6 +40,7 @@ const sections = [
         to: "/quotations",
         icon: FaFileInvoiceDollar,
         permission: "quotations:read",
+        end: true,
       },
       {
         label: "Quotation Templates",
@@ -207,6 +208,7 @@ const Sidebar: React.FC<{
                   <NavLink
                     key={item.label}
                     to={item.to}
+                    end={item.end}
                     onClick={onClose}
                     className={({ isActive }) =>
                       `flex rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${

@@ -4551,7 +4551,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         )}
 
         {showAddOnModal && (
-          <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur'>
+          <div className='fixed -inset-6 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur'>
             <div className='w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700'>
               <div className='mb-3 flex items-center justify-between'>
                 <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
