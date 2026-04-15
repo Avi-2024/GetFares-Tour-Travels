@@ -832,7 +832,11 @@ const SuppliersPage: React.FC = () => {
                     <label className='field-label'>Supplier Name *</label>
                     <input
                       value={supplierForm.name}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, name: e.target.value }))}
+                      onChange={e =>{
+                           const value = e.target.value
+                        const OnlyLetters = /^[a-zA-Z\s]*$/
+                        if (!OnlyLetters.test(value)) return
+                        setSupplierForm(prev => ({ ...prev, name: value }))}}
                       className='field-input'
                       placeholder='Enter supplier name'
                     />

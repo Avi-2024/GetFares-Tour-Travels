@@ -306,6 +306,22 @@ function toBoolean (value: unknown, fallback = false): boolean {
   return fallback
 }
 
+function toYesNoString(value: unknown): 'YES' | 'NO' | '' {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return ''
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'YES' : 'NO'
+  }
+  if (typeof value === 'number') {
+    return value === 1 ? 'YES' : value === 0 ? 'NO' : ''
+  }
+  const normalized = String(value).trim().toLowerCase()
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') return 'YES'
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') return 'NO'
+  return ''
+}
+
 function toDateInputString (value: unknown): string {
   const text = toTrimmedString(value)
   if (!text) return ''
@@ -1572,12 +1588,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               typeof snapshotRoot.supplier === 'object'
             ? (snapshotRoot.supplier as Record<string, unknown>)
             : null
-        const supplierId = toTrimmedString(
+
+        // Extract supplier from serviceRows if not found in supplierDetails
+        let supplierId = toTrimmedString(
           supplierDetails?.supplierId ?? supplierDetails?.id
         )
-        const supplierName = toTrimmedString(
+        let supplierName = toTrimmedString(
           supplierDetails?.supplierName ?? supplierDetails?.name
         )
+
         if (!cancelled && supplierId) {
           setSelectedSupplierId(supplierId)
         }
@@ -1677,6 +1696,29 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           : Array.isArray(snapshotRoot?.serviceRows)
           ? snapshotRoot.serviceRows
           : []
+
+        // Extract supplier from serviceRows if not found in supplierDetails
+        if (!supplierId && serviceRowSnapshot.length > 0) {
+          const firstServiceRow = serviceRowSnapshot[0] as Record<string, unknown>
+          supplierId = toTrimmedString(
+            firstServiceRow?.supplierId ?? firstServiceRow?.supplier_id
+          )
+          supplierName = toTrimmedString(
+            firstServiceRow?.supplierName ?? firstServiceRow?.supplier_name
+          )
+        }
+
+        if (!cancelled && supplierId) {
+          setSelectedSupplierId(supplierId)
+        }
+        if (!cancelled && supplierId && supplierName) {
+          setSuppliers(prev =>
+            prev.some(supplier => supplier.id === supplierId)
+              ? prev
+              : [...prev, { id: supplierId, name: supplierName }]
+          )
+        }
+
         const snapshotFlightServiceCharge = Number(
           serviceRowSnapshot
             .filter((row: any) => normalizeServiceKey(row?.key) === 'flights')
@@ -1716,10 +1758,28 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 row?.sellValue !== undefined && row?.sellValue !== null
                   ? String(row.sellValue)
                   : undefined,
-              paymentTerms: toTrimmedString(row?.paymentTerms) || undefined
+              paymentTerms: toTrimmedString(row?.paymentTerms) || undefined,
+              supplierId: toTrimmedString(row?.supplierId ?? row?.supplier_id) || undefined,
+              supplierName: toTrimmedString(row?.supplierName ?? row?.supplier_name) || undefined
             }
           })
           setServiceOverrides(nextOverrides)
+
+          // Add service-level suppliers to the suppliers list
+          const serviceSuppliers = serviceRowSnapshot
+            .map((row: any) => ({
+              id: toTrimmedString(row?.supplierId ?? row?.supplier_id),
+              name: toTrimmedString(row?.supplierName ?? row?.supplier_name)
+            }))
+            .filter((supplier: any) => supplier.id && supplier.name)
+
+          if (serviceSuppliers.length > 0) {
+            setSuppliers(prev => {
+              const existingIds = new Set(prev.map(s => s.id))
+              const newSuppliers = serviceSuppliers.filter((s: any) => !existingIds.has(s.id))
+              return [...prev, ...newSuppliers]
+            })
+          }
         }
 
         const travelStartDate = toDateInputString(
@@ -1783,8 +1843,27 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             quotationTitle: quotationTitle || prev.quotationTitle,
             customer: customerName || prev.customer,
             email: customerEmail || prev.email,
+            phone: firstNonEmptyString(
+              quotation.phone,
+              snapshot?.phone,
+              snapshotRoot?.phone,
+              snapshotLead?.phone,
+              relationLead?.phone,
+              prev.phone
+            ),
             destination: destinationName || prev.destination,
             startDate: travelStartDate || prev.startDate,
+            endDate:
+              toDateInputString(
+                quotation.travelEndDate ??
+                  quotation.travel_end_date ??
+                  snapshot?.travelEndDate ??
+                  snapshot?.travel_end_date ??
+                  snapshotRoot?.travelEndDate ??
+                  snapshotRoot?.travel_end_date ??
+                  relationLead?.travelEndDate ??
+                  relationLead?.travel_end_date
+              ) || prev.endDate,
             nights,
             durationDays: String(itineraryDayCount),
             adults: Math.max(
@@ -1798,6 +1877,48 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 )
               )
             ),
+            leadCountry: firstNonEmptyString(
+              quotation.leadCountry,
+              quotation.lead_country,
+              snapshot?.leadCountry,
+              snapshot?.lead_country,
+              snapshotRoot?.leadCountry,
+              snapshotRoot?.lead_country,
+              relationLead?.leadCountry,
+              relationLead?.lead_country,
+              snapshotLead?.leadCountry,
+              snapshotLead?.lead_country,
+              snapshotLead?.country,
+              relationLead?.country,
+              relationLead?.nationality,
+              prev.leadCountry
+            ),
+            nationality: firstNonEmptyString(
+              quotation.nationality,
+              snapshot?.nationality,
+              snapshotRoot?.nationality,
+              snapshotLead?.nationality,
+              relationLead?.nationality,
+              prev.nationality
+            ),
+            budget:
+              quotation.budget !== undefined && quotation.budget !== null
+                ? String(quotation.budget)
+                : firstNonEmptyString(
+                    snapshot?.budget,
+                    snapshotRoot?.budget,
+                    relationLead?.budget,
+                    prev.budget
+                  ),
+            visaRequired: toYesNoString(
+              quotation.visaRequired ??
+                quotation.visa_required ??
+                snapshot?.visaRequired ??
+                snapshotRoot?.visaRequired ??
+                (snapshot as any)?.services?.visa ??
+                (snapshotRoot as any)?.services?.visa ??
+                (quotation as any).services?.visa
+            ) || prev.visaRequired,
             validUntil: validUntil || prev.validUntil,
             inclusions: firstNonEmptyString(
               quotation.inclusions,
@@ -1853,6 +1974,37 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               snapshotRoot?.visaDetails,
               snapshotRoot?.visa_details,
               prev.visaDetails
+            ),
+            addressLine: firstNonEmptyString(
+              quotation.addressLine,
+              quotation.address_line,
+              relationLead?.addressLine,
+              relationLead?.address_line,
+              snapshot?.addressLine,
+              snapshot?.address_line,
+              snapshotContent?.addressLine,
+              snapshotRoot?.addressLine,
+              snapshotRoot?.address_line,
+              prev.addressLine
+            ),
+            travelPurpose: firstNonEmptyString(
+              quotation.travelPurpose,
+              quotation.travel_purpose,
+              snapshotContent?.travelPurpose,
+              snapshotRoot?.travelPurpose,
+              snapshotRoot?.travel_purpose,
+              relationLead?.travelPurpose,
+              relationLead?.travel_purpose,
+              prev.travelPurpose
+            ),
+            leadSource: firstNonEmptyString(
+              quotation.source,
+              quotation.leadSource,
+              snapshot?.source,
+              snapshotRoot?.source,
+              snapshotLead?.source,
+              relationLead?.source,
+              prev.leadSource
             )
           }))
         }
@@ -2795,7 +2947,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         cancellationPolicy: form.cancellationPolicy,
         footerDisclaimer: form.footerDisclaimer,
         hotelDetails: form.hotelDetails,
-        visaDetails: form.visaDetails
+        visaDetails: form.visaDetails,
+        leadCountry: form.leadCountry,
+        addressLine: form.addressLine,
+        budget: form.budget,
+        travelPurpose: form.travelPurpose,
+        leadSource: form.leadSource
       },
       pricing: {
         supplierCost: Number(costs.supplierCost) || 0,

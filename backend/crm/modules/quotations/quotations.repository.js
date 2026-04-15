@@ -135,6 +135,11 @@ function createQuotationsRepository({ db, logger, schema }) {
         row.payment_terms ?? row.paymentTerms ?? null,
       cancellationPolicy:
         row.cancellation_policy ?? row.cancellationPolicy ?? null,
+      leadCountry: row.lead_country ?? row.leadCountry ?? null,
+      addressLine: row.address_line ?? row.addressLine ?? null,
+      budget: toNumber(row.budget, null),
+      travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
+      leadSource: row.lead_source ?? row.leadSource ?? null,
       quoteNumber: row.quote_number ?? row.quoteNumber ?? null,
       totalCost: toNumber(row.total_cost ?? row.totalCost, 0),
       marginPercent: toNumber(row.margin_percent ?? row.marginPercent, 0),
@@ -323,6 +328,12 @@ function createQuotationsRepository({ db, logger, schema }) {
       status: row.status ?? null,
       assignedTo: row.assigned_to ?? row.assignedTo ?? null,
       createdAt: toDate(row.created_at ?? row.createdAt),
+      // Additional fields needed for quotation prefilling
+      leadCountry: row.lead_country ?? row.leadCountry ?? row.country ?? null,
+      addressLine: row.address_line ?? row.addressLine ?? null,
+      budget: row.budget ?? null,
+      travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
+      source: row.source ?? null,
     };
   }
 

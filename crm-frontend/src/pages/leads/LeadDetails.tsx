@@ -384,7 +384,11 @@ const LeadDetails: React.FC = () => {
           ? item.visaRequired
             ? 'YES'
             : 'NO'
-          : '',
+          : typeof item?.visaRequired === 'number'
+            ? item.visaRequired === 1
+              ? 'YES'
+              : 'NO'
+            : '',
       preferredHotelCategory: item?.preferredHotelCategory ?? '',
       travelPurpose: item?.travelPurpose ?? '',
       leadSource: item?.source ?? 'Website',
@@ -1440,7 +1444,7 @@ const LeadDetails: React.FC = () => {
                     <label className='field-label'>PAN Number (optional)</label>
                     <input
                       className='field-input'
-                      placeholder='Enter PAN number'
+                      placeholder='ABCDE1234F'
                       value={qualification.panNumber}
                       onChange={event =>
                         setQualification(prev => ({
