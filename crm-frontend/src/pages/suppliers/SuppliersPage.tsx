@@ -871,7 +871,7 @@ const SuppliersPage: React.FC = () => {
 
                     {supplierForm.phone && (
                       <p style={{ color: 'green', fontSize: '12px' }}>
-                        Phone number format looks valid.
+                        {/* Phone number format looks valid. */}
                       </p>
                     )}
                   </div>
@@ -884,7 +884,6 @@ const SuppliersPage: React.FC = () => {
                       onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
                       className='field-input'
                       placeholder='Enter email address'
-                      required
                     />
                   </div>
                   <div>
