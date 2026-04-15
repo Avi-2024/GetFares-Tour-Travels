@@ -1337,9 +1337,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
                         <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                           {user.fullName}
                         </p>
-                        <p className='text-xs text-gray-500 dark:text-gray-400'>
-                          ID: {user.id}
-                        </p>
+                        
                       </div>
                     </td>
                     <td className='px-6 py-4'>

@@ -39,6 +39,8 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const [placement, setPlacement] = useState<'down' | 'up'>(dropdownPlacement)
 
   React.useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -47,10 +49,23 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
         setQuery('')
       }
     }
-
     document.addEventListener('mousedown', onPointerDown)
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [])
+
+  // Auto-detect placement to avoid going off-screen
+  React.useEffect(() => {
+    if (!isOpen || !rootRef.current) return
+    const rect = rootRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const dropdownHeight = 280
+    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+      setPlacement('up')
+    } else {
+      setPlacement('down')
+    }
+  }, [isOpen])
 
   const selected = options.find(item => item.value === value)
 
@@ -97,8 +112,9 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
 
       {isOpen ? (
         <div
-          className={`absolute z-20 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900 ${
-            dropdownPlacement === 'up' ? 'bottom-full mb-2' : 'mt-2'
+          ref={dropdownRef}
+          className={`absolute z-[9999] w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900 ${
+            placement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'
           }`}
         >
           <div className='border-b border-gray-100 p-2 dark:border-gray-800'>
