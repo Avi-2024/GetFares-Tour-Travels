@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaCalendarPlus,
@@ -19,9 +19,9 @@ import SurfaceCard from "../../components/ui/SurfaceCard";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
 import { reportApiError } from "../../lib/notify";
 import { useLeadsService } from "../../hooks/useLeadsService";
-import { useDateTimePreferences } from "../../context/DateTimePreferencesContext";
+
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
-import { toStatusLabelText } from "../../utils/leadStatus";
+import { toStatusLabelText, sopLabelToCanonical } from "../../utils/leadStatus";
 
 interface LeadStats {
   totalLeads: number;
@@ -93,15 +93,15 @@ const Leads: React.FC = () => {
   const [fetchedLeads, setFetchedLeads] = useState<LeadListItem[]>([]);
   const [pagination, setPagination] = useState<LeadsPagination | null>(null);
   const [destinationNames, setDestinationNames] = useState<string[]>([]);
-  const [draftFilters, setDraftFilters] =
-    useState<LeadFilterState>(defaultFilters);
-  const [appliedFilters, setAppliedFilters] =
-    useState<LeadFilterState>(defaultFilters);
+  const destinationsFetchedRef = React.useRef(false)
+  const [draftFilters, setDraftFilters] = useState<LeadFilterState>(defaultFilters);
+  const [appliedFilters, setAppliedFilters] = useState<LeadFilterState>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Lead ID: separate local input state + debounced value for client-side filtering only
+  
   const pageSize = 15;
   const nav = useNavigate();
   const leadsService = useLeadsService();
-  const { formatDate } = useDateTimePreferences();
 
   const countryOptions = useMemo(
     () => [
@@ -162,41 +162,70 @@ const Leads: React.FC = () => {
 
   const buildLeadQuery = (queryPage: number, queryLimit: number) => {
     const normalizedLeadId = appliedFilters.leadId.trim().toUpperCase();
-    const leadIdMode = Boolean(normalizedLeadId);
-    const effectivePage = leadIdMode ? 1 : queryPage;
-    const effectiveLimit = leadIdMode ? 500 : queryLimit;
+    const leadIdActive = Boolean(normalizedLeadId);
+
+    // Resolve canonical status + subStatus from SOP label
+    let canonicalStatus: string | undefined
+    let subStatus: string | undefined
+    if (appliedFilters.status !== 'ALL') {
+      const conversion = sopLabelToCanonical(appliedFilters.status as any)
+      canonicalStatus = conversion.canonical
+      subStatus = conversion.subStatus
+    }
+
+    // Common filters applied in both modes
+    const commonFilters = {
+      ...(quickFilter !== "ALL" ? { quickFilter } : {}),
+      ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
+      ...(canonicalStatus ? { status: canonicalStatus } : {}),
+      ...(subStatus ? { subStatus } : {}),
+      ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
+      ...(appliedFilters.toDate ? { toDate: appliedFilters.toDate } : {}),
+      ...(appliedFilters.destination ? { destination: appliedFilters.destination } : {}),
+      ...(appliedFilters.sla !== "ALL" ? { sla: appliedFilters.sla } : {}),
+    }
+
+    // When leadId active: use backend `search` param (supports LIKE on lead_code)
+    // fetch limit:500 so client-side partial match works across all records
+    if (leadIdActive) {
+      return {
+        page: 1,
+        limit: 500,
+        search: normalizedLeadId, // backend LIKE matches lead_code, id, meta_lead_id
+        ...commonFilters,
+      }
+    }
 
     return {
-    page: effectivePage,
-    limit: effectiveLimit,
-    ...(debouncedSearch ? { search: debouncedSearch } : {}),
-    ...(quickFilter !== "ALL" ? { quickFilter } : {}),
-    ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
-    ...(appliedFilters.status !== "ALL"
-      ? { status: appliedFilters.status }
-      : {}),
-    ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
-    ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
-    ...(normalizedLeadId ? { leadId: normalizedLeadId } : {}),
-    ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
-    ...(appliedFilters.toDate ? { toDate: appliedFilters.toDate } : {}),
-    ...(appliedFilters.destination
-      ? { destination: appliedFilters.destination }
-      : {}),
-    ...(appliedFilters.sla !== "ALL" ? { sla: appliedFilters.sla } : {}),
-    ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
-  };
+      page: queryPage,
+      limit: queryLimit,
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...commonFilters,
+      ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
+      ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
+      ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
+    }
   };
 
+  // Load all destination names once on mount — independent of filters
   useEffect(() => {
-    // Extract unique destinations from fetched leads
-    const destinations = fetchedLeads
-      .map((lead) => lead.destination)
-      .filter((dest) => dest && dest !== "N/A")
-      .filter((dest, index, self) => self.indexOf(dest) === index)
-      .sort((a, b) => a.localeCompare(b));
-    setDestinationNames(destinations);
-  }, [fetchedLeads]);
+    if (destinationsFetchedRef.current) return
+    destinationsFetchedRef.current = true
+    const fetchDestinations = async () => {
+      try {
+        const result = await leadsService.listLeadsPage({ page: 1, limit: 500 })
+        const names = result.items
+          .map((lead) => lead.destination)
+          .filter((d) => d && d !== 'N/A')
+          .filter((d, i, self) => self.indexOf(d) === i)
+          .sort((a, b) => a.localeCompare(b))
+        setDestinationNames(names)
+      } catch {
+        // silently ignore — destination filter just won't populate
+      }
+    }
+    void fetchDestinations()
+  }, [leadsService])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -254,16 +283,15 @@ const Leads: React.FC = () => {
   const totalPages = Math.max(1, pagination?.totalPages ?? 1);
   const leadIdFilter = appliedFilters.leadId.trim().toUpperCase();
   const rows = useMemo(() => {
-    if (!leadIdFilter) {
-      return fetchedLeads;
-    }
+    if (!leadIdFilter) return fetchedLeads;
+    // Client-side filter: keep only leads whose leadCode/id contains the typed value
+    // Backend already narrowed results via search LIKE, this ensures only lead_code matches show
     return fetchedLeads.filter((lead) => {
-      const candidates = [
-        String(lead.leadId || "").trim().toUpperCase(),
-        String(lead.id || "").trim().toUpperCase(),
-      ];
-      return candidates.some((candidate) => candidate === leadIdFilter);
-    });
+      const leadCode = String((lead as any).leadCode ?? lead.leadId ?? '').trim().toUpperCase()
+      const leadId   = String(lead.id ?? '').trim().toUpperCase()
+      const metaId   = String((lead as any).metaLeadId ?? '').trim().toUpperCase()
+      return leadCode.includes(leadIdFilter) || leadId.includes(leadIdFilter) || metaId.includes(leadIdFilter)
+    })
   }, [fetchedLeads, leadIdFilter]);
   const leadIdModeActive = Boolean(leadIdFilter);
   const effectiveTotalPages = leadIdModeActive ? 1 : totalPages;
@@ -319,6 +347,8 @@ const Leads: React.FC = () => {
     }
 
     setError("");
+    // Use longer debounce for leadId to avoid firing on every keystroke
+    const delay = draftFilters.leadId !== appliedFilters.leadId ? 600 : 250;
     const timer = window.setTimeout(() => {
       setAppliedFilters({
         ...draftFilters,
@@ -327,7 +357,7 @@ const Leads: React.FC = () => {
         leadId: draftFilters.leadId.trim(),
       });
       setPage(1);
-    }, 250);
+    }, delay);
 
     return () => window.clearTimeout(timer);
   }, [draftFilters]);
@@ -768,15 +798,11 @@ const Leads: React.FC = () => {
                       >
                         <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                            {lead.clientCreatedAt
-                              ? `${lead.clientCreatedAt}${
-                                  lead.clientTimezone
-                                    ? ` ${lead.clientTimezone}`
-                                    : ""
-                                }`
-                              : lead.createdAt
-                                ? formatDate(lead.createdAt, "-")
-                                : "-"}
+                            {(() => {
+                              const raw = String(lead.clientCreatedAt || lead.createdAt || '').trim()
+                              const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
+                              return m ? `${m[3]}/${m[2]}/${m[1]}` : '-'
+                            })()}
                           </p>
                         </td>
                         <td className="px-4 py-3 leading-tight">
@@ -969,24 +995,16 @@ const Leads: React.FC = () => {
 		                    : pagination?.total
 		                      ? (page - 1) * (pagination.limit || pageSize) + 1
 		                      : 0}
-		                  -
-		                  {leadIdModeActive
+		                  -{leadIdModeActive
 		                    ? rows.length
 		                    : pagination?.total
-		                      ? Math.min(
-		                          pagination.total,
-		                          (page - 1) * (pagination.limit || pageSize) +
-		                            rows.length,
-		                        )
+		                      ? Math.min(pagination.total, (page - 1) * (pagination.limit || pageSize) + rows.length)
 		                      : 0}{" "}
 		                  of {leadIdModeActive ? rows.length : (pagination?.total ?? rows.length)}
 		                </p>
 		                <div className="flex items-center gap-2">
 		                  <button
-		                    onClick={() => {
-		                      if (leadIdModeActive) return;
-		                      setPage((prev) => Math.max(1, prev - 1));
-		                    }}
+		                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
 		                    disabled={leadIdModeActive || page === 1 || loading}
 		                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
 		                  >
@@ -996,10 +1014,7 @@ const Leads: React.FC = () => {
 	                    {leadIdModeActive ? 1 : page}
 	                  </span>
 		                  <button
-		                    onClick={() => {
-		                      if (leadIdModeActive) return;
-		                      setPage((prev) => Math.min(effectiveTotalPages, prev + 1));
-		                    }}
+		                    onClick={() => setPage((prev) => Math.min(effectiveTotalPages, prev + 1))}
 		                    disabled={leadIdModeActive || page === effectiveTotalPages || loading}
 		                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
 		                  >

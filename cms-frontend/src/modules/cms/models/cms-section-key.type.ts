@@ -5,7 +5,6 @@ type CmsSectionKey =
   | "main-packages"
   | "sub-packages"
   | "visa-destinations"
-  | "visa-details"
   | "creative-toolkit";
 
 export type { CmsSectionKey };

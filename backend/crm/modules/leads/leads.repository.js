@@ -1084,9 +1084,10 @@ function createLeadsRepository({ db, logger, schema }) {
         if (filters.leadId) {
           const leadId = String(filters.leadId).trim();
           if (leadId) {
-            params.push(leadId, leadId, leadId);
+            const leadIdLike = `%${leadId}%`;
+            params.push(leadIdLike, leadIdLike, leadIdLike);
             where.push(
-              `(LOWER(CAST(l.id AS CHAR)) = LOWER(?) OR LOWER(COALESCE(l.lead_code, '')) = LOWER(?) OR LOWER(COALESCE(l.meta_lead_id, '')) = LOWER(?))`,
+              `(LOWER(CAST(l.id AS CHAR)) LIKE LOWER(?) OR LOWER(COALESCE(l.lead_code, '')) LIKE LOWER(?) OR LOWER(COALESCE(l.meta_lead_id, '')) LIKE LOWER(?))`,
             );
           }
         }
@@ -1249,7 +1250,7 @@ function createLeadsRepository({ db, logger, schema }) {
           const id = String(item.id || "").toLowerCase();
           const leadCode = String(item.leadCode || "").toLowerCase();
           const metaLeadId = String(item.metaLeadId || "").toLowerCase();
-          return id === leadId || leadCode === leadId || metaLeadId === leadId;
+          return id.includes(leadId) || leadCode.includes(leadId) || metaLeadId.includes(leadId);
         });
       }
 

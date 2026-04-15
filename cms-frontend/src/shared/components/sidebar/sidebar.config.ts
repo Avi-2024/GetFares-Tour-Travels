@@ -6,7 +6,6 @@ import {
   PackageSearch,
   Rows3,
   Sparkles,
-  TicketCheck,
   WandSparkles,
 } from "lucide-react";
 import { SidebarItem, SidebarSection } from "./sidebar.models";
@@ -59,13 +58,6 @@ class SidebarConfig {
         "/cms/visa-destinations",
         "Country and region matrix",
         Globe2,
-      ),
-      new SidebarItem(
-        "visa-details",
-        "Visa Details",
-        "/cms/visa-details",
-        "Requirements, notes & uploads",
-        TicketCheck,
       ),
     ]),
     new SidebarSection("Experience", [
