@@ -884,7 +884,7 @@ const SuppliersPage: React.FC = () => {
                       onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
                       className='field-input'
                       placeholder='Enter email address'
-                      required
+                      
                     />
                   </div>
                   <div>

@@ -2568,12 +2568,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }).format(cappedValue)
   }
 
-  const formatPreviewDateTime = (value?: string) => {
-    if (!value) return 'N/A'
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return value
-    return parsed.toLocaleString()
-  }
+
 
   const formatPreviewDate = (value?: string) => {
     if (!value) return 'N/A'
