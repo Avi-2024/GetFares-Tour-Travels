@@ -56,4 +56,23 @@
     add the rest things whatever needed for seo and all
 ```
 
-# NOTE: the packages are also used in crm backend and crm-frontend. So i want you to run a deep analysis of where and how the packages are used in crm cause the crm is fully functional and I dont want to break anything there. Above mentioned are all fields that I manually typed by looking at the get2vacation website webpages, so I need you to make the cms ui how I mentioned above. The packages, main packages, sub packages tables will shrinken to 2 tables (main and sub packages) only main and sub packages will have create package modal and packages table will only show the combined packages (main + sub) and can be editted, deleted and viewed but not created from there. creation will only be in main package and sub package.
+4. VISA DESTINATION
+
+```txt
+    - title : text
+    - image
+    - short description : text
+    - highlights : List<string>
+    - overview : {title, description}
+    - quick_support : {title, description}
+    - support_included : List<string>
+    - visa_details : List<{title, description}>
+    - requirements : List<string>
+    -
+
+    List<{title, description}> => add button to add new row and each row is will have 2 fields {title, description}
+    List<string> => add button to add new row and each row is a text field and they are just
+    add the rest things whatever needed for seo and all
+```
+
+# NOTE: the packages are also used in crm backend and crm-frontend. So i want you to run a deep analysis of where and how the packages are used in crm cause the crm is fully functional and I dont want to break anything there. Above mentioned are all fields that I manually typed by looking at the get2vacation website webpages, so I ne ed you to make the cms ui how I mentioned above. The packages, main packages, sub packages tables will shrinken to 2 tables (main and sub packages) only main and sub packages will have create package modal and packages table will only show the combined packages (main + sub) and can be editted, deleted and viewed but not created from there. creation will only be in main package and sub package.

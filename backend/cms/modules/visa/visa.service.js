@@ -21,31 +21,28 @@ function createVisaService({ repository }) {
   function toVisaDestination(row) {
     if (!row) return null;
     const highlights = parseJsonArray(row.highlights);
-    const subtitleItems = parseJsonArray(row.subtitle_items);
-    const descriptionItems = parseJsonArray(row.description_items);
     const supportList = parseJsonArray(row.support_list);
+    const visaDetails = parseJsonArray(row.visa_details);
+    const requirements = parseJsonArray(row.requirements);
 
     return {
       id: row.id,
       country: row.country,
-      destination: row.destination,
       title: row.title,
       slug: row.slug,
       subDescription: row.sub_description,
-      subtitle: row.subtitle,
-      description: row.description,
-      descriptionItems,
-      subtitleItems,
       imageUrl: row.image_url,
-      heroImageUrl: row.hero_image_url,
-      processingTime: row.processing_time,
-      supportInfo: row.support_info,
-      supportTitle: row.support_title,
-      supportDescription: row.support_description,
-      supportList,
-      iconName: row.icon_name,
       highlights,
-      ctaText: row.cta_text,
+      overviewTitle: row.overview_title,
+      overviewDescription: row.overview_description,
+      quickSupportTitle: row.support_title,
+      quickSupportDescription: row.support_description,
+      supportIncluded: supportList,
+      visaDetails: Array.isArray(visaDetails) ? visaDetails : [],
+      requirements: Array.isArray(requirements) ? requirements : [],
+      metaTitle: row.meta_title,
+      metaDescription: row.meta_description,
+      keywords: row.keywords,
       displayOrder: row.display_order,
       isActive: row.is_active,
       isDeleted: row.is_deleted,
@@ -129,30 +126,23 @@ function createVisaService({ repository }) {
 
       const row = await repository.create({
         country,
-        destination: normalizeText(data.destination),
         title: normalizeText(data.title),
         slug,
         sub_description: normalizeText(data.subDescription),
-        subtitle: normalizeText(data.subtitle),
-        description: normalizeText(data.description),
-        description_items: JSON.stringify(
-          Array.isArray(data.descriptionItems) ? data.descriptionItems : [],
-        ),
-        subtitle_items: JSON.stringify(
-          Array.isArray(data.subtitleItems) ? data.subtitleItems : [],
-        ),
         image_url: normalizeText(data.imageUrl),
-        hero_image_url: normalizeText(data.heroImageUrl),
-        processing_time: normalizeText(data.processingTime),
-        support_info: normalizeText(data.supportInfo),
-        support_title: normalizeText(data.supportTitle),
-        support_description: normalizeText(data.supportDescription),
+        overview_title: normalizeText(data.overviewTitle),
+        overview_description: normalizeText(data.overviewDescription),
+        support_title: normalizeText(data.quickSupportTitle),
+        support_description: normalizeText(data.quickSupportDescription),
         support_list: JSON.stringify(
-          Array.isArray(data.supportList) ? data.supportList : [],
+          Array.isArray(data.supportIncluded) ? data.supportIncluded : [],
         ),
-        icon_name: normalizeText(data.iconName),
         highlights: JSON.stringify(Array.isArray(data.highlights) ? data.highlights : []),
-        cta_text: normalizeText(data.ctaText),
+        visa_details: JSON.stringify(Array.isArray(data.visaDetails) ? data.visaDetails : []),
+        requirements: JSON.stringify(Array.isArray(data.requirements) ? data.requirements : []),
+        meta_title: normalizeText(data.metaTitle),
+        meta_description: normalizeText(data.metaDescription),
+        keywords: normalizeText(data.keywords),
         display_order: toNumber(data.displayOrder, 0),
         is_active: toBoolean(data.isActive, true),
       });
@@ -168,9 +158,6 @@ function createVisaService({ repository }) {
 
       const updates = {};
       if (data.title !== undefined) updates.title = normalizeText(data.title);
-      if (data.destination !== undefined) {
-        updates.destination = normalizeText(data.destination);
-      }
       if (data.country !== undefined) {
         const country = normalizeText(data.country);
         if (!country) {
@@ -188,34 +175,30 @@ function createVisaService({ repository }) {
       }
       if (data.subDescription !== undefined)
         updates.sub_description = normalizeText(data.subDescription);
-      if (data.subtitle !== undefined)
-        updates.subtitle = normalizeText(data.subtitle);
-      if (data.description !== undefined)
-        updates.description = normalizeText(data.description);
-      if (data.descriptionItems !== undefined && Array.isArray(data.descriptionItems))
-        updates.description_items = JSON.stringify(data.descriptionItems);
-      if (data.subtitleItems !== undefined && Array.isArray(data.subtitleItems))
-        updates.subtitle_items = JSON.stringify(data.subtitleItems);
       if (data.imageUrl !== undefined)
         updates.image_url = normalizeText(data.imageUrl);
-      if (data.heroImageUrl !== undefined)
-        updates.hero_image_url = normalizeText(data.heroImageUrl);
-      if (data.processingTime !== undefined)
-        updates.processing_time = normalizeText(data.processingTime);
-      if (data.supportInfo !== undefined)
-        updates.support_info = normalizeText(data.supportInfo);
-      if (data.supportTitle !== undefined)
-        updates.support_title = normalizeText(data.supportTitle);
-      if (data.supportDescription !== undefined)
-        updates.support_description = normalizeText(data.supportDescription);
-      if (data.supportList !== undefined && Array.isArray(data.supportList))
-        updates.support_list = JSON.stringify(data.supportList);
-      if (data.iconName !== undefined)
-        updates.icon_name = normalizeText(data.iconName);
+      if (data.overviewTitle !== undefined)
+        updates.overview_title = normalizeText(data.overviewTitle);
+      if (data.overviewDescription !== undefined)
+        updates.overview_description = normalizeText(data.overviewDescription);
+      if (data.quickSupportTitle !== undefined)
+        updates.support_title = normalizeText(data.quickSupportTitle);
+      if (data.quickSupportDescription !== undefined)
+        updates.support_description = normalizeText(data.quickSupportDescription);
+      if (data.supportIncluded !== undefined && Array.isArray(data.supportIncluded))
+        updates.support_list = JSON.stringify(data.supportIncluded);
       if (data.highlights !== undefined && Array.isArray(data.highlights))
         updates.highlights = JSON.stringify(data.highlights);
-      if (data.ctaText !== undefined)
-        updates.cta_text = normalizeText(data.ctaText);
+      if (data.visaDetails !== undefined && Array.isArray(data.visaDetails))
+        updates.visa_details = JSON.stringify(data.visaDetails);
+      if (data.requirements !== undefined && Array.isArray(data.requirements))
+        updates.requirements = JSON.stringify(data.requirements);
+      if (data.metaTitle !== undefined)
+        updates.meta_title = normalizeText(data.metaTitle);
+      if (data.metaDescription !== undefined)
+        updates.meta_description = normalizeText(data.metaDescription);
+      if (data.keywords !== undefined)
+        updates.keywords = normalizeText(data.keywords);
       if (data.displayOrder !== undefined)
         updates.display_order = toNumber(data.displayOrder);
       if (data.isActive !== undefined)

@@ -52,13 +52,6 @@ const cmsRouteDefinitions: CmsRouteDefinition[] = [
     breadcrumb: "CMS / Visa / Destinations",
   },
   {
-    path: "/cms/visa-details",
-    sectionKey: "visa-details",
-    title: "Visa Details",
-    subtitle: "Manage requirement lists, notes, FAQs, and supporting documents.",
-    breadcrumb: "CMS / Visa / Details",
-  },
-  {
     path: "/cms/creative-toolkit",
     sectionKey: "creative-toolkit",
     title: "Creative Toolkit",

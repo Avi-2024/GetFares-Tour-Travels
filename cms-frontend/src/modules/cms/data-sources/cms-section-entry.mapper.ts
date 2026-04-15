@@ -329,23 +329,14 @@ class CmsSectionEntryMapper {
         id,
         raw: record,
         row: new CmsTableRow(id, {
-          country: new CmsTableCell(this.accessor.getText(record, "country", "title", "name")),
+          title: new CmsTableCell(this.accessor.getText(record, "title", "name")),
+          country: new CmsTableCell(this.accessor.getText(record, "country")),
           slug: new CmsTableCell(this.accessor.getText(record, "slug")),
-          processingTime: new CmsTableCell(
-            this.accessor.getText(record, "processingTime", "processing_time"),
+          overview: new CmsTableCell(
+            this.accessor.getText(record, "overviewTitle", "overview_title"),
           ),
-          supportInfo: new CmsTableCell(
-            this.accessor.getText(record, "supportInfo", "support_info"),
-          ),
-          heroReady: new CmsTableCell(
-            this.accessor.getText(record, "heroImageUrl", "hero_image_url") !==
-              "--"
-              ? "Yes"
-              : "No",
-            this.accessor.getText(record, "heroImageUrl", "hero_image_url") !==
-              "--"
-              ? "success"
-              : "warning",
+          quickSupport: new CmsTableCell(
+            this.accessor.getText(record, "quickSupportTitle", "support_title"),
           ),
           status: new CmsTableCell(
             isActive ? "Active" : "Inactive",
