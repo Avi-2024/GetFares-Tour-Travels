@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FaArrowLeft,
@@ -561,7 +561,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     travelPurpose: '',
     leadSource: '',
     campaignId: '',
-    validUntil: '',
+    validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     children: 0,
     childAges: [] as string[],
     inclusions: '',
@@ -3506,15 +3506,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       />
                     </div>
                     <div>
-                      <label className='field-label'>Valid Until</label>
+                      <label className='field-label'>Valid Until <span className='text-gray-400 font-normal'>(Quotation expiry)</span></label>
                       <input
-                        type='datetime-local'
+                        type='date'
                         className='field-input'
                         value={form.validUntil}
                         onChange={e =>
                           setForm(p => ({ ...p, validUntil: e.target.value }))
                         }
                       />
+                      <p className='mt-0.5 text-xs text-gray-400'>How long this quoted price is valid for the customer.</p>
                     </div>
                     <div className='md:col-span-2 lg:col-span-1'>
                       <label className='field-label'>Duration</label>
@@ -4263,7 +4264,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       <p className='break-words sm:text-right'>
                         Valid Until:{' '}
                         <span className='text-gray-700'>
-                          {formatPreviewDateTime(form.validUntil)}
+                          {formatPreviewDate(form.validUntil)}
                         </span>
                       </p>
                     </div>

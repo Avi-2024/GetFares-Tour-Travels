@@ -32,6 +32,8 @@ function createLeadsController({ service }) {
         ...req.validated.body,
         source: req.validated.body.source || "website",
         status: req.validated.body.status || "OPEN",
+        // Public leads should always enter assignment flow.
+        autoAssign: true,
       };
       const result = await service.create(payload, req.context);
       res.status(201).json({ data: result });

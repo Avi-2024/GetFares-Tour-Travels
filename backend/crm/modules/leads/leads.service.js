@@ -1772,11 +1772,12 @@ function createLeadsService({ repository, logger, events }) {
     });
     events.emitCreated(lead);
 
-    if (
-      payload.autoAssign !== false &&
-      !lead.assignedTo &&
-      !CLOSED_STATUSES.has(lead.status)
-    ) {
+    if (!lead.assignedTo && !CLOSED_STATUSES.has(lead.status)) {
+      if (payload.autoAssign === false) {
+        await queueLeadIfNeeded(lead, "AUTO_ASSIGN_DISABLED");
+        return lead;
+      }
+
       lead = await assignLead(
         lead.id,
         {

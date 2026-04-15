@@ -879,6 +879,7 @@ const SuppliersPage: React.FC = () => {
                     <label className='field-label'>Email</label>
                     <input
                       type='email'
+                      required={true}
                       value={supplierForm.email}
                       onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
                       className='field-input'
@@ -1048,7 +1049,8 @@ const SuppliersPage: React.FC = () => {
       )}
     </div>
   )
-}
+  }
+
 
 
 const StatCard = ({ title, value, color }: { title: string; value: number; color: 'blue' | 'green' | 'gray' }) => {

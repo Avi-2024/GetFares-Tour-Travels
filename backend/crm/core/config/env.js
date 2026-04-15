@@ -36,6 +36,8 @@ const envSchema = z.object({
     ),
   JWT_ACCESS_EXPIRES_IN: z.string().default("7d"),
   AUTH_DEFAULT_ROLE: z.string().default("sales_consultant"),
+  AUTH_BCRYPT_ROUNDS: z.coerce.number().int().min(6).max(12).default(8),
+  AUTH_DB_SLOW_QUERY_MS: z.coerce.number().int().positive().default(150),
   RBAC_PERMISSION_CACHE_TTL_SEC: z.coerce.number().int().positive().default(60),
   DATABASE_CLIENT: z.string().optional(),
   DATABASE_URL: z.string().optional(),
@@ -44,6 +46,9 @@ const envSchema = z.object({
   MYSQL_USER: z.string().optional(),
   MYSQL_PASSWORD: z.string().optional(),
   MYSQL_DATABASE: z.string().optional(),
+  MYSQL_POOL_MAX: z.coerce.number().int().positive().max(200).default(50),
+  MYSQL_POOL_QUEUE_LIMIT: z.coerce.number().int().min(0).default(0),
+  MYSQL_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   /** "true" | "false" | omit (auto: SSL on for *.mysql.database.azure.com) */
   MYSQL_SSL: z.string().optional(),
   AZURE_SQL_SERVER: z.string().optional(),

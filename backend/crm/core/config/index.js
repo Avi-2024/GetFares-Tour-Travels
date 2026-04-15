@@ -27,6 +27,8 @@ const config = Object.freeze({
     jwtAccessSecret: env.JWT_ACCESS_SECRET,
     jwtAccessExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
     defaultRole: env.AUTH_DEFAULT_ROLE,
+    bcryptRounds: env.AUTH_BCRYPT_ROUNDS,
+    dbSlowQueryMs: env.AUTH_DB_SLOW_QUERY_MS,
   },
   rbac: {
     permissionCacheTtlMs: env.RBAC_PERMISSION_CACHE_TTL_SEC * 1000,
@@ -41,6 +43,9 @@ const config = Object.freeze({
       password: env.MYSQL_PASSWORD,
       database: env.MYSQL_DATABASE,
       ssl: env.MYSQL_SSL,
+      poolMax: env.MYSQL_POOL_MAX,
+      poolQueueLimit: env.MYSQL_POOL_QUEUE_LIMIT,
+      connectTimeoutMs: env.MYSQL_CONNECT_TIMEOUT_MS,
     },
     azureSql: {
       server: env.AZURE_SQL_SERVER,
