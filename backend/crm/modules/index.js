@@ -24,6 +24,7 @@ import { createSuppliersModule } from "./suppliers/index.js";
 import { createCountriesModule } from "./countries/index.js";
 import { createMailModule } from "./mail/index.js";
 import { createHistoryModule } from "./history/index.js";
+import { registerCurrencyModule } from "./currency/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -135,6 +136,9 @@ function registerModules(app, dependencies) {
   const mailModule = createMailModule(featureDependencies);
   mountedModules.mail = mailModule;
   app.use("/api/mail", mailModule.routes);
+
+  const currencyModule = registerCurrencyModule(app, featureDependencies);
+  mountedModules.currency = currencyModule;
 
   return mountedModules;
 }

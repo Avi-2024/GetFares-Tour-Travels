@@ -33,6 +33,7 @@ import { customersApi } from "../../api/customers";
 import { getApiErrorMessage } from "../../api/apiClient";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { getCurrencyOptions,  formatCurrency } from "../../utils/currency";
+import { useCurrency } from "../../hooks/useCurrency";
 
 type TxStatus = "completed" | "pending" | "failed" | "refunded";
 type PaymentMode = "bank" | "card" | "cash" | "cheque" | "online";
@@ -1886,11 +1887,46 @@ const Payments: React.FC = () => {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState('AED');
+  const { convert } = useCurrency();
+  const [convertedStats, setConvertedStats] = useState(stats);
 
   const pageSize = 15;
 
   const formatAmount = (value: number) =>
-    `$${Number(value || 0).toLocaleString()}`;
+    `${selectedCurrency} ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // Convert stats when currency changes
+  useEffect(() => {
+    const convertStats = async () => {
+      if (selectedCurrency === 'AED') {
+        setConvertedStats(stats);
+        return;
+      }
+
+      try {
+        const [collected, outstanding, overdue, refunds] = await Promise.all([
+          convert(stats.collectedAmount, 'AED', selectedCurrency),
+          convert(stats.outstandingAmount, 'AED', selectedCurrency),
+          convert(stats.overdueAmount, 'AED', selectedCurrency),
+          convert(stats.refundsAmount, 'AED', selectedCurrency),
+        ]);
+
+        setConvertedStats({
+          ...stats,
+          collectedAmount: collected,
+          outstandingAmount: outstanding,
+          overdueAmount: overdue,
+          refundsAmount: refunds,
+        });
+      } catch (error) {
+        console.error('Currency conversion failed:', error);
+        setConvertedStats(stats);
+      }
+    };
+
+    convertStats();
+  }, [stats, selectedCurrency, convert]);
 
   const modeOptions = useMemo(
     () => [
@@ -2752,6 +2788,18 @@ const Payments: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+          <select
+            value={selectedCurrency}
+            onChange={(e) => setSelectedCurrency(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 dark:border-gray-700"
+          >
+            <option value="AED">AED</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="GBP">GBP</option>
+            <option value="INR">INR</option>
+            <option value="SAR">SAR</option>
+          </select>
           <button
             onClick={() => navigate("/refunds")}
             className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -2771,9 +2819,7 @@ const Payments: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Collected"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.collectedAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(convertedStats.collectedAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.collectedCount} payments`
           }
@@ -2781,9 +2827,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Outstanding"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(convertedStats.outstandingAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.outstandingCount} pending`
           }
@@ -2791,9 +2835,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Overdue"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(convertedStats.overdueAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.overdueCount} invoices`
           }
@@ -2801,9 +2843,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Refunds"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.refundsAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(convertedStats.refundsAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.refundsCount} processed`
           }
