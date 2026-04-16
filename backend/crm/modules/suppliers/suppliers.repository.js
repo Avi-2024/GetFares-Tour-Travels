@@ -327,6 +327,23 @@ function createSuppliersRepository({ db, logger, schema }) {
 
         return {
           ...row,
+          customer_name:
+            snapshot?.customerName ??
+            snapshot?.customer_name ??
+            snapshot?.lead?.fullName ??
+            snapshot?.lead?.full_name ??
+            snapshot?.lead?.name ??
+            row.customer_full_name ??
+            row.customer_name ??
+            row.customerName ??
+            null,
+          customer_email:
+            snapshot?.customerEmail ??
+            snapshot?.customer_email ??
+            snapshot?.lead?.email ??
+            row.customer_email ??
+            row.customerEmail ??
+            null,
           quotation_destination:
             snapshot?.destination ??
             snapshot?.tripDestination ??

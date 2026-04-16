@@ -1316,6 +1316,18 @@ const FinanceSystem: React.FC = () => {
     (page - 1) * pageSize,
     page * pageSize
   )
+  const completeClientKycCount = filteredClients.filter(
+    client =>
+      Boolean(client.name?.trim()) &&
+      Boolean(client.email?.trim()) &&
+      Boolean(client.phone?.trim()) &&
+      Boolean(client.pan?.trim()) &&
+      Boolean(client.address?.trim())
+  ).length
+  const incompleteClientKycCount = Math.max(
+    filteredClients.length - completeClientKycCount,
+    0
+  )
   const paginatedSuppliers = filteredSuppliers.slice(
     (page - 1) * pageSize,
     page * pageSize
@@ -1633,6 +1645,15 @@ const FinanceSystem: React.FC = () => {
     return parsed.toLocaleString()
   }
 
+  const getClientMissingFields = (client: Client) => {
+    const missing: string[] = []
+    if (!client.pan?.trim()) missing.push('PAN')
+    if (!client.address?.trim()) missing.push('Address')
+    if (!client.email?.trim()) missing.push('Email')
+    if (!client.phone?.trim()) missing.push('Phone')
+    return missing
+  }
+
   return (
     <main className='flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950'>
       <div className='mx-auto w-full max-w-full px-4 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8'>
@@ -1831,28 +1852,60 @@ const FinanceSystem: React.FC = () => {
           {/* Clients Tab */}
           {activeTab === 'clients' && (
             <>
-              <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20 mb-4'>
-                <div className='flex items-start gap-3'>
-                  <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
-                    <FaUser className='text-blue-600 dark:text-blue-400' />
+              <SurfaceCard className='mb-4 border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-5 dark:border-blue-800 dark:from-blue-950/40 dark:via-gray-900 dark:to-indigo-950/30'>
+                <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+                  <div className='flex items-start gap-3'>
+                    <div className='flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900/50'>
+                      <FaUser className='text-blue-600 dark:text-blue-400' />
+                    </div>
+                    <div className='flex-1'>
+                      <h3 className='text-base font-semibold text-blue-950 dark:text-blue-100'>
+                        Client Onboarding Essentials
+                      </h3>
+                      <p className='mt-1 max-w-2xl text-sm leading-6 text-blue-900/80 dark:text-blue-100/80'>
+                        Finance-first onboarding view. Only billing-ready details are shown:
+                        client name, PAN, email, phone, address, and billing currency.
+                      </p>
+                    </div>
                   </div>
-                  <div className='flex-1'>
-                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Client Onboarding Essentials</h3>
-                    <p className='text-sm text-blue-800 dark:text-blue-200'>
-                      Finance team sees only onboarding basics here: client name, PAN, email, contact number, address, and billing currency.
-                    </p>
-                    <div className='mt-2 flex flex-wrap gap-2'>
-                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/50 text-xs font-medium text-blue-700 dark:text-blue-300'>
-                        {clients.length} Clients
-                      </span>
-                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-green-100 dark:bg-green-900/50 text-xs font-medium text-green-700 dark:text-green-300'>
-                        {filteredClients.length} Filtered
-                      </span>
+
+                  <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[420px]'>
+                    <div className='rounded-2xl border border-blue-200/70 bg-white/85 px-4 py-3 shadow-sm dark:border-blue-800 dark:bg-gray-900/70'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400'>
+                        Total
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100'>
+                        {clients.length}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-blue-200/70 bg-white/85 px-4 py-3 shadow-sm dark:border-blue-800 dark:bg-gray-900/70'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400'>
+                        Showing
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100'>
+                        {filteredClients.length}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-green-200 bg-green-50/90 px-4 py-3 shadow-sm dark:border-green-800 dark:bg-green-950/30'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-green-700 dark:text-green-300'>
+                        KYC Ready
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-green-700 dark:text-green-300'>
+                        {completeClientKycCount}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 shadow-sm dark:border-amber-800 dark:bg-amber-950/30'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300'>
+                        Needs Review
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-amber-700 dark:text-amber-300'>
+                        {incompleteClientKycCount}
+                      </p>
                     </div>
                   </div>
                 </div>
               </SurfaceCard>
-              <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+              <SurfaceCard className='overflow-hidden border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900'>
                 {paginatedClients.length === 0 ? (
                   <div className='p-8'>
                     <EmptyState
@@ -1862,131 +1915,122 @@ const FinanceSystem: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <>
-                    {/* Desktop Table */}
-                    <div className='hidden md:block overflow-x-auto'>
-                      <table className='w-full'>
-                        <thead className='bg-gray-50 dark:bg-gray-800/50'>
-                          <tr>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Name
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Contact
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Address
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Billing Currency
-                            </th>
-                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-500'>
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                          {paginatedClients.map(client => (
+                  <div className='overflow-x-auto'>
+                    <table className='w-full min-w-[920px] text-left text-sm'>
+                      <thead className='border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/60'>
+                        <tr>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Client
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            KYC
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            PAN
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Contact
+                          </th>
+                          <th className='min-w-[180px] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Address
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Currency
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                        {paginatedClients.map(client => {
+                          const missing = getClientMissingFields(client)
+                          const kycOk = missing.length === 0
+                          return (
                             <tr
                               key={client.id}
-                              className='hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                              className='transition-colors hover:bg-gray-50/90 dark:hover:bg-gray-800/50'
                             >
-                              <td className='px-6 py-4 text-sm'>
-                                <p className='font-medium text-gray-900 dark:text-gray-100'>{client.name}</p>
-                                <p className='text-xs text-gray-500'>PAN: {client.pan || '-'}</p>
+                              <td className='max-w-[200px] px-4 py-3 align-top'>
+                                <p className='truncate font-medium text-gray-900 dark:text-gray-100'>
+                                  {client.name || 'Unnamed Client'}
+                                </p>
                               </td>
-                              <td className='px-6 py-4 text-sm'>
-                                <p className='text-gray-700 dark:text-gray-300'>{client.email}</p>
-                                <p className='text-xs text-gray-500'>{client.phone}</p>
+                              <td className='whitespace-nowrap px-4 py-3 align-top'>
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                                    kycOk
+                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                  }`}
+                                  title={
+                                    kycOk
+                                      ? 'All onboarding fields present'
+                                      : `Missing: ${missing.join(', ')}`
+                                  }
+                                >
+                                  {kycOk ? 'Ready' : 'Incomplete'}
+                                </span>
+                                {!kycOk ? (
+                                  <p className='mt-1 max-w-[140px] text-[11px] leading-snug text-amber-700 dark:text-amber-300'>
+                                    {missing.join(', ')}
+                                  </p>
+                                ) : null}
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.address || '-'}
+                              <td className='max-w-[120px] px-4 py-3 align-top text-gray-800 dark:text-gray-200'>
+                                <span className='font-mono text-xs'>
+                                  {client.pan || '—'}
+                                </span>
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.currency || '-'}
+                              <td className='max-w-[220px] px-4 py-3 align-top'>
+                                <p className='break-all text-gray-800 dark:text-gray-200'>
+                                  {client.email || '—'}
+                                </p>
+                                <p className='mt-0.5 text-xs text-gray-500 dark:text-gray-400'>
+                                  {client.phone || '—'}
+                                </p>
                               </td>
-                              <td className='px-6 py-4 text-right'>
-                                <div className='flex justify-end gap-2'>
+                              <td className='px-4 py-3 align-top text-gray-800 dark:text-gray-200'>
+                                <span className='line-clamp-2 text-sm'>
+                                  {client.address || '—'}
+                                </span>
+                              </td>
+                              <td className='whitespace-nowrap px-4 py-3 align-top'>
+                                <span className='inline-flex rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-800 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200'>
+                                  {client.currency || 'INR'}
+                                </span>
+                              </td>
+                              <td className='whitespace-nowrap px-4 py-3 text-right align-top'>
+                                <div className='inline-flex justify-end gap-1'>
                                   <button
+                                    type='button'
                                     onClick={() => {
                                       setEditingClient(client)
                                       setShowClientModal(true)
                                     }}
-                                    className='p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg'
-                                    title='Edit'
+                                    className='rounded-lg p-2 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20'
+                                    title='Edit client'
                                   >
                                     <FaPenToSquare />
                                   </button>
                                   <button
+                                    type='button'
                                     onClick={() =>
                                       handleDeleteClient(client.id)
                                     }
-                                    className='p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg'
-                                    title='Delete'
+                                    className='rounded-lg p-2 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20'
+                                    title='Delete client'
                                   >
                                     <FaTrash />
                                   </button>
                                 </div>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Mobile Cards */}
-                    <div className='md:hidden divide-y divide-gray-100 dark:divide-gray-800'>
-                      {paginatedClients.map(client => (
-                        <div key={client.id} className='p-4 space-y-3'>
-                          <div className='flex items-start justify-between'>
-                            <div>
-                              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                                {client.name}
-                              </p>
-                              <p className='text-xs text-gray-500'>
-                                PAN: {client.pan || '-'}
-                              </p>
-                            </div>
-                            <div className='flex gap-1'>
-                              <button
-                                onClick={() => {
-                                  setEditingClient(client)
-                                  setShowClientModal(true)
-                                }}
-                                className='p-1.5 text-gray-500 hover:text-green-600'
-                              >
-                                <FaPenToSquare />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteClient(client.id)}
-                                className='p-1.5 text-gray-500 hover:text-red-600'
-                              >
-                                <FaTrash />
-                              </button>
-                            </div>
-                          </div>
-                          <div className='grid grid-cols-2 gap-2 text-xs'>
-                            <div>
-                              <p className='text-gray-500'>Email</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.email}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Phone</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.phone}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Currency</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.currency || '-'}</p>
-                            </div>
-                            <div className='col-span-2'>
-                              <p className='text-gray-500'>Address</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.address || '-'}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </SurfaceCard>
             </>
