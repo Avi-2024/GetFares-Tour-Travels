@@ -365,8 +365,11 @@ CREATE TABLE IF NOT EXISTS customers (
     preferences TEXT,
     lifetime_value DECIMAL(12,2) DEFAULT 0,
     segment ENUM('PLATINUM', 'GOLD', 'SILVER', 'NEW') DEFAULT 'NEW',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE
 );
+CREATE INDEX idx_customers_is_deleted ON customers(is_deleted);
+CREATE INDEX idx_customers_is_deleted_segment ON customers(is_deleted, segment);
 
 CREATE TABLE IF NOT EXISTS customer_leads (
     customer_id CHAR(36),
