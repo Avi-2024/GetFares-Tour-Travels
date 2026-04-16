@@ -771,6 +771,22 @@ function createSuppliersService({ repository, logger, events }) {
             row.itemType ??
             row.item_type,
         ),
+        supplierBasePrice: toNumber(
+          row.supplier_base_price ?? row.supplierBasePrice,
+          0,
+        ),
+        supplierSellValue: toNumber(
+          row.supplier_sell_value ?? row.supplierSellValue,
+          0,
+        ),
+        matchedServices: Array.isArray(row.matched_services)
+          ? row.matched_services.map((item) => ({
+              name: String(item?.name ?? "Other"),
+              itemType: String(item?.itemType ?? "OTHER"),
+              basePrice: toNumber(item?.basePrice ?? 0, 0),
+              sellValue: toNumber(item?.sellValue ?? 0, 0),
+            }))
+          : [],
         status: row.status,
         travelStartDate: row.travel_start_date ?? row.travelStartDate,
         createdAt: row.created_at ?? row.createdAt,

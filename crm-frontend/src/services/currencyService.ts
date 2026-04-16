@@ -20,9 +20,9 @@ export interface CurrencyRatesResponse {
   baseCurrency: string;
   rates: Record<string, CurrencyRate>;
   source:
-    | "api"
+    | "currencyapi"
+    | "frankfurter"
     | "mock"
-    | "mock_fallback"
     | "db_cache"
     | "db_cache_fallback"
     | "memory_cache"

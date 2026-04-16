@@ -63,6 +63,95 @@ function createSuppliersRepository({ db, logger, schema }) {
     return fallback;
   }
 
+  function parseArray(value, fallback = []) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : fallback;
+      } catch (_error) {
+        return fallback;
+      }
+    }
+    return fallback;
+  }
+
+  function toText(value, fallback = "") {
+    const normalized = String(value ?? "").trim();
+    return normalized || fallback;
+  }
+
+  function normalizeSupplierId(value) {
+    return String(value ?? "").trim();
+  }
+
+  function toServiceAmount(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
+  }
+
+  function collectMatchedSnapshotServices(snapshot, supplierId) {
+    const normalizedSupplierId = normalizeSupplierId(supplierId);
+    if (!normalizedSupplierId) {
+      return [];
+    }
+
+    const topLevelSupplier = parseObject(
+      snapshot?.supplierDetails ?? snapshot?.supplier ?? {},
+      {},
+    );
+    const topLevelSupplierId = normalizeSupplierId(
+      topLevelSupplier?.supplierId ?? topLevelSupplier?.supplier_id,
+    );
+    const useDefaultSupplier =
+      topLevelSupplierId && topLevelSupplierId === normalizedSupplierId;
+
+    const serviceRows = parseArray(snapshot?.serviceRows, []);
+    const addOnServices = parseArray(snapshot?.addOnServices, []);
+
+    const matchedRows = [
+      ...serviceRows.map((row) => ({ ...row, source: "serviceRow" })),
+      ...addOnServices.map((row) => ({ ...row, source: "addOn" })),
+    ]
+      .filter((row) => {
+        const rowSupplierId = normalizeSupplierId(
+          row?.supplierId ?? row?.supplier_id,
+        );
+        if (rowSupplierId) {
+          return rowSupplierId === normalizedSupplierId;
+        }
+        return useDefaultSupplier;
+      })
+      .map((row) => ({
+        name: toText(
+          row?.label ?? row?.name ?? row?.serviceName ?? row?.itemType,
+          "Other",
+        ),
+        itemType: toText(row?.itemType ?? row?.serviceType, "OTHER"),
+        basePrice: toServiceAmount(row?.baseCost ?? row?.cost ?? 0),
+        sellValue: toServiceAmount(
+          row?.sellValue ?? row?.saleValue ?? row?.finalPrice ?? 0,
+        ),
+      }));
+
+    const deduped = [];
+    const seen = new Set();
+    for (const row of matchedRows) {
+      const key = `${row.name}|${row.itemType}|${row.basePrice}|${row.sellValue}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      deduped.push(row);
+    }
+    return deduped;
+  }
+
   async function hasTable(tableName) {
     if (!canUseRawQuery()) {
       return true;
@@ -176,39 +265,95 @@ function createSuppliersRepository({ db, logger, schema }) {
     return db.findById(schema.bookingsTable, bookingId);
   }
 
+  async function findQuotationById(quotationId) {
+    if (!quotationId || !schema.quotationsTable) {
+      return null;
+    }
+    return db.findById(schema.quotationsTable, quotationId);
+  }
+
   async function findBookingsBySupplierId(supplierId, filters = {}) {
     if (!supplierId) {
       return [];
     }
 
     const rows = await db.findMany(schema.bookingsTable, {});
-    return rows
-      .filter((row) => {
-        const supplierDetails = row.supplier_details ?? row.supplierDetails ?? {};
-        const details = parseObject(supplierDetails, {});
-        const rowSupplierId = details?.supplierId ?? details?.supplier_id ?? "";
-        return String(rowSupplierId) === String(supplierId);
-      })
+    const sortedRows = rows
+      .slice()
       .sort((a, b) => {
         const aTime = new Date(a.created_at ?? a.createdAt ?? 0).getTime();
         const bTime = new Date(b.created_at ?? b.createdAt ?? 0).getTime();
         return bTime - aTime;
       })
-      .slice(0, filters.limit || 500)
+      .slice(0, filters.limit || 500);
+
+    const quotationIds = Array.from(
+      new Set(
+        sortedRows
+          .map((row) => toText(row.quotation_id ?? row.quotationId))
+          .filter(Boolean),
+      ),
+    );
+    const quotationMap = new Map();
+    await Promise.all(
+      quotationIds.map(async (quotationId) => {
+        const quotation = await findQuotationById(quotationId);
+        if (quotation) {
+          quotationMap.set(quotationId, quotation);
+        }
+      }),
+    );
+
+    return sortedRows
       .map((row) => {
         const supplierDetails = row.supplier_details ?? row.supplierDetails ?? {};
         const details = parseObject(supplierDetails, {});
+        const rowSupplierId = normalizeSupplierId(
+          details?.supplierId ?? details?.supplier_id,
+        );
+        const quotationId = toText(row.quotation_id ?? row.quotationId);
+        const quotation = quotationMap.get(quotationId) || null;
+        const snapshot = parseObject(
+          quotation?.template_snapshot ?? quotation?.templateSnapshot,
+          {},
+        );
+        const matchedServices = collectMatchedSnapshotServices(snapshot, supplierId);
+        const isDirectSupplierMatch = rowSupplierId === String(supplierId);
+        const matchesSupplier = isDirectSupplierMatch || matchedServices.length > 0;
+
+        if (!matchesSupplier) {
+          return null;
+        }
+
         return {
           ...row,
+          quotation_destination:
+            snapshot?.destination ??
+            snapshot?.tripDestination ??
+            quotation?.trip_destination ??
+            quotation?.tripDestination ??
+            null,
           service_names:
-            details?.serviceName ??
-            details?.serviceLabel ??
-            details?.serviceType ??
-            details?.itemType ??
-            details?.key ??
-            "Other",
+            matchedServices.length > 0
+              ? matchedServices.map((item) => item.name).join(", ")
+              : details?.serviceName ??
+                details?.serviceLabel ??
+                details?.serviceType ??
+                details?.itemType ??
+                details?.key ??
+                "Other",
+          matched_services: matchedServices,
+          supplier_base_price: matchedServices.reduce(
+            (sum, item) => sum + toServiceAmount(item.basePrice),
+            0,
+          ),
+          supplier_sell_value: matchedServices.reduce(
+            (sum, item) => sum + toServiceAmount(item.sellValue),
+            0,
+          ),
         };
-      });
+      })
+      .filter(Boolean);
   }
 
   async function findPayableById(id) {
@@ -761,6 +906,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     update,
     deleteById,
     findBookingById,
+    findQuotationById,
     findBookingsBySupplierId,
     findPayableById,
     findPayableBySupplierAndBooking,

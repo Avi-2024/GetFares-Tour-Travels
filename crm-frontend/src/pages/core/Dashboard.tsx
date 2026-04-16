@@ -150,6 +150,7 @@ const Dashboard: React.FC = () => {
         setConvertedRevenue(converted)
       } catch (error) {
         console.error('Currency conversion failed:', error)
+        setSelectedCurrency(baseCurrency)
         setConvertedRevenue(dashboardStats.revenue)
       }
     }

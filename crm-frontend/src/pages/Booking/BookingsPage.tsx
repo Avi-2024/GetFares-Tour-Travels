@@ -32,6 +32,12 @@ import { quotationsApi } from "../../api/quotations";
 import { suppliersApi } from "../../api/suppliers";
 import { reportApiError } from "../../lib/notify";
 import { getCurrencyOptions } from "../../utils/currency";
+import {
+  normalizeCurrencyCode,
+  pickFirstValidCurrencyCode,
+  pickLeadDisplayCurrencyCode,
+  pickQuotationDisplayCurrencyCode,
+} from "../../utils/quotationDisplayCurrency";
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -191,13 +197,6 @@ const toIsoDate = (value?: string | null) => {
   if (Number.isNaN(parsed.getTime())) return ''
   return parsed.toISOString().split('T')[0]
 }
-
-const normalizeCurrencyCode = (currency?: string | null) => {
-  const code = String(currency ?? "INR")
-    .trim()
-    .toUpperCase();
-  return /^[A-Z]{3}$/.test(code) ? code : "INR";
-};
 
 const toAmountNumber = (value: unknown, fallback = 0) => {
   if (typeof value === "number") {
@@ -1890,6 +1889,16 @@ const BookingsPage: React.FC = () => {
       lead?.created_date
     );
 
+    const quotationCurrency = pickQuotationDisplayCurrencyCode(quotation);
+    const leadCurrency = pickLeadDisplayCurrencyCode(lead);
+    const storedBookingCurrency = pickFirstValidCurrencyCode(
+      b.clientCurrency,
+      b.client_currency,
+      b.currency,
+      b.supplierCurrency,
+      b.supplier_currency,
+    );
+
     return {
       id: String(b.id ?? idx),
       bookingId: b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
@@ -1943,11 +1952,7 @@ const BookingsPage: React.FC = () => {
         0,
       ),
       currency: normalizeCurrencyCode(
-        b.currency ??
-          b.clientCurrency ??
-          b.client_currency ??
-          b.supplierCurrency ??
-          b.supplier_currency,
+        quotationCurrency ?? leadCurrency ?? storedBookingCurrency,
       ),
       documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
       documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0),
@@ -2271,7 +2276,7 @@ const BookingsPage: React.FC = () => {
           data.supplierPaymentDeadlineAt,
         ),
         cancellationDeadlineAt: toIsoDateTime(data.cancellationDeadlineAt),
-        currency: data.currency || "INR",
+        clientCurrency: normalizeCurrencyCode(data.currency),
         supplierDetails:
           data.supplierId || data.supplierName ?
             {

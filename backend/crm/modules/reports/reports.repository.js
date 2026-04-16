@@ -1106,6 +1106,64 @@ function createReportsRepository({ db, schema, logger }) {
       };
     },
 
+    async getExecutiveBookingRevenueByCurrency(filters = {}) {
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      return queryRows(
+        `
+          SELECT
+            UPPER(
+              COALESCE(
+                NULLIF(TRIM(b.client_currency), ''),
+                NULLIF(TRIM(b.currency), ''),
+                'AED'
+              )
+            ) AS currency,
+            SUM(COALESCE(b.total_amount, 0)) AS revenue
+          FROM ${schema.bookingsTable} b
+          ${bookingRange.sql}
+          GROUP BY
+            UPPER(
+              COALESCE(
+                NULLIF(TRIM(b.client_currency), ''),
+                NULLIF(TRIM(b.currency), ''),
+                'AED'
+              )
+            )
+        `,
+        bookingRange.params,
+      );
+    },
+
+    async getExecutiveServiceRevenueByCurrency(filters = {}) {
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      return queryRows(
+        `
+          WITH service_revenue AS (
+            SELECT
+              CASE WHEN vc.id IS NULL THEN 'HOLIDAY' ELSE 'VISA' END AS service_type,
+              UPPER(
+                COALESCE(
+                  NULLIF(TRIM(b.client_currency), ''),
+                  NULLIF(TRIM(b.currency), ''),
+                  'AED'
+                )
+              ) AS currency,
+              COALESCE(b.total_amount, 0) AS total_amount
+            FROM ${schema.bookingsTable} b
+            LEFT JOIN ${schema.visaCasesTable} vc ON vc.booking_id = b.id
+            ${bookingRange.sql}
+          )
+          SELECT
+            service_type,
+            currency,
+            SUM(total_amount) AS revenue
+          FROM service_revenue
+          GROUP BY service_type, currency
+        `,
+        bookingRange.params,
+      );
+    },
+
     async getConversionFunnel(filters = {}) {
       const range = buildDateRangeClause("l.created_at", filters);
       const rows = await queryRows(

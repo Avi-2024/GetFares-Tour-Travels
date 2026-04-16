@@ -178,7 +178,7 @@ class CurrencyService {
       return {
         baseCurrency: this.baseCurrency,
         rates: normalizedRates,
-        source: "api",
+        source: this.apiKey ? "currencyapi" : "frankfurter",
         updatedAt,
       };
     } catch (error) {
@@ -206,37 +206,46 @@ class CurrencyService {
         };
       }
 
-      const now = new Date().toISOString();
-      this.setMemoryCache(this.mockRates, now);
-      return {
-        baseCurrency: this.baseCurrency,
-        rates: this.mockRates,
-        source: "mock_fallback",
-        updatedAt: now,
-      };
+      throw error;
     }
   }
 
   async fetchFromApi() {
-    if (!this.apiKey) {
-      throw new Error("CURRENCY_API_KEY not configured");
+    if (this.apiKey) {
+      const response = await axios.get(this.apiUrl, {
+        params: {
+          apikey: this.apiKey,
+          base_currency: this.baseCurrency,
+          currencies: this.supportedCurrencies.join(","),
+        },
+        timeout: 10000,
+      });
+
+      const payload = response?.data?.data;
+      if (!payload || typeof payload !== "object") {
+        throw new Error("Currency API returned invalid payload");
+      }
+
+      return payload;
     }
 
-    const response = await axios.get(this.apiUrl, {
+    const targets = this.supportedCurrencies.filter(
+      (currency) => currency !== this.baseCurrency,
+    );
+    const response = await axios.get(`https://api.frankfurter.app/latest`, {
       params: {
-        apikey: this.apiKey,
-        base_currency: this.baseCurrency,
-        currencies: this.supportedCurrencies.join(","),
+        from: this.baseCurrency,
+        to: targets.join(","),
       },
       timeout: 10000,
     });
 
-    const payload = response?.data?.data;
-    if (!payload || typeof payload !== "object") {
-      throw new Error("Currency API returned invalid payload");
+    const rates = response?.data?.rates;
+    if (!rates || typeof rates !== "object") {
+      throw new Error("Frankfurter API returned invalid payload");
     }
 
-    return payload;
+    return rates;
   }
 
   async getCachedRates() {

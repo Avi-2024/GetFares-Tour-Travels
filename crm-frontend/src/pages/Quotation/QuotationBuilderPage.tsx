@@ -130,7 +130,10 @@ type AddOnService = {
   name: string
   baseCost: number
   markup: number
+  markupPercent?: number
   sellValue: number
+  supplierId?: string
+  supplierName?: string
 }
 
 type PricingCosts = {
@@ -623,15 +626,20 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const [addOnDraft, setAddOnDraft] = useState({
     name: '',
     baseCost: '',
-    markup: '',
+    markupPercent: '',
+    supplierId: '',
+    supplierName: '',
     sellValue: ''
   })
   const addOnComputedSellValue = useMemo(() => {
     const baseCost = Number(addOnDraft.baseCost)
-    const markup = Number(addOnDraft.markup)
-    if (!Number.isFinite(baseCost) || !Number.isFinite(markup)) return 0
-    return Number((Math.max(0, baseCost) + Math.max(0, markup)).toFixed(2))
-  }, [addOnDraft.baseCost, addOnDraft.markup])
+    const markupPercent = Number(addOnDraft.markupPercent)
+    if (!Number.isFinite(baseCost) || !Number.isFinite(markupPercent)) return 0
+    const boundedBase = Math.max(0, baseCost)
+    const boundedPercent = Math.min(100, Math.max(0, markupPercent))
+    const markupAmount = Number(((boundedBase * boundedPercent) / 100).toFixed(2))
+    return Number((boundedBase + markupAmount).toFixed(2))
+  }, [addOnDraft.baseCost, addOnDraft.markupPercent])
   const [serviceOverrides, setServiceOverrides] =
     useState<ServiceOverridesState>({})
   const [changedPricingCells, setChangedPricingCells] = useState<
@@ -879,18 +887,125 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }, 700)
   }, [])
 
+  const computeAutoAllocatedBaseCosts = useCallback(
+    (overridesSnapshot: ServiceOverridesState): Record<ServiceKey, number> => {
+      const activeDefinitions = selectedServiceDefinitions
+      if (!activeDefinitions.length) return {} as Record<ServiceKey, number>
+
+      const globalSupplierCost = Number(costs.supplierCost) || 0
+
+      const overriddenKeys = new Set(
+        activeDefinitions
+          .filter(def => {
+            const val = overridesSnapshot[def.key]?.baseCost
+            return (
+              val !== undefined &&
+              val !== '' &&
+              !isNaN(Number(val)) &&
+              Number(val) >= 0
+            )
+          })
+          .map(def => def.key)
+      )
+
+      const overriddenTotal = activeDefinitions.reduce((sum, def) => {
+        if (!overriddenKeys.has(def.key)) return sum
+        return sum + (Number(overridesSnapshot[def.key]?.baseCost) || 0)
+      }, 0)
+
+      const remainingCost = Math.max(0, globalSupplierCost - overriddenTotal)
+
+      const baseWeights = activeDefinitions.map(def =>
+        Math.max(0, Number(def.weight) || 0)
+      )
+      const baseWeightTotal = baseWeights.reduce((sum, weight) => sum + weight, 0)
+      const effectiveWeights =
+        baseWeightTotal > 0
+          ? baseWeights.map(weight => (weight / baseWeightTotal) * 100)
+          : activeDefinitions.map(() => 100 / activeDefinitions.length)
+
+      const distributableWeight = activeDefinitions.reduce(
+        (sum, definition, index) => {
+          if (overriddenKeys.has(definition.key)) return sum
+          return sum + effectiveWeights[index]
+        },
+        0
+      )
+
+      let allocatedRemainder = 0
+      const freeRows = activeDefinitions.filter(def => !overriddenKeys.has(def.key))
+
+      const result: Partial<Record<ServiceKey, number>> = {}
+
+      activeDefinitions.forEach((definition, index) => {
+        const override = overridesSnapshot[definition.key] ?? {}
+        if (overriddenKeys.has(definition.key)) {
+          result[definition.key] = Number(override.baseCost) || 0
+          return
+        }
+
+        const isLastFree =
+          freeRows.length > 0 &&
+          definition.key === freeRows[freeRows.length - 1].key
+        const weighted = distributableWeight
+          ? (remainingCost * effectiveWeights[index]) / distributableWeight
+          : 0
+        const baseCost = Number(
+          (isLastFree ? remainingCost - allocatedRemainder : weighted).toFixed(2)
+        )
+        allocatedRemainder = Number((allocatedRemainder + baseCost).toFixed(2))
+        result[definition.key] = baseCost
+      })
+
+      return result as Record<ServiceKey, number>
+    },
+    [costs.supplierCost, selectedServiceDefinitions]
+  )
+
   const updateServiceOverrideField = useCallback(
     (rowKey: ServiceKey, field: PricingField, value: string) => {
-      setServiceOverrides(prev => ({
-        ...prev,
-        [rowKey]: {
-          ...(prev[rowKey] ?? {}),
-          [field]: value
+      setServiceOverrides(prev => {
+        if (field === 'baseCost') {
+          const hasAnyManualBaseCost = Object.values(prev).some(
+            row => row?.baseCost !== undefined && row.baseCost !== ''
+          )
+          if (!hasAnyManualBaseCost && selectedServiceDefinitions.length > 1) {
+            const snapshot = computeAutoAllocatedBaseCosts(prev)
+            const seeded: ServiceOverridesState = { ...prev }
+            selectedServiceDefinitions.forEach(def => {
+              const existing = seeded[def.key] ?? {}
+              if (existing.baseCost === undefined || existing.baseCost === '') {
+                seeded[def.key] = {
+                  ...existing,
+                  baseCost: Number(snapshot[def.key] ?? 0).toFixed(2)
+                }
+              }
+            })
+            return {
+              ...seeded,
+              [rowKey]: {
+                ...(seeded[rowKey] ?? {}),
+                [field]: value
+              }
+            }
+          }
         }
-      }))
+
+        return {
+          ...prev,
+          [rowKey]: {
+            ...(prev[rowKey] ?? {}),
+            [field]: value
+          }
+        }
+      })
       flagPricingCellChange(`${rowKey}.${field}`)
     },
-    [flagPricingCellChange]
+    [
+      computeAutoAllocatedBaseCosts,
+      flagPricingCellChange,
+      selectedServiceDefinitions
+    ]
   )
 
   const clearServiceOverrideField = useCallback(
@@ -1666,6 +1781,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             addOnSnapshot
               .map((service: any, index: number) => {
                 const baseCost = toFiniteNumber(service?.baseCost, 0)
+                const markupPercent = toFiniteNumber(service?.markupPercent, null as any)
+                const fallbackMarkupPercent =
+                  baseCost > 0
+                    ? Number(
+                        (
+                          (toFiniteNumber(service?.markup, 0) / baseCost) *
+                          100
+                        ).toFixed(2)
+                      )
+                    : 0
                 const sellValue = toFiniteNumber(
                   service?.sellValue,
                   baseCost + toFiniteNumber(service?.markup, 0)
@@ -1675,7 +1800,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   name: toTrimmedString(service?.name) || `Add-on ${index + 1}`,
                   baseCost,
                   markup: toFiniteNumber(service?.markup, sellValue - baseCost),
+                  markupPercent: Number.isFinite(markupPercent)
+                    ? Math.min(100, Math.max(0, Number(markupPercent)))
+                    : fallbackMarkupPercent,
                   sellValue
+                  ,
+                  supplierId: toTrimmedString(service?.supplierId ?? service?.supplier_id) || undefined,
+                  supplierName: toTrimmedString(service?.supplierName ?? service?.supplier_name) || undefined
                 }
               })
               .filter(service => service.name)
@@ -2295,20 +2426,25 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const addAddOnService = () => {
     const name = addOnDraft.name.trim()
     const baseCost = Number(addOnDraft.baseCost)
-    const markup = Number(addOnDraft.markup)
-    const sellValue = Number((baseCost + markup).toFixed(2))
+    const markupPercent = Number(addOnDraft.markupPercent)
+    const boundedBaseCost = Math.max(0, baseCost)
+    const boundedMarkupPercent = Math.min(100, Math.max(0, markupPercent))
+    const markup = Number(((boundedBaseCost * boundedMarkupPercent) / 100).toFixed(2))
+    const sellValue = Number((boundedBaseCost + markup).toFixed(2))
     if (
       !name ||
       !Number.isFinite(baseCost) ||
       baseCost < 0 ||
-      !Number.isFinite(markup) ||
-      markup < 0 ||
+      !Number.isFinite(markupPercent) ||
+      markupPercent < 0 ||
       !Number.isFinite(sellValue) ||
       sellValue < 0
     ) {
       alert('Please fill all add-on fields with valid values.')
       return
     }
+    const supplierId = String(addOnDraft.supplierId || '').trim()
+    const supplierName = String(addOnDraft.supplierName || '').trim()
     if (editingAddOnId) {
       setAddOnServices(prev =>
         prev.map(s =>
@@ -2316,9 +2452,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             ? {
                 id: s.id,
                 name,
-                baseCost,
+                baseCost: boundedBaseCost,
                 markup,
+                markupPercent: boundedMarkupPercent,
                 sellValue
+                ,
+                supplierId: supplierId || undefined,
+                supplierName: supplierName || undefined
               }
             : s
         )
@@ -2330,16 +2470,22 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         {
           id: `addon-${Date.now()}`,
           name,
-          baseCost,
+          baseCost: boundedBaseCost,
           markup,
+          markupPercent: boundedMarkupPercent,
           sellValue
+          ,
+          supplierId: supplierId || undefined,
+          supplierName: supplierName || undefined
         }
       ])
     }
     setAddOnDraft({
       name: '',
       baseCost: '',
-      markup: '',
+      markupPercent: '',
+      supplierId: '',
+      supplierName: '',
       sellValue: ''
     })
     setShowAddOnModal(false)
@@ -2350,7 +2496,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     setAddOnDraft({
       name: service.name,
       baseCost: String(service.baseCost),
-      markup: String(service.markup),
+      markupPercent: String(
+        service.markupPercent !== undefined
+          ? service.markupPercent
+          : service.baseCost > 0
+            ? Number(((service.markup / service.baseCost) * 100).toFixed(2))
+            : 0
+      ),
+      supplierId: String(service.supplierId ?? ''),
+      supplierName: String(service.supplierName ?? ''),
       sellValue: String(service.sellValue)
     })
     setShowAddOnModal(true)
@@ -2917,7 +3071,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         name: service.name,
         baseCost: Number(service.baseCost) || 0,
         markup: Number(service.markup) || 0,
-        sellValue: Number(service.sellValue) || 0
+        markupPercent:
+          service.markupPercent !== undefined
+            ? Number(service.markupPercent) || 0
+            : undefined,
+        sellValue: Number(service.sellValue) || 0,
+        supplierId: service.supplierId?.trim() || null,
+        supplierName: service.supplierName?.trim() || null
       })),
       itineraryItems: itineraryItems.map(item => ({
         id: item.id,
@@ -3099,7 +3259,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           itemType: 'OTHER',
           description: `Add-on Service - ${service.name}`,
           cost: Number((Number(service.baseCost) || 0).toFixed(2)),
-          sellValue: Number((Number(service.sellValue) || 0).toFixed(2))
+          sellValue: Number((Number(service.sellValue) || 0).toFixed(2)),
+          supplierId: service.supplierId?.trim() || null,
+          supplierName: service.supplierName?.trim() || null
         }))
       ]
 
@@ -3541,7 +3703,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         value={currency}
                         options={currencyOptions}
                         searchPlaceholder='Search currency...'
-                        onChange={value => setCurrency(String(value || 'INR').toUpperCase())}
+                        onChange={value => {
+                          const next = String(value || 'INR').toUpperCase()
+                          setCurrency(next)
+                          setCurrencies(prev => ({
+                            ...prev,
+                            clientCurrency: next,
+                            costCurrency: next
+                          }))
+                        }}
                       />
                     </div>
                     <div className='md:col-span-2'>
@@ -3884,7 +4054,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   options={currencyOptions}
                   searchPlaceholder='Search currency...'
                   onChange={value =>
-                    setCurrency(String(value || 'INR').toUpperCase())
+                    (() => {
+                      const next = String(value || 'INR').toUpperCase()
+                      setCurrency(next)
+                      setCurrencies(prev => ({
+                        ...prev,
+                        clientCurrency: next,
+                        costCurrency: next
+                      }))
+                    })()
                   }
                 />
               </div>
@@ -4007,6 +4185,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         </div>
                       </div>
                     )}
+                  </div>
+                  <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
+                    <p className='text-xs uppercase text-center text-blue-700 dark:text-blue-300'>
+                      Total Sale Value
+                    </p>
+                    <p className='mt-1 text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-300 truncate'>
+                      {money(Math.min(total, 999999999999))}
+                    </p>
                   </div>
                 </div>
                 <SummaryPanel
@@ -4672,6 +4858,30 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   />
                 </div>
                 <div>
+                  <label className='field-label'>Supplier</label>
+                  <SearchableDropdown
+                    value={addOnDraft.supplierId}
+                    options={[
+                      { value: '', label: 'No supplier selected' },
+                      ...suppliers.map(supplier => ({
+                        value: supplier.id,
+                        label: supplier.name
+                      }))
+                    ]}
+                    onChange={value => {
+                      const supplierId = String(value || '')
+                      const supplier = suppliers.find(s => s.id === supplierId) || null
+                      setAddOnDraft(p => ({
+                        ...p,
+                        supplierId,
+                        supplierName: supplier ? supplier.name : ''
+                      }))
+                    }}
+                    searchPlaceholder='Search supplier...'
+                    disabled={suppliersLoading}
+                  />
+                </div>
+                <div>
                   <label className='field-label'>Base Cost</label>
                   <input
                     type='number'
@@ -4689,17 +4899,25 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 </div>
                 <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
                   <div>
-                    <label className='field-label'>Markup</label>
+                    <label className='field-label'>Markup %</label>
                     <input
                       type='number'
                       min='0'
+                      max='100'
+                      step='0.1'
                       className='field-input overflow-hidden text-ellipsis'
-                      value={addOnDraft.markup}
+                      value={addOnDraft.markupPercent}
                       onChange={e =>
-                        setAddOnDraft(p => ({ ...p, markup: e.target.value }))
+                        setAddOnDraft(p => ({
+                          ...p,
+                          markupPercent: e.target.value
+                        }))
                       }
-                      placeholder='0.00'
+                      placeholder='0'
                     />
+                    <p className='mt-1 text-[10px] text-gray-500 dark:text-gray-400'>
+                      Markup amount: {money(Math.min(Math.max(0, addOnComputedSellValue - (Number(addOnDraft.baseCost) || 0)), 999999999999))}
+                    </p>
                   </div>
                   <div>
                     <label className='field-label'>Sell Value</label>
@@ -5365,14 +5583,6 @@ const SummaryPanel = ({
                 {money(Math.min(taxes, 999999999999))}
               </span>
             </div>
-          </div>
-          <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
-            <p className='text-xs uppercase  text-center text-blue-700 dark:text-blue-300'>
-              Total Sale Value
-            </p>
-            <p className='mt-1 text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-300 truncate'>
-              {money(Math.min(total, 999999999999))}
-            </p>
           </div>
         </div>
       </div>

@@ -46,6 +46,13 @@ interface SupplierBooking {
   customer: string
   destination: string
   serviceName: string
+  supplierBasePrice: number
+  supplierSellValue: number
+  matchedServices: Array<{
+    name: string
+    basePrice: number
+    sellValue: number
+  }>
   totalAmount: number
   currency: string
   status: string
@@ -181,29 +188,41 @@ const SupplierDetailPage: React.FC = () => {
       const response = await suppliersApi.listBookings(id, { limit: 500 })
       const bookings = unwrapList(response)
       
-      const mapped = bookings.map((b: any) => ({
-        id: String(b?.id ?? ''),
-        bookingId: String(b?.bookingNumber ?? b?.bookingId ?? b?.id ?? ''),
-        customer: String(b?.customer ?? 'Unknown Customer'),
-        destination: String(b?.destination ?? 'N/A'),
-        serviceName: String(
-          b?.serviceName ??
-            b?.service_name ??
-            b?.serviceNames ??
-            b?.service_names ??
-            b?.serviceType ??
-            b?.itemType ??
-            'Other'
-        )
-          .split(',')
-          .map((item: string) => normalizeServiceName(item))
-          .filter((item: string) => Boolean(item))
-          .join(', '),
-        totalAmount: toNumber(b?.totalAmount ?? 0),
-        currency: String(b?.currency ?? 'INR'),
-        status: String(b?.status ?? 'pending'),
-        travelStartDate: b?.travelStartDate
-      }))
+      const mapped = bookings.map((b: any) => {
+        const rawMatchedServices = b?.matchedServices ?? b?.matched_services
+        return {
+          id: String(b?.id ?? ''),
+          bookingId: String(b?.bookingNumber ?? b?.bookingId ?? b?.id ?? ''),
+          customer: String(b?.customer ?? 'Unknown Customer'),
+          destination: String(b?.destination ?? 'N/A'),
+          serviceName: String(
+            b?.serviceName ??
+              b?.service_name ??
+              b?.serviceNames ??
+              b?.service_names ??
+              b?.serviceType ??
+              b?.itemType ??
+              'Other'
+          )
+            .split(',')
+            .map((item: string) => normalizeServiceName(item))
+            .filter((item: string) => Boolean(item))
+            .join(', '),
+          supplierBasePrice: toNumber(b?.supplierBasePrice ?? b?.supplier_base_price ?? 0),
+          supplierSellValue: toNumber(b?.supplierSellValue ?? b?.supplier_sell_value ?? 0),
+          matchedServices: Array.isArray(rawMatchedServices)
+            ? rawMatchedServices.map((item: any) => ({
+                name: String(item?.name ?? 'Other'),
+                basePrice: toNumber(item?.basePrice ?? item?.base_price ?? 0),
+                sellValue: toNumber(item?.sellValue ?? item?.sell_value ?? 0)
+              }))
+            : [],
+          totalAmount: toNumber(b?.totalAmount ?? 0),
+          currency: String(b?.currency ?? 'INR'),
+          status: String(b?.status ?? 'pending'),
+          travelStartDate: b?.travelStartDate
+        }
+      })
       
       setBookings(mapped)
     } catch (err) {
@@ -387,6 +406,7 @@ const SupplierDetailPage: React.FC = () => {
                   <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Booking ID</th>
                   <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Destination</th>
                   <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Service</th>
+                  <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Base Price</th>
                   <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Amount</th>
                   <th className='px-4 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Status</th>
                 </tr>
@@ -397,7 +417,19 @@ const SupplierDetailPage: React.FC = () => {
                     <td className='px-4 py-3 text-sm text-gray-900 dark:text-gray-100'>{booking.customer}</td>
                     <td className='px-4 py-3 text-sm font-mono text-gray-600 dark:text-gray-400'>{booking.bookingId}</td>
                     <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{booking.destination}</td>
-                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{booking.serviceName || 'Other'}</td>
+                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
+                      <div>{booking.serviceName || 'Other'}</div>
+                      {booking.matchedServices.length > 0 ? (
+                        <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                          {booking.matchedServices
+                            .map(service => `${service.name}: ${formatCurrency(service.basePrice, booking.currency)}`)
+                            .join(' | ')}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                      {formatCurrency(booking.supplierBasePrice, booking.currency)}
+                    </td>
                     <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>{formatCurrency(booking.totalAmount, booking.currency)}</td>
                     <td className='px-4 py-3 text-center'>
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${

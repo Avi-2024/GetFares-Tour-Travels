@@ -1837,9 +1837,9 @@ const FinanceSystem: React.FC = () => {
                     <FaUser className='text-blue-600 dark:text-blue-400' />
                   </div>
                   <div className='flex-1'>
-                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Client KYC Information</h3>
+                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Client Onboarding Essentials</h3>
                     <p className='text-sm text-blue-800 dark:text-blue-200'>
-                      Required at lead onboarding: PAN, Address, Email, and Contact Number. This register maintains finance KYC compliance.
+                      Finance team sees only onboarding basics here: client name, PAN, email, contact number, address, and billing currency.
                     </p>
                     <div className='mt-2 flex flex-wrap gap-2'>
                       <span className='inline-flex items-center px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/50 text-xs font-medium text-blue-700 dark:text-blue-300'>
@@ -1872,25 +1872,13 @@ const FinanceSystem: React.FC = () => {
                               Name
                             </th>
                             <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Lead ID
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
                               Contact
                             </th>
                             <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Destination
+                              Address
                             </th>
                             <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Travel Date
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Travelers
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Budget
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Country/Nationality
+                              Billing Currency
                             </th>
                             <th className='px-6 py-3 text-right text-xs font-semibold text-gray-500'>
                               Actions
@@ -1906,30 +1894,16 @@ const FinanceSystem: React.FC = () => {
                               <td className='px-6 py-4 text-sm'>
                                 <p className='font-medium text-gray-900 dark:text-gray-100'>{client.name}</p>
                                 <p className='text-xs text-gray-500'>PAN: {client.pan || '-'}</p>
-                                <p className='text-xs text-gray-500'>Source: {client.source || '-'}</p>
-                              </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.leadCode || client.leadId || '-'}
                               </td>
                               <td className='px-6 py-4 text-sm'>
                                 <p className='text-gray-700 dark:text-gray-300'>{client.email}</p>
                                 <p className='text-xs text-gray-500'>{client.phone}</p>
                               </td>
                               <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.destination || '-'}
+                                {client.address || '-'}
                               </td>
                               <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.travelDate ? new Date(client.travelDate).toLocaleDateString() : '-'}
-                              </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.adultsCount || 0} Adults, {client.childrenCount || 0} Children
-                              </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.budget ? formatCurrency(client.budget, client.currency) : '-'}
-                              </td>
-                              <td className='px-6 py-4 text-sm'>
-                                <p className='text-gray-700 dark:text-gray-300'>{client.country || '-'}</p>
-                                <p className='text-xs text-gray-500'>{client.nationality || '-'}</p>
+                                {client.currency || '-'}
                               </td>
                               <td className='px-6 py-4 text-right'>
                                 <div className='flex justify-end gap-2'>
@@ -1970,7 +1944,7 @@ const FinanceSystem: React.FC = () => {
                                 {client.name}
                               </p>
                               <p className='text-xs text-gray-500'>
-                                Lead: {client.leadCode || client.leadId || '-'}
+                                PAN: {client.pan || '-'}
                               </p>
                             </div>
                             <div className='flex gap-1'>
@@ -2001,54 +1975,12 @@ const FinanceSystem: React.FC = () => {
                               <p className='text-gray-700 dark:text-gray-300'>{client.phone}</p>
                             </div>
                             <div>
-                              <p className='text-gray-500'>Destination</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.destination || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Travel Date</p>
-                              <p className='text-gray-700 dark:text-gray-300'>
-                                {client.travelDate ? new Date(client.travelDate).toLocaleDateString() : '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Travelers</p>
-                              <p className='text-gray-700 dark:text-gray-300'>
-                                {client.adultsCount || 0}A, {client.childrenCount || 0}C
-                              </p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Budget</p>
-                              <p className='text-gray-700 dark:text-gray-300'>
-                                {client.budget ? formatCurrency(client.budget, client.currency) : '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Country</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.country || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Nationality</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.nationality || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>PAN</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.pan || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Source</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.source || '-'}</p>
+                              <p className='text-gray-500'>Currency</p>
+                              <p className='text-gray-700 dark:text-gray-300'>{client.currency || '-'}</p>
                             </div>
                             <div className='col-span-2'>
                               <p className='text-gray-500'>Address</p>
                               <p className='text-gray-700 dark:text-gray-300'>{client.address || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Purpose</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.travelPurpose || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Currency</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.currency}</p>
                             </div>
                           </div>
                         </div>

@@ -19,6 +19,12 @@ import { paymentsApi } from "../../api/payments";
 import { quotationsApi } from "../../api/quotations";
 import { reportApiError } from "../../lib/notify";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
+import {
+  normalizeCurrencyCode,
+  pickFirstValidCurrencyCode,
+  pickLeadDisplayCurrencyCode,
+  pickQuotationDisplayCurrencyCode,
+} from "../../utils/quotationDisplayCurrency";
 
 // Types
 type DeadlineRiskLevel = "SAFE" | "D2_DUE" | "DEADLINE_DUE" | "OVERDUE";
@@ -1918,6 +1924,24 @@ const BookingDetailPage: React.FC = () => {
               return { ...prev, customerName: candidateCustomerName };
             });
           }
+
+          const leadRecord =
+            (quoteRecord as any)?.lead ??
+            (quoteRecord as any)?.relations?.lead ??
+            null;
+          const mergedClientCurrency = normalizeCurrencyCode(
+            pickFirstValidCurrencyCode(
+              pickQuotationDisplayCurrencyCode(quoteRecord),
+              pickLeadDisplayCurrencyCode(leadRecord),
+              resolvedBooking.clientCurrency,
+              resolvedBooking.supplierCurrency,
+            ),
+          );
+          setBooking((prev) => {
+            if (!prev) return prev;
+            if (mergedClientCurrency === prev.clientCurrency) return prev;
+            return { ...prev, clientCurrency: mergedClientCurrency };
+          });
         } catch {
           setQuotationDetails(null);
           setQuotationComponents([]);
@@ -2204,10 +2228,10 @@ const BookingDetailPage: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number, currency: string = "USD") => {
+  const formatCurrency = (amount: number, currency?: string) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency,
+      currency: currency ?? booking?.clientCurrency ?? "USD",
     }).format(amount);
   };
 
@@ -2519,11 +2543,23 @@ const BookingDetailPage: React.FC = () => {
   const quotationPricing = toRecord(
     quotationSnapshot.pricing ?? quotationBuilderSnapshot.pricing,
   );
+  const quotationClientFromRecord = quotationDetails
+    ? pickQuotationDisplayCurrencyCode(quotationDetails)
+    : null;
   const quotationSnapshotCurrency =
-    toTrimmedText(quotationSnapshot.currency) ||
-    toTrimmedText(quotationDetails?.supplierCurrency);
-  const quotationCurrency =
-    quotationSnapshotCurrency || booking?.clientCurrency || "INR";
+    pickFirstValidCurrencyCode(
+      quotationClientFromRecord,
+      toTrimmedText(quotationSnapshot.currency),
+      quotationDetails && typeof quotationDetails === "object" ?
+        (quotationDetails as Record<string, unknown>).supplierCurrency
+      : null,
+      quotationDetails && typeof quotationDetails === "object" ?
+        (quotationDetails as Record<string, unknown>).supplier_currency
+      : null,
+    ) ?? "";
+  const quotationCurrency = normalizeCurrencyCode(
+    quotationSnapshotCurrency || booking?.clientCurrency,
+  );
   const quotationItinerary = toRecordArray(
     quotationSnapshot.itineraryItems ?? quotationBuilderSnapshot.itineraryItems,
   );
@@ -2566,7 +2602,7 @@ const BookingDetailPage: React.FC = () => {
         formatDate(String(quotationSnapshot.validUntil))
       : undefined,
     packageType: toTrimmedText(quotationSnapshot.packageType) || undefined,
-    currency: quotationSnapshotCurrency || undefined,
+    currency: quotationCurrency || undefined,
   };
   const quotationPricingSummary = {
     supplierCost:
@@ -2966,7 +3002,7 @@ const BookingDetailPage: React.FC = () => {
                           <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
                             {formatCurrency(
                               booking.costAmount,
-                              booking.supplierCurrency,
+                              booking.clientCurrency,
                             )}
                           </p>
                         </div>
