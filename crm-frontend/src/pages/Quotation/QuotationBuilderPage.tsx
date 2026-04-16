@@ -5116,8 +5116,8 @@ const SummaryPanel = ({
         <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
           Financial Summary
         </p>
-        <div className='mt-3 space-y-3'>
-          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+        <div className='mt-3 space-y-8'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Supplier Cost</span>
             <input
               type='number'
@@ -5129,7 +5129,7 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Service Fee</span>
             <input
               type='number'
@@ -5144,7 +5144,7 @@ const SummaryPanel = ({
           <p className='-mt-1 break-words text-[11px] text-gray-500 dark:text-gray-400'>
             Manual {money(costs.serviceFee)} + Flight charge {money(flightServiceCharge)}
           </p>
-          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Apply GST</span>
             <select
               value={finance.gstEnabled ? 'yes' : 'no'}
@@ -5158,7 +5158,7 @@ const SummaryPanel = ({
             </select>
           </div>
           {finance.gstEnabled ? (
-            <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
               <span className='min-w-0 text-xs leading-snug text-gray-500'>GST %</span>
               <input
                 type='number'
@@ -5173,7 +5173,7 @@ const SummaryPanel = ({
               />
             </div>
           ) : null}
-          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Apply TCS</span>
             <select
               value={finance.tcsEnabled ? 'yes' : 'no'}
@@ -5187,7 +5187,7 @@ const SummaryPanel = ({
             </select>
           </div>
           {finance.tcsEnabled ? (
-            <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+            <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
               <span className='min-w-0 text-xs leading-snug text-gray-500'>TCS %</span>
               <input
                 type='number'
@@ -5215,13 +5215,13 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div> */}
-          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Effective Markup %</span>
             <div className='h-10 w-full min-w-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
               {effectiveMarkupPercent.toFixed(2)}
             </div>
           </div>
-          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Discount</span>
             <input
               type='number'
@@ -5233,7 +5233,7 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-2'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs font-medium leading-snug text-gray-500'>Profit (Auto)</span>
             <div className='h-10 min-w-0 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 overflow-hidden'>
               <span className='truncate block'>{money(Math.min(totalMarkup + addOnMarkup, 999999999999))}</span>
