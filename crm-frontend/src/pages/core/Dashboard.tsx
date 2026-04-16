@@ -379,7 +379,7 @@ const Dashboard: React.FC = () => {
                   ) : null}
                 </div>
                 <p className='mt-4 text-sm text-gray-500'>{k.title}</p>
-                <p className='mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100'>
+                <p className='mt-1 break-all text-xl font-semibold leading-tight text-gray-900 dark:text-gray-100'>
                   {k.value}
                 </p>
               </SurfaceCard>

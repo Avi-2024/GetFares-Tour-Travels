@@ -207,6 +207,17 @@ CREATE TABLE  landing_hero_sections (
   UNIQUE KEY ux_landing_hero_country_section (country, section_key)
 );
 
+-- Currency Rates Table
+CREATE TABLE IF NOT EXISTS currency_rates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  base_currency VARCHAR(3) NOT NULL DEFAULT 'AED',
+  rates JSON NOT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_base_currency (base_currency),
+  INDEX idx_updated_at (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 ALTER TABLE destinations ADD COLUMN  slug VARCHAR(180) NULL;
 ALTER TABLE destinations ADD COLUMN  description TEXT NULL;
 ALTER TABLE destinations ADD COLUMN  short_description TEXT NULL;
