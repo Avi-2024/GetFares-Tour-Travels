@@ -247,6 +247,7 @@ function createPaymentsService({ repository, logger, events, currencyService }) 
       verified_by: isVerified ? context.user?.id || null : null,
       verified_at: isVerified ? nowIso : null,
       paid_at: payload.paidAt || (isVerified ? nowIso : null),
+      notes: payload.notes?.trim() || null,
       updated_at: nowIso,
     };
   }
@@ -376,6 +377,9 @@ function createPaymentsService({ repository, logger, events, currencyService }) 
           ? new Date().toISOString()
           : null;
       }
+      if (payload.notes !== undefined) {
+        patch.notes = payload.notes?.trim() || null;
+      }
 
       patch.updated_at = new Date().toISOString();
 
@@ -419,6 +423,9 @@ function createPaymentsService({ repository, logger, events, currencyService }) 
       }
       if (payload.gatewayPaymentId !== undefined) {
         patch.gateway_payment_id = payload.gatewayPaymentId || null;
+      }
+      if (payload.notes !== undefined) {
+        patch.notes = payload.notes?.trim() || null;
       }
 
       const updated = await repository.update(id, patch);

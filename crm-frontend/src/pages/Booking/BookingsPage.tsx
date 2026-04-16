@@ -936,9 +936,13 @@ const CreateBookingModal = ({
               <input
                 type="text"
                 value={formData.customer}
-                onChange={(e) =>
-                  setFormData({ ...formData, customer: e.target.value })
-                }
+                onChange={(e) =>{
+                  const value = e.target.value;
+                  const OnlyLetters = /^[A-Za-z\s]+$/;
+                  if (OnlyLetters.test(value) || value === "") {
+                    setFormData({ ...formData, customer: value });
+                  }
+                }}
                 className={`field-input ${
                   errors.customer ? "border-red-500" : ""
                 }`}
@@ -3260,9 +3264,9 @@ const BookingsPage: React.FC = () => {
                           >
                             {booking.payment}
                           </span>
-                          {(booking.payment === "partial" ||
+                          {/* {(booking.payment === "partial" ||
                             booking.payment === "unpaid") && (
-                            <button
+                            <button 
                               onClick={() => handleRecordPayment(booking)}
                               disabled={loading}
                               className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
@@ -3270,7 +3274,7 @@ const BookingsPage: React.FC = () => {
                             >
                               Pay
                             </button>
-                          )}
+                          )} */}
                         </div>
 	                        <p className="mt-1 text-xs text-gray-500">
 	                          {formatPaidVsTotal(
