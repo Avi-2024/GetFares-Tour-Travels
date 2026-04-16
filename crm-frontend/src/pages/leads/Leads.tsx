@@ -743,10 +743,10 @@ const Leads: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="w-full overflow-x-auto leads-table-scroll">
+              <div className="w-full  overflow-x-auto leads-table-scroll">
                 <table className=" w-full">
                   <colgroup>
-                    <col style={{ width: '100px' }} />
+                    <col style={{ width: '150px' }} />
                     <col style={{ width: '200px' }} />
                     <col style={{ width: '120px' }} />
                     <col style={{ width: '180px' }} />
@@ -757,7 +757,7 @@ const Leads: React.FC = () => {
                     <col style={{ width: '100px' }} />
                     <col style={{ width: '100px' }} />
                   </colgroup>
-                  <thead className="bg-gray-50 dark:bg-gray-800/50 sticky top-0 z-10">
+                  <thead className="bg-gray-50  dark:bg-gray-800/50 sticky top-0 z-10">
                     <tr>
                       <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Date
@@ -887,7 +887,7 @@ const Leads: React.FC = () => {
                             {lead.slaBreached ? "Breached" : lead.sla}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-right whitespace-nowrap">
+                        <td className="px-3 py-4 text-right  whitespace-nowrap">
                           <button
                             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800"
                             onClick={() => handleViewLead(lead)}
