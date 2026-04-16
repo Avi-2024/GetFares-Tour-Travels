@@ -1157,6 +1157,8 @@ const PaymentFormModal = ({
       id: transaction?.id || `tx-${Date.now()}`,
       createdAt: transaction?.createdAt || now,
       updatedAt: now,
+      invoiceFile,
+      proofFile,
       invoiceAttachment,
       proofAttachment,
     });
@@ -2568,17 +2570,59 @@ const Payments: React.FC = () => {
   const handleSaveEdit = async (data: any) => {
     if (!data?.id) return;
     try {
-      await paymentsApi.update(data.id, {
-        amount: toNumber(data.amount, 0),
-        paymentMode: mapTxModeToApi(data.mode),
-        paymentReference: data.paymentReference || undefined,
-        gatewayOrderId: data.gatewayOrderId || undefined,
-        gatewayPaymentId: data.gatewayPaymentId || undefined,
-        gatewaySignature: data.gatewaySignature || undefined,
-        proofUrl: data.proofUrl || undefined,
-        status: mapTxStatusToApi(data.status),
-        paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
-      });
+      const hasAttachment = Boolean(data.invoiceFile || data.proofFile);
+      if (hasAttachment) {
+        const formData = new FormData();
+        formData.append("amount", String(toNumber(data.amount, 0)));
+        formData.append("paymentMode", mapTxModeToApi(data.mode));
+        formData.append("status", mapTxStatusToApi(data.status));
+        if (data.paymentReference) {
+          formData.append("paymentReference", data.paymentReference);
+        }
+        if (data.gatewayOrderId) {
+          formData.append("gatewayOrderId", data.gatewayOrderId);
+        }
+        if (data.gatewayPaymentId) {
+          formData.append("gatewayPaymentId", data.gatewayPaymentId);
+        }
+        if (data.gatewaySignature) {
+          formData.append("gatewaySignature", data.gatewaySignature);
+        }
+        if (data.proofUrl) {
+          formData.append("proofUrl", data.proofUrl);
+        }
+        if (data.invoiceUrl) {
+          formData.append("invoiceUrl", data.invoiceUrl);
+        }
+        if (data.notes) {
+          formData.append("notes", data.notes);
+        }
+        const paidAt = toIsoDate(data.paidAt ?? data.date);
+        if (paidAt) {
+          formData.append("paidAt", paidAt);
+        }
+        if (data.proofFile) {
+          formData.append("proofFile", data.proofFile, data.proofFile.name);
+        }
+        if (data.invoiceFile) {
+          formData.append("invoiceFile", data.invoiceFile, data.invoiceFile.name);
+        }
+        await paymentsApi.update(data.id, formData);
+      } else {
+        await paymentsApi.update(data.id, {
+          amount: toNumber(data.amount, 0),
+          paymentMode: mapTxModeToApi(data.mode),
+          paymentReference: data.paymentReference || undefined,
+          gatewayOrderId: data.gatewayOrderId || undefined,
+          gatewayPaymentId: data.gatewayPaymentId || undefined,
+          gatewaySignature: data.gatewaySignature || undefined,
+          proofUrl: data.proofUrl || undefined,
+          invoiceUrl: data.invoiceUrl || undefined,
+          status: mapTxStatusToApi(data.status),
+          paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
+          notes: data.notes || undefined,
+        });
+      }
       let refreshedTx: Transaction | null = null;
       try {
         const res = await paymentsApi.getById(data.id);
@@ -2647,19 +2691,63 @@ const Payments: React.FC = () => {
 
   const handleAddPayment = async (data: any) => {
     try {
-      await paymentsApi.create({
-        bookingId: data.bookingId,
-        amount: toNumber(data.amount, 0),
-        paymentMode: mapTxModeToApi(data.mode),
-        paymentReference: data.paymentReference || undefined,
-        gatewayOrderId: data.gatewayOrderId || undefined,
-        gatewayPaymentId: data.gatewayPaymentId || undefined,
-        gatewaySignature: data.gatewaySignature || undefined,
-        proofUrl: data.proofUrl || undefined,
-        status: mapTxStatusToApi(data.status),
-        paidAt: toIsoDate(data.date) || undefined,
-        isVerified: data.status === "completed",
-      });
+      const hasAttachment = Boolean(data.invoiceFile || data.proofFile);
+      if (hasAttachment) {
+        const formData = new FormData();
+        formData.append("bookingId", data.bookingId);
+        formData.append("amount", String(toNumber(data.amount, 0)));
+        formData.append("paymentMode", mapTxModeToApi(data.mode));
+        formData.append("status", mapTxStatusToApi(data.status));
+        formData.append("isVerified", String(data.status === "completed"));
+        if (data.paymentReference) {
+          formData.append("paymentReference", data.paymentReference);
+        }
+        if (data.gatewayOrderId) {
+          formData.append("gatewayOrderId", data.gatewayOrderId);
+        }
+        if (data.gatewayPaymentId) {
+          formData.append("gatewayPaymentId", data.gatewayPaymentId);
+        }
+        if (data.gatewaySignature) {
+          formData.append("gatewaySignature", data.gatewaySignature);
+        }
+        if (data.proofUrl) {
+          formData.append("proofUrl", data.proofUrl);
+        }
+        if (data.invoiceUrl) {
+          formData.append("invoiceUrl", data.invoiceUrl);
+        }
+        if (data.notes) {
+          formData.append("notes", data.notes);
+        }
+        const paidAt = toIsoDate(data.date);
+        if (paidAt) {
+          formData.append("paidAt", paidAt);
+        }
+        if (data.proofFile) {
+          formData.append("proofFile", data.proofFile, data.proofFile.name);
+        }
+        if (data.invoiceFile) {
+          formData.append("invoiceFile", data.invoiceFile, data.invoiceFile.name);
+        }
+        await paymentsApi.create(formData);
+      } else {
+        await paymentsApi.create({
+          bookingId: data.bookingId,
+          amount: toNumber(data.amount, 0),
+          paymentMode: mapTxModeToApi(data.mode),
+          paymentReference: data.paymentReference || undefined,
+          gatewayOrderId: data.gatewayOrderId || undefined,
+          gatewayPaymentId: data.gatewayPaymentId || undefined,
+          gatewaySignature: data.gatewaySignature || undefined,
+          proofUrl: data.proofUrl || undefined,
+          invoiceUrl: data.invoiceUrl || undefined,
+          status: mapTxStatusToApi(data.status),
+          paidAt: toIsoDate(data.date) || undefined,
+          isVerified: data.status === "completed",
+          notes: data.notes || undefined,
+        });
+      }
       setShowAddPanel(false);
       showToast("Payment added successfully", "success");
       await fetchTransactions();
@@ -3176,6 +3264,41 @@ const Payments: React.FC = () => {
                     </p>
                   </div>
 
+                  <div className="flex flex-wrap gap-2">
+                    {tx.invoiceUrl ? (
+                      <a
+                        href={tx.invoiceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                      >
+                        <FaReceipt className="text-[10px]" />
+                        Invoice
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                        <FaReceipt className="text-[10px]" />
+                        No Invoice
+                      </span>
+                    )}
+                    {tx.proofUrl ? (
+                      <a
+                        href={tx.proofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      >
+                        <FaEye className="text-[10px]" />
+                        Proof
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                        <FaEye className="text-[10px]" />
+                        No Proof
+                      </span>
+                    )}
+                  </div>
+
                   {/* Actions */}
                   <div className="flex justify-end gap-2 pt-2">
                     <button
@@ -3227,6 +3350,9 @@ const Payments: React.FC = () => {
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Date
                     </th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Docs
+                    </th>
                     <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Actions
                     </th>
@@ -3275,6 +3401,42 @@ const Payments: React.FC = () => {
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
                         {tx.date}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {tx.invoiceUrl ? (
+                            <a
+                              href={tx.invoiceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                            >
+                              <FaReceipt className="text-[10px]" />
+                              Invoice
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                              <FaReceipt className="text-[10px]" />
+                              No Invoice
+                            </span>
+                          )}
+                          {tx.proofUrl ? (
+                            <a
+                              href={tx.proofUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300"
+                            >
+                              <FaEye className="text-[10px]" />
+                              Proof
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                              <FaEye className="text-[10px]" />
+                              No Proof
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-2">

@@ -509,7 +509,7 @@ const mapPaymentFromApi = (raw: any): Payment => {
   const statusRaw = String(raw?.status ?? "").toUpperCase();
   const isVerified = raw?.isVerified === true || raw?.is_verified === true;
   const status: Payment["status"] =
-    isVerified || statusRaw === "FULL" ? "completed"
+    isVerified ? "completed"
     : statusRaw === "REFUNDED" ? "failed"
     : "pending";
   return {
@@ -527,6 +527,7 @@ const mapPaymentFromApi = (raw: any): Payment => {
       undefined,
     proofUrl: raw?.proofUrl ?? raw?.proof_url ?? undefined,
     invoiceUrl: raw?.invoiceUrl ?? raw?.invoice_url ?? undefined,
+    notes: raw?.notes ?? undefined,
     status,
   };
 };
@@ -1031,6 +1032,11 @@ const PaymentDetailsModal = ({
                           Reference: {payment.reference}
                         </p>
                       )}
+                      {payment.notes && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                          <span className="font-medium">Notes:</span> {payment.notes}
+                        </p>
+                      )}
                     </div>
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
@@ -1175,29 +1181,7 @@ const AddPaymentModal = ({
       proofInputRef.current.value = "";
     }
   }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setFormData({
-      customer: booking?.customerName || "",
-      bookingId: booking?.bookingNumber || "",
-      amount: "",
-      mode: "bank",
-      referenceId: "",
-      status: "completed",
-      notes: "",
-    });
-    setErrors({});
-    clearInvoiceSelection();
-    clearProofSelection();
-  }, [isOpen, booking?.id, maxPayable, clearInvoiceSelection, clearProofSelection]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      clearInvoiceSelection();
-      clearProofSelection();
-    }
-  }, [isOpen, clearInvoiceSelection, clearProofSelection]);
+  if (!isOpen) return null;
 
   const handleInvoiceFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1911,6 +1895,29 @@ const BookingDetailPage: React.FC = () => {
             : null,
           );
           setQuotationComponents(toRecordArray(components));
+
+          // Backfill booking header name from quotation payload when booking API
+          // doesn't include a customerName field.
+          const candidateCustomerName = String(
+            (quoteRecord as any)?.customerName ??
+              (quoteRecord as any)?.customer_name ??
+              (quoteRecord as any)?.lead?.fullName ??
+              (quoteRecord as any)?.lead?.full_name ??
+              (quoteRecord as any)?.lead?.name ??
+              (quoteRecord as any)?.templateSnapshot?.customerName ??
+              (quoteRecord as any)?.template_snapshot?.customerName ??
+              (quoteRecord as any)?.templateSnapshot?.lead?.fullName ??
+              (quoteRecord as any)?.template_snapshot?.lead?.fullName ??
+              "",
+          ).trim();
+          if (candidateCustomerName) {
+            setBooking((prev) => {
+              if (!prev) return prev;
+              const prevName = String(prev.customerName || "").trim();
+              if (prevName && prevName !== "Unknown") return prev;
+              return { ...prev, customerName: candidateCustomerName };
+            });
+          }
         } catch {
           setQuotationDetails(null);
           setQuotationComponents([]);
@@ -2053,6 +2060,7 @@ const BookingDetailPage: React.FC = () => {
       apiStatus === "FULL" && remainingAfterPayment > 0 ? "PARTIAL" : apiStatus;
     const normalizedMode = mapPaymentModeToApi(payload.mode);
     const paymentReference = payload.referenceId?.trim() || undefined;
+    const notes = payload.notes?.trim() || undefined;
     const paidAt = isVerified ? new Date().toISOString() : undefined;
     const hasAttachment = Boolean(payload.invoiceFile || payload.proofFile);
     try {
@@ -2067,6 +2075,9 @@ const BookingDetailPage: React.FC = () => {
         formData.append("isVerified", String(isVerified));
         if (paymentReference) {
           formData.append("paymentReference", paymentReference);
+        }
+        if (notes) {
+          formData.append("notes", notes);
         }
         if (paidAt) {
           formData.append("paidAt", paidAt);
@@ -2093,6 +2104,7 @@ const BookingDetailPage: React.FC = () => {
           status: normalizedStatus,
           isVerified,
           paidAt,
+          notes,
         });
       }
       await fetchBookingData();
@@ -2813,16 +2825,18 @@ const BookingDetailPage: React.FC = () => {
         onClose={() => setAttachmentPreview(null)}
       />
 
-      <AddPaymentModal
-        isOpen={showAddPaymentModal}
-        booking={booking}
-        maxPayable={remainingPaymentAmount}
-        submitting={savingPayment}
-        onClose={() => setShowAddPaymentModal(false)}
-        onSubmit={(payload) => {
-          void handleAddPayment(payload);
-        }}
-      />
+      {showAddPaymentModal ? (
+        <AddPaymentModal
+          isOpen
+          booking={booking}
+          maxPayable={remainingPaymentAmount}
+          submitting={savingPayment}
+          onClose={() => setShowAddPaymentModal(false)}
+          onSubmit={(payload) => {
+            void handleAddPayment(payload);
+          }}
+        />
+      ) : null}
 
       <div className="max-w-7xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8">
         {/* Header */}

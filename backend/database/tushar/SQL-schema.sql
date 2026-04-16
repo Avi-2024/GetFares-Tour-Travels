@@ -2218,6 +2218,7 @@ CREATE INDEX idx_visa_details_dest_section_order ON visa_destination_details (vi
 --/ ===========================================================================
 
 CREATE INDEX idx_leads_destination_id ON leads(destination_id);
+CREATE INDEX idx_leads_lead_country ON leads(lead_country);
 
 CREATE INDEX idx_leads_campaign_id ON leads(campaign_id);
 

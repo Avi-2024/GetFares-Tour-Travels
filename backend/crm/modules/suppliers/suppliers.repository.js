@@ -153,6 +153,22 @@ function createSuppliersRepository({ db, logger, schema }) {
     return db.update(schema.tableName, id, sanitized);
   }
 
+  async function deleteById(id) {
+    logger.debug({ module: "suppliers", id }, "Deleting supplier");
+    const columns = await getTableColumns(schema.tableName);
+
+    if (columns === null || columns.has("is_deleted")) {
+      return update(id, { is_deleted: true });
+    }
+
+    if (canUseRawQuery()) {
+      await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+      return null;
+    }
+
+    return update(id, { isDeleted: true });
+  }
+
   async function findBookingById(bookingId) {
     if (!bookingId) {
       return null;
@@ -743,6 +759,7 @@ function createSuppliersRepository({ db, logger, schema }) {
     findById,
     create,
     update,
+    deleteById,
     findBookingById,
     findBookingsBySupplierId,
     findPayableById,

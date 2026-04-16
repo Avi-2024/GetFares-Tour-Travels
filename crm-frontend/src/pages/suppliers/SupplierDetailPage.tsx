@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FaArrowLeft, FaRotate, FaWallet, FaUsers, FaMoneyBill, FaCircleCheck, FaCircleXmark } from 'react-icons/fa6'
+import { FaArrowLeft, FaRotate, FaWallet, FaUsers, FaMoneyBill, FaCircleCheck, FaCircleXmark, FaTrash } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { suppliersApi } from '../../api/suppliers'
 import { reportApiError } from '../../lib/notify'
@@ -145,6 +145,7 @@ const SupplierDetailPage: React.FC = () => {
   const [supplier, setSupplier] = useState<Supplier | null>(null)
   const [payables, setPayables] = useState<SupplierPayable[]>([])
   const [bookings, setBookings] = useState<SupplierBooking[]>([])
+  const [deleting, setDeleting] = useState(false)
 
   const loadSupplier = async () => {
     if (!id) return
@@ -218,6 +219,20 @@ const SupplierDetailPage: React.FC = () => {
     void loadBookings()
   }, [id])
 
+  const handleDelete = async () => {
+    if (!id || !window.confirm('Are you sure you want to delete this supplier?')) return
+    setDeleting(true)
+    setError('')
+    try {
+      await suppliersApi.delete(id)
+      navigate('/suppliers')
+    } catch (err) {
+      reportApiError(err, 'Failed to delete supplier', setError)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const payableStats = {
     totalPayable: payables.reduce((sum, p) => sum + p.payableAmount, 0),
     totalPaid: payables.reduce((sum, p) => sum + p.paidAmount, 0),
@@ -278,9 +293,14 @@ const SupplierDetailPage: React.FC = () => {
             <p className='text-sm text-gray-500 dark:text-gray-400'>Supplier Details</p>
           </div>
         </div>
-        <button onClick={() => { void loadSupplier(); void loadPayables(); void loadBookings() }} className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'>
-          <FaRotate /> Refresh
-        </button>
+        <div className='flex gap-2'>
+          <button onClick={() => { void loadSupplier(); void loadPayables(); void loadBookings() }} className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'>
+            <FaRotate /> Refresh
+          </button>
+          <button onClick={handleDelete} disabled={deleting} className='inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300'>
+            <FaTrash /> Delete
+          </button>
+        </div>
       </div>
 
       {error && (

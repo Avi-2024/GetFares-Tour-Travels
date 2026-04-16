@@ -199,11 +199,18 @@ const processPayableDeadlineAlerts = z.object({
   query: z.object({}).optional(),
 });
 
+const deleteSupplier = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: uuid }),
+  query: z.object({}).optional(),
+});
+
 const SuppliersValidation = {
   create,
   update,
   byId,
   list,
+  deleteSupplier,
   createPayable,
   updatePayable,
   listPayables,

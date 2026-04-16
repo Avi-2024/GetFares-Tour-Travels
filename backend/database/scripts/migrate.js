@@ -3,14 +3,22 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
-import { Client as PostgresClient } from "pg";
 import mysql from "mysql2/promise";
+
+// Only import pg if needed
+let PostgresClient;
+try {
+  const pgModule = await import('pg');
+  PostgresClient = pgModule.Client;
+} catch {
+  // pg not installed, that's fine if we're using MySQL
+}
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const MIGRATIONS_DIR = path.resolve(__dirname, "../database/migrations");
+const MIGRATIONS_DIR = path.resolve(__dirname, "../migrations");
 
 function detectDatabaseClient() {
   const explicit = String(process.env.DATABASE_CLIENT || "")
@@ -145,10 +153,26 @@ function parseMySqlUrl(databaseUrl) {
 }
 
 function buildMysqlSslConfig() {
+  const mysqlSsl = String(process.env.MYSQL_SSL || "")
+    .trim()
+    .toLowerCase();
   const sslRejectUnauthorizedOverride =
     process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
   const sslCaInline = process.env.DATABASE_SSL_CA;
   const sslCaPath = process.env.DATABASE_SSL_CA_PATH;
+
+  // Check if SSL is explicitly enabled
+  if (["1", "true", "yes", "on"].includes(mysqlSsl)) {
+    return {
+      minVersion: "TLSv1.2",
+      rejectUnauthorized: false,
+    };
+  }
+
+  // Check if SSL is explicitly disabled
+  if (["0", "false", "no", "off"].includes(mysqlSsl)) {
+    return undefined;
+  }
 
   if (sslRejectUnauthorizedOverride === "false") {
     return { rejectUnauthorized: false };
@@ -210,6 +234,10 @@ function createMySqlConnectionConfig() {
 }
 
 async function runPostgresMigrations() {
+  if (!PostgresClient) {
+    throw new Error("PostgreSQL client (pg) is not installed. Run: npm install pg");
+  }
+  
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is required to run PostgreSQL migrations.");

@@ -165,11 +165,6 @@ function normalizeItineraryItems(items) {
     visa_details: normalizeText(content.visaDetails),
     payment_terms: normalizeText(content.paymentTerms),
     cancellation_policy: normalizeText(content.cancellationPolicy),
-    lead_country: normalizeText(content.leadCountry),
-    address_line: normalizeText(content.addressLine),
-    budget: toWholeNumber(content.budget, null),
-    travel_purpose: normalizeText(content.travelPurpose),
-    lead_source: normalizeText(content.leadSource),
     };
   }
 

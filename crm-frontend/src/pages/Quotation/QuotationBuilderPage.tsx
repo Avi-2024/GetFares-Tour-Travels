@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FaArrowLeft,
@@ -483,18 +483,7 @@ function getNumericOverrideError (
 }
 
 const initialItinerary: Item[] = [
-  {
-    id: '1',
-    day: 'Day 1',
-    title: 'Arrival & Transfer',
-    description: 'Private speedboat transfer from airport to resort.'
-  },
-  {
-    id: '2',
-    day: 'Day 2',
-    title: 'Lagoon Excursion',
-    description: 'Guided reef and lagoon experience with lunch.'
-  }
+ 
 ]
 
 type QuotationBuilderPageProps = {
@@ -742,7 +731,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const quotationTemplateOptions = useMemo(
     () => [
       // { value: "", label: "No template (manual quotation)" },
-      { value: 'CUSTOM', label: 'Custom Quotation' },
+      // Use empty value for custom/manual quotations.
+      // This keeps `templateId` undefined on save payload.
+      { value: '', label: 'Custom Quotation' },
       ...templates.map(template => ({
         value: template.id,
         label: `${template.code} - ${template.name}${
@@ -3122,11 +3113,112 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         return Math.min(hours, 720)
       })()
 
-      const validTemplateId = isUuid(selectedTemplateId)
+      const buildAutoTemplateCode = () => {
+        const stamp = Date.now().toString(36).toUpperCase()
+        const rand = Math.random().toString(36).slice(2, 6).toUpperCase()
+        return `AUTO-${stamp}-${rand}`.slice(0, 50)
+      }
+
+      const buildAutoTemplateName = () => {
+        const title = toTrimmedString(form.quotationTitle)
+        if (title) return title.slice(0, 150)
+        const destination = toTrimmedString(form.destination)
+        if (destination) return `Custom - ${destination}`.slice(0, 150)
+        return `Custom Quotation Template`.slice(0, 150)
+      }
+
+      let resolvedTemplateId: string | undefined = isUuid(selectedTemplateId)
         ? selectedTemplateId
         : undefined
+
+      // If "Custom Quotation" selected, auto-save it as a reusable template
+      // before saving quotation.
+      if (!isEditMode && !selectedTemplateId) {
+        const templatePayload = {
+          code: buildAutoTemplateCode(),
+          name: buildAutoTemplateName(),
+          templateType: 'CUSTOM_ITINERARY' as TemplateType,
+          minMarginPercent: 0,
+          isActive: true,
+          headerBranding: form.headerBranding?.trim() || undefined,
+          inclusions: form.inclusions?.trim() || undefined,
+          exclusions: form.exclusions?.trim() || undefined,
+          paymentTerms: form.paymentTerms?.trim() || undefined,
+          cancellationPolicy: form.cancellationPolicy?.trim() || undefined,
+          footerDisclaimer: form.footerDisclaimer?.trim() || undefined
+        }
+
+        try {
+          const created = await quotationsApi.createTemplate(templatePayload)
+          const createdTemplate =
+            unwrapApiData<Record<string, unknown>>(created) || {}
+          const createdTemplateId = toTrimmedString(
+            (createdTemplate as any).id ?? (createdTemplate as any).templateId
+          )
+          if (createdTemplateId) {
+            resolvedTemplateId = createdTemplateId
+            setSelectedTemplateId(createdTemplateId)
+            setTemplates(prev =>
+              prev.some(t => t.id === createdTemplateId)
+                ? prev
+                : [
+                    ...prev,
+                    {
+                      id: createdTemplateId,
+                      code: toTrimmedString((createdTemplate as any).code),
+                      name: toTrimmedString((createdTemplate as any).name),
+                      templateType:
+                        ((createdTemplate as any).templateType ??
+                          (createdTemplate as any).template_type ??
+                          'CUSTOM_ITINERARY') as TemplateType,
+                      isActive:
+                        (createdTemplate as any).isActive ??
+                        (createdTemplate as any).is_active ??
+                        true,
+                      minMarginPercent: toFiniteNumber(
+                        (createdTemplate as any).minMarginPercent ??
+                          (createdTemplate as any).min_margin_percent,
+                        0
+                      ),
+                      headerBranding: toTrimmedString(
+                        (createdTemplate as any).headerBranding ??
+                          (createdTemplate as any).header_branding
+                      ),
+                      inclusions: toTrimmedString(
+                        (createdTemplate as any).inclusions
+                      ),
+                      exclusions: toTrimmedString(
+                        (createdTemplate as any).exclusions
+                      ),
+                      paymentTerms: toTrimmedString(
+                        (createdTemplate as any).paymentTerms ??
+                          (createdTemplate as any).payment_terms
+                      ),
+                      cancellationPolicy: toTrimmedString(
+                        (createdTemplate as any).cancellationPolicy ??
+                          (createdTemplate as any).cancellation_policy
+                      ),
+                      footerDisclaimer: toTrimmedString(
+                        (createdTemplate as any).footerDisclaimer ??
+                          (createdTemplate as any).footer_disclaimer
+                      )
+                    }
+                  ]
+            )
+          }
+        } catch (error) {
+          console.error('Failed to auto-save custom template:', error)
+          reportApiError(
+            error,
+            'Failed to save quotation template for custom quotation.',
+            setSaveError
+          )
+          return
+        }
+      }
+
       const basePayload = {
-        ...(validTemplateId ? { templateId: validTemplateId } : {}),
+        ...(resolvedTemplateId ? { templateId: resolvedTemplateId } : {}),
         components,
         marginPercent: Number(costs.markupPercent) || 0,
         discount,
@@ -3314,9 +3406,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         disabled={templatesLoading}
                         searchPlaceholder='Search quotation template...'
                         onChange={nextId => {
-                          setSelectedTemplateId(nextId)
+                          // Backward-compat for older "CUSTOM" sentinel.
+                          const normalizedId = nextId === 'CUSTOM' ? '' : nextId
+                          setSelectedTemplateId(normalizedId)
                           const template =
-                            templates.find(item => item.id === nextId) || null
+                            templates.find(item => item.id === normalizedId) ||
+                            null
                           applyTemplateDefaults(template)
                         }}
                       />
@@ -4716,7 +4811,7 @@ const PricingTable = ({
               />
             ))}
           </div>
-          <div className='rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 dark:border-blue-800 dark:from-blue-900/20 dark:to-indigo-900/20'>
+          {/* <div className='rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 dark:border-blue-800 dark:from-blue-900/20 dark:to-indigo-900/20'>
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300'>
@@ -4739,7 +4834,7 @@ const PricingTable = ({
                 </p>
               </div>
             </div>
-          </div>
+          </div> */}
         </>
       )}
     </div>

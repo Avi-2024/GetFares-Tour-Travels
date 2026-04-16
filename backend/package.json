@@ -12,7 +12,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "lint": "node ./node_modules/eslint/bin/eslint.js .",
-    "db:migrate": "node scripts/migrate.js",
+    "db:migrate": "node database/scripts/migrate.js",
     "db:seed:dummy-followups": "node scripts/seed-dummy-followups.js",
     "db:clear": "node scripts/clear-db.js",
     "cms-seed": "node scripts/cms-seed.js",
@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "eslint": "^9.22.0",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "pg": "^8.20.0"
   }
 }

@@ -9,7 +9,8 @@ import {
   FaSort,
   FaChevronLeft,
   FaChevronRight,
-  FaXmark
+  FaXmark,
+  FaTrash
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { suppliersApi } from '../../api/suppliers'
@@ -191,6 +192,7 @@ const SuppliersPage: React.FC = () => {
   const [phoneCountryIso2, setPhoneCountryIso2] = useState<CountryIso2>(() =>
     detectLocaleCountryIso2()
   )
+  const [deletingSupplierId, setDeletingSupplierId] = useState<string>('')
 
 
   const phoneInputRef = useRef<PhoneInputRefType>(null)
@@ -359,6 +361,21 @@ const SuppliersPage: React.FC = () => {
     } else {
       setSortBy(field)
       setSortOrder('asc')
+    }
+  }
+
+  const handleDeleteSupplier = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this supplier?')) return
+    setDeletingSupplierId(id)
+    setError('')
+    try {
+      await suppliersApi.delete(id)
+      setSuppliers(prev => prev.filter(s => s.id !== id))
+      setNotice('Supplier deleted successfully')
+    } catch (err) {
+      reportApiError(err, 'Failed to delete supplier', setError)
+    } finally {
+      setDeletingSupplierId('')
     }
   }
 
@@ -774,6 +791,16 @@ const SuppliersPage: React.FC = () => {
                           className='inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
                         >
                           <FaPenToSquare /> Edit
+                        </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            handleDeleteSupplier(supplier.id)
+                          }}
+                          disabled={deletingSupplierId === supplier.id}
+                          className='inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300'
+                        >
+                          <FaTrash /> Delete
                         </button>
                       </div>
                     </td>

@@ -916,11 +916,7 @@ const CreateLead: React.FC = () => {
                 placeholder: 'Phone number'
               }}
             />
-            {form.phone && !fieldError('phone') ? (
-              <p className='mt-1 text-xs text-green-600 dark:text-green-400'>
-                Phone number format looks valid.
-              </p>
-            ) : null}
+           
           </div>
           <div>
             <label className='field-label'>Lead Country *</label>
