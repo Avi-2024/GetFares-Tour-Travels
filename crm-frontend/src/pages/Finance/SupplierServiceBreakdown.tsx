@@ -322,7 +322,17 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
     () => [
       { value: '', label: 'All Suppliers' },
       ...Array.from(
-        new Map(rows.filter(row => row.supplierId && row.supplierId !== 'UNASSIGNED').map(row => [row.supplierId, { value: row.supplierId, label: row.supplierName }])).values()
+        new Map(
+          rows
+            .filter(row => Boolean(row.supplierId))
+            .map(row => [
+              row.supplierId,
+              {
+                value: row.supplierId,
+                label: row.supplierId === 'UNASSIGNED' ? 'Supplier not assigned' : row.supplierName || 'Unknown Supplier'
+              }
+            ])
+        ).values()
       )
     ],
     [rows]
@@ -342,11 +352,12 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
   const groups = useMemo(() => {
     const map = new Map<string, Group>()
     filteredRows.forEach(row => {
-      if (!row.supplierId || row.supplierId === 'UNASSIGNED') return
-      if (!map.has(row.supplierId)) {
-        map.set(row.supplierId, {
-          supplierId: row.supplierId,
-          supplierName: row.supplierName || 'Unknown Supplier',
+      const supplierKey = row.supplierId && row.supplierId !== '' ? row.supplierId : 'UNASSIGNED'
+      if (!map.has(supplierKey)) {
+        map.set(supplierKey, {
+          supplierId: supplierKey,
+          supplierName:
+            supplierKey === 'UNASSIGNED' ? 'Supplier not assigned' : row.supplierName || 'Unknown Supplier',
           currency: row.currency || 'INR',
           serviceCount: 0,
           bookingCount: 0,
@@ -358,7 +369,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
           rows: []
         })
       }
-      const group = map.get(row.supplierId)!
+      const group = map.get(supplierKey)!
       group.rows.push(row)
       group.serviceCount += 1
       group.baseTotal += row.basePrice
@@ -651,7 +662,13 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
 
           <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
             {!groups.length ? (
-              <div className='p-6'><EmptyState title={loading ? 'Loading...' : 'No suppliers found'} description='No grouped supplier service data found for this filter.' icon={<FaBuilding className='text-4xl' />} /></div>
+              <div className='p-6'>
+                <EmptyState
+                  title={loading ? 'Loading...' : 'No suppliers found'}
+                  description='No report rows. Use MySQL/MSSQL backend; need quotations with bookings (not cancelled).'
+                  icon={<FaBuilding className='text-4xl' />}
+                />
+              </div>
             ) : (
               <div className='w-full max-w-full overflow-x-auto'>
                 <table className='w-full min-w-[980px]'>
@@ -775,7 +792,8 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                           {!payable ? (
                             <button
                               onClick={() => openCreateModal(row)}
-                              disabled={actionLoading}
+                              disabled={actionLoading || row.supplierId === 'UNASSIGNED'}
+                              title={row.supplierId === 'UNASSIGNED' ? 'Assign a supplier on the quote first' : undefined}
                               className='rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40'
                             >
                               Create Payable

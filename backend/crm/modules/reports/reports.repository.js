@@ -608,6 +608,7 @@ function createReportsRepository({ db, schema, logger }) {
             b.payment_status,
             COALESCE(b.advance_received, 0) AS advance_received,
             COALESCE(b.total_amount, 0) AS booking_total_amount,
+            COALESCE(b.cost_amount, 0) AS booking_cost_amount,
             COALESCE(
               NULLIF(TRIM(q.client_currency), ''),
               NULLIF(TRIM(q.cost_currency), ''),
@@ -617,12 +618,7 @@ function createReportsRepository({ db, schema, logger }) {
           FROM ${schema.quotationsTable} q
           INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
           ${whereSql}
-            AND COALESCE(b.is_deleted, FALSE) = FALSE
-            AND (
-              UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) = 'CONFIRMED'
-              OR COALESCE(b.advance_received, 0) > 0
-              OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
-            )
+            AND UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) <> 'CANCELLED'
           ORDER BY q.created_at DESC, q.quote_number ASC
         `,
         params,
@@ -712,10 +708,12 @@ function createReportsRepository({ db, schema, logger }) {
           normalizeText(snapshot.trip_destination) ||
           "N/A";
         const bookingTotalAmount = toNumber(row.booking_total_amount, 0);
+        const bookingCostAmount = toNumber(row.booking_cost_amount, 0);
         const bookingCurrency =
           normalizeText(row.booking_client_currency) || currency;
 
-        serviceRows.forEach((service, index) => {
+        const pushFinanceRow = (service, index, options = {}) => {
+          const synthetic = Boolean(options.synthetic);
           const supplierId =
             normalizeText(service?.supplierId) ||
             normalizeText(supplierDetails?.supplierId) ||
@@ -723,9 +721,15 @@ function createReportsRepository({ db, schema, logger }) {
           if (filters.supplierId && String(filters.supplierId).trim() !== supplierId) {
             return;
           }
+          const baseFromService = toNumber(service?.baseCost, 0);
+          const basePrice = synthetic
+            ? (bookingCostAmount > 0
+                ? bookingCostAmount
+                : bookingTotalAmount)
+            : baseFromService;
 
           allRows.push({
-            id: `${row.quotation_id}-${index}`,
+            id: `${row.quotation_id}-${index}${synthetic ? "-syn" : ""}`,
             quotationId: row.quotation_id,
             bookingId: row.booking_id,
             bookingNumber: row.booking_number,
@@ -738,18 +742,30 @@ function createReportsRepository({ db, schema, logger }) {
             destination,
             bookingTotalAmount,
             bookingCurrency,
-            serviceLabel: deriveServiceLabel(service),
+            serviceLabel: synthetic
+              ? "Package / quotation (no line items in snapshot)"
+              : deriveServiceLabel(service),
             supplierId,
             supplierName:
               normalizeText(service?.supplierName) ||
               normalizeText(supplierDetails?.supplierName) ||
               "Not selected",
-            basePrice: toNumber(service?.baseCost, 0),
+            basePrice,
             currency,
             quotationStatus: row.quotation_status,
             createdAt: row.created_at,
           });
-        });
+        };
+
+        if (!serviceRows.length) {
+          pushFinanceRow({ baseCost: 0, supplierId: supplierDetails?.supplierId }, 0, {
+            synthetic: true,
+          });
+        } else {
+          serviceRows.forEach((service, index) => {
+            pushFinanceRow(service, index);
+          });
+        }
       });
 
       const totalItems = allRows.length;
