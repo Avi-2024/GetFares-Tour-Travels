@@ -194,7 +194,7 @@ const Header: React.FC<{
           <FaMagnifyingGlass className="pointer-events-none absolute left-3 top-3 text-xs text-gray-400" />
         </div>
       </div>
-      <div className="hidden lg:flex items-center gap-3">
+      <div className="hidden lg:flex items-center gap-3 m-5">
         <img
           alt="Tabby"
           className="h-6 w-auto object-contain"

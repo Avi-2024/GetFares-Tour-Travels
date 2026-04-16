@@ -746,16 +746,16 @@ const Leads: React.FC = () => {
               <div className="hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll">
                 <table className="min-w-[980px] w-full table-fixed">
                   <colgroup>
-                    <col className="w-[9%]" />
-                    <col className="w-[15%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[22%]" />
                     <col className="w-[8%]" />
                     <col className="w-[16%]" />
                     <col className="w-[11%]" />
                     <col className="w-[10%]" />
                     <col className="w-[10%]" />
                     <col className="w-[7%]" />
-                    <col className="w-[6%]" />
-                    <col className="w-[8%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[11%]" />
                   </colgroup>
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>

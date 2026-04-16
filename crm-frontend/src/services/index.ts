@@ -7,3 +7,5 @@ export * from "./complaintsService";
 export * from "./usersService";
 export * from "./notificationsService";
 export * from "./packagesService";
+export { currencyService } from "./currencyService";
+export type { CurrencyRate, CurrencyRatesResponse, ConvertResponse } from "./currencyService";

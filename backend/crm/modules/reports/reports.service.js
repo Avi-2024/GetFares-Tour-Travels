@@ -137,7 +137,11 @@ function createReportsService({ repository, logger }) {
         ...filters,
         userId: context.user?.id,
       };
-      return repository.getExecutiveKpis(enrichedFilters);
+      const result = await repository.getExecutiveKpis(enrichedFilters);
+      return {
+        ...result,
+        currency: String(result?.currency || "AED").toUpperCase(),
+      };
     },
 
     async conversionFunnel(filters = {}, context = {}) {

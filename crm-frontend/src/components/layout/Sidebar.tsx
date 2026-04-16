@@ -40,6 +40,7 @@ const sections = [
         to: "/quotations",
         icon: FaFileInvoiceDollar,
         permission: "quotations:read",
+        end: true,
       },
       {
         label: "Quotation Templates",
@@ -157,7 +158,7 @@ const Sidebar: React.FC<{
   return (
     <aside
       className={`flex h-full flex-col border-r border-gray-200 bg-white transition-all duration-300 dark:border-gray-700  dark:bg-gray-900 ${
-        collapsed ? "w-20" : "w-72"
+        collapsed ? "w-20" : "w-64"
       }`}
     >
       <div className="flex h-16 items-center border-b border-gray-100 px-4 dark:border-gray-800">
@@ -207,6 +208,7 @@ const Sidebar: React.FC<{
                   <NavLink
                     key={item.label}
                     to={item.to}
+                    end={item.end}
                     onClick={onClose}
                     className={({ isActive }) =>
                       `flex rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${

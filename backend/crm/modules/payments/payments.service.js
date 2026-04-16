@@ -17,7 +17,7 @@ const PAYMENT_MODE_ALIASES = Object.freeze({
   GATEWAY: "PAYMENT_GATEWAY",
 });
 
-function createPaymentsService({ repository, logger, events }) {
+function createPaymentsService({ repository, logger, events, currencyService }) {
   function toNumber(value, fallback = 0) {
     if (value === null || value === undefined) {
       return fallback;
@@ -32,6 +32,80 @@ function createPaymentsService({ repository, logger, events }) {
       return "INR";
     }
     return String(value).trim().toUpperCase();
+  }
+
+  function roundAmount(value) {
+    return Number(toNumber(value, 0).toFixed(2));
+  }
+
+  async function convertRowsToCurrency(rows = [], targetCurrency) {
+    const normalizedTarget = normalizeCurrency(targetCurrency);
+    const convertedRows = await Promise.all(
+      rows.map(async (row) => {
+        const sourceCurrency = normalizeCurrency(row.currency);
+        const amount = toNumber(row.amount, 0);
+        const count = toNumber(row.count, 0);
+        if (
+          !currencyService ||
+          sourceCurrency === normalizedTarget ||
+          amount === 0
+        ) {
+          return {
+            currency: sourceCurrency,
+            amount: roundAmount(amount),
+            count,
+            convertedAmount: roundAmount(amount),
+          };
+        }
+
+        try {
+          const converted = await currencyService.convert(
+            amount,
+            sourceCurrency,
+            normalizedTarget,
+          );
+          return {
+            currency: sourceCurrency,
+            amount: roundAmount(amount),
+            count,
+            convertedAmount: roundAmount(converted),
+          };
+        } catch (error) {
+          logger?.warn?.(
+            {
+              module: "payments",
+              sourceCurrency,
+              targetCurrency: normalizedTarget,
+              error: error.message,
+            },
+            "Currency conversion failed for payment stats row",
+          );
+          return {
+            currency: sourceCurrency,
+            amount: roundAmount(amount),
+            count,
+            convertedAmount: roundAmount(amount),
+          };
+        }
+      }),
+    );
+
+    const totalAmount = roundAmount(
+      convertedRows.reduce(
+        (sum, row) => sum + toNumber(row.convertedAmount, 0),
+        0,
+      ),
+    );
+    const totalCount = convertedRows.reduce(
+      (sum, row) => sum + toNumber(row.count, 0),
+      0,
+    );
+
+    return {
+      rows: convertedRows,
+      amount: totalAmount,
+      count: totalCount,
+    };
   }
 
   function normalizePaymentMode(value) {
@@ -190,12 +264,44 @@ function createPaymentsService({ repository, logger, events }) {
       return repository.findAll(filters);
     },
 
-    async stats(context = {}) {
+    async stats(filters = {}, context = {}) {
       logger.debug(
-        { module: "payments", requestId: context.requestId },
+        { module: "payments", requestId: context.requestId, filters },
         "Fetching payment stats",
       );
-      return repository.getStats();
+      const breakdown = await repository.getStatsBreakdown();
+      const targetCurrency = normalizeCurrency(
+        filters?.currency ||
+          filters?.targetCurrency ||
+          currencyService?.baseCurrency ||
+          "INR",
+      );
+
+      const [collected, outstanding, overdue, refunds] = await Promise.all([
+        convertRowsToCurrency(breakdown.collected, targetCurrency),
+        convertRowsToCurrency(breakdown.outstanding, targetCurrency),
+        convertRowsToCurrency(breakdown.overdue, targetCurrency),
+        convertRowsToCurrency(breakdown.refunds, targetCurrency),
+      ]);
+
+      return {
+        currency: targetCurrency,
+        baseCurrency: normalizeCurrency(currencyService?.baseCurrency || "INR"),
+        collectedAmount: collected.amount,
+        collectedCount: collected.count,
+        outstandingAmount: outstanding.amount,
+        outstandingCount: outstanding.count,
+        overdueAmount: overdue.amount,
+        overdueCount: overdue.count,
+        refundsAmount: refunds.amount,
+        refundsCount: refunds.count,
+        breakdown: {
+          collected: collected.rows,
+          outstanding: outstanding.rows,
+          overdue: overdue.rows,
+          refunds: refunds.rows,
+        },
+      };
     },
 
     getById,

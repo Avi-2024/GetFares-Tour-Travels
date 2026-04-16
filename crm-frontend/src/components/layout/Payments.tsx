@@ -25,6 +25,7 @@ import { FaEdit } from "react-icons/fa";
 import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
 import SearchableDropdown from "../ui/SearchableDropdown";
+import CurrencySelector from "../ui/CurrencySelector";
 import { paymentsApi } from "../../api/payments";
 import { bookingsApi } from "../../api/bookings";
 import { quotationsApi } from "../../api/quotations";
@@ -1869,6 +1870,8 @@ const Payments: React.FC = () => {
     type: "success",
   });
   const [stats, setStats] = useState({
+    currency: "AED",
+    baseCurrency: "AED",
     collectedAmount: 0,
     collectedCount: 0,
     outstandingAmount: 0,
@@ -1886,11 +1889,12 @@ const Payments: React.FC = () => {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState('AED');
 
   const pageSize = 15;
 
   const formatAmount = (value: number) =>
-    `$${Number(value || 0).toLocaleString()}`;
+    `${selectedCurrency} ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const modeOptions = useMemo(
     () => [
@@ -2467,13 +2471,15 @@ const Payments: React.FC = () => {
     }
   }, []);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (currencyCode: string) => {
     setStatsLoading(true);
     setStatsError("");
     try {
-      const res = await paymentsApi.stats();
+      const res = await paymentsApi.stats({ currency: currencyCode });
       const data = unwrapData<any>(res) ?? {};
       setStats({
+        currency: String(data?.currency || currencyCode || "AED").toUpperCase(),
+        baseCurrency: String(data?.baseCurrency || "AED").toUpperCase(),
         collectedAmount: Number(data?.collectedAmount ?? 0),
         collectedCount: Number(data?.collectedCount ?? 0),
         outstandingAmount: Number(data?.outstandingAmount ?? 0),
@@ -2493,8 +2499,11 @@ const Payments: React.FC = () => {
 
   useEffect(() => {
     void fetchTransactions();
-    void fetchStats();
-  }, [fetchStats, fetchTransactions]);
+  }, [fetchTransactions]);
+
+  useEffect(() => {
+    void fetchStats(selectedCurrency);
+  }, [fetchStats, selectedCurrency]);
 
   const handleViewDetails = async (tx: Transaction) => {
     setSelectedTransaction(tx);
@@ -2752,6 +2761,14 @@ const Payments: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+          <CurrencySelector
+            value={selectedCurrency}
+            onChange={setSelectedCurrency}
+            baseCurrency={stats.baseCurrency}
+          />
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Base: {stats.baseCurrency}
+          </span>
           <button
             onClick={() => navigate("/refunds")}
             className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -2771,9 +2788,7 @@ const Payments: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Collected"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.collectedAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(stats.collectedAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.collectedCount} payments`
           }
@@ -2781,9 +2796,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Outstanding"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.outstandingCount} pending`
           }
@@ -2791,9 +2804,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Overdue"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.overdueCount} invoices`
           }
@@ -2801,9 +2812,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Refunds"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.refundsAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(stats.refundsAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.refundsCount} processed`
           }

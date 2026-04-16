@@ -167,7 +167,7 @@ function normalizeItineraryItems(items) {
     cancellation_policy: normalizeText(content.cancellationPolicy),
     lead_country: normalizeText(content.leadCountry),
     address_line: normalizeText(content.addressLine),
-    budget: toFiniteNumber(content.budget, null),
+    budget: toWholeNumber(content.budget, null),
     travel_purpose: normalizeText(content.travelPurpose),
     lead_source: normalizeText(content.leadSource),
     };

@@ -130,6 +130,14 @@ const config = Object.freeze({
   uploads: {
     maxFileSizeMb: env.UPLOAD_MAX_SIZE_MB || 10,
   },
+  currency: {
+    apiKey: env.CURRENCY_API_KEY,
+    useMock: env.CURRENCY_USE_MOCK === 'true',
+    baseCurrency: env.CURRENCY_BASE,
+    supportedCurrencies: env.CURRENCY_SUPPORTED.split(",")
+      .map((currency) => String(currency || "").trim().toUpperCase())
+      .filter(Boolean),
+  },
 });
 
 export { config, env };

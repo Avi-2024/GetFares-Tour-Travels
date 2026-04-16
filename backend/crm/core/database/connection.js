@@ -506,7 +506,13 @@ function shouldUseMysqlTls(host, flag) {
   if (flag === false) {
     return false;
   }
-  return String(host || "").includes(".mysql.database.azure.com");
+  // Auto-detect Azure MySQL and other cloud providers that require SSL
+  const hostLower = String(host || "").toLowerCase();
+  return (
+    hostLower.includes(".mysql.database.azure.com") ||
+    hostLower.includes(".rds.amazonaws.com") ||
+    hostLower.includes(".db.ondigitalocean.com")
+  );
 }
 
 function createDatabaseConnection({ config, logger }) {
@@ -640,7 +646,13 @@ function createDatabaseConnection({ config, logger }) {
     if (shouldUseMysqlTls(mysqlHost, sslFlag)) {
       poolConfig.ssl = {
         minVersion: "TLSv1.2",
-        rejectUnauthorized: true,
+        rejectUnauthorized: false,
+      };
+    } else if (sslFlag === true) {
+      // Explicitly enable SSL when MYSQL_SSL is set to true
+      poolConfig.ssl = {
+        minVersion: "TLSv1.2",
+        rejectUnauthorized: false,
       };
     }
 

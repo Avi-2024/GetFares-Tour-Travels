@@ -814,7 +814,7 @@ const SuppliersPage: React.FC = () => {
       </SurfaceCard>
 
       {showCreateModal && (
-        <div className='fixed inset-0 z-50 bg-black/50 p-3 sm:p-4'>
+        <div className='fixed -inset-5 z-50 bg-black/50 p-3 sm:p-4'>
           <div className='mx-auto flex h-full w-full max-w-5xl items-center justify-center'>
             <div className='flex max-h-[94vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-900'>
               <div className='flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-6'>
@@ -884,6 +884,7 @@ const SuppliersPage: React.FC = () => {
                       onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
                       className='field-input'
                       placeholder='Enter email address'
+                      required
                     />
                   </div>
                   <div>
