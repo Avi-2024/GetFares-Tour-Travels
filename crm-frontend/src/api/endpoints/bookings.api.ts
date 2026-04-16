@@ -3,11 +3,27 @@ import { apiClient, withQuery } from '../core';
 export interface Booking {
   id: string;
   quotationId?: string;
-  customerId: string;
-  status: string;
+  leadId?: string;
+  leadName?: string | null;  // Lead name, populated from backend
+  bookingNumber?: string;
+  customerId?: string;
+  travelStartDate?: string;
+  travelEndDate?: string;
   totalAmount: number;
-  paidAmount: number;
+  costAmount?: number;
+  profitAmount?: number;
+  status: string;
+  paymentStatus?: string;
+  advanceRequired?: number;
+  advanceReceived?: number;
+  paidAmount?: number;  // Legacy field for compatibility
   createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
+  isApproved?: boolean;
+  isDeleted?: boolean;
+  supplierDetails?: Record<string, any>;
+  dmcDetails?: Record<string, any>;
 }
 
 export interface CreateBookingPayload {

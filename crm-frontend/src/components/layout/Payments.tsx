@@ -1544,8 +1544,8 @@ const DetailsModal = ({
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      // hour: "2-digit",
+      // minute: "2-digit",
     });
   };
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
@@ -1568,7 +1568,7 @@ const DetailsModal = ({
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Payment Details
+            Payment Details 
           </h3>
           <button
             onClick={onClose}
