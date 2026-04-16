@@ -158,7 +158,7 @@ const Sidebar: React.FC<{
   return (
     <aside
       className={`flex h-full flex-col border-r border-gray-200 bg-white transition-all duration-300 dark:border-gray-700  dark:bg-gray-900 ${
-        collapsed ? "w-20" : "w-72"
+        collapsed ? "w-20" : "w-64"
       }`}
     >
       <div className="flex h-16 items-center border-b border-gray-100 px-4 dark:border-gray-800">
