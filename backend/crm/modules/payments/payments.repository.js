@@ -80,6 +80,7 @@ function createPaymentsRepository({ db, logger, schema }) {
       verifiedBy: row.verified_by ?? row.verifiedBy ?? null,
       verifiedAt: toDate(row.verified_at ?? row.verifiedAt),
       paidAt: toDate(row.paid_at ?? row.paidAt),
+      notes: row.notes ?? row.note ?? null,
       createdAt: toDate(row.created_at ?? row.createdAt),
       updatedAt: toDate(row.updated_at ?? row.updatedAt),
     };

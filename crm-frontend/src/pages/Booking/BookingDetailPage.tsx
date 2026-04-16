@@ -89,6 +89,7 @@ interface Payment {
   date: string;
   mode: "cash" | "card" | "bank" | "gateway";
   reference?: string;
+  notes?: string;
   proofUrl?: string;
   invoiceUrl?: string;
   status: "pending" | "completed" | "failed";
@@ -1023,7 +1024,7 @@ const PaymentDetailsModal = ({
                         Payment Type: {getPaymentModeLabel(payment.mode)}
                       </p>
                       <p className="text-xs text-gray-600 dark:text-gray-400">
-                        Payment Date: {new Date(payment.date).toLocaleString()}
+                        Payment Date: {new Date(payment.date).toISOString().split('T')[0]}
                       </p>
                       {payment.reference && (
                         <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -2217,8 +2218,8 @@ const BookingDetailPage: React.FC = () => {
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      // hour: "2-digit",
+      // minute: "2-digit",
     });
   };
 
@@ -3531,6 +3532,11 @@ const BookingDetailPage: React.FC = () => {
                                 {payment.reference && (
                                   <p className="text-xs text-gray-500 dark:text-gray-400">
                                     Reference: {payment.reference}
+                                  </p>
+                                )}
+                                {payment.notes && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Notes: {payment.notes}
                                   </p>
                                 )}
                               </div>
