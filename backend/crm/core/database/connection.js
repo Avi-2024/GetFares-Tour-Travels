@@ -653,20 +653,13 @@ function createDatabaseConnection({ config, logger }) {
 
     const sslFlag = resolveMysqlSslFlag();
     console.log('[DEBUG] Final SSL flag:', sslFlag);
-    if (shouldUseMysqlTls(mysqlHost, sslFlag)) {
-      poolConfig.ssl = {
-        minVersion: "TLSv1.2",
-        rejectUnauthorized: false,
-      };
-      console.log('[DEBUG] SSL configuration added to pool config');
-      logger.info(
-        { mysqlHost, sslEnabled: true },
-        "MySQL SSL/TLS enabled for secure connection"
-      );
-    } else {
-      console.log('[DEBUG] SSL NOT enabled - this will cause connection errors if database requires SSL');
-    }
+    // ✅ FORCE SSL (no condition)
+poolConfig.ssl = {
+  minVersion: "TLSv1.2",
+  rejectUnauthorized: false,
+};
 
+console.log("[FIX] SSL FORCE ENABLED");
     logger.info(
       {
         mysqlHost,
