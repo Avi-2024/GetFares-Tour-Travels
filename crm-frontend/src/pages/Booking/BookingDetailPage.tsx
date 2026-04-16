@@ -1870,30 +1870,9 @@ const BookingDetailPage: React.FC = () => {
         const fallbackInvoiceUrl =
           (referenceKey && invoiceUrlByNumber.get(referenceKey)) ||
           (mappedInvoices.length === 1 ? mappedInvoices[0].pdfUrl : undefined);
-        
-        // Check multiple possible fields for invoice URL
-        const invoiceUrl = 
-          payment.invoiceUrl || 
-          row?.invoiceUrl || 
-          row?.invoice_url ||
-          row?.invoiceFile ||
-          row?.invoice_file ||
-          fallbackInvoiceUrl || 
-          undefined;
-        
-        // Also check for proof URL
-        const proofUrl = 
-          payment.proofUrl ||
-          row?.proofUrl ||
-          row?.proof_url ||
-          row?.proofFile ||
-          row?.proof_file ||
-          undefined;
-        
         return {
           ...payment,
-          invoiceUrl,
-          proofUrl,
+          invoiceUrl: payment.invoiceUrl || fallbackInvoiceUrl || undefined,
         };
       });
       const mappedHistory = buildHistory(
