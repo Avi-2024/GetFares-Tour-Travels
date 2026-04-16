@@ -118,7 +118,12 @@ const list = z.object({
 const stats = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: z.object({}).optional(),
+  query: z
+    .object({
+      currency: z.string().trim().min(3).max(10).optional(),
+      targetCurrency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
 });
 
 const PaymentsValidation = {

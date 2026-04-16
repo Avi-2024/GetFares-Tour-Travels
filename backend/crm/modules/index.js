@@ -60,6 +60,12 @@ function registerModules(app, dependencies) {
     },
   };
 
+  const currencyModule = registerCurrencyModule(app, featureDependencies);
+  mountedModules.currency = currencyModule;
+  if (currencyModule?.service) {
+    featureDependencies.services.currency = currencyModule.service;
+  }
+
   const featureFactories = [
     ["users", createUsersModule],
     ["leads", createLeadsModule],
@@ -136,9 +142,6 @@ function registerModules(app, dependencies) {
   const mailModule = createMailModule(featureDependencies);
   mountedModules.mail = mailModule;
   app.use("/api/mail", mailModule.routes);
-
-  const currencyModule = registerCurrencyModule(app, featureDependencies);
-  mountedModules.currency = currencyModule;
 
   return mountedModules;
 }

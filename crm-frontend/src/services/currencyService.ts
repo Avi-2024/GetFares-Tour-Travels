@@ -1,13 +1,32 @@
 import { apiRequest } from "../api/apiClient";
 
+export type CurrencyCode = "AED" | "USD" | "EUR" | "GBP" | "INR" | "SAR";
+
+export const SUPPORTED_CURRENCIES: CurrencyCode[] = [
+  "AED",
+  "USD",
+  "EUR",
+  "GBP",
+  "INR",
+  "SAR",
+];
+
 export interface CurrencyRate {
   code: string;
   value: number;
 }
 
 export interface CurrencyRatesResponse {
+  baseCurrency: string;
   rates: Record<string, CurrencyRate>;
-  source: 'cache' | 'api' | 'cache_fallback';
+  source:
+    | "api"
+    | "mock"
+    | "mock_fallback"
+    | "db_cache"
+    | "db_cache_fallback"
+    | "memory_cache"
+    | "memory_cache_fallback";
   updatedAt: string;
 }
 
@@ -18,40 +37,191 @@ export interface ConvertResponse {
   converted: number;
 }
 
-class CurrencyService {
-  private cache: CurrencyRatesResponse | null = null;
-  private cacheExpiry: number = 0;
+type BrowserCache = {
+  expiresAt: number;
+  payload: CurrencyRatesResponse;
+};
 
-  async getRates(): Promise<CurrencyRatesResponse> {
-    if (this.cache && Date.now() < this.cacheExpiry) {
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_KEY = "crm_currency_rates_cache_v1";
+
+class CurrencyService {
+  private cache: BrowserCache | null = null;
+
+  private normalizeCurrency(currency: string, fallback = "AED") {
+    const normalized = String(currency || "")
+      .trim()
+      .toUpperCase();
+    return normalized || fallback;
+  }
+
+  private roundCurrency(value: number): number {
+    return Number(Number(value || 0).toFixed(2));
+  }
+
+  private extractRateValue(rate: unknown): number | null {
+    if (typeof rate === "number" && Number.isFinite(rate) && rate > 0) {
+      return rate;
+    }
+    if (
+      rate &&
+      typeof rate === "object" &&
+      Number.isFinite((rate as CurrencyRate).value) &&
+      Number((rate as CurrencyRate).value) > 0
+    ) {
+      return Number((rate as CurrencyRate).value);
+    }
+    return null;
+  }
+
+  private readBrowserCache(): BrowserCache | null {
+    if (this.cache && Date.now() < this.cache.expiresAt) {
       return this.cache;
     }
+    if (typeof window === "undefined" || !window.sessionStorage) {
+      return null;
+    }
 
-    const response = await apiRequest<{ success: boolean; data: CurrencyRatesResponse }>('/api/currency/rates');
-    this.cache = response.data;
-    this.cacheExpiry = Date.now() + 60 * 60 * 1000; // 1 hour client cache
-    return this.cache;
+    try {
+      const raw = window.sessionStorage.getItem(CACHE_KEY);
+      if (!raw) {
+        return null;
+      }
+      const parsed = JSON.parse(raw) as BrowserCache;
+      if (!parsed?.payload || !parsed?.expiresAt) {
+        return null;
+      }
+      if (Date.now() >= Number(parsed.expiresAt)) {
+        window.sessionStorage.removeItem(CACHE_KEY);
+        return null;
+      }
+      this.cache = parsed;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeBrowserCache(payload: CurrencyRatesResponse) {
+    const entry: BrowserCache = {
+      expiresAt: Date.now() + CACHE_TTL_MS,
+      payload,
+    };
+    this.cache = entry;
+    if (typeof window === "undefined" || !window.sessionStorage) {
+      return;
+    }
+
+    try {
+      window.sessionStorage.setItem(CACHE_KEY, JSON.stringify(entry));
+    } catch {
+      // no-op if storage unavailable
+    }
+  }
+
+  async getRates(forceRefresh = false): Promise<CurrencyRatesResponse> {
+    if (!forceRefresh) {
+      const cached = this.readBrowserCache();
+      if (cached) {
+        return cached.payload;
+      }
+    }
+
+    const response = await apiRequest<{ success: boolean; data: CurrencyRatesResponse }>(
+      "/api/currency/rates",
+    );
+    const payload = response.data;
+    this.writeBrowserCache(payload);
+    return payload;
+  }
+
+  private convertWithRates(
+    amount: number,
+    from: string,
+    to: string,
+    rates: Record<string, CurrencyRate>,
+    baseCurrency: string,
+  ): number {
+    const normalizedFrom = this.normalizeCurrency(from);
+    const normalizedTo = this.normalizeCurrency(to);
+    if (normalizedFrom === normalizedTo) {
+      return this.roundCurrency(amount);
+    }
+
+    const normalizedBase = this.normalizeCurrency(baseCurrency, "AED");
+    const fromRate =
+      normalizedFrom === normalizedBase
+        ? 1
+        : this.extractRateValue(rates[normalizedFrom]);
+    const toRate =
+      normalizedTo === normalizedBase ? 1 : this.extractRateValue(rates[normalizedTo]);
+
+    if (!fromRate || !toRate) {
+      throw new Error("Unsupported currency conversion");
+    }
+
+    if (normalizedFrom === normalizedBase) {
+      return this.roundCurrency(amount * toRate);
+    }
+    if (normalizedTo === normalizedBase) {
+      return this.roundCurrency(amount / fromRate);
+    }
+    return this.roundCurrency((amount / fromRate) * toRate);
   }
 
   async convert(amount: number, from: string, to: string): Promise<number> {
-    const response = await apiRequest<{ success: boolean; data: ConvertResponse }>(
-      `/api/currency/convert?amount=${amount}&from=${from}&to=${to}`
-    );
-    return response.data.converted;
+    const amountNumber = Number(amount);
+    if (!Number.isFinite(amountNumber)) {
+      throw new Error("Amount must be a finite number");
+    }
+
+    const normalizedFrom = this.normalizeCurrency(from);
+    const normalizedTo = this.normalizeCurrency(to);
+    if (normalizedFrom === normalizedTo) {
+      return this.roundCurrency(amountNumber);
+    }
+
+    try {
+      const ratesPayload = await this.getRates();
+      return this.convertWithRates(
+        amountNumber,
+        normalizedFrom,
+        normalizedTo,
+        ratesPayload.rates,
+        ratesPayload.baseCurrency,
+      );
+    } catch {
+      const response = await apiRequest<{ success: boolean; data: ConvertResponse }>(
+        `/api/currency/convert?amount=${encodeURIComponent(
+          amountNumber,
+        )}&from=${encodeURIComponent(normalizedFrom)}&to=${encodeURIComponent(
+          normalizedTo,
+        )}`,
+      );
+      return this.roundCurrency(response.data.converted);
+    }
   }
 
-  async formatAmount(amount: number, currency: string): Promise<string> {
-    return new Intl.NumberFormat('en-AE', {
-      style: 'currency',
-      currency: currency,
+  formatAmount(amount: number, currency: string): string {
+    const normalizedCurrency = this.normalizeCurrency(currency);
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: normalizedCurrency,
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
+      maximumFractionDigits: 2,
+    }).format(Number(amount || 0));
   }
 
   clearCache(): void {
     this.cache = null;
-    this.cacheExpiry = 0;
+    if (typeof window === "undefined" || !window.sessionStorage) {
+      return;
+    }
+    try {
+      window.sessionStorage.removeItem(CACHE_KEY);
+    } catch {
+      // no-op
+    }
   }
 }
 

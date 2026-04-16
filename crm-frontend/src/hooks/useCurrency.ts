@@ -11,7 +11,7 @@ export const useCurrency = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await currencyService.getRates();
+      const data = await currencyService.getRates(false);
       setRates(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load currency rates');
@@ -32,8 +32,8 @@ export const useCurrency = () => {
     }
   };
 
-  const formatAmount = async (amount: number, currency: string): Promise<string> => {
-    return await currencyService.formatAmount(amount, currency);
+  const formatAmount = (amount: number, currency: string): string => {
+    return currencyService.formatAmount(amount, currency);
   };
 
   return {

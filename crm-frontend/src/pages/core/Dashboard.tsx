@@ -23,10 +23,11 @@ import {
   FaUserGroup
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
+import CurrencySelector from '../../components/ui/CurrencySelector'
 import { dashboardApi } from '../../api/dashboard'
 import { reportsApi } from '../../api/reports'
 import { useAuth } from '../../context/AuthContext'
-import { formatCurrency } from '../../utils/currency'
+import { useCurrency } from '../../hooks/useCurrency'
 
 // Type definitions
 interface DashboardStats {
@@ -63,7 +64,7 @@ const EMPTY_STATS: DashboardStats = {
   totalLeads: 0,
   totalLeadsChange: 0,
   revenue: 0,
-  currency: 'INR',
+  currency: 'AED',
   revenueChange: 0,
   pendingCalls: 0,
   pendingCallsChange: 0,
@@ -74,12 +75,15 @@ const colors = ['#2563eb', '#22c55e', '#a855f7', '#f59e0b']
 
 const Dashboard: React.FC = () => {
   const { token } = useAuth()
+  const { convert } = useCurrency()
   const [range, setRange] = useState<Range>('Week')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [selectedCurrency, setSelectedCurrency] = useState('AED')
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
     null
   )
+  const [convertedRevenue, setConvertedRevenue] = useState(0)
   const [statsLoaded, setStatsLoaded] = useState(false)
   const [revenueData, setRevenueData] =
     useState<Record<Range, RevenueData[]>>(EMPTY_REVENUE_DATA)
@@ -126,6 +130,33 @@ const Dashboard: React.FC = () => {
     }
     return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`
   }
+  // Convert revenue when currency changes
+  useEffect(() => {
+    const convertRevenue = async () => {
+      if (!dashboardStats) {
+        setConvertedRevenue(0)
+        return
+      }
+
+      const baseCurrency = dashboardStats.currency || 'AED'
+      
+      if (selectedCurrency === baseCurrency) {
+        setConvertedRevenue(dashboardStats.revenue)
+        return
+      }
+
+      try {
+        const converted = await convert(dashboardStats.revenue, baseCurrency, selectedCurrency)
+        setConvertedRevenue(converted)
+      } catch (error) {
+        console.error('Currency conversion failed:', error)
+        setConvertedRevenue(dashboardStats.revenue)
+      }
+    }
+
+    convertRevenue()
+  }, [dashboardStats, selectedCurrency, convert])
+
   // Load KPI stats and lead sources (not dependent on range)
   useEffect(() => {
     const loadStaticData = async () => {
@@ -151,7 +182,7 @@ const Dashboard: React.FC = () => {
             totalLeads: Number(executive.totalLeads || 0),
             totalLeadsChange: 0,
             revenue: Number(executive.revenue || 0),
-            currency: executive.currency || 'INR',
+            currency: executive.currency || 'AED',
             revenueChange: 0,
             pendingCalls,
             pendingCallsChange: 0,
@@ -283,8 +314,8 @@ const Dashboard: React.FC = () => {
       {
         title: 'Revenue',
         value: formatStatNumber(
-          dashboardStats.revenue,
-          num => formatCurrency(num, dashboardStats.currency || 'INR')
+          convertedRevenue,
+          num => `${selectedCurrency} ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         ),
         trend: `${dashboardStats.revenueChange >= 0 ? '+' : ''}${
           dashboardStats.revenueChange
@@ -314,7 +345,7 @@ const Dashboard: React.FC = () => {
         bg: 'bg-gray-100 text-gray-700'
       }
     ]
-  }, [dashboardStats, statsLoaded])
+  }, [dashboardStats, statsLoaded, convertedRevenue, selectedCurrency])
 
   return (
     <div className='space-y-6'>
@@ -328,13 +359,23 @@ const Dashboard: React.FC = () => {
           </p>
           {error && <p className='mt-1 text-sm text-red-500'>{error}</p>}
         </div>
-        <div className='flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
-          <FaCalendarDays className='text-blue-600' />{' '}
-          {new Date().toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })}
+        <div className='flex items-center gap-2'>
+          <div className='text-xs text-gray-500'>
+            Base: {dashboardStats?.currency || 'AED'}
+          </div>
+          <CurrencySelector
+            value={selectedCurrency}
+            onChange={setSelectedCurrency}
+            baseCurrency={dashboardStats?.currency || 'AED'}
+          />
+          <div className='flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
+            <FaCalendarDays className='text-blue-600' />{' '}
+            {new Date().toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}
+          </div>
         </div>
       </div>
 

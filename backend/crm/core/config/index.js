@@ -133,6 +133,10 @@ const config = Object.freeze({
   currency: {
     apiKey: env.CURRENCY_API_KEY,
     useMock: env.CURRENCY_USE_MOCK === 'true',
+    baseCurrency: env.CURRENCY_BASE,
+    supportedCurrencies: env.CURRENCY_SUPPORTED.split(",")
+      .map((currency) => String(currency || "").trim().toUpperCase())
+      .filter(Boolean),
   },
 });
 

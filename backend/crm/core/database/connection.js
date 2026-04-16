@@ -640,7 +640,7 @@ function createDatabaseConnection({ config, logger }) {
     if (shouldUseMysqlTls(mysqlHost, sslFlag)) {
       poolConfig.ssl = {
         minVersion: "TLSv1.2",
-        rejectUnauthorized: true,
+        rejectUnauthorized: false,
       };
     }
 

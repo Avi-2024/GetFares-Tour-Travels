@@ -6,15 +6,16 @@ class CurrencyController {
 
   getRates = async (req, res) => {
     try {
-      this.logger.info('Currency rates endpoint called');
       const result = await this.currencyService.getRates();
-      this.logger.info({ source: result.source }, 'Currency rates retrieved successfully');
       return res.status(200).json({ success: true, data: result });
     } catch (error) {
-      this.logger.error({ error: error.message, stack: error.stack }, 'Failed to get currency rates in controller');
+      this.logger.error(
+        { module: "currency", error: error.message, stack: error.stack },
+        "Failed to get currency rates",
+      );
       return res.status(500).json({
         success: false,
-        error: error.message || 'Failed to get currency rates'
+        error: error.message || "Failed to get currency rates",
       });
     }
   };
@@ -22,34 +23,45 @@ class CurrencyController {
   convert = async (req, res) => {
     try {
       const { amount, from, to } = req.query;
-      
+
       if (!amount || !from || !to) {
         return res.status(400).json({
           success: false,
-          error: 'Missing required parameters: amount, from, to'
+          error: "Missing required parameters: amount, from, to",
+        });
+      }
+
+      const amountNumber = Number(amount);
+      if (!Number.isFinite(amountNumber)) {
+        return res.status(400).json({
+          success: false,
+          error: "amount must be a finite number",
         });
       }
 
       const converted = await this.currencyService.convert(
-        parseFloat(amount),
+        amountNumber,
         from.toUpperCase(),
-        to.toUpperCase()
+        to.toUpperCase(),
       );
 
       return res.status(200).json({
         success: true,
         data: {
-          amount: parseFloat(amount),
+          amount: amountNumber,
           from: from.toUpperCase(),
           to: to.toUpperCase(),
-          converted: Math.round(converted * 100) / 100
-        }
+          converted: Number(converted.toFixed(2)),
+        },
       });
     } catch (error) {
-      this.logger.error({ error: error.message }, 'Failed to convert currency');
+      this.logger.error(
+        { module: "currency", error: error.message },
+        "Failed to convert currency",
+      );
       return res.status(500).json({
         success: false,
-        error: error.message || 'Failed to convert currency'
+        error: error.message || "Failed to convert currency",
       });
     }
   };
