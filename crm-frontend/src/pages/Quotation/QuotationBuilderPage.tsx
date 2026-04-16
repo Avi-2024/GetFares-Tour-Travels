@@ -4267,7 +4267,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
                   {quotationTitleDisplay || selectedPackageKindLabel ? (
                     <div className='mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3'>
-                      <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700'>
+                      <p className='mb-2 text-xs  font-semibold uppercase tracking-wide text-blue-700'>
                         Trip Snapshot
                       </p>
                       <div className='grid grid-cols-1 gap-2 text-xs text-blue-900 sm:grid-cols-3'>
@@ -5081,29 +5081,29 @@ const SummaryPanel = ({
   return (
     <div className='space-y-3'>
       <div className='rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900'>
-        <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+        <p className='text-xs font-semibold uppercase text-center tracking-wide text-gray-500'>
           Trip Snapshot
         </p>
         <div className='mt-2 space-y-1.5 text-xs text-gray-600 dark:text-gray-300'>
-          <div className='flex items-center justify-between'>
+          <div className='flex flex-col my-3 items-center justify-between'>
             <span>Destination</span>
             <span className='font-medium text-gray-800 dark:text-gray-100'>
               {form.destination || 'Not set'}
             </span>
           </div>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center flex-col pb-3 justify-between'>
             <span>Travel Date</span>
             <span className='font-medium text-gray-800 dark:text-gray-100'>
               {form.startDate || 'Not set'}
             </span>
           </div>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center flex-col pb-3 justify-between'>
             <span>Duration</span>
             <span className='font-medium text-gray-800 dark:text-gray-100'>
               {previewDurationLabel || 'N/A'}
             </span>
           </div>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center flex-col  justify-between'>
             <span>Travellers</span>
             <span className='font-medium text-gray-800 dark:text-gray-100'>
               {form.adults || 0}
@@ -5241,7 +5241,7 @@ const SummaryPanel = ({
           </div>
           <div className='space-y-1.5 overflow-hidden  rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5  text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
             <div className='flex min-w-0 flex-col items-center pb-5 justify-between gap-2'>
-              <span className='min-w-0'>Total Markup</span>
+              <span className='min-w-0 text-center'>Total Markup</span>
               <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(totalMarkup, 999999999999))}
               </span>
@@ -5265,14 +5265,14 @@ const SummaryPanel = ({
               </span>
             </div>
             <div className='flex min-w-0 items-center flex-col justify-between gap-2'>
-              <span className='min-w-0'>Tax Amount</span>
+              <span className='min-w-0 text-center'>Tax Amount</span>
               <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(taxes, 999999999999))}
               </span>
             </div>
           </div>
           <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
-            <p className='text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300'>
+            <p className='text-xs uppercase  text-center text-blue-700 dark:text-blue-300'>
               Total Sale Value
             </p>
             <p className='mt-1 text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-300 truncate'>
@@ -5283,7 +5283,7 @@ const SummaryPanel = ({
       </div>
 
       <div className='rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900'>
-        <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+        <p className='text-xs font-semibold text-center uppercase tracking-wide text-gray-500'>
           Itinerary Summary
         </p>
         <div className='mt-2 space-y-1.5 text-xs text-gray-600 dark:text-gray-300'>
