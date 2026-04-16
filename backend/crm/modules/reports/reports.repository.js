@@ -606,7 +606,14 @@ function createReportsRepository({ db, schema, logger }) {
             b.booking_number,
             b.status AS booking_status,
             b.payment_status,
-            COALESCE(b.advance_received, 0) AS advance_received
+            COALESCE(b.advance_received, 0) AS advance_received,
+            COALESCE(b.total_amount, 0) AS booking_total_amount,
+            COALESCE(
+              NULLIF(TRIM(q.client_currency), ''),
+              NULLIF(TRIM(q.cost_currency), ''),
+              NULLIF(TRIM(q.supplier_currency), ''),
+              'INR'
+            ) AS booking_client_currency
           FROM ${schema.quotationsTable} q
           INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
           ${whereSql}
@@ -692,6 +699,21 @@ function createReportsRepository({ db, schema, logger }) {
           normalizeText(row.cost_currency) ||
           normalizeText(row.supplier_currency) ||
           "INR";
+        const customerName =
+          normalizeText(snapshot.customerName) ||
+          normalizeText(snapshot.customer_name) ||
+          normalizeText(snapshot?.lead?.fullName) ||
+          normalizeText(snapshot?.lead?.full_name) ||
+          normalizeText(snapshot?.lead?.name) ||
+          leadName;
+        const destination =
+          normalizeText(snapshot.destination) ||
+          normalizeText(snapshot.tripDestination) ||
+          normalizeText(snapshot.trip_destination) ||
+          "N/A";
+        const bookingTotalAmount = toNumber(row.booking_total_amount, 0);
+        const bookingCurrency =
+          normalizeText(row.booking_client_currency) || currency;
 
         serviceRows.forEach((service, index) => {
           const supplierId =
@@ -712,6 +734,10 @@ function createReportsRepository({ db, schema, logger }) {
             advanceReceived: toNumber(row.advance_received, 0),
             quoteNumber,
             leadName,
+            customerName,
+            destination,
+            bookingTotalAmount,
+            bookingCurrency,
             serviceLabel: deriveServiceLabel(service),
             supplierId,
             supplierName:

@@ -2555,7 +2555,7 @@ const Payments: React.FC = () => {
       setShowVerifyModal(false);
       setSelectedTransaction(null);
       await fetchTransactions();
-      await fetchStats();
+      await fetchStats(selectedCurrency);
     } catch (err) {
       console.error("Failed to verify payment:", err);
       showToast(getApiErrorMessage(err, "Failed to verify payment"), "error");
@@ -2682,7 +2682,7 @@ const Payments: React.FC = () => {
       setSelectedTransaction(null);
       showToast("Payment updated successfully", "success");
       await fetchTransactions();
-      await fetchStats();
+      await fetchStats(selectedCurrency);
     } catch (err) {
       console.error("Failed to update payment:", err);
       showToast(getApiErrorMessage(err, "Failed to update payment"), "error");
@@ -2751,7 +2751,7 @@ const Payments: React.FC = () => {
       setShowAddPanel(false);
       showToast("Payment added successfully", "success");
       await fetchTransactions();
-      await fetchStats();
+      await fetchStats(selectedCurrency);
     } catch (err) {
       console.error("Failed to add payment:", err);
       showToast(getApiErrorMessage(err, "Failed to add payment"), "error");

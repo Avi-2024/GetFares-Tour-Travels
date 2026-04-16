@@ -4102,7 +4102,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     onUpdateField={updateServiceOverrideField}
                     onClearField={clearServiceOverrideField}
                     onCellKeyDown={focusNextPricingInput}
-                    totalSellValue={serviceChargesTotal}
                     suppliers={suppliers}
                     suppliersLoading={suppliersLoading}
                   />
@@ -4203,7 +4202,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   effectiveMarkupPercent={effectiveMarkupPercent}
                   subtotal={subtotal}
                   taxes={taxes}
-                  total={total}
                   totalMarkup={totalMarkupFromServices || computed.markupVal}
                   money={money}
                 />
@@ -4969,7 +4967,6 @@ const PricingTable = ({
   onClearField,
   onCellKeyDown,
   money,
-  totalSellValue,
   suppliers,
   suppliersLoading
 }: {
@@ -4985,7 +4982,6 @@ const PricingTable = ({
   onClearField: (rowKey: ServiceKey, field: PricingField) => void
   onCellKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
   money: (value: number) => string
-  totalSellValue: number
   suppliers: Array<{ id: string; name: string }>
   suppliersLoading: boolean
 }) => {
@@ -5302,7 +5298,6 @@ const SummaryPanel = ({
   effectiveMarkupPercent,
   subtotal,
   taxes,
-  total,
   totalMarkup,
   money
 }: {
@@ -5324,7 +5319,6 @@ const SummaryPanel = ({
   effectiveMarkupPercent: number
   subtotal: number
   taxes: number
-  total: number
   totalMarkup: number
   money: (value: number) => string
 }) => {

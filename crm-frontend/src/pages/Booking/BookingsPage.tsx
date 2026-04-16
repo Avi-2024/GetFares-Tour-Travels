@@ -2220,11 +2220,6 @@ const BookingsPage: React.FC = () => {
     }
   };
 
-  const handleRecordPayment = (booking: Booking) => {
-    setSelectedBooking(booking);
-    setShowPaymentModal(true);
-  };
-
   const handlePaymentSubmit = async (
     bookingId: string,
     paymentData: PaymentData,
