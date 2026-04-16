@@ -805,6 +805,8 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [mobileRoleFilter, setMobileRoleFilter] = useState('all')
   const [mobileStatusFilter, setMobileStatusFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [toast, setToast] = useState<{
     show: boolean
     message: string
@@ -1077,6 +1079,15 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
         .includes(search.toLowerCase())
   )
 
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search])
+
   if (loading) {
     return (
       <div
@@ -1327,7 +1338,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
                 </tr>
               </thead>
               <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                {filteredUsers.map(user => (
+                {paginatedUsers.map(user => (
                   <tr
                     key={user.id}
                     className='hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-colors'
@@ -1406,7 +1417,7 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
 
         {/* Users Cards - Mobile */}
         <div className='sm:hidden space-y-3'>
-          {filteredUsers.map(user => (
+          {paginatedUsers.map(user => (
             <div
               key={user.id}
               className='bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 space-y-3'
@@ -1493,6 +1504,77 @@ const UsersPage: React.FC<UsersPageProps> = ({ embedded = false }) => {
             </div>
           ))}
         </div>
+
+        {/* Pagination */}
+        {filteredUsers.length > 0 && (
+          <div className='mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 px-4 py-3'>
+            <div className='flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400'>
+              <span>Show</span>
+              <select
+                value={itemsPerPage}
+                onChange={e => {
+                  setItemsPerPage(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className='px-2 py-1 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span>
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length}
+              </span>
+            </div>
+
+            <div className='flex items-center gap-2'>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className='px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+              >
+                Previous
+              </button>
+
+              <div className='flex items-center gap-1'>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => {
+                    if (totalPages <= 7) return true
+                    if (page === 1 || page === totalPages) return true
+                    if (page >= currentPage - 1 && page <= currentPage + 1) return true
+                    return false
+                  })
+                  .map((page, index, array) => (
+                    <React.Fragment key={page}>
+                      {index > 0 && array[index - 1] !== page - 1 && (
+                        <span className='px-2 text-gray-400'>...</span>
+                      )}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  ))}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className='px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <style>{`
