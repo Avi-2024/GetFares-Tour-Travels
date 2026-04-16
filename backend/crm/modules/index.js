@@ -88,7 +88,14 @@ function registerModules(app, dependencies) {
   ];
 
   featureFactories.forEach(([name, factory]) => {
-    const moduleInstance = factory({ dependencies: featureDependencies });
+    let moduleOptions = { dependencies: featureDependencies };
+    
+    // Pass leadsRepository to bookings module
+    if (name === "bookings" && mountedModules.leads?.repository) {
+      moduleOptions.leadsRepository = mountedModules.leads.repository;
+    }
+    
+    const moduleInstance = factory(moduleOptions);
     mountedModules[name] = moduleInstance;
     app.use(`/api/${name}`, moduleInstance.router);
     if (name === "leads" && moduleInstance.leadActivitiesRouter) {

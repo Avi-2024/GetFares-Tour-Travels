@@ -3554,13 +3554,14 @@ const BookingDetailPage: React.FC = () => {
                     </div>
 
                     {/* Recent Payments */}
-                    <div className="space-y-2">
-                      {payments.length === 0 ? (
+                    <div className="space-y-2 overflow-y-auto max-h-[calc(100vh-200px)] pr-2 scrollbar-hide">
+                      <SurfaceCard>
+                        {payments.length === 0 ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400 px-1 py-2">
                           No payments recorded yet.
                         </p>
                       ) : (
-                        payments.slice(0, 3).map((payment) => (
+                        payments.slice(0, 50).map((payment) => (
                           <div
                             key={payment.id}
                             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3"
@@ -3663,6 +3664,7 @@ const BookingDetailPage: React.FC = () => {
                           </div>
                         ))
                       )}
+                      </SurfaceCard>
                     </div>
                   </div>
                 )}
