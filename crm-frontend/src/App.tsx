@@ -61,7 +61,7 @@ function App() {
         {/* Dashboard Layout */}
         <Route element={<PermissionRoute />}>
           <Route element={<DashboardLayout />}>
-            <Route element={<PermissionRoute permission="reports:read" />}>
+            <Route element={<PermissionRoute roles={["admin", "super_admin"]} />}>
               <Route path="/dashboard" element={<Dashboard />} />
             </Route>
 

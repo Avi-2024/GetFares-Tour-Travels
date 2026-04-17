@@ -831,6 +831,11 @@ const Leads: React.FC = () => {
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               {formatPaxSummary(lead)}
                             </p>
+                            {lead.consultant && lead.consultant !== "Unassigned" && (
+                              <p className="text-xs text-gray-700 dark:text-gray-300">
+                                Assigned to: {lead.consultant}
+                              </p>
+                            )}
                             {lead.assignedBy && (
                               <p className="text-xs text-blue-600 dark:text-blue-400">
                                 Assigned by: {lead.assignedBy}
@@ -864,7 +869,7 @@ const Leads: React.FC = () => {
                             </p>
                           </div>
                         </td>
-                        <td className="px-3 py-4 align-top" title={lead.destination}>
+                        <td className="px-3 py-4 align-middle" title={lead.destination}>
                           <span className="line-clamp-2 break-words text-sm font-medium text-gray-800 dark:text-gray-200">
                             {lead.destination}
                           </span>
@@ -874,7 +879,7 @@ const Leads: React.FC = () => {
                             {getVisaHolidayLabel(lead)}
                           </span>
                         </td>
-                        <td className="px-3 py-4 align-top">
+                        <td className="px-3 py-4 align-middle">
                           <span className="line-clamp-2 break-words text-sm font-medium text-gray-700 dark:text-gray-300">
                             {lead.leadCountry || "-"}
                           </span>
@@ -937,6 +942,11 @@ const Leads: React.FC = () => {
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {formatPaxSummary(lead)}
                         </p>
+                        {lead.consultant && lead.consultant !== "Unassigned" && (
+                          <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
+                            Assigned to: {lead.consultant}
+                          </p>
+                        )}
                       
                         {lead.assignedBy && (
                           <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">

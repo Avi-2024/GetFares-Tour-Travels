@@ -321,6 +321,17 @@ const LeadDetails: React.FC = () => {
     return name || null
   }, [lead])
 
+  const assignedByName = useMemo(() => {
+    const name = String(
+      lead?.assignedByUser?.fullName ??
+        lead?.assigned_by_user?.full_name ??
+        lead?.assignedByName ??
+        lead?.assigned_by_name ??
+        ''
+    ).trim()
+    return name || null
+  }, [lead])
+
   const qualificationChildrenCount = useMemo(() => {
     const numericValue = Number(qualification.childrenCount || 0)
     if (!Number.isFinite(numericValue)) return 0
@@ -1351,6 +1362,14 @@ const LeadDetails: React.FC = () => {
                       {assignedLeadAgentName || 'Unassigned'}
                     </span>
                   </p>
+                  {assignedByName ? (
+                    <p className='mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-300'>
+                      Assigned By:{' '}
+                      <span className='text-gray-900 dark:text-gray-100'>
+                        {assignedByName}
+                      </span>
+                    </p>
+                  ) : null}
                   {lead.nationality ? (
                     <p className='mt-0.5 text-xs font-medium text-blue-600 dark:text-blue-400'>
                       Nationality: {lead.nationality}
