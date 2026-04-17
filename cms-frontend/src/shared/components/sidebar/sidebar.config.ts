@@ -2,9 +2,7 @@ import {
   Compass,
   FolderKanban,
   Globe2,
-  MapPinned,
   PackageSearch,
-  Rows3,
   Sparkles,
   WandSparkles,
 } from "lucide-react";
@@ -30,25 +28,18 @@ class SidebarConfig {
     ]),
     new SidebarSection("Packages", [
       new SidebarItem(
-        "published-packages",
-        "Packages",
-        "/cms/packages/published",
-        "All package inventory",
-        PackageSearch,
-      ),
-      new SidebarItem(
         "main-packages",
-        "Main Packages",
+        "Parent Package",
         "/cms/packages/main",
-        "Primary curated offers",
+        "Primary package records",
         FolderKanban,
       ),
       new SidebarItem(
         "sub-packages",
-        "Sub Packages",
+        "Package",
         "/cms/packages/sub",
-        "Nested itinerary units",
-        Rows3,
+        "Package variants",
+        PackageSearch,
       ),
     ]),
     new SidebarSection("Visa", [
@@ -67,13 +58,6 @@ class SidebarConfig {
         "/cms/creative-toolkit",
         "Brand assets and templates",
         WandSparkles,
-      ),
-      new SidebarItem(
-        "destination-map",
-        "Destination Map",
-        "/cms/destination-map",
-        "Geo preview and clusters",
-        MapPinned,
       ),
     ]),
     new SidebarSection("Deleted Objects", [

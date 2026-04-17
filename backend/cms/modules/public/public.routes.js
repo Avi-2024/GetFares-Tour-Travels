@@ -9,6 +9,9 @@ function createPublicCmsRoutes({ controller }) {
 
   router.route("/destinations").get(controller.listDestinations);
   router.route("/destinations/:slug").get(controller.getDestinationBySlug);
+  router
+    .route("/destinations/:slug/highlights")
+    .get(controller.getDestinationHighlightsBySlug);
   router.route("/destinations/:slug/media").get(controller.getDestinationMediaBySlug);
   router
     .route("/destinations/:slug/season-cards")

@@ -101,6 +101,14 @@ class CmsEntityFormCatalog {
     { label: "All Season", value: "all" },
   ];
 
+  private static currencyOptions: CmsFieldOption[] = [
+    { label: "INR", value: "INR" },
+    { label: "AED", value: "AED" },
+    { label: "USD", value: "USD" },
+    { label: "EUR", value: "EUR" },
+    { label: "GBP", value: "GBP" },
+  ];
+
   private static countryOptions: CmsFieldOption[] = [
     "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda",
     "Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain",
@@ -227,8 +235,8 @@ class CmsEntityFormCatalog {
         { key: "slug", label: "Slug", type: "text", required: true, groupKey: "basic", autoSlugSource: "name" },
         { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, required: true, groupKey: "basic" },
         { key: "region", label: "Region", type: "select", options: CmsEntityFormCatalog.destinationRegionOptions, required: true, groupKey: "basic" },
-        { key: "category", label: "Category", type: "select", options: CmsEntityFormCatalog.destinationCategoryOptions, required: true, groupKey: "basic" },
-        { key: "season", label: "Season Focus", type: "select", options: CmsEntityFormCatalog.destinationSeasonOptions, groupKey: "basic" },
+        { key: "categories", label: "Category", type: "multi-select", options: CmsEntityFormCatalog.destinationCategoryOptions, required: true, groupKey: "basic" },
+        { key: "seasonFocus", label: "Season Focus", type: "multi-select", options: CmsEntityFormCatalog.destinationSeasonOptions, groupKey: "basic" },
         { key: "rating", label: "Rating", type: "number", groupKey: "basic" },
         { key: "shortDescription", label: "Short Description", type: "textarea", groupKey: "content" },
         { key: "description", label: "Description", type: "textarea", required: true, groupKey: "content" },
@@ -475,10 +483,10 @@ class CmsEntityFormCatalog {
           label: "Destination",
           type: "searchable-select",
           relationSource: "destinations",
-          required: true,
           groupKey: "basic",
+          helperText: "Optional. Main package can exist without destination.",
         },
-        { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, required: true, groupKey: "basic" },
+        { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, groupKey: "basic" },
         {
           key: "features",
           label: "Features",
@@ -516,9 +524,9 @@ class CmsEntityFormCatalog {
       supportsCreate: true,
       supportsEdit: true,
       supportsDelete: true,
-      titleKey: "packageName",
+      titleKey: "title",
       subtitleKey: "duration",
-      descriptionKey: "duration",
+      descriptionKey: "description",
       mediaEnabled: false,
       groups: [
         {
@@ -588,7 +596,12 @@ class CmsEntityFormCatalog {
             { key: "day", label: "Day", type: "number" },
             { key: "title", label: "Title" },
             { key: "description", label: "Description", type: "textarea" },
-            { key: "features", label: "Features (JSON/Text)", type: "textarea" },
+            {
+              key: "features",
+              label: "Features (comma separated)",
+              type: "text",
+              placeholder: "feature 1, feature 2, feature 3",
+            },
           ],
         },
         { key: "highlights", label: "Highlights", type: "list-text", groupKey: "lists", addLabel: "Add Highlight" },
@@ -650,6 +663,8 @@ class CmsEntityFormCatalog {
         { key: "slug", label: "Slug", type: "text", required: true, groupKey: "basic", autoSlugSource: "title" },
         { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, required: true, groupKey: "basic" },
         { key: "imageUrl", label: "Image URL", type: "url", required: true, groupKey: "basic" },
+        { key: "priceCurrency", label: "Price Currency", type: "select", options: CmsEntityFormCatalog.currencyOptions, defaultValue: "INR", groupKey: "basic" },
+        { key: "priceAmount", label: "Price Amount", type: "number", groupKey: "basic" },
         { key: "subDescription", label: "Short Description", type: "textarea", groupKey: "basic" },
         {
           key: "highlights",

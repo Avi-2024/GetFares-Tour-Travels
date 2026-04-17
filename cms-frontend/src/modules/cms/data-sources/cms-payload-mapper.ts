@@ -18,6 +18,8 @@ class CmsPayloadMapper {
       };
     }
     if (sectionKey === "destinations") {
+      const categories = Array.isArray(payload.categories) ? payload.categories : [];
+      const seasonFocus = Array.isArray(payload.seasonFocus) ? payload.seasonFocus : [];
       return {
         name: payload.name,
         slug: payload.slug,
@@ -25,7 +27,8 @@ class CmsPayloadMapper {
         shortDescription: payload.shortDescription,
         country: payload.country,
         region: payload.region,
-        category: payload.category,
+        category: categories[0] ?? payload.category,
+        categories,
         rating: payload.rating,
         titleImageUrl: payload.titleImageUrl,
         heroImageUrl: payload.heroImageUrl,
@@ -35,7 +38,8 @@ class CmsPayloadMapper {
         bestTimeToVisit: payload.bestTimeToVisit,
         isPopular: payload.isPopular,
         isNew: payload.isNew,
-        season: payload.season,
+        season: seasonFocus[0] ?? payload.season,
+        seasonFocus,
         metaTitle: payload.metaTitle,
         metaDescription: payload.metaDescription,
         isActive: payload.isActive,
@@ -66,7 +70,6 @@ class CmsPayloadMapper {
     }
     if (sectionKey === "main-packages") {
       return {
-        packageId: payload.packageId,
         title: payload.title,
         amount: payload.amount,
         destinationId: payload.destinationId,
@@ -83,7 +86,6 @@ class CmsPayloadMapper {
     if (sectionKey === "sub-packages") {
       return {
         mainPackageId: payload.mainPackageId,
-        packageId: payload.packageId,
         title: payload.title,
         image: payload.image,
         rating: payload.rating,
@@ -116,6 +118,8 @@ class CmsPayloadMapper {
         slug: payload.slug,
         subDescription: payload.subDescription,
         imageUrl: payload.imageUrl,
+        priceCurrency: payload.priceCurrency,
+        priceAmount: payload.priceAmount,
         highlights: payload.highlights,
         overviewTitle: payload.overviewTitle,
         overviewDescription: payload.overviewDescription,

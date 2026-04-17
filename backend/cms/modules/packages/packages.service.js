@@ -41,6 +41,21 @@ function createCmsPackagesService({ repository }) {
       .filter((item) => Boolean(item));
   }
 
+  function normalizeCsvList(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => normalizeText(item))
+        .filter((item) => Boolean(item));
+    }
+    if (typeof value === "string") {
+      return value
+        .split(/[\n,]/g)
+        .map((item) => normalizeText(item))
+        .filter((item) => Boolean(item));
+    }
+    return [];
+  }
+
   function toPackage(row) {
     if (!row) return null;
     const galleryImageUrls = parseJsonValue(row.gallery_image_urls, []);
@@ -68,6 +83,7 @@ function createCmsPackagesService({ repository }) {
       publishToWebsite: row.publish_to_website,
       websiteSlug: row.website_slug,
       isSoldOut: row.is_sold_out,
+      mainPackageId: row.main_package_id || null,
       isDeleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -96,7 +112,6 @@ function createCmsPackagesService({ repository }) {
     });
     return {
       id: row.id,
-      packageId: row.package_id,
       destinationId: row.destination_id ?? null,
       country: row.country || row.destination_country || "",
       title: normalizeText(row.title || row.package_name || row.legacy_package_name),
@@ -156,9 +171,11 @@ function createCmsPackagesService({ repository }) {
     return {
       id: row.id,
       mainPackageId: row.main_package_id,
-      packageId: row.package_id,
-      title: normalizeText(row.title || row.package_name || row.legacy_package_name),
-      image: row.image || null,
+      packageId: row.id,
+      title: normalizeText(
+        row.title || row.name || row.package_name || row.legacy_package_name,
+      ),
+      image: row.image || row.banner_image_url || null,
       rating: toNumber(row.rating, 0) || 0,
       location: row.location || null,
       durationDays: toNumber(row.duration_days, 0) || 0,
@@ -438,15 +455,10 @@ function createCmsPackagesService({ repository }) {
 
     async createMainPackage(data) {
       const destinationId = normalizeText(data.destinationId);
-      if (!destinationId) {
-        throw new AppError(
-          400,
-          "Destination is required for main package",
-          "DESTINATION_REQUIRED",
-        );
-      }
-      const destination = await repository.findDestinationById(destinationId);
-      if (!destination) {
+      const destination = destinationId ?
+          await repository.findDestinationById(destinationId)
+        : null;
+      if (destinationId && !destination) {
         throw new AppError(404, "Destination not found", "DESTINATION_NOT_FOUND");
       }
       const title = normalizeText(data.title);
@@ -454,23 +466,60 @@ function createCmsPackagesService({ repository }) {
         throw new AppError(400, "Title is required", "TITLE_REQUIRED");
       }
 
-      const row = await repository.createMainPackage({
-        package_id: normalizeText(data.packageId) || null,
-        destination_id: destinationId,
-        country: normalizeText(data.country) || normalizeText(destination.country),
-        title,
-        amount: toNumber(data.amount, 0),
-        features: Array.isArray(data.features) ? data.features : [],
-        inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
-        meta_title: normalizeText(data.metaTitle),
-        meta_description: normalizeText(data.metaDescription),
-        keywords: normalizeText(data.keywords),
-        display_order: toNumber(data.displayOrder, 0),
-        is_featured: toBoolean(data.isFeatured, false),
-      });
+      let row;
+      try {
+        row = await repository.createMainPackage({
+          destination_id: destinationId || null,
+          country:
+            normalizeText(data.country) ||
+            normalizeText(destination?.country) ||
+            null,
+          title,
+          amount: toNumber(data.amount, 0),
+          features: Array.isArray(data.features) ? data.features : [],
+          inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
+          meta_title: normalizeText(data.metaTitle),
+          meta_description: normalizeText(data.metaDescription),
+          keywords: normalizeText(data.keywords),
+          display_order: toNumber(data.displayOrder, 0),
+          is_featured: toBoolean(data.isFeatured, false),
+        });
+      } catch (error) {
+        const message = String(error?.message || "");
+        if (
+          (/unknown column/i.test(message) || /does not exist/i.test(message)) &&
+          /(title|amount|features|inclusions)/i.test(message)
+        ) {
+          throw new AppError(
+            500,
+            "Schema mismatch: run update-2026-04-16.sql",
+            "SCHEMA_MISMATCH",
+          );
+        }
+        if (/package_id/i.test(message) && /cannot be null/i.test(message)) {
+          throw new AppError(
+            500,
+            "Schema mismatch: run update-2026-04-16.sql",
+            "SCHEMA_MISMATCH",
+          );
+        }
+        throw error;
+      }
 
       const withJoin = await repository.findMainPackageById(row.id);
-      return toMainPackage(withJoin || row);
+      const created = withJoin || row;
+      if (created?.package_id) {
+        await repository.updateLegacyPackageById(created.package_id, {
+          name: title,
+          starting_price: toNumber(data.amount, 0),
+          destination:
+            normalizeText(destination?.name) ||
+            normalizeText(data.country) ||
+            "Unknown",
+        });
+      }
+      const refreshed = await repository.findMainPackageById(row.id);
+      return toMainPackage(refreshed || created);
     },
 
     async updateMainPackage(id, data) {
@@ -532,7 +581,38 @@ function createCmsPackagesService({ repository }) {
       if (data.isFeatured !== undefined)
         updates.is_featured = toBoolean(data.isFeatured, false);
 
-      const updated = await repository.updateMainPackage(id, updates);
+      let updated;
+      try {
+        updated = await repository.updateMainPackage(id, updates);
+      } catch (error) {
+        const message = String(error?.message || "");
+        if (
+          (/unknown column/i.test(message) || /does not exist/i.test(message)) &&
+          /(title|amount|features|inclusions)/i.test(message)
+        ) {
+          throw new AppError(
+            500,
+            "Schema mismatch: run update-2026-04-16.sql",
+            "SCHEMA_MISMATCH",
+          );
+        }
+        throw error;
+      }
+      if (existing.package_id) {
+        const legacyUpdates = {};
+        if (updates.title !== undefined) {
+          legacyUpdates.name = updates.title;
+        }
+        if (updates.amount !== undefined) {
+          legacyUpdates.starting_price = updates.amount;
+        }
+        if (updates.country !== undefined) {
+          legacyUpdates.destination = updates.country;
+        }
+        if (Object.keys(legacyUpdates).length > 0) {
+          await repository.updateLegacyPackageById(existing.package_id, legacyUpdates);
+        }
+      }
       const withJoin = await repository.findMainPackageById(updated.id);
       return toMainPackage(withJoin || updated);
     },
@@ -608,19 +688,33 @@ function createCmsPackagesService({ repository }) {
         day: toNumber(item?.day, index + 1) || index + 1,
         title: normalizeText(item?.title),
         description: normalizeText(item?.description),
-        features: Array.isArray(item?.features) ? item.features : [],
+        features: normalizeCsvList(item?.features),
       }));
 
       const row = await repository.createSubPackage({
         main_package_id: data.mainPackageId,
-        package_id: normalizeText(data.packageId) || null,
+        name: title,
+        destination:
+          normalizeText(mainPackage.destination_name) ||
+          normalizeText(mainPackage.destination) ||
+          "--",
         title,
         image: normalizeText(data.image),
+        banner_image_url: normalizeText(data.image),
         rating: toNumber(data.rating, 0),
         location: normalizeText(data.location),
         duration_days: toNumber(data.durationDays, 0),
         duration_nights: toNumber(data.durationNights, 0),
-        duration: normalizeText(data.duration),
+        duration:
+          normalizeText(data.duration) ||
+          (() => {
+            const days = toNumber(data.durationDays, null);
+            const nights = toNumber(data.durationNights, null);
+            if (days === null || nights === null) {
+              return null;
+            }
+            return `${days}D/${nights}N`;
+          })(),
         starting_price: toNumber(data.startingPrice, 0),
         transport: normalizeText(data.transport),
         description: normalizeText(data.description),
@@ -639,6 +733,9 @@ function createCmsPackagesService({ repository }) {
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
         keywords: normalizeText(data.keywords),
+        package_category: "sub",
+        status: normalizeText(data.status || "DRAFT"),
+        publish_to_website: toBoolean(data.publishToWebsite, false),
         display_order: toNumber(data.displayOrder, 0),
       });
 
@@ -650,16 +747,34 @@ function createCmsPackagesService({ repository }) {
       if (!existing) {
         throw new AppError(404, "Sub package not found", "NOT_FOUND");
       }
+      if (!existing.main_package_id) {
+        throw new AppError(
+          400,
+          "Package is not linked with main package",
+          "INVALID_SUB_PACKAGE",
+        );
+      }
 
       const updates = {};
+      if (data.mainPackageId !== undefined) {
+        const mainPackage = await repository.findMainPackageById(data.mainPackageId);
+        if (!mainPackage) {
+          throw new AppError(404, "Main package not found", "NOT_FOUND");
+        }
+        updates.main_package_id = data.mainPackageId;
+      }
       if (data.title !== undefined) {
         const title = normalizeText(data.title);
         if (!title) {
           throw new AppError(400, "Title cannot be empty", "INVALID_TITLE");
         }
         updates.title = title;
+        updates.name = title;
       }
-      if (data.image !== undefined) updates.image = normalizeText(data.image);
+      if (data.image !== undefined) {
+        updates.image = normalizeText(data.image);
+        updates.banner_image_url = normalizeText(data.image);
+      }
       if (data.rating !== undefined) updates.rating = toNumber(data.rating, 0);
       if (data.location !== undefined) updates.location = normalizeText(data.location);
       if (data.durationDays !== undefined) {
@@ -686,7 +801,7 @@ function createCmsPackagesService({ repository }) {
           day: toNumber(item?.day, index + 1) || index + 1,
           title: normalizeText(item?.title),
           description: normalizeText(item?.description),
-          features: Array.isArray(item?.features) ? item.features : [],
+          features: normalizeCsvList(item?.features),
         }));
       }
       if (data.highlights !== undefined) {
@@ -729,6 +844,13 @@ function createCmsPackagesService({ repository }) {
       if (!existing) {
         throw new AppError(404, "Sub package not found", "NOT_FOUND");
       }
+      if (!existing.main_package_id) {
+        throw new AppError(
+          400,
+          "Package is not linked with main package",
+          "INVALID_SUB_PACKAGE",
+        );
+      }
 
       await repository.deleteSubPackage(id);
       return { success: true };
@@ -739,6 +861,13 @@ function createCmsPackagesService({ repository }) {
       if (!existing) {
         throw new AppError(404, "Sub package not found", "NOT_FOUND");
       }
+      if (!existing.main_package_id) {
+        throw new AppError(
+          400,
+          "Package is not linked with main package",
+          "INVALID_SUB_PACKAGE",
+        );
+      }
 
       await repository.hardDeleteSubPackage(id);
       return { success: true };
@@ -748,6 +877,13 @@ function createCmsPackagesService({ repository }) {
       const existing = await repository.findSubPackageById(id);
       if (!existing) {
         throw new AppError(404, "Sub package not found", "NOT_FOUND");
+      }
+      if (!existing.main_package_id) {
+        throw new AppError(
+          400,
+          "Package is not linked with main package",
+          "INVALID_SUB_PACKAGE",
+        );
       }
 
       await repository.restoreSubPackage(id);

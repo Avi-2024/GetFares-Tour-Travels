@@ -42,7 +42,6 @@ interface CmsEntityEditorModalState {
   mediaErrorMessage: string;
   mediaInfoMessage: string;
   slugTouched: boolean;
-  destinationPackageMapByMainId: Record<string, string>;
 }
 
 class CmsEntityEditorModalComponent extends Component<
@@ -74,7 +73,6 @@ class CmsEntityEditorModalComponent extends Component<
     mediaErrorMessage: "",
     mediaInfoMessage: "",
     slugTouched: false,
-    destinationPackageMapByMainId: {},
   };
 
   componentDidMount(): void {
@@ -234,7 +232,7 @@ class CmsEntityEditorModalComponent extends Component<
       const rows = await this.cmsService.listAdminMainPackages();
       return rows.map((item) => ({
         value: item.id,
-        label: item.row.cells.mainPackage?.value || item.id,
+        label: item.row.cells.title?.value || item.row.cells.mainPackage?.value || item.id,
       }));
     }
 
@@ -268,7 +266,7 @@ class CmsEntityEditorModalComponent extends Component<
     if (source === "main-packages") {
       return rows.map((item) => ({
         value: item.id,
-        label: item.row.cells.mainPackage?.value || item.id,
+        label: item.row.cells.title?.value || item.row.cells.mainPackage?.value || item.id,
       }));
     }
 
@@ -317,10 +315,42 @@ class CmsEntityEditorModalComponent extends Component<
 
     if (this.props.mode === "edit" && this.props.entry) {
       definition.fields.forEach((field) => {
-        const value = this.getRawValue(
+        let value = this.getRawValue(
           this.props.entry as CmsTableEntry,
           field.key,
         );
+        if (
+          value === undefined &&
+          this.props.sectionKey === "main-packages" &&
+          field.key === "title"
+        ) {
+          value = this.getRawValue(this.props.entry as CmsTableEntry, "packageName");
+          if (value === undefined) {
+            value = this.getRawValue(this.props.entry as CmsTableEntry, "package_name");
+          }
+          if (value === undefined) {
+            value = this.getRawValue(this.props.entry as CmsTableEntry, "name");
+          }
+        }
+        if (
+          value === undefined &&
+          this.props.sectionKey === "main-packages" &&
+          field.key === "amount"
+        ) {
+          value = this.getRawValue(this.props.entry as CmsTableEntry, "startingPrice");
+          if (value === undefined) {
+            value = this.getRawValue(
+              this.props.entry as CmsTableEntry,
+              "starting_price",
+            );
+          }
+        }
+        if (value === undefined && field.key === "categories") {
+          value = this.getRawValue(this.props.entry as CmsTableEntry, "category");
+        }
+        if (value === undefined && field.key === "seasonFocus") {
+          value = this.getRawValue(this.props.entry as CmsTableEntry, "season");
+        }
         if (value === undefined || value === null) {
           return;
         }
@@ -361,7 +391,6 @@ class CmsEntityEditorModalComponent extends Component<
       removedMediaIds: [],
       mediaErrorMessage: "",
       mediaInfoMessage: "",
-      destinationPackageMapByMainId: {},
       slugTouched: false,
     });
 
@@ -413,26 +442,6 @@ class CmsEntityEditorModalComponent extends Component<
   ): void => {
     this.setState((prev) => {
       const formValues = { ...prev.formValues, [field.key]: nextValue };
-      if (
-        this.props.sectionKey === "main-packages" &&
-        field.key === "packageId" &&
-        typeof nextValue === "string"
-      ) {
-        const packageOption = prev.relationOptions["published-packages"]?.find(
-          (option) => option.value === nextValue,
-        );
-        const destinationName =
-          (packageOption?.meta?.destinationName as string | undefined) || "";
-        if (destinationName) {
-          const destinationOption = prev.relationOptions.destinations?.find(
-            (option) =>
-              option.label.toLowerCase() === destinationName.toLowerCase(),
-          );
-          if (destinationOption) {
-            formValues.destinationId = destinationOption.value;
-          }
-        }
-      }
       if (!prev.slugTouched) {
         const slugField = CmsEntityFormCatalog.get(
           this.props.sectionKey,

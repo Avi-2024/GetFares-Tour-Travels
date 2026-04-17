@@ -167,8 +167,17 @@ class CmsSectionEntryMapper {
         id,
         raw: record,
         row: new CmsTableRow(id, {
-          mainPackage: new CmsTableCell(
-            this.accessor.getText(record, "title", "packageName", "name"),
+          title: new CmsTableCell(
+            this.accessor.getText(
+              record,
+              "title",
+              "packageName",
+              "package_name",
+              "name",
+            ),
+          ),
+          amount: new CmsTableCell(
+            this.accessor.getText(record, "amount", "startingPrice", "starting_price"),
           ),
           destination: new CmsTableCell(
             this.accessor.getText(
@@ -180,13 +189,13 @@ class CmsSectionEntryMapper {
               "destination_id",
             ),
           ),
-          featured: new CmsTableCell(
-            featured ? "Yes" : "No",
-            featured ? "success" : "warning",
+          country: new CmsTableCell(
+            this.accessor.getText(record, "country", "destination_country"),
           ),
           displayOrder: new CmsTableCell(`#${displayOrder}`),
-          updatedAt: new CmsTableCell(
-            this.accessor.getText(record, "updatedAt", "updated_at"),
+          featured: new CmsTableCell(
+            featured ? "T" : "F",
+            featured ? "success" : "warning",
           ),
         }),
         updatePath: `${basePath}/${id}`,
@@ -534,10 +543,14 @@ class CmsSectionEntryMapper {
         "discountedPrice",
         "discounted_price",
       );
-      const priceHook =
-        originalPrice !== null && discountedPrice !== null ?
-          `${originalPrice} -> ${discountedPrice}`
-        : this.accessor.getText(record, "priceHook", "price_hook", "duration");
+      const originalOffer =
+        originalPrice !== null ?
+          `${originalPrice}`
+        : this.accessor.getText(record, "originalPrice", "original_price");
+      const discountedOffer =
+        discountedPrice !== null ?
+          `${discountedPrice}`
+        : this.accessor.getText(record, "discountedPrice", "discounted_price");
 
       entries.push({
         id,
@@ -554,7 +567,14 @@ class CmsSectionEntryMapper {
               "reference_id",
             ),
           ),
-          priceHook: new CmsTableCell(priceHook),
+          originalOffer: new CmsTableCell(
+            originalOffer === "--" ? "--" : `Original: ${originalOffer}`,
+            originalOffer === "--" ? "default" : "warning",
+          ),
+          discountedOffer: new CmsTableCell(
+            discountedOffer === "--" ? "--" : `Discounted: ${discountedOffer}`,
+            discountedOffer === "--" ? "default" : "success",
+          ),
           badge: new CmsTableCell(
             this.accessor.getText(record, "badgeText", "badge_text"),
           ),

@@ -245,6 +245,8 @@ class CmsSectionFilterController {
     if (values.length === 0) {
       return false;
     }
+    const numericCount = values.filter((value) => this.isNumericLike(value)).length;
+    const numericRatio = numericCount / values.length;
     const parseableCount = values.filter((value) => this.parseDateValue(value)).length;
     if (parseableCount === 0) {
       return false;
@@ -260,6 +262,9 @@ class CmsSectionFilterController {
 
     if (hasDateToken) {
       return true;
+    }
+    if (numericRatio >= 0.7) {
+      return false;
     }
     return parseableCount / values.length >= 0.7;
   }
