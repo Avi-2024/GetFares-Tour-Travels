@@ -18,13 +18,13 @@ import {
 } from "react-icons/fa6";
 import { useAuth } from "../../context/AuthContext";
 
-const isAdminRole = (role?: string) => {
-  const normalized = String(role ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-  return normalized === "admin" || normalized === "super_admin";
-};
+// const isAdminRole = (role?: string) => {
+//   const normalized = String(role ?? "")
+//     .trim()
+//     .toLowerCase()
+//     .replace(/[\s-]+/g, "_");
+//   return normalized === "admin" || normalized === "super_admin";
+// };
 
 const sections = [
   {
