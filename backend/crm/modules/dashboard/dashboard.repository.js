@@ -34,6 +34,7 @@ class DashboardRepository {
       leads: 'leads',
       quotations: 'quotations',
       bookings: 'bookings',
+      payments: 'payments',
     };
     this.columnCache = new Map();
   }
@@ -137,7 +138,18 @@ class DashboardRepository {
 
   parseDate(value) {
     if (!value) return null;
-    const date = new Date(value);
+    if (typeof value === 'number') {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      return date;
+    }
+    const raw = String(value).trim();
+    // MySQL DATETIME often comes as "YYYY-MM-DD HH:mm:ss" (non-ISO). Normalize for stable parsing.
+    const normalized =
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+        ? raw.replace(' ', 'T')
+        : raw;
+    const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) return null;
     return date;
   }
@@ -178,6 +190,13 @@ class DashboardRepository {
         row?.supplier_currency ??
         row?.supplierCurrency ??
         "AED",
+      "AED",
+    );
+  }
+
+  getPaymentCurrency(row) {
+    return this.normalizeCurrency(
+      row?.currency ?? row?.client_currency ?? row?.clientCurrency ?? "AED",
       "AED",
     );
   }
@@ -226,6 +245,23 @@ class DashboardRepository {
       if (!predicate(row)) return;
       const currency = this.getBookingCurrency(row);
       const amount = this.getRevenueFromBooking(row);
+      byCurrency.set(currency, (byCurrency.get(currency) || 0) + amount);
+    });
+
+    let total = 0;
+    for (const [currency, sum] of byCurrency.entries()) {
+      total += await this.convertSumToBase(sum, currency, baseCurrency);
+    }
+    return total;
+  }
+
+  async sumBucketPaymentsInBase(rows, predicate, baseCurrency) {
+    const byCurrency = new Map();
+    rows.forEach((row) => {
+      if (!predicate(row)) return;
+      const currency = this.getPaymentCurrency(row);
+      const amount = this.toNumber(row?.amount ?? 0, 0);
+      if (!amount) return;
       byCurrency.set(currency, (byCurrency.get(currency) || 0) + amount);
     });
 
@@ -335,10 +371,21 @@ class DashboardRepository {
 
   async getRevenueFallback(range = 'week') {
     const normalizedRange = this.normalizeRange(range);
-    const bookings = await this.db.findMany(this.tables.bookings, {});
-    const rows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
-      const status = String(row.status || '').toUpperCase();
-      return status !== 'CANCELLED' && !this.isSoftDeleted(row);
+    const payments = await this.db.findMany(this.tables.payments, {});
+    const toBoolean = (value, fallback = false) => {
+      if (value === null || value === undefined) return fallback;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value === 1;
+      const normalized = String(value).trim().toLowerCase();
+      if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+      if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+      return Boolean(value);
+    };
+    const rows = (Array.isArray(payments) ? payments : []).filter((row) => {
+      const status = String(row?.status || 'PENDING').trim().toUpperCase();
+      const isVerified = toBoolean(row?.is_verified ?? row?.isVerified, false);
+      // Match finance stats: verified payments excluding refunded.
+      return isVerified && status !== 'REFUNDED' && !this.isSoftDeleted(row);
     });
     const baseCurrency = this.normalizeCurrency(
       this.currencyService?.baseCurrency || "AED",
@@ -386,11 +433,18 @@ class DashboardRepository {
       }
     }
 
-    const getCreatedAt = (row) => this.parseDate(row.created_at ?? row.createdAt);
+    const getCreatedAt = (row) =>
+      this.parseDate(
+        row?.paid_at ??
+          row?.paidAt ??
+          row?.date ??
+          row?.created_at ??
+          row?.createdAt,
+      );
 
     const results = [];
     for (const bucket of buckets) {
-      const revenue = await this.sumBucketRevenueInBase(
+      const revenue = await this.sumBucketPaymentsInBase(
         rows,
         (row) => {
           const created = getCreatedAt(row);
@@ -403,7 +457,7 @@ class DashboardRepository {
         baseCurrency,
       );
 
-      const last = await this.sumBucketRevenueInBase(
+      const last = await this.sumBucketPaymentsInBase(
         rows,
         (row) => {
           const created = getCreatedAt(row);
