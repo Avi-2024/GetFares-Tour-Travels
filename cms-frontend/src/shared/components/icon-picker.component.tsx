@@ -206,28 +206,22 @@ const IconPickerComponent = ({
               <selectedOption.icon size={14} />
             : <Plus size={14} />}
           </span>
-          <span>Add Icon</span>
+          <span>{selectedOption ? selectedOption.label : "Add Icon"}</span>
         </button>
         {selectedOption && (
-          <>
-            <span className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-(--surface) px-2 py-1 text-xs text-[var(--text-secondary)]">
-              <selectedOption.icon size={12} />
-              {selectedOption.label}
-            </span>
-            <button
-              type="button"
-              onClick={() => onChange("")}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
-              aria-label="Clear icon"
-            >
-              <X size={14} />
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
+            aria-label="Clear icon"
+          >
+            <X size={14} />
+          </button>
         )}
       </div>
 
       {isOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/45 p-3 sm:p-6">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/45 p-3 sm:p-6">
           <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-[var(--border)] bg-(--surface) shadow-[0_36px_110px_color-mix(in_srgb,var(--text-primary)_22%,transparent)]">
             <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3 sm:px-6">
               <h3 className="text-base font-semibold text-[var(--text-primary)]">

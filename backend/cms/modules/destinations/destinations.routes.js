@@ -36,13 +36,6 @@ function createDestinationsRoutes({ controller, upload }) {
     .delete(controller.deleteSeason);
   router.route("/:id/seasons/:seasonId/hard-delete").delete(controller.hardDeleteSeason);
 
-  router
-    .route("/:id/packages")
-    .get(controller.getPackages)
-    .post(controller.mapPackage);
-  router.route("/:id/packages/:mapId").delete(controller.unmapPackage);
-  router.route("/:id/packages/:mapId/hard-delete").delete(controller.hardUnmapPackage);
-
   return router;
 }
 

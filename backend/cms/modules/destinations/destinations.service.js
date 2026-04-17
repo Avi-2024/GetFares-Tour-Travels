@@ -31,6 +31,36 @@ function createDestinationsService({ repository }) {
       .filter((item) => Boolean(item));
   }
 
+  function normalizeStringOrList(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => normalizeText(item))
+        .filter((item) => Boolean(item));
+    }
+
+    if (typeof value === "string") {
+      const normalizedValue = value.trim();
+      if (!normalizedValue) {
+        return [];
+      }
+
+      const parsed = parseJsonValue(normalizedValue, null);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => normalizeText(item))
+          .filter((item) => Boolean(item));
+      }
+
+      return normalizedValue
+        .split(",")
+        .map((item) => normalizeText(item))
+        .filter((item) => Boolean(item));
+    }
+
+    const normalized = normalizeText(value);
+    return normalized ? [normalized] : [];
+  }
+
   function normalizeObjectList(value, mapper) {
     const parsed = parseJsonValue(value, []);
     if (!Array.isArray(parsed)) {
@@ -43,6 +73,12 @@ function createDestinationsService({ repository }) {
 
   function toDestination(row) {
     if (!row) return null;
+    const categories = normalizeStringOrList(
+      row.categories ?? row.category,
+    );
+    const seasonFocus = normalizeStringOrList(
+      row.season_focus ?? row.season,
+    );
     return {
       id: row.id,
       name: row.name,
@@ -51,7 +87,8 @@ function createDestinationsService({ repository }) {
       shortDescription: row.short_description,
       country: row.country,
       region: row.region,
-      category: row.category,
+      category: categories[0] || normalizeText(row.category),
+      categories,
       rating: parseFloat(row.rating) || 0,
       titleImageUrl: row.title_image_url || row.thumbnail_url || null,
       heroImageUrl: row.hero_image_url,
@@ -59,7 +96,8 @@ function createDestinationsService({ repository }) {
       isPopular: row.is_popular,
       isNew: row.is_new,
       travelType: row.travel_type,
-      season: row.season,
+      season: seasonFocus[0] || normalizeText(row.season),
+      seasonFocus,
       keyHighlights: normalizeStringList(row.key_highlights),
       services: normalizeObjectList(row.services, (item) => {
         if (!item || typeof item !== "object") {
@@ -177,6 +215,9 @@ function createDestinationsService({ repository }) {
         );
       }
 
+      const categories = normalizeStringOrList(data.categories ?? data.category);
+      const seasonFocus = normalizeStringOrList(data.seasonFocus ?? data.season);
+
       const row = await repository.create({
         name: normalizeText(data.name),
         slug,
@@ -184,7 +225,8 @@ function createDestinationsService({ repository }) {
         short_description: normalizeText(data.shortDescription),
         country,
         region: normalizeText(data.region),
-        category: normalizeText(data.category),
+        category: categories[0] || null,
+        categories,
         rating: (() => {
           const rating = toNumber(data.rating, null);
           if (rating !== null && (rating < 0 || rating > 5)) {
@@ -198,7 +240,8 @@ function createDestinationsService({ repository }) {
         is_popular: toBoolean(data.isPopular, false),
         is_new: toBoolean(data.isNew, false),
         travel_type: normalizeText(data.travelType),
-        season: normalizeText(data.season),
+        season: seasonFocus[0] || null,
+        season_focus: seasonFocus,
         key_highlights: Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
         services: Array.isArray(data.services) ? data.services : [],
         best_time_to_visit: Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
@@ -239,8 +282,11 @@ function createDestinationsService({ repository }) {
       }
       if (data.region !== undefined)
         updates.region = normalizeText(data.region);
-      if (data.category !== undefined)
-        updates.category = normalizeText(data.category);
+      if (data.category !== undefined || data.categories !== undefined) {
+        const categories = normalizeStringOrList(data.categories ?? data.category);
+        updates.category = categories[0] || null;
+        updates.categories = categories;
+      }
       if (data.rating !== undefined) {
         const rating = toNumber(data.rating);
         if (rating !== null && (rating < 0 || rating > 5)) {
@@ -261,8 +307,11 @@ function createDestinationsService({ repository }) {
       if (data.isNew !== undefined) updates.is_new = toBoolean(data.isNew, false);
       if (data.travelType !== undefined)
         updates.travel_type = normalizeText(data.travelType);
-      if (data.season !== undefined)
-        updates.season = normalizeText(data.season);
+      if (data.season !== undefined || data.seasonFocus !== undefined) {
+        const seasonFocus = normalizeStringOrList(data.seasonFocus ?? data.season);
+        updates.season = seasonFocus[0] || null;
+        updates.season_focus = seasonFocus;
+      }
       if (data.keyHighlights !== undefined) {
         updates.key_highlights = Array.isArray(data.keyHighlights)
           ? data.keyHighlights

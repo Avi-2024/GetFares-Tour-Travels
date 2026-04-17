@@ -40,6 +40,18 @@ function createVisaService({ repository }) {
       supportIncluded: supportList,
       visaDetails: Array.isArray(visaDetails) ? visaDetails : [],
       requirements: Array.isArray(requirements) ? requirements : [],
+      priceCurrency: row.price_currency || null,
+      priceAmount:
+        row.price_amount !== null && row.price_amount !== undefined ?
+          Number(row.price_amount)
+        : null,
+      price:
+        row.price_amount !== null && row.price_amount !== undefined ?
+          {
+            currency: row.price_currency || "INR",
+            amount: Number(row.price_amount),
+          }
+        : null,
       metaTitle: row.meta_title,
       metaDescription: row.meta_description,
       keywords: row.keywords,
@@ -137,6 +149,10 @@ function createVisaService({ repository }) {
         support_list: JSON.stringify(
           Array.isArray(data.supportIncluded) ? data.supportIncluded : [],
         ),
+        price_currency: normalizeText(
+          data.priceCurrency ?? data.price?.currency,
+        ),
+        price_amount: toNumber(data.priceAmount ?? data.price?.amount, null),
         highlights: JSON.stringify(Array.isArray(data.highlights) ? data.highlights : []),
         visa_details: JSON.stringify(Array.isArray(data.visaDetails) ? data.visaDetails : []),
         requirements: JSON.stringify(Array.isArray(data.requirements) ? data.requirements : []),
@@ -187,6 +203,12 @@ function createVisaService({ repository }) {
         updates.support_description = normalizeText(data.quickSupportDescription);
       if (data.supportIncluded !== undefined && Array.isArray(data.supportIncluded))
         updates.support_list = JSON.stringify(data.supportIncluded);
+      if (data.priceCurrency !== undefined || data.price?.currency !== undefined)
+        updates.price_currency = normalizeText(
+          data.priceCurrency ?? data.price?.currency,
+        );
+      if (data.priceAmount !== undefined || data.price?.amount !== undefined)
+        updates.price_amount = toNumber(data.priceAmount ?? data.price?.amount, null);
       if (data.highlights !== undefined && Array.isArray(data.highlights))
         updates.highlights = JSON.stringify(data.highlights);
       if (data.visaDetails !== undefined && Array.isArray(data.visaDetails))

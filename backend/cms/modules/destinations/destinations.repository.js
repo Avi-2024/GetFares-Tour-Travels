@@ -56,7 +56,10 @@ async function runWithColumnFallback(input, runner) {
       if (!missingColumn) {
         throw error;
       }
-      if (!(missingColumn in mutableInput) || removedColumns.has(missingColumn)) {
+      if (
+        !(missingColumn in mutableInput) ||
+        removedColumns.has(missingColumn)
+      ) {
         throw error;
       }
       delete mutableInput[missingColumn];
@@ -69,7 +72,8 @@ function createDestinationsRepository({ db, schema }) {
   return Object.freeze({
     async findAll(filters = {}) {
       const query = { ...filters };
-      const includeDeleted = query.includeDeleted === true || query.includeDeleted === "true";
+      const includeDeleted =
+        query.includeDeleted === true || query.includeDeleted === "true";
       if (query.includeDeleted !== undefined) {
         delete query.includeDeleted;
       }
@@ -86,7 +90,11 @@ function createDestinationsRepository({ db, schema }) {
         if (!missingColumn) {
           throw error;
         }
-        if (missingColumn === "is_deleted" && filters.is_deleted !== undefined && !includeDeleted) {
+        if (
+          missingColumn === "is_deleted" &&
+          filters.is_deleted !== undefined &&
+          !includeDeleted
+        ) {
           return [];
         }
         return runWithColumnFallback(query, (safeQuery) =>
@@ -110,7 +118,9 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async update(id, data) {
-      return db.update(schema.tableName, id, data);
+      return runWithColumnFallback(data, (safeData) =>
+        db.update(schema.tableName, id, safeData),
+      );
     },
 
     async delete(id) {
@@ -156,11 +166,14 @@ function createDestinationsRepository({ db, schema }) {
     },
 
     async findMedia(destinationId, filters = {}) {
-      return runWithColumnFallback({
-        destination_id: destinationId,
-        is_deleted: false,
-        ...filters,
-      }, (safeFilters) => db.findMany(schema.mediaTable, safeFilters));
+      return runWithColumnFallback(
+        {
+          destination_id: destinationId,
+          is_deleted: false,
+          ...filters,
+        },
+        (safeFilters) => db.findMany(schema.mediaTable, safeFilters),
+      );
     },
 
     async findMediaById(mediaId) {
@@ -189,7 +202,9 @@ function createDestinationsRepository({ db, schema }) {
         if (!isMissingColumnError(error)) {
           throw error;
         }
-        await db.query(`DELETE FROM ${schema.mediaTable} WHERE id = ?`, [mediaId]);
+        await db.query(`DELETE FROM ${schema.mediaTable} WHERE id = ?`, [
+          mediaId,
+        ]);
         return existing;
       }
     },
@@ -199,15 +214,20 @@ function createDestinationsRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.query(`DELETE FROM ${schema.mediaTable} WHERE id = ?`, [mediaId]);
+      await db.query(`DELETE FROM ${schema.mediaTable} WHERE id = ?`, [
+        mediaId,
+      ]);
       return existing;
     },
 
     async findSeasons(destinationId) {
-      return runWithColumnFallback({
-        destination_id: destinationId,
-        is_deleted: false,
-      }, (safeFilters) => db.findMany(schema.seasonsTable, safeFilters));
+      return runWithColumnFallback(
+        {
+          destination_id: destinationId,
+          is_deleted: false,
+        },
+        (safeFilters) => db.findMany(schema.seasonsTable, safeFilters),
+      );
     },
 
     async findSeasonById(seasonId) {
@@ -236,7 +256,9 @@ function createDestinationsRepository({ db, schema }) {
         if (!isMissingColumnError(error)) {
           throw error;
         }
-        await db.query(`DELETE FROM ${schema.seasonsTable} WHERE id = ?`, [seasonId]);
+        await db.query(`DELETE FROM ${schema.seasonsTable} WHERE id = ?`, [
+          seasonId,
+        ]);
         return existing;
       }
     },
@@ -246,45 +268,34 @@ function createDestinationsRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.query(`DELETE FROM ${schema.seasonsTable} WHERE id = ?`, [seasonId]);
+      await db.query(`DELETE FROM ${schema.seasonsTable} WHERE id = ?`, [
+        seasonId,
+      ]);
       return existing;
     },
 
     async findPackageMaps(destinationId) {
-      try {
-        const result = await db.query(
-          `SELECT dpm.*, mp.display_order as package_display_order, mp.is_featured,
-                  p.name, p.starting_price, p.duration, p.banner_image_url
-           FROM ${schema.packagesMapTable} dpm
-           JOIN ${schema.tableName} d ON dpm.destination_id = d.id
-           JOIN main_packages mp ON dpm.main_package_id = mp.id
-           JOIN packages p ON mp.package_id = p.id
-           WHERE dpm.destination_id = ?
-             AND p.publish_to_website = true
-             AND p.is_deleted = false
-             AND dpm.is_deleted = false
-             AND (mp.country IS NULL OR d.country IS NULL OR LOWER(mp.country) = LOWER(d.country))
-           ORDER BY dpm.display_order`,
-          [destinationId],
-        );
-        return result.rows;
-      } catch (error) {
-        if (!isMissingColumnError(error)) {
-          throw error;
-        }
-        const result = await db.query(
-          `SELECT dpm.*, mp.display_order as package_display_order, mp.is_featured,
-                  p.name, p.starting_price, p.duration, p.banner_image_url
-           FROM ${schema.packagesMapTable} dpm
-           JOIN main_packages mp ON dpm.main_package_id = mp.id
-           JOIN packages p ON mp.package_id = p.id
-           WHERE dpm.destination_id = ?
-             AND p.publish_to_website = true
-           ORDER BY dpm.display_order`,
-          [destinationId],
-        );
-        return result.rows;
-      }
+      const result = await db.query(
+        `SELECT 
+            COALESCE(p.id, mp.id) AS id,
+            mp.id AS main_package_id,
+            COALESCE(p.name, mp.title) AS name,
+            COALESCE(p.starting_price, mp.amount) AS starting_price,
+            p.duration,
+            p.banner_image_url,
+            COALESCE(p.display_order, mp.display_order, 0) AS display_order,
+            mp.is_featured
+         FROM main_packages mp
+         LEFT JOIN packages p
+           ON p.main_package_id = mp.id
+          AND p.is_deleted = false
+          AND p.publish_to_website = true
+         WHERE mp.destination_id = ?
+           AND mp.is_deleted = false
+         ORDER BY mp.display_order, p.display_order, p.created_at DESC`,
+        [destinationId],
+      );
+      return result.rows;
     },
 
     async createPackageMap(data) {
@@ -309,7 +320,9 @@ function createDestinationsRepository({ db, schema }) {
         if (!isMissingColumnError(error)) {
           throw error;
         }
-        await db.query(`DELETE FROM ${schema.packagesMapTable} WHERE id = ?`, [id]);
+        await db.query(`DELETE FROM ${schema.packagesMapTable} WHERE id = ?`, [
+          id,
+        ]);
         return existing;
       }
     },
@@ -319,7 +332,9 @@ function createDestinationsRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.query(`DELETE FROM ${schema.packagesMapTable} WHERE id = ?`, [id]);
+      await db.query(`DELETE FROM ${schema.packagesMapTable} WHERE id = ?`, [
+        id,
+      ]);
       return existing;
     },
   });
