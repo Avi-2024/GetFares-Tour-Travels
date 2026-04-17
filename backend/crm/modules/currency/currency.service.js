@@ -206,32 +206,51 @@ class CurrencyService {
         };
       }
 
-      throw error;
+      // Last-resort fallback so dashboards stay usable in production when
+      // upstream providers fail or env vars are missing.
+      const updatedAt = new Date().toISOString();
+      this.setMemoryCache(this.mockRates, updatedAt);
+      return {
+        baseCurrency: this.baseCurrency,
+        rates: this.mockRates,
+        source: "mock",
+        updatedAt,
+      };
     }
   }
 
   async fetchFromApi() {
-    if (this.apiKey) {
-      const response = await axios.get(this.apiUrl, {
-        params: {
-          apikey: this.apiKey,
-          base_currency: this.baseCurrency,
-          currencies: this.supportedCurrencies.join(","),
-        },
-        timeout: 10000,
-      });
-
-      const payload = response?.data?.data;
-      if (!payload || typeof payload !== "object") {
-        throw new Error("Currency API returned invalid payload");
-      }
-
-      return payload;
-    }
-
     const targets = this.supportedCurrencies.filter(
       (currency) => currency !== this.baseCurrency,
     );
+
+    // Primary provider: currencyapi.com (requires API key).
+    if (this.apiKey) {
+      try {
+        const response = await axios.get(this.apiUrl, {
+          params: {
+            apikey: this.apiKey,
+            base_currency: this.baseCurrency,
+            currencies: this.supportedCurrencies.join(","),
+          },
+          timeout: 10000,
+        });
+
+        const payload = response?.data?.data;
+        if (!payload || typeof payload !== "object") {
+          throw new Error("Currency API returned invalid payload");
+        }
+
+        return payload;
+      } catch (error) {
+        this.logger?.warn?.(
+          { module: "currency", error: error.message },
+          "currencyapi provider failed; falling back to frankfurter",
+        );
+      }
+    }
+
+    // Secondary provider: frankfurter.app (no API key).
     const response = await axios.get(`https://api.frankfurter.app/latest`, {
       params: {
         from: this.baseCurrency,

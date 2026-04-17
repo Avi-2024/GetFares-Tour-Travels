@@ -26,8 +26,8 @@ class DashboardController {
 
   async getRevenue(req, res) {
     try {
-      const { range = 'week' } = req.query;
-      const revenueData = await this.service.getRevenue(range);
+      const { range = 'week', currency } = req.query;
+      const revenueData = await this.service.getRevenue(range, currency);
       
       res.json({
         success: true,
