@@ -17,12 +17,14 @@ import { createNotificationsModule } from "./notifications/index.js";
 import { createDashboardModule } from "./dashboard/index.js";
 import { createMetaWebhookModule } from "./metaWebhook/index.js";
 import { createWhatsappModule } from "./whatsapp/index.js";
+import { createWebsiteEnquiriesModule } from "./websiteEnquiries/index.js";
 import { createDestinationsModule } from "./destinations/index.js";
 import { createPackagesModule } from "./packages/index.js";
 import { createSuppliersModule } from "./suppliers/index.js";
 import { createCountriesModule } from "./countries/index.js";
 import { createMailModule } from "./mail/index.js";
 import { createHistoryModule } from "./history/index.js";
+import { registerCurrencyModule } from "./currency/index.js";
 
 function registerModules(app, dependencies) {
   const mountedModules = {};
@@ -58,6 +60,12 @@ function registerModules(app, dependencies) {
     },
   };
 
+  const currencyModule = registerCurrencyModule(app, featureDependencies);
+  mountedModules.currency = currencyModule;
+  if (currencyModule?.service) {
+    featureDependencies.services.currency = currencyModule.service;
+  }
+
   const featureFactories = [
     ["users", createUsersModule],
     ["leads", createLeadsModule],
@@ -80,7 +88,14 @@ function registerModules(app, dependencies) {
   ];
 
   featureFactories.forEach(([name, factory]) => {
-    const moduleInstance = factory({ dependencies: featureDependencies });
+    let moduleOptions = { dependencies: featureDependencies };
+    
+    // Pass leadsRepository to bookings module
+    if (name === "bookings" && mountedModules.leads?.repository) {
+      moduleOptions.leadsRepository = mountedModules.leads.repository;
+    }
+    
+    const moduleInstance = factory(moduleOptions);
     mountedModules[name] = moduleInstance;
     app.use(`/api/${name}`, moduleInstance.router);
     if (name === "leads" && moduleInstance.leadActivitiesRouter) {
@@ -97,6 +112,13 @@ function registerModules(app, dependencies) {
   });
   mountedModules.webhooks = webhooksModule;
   app.use("/api/webhooks", webhooksModule.router);
+
+  const websiteEnquiriesModule = createWebsiteEnquiriesModule({
+    dependencies: featureDependencies,
+    leadsService: mountedModules.leads?.service,
+  });
+  mountedModules.websiteEnquiries = websiteEnquiriesModule;
+  app.use("/api/website-enquiries", websiteEnquiriesModule.router);
 
   const metaWebhookModule = createMetaWebhookModule({
     dependencies: featureDependencies,
@@ -152,6 +174,7 @@ export {
   createComplaintsModule,
   createReportsModule,
   createSettingsModule,
+  createWebsiteEnquiriesModule,
   createWebhooksModule,
   createMetaWebhookModule,
   createWhatsappModule,

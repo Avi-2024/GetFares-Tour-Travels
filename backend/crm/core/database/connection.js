@@ -28,6 +28,20 @@ function toNonNegativeInt(value) {
   return parsed;
 }
 
+function toBoundedInt(value, { min, max, fallback }) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    return fallback;
+  }
+  if (parsed < min) {
+    return min;
+  }
+  if (parsed > max) {
+    return max;
+  }
+  return parsed;
+}
+
 function normalizeFilters(filters = {}) {
   return Object.entries(filters).filter(([key, value]) => {
     if (RESERVED_FILTER_KEYS.has(key)) {
@@ -476,23 +490,38 @@ function resolveMysqlSslFlag() {
   const raw = String(process.env.MYSQL_SSL ?? "")
     .trim()
     .toLowerCase();
+  console.log('[DEBUG] MYSQL_SSL env var:', process.env.MYSQL_SSL, '| normalized:', raw);
   if (["0", "false", "no", "off"].includes(raw)) {
+    console.log('[DEBUG] SSL explicitly disabled');
     return false;
   }
   if (["1", "true", "yes", "on"].includes(raw)) {
+    console.log('[DEBUG] SSL explicitly enabled');
     return true;
   }
+  console.log('[DEBUG] SSL flag not set, will auto-detect');
   return null;
 }
 
 function shouldUseMysqlTls(host, flag) {
+  console.log('[DEBUG] shouldUseMysqlTls - host:', host, '| flag:', flag);
   if (flag === true) {
+    console.log('[DEBUG] Using SSL because flag is true');
     return true;
   }
   if (flag === false) {
+    console.log('[DEBUG] Not using SSL because flag is false');
     return false;
   }
-  return String(host || "").includes(".mysql.database.azure.com");
+  // Auto-detect Azure MySQL and other cloud providers that require SSL
+  const hostLower = String(host || "").toLowerCase();
+  const shouldUse = (
+    hostLower.includes(".mysql.database.azure.com") ||
+    hostLower.includes(".rds.amazonaws.com") ||
+    hostLower.includes(".db.ondigitalocean.com")
+  );
+  console.log('[DEBUG] Auto-detect SSL:', shouldUse, '| host:', hostLower);
+  return shouldUse;
 }
 
 function createDatabaseConnection({ config, logger }) {
@@ -590,6 +619,24 @@ function createDatabaseConnection({ config, logger }) {
   if (mysqlHost && mysqlDatabase) {
     const isServerless =
       process.env.VERCEL === "1" || process.env.AWS_EXECUTION_ENV;
+    const desiredPoolMax = toBoundedInt(
+      process.env.MYSQL_POOL_MAX ||
+        config?.database?.mysql?.poolMax ||
+        (isServerless ? 4 : 50),
+      { min: 2, max: 200, fallback: isServerless ? 4 : 50 },
+    );
+    const desiredQueueLimit = toBoundedInt(
+      process.env.MYSQL_POOL_QUEUE_LIMIT ||
+        config?.database?.mysql?.poolQueueLimit ||
+        0,
+      { min: 0, max: 100000, fallback: 0 },
+    );
+    const desiredConnectTimeout = toBoundedInt(
+      process.env.MYSQL_CONNECT_TIMEOUT_MS ||
+        config?.database?.mysql?.connectTimeoutMs ||
+        (isServerless ? 7000 : 15000),
+      { min: 1000, max: 120000, fallback: isServerless ? 7000 : 15000 },
+    );
 
     const poolConfig = {
       host: mysqlHost,
@@ -598,20 +645,21 @@ function createDatabaseConnection({ config, logger }) {
       password: mysqlPassword,
       database: mysqlDatabase,
       waitForConnections: true,
-      connectionLimit: isServerless ? 2 : 10,
-      queueLimit: 0,
-      connectTimeout: isServerless ? 7000 : 15000,
+      connectionLimit: desiredPoolMax,
+      queueLimit: desiredQueueLimit,
+      connectTimeout: desiredConnectTimeout,
       timezone: "+05:30",
     };
 
     const sslFlag = resolveMysqlSslFlag();
-    if (shouldUseMysqlTls(mysqlHost, sslFlag)) {
-      poolConfig.ssl = {
-        minVersion: "TLSv1.2",
-        rejectUnauthorized: true,
-      };
-    }
+    console.log('[DEBUG] Final SSL flag:', sslFlag);
+    // ✅ FORCE SSL (no condition)
+poolConfig.ssl = {
+  minVersion: "TLSv1.2",
+  rejectUnauthorized: false,
+};
 
+console.log("[FIX] SSL FORCE ENABLED");
     logger.info(
       {
         mysqlHost,

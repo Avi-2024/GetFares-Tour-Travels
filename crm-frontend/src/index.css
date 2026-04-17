@@ -102,3 +102,26 @@
     appearance: textfield;
   }
 }
+
+
+.leads-table-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(107, 114, 128, 0.22) transparent;
+          }
+
+          .leads-table-scroll::-webkit-scrollbar {
+            height: 5px;
+          }
+
+          .leads-table-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+
+          .leads-table-scroll::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.22);
+            border-radius: 9999px;
+          }
+
+          .leads-table-scroll:hover::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.35);
+          }

@@ -53,6 +53,8 @@ async function closeDependencies({ skipLogger = false } = {}) {
   }
 }
 
+
+
 function initiateShutdown(signal) {
   if (shuttingDown) return;
 

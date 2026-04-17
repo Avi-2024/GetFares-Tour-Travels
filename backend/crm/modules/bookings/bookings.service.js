@@ -24,7 +24,7 @@ const DEADLINE_RISK = Object.freeze({
   OVERDUE: "OVERDUE",
 });
 
-function createBookingsService({ repository, logger, events, config }) {
+function createBookingsService({ repository, logger, events, config, leadsRepository }) {
   const reminderConfig = {
     preTravelDays: config?.whatsapp?.preTravelDays ?? 2,
     postTravelDays: config?.whatsapp?.postTravelDays ?? 1,
@@ -202,6 +202,55 @@ function createBookingsService({ repository, logger, events, config }) {
     );
   }
 
+  async function enrichBookingsWithLeadNames(bookings) {
+    if (!leadsRepository || !Array.isArray(bookings) || bookings.length === 0) {
+      return bookings;
+    }
+
+    try {
+      const leadIds = [...new Set(bookings
+        .map((b) => b.leadId)
+        .filter(Boolean)
+      )];
+
+      if (leadIds.length === 0) {
+        return bookings;
+      }
+
+      const leadsMap = new Map();
+      for (const leadId of leadIds) {
+        try {
+          const lead = await leadsRepository.findById(leadId);
+          if (lead) {
+            leadsMap.set(leadId, lead);
+          }
+        } catch (error) {
+          logger.warn(
+            { leadId, error: error?.message },
+            "Failed to fetch lead details",
+          );
+        }
+      }
+
+      return bookings.map((booking) => {
+        if (booking.leadId && leadsMap.has(booking.leadId)) {
+          const lead = leadsMap.get(booking.leadId);
+          return {
+            ...booking,
+            leadName: lead.fullName || null,
+          };
+        }
+        return { ...booking, leadName: null };
+      });
+    } catch (error) {
+      logger.error(
+        { error: error?.message },
+        "Error enriching bookings with lead names",
+      );
+      return bookings;
+    }
+  }
+
   async function getById(id, context = {}) {
     logger.debug(
       { module: "bookings", requestId: context.requestId, id },
@@ -213,7 +262,9 @@ function createBookingsService({ repository, logger, events, config }) {
       throw new AppError(404, "Booking not found", "BOOKING_NOT_FOUND");
     }
 
-    return withDeadlineInsights(booking);
+    const withDeadline = withDeadlineInsights(booking);
+    const enriched = await enrichBookingsWithLeadNames([withDeadline]);
+    return enriched[0];
   }
 
   async function ensureQuotationExists(quotationId) {
@@ -688,7 +739,9 @@ function createBookingsService({ repository, logger, events, config }) {
         "Listing bookings",
       );
       const list = await repository.findAll(filters);
-      return list.map((item) => withDeadlineInsights(item));
+      const withDeadlines = list.map((item) => withDeadlineInsights(item));
+      const enriched = await enrichBookingsWithLeadNames(withDeadlines);
+      return enriched;
     },
 
     async stats(context = {}) {

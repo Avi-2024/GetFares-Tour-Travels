@@ -606,16 +606,19 @@ function createReportsRepository({ db, schema, logger }) {
             b.booking_number,
             b.status AS booking_status,
             b.payment_status,
-            COALESCE(b.advance_received, 0) AS advance_received
+            COALESCE(b.advance_received, 0) AS advance_received,
+            COALESCE(b.total_amount, 0) AS booking_total_amount,
+            COALESCE(b.cost_amount, 0) AS booking_cost_amount,
+            COALESCE(
+              NULLIF(TRIM(q.client_currency), ''),
+              NULLIF(TRIM(q.cost_currency), ''),
+              NULLIF(TRIM(q.supplier_currency), ''),
+              'INR'
+            ) AS booking_client_currency
           FROM ${schema.quotationsTable} q
           INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
           ${whereSql}
-            AND COALESCE(b.is_deleted, FALSE) = FALSE
-            AND (
-              UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) = 'CONFIRMED'
-              OR COALESCE(b.advance_received, 0) > 0
-              OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
-            )
+            AND UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) <> 'CANCELLED'
           ORDER BY q.created_at DESC, q.quote_number ASC
         `,
         params,
@@ -692,8 +695,25 @@ function createReportsRepository({ db, schema, logger }) {
           normalizeText(row.cost_currency) ||
           normalizeText(row.supplier_currency) ||
           "INR";
+        const customerName =
+          normalizeText(snapshot.customerName) ||
+          normalizeText(snapshot.customer_name) ||
+          normalizeText(snapshot?.lead?.fullName) ||
+          normalizeText(snapshot?.lead?.full_name) ||
+          normalizeText(snapshot?.lead?.name) ||
+          leadName;
+        const destination =
+          normalizeText(snapshot.destination) ||
+          normalizeText(snapshot.tripDestination) ||
+          normalizeText(snapshot.trip_destination) ||
+          "N/A";
+        const bookingTotalAmount = toNumber(row.booking_total_amount, 0);
+        const bookingCostAmount = toNumber(row.booking_cost_amount, 0);
+        const bookingCurrency =
+          normalizeText(row.booking_client_currency) || currency;
 
-        serviceRows.forEach((service, index) => {
+        const pushFinanceRow = (service, index, options = {}) => {
+          const synthetic = Boolean(options.synthetic);
           const supplierId =
             normalizeText(service?.supplierId) ||
             normalizeText(supplierDetails?.supplierId) ||
@@ -701,9 +721,15 @@ function createReportsRepository({ db, schema, logger }) {
           if (filters.supplierId && String(filters.supplierId).trim() !== supplierId) {
             return;
           }
+          const baseFromService = toNumber(service?.baseCost, 0);
+          const basePrice = synthetic
+            ? (bookingCostAmount > 0
+                ? bookingCostAmount
+                : bookingTotalAmount)
+            : baseFromService;
 
           allRows.push({
-            id: `${row.quotation_id}-${index}`,
+            id: `${row.quotation_id}-${index}${synthetic ? "-syn" : ""}`,
             quotationId: row.quotation_id,
             bookingId: row.booking_id,
             bookingNumber: row.booking_number,
@@ -712,18 +738,34 @@ function createReportsRepository({ db, schema, logger }) {
             advanceReceived: toNumber(row.advance_received, 0),
             quoteNumber,
             leadName,
-            serviceLabel: deriveServiceLabel(service),
+            customerName,
+            destination,
+            bookingTotalAmount,
+            bookingCurrency,
+            serviceLabel: synthetic
+              ? "Package / quotation (no line items in snapshot)"
+              : deriveServiceLabel(service),
             supplierId,
             supplierName:
               normalizeText(service?.supplierName) ||
               normalizeText(supplierDetails?.supplierName) ||
               "Not selected",
-            basePrice: toNumber(service?.baseCost, 0),
+            basePrice,
             currency,
             quotationStatus: row.quotation_status,
             createdAt: row.created_at,
           });
-        });
+        };
+
+        if (!serviceRows.length) {
+          pushFinanceRow({ baseCost: 0, supplierId: supplierDetails?.supplierId }, 0, {
+            synthetic: true,
+          });
+        } else {
+          serviceRows.forEach((service, index) => {
+            pushFinanceRow(service, index);
+          });
+        }
       });
 
       const totalItems = allRows.length;
@@ -1104,6 +1146,64 @@ function createReportsRepository({ db, schema, logger }) {
         holidayRevenue: Number(revenueByService.holiday.toFixed(2)),
         visaRevenue: Number(revenueByService.visa.toFixed(2)),
       };
+    },
+
+    async getExecutiveBookingRevenueByCurrency(filters = {}) {
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      return queryRows(
+        `
+          SELECT
+            UPPER(
+              COALESCE(
+                NULLIF(TRIM(b.client_currency), ''),
+                NULLIF(TRIM(b.currency), ''),
+                'AED'
+              )
+            ) AS currency,
+            SUM(COALESCE(b.total_amount, 0)) AS revenue
+          FROM ${schema.bookingsTable} b
+          ${bookingRange.sql}
+          GROUP BY
+            UPPER(
+              COALESCE(
+                NULLIF(TRIM(b.client_currency), ''),
+                NULLIF(TRIM(b.currency), ''),
+                'AED'
+              )
+            )
+        `,
+        bookingRange.params,
+      );
+    },
+
+    async getExecutiveServiceRevenueByCurrency(filters = {}) {
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      return queryRows(
+        `
+          WITH service_revenue AS (
+            SELECT
+              CASE WHEN vc.id IS NULL THEN 'HOLIDAY' ELSE 'VISA' END AS service_type,
+              UPPER(
+                COALESCE(
+                  NULLIF(TRIM(b.client_currency), ''),
+                  NULLIF(TRIM(b.currency), ''),
+                  'AED'
+                )
+              ) AS currency,
+              COALESCE(b.total_amount, 0) AS total_amount
+            FROM ${schema.bookingsTable} b
+            LEFT JOIN ${schema.visaCasesTable} vc ON vc.booking_id = b.id
+            ${bookingRange.sql}
+          )
+          SELECT
+            service_type,
+            currency,
+            SUM(total_amount) AS revenue
+          FROM service_revenue
+          GROUP BY service_type, currency
+        `,
+        bookingRange.params,
+      );
     },
 
     async getConversionFunnel(filters = {}) {

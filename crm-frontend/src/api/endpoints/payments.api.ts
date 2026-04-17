@@ -24,6 +24,7 @@ export interface Payment {
   paymentReference?: string;
   proofUrl?: string;
   invoiceUrl?: string;
+  notes?: string;
   isVerified?: boolean;
   verifiedBy?: string;
   verifiedAt?: string;
@@ -44,6 +45,7 @@ export interface CreatePaymentPayload {
   paymentReference?: string;
   proofUrl?: string;
   invoiceUrl?: string;
+  notes?: string;
   status?: PaymentStatus;
   paidAt?: string;
   isVerified?: boolean;
@@ -60,6 +62,7 @@ export interface VerifyPaymentPayload {
   invoiceUrl?: string;
   paymentReference?: string;
   gatewayPaymentId?: string;
+  notes?: string;
 }
 
 export const paymentsEndpoints = {

@@ -164,7 +164,7 @@ function normalizeItineraryItems(items) {
     hotel_details: normalizeText(content.hotelDetails),
     visa_details: normalizeText(content.visaDetails),
     payment_terms: normalizeText(content.paymentTerms),
-      cancellation_policy: normalizeText(content.cancellationPolicy),
+    cancellation_policy: normalizeText(content.cancellationPolicy),
     };
   }
 

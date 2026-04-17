@@ -9,6 +9,8 @@ export const suppliersApi = {
   getById: (id: string) => apiRequest(`/api/suppliers/${id}`),
   update: (id: string, payload: unknown) =>
     apiRequest(`/api/suppliers/${id}`, { method: "PATCH", body: payload }),
+  delete: (id: string) =>
+    apiRequest(`/api/suppliers/${id}`, { method: "DELETE" }),
   listPayables: (
     id: string,
     params?: Record<string, string | number | boolean>,

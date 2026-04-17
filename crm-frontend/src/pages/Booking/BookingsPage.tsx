@@ -32,6 +32,12 @@ import { quotationsApi } from "../../api/quotations";
 import { suppliersApi } from "../../api/suppliers";
 import { reportApiError } from "../../lib/notify";
 import { getCurrencyOptions } from "../../utils/currency";
+import {
+  normalizeCurrencyCode,
+  pickFirstValidCurrencyCode,
+  pickLeadDisplayCurrencyCode,
+  pickQuotationDisplayCurrencyCode,
+} from "../../utils/quotationDisplayCurrency";
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -191,13 +197,6 @@ const toIsoDate = (value?: string | null) => {
   if (Number.isNaN(parsed.getTime())) return ''
   return parsed.toISOString().split('T')[0]
 }
-
-const normalizeCurrencyCode = (currency?: string | null) => {
-  const code = String(currency ?? "INR")
-    .trim()
-    .toUpperCase();
-  return /^[A-Z]{3}$/.test(code) ? code : "INR";
-};
 
 const toAmountNumber = (value: unknown, fallback = 0) => {
   if (typeof value === "number") {
@@ -936,9 +935,13 @@ const CreateBookingModal = ({
               <input
                 type="text"
                 value={formData.customer}
-                onChange={(e) =>
-                  setFormData({ ...formData, customer: e.target.value })
-                }
+                onChange={(e) =>{
+                  const value = e.target.value;
+                  const OnlyLetters = /^[A-Za-z\s]+$/;
+                  if (OnlyLetters.test(value) || value === "") {
+                    setFormData({ ...formData, customer: value });
+                  }
+                }}
                 className={`field-input ${
                   errors.customer ? "border-red-500" : ""
                 }`}
@@ -1886,6 +1889,16 @@ const BookingsPage: React.FC = () => {
       lead?.created_date
     );
 
+    const quotationCurrency = pickQuotationDisplayCurrencyCode(quotation);
+    const leadCurrency = pickLeadDisplayCurrencyCode(lead);
+    const storedBookingCurrency = pickFirstValidCurrencyCode(
+      b.clientCurrency,
+      b.client_currency,
+      b.currency,
+      b.supplierCurrency,
+      b.supplier_currency,
+    );
+
     return {
       id: String(b.id ?? idx),
       bookingId: b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
@@ -1939,11 +1952,7 @@ const BookingsPage: React.FC = () => {
         0,
       ),
       currency: normalizeCurrencyCode(
-        b.currency ??
-          b.clientCurrency ??
-          b.client_currency ??
-          b.supplierCurrency ??
-          b.supplier_currency,
+        quotationCurrency ?? leadCurrency ?? storedBookingCurrency,
       ),
       documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
       documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0),
@@ -2211,11 +2220,6 @@ const BookingsPage: React.FC = () => {
     }
   };
 
-  const handleRecordPayment = (booking: Booking) => {
-    setSelectedBooking(booking);
-    setShowPaymentModal(true);
-  };
-
   const handlePaymentSubmit = async (
     bookingId: string,
     paymentData: PaymentData,
@@ -2267,7 +2271,7 @@ const BookingsPage: React.FC = () => {
           data.supplierPaymentDeadlineAt,
         ),
         cancellationDeadlineAt: toIsoDateTime(data.cancellationDeadlineAt),
-        currency: data.currency || "INR",
+        clientCurrency: normalizeCurrencyCode(data.currency),
         supplierDetails:
           data.supplierId || data.supplierName ?
             {
@@ -3260,9 +3264,9 @@ const BookingsPage: React.FC = () => {
                           >
                             {booking.payment}
                           </span>
-                          {(booking.payment === "partial" ||
+                          {/* {(booking.payment === "partial" ||
                             booking.payment === "unpaid") && (
-                            <button
+                            <button 
                               onClick={() => handleRecordPayment(booking)}
                               disabled={loading}
                               className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
@@ -3270,7 +3274,7 @@ const BookingsPage: React.FC = () => {
                             >
                               Pay
                             </button>
-                          )}
+                          )} */}
                         </div>
 	                        <p className="mt-1 text-xs text-gray-500">
 	                          {formatPaidVsTotal(

@@ -1286,7 +1286,7 @@ const QuotationsPage: React.FC = () => {
             </div>
 
             {/* Desktop View - Table */}
-            <div className='hidden max-w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 lg:block'>
+            <div className='hidden max-w-full leads-table-scroll overflow-x-auto  dark:scrollbar-thumb-gray-700 lg:block'>
               <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
                 <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
                   <tr>

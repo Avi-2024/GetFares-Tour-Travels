@@ -2,9 +2,7 @@ import { test, expect, request as playwrightRequest } from "@playwright/test";
 
 const apiBase =
   process.env.PLAYWRIGHT_API_BASE_URL ||
-  process.env.VITE_API_BASE_URL ||
-  "http://localhost:3000";
-
+  process.env.VITE_API_BASE_URL || "";
 const email =
   process.env.E2E_EMAIL || "admin@travel-crm.com";
 const password = process.env.E2E_PASSWORD || "admin@123";

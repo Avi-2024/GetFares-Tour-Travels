@@ -47,7 +47,7 @@ const QuotationTemplatesPage: React.FC = () => {
     code: '',
     name: '',
     templateType: 'READY_PACKAGE' as TemplateType,
-    minMarginPercent: 0,
+    minMarginPercent: 0 as number | undefined,
     isActive: true,
     headerBranding: '',
     inclusions: '',
@@ -265,7 +265,7 @@ const QuotationTemplatesPage: React.FC = () => {
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         templateType: form.templateType,
-        minMarginPercent: Number(form.minMarginPercent || 0),
+        minMarginPercent: form.minMarginPercent ?? 0,
         isActive: form.isActive,
         headerBranding: form.headerBranding.trim() || undefined,
         inclusions: form.inclusions.trim() || undefined,
@@ -424,15 +424,13 @@ const QuotationTemplatesPage: React.FC = () => {
             </div>
             <NumberInput
               label='Min Margin %'
-              value={form.minMarginPercent}
+              value={form.minMarginPercent ?? ''}
               onChange={value =>
                 setForm(current => ({
                   ...current,
-                  minMarginPercent: Number(value || 0)
+                  minMarginPercent: value === '' ? undefined : Number(value)
                 }))
               }
-              min={0}
-              step={1}
             />
             <div className='md:col-span-2'>
               <label className='field-label'>Header Branding</label>

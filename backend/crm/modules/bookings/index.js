@@ -6,7 +6,7 @@ import { BookingsValidation } from "./bookings.validation.js";
 import { BookingsSchema } from "./bookings.schema.js";
 import { createBookingsEvents } from "./bookings.events.js";
 
-function createBookingsModule({ dependencies }) {
+function createBookingsModule({ dependencies, leadsRepository }) {
   const repository = createBookingsRepository({
     db: dependencies.db,
     logger: dependencies.logger,
@@ -23,6 +23,7 @@ function createBookingsModule({ dependencies }) {
     logger: dependencies.logger,
     events,
     config: dependencies.config,
+    leadsRepository,
   });
 
   const controller = createBookingsController({ service });

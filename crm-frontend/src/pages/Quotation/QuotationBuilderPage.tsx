@@ -130,7 +130,10 @@ type AddOnService = {
   name: string
   baseCost: number
   markup: number
+  markupPercent?: number
   sellValue: number
+  supplierId?: string
+  supplierName?: string
 }
 
 type PricingCosts = {
@@ -224,12 +227,12 @@ const INCLUSION_SHORTCUTS: InclusionShortcut[] = [
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-function isUuid (value: unknown): value is string {
+function isUuid(value: unknown): value is string {
   if (typeof value !== 'string') return false
   return UUID_REGEX.test(value.trim())
 }
 
-function unwrapApiData<T> (response: unknown): T | null {
+function unwrapApiData<T>(response: unknown): T | null {
   if (!response) return null
   if (typeof response === 'object' && response && 'data' in response) {
     return ((response as { data?: unknown }).data ?? null) as T | null
@@ -237,12 +240,12 @@ function unwrapApiData<T> (response: unknown): T | null {
   return response as T
 }
 
-function toTrimmedString (value: unknown): string {
+function toTrimmedString(value: unknown): string {
   if (value === null || value === undefined) return ''
   return String(value).trim()
 }
 
-function firstNonEmptyString (...values: unknown[]): string {
+function firstNonEmptyString(...values: unknown[]): string {
   for (const value of values) {
     if (value === null || value === undefined) continue
     const text = String(value)
@@ -251,18 +254,18 @@ function firstNonEmptyString (...values: unknown[]): string {
   return ''
 }
 
-function resolveLeadDisplayId (
+function resolveLeadDisplayId(
   lead:
     | Pick<
-        LeadOption,
-        | 'leadId'
-        | 'leadCode'
-        | 'lead_code'
-        | 'metaLeadId'
-        | 'meta_lead_id'
-        | 'code'
-        | 'id'
-      >
+      LeadOption,
+      | 'leadId'
+      | 'leadCode'
+      | 'lead_code'
+      | 'metaLeadId'
+      | 'meta_lead_id'
+      | 'code'
+      | 'id'
+    >
     | null
 ): string {
   if (!lead) return ''
@@ -290,12 +293,12 @@ function resolveLeadDisplayId (
   return firstNonEmptyString(preferredCode, leadIdValue, lead.id)
 }
 
-function toFiniteNumber (value: unknown, fallback = 0): number {
+function toFiniteNumber(value: unknown, fallback = 0): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function toBoolean (value: unknown, fallback = false): boolean {
+function toBoolean(value: unknown, fallback = false): boolean {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value === 1
   if (typeof value === 'string') {
@@ -306,7 +309,23 @@ function toBoolean (value: unknown, fallback = false): boolean {
   return fallback
 }
 
-function toDateInputString (value: unknown): string {
+function toYesNoString(value: unknown): 'YES' | 'NO' | '' {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return ''
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'YES' : 'NO'
+  }
+  if (typeof value === 'number') {
+    return value === 1 ? 'YES' : value === 0 ? 'NO' : ''
+  }
+  const normalized = String(value).trim().toLowerCase()
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') return 'YES'
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') return 'NO'
+  return ''
+}
+
+function toDateInputString(value: unknown): string {
   const text = toTrimmedString(value)
   if (!text) return ''
   const parsed = new Date(text)
@@ -316,7 +335,7 @@ function toDateInputString (value: unknown): string {
   return parsed.toISOString().slice(0, 10)
 }
 
-function normalizeServiceKey (value: unknown): ServiceKey | null {
+function normalizeServiceKey(value: unknown): ServiceKey | null {
   const normalized = toTrimmedString(value).toLowerCase()
   if (!normalized) return null
   const matched = SERVICE_DEFINITIONS.find(
@@ -325,7 +344,7 @@ function normalizeServiceKey (value: unknown): ServiceKey | null {
   return matched?.key ?? null
 }
 
-function parseNightsFromDuration (duration: unknown, fallback: number): number {
+function parseNightsFromDuration(duration: unknown, fallback: number): number {
   if (duration == null || duration === '') return fallback
   const s = String(duration)
   const m = s.match(/(\d+)\s*N/i)
@@ -335,7 +354,7 @@ function parseNightsFromDuration (duration: unknown, fallback: number): number {
   return fallback
 }
 
-function unwrapPackageResponse (res: unknown): Record<string, unknown> | null {
+function unwrapPackageResponse(res: unknown): Record<string, unknown> | null {
   if (!res || typeof res !== 'object') return null
   const r = res as { data?: unknown }
   const d = r.data
@@ -351,7 +370,7 @@ function unwrapPackageResponse (res: unknown): Record<string, unknown> | null {
   return null
 }
 
-function toDateInputValue (
+function toDateInputValue(
   value: string,
   fallbackNights: number
 ): string | null {
@@ -362,7 +381,7 @@ function toDateInputValue (
   return parsed.toISOString().slice(0, 10)
 }
 
-function formatDurationLabel (
+function formatDurationLabel(
   duration: unknown,
   fallbackNights: number
 ): string {
@@ -375,7 +394,7 @@ function formatDurationLabel (
   return `${nights}N/${nights + 1}D`
 }
 
-function pluralize (
+function pluralize(
   value: number,
   singular: string,
   plural = `${singular}s`
@@ -383,7 +402,7 @@ function pluralize (
   return `${value} ${value === 1 ? singular : plural}`
 }
 
-function parseDurationParts (duration: unknown): {
+function parseDurationParts(duration: unknown): {
   nights: string
   days: string
 } {
@@ -393,12 +412,12 @@ function parseDurationParts (duration: unknown): {
   return { nights, days }
 }
 
-function parseDayCount (value: unknown): number {
+function parseDayCount(value: unknown): number {
   const count = Number(value)
   return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
 }
 
-function buildDurationValue (nights: unknown, days: unknown): string {
+function buildDurationValue(nights: unknown, days: unknown): string {
   const safeNights = String(nights ?? '').trim()
   const safeDays = String(days ?? '').trim()
 
@@ -408,11 +427,11 @@ function buildDurationValue (nights: unknown, days: unknown): string {
   return ''
 }
 
-function getDayLabel (index: number): string {
+function getDayLabel(index: number): string {
   return `Day ${index + 1}`
 }
 
-function buildItineraryRows (dayCount: number, existing: Item[] = []): Item[] {
+function buildItineraryRows(dayCount: number, existing: Item[] = []): Item[] {
   return Array.from({ length: Math.max(0, dayCount) }, (_, index) => {
     const current = existing[index]
     return {
@@ -424,7 +443,7 @@ function buildItineraryRows (dayCount: number, existing: Item[] = []): Item[] {
   })
 }
 
-function areItineraryRowsEqual (left: Item[], right: Item[]): boolean {
+function areItineraryRowsEqual(left: Item[], right: Item[]): boolean {
   if (left.length !== right.length) return false
   return left.every((item, index) => {
     const next = right[index]
@@ -437,7 +456,7 @@ function areItineraryRowsEqual (left: Item[], right: Item[]): boolean {
   })
 }
 
-function normalizeNumericOverride (
+function normalizeNumericOverride(
   value: string,
   options: { min: number; max?: number; precision?: number }
 ): string {
@@ -453,7 +472,7 @@ function normalizeNumericOverride (
   return bounded.toFixed(options.precision)
 }
 
-function getNumericOverrideError (
+function getNumericOverrideError(
   value: string | undefined,
   options: { min: number; max?: number }
 ): string {
@@ -467,18 +486,7 @@ function getNumericOverrideError (
 }
 
 const initialItinerary: Item[] = [
-  {
-    id: '1',
-    day: 'Day 1',
-    title: 'Arrival & Transfer',
-    description: 'Private speedboat transfer from airport to resort.'
-  },
-  {
-    id: '2',
-    day: 'Day 2',
-    title: 'Lagoon Excursion',
-    description: 'Guided reef and lagoon experience with lunch.'
-  }
+ 
 ]
 
 type QuotationBuilderPageProps = {
@@ -545,7 +553,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     travelPurpose: '',
     leadSource: '',
     campaignId: '',
-    validUntil: '',
+    validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     children: 0,
     childAges: [] as string[],
     inclusions: '',
@@ -589,7 +597,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     taxPercent: 0,
     discount: 0
   })
-  
+
   // Finance breakdown state for detailed cost tracking
   const [finance, setFinance] = useState<FinanceBreakdown>({
     supplierTaxPercent: 0,
@@ -607,7 +615,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     taxAmount: 0,
     totalMarkup: 0
   })
-  
+
   // Currency state for multi-currency support
   const [currencies, setCurrencies] = useState({
     costCurrency: 'INR',
@@ -618,15 +626,20 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const [addOnDraft, setAddOnDraft] = useState({
     name: '',
     baseCost: '',
-    markup: '',
+    markupPercent: '',
+    supplierId: '',
+    supplierName: '',
     sellValue: ''
   })
   const addOnComputedSellValue = useMemo(() => {
     const baseCost = Number(addOnDraft.baseCost)
-    const markup = Number(addOnDraft.markup)
-    if (!Number.isFinite(baseCost) || !Number.isFinite(markup)) return 0
-    return Number((Math.max(0, baseCost) + Math.max(0, markup)).toFixed(2))
-  }, [addOnDraft.baseCost, addOnDraft.markup])
+    const markupPercent = Number(addOnDraft.markupPercent)
+    if (!Number.isFinite(baseCost) || !Number.isFinite(markupPercent)) return 0
+    const boundedBase = Math.max(0, baseCost)
+    const boundedPercent = Math.min(100, Math.max(0, markupPercent))
+    const markupAmount = Number(((boundedBase * boundedPercent) / 100).toFixed(2))
+    return Number((boundedBase + markupAmount).toFixed(2))
+  }, [addOnDraft.baseCost, addOnDraft.markupPercent])
   const [serviceOverrides, setServiceOverrides] =
     useState<ServiceOverridesState>({})
   const [changedPricingCells, setChangedPricingCells] = useState<
@@ -726,12 +739,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const quotationTemplateOptions = useMemo(
     () => [
       // { value: "", label: "No template (manual quotation)" },
-      { value: 'CUSTOM', label: 'Custom Quotation' },
+      // Use empty value for custom/manual quotations.
+      // This keeps `templateId` undefined on save payload.
+      { value: '', label: 'Custom Quotation' },
       ...templates.map(template => ({
         value: template.id,
-        label: `${template.code} - ${template.name}${
-          !template.isActive ? ' (Inactive)' : ''
-        }`
+        label: `${template.code} - ${template.name}${!template.isActive ? ' (Inactive)' : ''
+          }`
       }))
     ],
     [templates]
@@ -838,12 +852,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           : String(template.paymentTerms),
       cancellationPolicy:
         prev.cancellationPolicy.trim() ||
-        !(template.cancellationPolicy || '').trim()
+          !(template.cancellationPolicy || '').trim()
           ? prev.cancellationPolicy
           : String(template.cancellationPolicy),
       footerDisclaimer:
         prev.footerDisclaimer.trim() ||
-        !(template.footerDisclaimer || '').trim()
+          !(template.footerDisclaimer || '').trim()
           ? prev.footerDisclaimer
           : String(template.footerDisclaimer)
     }))
@@ -872,18 +886,125 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }, 700)
   }, [])
 
+  const computeAutoAllocatedBaseCosts = useCallback(
+    (overridesSnapshot: ServiceOverridesState): Record<ServiceKey, number> => {
+      const activeDefinitions = selectedServiceDefinitions
+      if (!activeDefinitions.length) return {} as Record<ServiceKey, number>
+
+      const globalSupplierCost = Number(costs.supplierCost) || 0
+
+      const overriddenKeys = new Set(
+        activeDefinitions
+          .filter(def => {
+            const val = overridesSnapshot[def.key]?.baseCost
+            return (
+              val !== undefined &&
+              val !== '' &&
+              !isNaN(Number(val)) &&
+              Number(val) >= 0
+            )
+          })
+          .map(def => def.key)
+      )
+
+      const overriddenTotal = activeDefinitions.reduce((sum, def) => {
+        if (!overriddenKeys.has(def.key)) return sum
+        return sum + (Number(overridesSnapshot[def.key]?.baseCost) || 0)
+      }, 0)
+
+      const remainingCost = Math.max(0, globalSupplierCost - overriddenTotal)
+
+      const baseWeights = activeDefinitions.map(def =>
+        Math.max(0, Number(def.weight) || 0)
+      )
+      const baseWeightTotal = baseWeights.reduce((sum, weight) => sum + weight, 0)
+      const effectiveWeights =
+        baseWeightTotal > 0
+          ? baseWeights.map(weight => (weight / baseWeightTotal) * 100)
+          : activeDefinitions.map(() => 100 / activeDefinitions.length)
+
+      const distributableWeight = activeDefinitions.reduce(
+        (sum, definition, index) => {
+          if (overriddenKeys.has(definition.key)) return sum
+          return sum + effectiveWeights[index]
+        },
+        0
+      )
+
+      let allocatedRemainder = 0
+      const freeRows = activeDefinitions.filter(def => !overriddenKeys.has(def.key))
+
+      const result: Partial<Record<ServiceKey, number>> = {}
+
+      activeDefinitions.forEach((definition, index) => {
+        const override = overridesSnapshot[definition.key] ?? {}
+        if (overriddenKeys.has(definition.key)) {
+          result[definition.key] = Number(override.baseCost) || 0
+          return
+        }
+
+        const isLastFree =
+          freeRows.length > 0 &&
+          definition.key === freeRows[freeRows.length - 1].key
+        const weighted = distributableWeight
+          ? (remainingCost * effectiveWeights[index]) / distributableWeight
+          : 0
+        const baseCost = Number(
+          (isLastFree ? remainingCost - allocatedRemainder : weighted).toFixed(2)
+        )
+        allocatedRemainder = Number((allocatedRemainder + baseCost).toFixed(2))
+        result[definition.key] = baseCost
+      })
+
+      return result as Record<ServiceKey, number>
+    },
+    [costs.supplierCost, selectedServiceDefinitions]
+  )
+
   const updateServiceOverrideField = useCallback(
     (rowKey: ServiceKey, field: PricingField, value: string) => {
-      setServiceOverrides(prev => ({
-        ...prev,
-        [rowKey]: {
-          ...(prev[rowKey] ?? {}),
-          [field]: value
+      setServiceOverrides(prev => {
+        if (field === 'baseCost') {
+          const hasAnyManualBaseCost = Object.values(prev).some(
+            row => row?.baseCost !== undefined && row.baseCost !== ''
+          )
+          if (!hasAnyManualBaseCost && selectedServiceDefinitions.length > 1) {
+            const snapshot = computeAutoAllocatedBaseCosts(prev)
+            const seeded: ServiceOverridesState = { ...prev }
+            selectedServiceDefinitions.forEach(def => {
+              const existing = seeded[def.key] ?? {}
+              if (existing.baseCost === undefined || existing.baseCost === '') {
+                seeded[def.key] = {
+                  ...existing,
+                  baseCost: Number(snapshot[def.key] ?? 0).toFixed(2)
+                }
+              }
+            })
+            return {
+              ...seeded,
+              [rowKey]: {
+                ...(seeded[rowKey] ?? {}),
+                [field]: value
+              }
+            }
+          }
         }
-      }))
+
+        return {
+          ...prev,
+          [rowKey]: {
+            ...(prev[rowKey] ?? {}),
+            [field]: value
+          }
+        }
+      })
       flagPricingCellChange(`${rowKey}.${field}`)
     },
-    [flagPricingCellChange]
+    [
+      computeAutoAllocatedBaseCosts,
+      flagPricingCellChange,
+      selectedServiceDefinitions
+    ]
   )
 
   const clearServiceOverrideField = useCallback(
@@ -1008,19 +1129,19 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           : null
       const fallbackFlightChargeFromMarkupPercent =
         overrideServiceCharge === null &&
-        overrideMarkup !== undefined &&
-        overrideMarkup !== ''
+          overrideMarkup !== undefined &&
+          overrideMarkup !== ''
           ? Number(((baseCost * Number(overrideMarkup)) / 100).toFixed(2))
           : null
 
       const computedMarkupAmount = isFlightService
         ? Number(
-            (
-              overrideServiceCharge ??
-              fallbackFlightChargeFromMarkupPercent ??
-              0
-            ).toFixed(2)
-          )
+          (
+            overrideServiceCharge ??
+            fallbackFlightChargeFromMarkupPercent ??
+            0
+          ).toFixed(2)
+        )
         : Number(((baseCost * effectiveMarkup) / 100).toFixed(2))
       const computedSell = Number((baseCost + computedMarkupAmount).toFixed(2))
       const finalSell = computedSell
@@ -1051,11 +1172,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       try {
         const list = await leadsService.getDestinations()
         const map: Record<string, string> = {}
-        ;(Array.isArray(list) ? list : []).forEach((item: any) => {
-          if (item?.id) {
-            map[item.id] = item.name || item.id
-          }
-        })
+          ; (Array.isArray(list) ? list : []).forEach((item: any) => {
+            if (item?.id) {
+              map[item.id] = item.name || item.id
+            }
+          })
         setDestinationMap(map)
       } catch (_error) {
         setDestinationMap({})
@@ -1159,9 +1280,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             : 'Ready'
         return {
           value: pkg.id,
-          label: `${pkg.name || pkg.title || 'Package'} - ${
-            pkg.destination || ''
-          }`,
+          label: `${pkg.name || pkg.title || 'Package'} - ${pkg.destination || ''
+            }`,
           searchText: `${pkg.name} ${pkg.destination} ${kind}`,
           rightLabel: kind
         }
@@ -1240,7 +1360,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
     const kind =
       String(pkg.packageKind ?? pkg.package_kind ?? 'READY').toUpperCase() ===
-      'CUSTOMIZED'
+        'CUSTOMIZED'
         ? 'CUSTOMIZED'
         : 'READY'
     const customRaw = pkg.customServices ?? pkg.custom_services
@@ -1281,8 +1401,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     ) {
       const plain = String(
         (itin as { plain?: string; text?: string }).plain ??
-          (itin as { text?: string }).text ??
-          ''
+        (itin as { text?: string }).text ??
+        ''
       ).trim()
       if (plain) {
         const chunks = plain
@@ -1348,8 +1468,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         ),
         cancellationPolicy: String(
           pkg!.cancellationPolicy ??
-            pkg!.cancellation_policy ??
-            prev.cancellationPolicy
+          pkg!.cancellation_policy ??
+          prev.cancellationPolicy
         ),
         hotelDetails: String(
           pkg!.hotelDetails ?? pkg!.hotel_details ?? prev.hotelDetails
@@ -1436,16 +1556,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
         const snapshotRoot =
           quotation.templateSnapshot &&
-          typeof quotation.templateSnapshot === 'object'
+            typeof quotation.templateSnapshot === 'object'
             ? (quotation.templateSnapshot as Record<string, unknown>)
             : quotation.template_snapshot &&
               typeof quotation.template_snapshot === 'object'
-            ? (quotation.template_snapshot as Record<string, unknown>)
-            : null
+              ? (quotation.template_snapshot as Record<string, unknown>)
+              : null
 
         const builderSnapshot =
           snapshotRoot?.builderSnapshot &&
-          typeof snapshotRoot.builderSnapshot === 'object'
+            typeof snapshotRoot.builderSnapshot === 'object'
             ? (snapshotRoot.builderSnapshot as Record<string, unknown>)
             : null
 
@@ -1510,7 +1630,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             isActive: true,
             minMarginPercent: toFiniteNumber(
               snapshotRoot?.minMarginPercent ??
-                snapshotRoot?.min_margin_percent,
+              snapshotRoot?.min_margin_percent,
               0
             ),
             headerBranding: toTrimmedString(snapshotRoot?.headerBranding),
@@ -1521,7 +1641,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             ),
             cancellationPolicy: toTrimmedString(
               snapshotRoot?.cancellationPolicy ??
-                snapshotRoot?.cancellation_policy
+              snapshotRoot?.cancellation_policy
             ),
             footerDisclaimer: toTrimmedString(
               snapshotRoot?.footerDisclaimer ?? snapshotRoot?.footer_disclaimer
@@ -1536,10 +1656,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
         const sourcePackageId = toTrimmedString(
           quotation.sourcePackageId ??
-            quotation.source_package_id ??
-            snapshot?.sourcePackageId ??
-            snapshotRoot?.sourcePackageId ??
-            snapshotPackage?.id
+          quotation.source_package_id ??
+          snapshot?.sourcePackageId ??
+          snapshotRoot?.sourcePackageId ??
+          snapshotPackage?.id
         )
         if (!cancelled) {
           setSelectedPackageId(sourcePackageId)
@@ -1563,21 +1683,24 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
         const supplierDetails =
           snapshot?.supplierDetails &&
-          typeof snapshot.supplierDetails === 'object'
+            typeof snapshot.supplierDetails === 'object'
             ? (snapshot.supplierDetails as Record<string, unknown>)
             : snapshotRoot?.supplierDetails &&
               typeof snapshotRoot.supplierDetails === 'object'
-            ? (snapshotRoot.supplierDetails as Record<string, unknown>)
-            : snapshotRoot?.supplier &&
-              typeof snapshotRoot.supplier === 'object'
-            ? (snapshotRoot.supplier as Record<string, unknown>)
-            : null
-        const supplierId = toTrimmedString(
+              ? (snapshotRoot.supplierDetails as Record<string, unknown>)
+              : snapshotRoot?.supplier &&
+                typeof snapshotRoot.supplier === 'object'
+                ? (snapshotRoot.supplier as Record<string, unknown>)
+                : null
+
+        // Extract supplier from serviceRows if not found in supplierDetails
+        let supplierId = toTrimmedString(
           supplierDetails?.supplierId ?? supplierDetails?.id
         )
-        const supplierName = toTrimmedString(
+        let supplierName = toTrimmedString(
           supplierDetails?.supplierName ?? supplierDetails?.name
         )
+
         if (!cancelled && supplierId) {
           setSelectedSupplierId(supplierId)
         }
@@ -1602,11 +1725,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           Math.floor(
             toFiniteNumber(
               quotation.durationNights ??
-                quotation.duration_nights ??
-                snapshot?.durationNights ??
-                snapshot?.nights ??
-                snapshotRoot?.durationNights ??
-                snapshotRoot?.nights,
+              quotation.duration_nights ??
+              snapshot?.durationNights ??
+              snapshot?.nights ??
+              snapshotRoot?.durationNights ??
+              snapshotRoot?.nights,
               parseNightsFromDuration(snapshotDurationLabel, 1)
             )
           )
@@ -1615,10 +1738,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         const rawItinerary = Array.isArray(snapshot?.itineraryItems)
           ? snapshot.itineraryItems
           : Array.isArray(quotation.itinerary)
-          ? quotation.itinerary
-          : Array.isArray(snapshotRoot?.itineraryItems)
-          ? snapshotRoot.itineraryItems
-          : []
+            ? quotation.itinerary
+            : Array.isArray(snapshotRoot?.itineraryItems)
+              ? snapshotRoot.itineraryItems
+              : []
         const mappedItinerary = rawItinerary
           .map((row: any, index: number) => ({
             id: String(row?.id ?? `saved-it-${index + 1}`),
@@ -1632,10 +1755,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           )
         const durationDays = parseDayCount(
           quotation.durationDays ??
-            quotation.duration_days ??
-            snapshot?.durationDays ??
-            snapshotRoot?.durationDays ??
-            durationParts.days
+          quotation.duration_days ??
+          snapshot?.durationDays ??
+          snapshotRoot?.durationDays ??
+          durationParts.days
         )
         const itineraryDayCount =
           durationDays || mappedItinerary.length || Math.max(1, nights + 1)
@@ -1649,13 +1772,23 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         const addOnSnapshot = Array.isArray(snapshot?.addOnServices)
           ? snapshot.addOnServices
           : Array.isArray(snapshotRoot?.addOnServices)
-          ? snapshotRoot.addOnServices
-          : []
+            ? snapshotRoot.addOnServices
+            : []
         if (!cancelled) {
           setAddOnServices(
             addOnSnapshot
               .map((service: any, index: number) => {
                 const baseCost = toFiniteNumber(service?.baseCost, 0)
+                const markupPercent = toFiniteNumber(service?.markupPercent, null as any)
+                const fallbackMarkupPercent =
+                  baseCost > 0
+                    ? Number(
+                        (
+                          (toFiniteNumber(service?.markup, 0) / baseCost) *
+                          100
+                        ).toFixed(2)
+                      )
+                    : 0
                 const sellValue = toFiniteNumber(
                   service?.sellValue,
                   baseCost + toFiniteNumber(service?.markup, 0)
@@ -1665,7 +1798,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   name: toTrimmedString(service?.name) || `Add-on ${index + 1}`,
                   baseCost,
                   markup: toFiniteNumber(service?.markup, sellValue - baseCost),
+                  markupPercent: Number.isFinite(markupPercent)
+                    ? Math.min(100, Math.max(0, Number(markupPercent)))
+                    : fallbackMarkupPercent,
                   sellValue
+                  ,
+                  supplierId: toTrimmedString(service?.supplierId ?? service?.supplier_id) || undefined,
+                  supplierName: toTrimmedString(service?.supplierName ?? service?.supplier_name) || undefined
                 }
               })
               .filter(service => service.name)
@@ -1675,8 +1814,31 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         const serviceRowSnapshot = Array.isArray(snapshot?.serviceRows)
           ? snapshot.serviceRows
           : Array.isArray(snapshotRoot?.serviceRows)
-          ? snapshotRoot.serviceRows
-          : []
+            ? snapshotRoot.serviceRows
+            : []
+
+        // Extract supplier from serviceRows if not found in supplierDetails
+        if (!supplierId && serviceRowSnapshot.length > 0) {
+          const firstServiceRow = serviceRowSnapshot[0] as Record<string, unknown>
+          supplierId = toTrimmedString(
+            firstServiceRow?.supplierId ?? firstServiceRow?.supplier_id
+          )
+          supplierName = toTrimmedString(
+            firstServiceRow?.supplierName ?? firstServiceRow?.supplier_name
+          )
+        }
+
+        if (!cancelled && supplierId) {
+          setSelectedSupplierId(supplierId)
+        }
+        if (!cancelled && supplierId && supplierName) {
+          setSuppliers(prev =>
+            prev.some(supplier => supplier.id === supplierId)
+              ? prev
+              : [...prev, { id: supplierId, name: supplierName }]
+          )
+        }
+
         const snapshotFlightServiceCharge = Number(
           serviceRowSnapshot
             .filter((row: any) => normalizeServiceKey(row?.key) === 'flights')
@@ -1708,31 +1870,49 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 row?.serviceCharge !== undefined && row?.serviceCharge !== null
                   ? String(row.serviceCharge)
                   : key === 'flights' &&
-                      row?.markupAmount !== undefined &&
-                      row?.markupAmount !== null
+                    row?.markupAmount !== undefined &&
+                    row?.markupAmount !== null
                     ? String(row.markupAmount)
                     : undefined,
               sellValue:
                 row?.sellValue !== undefined && row?.sellValue !== null
                   ? String(row.sellValue)
                   : undefined,
-              paymentTerms: toTrimmedString(row?.paymentTerms) || undefined
+              paymentTerms: toTrimmedString(row?.paymentTerms) || undefined,
+              supplierId: toTrimmedString(row?.supplierId ?? row?.supplier_id) || undefined,
+              supplierName: toTrimmedString(row?.supplierName ?? row?.supplier_name) || undefined
             }
           })
           setServiceOverrides(nextOverrides)
+
+          // Add service-level suppliers to the suppliers list
+          const serviceSuppliers = serviceRowSnapshot
+            .map((row: any) => ({
+              id: toTrimmedString(row?.supplierId ?? row?.supplier_id),
+              name: toTrimmedString(row?.supplierName ?? row?.supplier_name)
+            }))
+            .filter((supplier: any) => supplier.id && supplier.name)
+
+          if (serviceSuppliers.length > 0) {
+            setSuppliers(prev => {
+              const existingIds = new Set(prev.map(s => s.id))
+              const newSuppliers = serviceSuppliers.filter((s: any) => !existingIds.has(s.id))
+              return [...prev, ...newSuppliers]
+            })
+          }
         }
 
         const travelStartDate = toDateInputString(
           quotation.travelStartDate ??
-            quotation.travel_start_date ??
-            snapshot?.travelStartDate ??
-            snapshotRoot?.travelStartDate ??
-            relationLead?.travelDate
+          quotation.travel_start_date ??
+          snapshot?.travelStartDate ??
+          snapshotRoot?.travelStartDate ??
+          relationLead?.travelDate
         )
         const validUntil = toDateInputString(
           snapshot?.validUntil ??
-            snapshotRoot?.validUntil ??
-            quotation.expiresAt
+          snapshotRoot?.validUntil ??
+          quotation.expiresAt
         )
         const destinationName = firstNonEmptyString(
           quotation.tripDestination,
@@ -1783,8 +1963,27 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             quotationTitle: quotationTitle || prev.quotationTitle,
             customer: customerName || prev.customer,
             email: customerEmail || prev.email,
+            phone: firstNonEmptyString(
+              quotation.phone,
+              snapshot?.phone,
+              snapshotRoot?.phone,
+              snapshotLead?.phone,
+              relationLead?.phone,
+              prev.phone
+            ),
             destination: destinationName || prev.destination,
             startDate: travelStartDate || prev.startDate,
+            endDate:
+              toDateInputString(
+                quotation.travelEndDate ??
+                quotation.travel_end_date ??
+                snapshot?.travelEndDate ??
+                snapshot?.travel_end_date ??
+                snapshotRoot?.travelEndDate ??
+                snapshotRoot?.travel_end_date ??
+                relationLead?.travelEndDate ??
+                relationLead?.travel_end_date
+              ) || prev.endDate,
             nights,
             durationDays: String(itineraryDayCount),
             adults: Math.max(
@@ -1792,12 +1991,54 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               Math.floor(
                 toFiniteNumber(
                   snapshot?.adults ??
-                    snapshotRoot?.adults ??
-                    relationLead?.adultsCount,
+                  snapshotRoot?.adults ??
+                  relationLead?.adultsCount,
                   prev.adults || 1
                 )
               )
             ),
+            leadCountry: firstNonEmptyString(
+              quotation.leadCountry,
+              quotation.lead_country,
+              snapshot?.leadCountry,
+              snapshot?.lead_country,
+              snapshotRoot?.leadCountry,
+              snapshotRoot?.lead_country,
+              relationLead?.leadCountry,
+              relationLead?.lead_country,
+              snapshotLead?.leadCountry,
+              snapshotLead?.lead_country,
+              snapshotLead?.country,
+              relationLead?.country,
+              relationLead?.nationality,
+              prev.leadCountry
+            ),
+            nationality: firstNonEmptyString(
+              quotation.nationality,
+              snapshot?.nationality,
+              snapshotRoot?.nationality,
+              snapshotLead?.nationality,
+              relationLead?.nationality,
+              prev.nationality
+            ),
+            budget:
+              quotation.budget !== undefined && quotation.budget !== null
+                ? String(quotation.budget)
+                : firstNonEmptyString(
+                  snapshot?.budget,
+                  snapshotRoot?.budget,
+                  relationLead?.budget,
+                  prev.budget
+                ),
+            visaRequired: toYesNoString(
+              quotation.visaRequired ??
+              quotation.visa_required ??
+              snapshot?.visaRequired ??
+              snapshotRoot?.visaRequired ??
+              (snapshot as any)?.services?.visa ??
+              (snapshotRoot as any)?.services?.visa ??
+              (quotation as any).services?.visa
+            ) || prev.visaRequired,
             validUntil: validUntil || prev.validUntil,
             inclusions: firstNonEmptyString(
               quotation.inclusions,
@@ -1853,6 +2094,37 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               snapshotRoot?.visaDetails,
               snapshotRoot?.visa_details,
               prev.visaDetails
+            ),
+            addressLine: firstNonEmptyString(
+              quotation.addressLine,
+              quotation.address_line,
+              relationLead?.addressLine,
+              relationLead?.address_line,
+              snapshot?.addressLine,
+              snapshot?.address_line,
+              snapshotContent?.addressLine,
+              snapshotRoot?.addressLine,
+              snapshotRoot?.address_line,
+              prev.addressLine
+            ),
+            travelPurpose: firstNonEmptyString(
+              quotation.travelPurpose,
+              quotation.travel_purpose,
+              snapshotContent?.travelPurpose,
+              snapshotRoot?.travelPurpose,
+              snapshotRoot?.travel_purpose,
+              relationLead?.travelPurpose,
+              relationLead?.travel_purpose,
+              prev.travelPurpose
+            ),
+            leadSource: firstNonEmptyString(
+              quotation.source,
+              quotation.leadSource,
+              snapshot?.source,
+              snapshotRoot?.source,
+              snapshotLead?.source,
+              relationLead?.source,
+              prev.leadSource
             )
           }))
         }
@@ -1873,8 +2145,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           const resolvedServiceFee = Number.isFinite(snapshotManualServiceFee)
             ? Math.max(0, snapshotManualServiceFee)
             : Number.isFinite(snapshotServiceFeeTotal)
-            ? Math.max(0, snapshotServiceFeeTotal - snapshotFlightServiceCharge)
-            : Math.max(0, persistedServiceFeeTotal - snapshotFlightServiceCharge)
+              ? Math.max(0, snapshotServiceFeeTotal - snapshotFlightServiceCharge)
+              : Math.max(0, persistedServiceFeeTotal - snapshotFlightServiceCharge)
           setCosts(prev => ({
             supplierCost: Math.max(
               0,
@@ -1906,7 +2178,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               )
             )
           }))
-          
+
           setFinance(prev => ({
             ...prev,
             supplierTaxPercent: 0,
@@ -1946,7 +2218,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               toFiniteNumber(quotation.totalSaleValue ?? 0, 0)
             )
           }))
-          
+
           setCurrencies(prev => ({
             costCurrency: toTrimmedString(
               quotation.costCurrency ?? prev.costCurrency
@@ -1961,9 +2233,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
           const selectedCurrency = toTrimmedString(
             quotation.clientCurrency ??
-              quotation.costCurrency ??
-              snapshot?.currency ??
-              snapshotRoot?.currency
+            quotation.costCurrency ??
+            snapshot?.currency ??
+            snapshotRoot?.currency
           ).toUpperCase()
           if (/^[A-Z]{3}$/.test(selectedCurrency)) {
             setCurrency(selectedCurrency)
@@ -2006,8 +2278,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         : selectedLead.destination?.name ?? selectedLead.destinationName ?? ''
     const destinationName = selectedLead.destinationId
       ? destinationMap[selectedLead.destinationId] ||
-        resolvedDestination ||
-        form.destination
+      resolvedDestination ||
+      form.destination
       : resolvedDestination || form.destination
 
     setForm(prev => ({
@@ -2111,7 +2383,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         )
         .toFixed(2)
     )
-   
+
     const markupAmount = Number((serviceMarkupTotal + addOnMarkupTotal).toFixed(2))
     const serviceFeeAmount = Number(costs.serviceFee) || 0
     const subtotal = serviceSellTotal + addOnTotal + serviceFeeAmount
@@ -2152,20 +2424,25 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const addAddOnService = () => {
     const name = addOnDraft.name.trim()
     const baseCost = Number(addOnDraft.baseCost)
-    const markup = Number(addOnDraft.markup)
-    const sellValue = Number((baseCost + markup).toFixed(2))
+    const markupPercent = Number(addOnDraft.markupPercent)
+    const boundedBaseCost = Math.max(0, baseCost)
+    const boundedMarkupPercent = Math.min(100, Math.max(0, markupPercent))
+    const markup = Number(((boundedBaseCost * boundedMarkupPercent) / 100).toFixed(2))
+    const sellValue = Number((boundedBaseCost + markup).toFixed(2))
     if (
       !name ||
       !Number.isFinite(baseCost) ||
       baseCost < 0 ||
-      !Number.isFinite(markup) ||
-      markup < 0 ||
+      !Number.isFinite(markupPercent) ||
+      markupPercent < 0 ||
       !Number.isFinite(sellValue) ||
       sellValue < 0
     ) {
       alert('Please fill all add-on fields with valid values.')
       return
     }
+    const supplierId = String(addOnDraft.supplierId || '').trim()
+    const supplierName = String(addOnDraft.supplierName || '').trim()
     if (editingAddOnId) {
       setAddOnServices(prev =>
         prev.map(s =>
@@ -2173,9 +2450,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             ? {
                 id: s.id,
                 name,
-                baseCost,
+                baseCost: boundedBaseCost,
                 markup,
+                markupPercent: boundedMarkupPercent,
                 sellValue
+                ,
+                supplierId: supplierId || undefined,
+                supplierName: supplierName || undefined
               }
             : s
         )
@@ -2187,16 +2468,22 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         {
           id: `addon-${Date.now()}`,
           name,
-          baseCost,
+          baseCost: boundedBaseCost,
           markup,
+          markupPercent: boundedMarkupPercent,
           sellValue
+          ,
+          supplierId: supplierId || undefined,
+          supplierName: supplierName || undefined
         }
       ])
     }
     setAddOnDraft({
       name: '',
       baseCost: '',
-      markup: '',
+      markupPercent: '',
+      supplierId: '',
+      supplierName: '',
       sellValue: ''
     })
     setShowAddOnModal(false)
@@ -2207,7 +2494,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     setAddOnDraft({
       name: service.name,
       baseCost: String(service.baseCost),
-      markup: String(service.markup),
+      markupPercent: String(
+        service.markupPercent !== undefined
+          ? service.markupPercent
+          : service.baseCost > 0
+            ? Number(((service.markup / service.baseCost) * 100).toFixed(2))
+            : 0
+      ),
+      supplierId: String(service.supplierId ?? ''),
+      supplierName: String(service.supplierName ?? ''),
       sellValue: String(service.sellValue)
     })
     setShowAddOnModal(true)
@@ -2279,7 +2574,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       ((totalMarkupFromServices / markupBaseCostTotal) * 100).toFixed(2)
     )
   }, [markupBaseCostTotal, totalMarkupFromServices])
-  
+
   const serviceChargesTotal = useMemo(
     () =>
       Number(
@@ -2353,9 +2648,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       const markupError = isFlightService
         ? getNumericOverrideError(override.serviceCharge, { min: 0 })
         : getNumericOverrideError(override.markupPercent, {
-            min: 0,
-            max: 100
-          })
+          min: 0,
+          max: 100
+        })
       if (baseCostError) errors[`${definition.key}.baseCost`] = baseCostError
       if (markupError)
         errors[`${definition.key}.${isFlightService ? 'serviceCharge' : 'markupPercent'}`] =
@@ -2416,12 +2711,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }).format(cappedValue)
   }
 
-  const formatPreviewDateTime = (value?: string) => {
-    if (!value) return 'N/A'
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return value
-    return parsed.toLocaleString()
-  }
+
 
   const formatPreviewDate = (value?: string) => {
     if (!value) return 'N/A'
@@ -2439,8 +2729,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         : selectedLead.destination?.name ?? selectedLead.destinationName ?? ''
     const destinationName = selectedLead.destinationId
       ? destinationMap[selectedLead.destinationId] ||
-        resolvedDestination ||
-        form.destination
+      resolvedDestination ||
+      form.destination
       : resolvedDestination || form.destination
 
     setForm(prev => ({
@@ -2601,8 +2891,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const itinerarySummary = itineraryItems
       .map(
         item =>
-          `${item.day}: ${item.title}${
-            item.description ? ` - ${item.description}` : ''
+          `${item.day}: ${item.title}${item.description ? ` - ${item.description}` : ''
           }`
       )
       .join('\n')
@@ -2614,24 +2903,17 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     const supplierName = selectedSupplier?.name?.trim() || ''
 
     const sections = [
-      `Trip Summary:\nQuote Reference: ${
-        form.quote || 'N/A'
-      }\nQuotation Title: ${quotationTitleDisplay || 'N/A'}\nVersion: ${
-        form.version || 'N/A'
-      }\nDestination: ${form.destination || 'N/A'}\nTravel Date: ${
-        form.startDate || 'N/A'
-      }\nNights: ${form.nights}\nDays: ${
-        form.durationDays || 'N/A'
-      }\nDuration: ${previewDurationLabel || 'N/A'}\nAdults: ${
-        form.adults
-      }\nChildren: ${form.children}\n${
-        Array.isArray(form.childAges) && form.childAges.length
-          ? `Child Ages: ${form.childAges
-              .filter(age => String(age).trim())
-              .join(', ')}`
-          : ''
-      }Package Type: ${packageType}${
-        sourcePackageName ? `\nSelected Package: ${sourcePackageName}` : ''
+      `Trip Summary:\nQuote Reference: ${form.quote || 'N/A'
+      }\nQuotation Title: ${quotationTitleDisplay || 'N/A'}\nVersion: ${form.version || 'N/A'
+      }\nDestination: ${form.destination || 'N/A'}\nTravel Date: ${form.startDate || 'N/A'
+      }\nNights: ${form.nights}\nDays: ${form.durationDays || 'N/A'
+      }\nDuration: ${previewDurationLabel || 'N/A'}\nAdults: ${form.adults
+      }\nChildren: ${form.children}\n${Array.isArray(form.childAges) && form.childAges.length
+        ? `Child Ages: ${form.childAges
+          .filter(age => String(age).trim())
+          .join(', ')}`
+        : ''
+      }Package Type: ${packageType}${sourcePackageName ? `\nSelected Package: ${sourcePackageName}` : ''
       }${supplierName ? `\nSupplier: ${supplierName}` : ''}`,
       enabledServices ? `Enabled Services:\n${enabledServices}` : '',
       itinerarySummary ? `Itinerary:\n${itinerarySummary}` : '',
@@ -2710,33 +2992,33 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       currency,
       package: selectedPackageId
         ? {
-            id: selectedPackageId,
-            name: sourcePackageName || null,
-            duration: previewDurationLabel || null,
-            destination: form.destination.trim() || null,
-            validFrom:
-              String(
-                selectedPackage?.validFrom ?? selectedPackage?.valid_from ?? ''
-              ).trim() ||
-              form.startDate ||
-              null,
-            validTo:
-              String(
-                selectedPackage?.validTo ?? selectedPackage?.valid_to ?? ''
-              ).trim() ||
-              form.validUntil ||
-              null,
-            kind:
-              selectedPackage?.packageKind ??
-              selectedPackage?.package_kind ??
-              null
-          }
+          id: selectedPackageId,
+          name: sourcePackageName || null,
+          duration: previewDurationLabel || null,
+          destination: form.destination.trim() || null,
+          validFrom:
+            String(
+              selectedPackage?.validFrom ?? selectedPackage?.valid_from ?? ''
+            ).trim() ||
+            form.startDate ||
+            null,
+          validTo:
+            String(
+              selectedPackage?.validTo ?? selectedPackage?.valid_to ?? ''
+            ).trim() ||
+            form.validUntil ||
+            null,
+          kind:
+            selectedPackage?.packageKind ??
+            selectedPackage?.package_kind ??
+            null
+        }
         : null,
       supplierDetails: selectedSupplierId
         ? {
-            supplierId: selectedSupplierId,
-            supplierName: selectedSupplier?.name || null
-          }
+          supplierId: selectedSupplierId,
+          supplierName: selectedSupplier?.name || null
+        }
         : null,
       enabledServices: selectedServiceDefinitions.map(definition => ({
         key: definition.key,
@@ -2757,7 +3039,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
               : row.baseCost,
           markupPercent:
             override.markupPercent !== undefined &&
-            override.markupPercent !== ''
+              override.markupPercent !== ''
               ? Number(override.markupPercent)
               : row.markupPercent,
           serviceCharge:
@@ -2779,7 +3061,13 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         name: service.name,
         baseCost: Number(service.baseCost) || 0,
         markup: Number(service.markup) || 0,
-        sellValue: Number(service.sellValue) || 0
+        markupPercent:
+          service.markupPercent !== undefined
+            ? Number(service.markupPercent) || 0
+            : undefined,
+        sellValue: Number(service.sellValue) || 0,
+        supplierId: service.supplierId?.trim() || null,
+        supplierName: service.supplierName?.trim() || null
       })),
       itineraryItems: itineraryItems.map(item => ({
         id: item.id,
@@ -2795,7 +3083,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         cancellationPolicy: form.cancellationPolicy,
         footerDisclaimer: form.footerDisclaimer,
         hotelDetails: form.hotelDetails,
-        visaDetails: form.visaDetails
+        visaDetails: form.visaDetails,
+        leadCountry: form.leadCountry,
+        addressLine: form.addressLine,
+        budget: form.budget,
+        travelPurpose: form.travelPurpose,
+        leadSource: form.leadSource
       },
       pricing: {
         supplierCost: Number(costs.supplierCost) || 0,
@@ -2943,9 +3236,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           const override = serviceOverrides[row.key] ?? {}
           return {
             itemType: row.itemType,
-            description: `${row.label}${
-              form.destination ? ` - ${form.destination}` : ''
-            }${override.paymentTerms ? ` (${override.paymentTerms})` : ''}`,
+            description: `${row.label}${form.destination ? ` - ${form.destination}` : ''
+              }${override.paymentTerms ? ` (${override.paymentTerms})` : ''}`,
             cost: row.baseCost,
             sellValue: row.sellValue,
             supplierId: override.supplierId?.trim() || null,
@@ -2956,7 +3248,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           itemType: 'OTHER',
           description: `Add-on Service - ${service.name}`,
           cost: Number((Number(service.baseCost) || 0).toFixed(2)),
-          sellValue: Number((Number(service.sellValue) || 0).toFixed(2))
+          sellValue: Number((Number(service.sellValue) || 0).toFixed(2)),
+          supplierId: service.supplierId?.trim() || null,
+          supplierName: service.supplierName?.trim() || null
         }))
       ]
 
@@ -2970,11 +3264,112 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         return Math.min(hours, 720)
       })()
 
-      const validTemplateId = isUuid(selectedTemplateId)
+      const buildAutoTemplateCode = () => {
+        const stamp = Date.now().toString(36).toUpperCase()
+        const rand = Math.random().toString(36).slice(2, 6).toUpperCase()
+        return `AUTO-${stamp}-${rand}`.slice(0, 50)
+      }
+
+      const buildAutoTemplateName = () => {
+        const title = toTrimmedString(form.quotationTitle)
+        if (title) return title.slice(0, 150)
+        const destination = toTrimmedString(form.destination)
+        if (destination) return `Custom - ${destination}`.slice(0, 150)
+        return `Custom Quotation Template`.slice(0, 150)
+      }
+
+      let resolvedTemplateId: string | undefined = isUuid(selectedTemplateId)
         ? selectedTemplateId
         : undefined
+
+      // If "Custom Quotation" selected, auto-save it as a reusable template
+      // before saving quotation.
+      if (!isEditMode && !selectedTemplateId) {
+        const templatePayload = {
+          code: buildAutoTemplateCode(),
+          name: buildAutoTemplateName(),
+          templateType: 'CUSTOM_ITINERARY' as TemplateType,
+          minMarginPercent: 0,
+          isActive: true,
+          headerBranding: form.headerBranding?.trim() || undefined,
+          inclusions: form.inclusions?.trim() || undefined,
+          exclusions: form.exclusions?.trim() || undefined,
+          paymentTerms: form.paymentTerms?.trim() || undefined,
+          cancellationPolicy: form.cancellationPolicy?.trim() || undefined,
+          footerDisclaimer: form.footerDisclaimer?.trim() || undefined
+        }
+
+        try {
+          const created = await quotationsApi.createTemplate(templatePayload)
+          const createdTemplate =
+            unwrapApiData<Record<string, unknown>>(created) || {}
+          const createdTemplateId = toTrimmedString(
+            (createdTemplate as any).id ?? (createdTemplate as any).templateId
+          )
+          if (createdTemplateId) {
+            resolvedTemplateId = createdTemplateId
+            setSelectedTemplateId(createdTemplateId)
+            setTemplates(prev =>
+              prev.some(t => t.id === createdTemplateId)
+                ? prev
+                : [
+                    ...prev,
+                    {
+                      id: createdTemplateId,
+                      code: toTrimmedString((createdTemplate as any).code),
+                      name: toTrimmedString((createdTemplate as any).name),
+                      templateType:
+                        ((createdTemplate as any).templateType ??
+                          (createdTemplate as any).template_type ??
+                          'CUSTOM_ITINERARY') as TemplateType,
+                      isActive:
+                        (createdTemplate as any).isActive ??
+                        (createdTemplate as any).is_active ??
+                        true,
+                      minMarginPercent: toFiniteNumber(
+                        (createdTemplate as any).minMarginPercent ??
+                          (createdTemplate as any).min_margin_percent,
+                        0
+                      ),
+                      headerBranding: toTrimmedString(
+                        (createdTemplate as any).headerBranding ??
+                          (createdTemplate as any).header_branding
+                      ),
+                      inclusions: toTrimmedString(
+                        (createdTemplate as any).inclusions
+                      ),
+                      exclusions: toTrimmedString(
+                        (createdTemplate as any).exclusions
+                      ),
+                      paymentTerms: toTrimmedString(
+                        (createdTemplate as any).paymentTerms ??
+                          (createdTemplate as any).payment_terms
+                      ),
+                      cancellationPolicy: toTrimmedString(
+                        (createdTemplate as any).cancellationPolicy ??
+                          (createdTemplate as any).cancellation_policy
+                      ),
+                      footerDisclaimer: toTrimmedString(
+                        (createdTemplate as any).footerDisclaimer ??
+                          (createdTemplate as any).footer_disclaimer
+                      )
+                    }
+                  ]
+            )
+          }
+        } catch (error) {
+          console.error('Failed to auto-save custom template:', error)
+          reportApiError(
+            error,
+            'Failed to save quotation template for custom quotation.',
+            setSaveError
+          )
+          return
+        }
+      }
+
       const basePayload = {
-        ...(validTemplateId ? { templateId: validTemplateId } : {}),
+        ...(resolvedTemplateId ? { templateId: resolvedTemplateId } : {}),
         components,
         marginPercent: Number(costs.markupPercent) || 0,
         discount,
@@ -3059,7 +3454,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 ? 'Update your draft quotation with the same builder experience.'
                 : 'Create and preview polished quotations quickly.'}
             </p>
-          
+
             {saveError ? (
               <p className='mt-2 text-sm text-red-600'>{saveError}</p>
             ) : null}
@@ -3090,8 +3485,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   ? 'Updating...'
                   : 'Saving...'
                 : isEditMode
-                ? 'Update Quotation'
-                : 'Save Quotation'}
+                  ? 'Update Quotation'
+                  : 'Save Quotation'}
             </button>
           </div>
         </div>
@@ -3143,7 +3538,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   ) : null}
                 </div>
                 <div>
-                  <label className='field-label'>Lead ID</label>
+                  <label className='field-label'>Lead ID </label>
                   <input
                     type='text'
                     className='field-input overflow-hidden text-ellipsis'
@@ -3162,9 +3557,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         disabled={templatesLoading}
                         searchPlaceholder='Search quotation template...'
                         onChange={nextId => {
-                          setSelectedTemplateId(nextId)
+                          // Backward-compat for older "CUSTOM" sentinel.
+                          const normalizedId = nextId === 'CUSTOM' ? '' : nextId
+                          setSelectedTemplateId(normalizedId)
                           const template =
-                            templates.find(item => item.id === nextId) || null
+                            templates.find(item => item.id === normalizedId) ||
+                            null
                           applyTemplateDefaults(template)
                         }}
                       />
@@ -3294,7 +3692,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         value={currency}
                         options={currencyOptions}
                         searchPlaceholder='Search currency...'
-                        onChange={value => setCurrency(String(value || 'INR').toUpperCase())}
+                        onChange={value => {
+                          const next = String(value || 'INR').toUpperCase()
+                          setCurrency(next)
+                          setCurrencies(prev => ({
+                            ...prev,
+                            clientCurrency: next,
+                            costCurrency: next
+                          }))
+                        }}
                       />
                     </div>
                     <div className='md:col-span-2'>
@@ -3349,15 +3755,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       />
                     </div>
                     <div>
-                      <label className='field-label'>Valid Until</label>
+                      <label className='field-label'>Valid Until <span className='text-gray-400 font-normal'>(Quotation expiry)</span></label>
                       <input
-                        type='datetime-local'
+                        type='date'
                         className='field-input'
                         value={form.validUntil}
                         onChange={e =>
                           setForm(p => ({ ...p, validUntil: e.target.value }))
                         }
                       />
+                      <p className='mt-0.5 text-xs text-gray-400'>How long this quoted price is valid for the customer.</p>
                     </div>
                     <div className='md:col-span-2 lg:col-span-1'>
                       <label className='field-label'>Duration</label>
@@ -3449,11 +3856,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       <div className='md:col-span-1 lg:col-span-2'>
                         <label className='field-label'>Child Ages</label>
                         <div
-                          className={`grid gap-2 ${
-                            Number(form.children) === 1
+                          className={`grid gap-2 ${Number(form.children) === 1
                               ? 'grid-cols-1'
                               : 'grid-cols-2 md:grid-cols-4'
-                          }`}
+                            }`}
                         >
                           {Array.from({ length: Number(form.children) }).map((_, index) => (
                             <input
@@ -3501,7 +3907,12 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         className='field-input overflow-hidden text-ellipsis'
                         placeholder='Customer budget'
                         value={form.budget || ''}
-                        onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
+                        onChange={e => {
+                          const value = e.target.value
+                          const digitsOnly = /^[\d]{0,20}$/
+                          if (!digitsOnly.test(value)) return
+                          setForm(p => ({ ...p, budget: value }))
+                        }}
                       />
                     </div>
                     <div>
@@ -3636,7 +4047,15 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   options={currencyOptions}
                   searchPlaceholder='Search currency...'
                   onChange={value =>
-                    setCurrency(String(value || 'INR').toUpperCase())
+                    (() => {
+                      const next = String(value || 'INR').toUpperCase()
+                      setCurrency(next)
+                      setCurrencies(prev => ({
+                        ...prev,
+                        clientCurrency: next,
+                        costCurrency: next
+                      }))
+                    })()
                   }
                 />
               </div>
@@ -3672,7 +4091,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   </p>
                 </div>
               </div>
-              <div className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]'>
+              <div className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,3.5fr)_minmax(0,1fr)]'>
                 <div className='space-y-4'>
                   <PricingTable
                     rows={serviceCostRows}
@@ -3683,7 +4102,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     onUpdateField={updateServiceOverrideField}
                     onClearField={clearServiceOverrideField}
                     onCellKeyDown={focusNextPricingInput}
-                    totalSellValue={serviceChargesTotal}
                     suppliers={suppliers}
                     suppliersLoading={suppliersLoading}
                   />
@@ -3760,6 +4178,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       </div>
                     )}
                   </div>
+                  <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
+                    <p className='text-xs uppercase text-center text-blue-700 dark:text-blue-300'>
+                      Total Sale Value
+                    </p>
+                    <p className='mt-1 text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-300 truncate'>
+                      {money(Math.min(total, 999999999999))}
+                    </p>
+                  </div>
                 </div>
                 <SummaryPanel
                   form={form}
@@ -3776,7 +4202,6 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   effectiveMarkupPercent={effectiveMarkupPercent}
                   subtotal={subtotal}
                   taxes={taxes}
-                  total={total}
                   totalMarkup={totalMarkupFromServices || computed.markupVal}
                   money={money}
                 />
@@ -3801,11 +4226,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         key={shortcut.key}
                         type='button'
                         onClick={() => toggleInclusionShortcut(shortcut.line)}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
-                          isActive
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${isActive
                             ? 'border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-300'
                             : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-blue-700 dark:hover:text-blue-300'
-                        }`}
+                          }`}
                       >
                         <Icon className='text-xs' />
                         <span>{shortcut.label}</span>
@@ -3943,28 +4367,26 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   <div className='flex items-center gap-2'>
                     <button
                       onClick={() => setMobile(false)}
-                      className={`rounded-lg px-2 py-1 text-xs ${
-                        !mobile
+                      className={`rounded-lg px-2 py-1 text-xs ${!mobile
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                      }`}
+                        }`}
                     >
                       <FaDesktop className='mr-1 inline' /> Desktop
                     </button>
                     <button
                       onClick={() => setMobile(true)}
-                      className={`rounded-lg px-2 py-1 text-xs ${
-                        mobile
+                      className={`rounded-lg px-2 py-1 text-xs ${mobile
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                      }`}
+                        }`}
                     >
                       <FaMobileScreen className='mr-1 inline' /> Mobile
                     </button>
                   </div>
-                  <div className='flex gap-2'>
+                  <div className='flex gap-2 ml-2'>
                     <button className='rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700'>
-                      <FaArrowRotateRight className='mr-1 inline' /> Refresh
+                      <FaArrowRotateRight className='mr-1  inline' /> Refresh
                     </button>
                     <button
                       onClick={() => setShowPreview(false)}
@@ -3976,11 +4398,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 </div>
                 <div
                   ref={previewRef}
-                  className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${
-                    mobile ? 'max-w-[360px]' : 'max-w-3xl'
-                  }`}
+                  className={`mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900 ${mobile ? 'max-w-[360px]' : 'max-w-3xl'
+                    }`}
                 >
-                  <div className='mb-6 flex items-start justify-between border-b border-gray-100 pb-4 dark:border-gray-800'>
+                  <div className='mb-6 flex flex-col sm:items-start items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-gray-800'>
                     <div className='flex items-center gap-2'>
                       <div className='flex h-8 w-8 items-center justify-center rounded-lg'>
                         <img
@@ -3998,11 +4419,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         </p>
                       </div>
                     </div>
-                    <div className='text-right'>
+                    <div className='text-center sm:text-right'>
                       <p className='text-lg font-bold text-blue-600'>
                         QUOTATION
                       </p>
-                      <p className='text-xs text-gray-500'>
+                      <p className='text-xs text-gray-500 whitespace-nowrap'>
                         #{quoteDisplayNumber}
                       </p>
                     </div>
@@ -4106,7 +4527,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       <p className='break-words sm:text-right'>
                         Valid Until:{' '}
                         <span className='text-gray-700'>
-                          {formatPreviewDateTime(form.validUntil)}
+                          {formatPreviewDate(form.validUntil)}
                         </span>
                       </p>
                     </div>
@@ -4114,7 +4535,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
                   {quotationTitleDisplay || selectedPackageKindLabel ? (
                     <div className='mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3'>
-                      <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700'>
+                      <p className='mb-2 text-xs  font-semibold uppercase tracking-wide text-blue-700'>
                         Trip Snapshot
                       </p>
                       <div className='grid grid-cols-1 gap-2 text-xs text-blue-900 sm:grid-cols-3'>
@@ -4279,8 +4700,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   </div>
 
                   {form.paymentTerms.trim() ||
-                  form.cancellationPolicy.trim() ||
-                  form.footerDisclaimer.trim() ? (
+                    form.cancellationPolicy.trim() ||
+                    form.footerDisclaimer.trim() ? (
                     <div className='mt-4 space-y-2 rounded-xl border border-gray-200 p-3 text-xs dark:border-gray-700'>
                       {form.paymentTerms.trim() ? (
                         <div>
@@ -4398,7 +4819,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         )}
 
         {showAddOnModal && (
-          <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur'>
+          <div className='fixed -inset-6 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur'>
             <div className='w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900 border border-gray-200 dark:border-gray-700'>
               <div className='mb-3 flex items-center justify-between'>
                 <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
@@ -4424,6 +4845,30 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   />
                 </div>
                 <div>
+                  <label className='field-label'>Supplier</label>
+                  <SearchableDropdown
+                    value={addOnDraft.supplierId}
+                    options={[
+                      { value: '', label: 'No supplier selected' },
+                      ...suppliers.map(supplier => ({
+                        value: supplier.id,
+                        label: supplier.name
+                      }))
+                    ]}
+                    onChange={value => {
+                      const supplierId = String(value || '')
+                      const supplier = suppliers.find(s => s.id === supplierId) || null
+                      setAddOnDraft(p => ({
+                        ...p,
+                        supplierId,
+                        supplierName: supplier ? supplier.name : ''
+                      }))
+                    }}
+                    searchPlaceholder='Search supplier...'
+                    disabled={suppliersLoading}
+                  />
+                </div>
+                <div>
                   <label className='field-label'>Base Cost</label>
                   <input
                     type='number'
@@ -4441,17 +4886,25 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 </div>
                 <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
                   <div>
-                    <label className='field-label'>Markup</label>
+                    <label className='field-label'>Markup %</label>
                     <input
                       type='number'
                       min='0'
+                      max='100'
+                      step='0.1'
                       className='field-input overflow-hidden text-ellipsis'
-                      value={addOnDraft.markup}
+                      value={addOnDraft.markupPercent}
                       onChange={e =>
-                        setAddOnDraft(p => ({ ...p, markup: e.target.value }))
+                        setAddOnDraft(p => ({
+                          ...p,
+                          markupPercent: e.target.value
+                        }))
                       }
-                      placeholder='0.00'
+                      placeholder='0'
                     />
+                    <p className='mt-1 text-[10px] text-gray-500 dark:text-gray-400'>
+                      Markup amount: {money(Math.min(Math.max(0, addOnComputedSellValue - (Number(addOnDraft.baseCost) || 0)), 999999999999))}
+                    </p>
                   </div>
                   <div>
                     <label className='field-label'>Sell Value</label>
@@ -4514,7 +4967,6 @@ const PricingTable = ({
   onClearField,
   onCellKeyDown,
   money,
-  totalSellValue,
   suppliers,
   suppliersLoading
 }: {
@@ -4530,7 +4982,6 @@ const PricingTable = ({
   onClearField: (rowKey: ServiceKey, field: PricingField) => void
   onCellKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
   money: (value: number) => string
-  totalSellValue: number
   suppliers: Array<{ id: string; name: string }>
   suppliersLoading: boolean
 }) => {
@@ -4563,7 +5014,7 @@ const PricingTable = ({
               />
             ))}
           </div>
-          <div className='rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 dark:border-blue-800 dark:from-blue-900/20 dark:to-indigo-900/20'>
+          {/* <div className='rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 dark:border-blue-800 dark:from-blue-900/20 dark:to-indigo-900/20'>
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300'>
@@ -4586,7 +5037,7 @@ const PricingTable = ({
                 </p>
               </div>
             </div>
-          </div>
+          </div> */}
         </>
       )}
     </div>
@@ -4656,8 +5107,8 @@ const PricingRow = ({
     : row.baseCost.toFixed(2)
   const displayMarkup = hasMarkupOverride
     ? String(
-        isFlightService ? override.serviceCharge : override.markupPercent
-      )
+      isFlightService ? override.serviceCharge : override.markupPercent
+    )
     : isFlightService
       ? row.markupAmount.toFixed(2)
       : row.markupPercent.toFixed(1)
@@ -4670,11 +5121,9 @@ const PricingRow = ({
     const key = `${row.key}.${field}`
     const hasError = Boolean(fieldErrors[key])
     const changed = Boolean(changedCells[key])
-    return `${sharedInputClass} ${
-      hasError ? 'border-red-400 focus:ring-red-400' : ''
-    } ${
-      changed ? 'ring-2 ring-green-300 bg-green-50/60 dark:bg-green-900/20' : ''
-    }`
+    return `${sharedInputClass} ${hasError ? 'border-red-400 focus:ring-red-400' : ''
+      } ${changed ? 'ring-2 ring-green-300 bg-green-50/60 dark:bg-green-900/20' : ''
+      }`
   }
 
   const normalizeOnBlur = (
@@ -4849,7 +5298,6 @@ const SummaryPanel = ({
   effectiveMarkupPercent,
   subtotal,
   taxes,
-  total,
   totalMarkup,
   money
 }: {
@@ -4871,12 +5319,11 @@ const SummaryPanel = ({
   effectiveMarkupPercent: number
   subtotal: number
   taxes: number
-  total: number
   totalMarkup: number
   money: (value: number) => string
 }) => {
   const inputClass =
-    'h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+    'h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
   const totalServiceFee = Number((costs.serviceFee + flightServiceCharge).toFixed(2))
 
   const updateCost = (field: keyof PricingCosts, value: string) => {
@@ -4928,29 +5375,29 @@ const SummaryPanel = ({
   return (
     <div className='space-y-3'>
       <div className='rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900'>
-        <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+        <p className='text-xs font-semibold uppercase text-center tracking-wide text-gray-500'>
           Trip Snapshot
         </p>
         <div className='mt-2 space-y-1.5 text-xs text-gray-600 dark:text-gray-300'>
-          <div className='flex items-center justify-between'>
+          <div className='flex flex-col my-3 items-center justify-between'>
             <span>Destination</span>
             <span className='font-medium text-gray-800 dark:text-gray-100'>
               {form.destination || 'Not set'}
             </span>
           </div>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center flex-col pb-3 justify-between'>
             <span>Travel Date</span>
             <span className='font-medium text-gray-800 dark:text-gray-100'>
               {form.startDate || 'Not set'}
             </span>
           </div>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center flex-col pb-3 justify-between'>
             <span>Duration</span>
             <span className='font-medium text-gray-800 dark:text-gray-100'>
               {previewDurationLabel || 'N/A'}
             </span>
           </div>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center flex-col  justify-between'>
             <span>Travellers</span>
             <span className='font-medium text-gray-800 dark:text-gray-100'>
               {form.adults || 0}
@@ -4959,13 +5406,13 @@ const SummaryPanel = ({
         </div>
       </div>
 
-      <div className='rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900'>
+      <div className='overflow-x-hidden rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900'>
         <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
           Financial Summary
         </p>
-        <div className='mt-3 space-y-3'>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Supplier Cost</span>
+        <div className='mt-3 space-y-8'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Supplier Cost</span>
             <input
               type='number'
               min='0'
@@ -4976,8 +5423,8 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Service Fee</span>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Service Fee</span>
             <input
               type='number'
               min='0'
@@ -4988,25 +5435,25 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <p className='-mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+          <p className='-mt-1 break-words text-[11px] text-gray-500 dark:text-gray-400'>
             Manual {money(costs.serviceFee)} + Flight charge {money(flightServiceCharge)}
           </p>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Apply GST</span>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Apply GST</span>
             <select
               value={finance.gstEnabled ? 'yes' : 'no'}
               onChange={event =>
                 toggleFinanceFlag('gstEnabled', event.target.value === 'yes')
               }
-              className='h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+              className='h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
             >
               <option value='no'>No</option>
               <option value='yes'>Yes</option>
             </select>
           </div>
           {finance.gstEnabled ? (
-            <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-              <span className='text-xs text-gray-500'>GST %</span>
+            <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+              <span className='min-w-0 text-xs leading-snug text-gray-500'>GST %</span>
               <input
                 type='number'
                 min='0'
@@ -5020,22 +5467,22 @@ const SummaryPanel = ({
               />
             </div>
           ) : null}
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Apply TCS</span>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Apply TCS</span>
             <select
               value={finance.tcsEnabled ? 'yes' : 'no'}
               onChange={event =>
                 toggleFinanceFlag('tcsEnabled', event.target.value === 'yes')
               }
-              className='h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+              className='h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
             >
               <option value='no'>No</option>
               <option value='yes'>Yes</option>
             </select>
           </div>
           {finance.tcsEnabled ? (
-            <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-              <span className='text-xs text-gray-500'>TCS %</span>
+            <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+              <span className='min-w-0 text-xs leading-snug text-gray-500'>TCS %</span>
               <input
                 type='number'
                 min='0'
@@ -5062,14 +5509,14 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div> */}
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Effective Markup %</span>
-            <div className='h-10 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Effective Markup %</span>
+            <div className='h-10 w-full min-w-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
               {effectiveMarkupPercent.toFixed(2)}
             </div>
           </div>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500'>Discount</span>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+            <span className='min-w-0 text-xs leading-snug text-gray-500'>Discount</span>
             <input
               type='number'
               min='0'
@@ -5080,56 +5527,49 @@ const SummaryPanel = ({
               className={inputClass}
             />
           </div>
-          <div className='grid grid-cols-[1fr_120px] items-center gap-2'>
-            <span className='text-xs text-gray-500 font-medium'>Profit (Auto)</span>
-            <div className='h-10 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 overflow-hidden'>
+          <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
+            <span className='min-w-0 text-xs font-medium leading-snug text-gray-500'>Profit (Auto)</span>
+            <div className='h-10 min-w-0 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 overflow-hidden'>
               <span className='truncate block'>{money(Math.min(totalMarkup + addOnMarkup, 999999999999))}</span>
             </div>
           </div>
-          <div className='space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
-            <div className='flex items-center justify-between'>
-              <span>Total Markup</span>
-              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+          <div className='space-y-1.5 overflow-hidden  rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5  text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'>
+            <div className='flex min-w-0 flex-col items-center pb-5 justify-between gap-2'>
+              <span className='min-w-0 text-center'>Total Markup</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(totalMarkup, 999999999999))}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
-              <span>Flight Service Charge</span>
-              <span className='font-medium tabular-nums'>
+            <div className='flex min-w-0 flex-col items-center pb-5 justify-between gap-2'>
+              <span className='min-w-0 text-center'>Flight Service Charge</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(flightServiceCharge)}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
-              <span>Add-ons</span>
-              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+            <div className='flex min-w-0 items-center flex-col pb-5 justify-between gap-2'>
+              <span className='min-w-0'>Add-ons</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(addOnTotal, 999999999999))}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
-              <span>Subtotal</span>
-              <span className='font-medium tabular-nums truncate max-w-[120px]'>
+            <div className='flex min-w-0 items-center pb-5 flex-col justify-between gap-2'>
+              <span className='min-w-0'>Subtotal</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
                 {money(Math.min(subtotal, 999999999999))}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
-              <span>Tax Amount</span>
-              <span className='font-medium tabular-nums truncate max-w-[120px]'>{money(Math.min(taxes, 999999999999))}</span>
+            <div className='flex min-w-0 items-center flex-col justify-between gap-2'>
+              <span className='min-w-0 text-center'>Tax Amount</span>
+              <span className='min-w-0 max-w-[120px] truncate text-right font-medium tabular-nums'>
+                {money(Math.min(taxes, 999999999999))}
+              </span>
             </div>
-            
-          </div>
-          <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
-            <p className='text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300'>
-              Total Sale Value
-            </p>
-            <p className='mt-1 text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-300 truncate'>
-              {money(Math.min(total, 999999999999))}
-            </p>
           </div>
         </div>
       </div>
 
       <div className='rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900'>
-        <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+        <p className='text-xs font-semibold text-center uppercase tracking-wide text-gray-500'>
           Itinerary Summary
         </p>
         <div className='mt-2 space-y-1.5 text-xs text-gray-600 dark:text-gray-300'>

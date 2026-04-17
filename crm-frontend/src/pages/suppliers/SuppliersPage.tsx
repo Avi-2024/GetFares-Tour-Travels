@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaCircleCheck,
@@ -9,11 +9,20 @@ import {
   FaSort,
   FaChevronLeft,
   FaChevronRight,
-  FaXmark
+  FaXmark,
+  FaTrash
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { suppliersApi } from '../../api/suppliers'
 import { reportApiError } from '../../lib/notify'
+import {
+  PhoneInput,
+  type CountryIso2,
+  type PhoneInputRefType
+} from 'react-international-phone'
+import 'react-international-phone/style.css'
+import { Country } from 'country-state-city'
+import SearchableDropdown from '../../components/ui/SearchableDropdown'
 
 
 interface Supplier {
@@ -23,6 +32,10 @@ interface Supplier {
   phone?: string
   email?: string
   panNumber?: string
+  ssnNumber?: string
+  ninoNumber?: string
+  sinNumber?: string
+  tfnNumber?: string
   gstNumber?: string
   addressLine?: string
   country?: string
@@ -45,6 +58,10 @@ type SupplierForm = {
   phone: string
   email: string
   panNumber: string
+  ssnNumber: string
+  ninoNumber: string
+  sinNumber: string
+  tfnNumber: string
   gstNumber: string
   addressLine: string
   country: string
@@ -67,6 +84,10 @@ const emptySupplierForm: SupplierForm = {
   phone: '',
   email: '',
   panNumber: '',
+  ssnNumber: '',
+  ninoNumber: '',
+  sinNumber: '',
+  tfnNumber: '',
   gstNumber: '',
   addressLine: '',
   country: '',
@@ -81,6 +102,18 @@ const emptySupplierForm: SupplierForm = {
   paymentDeadlineDate: '',
   productionCommitment: '',
   isActive: true
+}
+
+
+
+
+const detectLocaleCountryIso2 = (): CountryIso2 => {
+  if (typeof navigator === 'undefined' || !navigator.language) {
+    return 'in'
+  }
+  const locale = navigator.language
+  const region = locale.includes('-') ? locale.split('-')[1]?.toLowerCase() : ''
+  return (region || 'in') as CountryIso2
 }
 
 const normalizeDate = (value?: string | null) => {
@@ -119,6 +152,9 @@ const mapSupplier = (raw: any): Supplier => ({
   email: raw?.email ?? '',
   panNumber: raw?.panNumber ?? raw?.pan_number ?? '',
   gstNumber: raw?.gstNumber ?? raw?.gst_number ?? '',
+  ninoNumber: raw?.ninoNumber ?? raw?.nino_number ?? '',
+  sinNumber: raw?.sinNumber ?? raw?.sin_number ?? '',
+  tfnNumber: raw?.tfnNumber ?? raw?.tfn_number ?? '',
   addressLine: raw?.addressLine ?? raw?.address_line ?? raw?.address ?? '',
   country: raw?.country ?? '',
   invoiceBeneficiaryName: raw?.invoiceBeneficiaryName ?? raw?.invoice_beneficiary_name ?? '',
@@ -153,6 +189,14 @@ const SuppliersPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingSupplierId, setEditingSupplierId] = useState<string>('')
   const [supplierForm, setSupplierForm] = useState<SupplierForm>(emptySupplierForm)
+  const [phoneCountryIso2, setPhoneCountryIso2] = useState<CountryIso2>(() =>
+    detectLocaleCountryIso2()
+  )
+  const [deletingSupplierId, setDeletingSupplierId] = useState<string>('')
+
+
+  const phoneInputRef = useRef<PhoneInputRefType>(null)
+
 
   const countries = useMemo(() => {
     const uniqueCountries = new Set(suppliers.map(s => s.country).filter(Boolean))
@@ -234,6 +278,10 @@ const SuppliersPage: React.FC = () => {
       phone: supplier.phone || '',
       email: supplier.email || '',
       panNumber: supplier.panNumber || '',
+      ssnNumber: supplier.ssnNumber || '',
+      ninoNumber: supplier.ninoNumber || '',
+      sinNumber: supplier.sinNumber || '',
+      tfnNumber: supplier.tfnNumber || '',
       gstNumber: supplier.gstNumber || '',
       addressLine: supplier.addressLine || '',
       country: supplier.country || '',
@@ -314,6 +362,276 @@ const SuppliersPage: React.FC = () => {
       setSortBy(field)
       setSortOrder('asc')
     }
+  }
+
+  const handleDeleteSupplier = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this supplier?')) return
+    setDeletingSupplierId(id)
+    setError('')
+    try {
+      await suppliersApi.delete(id)
+      setSuppliers(prev => prev.filter(s => s.id !== id))
+      setNotice('Supplier deleted successfully')
+    } catch (err) {
+      reportApiError(err, 'Failed to delete supplier', setError)
+    } finally {
+      setDeletingSupplierId('')
+    }
+  }
+
+
+  const createCountryCurrencyMap = (): Record<string, string> => {
+    const map: Record<string, string> = {
+      'India': 'INR',
+      'United States': 'USD',
+      'United Kingdom': 'GBP',
+      'United Arab Emirates': 'AED',
+      'Saudi Arabia': 'SAR',
+      'Qatar': 'QAR',
+      'Kuwait': 'KWD',
+      'Oman': 'OMR',
+      'Bahrain': 'BHD',
+      'Canada': 'CAD',
+      'Australia': 'AUD',
+      'Singapore': 'SGD',
+      'Malaysia': 'MYR',
+      'Thailand': 'THB',
+      'Indonesia': 'IDR',
+      'Japan': 'JPY',
+      'China': 'CNY',
+      'South Korea': 'KRW',
+      'Hong Kong': 'HKD',
+      'New Zealand': 'NZD',
+      'Switzerland': 'CHF',
+      'Sweden': 'SEK',
+      'Norway': 'NOK',
+      'Denmark': 'DKK',
+      'Poland': 'PLN',
+      'Czech Republic': 'CZK',
+      'Hungary': 'HUF',
+      'Russia': 'RUB',
+      'Turkey': 'TRY',
+      'South Africa': 'ZAR',
+      'Egypt': 'EGP',
+      'Nigeria': 'NGN',
+      'Kenya': 'KES',
+      'Brazil': 'BRL',
+      'Mexico': 'MXN',
+      'Argentina': 'ARS',
+      'Chile': 'CLP',
+      'Colombia': 'COP',
+      'Peru': 'PEN',
+      'Israel': 'ILS',
+      'Philippines': 'PHP',
+      'Vietnam': 'VND',
+      'Bangladesh': 'BDT',
+      'Pakistan': 'PKR',
+      'Sri Lanka': 'LKR',
+      'Nepal': 'NPR',
+      'Maldives': 'MVR',
+      'Mauritius': 'MUR',
+      'Seychelles': 'SCR'
+    }
+
+    const euroCountries = [
+      'Germany', 'France', 'Italy', 'Spain', 'Portugal', 'Netherlands',
+      'Belgium', 'Austria', 'Greece', 'Ireland', 'Finland', 'Luxembourg',
+      'Slovenia', 'Cyprus', 'Malta', 'Slovakia', 'Estonia', 'Latvia',
+      'Lithuania', 'Croatia'
+    ]
+    euroCountries.forEach(country => {
+      map[country] = 'EUR'
+    })
+
+    return map
+  }
+
+  const COUNTRY_CURRENCY_NAME_MAP = createCountryCurrencyMap()
+
+  const currencyOptions = useMemo(
+    () => [
+      { value: '', label: 'Select currency' },
+      { value: 'INR', label: 'INR - Indian Rupee' },
+      { value: 'USD', label: 'USD - US Dollar' },
+      { value: 'EUR', label: 'EUR - Euro' },
+      { value: 'GBP', label: 'GBP - British Pound' },
+      { value: 'AED', label: 'AED - UAE Dirham' },
+      { value: 'SAR', label: 'SAR - Saudi Riyal' },
+      { value: 'QAR', label: 'QAR - Qatari Riyal' },
+      { value: 'KWD', label: 'KWD - Kuwaiti Dinar' },
+      { value: 'OMR', label: 'OMR - Omani Rial' },
+      { value: 'BHD', label: 'BHD - Bahraini Dinar' },
+      { value: 'CAD', label: 'CAD - Canadian Dollar' },
+      { value: 'AUD', label: 'AUD - Australian Dollar' },
+      { value: 'SGD', label: 'SGD - Singapore Dollar' },
+      { value: 'MYR', label: 'MYR - Malaysian Ringgit' },
+      { value: 'THB', label: 'THB - Thai Baht' },
+      { value: 'JPY', label: 'JPY - Japanese Yen' },
+      { value: 'CNY', label: 'CNY - Chinese Yuan' },
+      { value: 'CHF', label: 'CHF - Swiss Franc' },
+      { value: 'ZAR', label: 'ZAR - South African Rand' },
+      { value: 'BRL', label: 'BRL - Brazilian Real' },
+      { value: 'MXN', label: 'MXN - Mexican Peso' },
+      { value: 'TRY', label: 'TRY - Turkish Lira' },
+      { value: 'RUB', label: 'RUB - Russian Ruble' }
+    ],
+    []
+  )
+
+
+  const countryMetaByName = useMemo(() => {
+    const map = new Map<
+      string,
+      { iso2: CountryIso2, currency: string }
+    >()
+
+    Country.getAllCountries().forEach(country => {
+      if (country.name) {
+        map.set(country.name, {
+          iso2: String(country.isoCode || '').toLowerCase() as CountryIso2,
+          currency: COUNTRY_CURRENCY_NAME_MAP[country.name] || ''
+        })
+      }
+    })
+
+    return map
+  }, [])
+
+  const countryNameByIso2 = useMemo(() => {
+    const map = new Map<CountryIso2, string>()
+    Country.getAllCountries().forEach(country => {
+      const iso2 = String(country.isoCode || '').toLowerCase() as CountryIso2
+      if (country.name) {
+        map.set(iso2, country.name)
+      }
+    })
+    return map
+  }, [])
+
+  const resolveCurrencybyIso2 = (iso2: CountryIso2): string => {
+    const countryName = countryNameByIso2.get(iso2)
+    if (!countryName) return 'INR'
+    return COUNTRY_CURRENCY_NAME_MAP[countryName] || 'INR'
+  }
+  // const allCountryNames = useMemo(
+  //   () => Country.getAllCountries().map(country => country.name),
+  //   []
+  // )
+
+  const countryOptions = useMemo(() => {
+    return Country.getAllCountries().map(c => ({
+      label: c.name,
+      value: c.name,
+      isoCode: c.isoCode
+    }))
+  }, [])
+
+  const handleSupplierCountryChange = (countryName: string) => {
+    const meta = countryMetaByName.get(countryName)
+    if (!meta) {
+      setSupplierForm(prev => ({
+        ...prev,
+        country: countryName
+      }))
+      return
+    }
+
+    setPhoneCountryIso2(meta.iso2)
+    setSupplierForm(prev => ({
+      ...prev,
+      country: countryName,
+      supplierCurrency: meta.currency || prev.supplierCurrency || 'INR'
+    }))
+  }
+
+  const handlePhoneChange = (
+    phone: string,
+    meta: { country: { iso2: CountryIso2 } }
+  ) => {
+
+    const digitsOnly = phone.replace(/\D/g, '');
+    if (digitsOnly.length > 12) return
+
+
+    const iso2 = meta.country?.iso2
+    if (!iso2) {
+      setSupplierForm(prev => ({ ...prev, phone }))
+      return
+    }
+
+    const mappedCountryName = countryNameByIso2.get(iso2)
+    setPhoneCountryIso2(iso2)
+    setSupplierForm(prev => ({
+      ...prev,
+      phone,
+      country: mappedCountryName || prev.country,
+      supplierCurrency: resolveCurrencybyIso2(iso2)
+    }))
+  }
+
+  const taxfields = () => {
+    switch (supplierForm.country) {
+      case 'United States':
+        return (
+          <div id='ssnnumber'>
+            <label className='field-label'>SSN Number</label>
+            <input
+              value={supplierForm.ssnNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, ssnNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder='123-45-6789'
+            />
+          </div>
+        )
+      case 'United Kingdom':
+        return (
+          <div id='ninonumber'>
+            <label className='field-label'>NINO Number</label>
+            <input
+              value={supplierForm.ninoNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, ninoNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder='QQ 12 34 56 C'
+            />
+          </div>
+        )
+      case 'Canada':
+        return (
+          <div id='sinnumber'>
+            <label className='field-label'>SIN Number</label>
+            <input
+              value={supplierForm.sinNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, sinNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder=''
+            />
+          </div>
+        )
+      case 'Australia':
+        return (
+          <div id='tfnnumber'>
+            <label className='field-label'>TFN Number</label>
+            <input
+              value={supplierForm.tfnNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, tfnNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder='XXX-XXX-XXX'
+            />
+          </div>
+        )
+      default:
+        return (
+          <div id='pannumber'>
+            <label className='field-label'>PAN Number</label>
+            <input
+              value={supplierForm.panNumber}
+              onChange={e => setSupplierForm(prev => ({ ...prev, panNumber: e.target.value.toUpperCase() }))}
+              className='field-input'
+              placeholder='ABCDE1234F'
+            />
+          </div>)
+    }
+
   }
 
   return (
@@ -474,6 +792,16 @@ const SuppliersPage: React.FC = () => {
                         >
                           <FaPenToSquare /> Edit
                         </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            handleDeleteSupplier(supplier.id)
+                          }}
+                          disabled={deletingSupplierId === supplier.id}
+                          className='inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300'
+                        >
+                          <FaTrash /> Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -513,7 +841,7 @@ const SuppliersPage: React.FC = () => {
       </SurfaceCard>
 
       {showCreateModal && (
-        <div className='fixed inset-0 z-50 bg-black/50 p-3 sm:p-4'>
+        <div className='fixed -inset-5 z-50 bg-black/50 p-3 sm:p-4'>
           <div className='mx-auto flex h-full w-full max-w-5xl items-center justify-center'>
             <div className='flex max-h-[94vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-900'>
               <div className='flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-6'>
@@ -531,7 +859,11 @@ const SuppliersPage: React.FC = () => {
                     <label className='field-label'>Supplier Name *</label>
                     <input
                       value={supplierForm.name}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, name: e.target.value }))}
+                      onChange={e =>{
+                           const value = e.target.value
+                        const OnlyLetters = /^[a-zA-Z\s]*$/
+                        if (!OnlyLetters.test(value)) return
+                        setSupplierForm(prev => ({ ...prev, name: value }))}}
                       className='field-input'
                       placeholder='Enter supplier name'
                     />
@@ -540,24 +872,41 @@ const SuppliersPage: React.FC = () => {
                     <label className='field-label'>Contact Person</label>
                     <input
                       value={supplierForm.contactPerson}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, contactPerson: e.target.value }))}
+                      onChange={e => {
+                        const value = e.target.value
+                        const OnlyLetters = /^[a-zA-Z\s]*$/
+                        if (!OnlyLetters.test(value)) return
+
+                        setSupplierForm(prev => ({ ...prev, contactPerson: value }))
+                      }}
                       className='field-input'
                       placeholder='Enter contact person'
                     />
                   </div>
                   <div>
                     <label className='field-label'>Phone</label>
-                    <input
+                    <PhoneInput
+                      ref={phoneInputRef}
+                      defaultCountry={phoneCountryIso2}
                       value={supplierForm.phone}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, phone: e.target.value }))}
-                      className='field-input'
-                      placeholder='Enter phone number'
+                      onChange={handlePhoneChange}
+                      inputClassName="field-input"
+                      countrySelectorStyleProps={{
+                        buttonClassName: "phone-flag-btn"
+                      }}
                     />
+
+                    {supplierForm.phone && (
+                      <p style={{ color: 'green', fontSize: '12px' }}>
+                        {/* Phone number format looks valid. */}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className='field-label'>Email</label>
                     <input
                       type='email'
+                      required={true}
                       value={supplierForm.email}
                       onChange={e => setSupplierForm(prev => ({ ...prev, email: e.target.value }))}
                       className='field-input'
@@ -566,40 +915,23 @@ const SuppliersPage: React.FC = () => {
                   </div>
                   <div>
                     <label className='field-label'>Country</label>
-                    <input
+                    <SearchableDropdown
                       value={supplierForm.country}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, country: e.target.value }))}
-                      className='field-input'
+                      options={countryOptions}
+                      onChange={handleSupplierCountryChange}
                       placeholder='Enter country'
                     />
                   </div>
                   <div>
                     <label className='field-label'>Supplier Currency</label>
-                    <input
+                    <SearchableDropdown
                       value={supplierForm.supplierCurrency}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, supplierCurrency: e.target.value.toUpperCase() }))}
-                      className='field-input'
-                      placeholder='INR / USD / AED'
+                      options={currencyOptions}
+                      onChange={value => setSupplierForm(prev => ({ ...prev, supplierCurrency: String(value || '').toUpperCase() }))}
+                      searchPlaceholder='INR / USD / AED'
                     />
                   </div>
-                  <div>
-                    <label className='field-label'>PAN Number</label>
-                    <input
-                      value={supplierForm.panNumber}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, panNumber: e.target.value.toUpperCase() }))}
-                      className='field-input'
-                      placeholder='ABCDE1234F'
-                    />
-                  </div>
-                  <div>
-                    <label className='field-label'>GST Number</label>
-                    <input
-                      value={supplierForm.gstNumber}
-                      onChange={e => setSupplierForm(prev => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))}
-                      className='field-input'
-                      placeholder='27ABCDE1234F1Z5'
-                    />
-                  </div>
+
                   <div>
                     <label className='field-label'>Rate Valid Until</label>
                     <input
@@ -618,6 +950,21 @@ const SuppliersPage: React.FC = () => {
                       className='field-input'
                     />
                   </div>
+
+                  <div >
+                    {taxfields()}
+                  </div>
+
+                  <div>
+                    <label className='field-label'>GST Number</label>
+                    <input
+                      value={supplierForm.gstNumber}
+                      onChange={e => setSupplierForm(prev => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))}
+                      className='field-input'
+                      placeholder='27ABCDE1234F1Z5'
+                    />
+                  </div>
+
                   <div className='md:col-span-2 lg:col-span-2'>
                     <label className='field-label'>Contract URL</label>
                     <input
@@ -728,7 +1075,9 @@ const SuppliersPage: React.FC = () => {
       )}
     </div>
   )
-}
+  }
+
+
 
 const StatCard = ({ title, value, color }: { title: string; value: number; color: 'blue' | 'green' | 'gray' }) => {
   const colorClasses = {
@@ -744,5 +1093,6 @@ const StatCard = ({ title, value, color }: { title: string; value: number; color
     </div>
   )
 }
+
 
 export default SuppliersPage

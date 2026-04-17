@@ -184,6 +184,8 @@ CREATE TABLE IF NOT EXISTS leads (
     FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL,
     FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
 );
+ALTER TABLE users ADD COLUMN session_jti VARCHAR(36) NULL DEFAULT NULL;
+
 
 CREATE TABLE IF NOT EXISTS queued_leads (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -400,8 +402,11 @@ CREATE TABLE IF NOT EXISTS customers (
     preferences TEXT,
     lifetime_value DECIMAL(12,2) DEFAULT 0,
     segment ENUM('PLATINUM', 'GOLD', 'SILVER', 'NEW') DEFAULT 'NEW',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE
 );
+CREATE INDEX idx_customers_is_deleted ON customers(is_deleted);
+CREATE INDEX idx_customers_is_deleted_segment ON customers(is_deleted, segment);
 
 CREATE TABLE IF NOT EXISTS customer_leads (
     customer_id CHAR(36),
@@ -2216,6 +2221,7 @@ CREATE INDEX idx_visa_details_dest_section_order ON visa_destination_details (vi
 --/ ===========================================================================
 
 CREATE INDEX idx_leads_destination_id ON leads(destination_id);
+CREATE INDEX idx_leads_lead_country ON leads(lead_country);
 
 CREATE INDEX idx_leads_campaign_id ON leads(campaign_id);
 

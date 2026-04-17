@@ -48,7 +48,7 @@ type LeadFilterState = {
   phone: string;
   leadId: string;
   status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
-  sla: "ALL" | "BREACHED" | "ON_REQUEST";
+  sla: "ALL" | "OVERDUE" | "WITHIN_SLA" | "PENDING";
   sortBy: "NEWEST_FIRST" | "OLDEST_FIRST" | "NAME_A_Z" | "STATUS";
 };
 
@@ -61,7 +61,7 @@ const defaultFilters: LeadFilterState = {
   phone: "",
   leadId: "",
   status: "ALL",
-  sla: "ALL",
+  sla: "ALL" as const,
   sortBy: "NEWEST_FIRST",
 };
 
@@ -144,8 +144,9 @@ const Leads: React.FC = () => {
   const slaOptions = useMemo(
     () => [
       { value: "ALL", label: "All SLA" },
-      { value: "BREACHED", label: "Breached" },
-      { value: "ON_REQUEST", label: "On Request (Not Breached)" },
+      { value: "OVERDUE", label: "Overdue (Breached)" },
+      { value: "WITHIN_SLA", label: "Within SLA" },
+      { value: "PENDING", label: "Pending" },
     ],
     [],
   );
@@ -742,61 +743,61 @@ const Leads: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll">
-                <table className="min-w-[980px] w-full table-fixed">
+              <div className="w-full  overflow-x-auto leads-table-scroll">
+                <table className=" w-full">
                   <colgroup>
-                    <col className="w-[9%]" />
-                    <col className="w-[15%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[11%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[7%]" />
-                    <col className="w-[6%]" />
-                    <col className="w-[8%]" />
+                    <col style={{ width: '150px' }} />
+                    <col style={{ width: '200px' }} />
+                    <col style={{ width: '120px' }} />
+                    <col style={{ width: '180px' }} />
+                    <col style={{ width: '140px' }} />
+                    <col style={{ width: '120px' }} />
+                    <col style={{ width: '120px' }} />
+                    <col style={{ width: '100px' }} />
+                    <col style={{ width: '100px' }} />
+                    <col style={{ width: '100px' }} />
                   </colgroup>
-                  <thead className="bg-gray-50 dark:bg-gray-800/50">
+                  <thead className="bg-gray-50  dark:bg-gray-800/50 sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Date
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead ID
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Contact
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Destination
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Visa/Holidays
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead Country
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Status
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         SLA
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         View
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="bg-white dark:bg-gray-900">
                     {rows.map((lead) => (
                       <tr
                         key={lead.id}
                         className="border-b border-gray-100 hover:bg-gray-50 transition-colors dark:border-gray-800 dark:hover:bg-gray-800/40"
                       >
-                        <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
+                        <td className="px-3 py-4 text-center whitespace-nowrap">
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             {(() => {
                               const raw = String(lead.clientCreatedAt || lead.createdAt || '').trim()
@@ -805,13 +806,12 @@ const Leads: React.FC = () => {
                             })()}
                           </p>
                         </td>
-                        <td className="px-4 py-3 leading-tight">
-                          <div className="flex items-center gap-2">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                {lead.name}
-                              </p>
-                              <span
+                        <td className="px-3 py-4">
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {lead.name}
+                            </p>
+                            <span
                               className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                                 lead.priority === "High"
                                   ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
@@ -822,65 +822,61 @@ const Leads: React.FC = () => {
                             >
                               {lead.priority === "High" ? "🔥 Hot" : lead.priority === "Medium" ? "⚡ Warm" : "❄️ Cold"}
                             </span>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatPaxSummary(lead)}
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatPaxSummary(lead)}
+                            </p>
+                            {lead.assignedBy && (
+                              <p className="text-xs text-blue-600 dark:text-blue-400">
+                                Assigned by: {lead.assignedBy}
                               </p>
-                             
-                              {lead.assignedBy && (
-                                <p className="text-xs text-blue-600 dark:text-blue-400">
-                                  Assigned by: {lead.assignedBy}
-                                </p>
-                              )}
-                            </div>
-                           
+                            )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-left leading-tight whitespace-nowrap">
+                        <td className="px-3 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             {lead.leadId}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-left leading-tight">
-                          <div className="flex items-center gap-1">
-                            <p
-                              className="max-w-full truncate text-sm font-medium text-gray-800 dark:text-gray-200"
-                              title={lead.email}
-                            >
-                              {truncateEmail(lead.email)}
-                            </p>
-                            {lead.email && lead.email.length > 26 && (
-                              <FaInfoCircle
-                                className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0"
+                        <td className="px-3 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <p
+                                className="max-w-full truncate text-sm font-medium text-gray-800 dark:text-gray-200"
                                 title={lead.email}
-                              />
-                            )}
+                              >
+                                {truncateEmail(lead.email)}
+                              </p>
+                              {lead.email && lead.email.length > 26 && (
+                                <FaInfoCircle
+                                  className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0"
+                                  title={lead.email}
+                                />
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {lead.phone}
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {lead.phone}
-                          </p>
                         </td>
-                        <td
-                          className="px-4 py-3 text-left leading-tight"
-                          title={lead.destination}
-                        >
+                        <td className="px-3 py-4" title={lead.destination}>
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
                             {lead.destination}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-left leading-tight">
+                        <td className="px-3 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
                             {getVisaHolidayLabel(lead)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-left leading-tight">
+                        <td className="px-3 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                             {lead.leadCountry || "-"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center leading-tight">
+                        <td className="px-3 py-4 text-center">
                           <StatusBadge status={lead.statusLabel} />
                         </td>
-                        <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
+                        <td className="px-3 py-4 text-center whitespace-nowrap">
                           <span
                             className={`text-sm font-medium ${
                               lead.slaBreached
@@ -891,9 +887,9 @@ const Leads: React.FC = () => {
                             {lead.slaBreached ? "Breached" : lead.sla}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right leading-tight whitespace-nowrap">
+                        <td className="px-3 py-4 text-right  whitespace-nowrap">
                           <button
-                            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800"
                             onClick={() => handleViewLead(lead)}
                           >
                             <FaEye />
@@ -1034,24 +1030,25 @@ const Leads: React.FC = () => {
 
           .leads-table-scroll {
             scrollbar-width: thin;
-            scrollbar-color: rgba(107, 114, 128, 0.22) transparent;
+            scrollbar-color: rgba(59, 130, 246, 0.3) rgba(243, 244, 246, 0.5);
           }
 
           .leads-table-scroll::-webkit-scrollbar {
-            height: 5px;
+            height: 8px;
           }
 
           .leads-table-scroll::-webkit-scrollbar-track {
-            background: transparent;
+            background: rgba(243, 244, 246, 0.5);
+            border-radius: 4px;
           }
 
           .leads-table-scroll::-webkit-scrollbar-thumb {
-            background: rgba(107, 114, 128, 0.22);
-            border-radius: 9999px;
+            background: rgba(59, 130, 246, 0.3);
+            border-radius: 4px;
           }
 
           .leads-table-scroll:hover::-webkit-scrollbar-thumb {
-            background: rgba(107, 114, 128, 0.35);
+            background: rgba(59, 130, 246, 0.5);
           }
         `}</style>
       </div>

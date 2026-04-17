@@ -7,6 +7,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { reportsApi } from '../../api/reports'
 import { suppliersApi } from '../../api/suppliers'
 import { reportApiError } from '../../lib/notify'
+import { currencyService } from '../../services/currencyService'
 
 type SupplierServiceBreakdownProps = { refreshKey?: number }
 
@@ -17,6 +18,10 @@ type Row = {
   bookingStatus: string
   paymentStatus: string
   leadName: string
+  customerName: string
+  destination: string
+  bookingTotalAmount: number
+  bookingCurrency: string
   quoteNumber: string
   serviceLabel: string
   supplierId: string
@@ -64,6 +69,11 @@ type Pagination = { page: number; limit: number; totalItems: number; totalPages:
 type CreateState = {
   row: Row
   payableAmount: string
+  ledgerCurrency: string
+  rateSource: 'api' | 'custom'
+  customRate: string
+  fxLoading: boolean
+  fxError: string
   dueDate: string
   paymentReference: string
   error: string
@@ -136,6 +146,7 @@ const mapSettlement = (item: any): Settlement => ({
 const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ refreshKey = 0 }) => {
   const [rows, setRows] = useState<Row[]>([])
   const [payablesBySupplier, setPayablesBySupplier] = useState<Record<string, Payable[]>>({})
+  const [supplierCurrencyById, setSupplierCurrencyById] = useState<Record<string, string>>({})
   const [ledgerRows, setLedgerRows] = useState<Settlement[]>([])
   const [selectedSupplierId, setSelectedSupplierId] = useState('')
   const [loading, setLoading] = useState(false)
@@ -175,6 +186,10 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
           bookingStatus: toUpper(item?.bookingStatus, ''),
           paymentStatus: toUpper(item?.paymentStatus, ''),
           leadName: String(item?.leadName ?? 'Unknown lead'),
+          customerName: String(item?.customerName ?? item?.customer_name ?? item?.leadName ?? 'Unknown lead'),
+          destination: String(item?.destination ?? 'N/A'),
+          bookingTotalAmount: toNumber(item?.bookingTotalAmount ?? item?.booking_total_amount, 0),
+          bookingCurrency: toUpper(item?.bookingCurrency ?? item?.booking_client_currency, 'INR'),
           quoteNumber: String(item?.quoteNumber ?? '-'),
           serviceLabel: String(item?.serviceLabel ?? 'OTHER'),
           supplierId: String(item?.supplierId ?? ''),
@@ -197,6 +212,27 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
       setLoading(false)
     }
   }, [fromDate, pagination.limit, pagination.page, supplierFilter, toDate])
+
+  const fetchSupplierCurrencies = useCallback(async () => {
+    try {
+      const response = await suppliersApi.list({ page: 1, limit: 400 })
+      const data = unwrapData(response)
+      const list = Array.isArray(data?.rows)
+        ? data.rows
+        : Array.isArray(data)
+          ? data
+          : []
+      const mapped = Object.fromEntries(
+        list.map((item: any) => [
+          String(item?.id ?? ''),
+          toUpper(item?.supplierCurrency ?? item?.supplier_currency, 'INR')
+        ])
+      )
+      setSupplierCurrencyById(mapped)
+    } catch (_err) {
+      setSupplierCurrencyById({})
+    }
+  }, [])
 
   const fetchPayables = useCallback(async (targetRows: Row[]) => {
     const supplierIds = Array.from(
@@ -265,6 +301,9 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
     void fetchRows()
   }, [fetchRows, refreshKey])
   useEffect(() => {
+    void fetchSupplierCurrencies()
+  }, [fetchSupplierCurrencies])
+  useEffect(() => {
     void fetchPayables(rows)
   }, [fetchPayables, rows])
   useEffect(() => {
@@ -283,7 +322,17 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
     () => [
       { value: '', label: 'All Suppliers' },
       ...Array.from(
-        new Map(rows.filter(row => row.supplierId && row.supplierId !== 'UNASSIGNED').map(row => [row.supplierId, { value: row.supplierId, label: row.supplierName }])).values()
+        new Map(
+          rows
+            .filter(row => Boolean(row.supplierId))
+            .map(row => [
+              row.supplierId,
+              {
+                value: row.supplierId,
+                label: row.supplierId === 'UNASSIGNED' ? 'Supplier not assigned' : row.supplierName || 'Unknown Supplier'
+              }
+            ])
+        ).values()
       )
     ],
     [rows]
@@ -293,18 +342,22 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
     const query = search.trim().toLowerCase()
     if (!query) return rows
     return rows.filter(row =>
-      [row.leadName, row.bookingNumber, row.quoteNumber, row.serviceLabel, row.supplierName].join(' ').toLowerCase().includes(query)
+      [row.leadName, row.customerName, row.destination, row.bookingNumber, row.quoteNumber, row.serviceLabel, row.supplierName]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
     )
   }, [rows, search])
 
   const groups = useMemo(() => {
     const map = new Map<string, Group>()
     filteredRows.forEach(row => {
-      if (!row.supplierId || row.supplierId === 'UNASSIGNED') return
-      if (!map.has(row.supplierId)) {
-        map.set(row.supplierId, {
-          supplierId: row.supplierId,
-          supplierName: row.supplierName || 'Unknown Supplier',
+      const supplierKey = row.supplierId && row.supplierId !== '' ? row.supplierId : 'UNASSIGNED'
+      if (!map.has(supplierKey)) {
+        map.set(supplierKey, {
+          supplierId: supplierKey,
+          supplierName:
+            supplierKey === 'UNASSIGNED' ? 'Supplier not assigned' : row.supplierName || 'Unknown Supplier',
           currency: row.currency || 'INR',
           serviceCount: 0,
           bookingCount: 0,
@@ -316,7 +369,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
           rows: []
         })
       }
-      const group = map.get(row.supplierId)!
+      const group = map.get(supplierKey)!
       group.rows.push(row)
       group.serviceCount += 1
       group.baseTotal += row.basePrice
@@ -341,15 +394,140 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
     [groups, selectedSupplierId]
   )
 
+  const bookingSummaryRows = useMemo(() => {
+    if (!selectedGroup) return []
+    const byBooking = new Map<string, Row[]>()
+    for (const row of selectedGroup.rows) {
+      if (!row.bookingId) continue
+      const list = byBooking.get(row.bookingId) || []
+      list.push(row)
+      byBooking.set(row.bookingId, list)
+    }
+    return Array.from(byBooking.entries())
+      .map(([bookingId, lineRows]) => {
+        const sorted = lineRows.slice().sort((a, b) => a.serviceLabel.localeCompare(b.serviceLabel))
+        const first = sorted[0]
+        const serviceTitle = [...new Set(sorted.map(r => r.serviceLabel).filter(Boolean))].join(', ')
+        const serviceDetail = sorted.map(r => `${r.serviceLabel}: ${formatCurrency(r.basePrice, r.currency)}`).join(' | ')
+        const baseTotal = sorted.reduce((sum, r) => sum + r.basePrice, 0)
+        const baseCurrency = first.currency || 'INR'
+        const created = Math.max(...sorted.map(r => new Date(r.createdAt || 0).getTime()))
+        return {
+          bookingId,
+          customer: first.customerName || first.leadName || 'Unknown',
+          bookingNumber: first.bookingNumber,
+          destination: first.destination || 'N/A',
+          serviceTitle: serviceTitle || 'Other',
+          serviceDetail,
+          baseTotal,
+          baseCurrency,
+          amount: first.bookingTotalAmount,
+          amountCurrency: first.bookingCurrency || baseCurrency,
+          status: first.bookingStatus || 'PENDING',
+          sortTs: created
+        }
+      })
+      .sort((a, b) => b.sortTs - a.sortTs)
+  }, [selectedGroup])
+
   const openCreateModal = (row: Row) => {
+    const bookingCurrency = toUpper(row.currency, 'INR')
+    const ledgerCurrency = toUpper(supplierCurrencyById[row.supplierId] || row.currency, 'INR')
+    const sameCurrency = bookingCurrency === ledgerCurrency
     setCreateModal({
       row,
       payableAmount: String(row.basePrice || ''),
+      ledgerCurrency,
+      rateSource: sameCurrency ? 'custom' : 'api',
+      customRate: sameCurrency ? '1' : '',
+      fxLoading: false,
+      fxError: '',
       dueDate: '',
       paymentReference: '',
       error: ''
     })
   }
+
+  useEffect(() => {
+    if (!createModal) return
+    const from = toUpper(createModal.row.currency, 'INR')
+    const to = toUpper(createModal.ledgerCurrency, 'INR')
+    const baseAmount = toNumber(createModal.row.basePrice, 0)
+    if (from === to) {
+      setCreateModal(prev =>
+        prev
+          ? {
+              ...prev,
+              payableAmount: String(baseAmount),
+              customRate: prev.customRate || '1',
+              fxLoading: false,
+              fxError: ''
+            }
+          : prev
+      )
+      return
+    }
+    if (createModal.rateSource === 'custom') {
+      const unitRate = toNumber(createModal.customRate, NaN)
+      if (!Number.isFinite(unitRate) || unitRate <= 0) {
+        setCreateModal(prev =>
+          prev
+            ? { ...prev, payableAmount: '', fxLoading: false, fxError: 'Enter valid custom rate.' }
+            : prev
+        )
+        return
+      }
+      setCreateModal(prev =>
+        prev
+          ? {
+              ...prev,
+              payableAmount: String(Number((baseAmount * unitRate).toFixed(2))),
+              fxLoading: false,
+              fxError: ''
+            }
+          : prev
+      )
+      return
+    }
+    let cancelled = false
+    setCreateModal(prev => (prev ? { ...prev, fxLoading: true, fxError: '' } : prev))
+    void currencyService
+      .convert(baseAmount, from, to)
+      .then(converted => {
+        if (cancelled) return
+        setCreateModal(prev =>
+          prev
+            ? {
+                ...prev,
+                payableAmount: String(Number(converted.toFixed(2))),
+                fxLoading: false,
+                fxError: ''
+              }
+            : prev
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCreateModal(prev =>
+          prev
+            ? {
+                ...prev,
+                fxLoading: false,
+                fxError: `API conversion failed (${from} -> ${to}). Use custom rate.`
+              }
+            : prev
+        )
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    createModal?.customRate,
+    createModal?.ledgerCurrency,
+    createModal?.rateSource,
+    createModal?.row.basePrice,
+    createModal?.row.currency
+  ])
 
   const openSettleModal = (row: Row, payable: Payable) => {
     setSettleModal({
@@ -484,7 +662,13 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
 
           <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
             {!groups.length ? (
-              <div className='p-6'><EmptyState title={loading ? 'Loading...' : 'No suppliers found'} description='No grouped supplier service data found for this filter.' icon={<FaBuilding className='text-4xl' />} /></div>
+              <div className='p-6'>
+                <EmptyState
+                  title={loading ? 'Loading...' : 'No suppliers found'}
+                  description='No report rows. Use MySQL/MSSQL backend; need quotations with bookings (not cancelled).'
+                  icon={<FaBuilding className='text-4xl' />}
+                />
+              </div>
             ) : (
               <div className='w-full max-w-full overflow-x-auto'>
                 <table className='w-full min-w-[980px]'>
@@ -525,6 +709,67 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
             </div>
           </SurfaceCard>
 
+          <SurfaceCard className='overflow-hidden border border-gray-200 p-0 dark:border-gray-800'>
+            <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold dark:border-gray-800'>
+              Bookings ({bookingSummaryRows.length}) — same layout as supplier page
+            </div>
+            {bookingSummaryRows.length ? (
+              <div className='w-full max-w-full overflow-x-auto'>
+                <table className='w-full min-w-[960px]'>
+                  <thead className='border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60'>
+                    <tr>
+                      <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Customer</th>
+                      <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Booking ID</th>
+                      <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Destination</th>
+                      <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Service</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Base Price</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Amount</th>
+                      <th className='px-4 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                    {bookingSummaryRows.map(b => (
+                      <tr key={b.bookingId} className='hover:bg-gray-50 dark:hover:bg-gray-800/50'>
+                        <td className='px-4 py-3 text-sm text-gray-900 dark:text-gray-100'>{b.customer}</td>
+                        <td className='px-4 py-3 text-sm font-mono text-gray-600 dark:text-gray-400'>{b.bookingNumber}</td>
+                        <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{b.destination}</td>
+                        <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
+                          <div>{b.serviceTitle}</div>
+                          {b.serviceDetail ? (
+                            <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>{b.serviceDetail}</div>
+                          ) : null}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                          {formatCurrency(b.baseTotal, b.baseCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                          {formatCurrency(b.amount, b.amountCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-center'>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                              b.status.toLowerCase() === 'confirmed'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                : b.status.toLowerCase() === 'pending'
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                  : b.status.toLowerCase() === 'cancelled'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                    : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            }`}
+                          >
+                            {formatLabel(b.status || 'pending')}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className='px-4 py-6 text-sm text-gray-500'>No booking rows for this supplier in the current report page.</div>
+            )}
+          </SurfaceCard>
+
           <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
             <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold dark:border-gray-800'>Service & Price Details</div>
             <div className='w-full max-w-full overflow-x-auto'>
@@ -547,7 +792,8 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                           {!payable ? (
                             <button
                               onClick={() => openCreateModal(row)}
-                              disabled={actionLoading}
+                              disabled={actionLoading || row.supplierId === 'UNASSIGNED'}
+                              title={row.supplierId === 'UNASSIGNED' ? 'Assign a supplier on the quote first' : undefined}
                               className='rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40'
                             >
                               Create Payable
@@ -620,6 +866,53 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
               </button>
             </div>
             <div className='space-y-3 px-5 py-4'>
+              <div className='rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200'>
+                Booking currency: {toUpper(createModal.row.currency, 'INR')} | Ledger currency: {createModal.ledgerCurrency}
+              </div>
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <div>
+                  <label className='field-label'>Rate Source</label>
+                  <SearchableDropdown
+                    value={createModal.rateSource}
+                    onChange={value =>
+                      setCreateModal(prev =>
+                        prev
+                          ? {
+                              ...prev,
+                              rateSource: value === 'custom' ? 'custom' : 'api',
+                              fxError: ''
+                            }
+                          : prev
+                      )
+                    }
+                    options={[
+                      { value: 'api', label: 'API rate' },
+                      { value: 'custom', label: 'Custom rate' }
+                    ]}
+                    placeholder='Rate source'
+                    className='w-full'
+                  />
+                </div>
+                <div>
+                  <label className='field-label'>
+                    1 {toUpper(createModal.row.currency, 'INR')} = ? {createModal.ledgerCurrency}
+                  </label>
+                  <input
+                    type='number'
+                    min='0'
+                    step='0.000001'
+                    disabled={createModal.rateSource !== 'custom'}
+                    value={createModal.customRate}
+                    onChange={event =>
+                      setCreateModal(prev =>
+                        prev ? { ...prev, customRate: event.target.value, fxError: '' } : prev
+                      )
+                    }
+                    className='field-input'
+                    placeholder='Custom rate'
+                  />
+                </div>
+              </div>
               <div>
                 <label className='field-label'>Payable Amount *</label>
                 <input
@@ -636,6 +929,12 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                   }
                   className='field-input'
                 />
+                {createModal.fxLoading ? (
+                  <p className='mt-1 text-xs text-blue-700'>Converting using API rate...</p>
+                ) : null}
+                {createModal.fxError ? (
+                  <p className='mt-1 text-xs text-amber-700'>{createModal.fxError}</p>
+                ) : null}
               </div>
               <div>
                 <label className='field-label'>Due Date</label>

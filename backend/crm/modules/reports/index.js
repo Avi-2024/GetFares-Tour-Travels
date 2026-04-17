@@ -19,6 +19,7 @@ function createReportsModule({ dependencies }) {
     repository,
     logger: dependencies.logger,
     events,
+    currencyService: dependencies.services?.currency,
   });
 
   const controller = createReportsController({ service });

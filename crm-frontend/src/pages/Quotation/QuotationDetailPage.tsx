@@ -1003,59 +1003,59 @@ const QuotationDetailPage: React.FC = () => {
         </div>
       </div>
 
-      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-2 sm:gap-4'>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Total Cost
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={formatMoney(summary.totalCost, displayCurrency)}>
             {formatMoney(summary.totalCost, displayCurrency)}
           </p>
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Markup
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={summary.marginPercent > 0 ? `${summary.marginPercent}%` : formatMoney(summary.markupAmount, displayCurrency)}>
             {summary.marginPercent > 0
               ? `${summary.marginPercent}%`
               : formatMoney(summary.markupAmount, displayCurrency)}
           </p>
           {summary.marginPercent > 0 ? (
-            <p className='text-xs mt-1 text-gray-500'>
+            <p className='text-xs mt-1 text-gray-500 truncate' title={formatMoney(summary.markupAmount, displayCurrency)}>
               {formatMoney(summary.markupAmount, displayCurrency)}
             </p>
           ) : null}
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Discount
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={formatMoney(summary.discount, displayCurrency)}>
             {formatMoney(summary.discount, displayCurrency)}
           </p>
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Service Fee
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={formatMoney(commercial.serviceFeeAmount, displayCurrency)}>
             {formatMoney(commercial.serviceFeeAmount, displayCurrency)}
           </p>
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Tax
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={formatMoney(commercial.taxAmount, displayCurrency)}>
             {formatMoney(commercial.taxAmount, displayCurrency)}
           </p>
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Final Price
           </p>
-          <p className='text-xl font-bold mt-1 text-blue-600 dark:text-blue-400'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-blue-600 dark:text-blue-400 truncate' title={formatMoney(summary.finalPrice, displayCurrency)}>
             {formatMoney(summary.finalPrice, displayCurrency)}
           </p>
         </SurfaceCard>

@@ -11,7 +11,7 @@ const Layout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const contentFrameClass = collapsed
     ? "lg:ml-20 lg:w-[calc(100%-5rem)]"
-    : "lg:ml-72 lg:w-[calc(100%-18rem)]";
+    : "lg:ml-64 lg:w-[calc(100%-16rem)]";
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

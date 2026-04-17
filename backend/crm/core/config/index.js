@@ -27,6 +27,8 @@ const config = Object.freeze({
     jwtAccessSecret: env.JWT_ACCESS_SECRET,
     jwtAccessExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
     defaultRole: env.AUTH_DEFAULT_ROLE,
+    bcryptRounds: env.AUTH_BCRYPT_ROUNDS,
+    dbSlowQueryMs: env.AUTH_DB_SLOW_QUERY_MS,
   },
   rbac: {
     permissionCacheTtlMs: env.RBAC_PERMISSION_CACHE_TTL_SEC * 1000,
@@ -41,6 +43,9 @@ const config = Object.freeze({
       password: env.MYSQL_PASSWORD,
       database: env.MYSQL_DATABASE,
       ssl: env.MYSQL_SSL,
+      poolMax: env.MYSQL_POOL_MAX,
+      poolQueueLimit: env.MYSQL_POOL_QUEUE_LIMIT,
+      connectTimeoutMs: env.MYSQL_CONNECT_TIMEOUT_MS,
     },
     azureSql: {
       server: env.AZURE_SQL_SERVER,
@@ -124,6 +129,14 @@ const config = Object.freeze({
   },
   uploads: {
     maxFileSizeMb: env.UPLOAD_MAX_SIZE_MB || 10,
+  },
+  currency: {
+    apiKey: env.CURRENCY_API_KEY,
+    useMock: env.CURRENCY_USE_MOCK === 'true',
+    baseCurrency: env.CURRENCY_BASE,
+    supportedCurrencies: env.CURRENCY_SUPPORTED.split(",")
+      .map((currency) => String(currency || "").trim().toUpperCase())
+      .filter(Boolean),
   },
 });
 

@@ -141,6 +141,33 @@ function toSupplier(entity) {
   };
 }
 
+function normalizeDeletedFlag(value) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value === 1;
+  }
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
+    return value.length > 0 && value[0] === 1;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "1" || normalized === "true" || normalized === "yes") {
+    return true;
+  }
+  if (normalized === "0" || normalized === "false" || normalized === "no") {
+    return false;
+  }
+  return Boolean(value);
+}
+
+function isSupplierDeleted(entity) {
+  return normalizeDeletedFlag(entity?.is_deleted ?? entity?.isDeleted);
+}
+
 function toPayable(entity) {
   if (!entity) {
     return null;
@@ -398,7 +425,7 @@ function createSuppliersService({ repository, logger, events }) {
       "Get supplier by id",
     );
     const item = await repository.findById(id);
-    if (!item || item.is_deleted) {
+    if (!item || isSupplierDeleted(item)) {
       throw new AppError(404, "Supplier not found", "SUPPLIER_NOT_FOUND");
     }
     return toSupplier(item);
@@ -411,7 +438,7 @@ function createSuppliersService({ repository, logger, events }) {
         "List suppliers",
       );
       const rows = await repository.findAll(mapListFilters(filters));
-      return rows.filter((row) => !row.is_deleted).map(toSupplier);
+      return rows.filter((row) => !isSupplierDeleted(row)).map(toSupplier);
     },
 
     getById,
@@ -437,6 +464,12 @@ function createSuppliersService({ repository, logger, events }) {
       const supplier = toSupplier(updated);
       events.emitUpdated(supplier);
       return supplier;
+    },
+
+    async deleteSupplier(id, context = {}) {
+      await getById(id, context);
+      await repository.deleteById(id);
+      events.emitDeleted({ id });
     },
 
     async listPayables(supplierId, filters = {}, context = {}) {
@@ -738,6 +771,22 @@ function createSuppliersService({ repository, logger, events }) {
             row.itemType ??
             row.item_type,
         ),
+        supplierBasePrice: toNumber(
+          row.supplier_base_price ?? row.supplierBasePrice,
+          0,
+        ),
+        supplierSellValue: toNumber(
+          row.supplier_sell_value ?? row.supplierSellValue,
+          0,
+        ),
+        matchedServices: Array.isArray(row.matched_services)
+          ? row.matched_services.map((item) => ({
+              name: String(item?.name ?? "Other"),
+              itemType: String(item?.itemType ?? "OTHER"),
+              basePrice: toNumber(item?.basePrice ?? 0, 0),
+              sellValue: toNumber(item?.sellValue ?? 0, 0),
+            }))
+          : [],
         status: row.status,
         travelStartDate: row.travel_start_date ?? row.travelStartDate,
         createdAt: row.created_at ?? row.createdAt,

@@ -539,9 +539,9 @@ const CustomersPage: React.FC = () => {
               {formatCurrency(
                 customers.length
                   ? customers.reduce(
-                      (acc, c) => acc + (c.lifetimeValue ?? 0),
-                      0
-                    ) / customers.length
+                    (acc, c) => acc + (c.lifetimeValue ?? 0),
+                    0
+                  ) / customers.length
                   : 0
               )}
             </p>
@@ -683,7 +683,7 @@ const CustomersPage: React.FC = () => {
                   <th className='hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Last Booking Date
                   </th>
-                 
+
                   <th className='px-3 sm:px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                     Actions
                   </th>
@@ -744,7 +744,7 @@ const CustomersPage: React.FC = () => {
                         {formatDateLabel(customer.lastBookingDate) || 'N/A'}
                       </p>
                     </td>
-                
+
                     <td className='px-3 sm:px-6 py-4'>
                       <div
                         className='flex justify-end gap-1 sm:gap-2'
@@ -942,17 +942,19 @@ const CustomersPage: React.FC = () => {
                       <input
                         type='text'
                         value={editFormData.fullName}
-                        onChange={e =>
+                        onChange={e =>{ 
+                          const value = e.target.value
+                          const OnlyLetters = /^[A-Za-z\s]*$/
+                          if (!OnlyLetters.test(value)) return
                           setEditFormData(prev => ({
                             ...prev,
-                            fullName: e.target.value
+                            fullName: value
                           }))
-                        }
-                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.fullName
+                        }}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${editFormErrors.fullName
                             ? 'border-red-500'
                             : 'border-gray-300 dark:border-gray-700'
-                        }`}
+                          }`}
                         placeholder='Enter full name'
                       />
                       {editFormErrors.fullName && (
@@ -970,17 +972,19 @@ const CustomersPage: React.FC = () => {
                       <input
                         type='tel'
                         value={editFormData.phone}
-                        onChange={e =>
+                        onChange={e =>{ 
+                          const value = e.target.value
+                          const digitsOnly = /^[\d]{0,12}$/
+                          if(!digitsOnly.test(value))return
                           setEditFormData(prev => ({
                             ...prev,
-                            phone: e.target.value
+                            phone: value
                           }))
-                        }
-                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.phone
+                        }}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${editFormErrors.phone
                             ? 'border-red-500'
                             : 'border-gray-300 dark:border-gray-700'
-                        }`}
+                          }`}
                         placeholder='+1 555 0123'
                       />
                       {editFormErrors.phone && (
@@ -1004,11 +1008,10 @@ const CustomersPage: React.FC = () => {
                             email: e.target.value
                           }))
                         }
-                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.email
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${editFormErrors.email
                             ? 'border-red-500'
                             : 'border-gray-300 dark:border-gray-700'
-                        }`}
+                          }`}
                         placeholder='customer@example.com'
                       />
                       {editFormErrors.email && (
@@ -1032,11 +1035,10 @@ const CustomersPage: React.FC = () => {
                             panNumber: e.target.value.toUpperCase()
                           }))
                         }
-                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
-                          editFormErrors.panNumber
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${editFormErrors.panNumber
                             ? 'border-red-500'
                             : 'border-gray-300 dark:border-gray-700'
-                        }`}
+                          }`}
                         placeholder='ABCDE1234F'
                         maxLength={10}
                       />
@@ -1082,11 +1084,10 @@ const CustomersPage: React.FC = () => {
                           }))
                         }
                         rows={3}
-                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 resize-none ${
-                          editFormErrors.addressLine
+                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 resize-none ${editFormErrors.addressLine
                             ? 'border-red-500'
                             : 'border-gray-300 dark:border-gray-700'
-                        }`}
+                          }`}
                         placeholder='Enter complete address'
                       />
                       {editFormErrors.addressLine && (
@@ -1109,11 +1110,11 @@ const CustomersPage: React.FC = () => {
                       <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                         Customer Segment
                       </label>
-	                      <SearchableDropdown
-	                        value={editFormData.segment ?? 'NEW'}
-	                        options={segments.map(segment => ({
-	                          value: segment.value,
-	                          label: segment.label
+                      <SearchableDropdown
+                        value={editFormData.segment ?? 'NEW'}
+                        options={segments.map(segment => ({
+                          value: segment.value,
+                          label: segment.label
                         }))}
                         onChange={value =>
                           setEditFormData(prev => ({

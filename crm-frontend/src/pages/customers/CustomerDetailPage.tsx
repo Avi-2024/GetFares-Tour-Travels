@@ -403,12 +403,15 @@ const CustomerDetailPage: React.FC = () => {
                         <input
                           type='text'
                           value={formData.fullName}
-                          onChange={e =>
+                          onChange={e =>{
+                            const value = e.target.value
+                            const OnlyLetters = /^[a-zA-Z\s]*$/
+                            if (!OnlyLetters.test(value)) return
                             setFormData({
                               ...formData,
                               fullName: e.target.value
                             })
-                          }
+                          }}
                           className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 ${
                             formErrors.fullName
                               ? 'border-red-500 dark:border-red-500'
@@ -437,9 +440,12 @@ const CustomerDetailPage: React.FC = () => {
                       <input
                         type='text'
                         value={formData.phone}
-                        onChange={e =>
+                        onChange={e =>{
+                          const value = e.target.value
+                          const digitsOnly = /^[\d]{0,12}$/
+                          if(!digitsOnly.test(value))return
                           setFormData({ ...formData, phone: e.target.value })
-                        }
+                        }}
                         className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100'
                       />
                     ) : (
