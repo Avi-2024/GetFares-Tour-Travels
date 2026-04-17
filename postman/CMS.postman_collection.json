@@ -108,7 +108,7 @@
       "name": "Auth",
       "item": [
         {
-          "name": "Login (Get CMS Token)",
+          "name": "Login",
           "request": {
             "method": "POST",
             "header": [
@@ -234,10 +234,10 @@
       "name": "CMS Protected",
       "item": [
         {
-          "name": "Landing",
+          "name": "Landing Places",
           "item": [
             {
-              "name": "List",
+              "name": "List Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -267,7 +267,7 @@
               "response": []
             },
             {
-              "name": "List Deleted",
+              "name": "List Deleted Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -289,7 +289,7 @@
               "response": []
             },
             {
-              "name": "Get By ID",
+              "name": "Get Landing Place By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -306,7 +306,7 @@
               "response": []
             },
             {
-              "name": "Create",
+              "name": "Create Landing Place",
               "request": {
                 "method": "POST",
                 "header": [
@@ -440,7 +440,7 @@
               "response": []
             },
             {
-              "name": "Delete (Soft)",
+              "name": "Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -457,7 +457,7 @@
               "response": []
             },
             {
-              "name": "Update Status",
+              "name": "Update Landing Place Status",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -487,7 +487,7 @@
               "response": []
             },
             {
-              "name": "Restore",
+              "name": "Restore Landing Place",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -504,7 +504,7 @@
               "response": []
             },
             {
-              "name": "Hard Delete",
+              "name": "Hard Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -521,7 +521,7 @@
               "response": []
             },
             {
-              "name": "Reorder",
+              "name": "Reorder Landing Places",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -556,7 +556,7 @@
           "name": "Destinations",
           "item": [
             {
-              "name": "List",
+              "name": "List Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -598,7 +598,7 @@
               "response": []
             },
             {
-              "name": "List Deleted",
+              "name": "List Deleted Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -620,7 +620,7 @@
               "response": []
             },
             {
-              "name": "Get By ID",
+              "name": "Get Landing Place By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -637,7 +637,7 @@
               "response": []
             },
             {
-              "name": "Get By Slug",
+              "name": "Get Destination By Slug",
               "request": {
                 "method": "GET",
                 "header": [
@@ -654,7 +654,7 @@
               "response": []
             },
             {
-              "name": "Create",
+              "name": "Create Landing Place",
               "request": {
                 "method": "POST",
                 "header": [
@@ -807,7 +807,7 @@
               "response": []
             },
             {
-              "name": "Update",
+              "name": "Update Landing Place",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -886,7 +886,7 @@
               "response": []
             },
             {
-              "name": "Update Status",
+              "name": "Update Landing Place Status",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -916,7 +916,7 @@
               "response": []
             },
             {
-              "name": "Restore",
+              "name": "Restore Landing Place",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -933,7 +933,7 @@
               "response": []
             },
             {
-              "name": "Hard Delete",
+              "name": "Hard Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -950,7 +950,7 @@
               "response": []
             },
             {
-              "name": "Get Media",
+              "name": "Get Destination Media",
               "request": {
                 "method": "GET",
                 "header": [
@@ -967,7 +967,7 @@
               "response": []
             },
             {
-              "name": "Add Media",
+              "name": "Add Destination Media",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1086,7 +1086,7 @@
               "response": []
             },
             {
-              "name": "Delete Media (Soft)",
+              "name": "Delete Destination Media",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1103,7 +1103,7 @@
               "response": []
             },
             {
-              "name": "Hard Delete Media",
+              "name": "Hard Delete Destination Media",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1120,7 +1120,7 @@
               "response": []
             },
             {
-              "name": "Get Seasons",
+              "name": "Get Destination Seasons",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1137,7 +1137,7 @@
               "response": []
             },
             {
-              "name": "Add Season",
+              "name": "Add Destination Season",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1212,7 +1212,7 @@
               "response": []
             },
             {
-              "name": "Delete Season (Soft)",
+              "name": "Delete Destination Season",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1229,7 +1229,7 @@
               "response": []
             },
             {
-              "name": "Hard Delete Season",
+              "name": "Hard Delete Destination Season",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1251,7 +1251,7 @@
           "name": "Packages",
           "item": [
             {
-              "name": "List Published",
+              "name": "List Published Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1277,7 +1277,7 @@
               "response": []
             },
             {
-              "name": "List Deleted Published",
+              "name": "List Deleted Published Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1299,7 +1299,7 @@
               "response": []
             },
             {
-              "name": "Create Published",
+              "name": "Create Published Package",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1446,7 +1446,7 @@
               "response": []
             },
             {
-              "name": "Get Published By ID",
+              "name": "Get Published Package By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1463,7 +1463,7 @@
               "response": []
             },
             {
-              "name": "Update Published",
+              "name": "Update Published Package",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -1505,7 +1505,7 @@
               "response": []
             },
             {
-              "name": "Delete Published (Soft)",
+              "name": "Delete Published Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1522,7 +1522,7 @@
               "response": []
             },
             {
-              "name": "Restore Published",
+              "name": "Restore Published Package",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -1539,7 +1539,7 @@
               "response": []
             },
             {
-              "name": "Hard Delete Published",
+              "name": "Hard Delete Published Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1556,7 +1556,7 @@
               "response": []
             },
             {
-              "name": "List Main",
+              "name": "List Main Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1586,7 +1586,7 @@
               "response": []
             },
             {
-              "name": "List Deleted Main",
+              "name": "List Deleted Main Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1608,7 +1608,7 @@
               "response": []
             },
             {
-              "name": "Create Main",
+              "name": "Create Main Package",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1675,7 +1675,7 @@
               "response": []
             },
             {
-              "name": "Update Main",
+              "name": "Update Main Package",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -1710,7 +1710,7 @@
               "response": []
             },
             {
-              "name": "Delete Main (Soft)",
+              "name": "Delete Main Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1727,7 +1727,7 @@
               "response": []
             },
             {
-              "name": "Restore Main",
+              "name": "Restore Main Package",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -1744,7 +1744,7 @@
               "response": []
             },
             {
-              "name": "Hard Delete Main",
+              "name": "Hard Delete Main Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1761,7 +1761,7 @@
               "response": []
             },
             {
-              "name": "List Sub By Main",
+              "name": "List Sub Packages By Main Package",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1787,7 +1787,7 @@
               "response": []
             },
             {
-              "name": "List Deleted Sub",
+              "name": "List Deleted Sub Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1804,7 +1804,7 @@
               "response": []
             },
             {
-              "name": "Create Sub",
+              "name": "Create Sub Package",
               "request": {
                 "method": "POST",
                 "header": [
@@ -2023,7 +2023,7 @@
               "response": []
             },
             {
-              "name": "Delete Sub (Soft)",
+              "name": "Delete Sub Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -2040,7 +2040,7 @@
               "response": []
             },
             {
-              "name": "Restore Sub",
+              "name": "Restore Sub Package",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -2057,7 +2057,7 @@
               "response": []
             },
             {
-              "name": "Hard Delete Sub",
+              "name": "Hard Delete Sub Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -2076,10 +2076,10 @@
           ]
         },
         {
-          "name": "Visa",
+          "name": "Visa Destinations",
           "item": [
             {
-              "name": "List",
+              "name": "List Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -2109,7 +2109,7 @@
               "response": []
             },
             {
-              "name": "List Deleted",
+              "name": "List Deleted Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -2131,7 +2131,7 @@
               "response": []
             },
             {
-              "name": "Get By ID",
+              "name": "Get Landing Place By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -2148,7 +2148,7 @@
               "response": []
             },
             {
-              "name": "Get By Slug",
+              "name": "Get Destination By Slug",
               "request": {
                 "method": "GET",
                 "header": [
@@ -2165,7 +2165,7 @@
               "response": []
             },
             {
-              "name": "Create",
+              "name": "Create Landing Place",
               "request": {
                 "method": "POST",
                 "header": [
@@ -2370,7 +2370,7 @@
               "response": []
             },
             {
-              "name": "Delete (Soft)",
+              "name": "Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -2387,7 +2387,7 @@
               "response": []
             },
             {
-              "name": "Update Status",
+              "name": "Update Landing Place Status",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -2417,7 +2417,7 @@
               "response": []
             },
             {
-              "name": "Restore",
+              "name": "Restore Landing Place",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -2434,7 +2434,7 @@
               "response": []
             },
             {
-              "name": "Hard Delete",
+              "name": "Hard Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -2976,7 +2976,7 @@
               "response": []
             },
             {
-              "name": "Delete Featured Pick (Soft)",
+              "name": "Delete Featured Pick",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -2993,7 +2993,7 @@
               "response": []
             },
             {
-              "name": "Delete Creative Toolkit (Soft)",
+              "name": "Delete Creative Toolkit",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -3364,7 +3364,7 @@
               "response": []
             },
             {
-              "name": "Delete Season Card (Soft)",
+              "name": "Delete Season Card",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -3583,7 +3583,7 @@
           "name": "Media",
           "item": [
             {
-              "name": "Upload",
+              "name": "Upload Media",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3625,7 +3625,7 @@
               "response": []
             },
             {
-              "name": "List",
+              "name": "List Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -3659,7 +3659,7 @@
               "response": []
             },
             {
-              "name": "Create",
+              "name": "Create Landing Place",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3768,7 +3768,7 @@
               "response": []
             },
             {
-              "name": "Update",
+              "name": "Update Landing Place",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -3820,7 +3820,7 @@
               "response": []
             },
             {
-              "name": "Delete",
+              "name": "Delete Media",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -3837,7 +3837,7 @@
               "response": []
             },
             {
-              "name": "Update Status",
+              "name": "Update Landing Place Status",
               "request": {
                 "method": "PATCH",
                 "header": [
