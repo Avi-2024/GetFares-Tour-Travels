@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaCalendarPlus,
@@ -461,7 +461,7 @@ const Leads: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
+    <div className="space-y-4 sm:space-y-6 min-w-0">
       <div className=" mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex flex-col gap-1">
@@ -506,7 +506,7 @@ const Leads: React.FC = () => {
           />
         </div>
 
-        <SurfaceCard className="p-0 overflow-hidden border border-gray-200 dark:border-gray-800">
+        <SurfaceCard className="p-0 border border-gray-200 dark:border-gray-800">
           <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 space-y-3">
             {error ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
@@ -743,19 +743,19 @@ const Leads: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="w-full  overflow-x-auto leads-table-scroll">
-                <table className=" w-full">
+              <div className="hidden w-full overflow-x-auto leads-table-scroll lg:block">
+                <table className="w-full min-w-[1330px] table-fixed border-collapse">
                   <colgroup>
-                    <col style={{ width: '150px' }} />
-                    <col style={{ width: '200px' }} />
-                    <col style={{ width: '120px' }} />
-                    <col style={{ width: '180px' }} />
-                    <col style={{ width: '140px' }} />
-                    <col style={{ width: '120px' }} />
-                    <col style={{ width: '120px' }} />
-                    <col style={{ width: '100px' }} />
-                    <col style={{ width: '100px' }} />
-                    <col style={{ width: '100px' }} />
+                    <col className="w-[150px]" />
+                    <col className="w-[200px]" />
+                    <col className="w-[120px]" />
+                    <col className="w-[180px]" />
+                    <col className="w-[140px]" />
+                    <col className="w-[120px]" />
+                    <col className="w-[120px]" />
+                    <col className="w-[100px]" />
+                    <col className="w-[100px]" />
+                    <col className="w-[100px]" />
                   </colgroup>
                   <thead className="bg-gray-50  dark:bg-gray-800/50 sticky top-0 z-10">
                     <tr>
@@ -780,10 +780,10 @@ const Leads: React.FC = () => {
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead Country
                       </th>
-                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700 min-w-[120px]">
                         Status
                       </th>
-                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700 min-w-[110px]">
                         SLA
                       </th>
                       <th className="px-3 py-3.5 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
@@ -806,9 +806,9 @@ const Leads: React.FC = () => {
                             })()}
                           </p>
                         </td>
-                        <td className="px-3 py-4">
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <td className="px-3 py-4 align-top">
+                          <div className="min-w-0 space-y-1">
+                            <p className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">
                               {lead.name}
                             </p>
                             <span
@@ -858,8 +858,8 @@ const Leads: React.FC = () => {
                             </p>
                           </div>
                         </td>
-                        <td className="px-3 py-4" title={lead.destination}>
-                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                        <td className="px-3 py-4 align-top" title={lead.destination}>
+                          <span className="line-clamp-2 break-words text-sm font-medium text-gray-800 dark:text-gray-200">
                             {lead.destination}
                           </span>
                         </td>
@@ -868,15 +868,17 @@ const Leads: React.FC = () => {
                             {getVisaHolidayLabel(lead)}
                           </span>
                         </td>
-                        <td className="px-3 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <td className="px-3 py-4 align-top">
+                          <span className="line-clamp-2 break-words text-sm font-medium text-gray-700 dark:text-gray-300">
                             {lead.leadCountry || "-"}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-center">
-                          <StatusBadge status={lead.statusLabel} />
+                        <td className="px-3 py-4 text-center align-middle">
+                          <div className="flex justify-center">
+                            <StatusBadge status={lead.statusLabel} />
+                          </div>
                         </td>
-                        <td className="px-3 py-4 text-center whitespace-nowrap">
+                        <td className="px-3 py-4 text-center whitespace-nowrap align-middle">
                           <span
                             className={`text-sm font-medium ${
                               lead.slaBreached
@@ -1023,11 +1025,6 @@ const Leads: React.FC = () => {
         </SurfaceCard>
 
         <style>{`
-          html,
-          body {
-            overflow-x: hidden;
-          }
-
           .leads-table-scroll {
             scrollbar-width: thin;
             scrollbar-color: rgba(59, 130, 246, 0.3) rgba(243, 244, 246, 0.5);
