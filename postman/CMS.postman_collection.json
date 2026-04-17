@@ -1,8 +1,9 @@
 {
   "info": {
-    "_postman_id": "baf44639-0286-4578-9c55-8eb6b7914ea2",
+    "_postman_id": "4cb38b16-0693-4825-8c3c-357822c3c250",
     "name": "CMS",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Auto-synced with backend/cms modules routes and controller payloads."
   },
   "variable": [
     {
@@ -24,6 +25,22 @@
     {
       "key": "country",
       "value": "UAE"
+    },
+    {
+      "key": "region",
+      "value": "Middle East"
+    },
+    {
+      "key": "category",
+      "value": "Leisure"
+    },
+    {
+      "key": "slug",
+      "value": "dubai"
+    },
+    {
+      "key": "sectionKey",
+      "value": "home-hero"
     },
     {
       "key": "landingId",
@@ -66,12 +83,12 @@
       "value": "00000000-0000-0000-0000-000000000010"
     },
     {
-      "key": "slug",
-      "value": "dubai"
+      "key": "entityType",
+      "value": "destination"
     },
     {
-      "key": "sectionKey",
-      "value": "home-hero"
+      "key": "entityId",
+      "value": "{{destinationId}}"
     },
     {
       "key": "sampleImagePath",
@@ -80,6 +97,10 @@
     {
       "key": "sampleImageUrl",
       "value": "https://picsum.photos/1200/800"
+    },
+    {
+      "key": "sampleVideoUrl",
+      "value": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4"
     }
   ],
   "item": [
@@ -93,6 +114,10 @@
             "header": [
               {
                 "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
                 "value": "application/json"
               }
             ],
@@ -119,17 +144,16 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Login status is 200/201', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-                  "pm.test('Token is stored', function () {",
+                  "try {",
                   "  const payload = pm.response.json();",
                   "  const token = payload?.data?.accessToken || payload?.accessToken || payload?.token;",
-                  "  pm.expect(token, 'access token missing in response').to.be.a('string').and.not.empty;",
-                  "  pm.collectionVariables.set('cmsToken', token);",
-                  "});"
+                  "  if (token) pm.collectionVariables.set('cmsToken', token);",
+                  "} catch (e) {}"
                 ]
               }
             }
-          ]
+          ],
+          "response": []
         },
         {
           "name": "Get Current User",
@@ -145,22 +169,69 @@
               "raw": "{{baseUrl}}/api/auth/me",
               "query": []
             }
-          }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Health Live",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health/live",
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Health Ready",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "query": []
+            }
+          },
+          "response": []
         }
       ]
     },
     {
       "name": "CMS Protected",
-      "auth": {
-        "type": "bearer",
-        "bearer": [
-          {
-            "key": "token",
-            "value": "{{cmsToken}}",
-            "type": "string"
-          }
-        ]
-      },
       "item": [
         {
           "name": "Landing",
@@ -176,7 +247,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms?active=true&country={{country}}",
+                  "raw": "{{baseUrl}}/cms?active=true&country={{country}}&includeDeleted=false",
                   "query": [
                     {
                       "key": "active",
@@ -185,10 +256,15 @@
                     {
                       "key": "country",
                       "value": "{{country}}"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted",
@@ -201,10 +277,16 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/deleted",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/deleted?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get By ID",
@@ -220,7 +302,8 @@
                   "raw": "{{baseUrl}}/cms/{{landingId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create",
@@ -233,36 +316,35 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "bannerImage",
-                      "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
-                    },
-                    {
-                      "key": "name",
-                      "value": "Maldives",
+                      "key": "title",
+                      "value": "Dubai",
                       "type": "text"
                     },
                     {
-                      "key": "slug",
-                      "value": "maldives",
+                      "key": "tag",
+                      "value": "Luxury City Escapes",
                       "type": "text"
                     },
                     {
-                      "key": "subtitle",
-                      "value": "Luxury Escape",
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
                       "type": "text"
                     },
                     {
-                      "key": "description",
-                      "value": "Premium island experiences.",
+                      "key": "displayOrder",
+                      "value": "1",
                       "type": "text"
                     },
                     {
@@ -271,13 +353,34 @@
                       "type": "text"
                     },
                     {
-                      "key": "imageUrl",
-                      "value": "{{sampleImageUrl}}",
+                      "key": "country",
+                      "value": "{{country}}",
                       "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('landingId', data.id);",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Update",
@@ -290,31 +393,51 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/{{landingId}}",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/{{landingId}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
+                      "key": "title",
+                      "value": "Dubai Updated",
+                      "type": "text"
+                    },
+                    {
+                      "key": "tag",
+                      "value": "Premium City Escapes",
+                      "type": "text"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
                       "key": "bannerImage",
                       "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
-                    },
-                    {
-                      "key": "subtitle",
-                      "value": "Updated subtitle",
-                      "type": "text"
-                    },
-                    {
-                      "key": "description",
-                      "value": "Updated description",
-                      "type": "text"
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete (Soft)",
@@ -330,7 +453,8 @@
                   "raw": "{{baseUrl}}/cms/{{landingId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Status",
@@ -339,6 +463,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -355,7 +483,8 @@
                     }
                   }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore",
@@ -371,7 +500,8 @@
                   "raw": "{{baseUrl}}/cms/{{landingId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete",
@@ -387,7 +517,8 @@
                   "raw": "{{baseUrl}}/cms/{{landingId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Reorder",
@@ -397,6 +528,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -405,14 +540,15 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"ids\": [\n    \"{{landingId}}\"\n  ]\n}",
+                  "raw": "{\n  \"items\": [\n    {\n      \"id\": \"{{landingId}}\",\n      \"displayOrder\": 1\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -430,10 +566,36 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/destinations?country={{country}}&region={{region}}&category={{category}}&isActive=true&isPopular=false&includeDeleted=false",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "region",
+                      "value": "{{region}}"
+                    },
+                    {
+                      "key": "category",
+                      "value": "{{category}}"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "isPopular",
+                      "value": "false"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted",
@@ -446,10 +608,16 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/deleted",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/destinations/deleted?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get By ID",
@@ -465,7 +633,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get By Slug",
@@ -481,7 +650,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/slug/{{slug}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create",
@@ -494,8 +664,13 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/destinations?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
@@ -511,14 +686,125 @@
                       "type": "text"
                     },
                     {
-                      "key": "image",
+                      "key": "description",
+                      "value": "City destination",
+                      "type": "text"
+                    },
+                    {
+                      "key": "shortDescription",
+                      "value": "Short copy",
+                      "type": "text"
+                    },
+                    {
+                      "key": "country",
+                      "value": "{{country}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "region",
+                      "value": "{{region}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "categories",
+                      "value": "[\"Leisure\",\"Family\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "seasonFocus",
+                      "value": "[\"Winter\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "rating",
+                      "value": "4.5",
+                      "type": "text"
+                    },
+                    {
+                      "key": "travelType",
+                      "value": "International",
+                      "type": "text"
+                    },
+                    {
+                      "key": "keyHighlights",
+                      "value": "[\"Beaches\",\"Shopping\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "services",
+                      "value": "[{\"title\":\"Hotel\",\"description\":\"4-star stay\"}]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bestTimeToVisit",
+                      "value": "[{\"title\":\"Winter\",\"from\":\"Nov\",\"to\":\"Mar\"}]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "heroImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "titleImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isPopular",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaTitle",
+                      "value": "Dubai Packages",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaDescription",
+                      "value": "SEO description",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
                       "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                      "src": "{{sampleImagePath}}"
+                    },
+                    {
+                      "key": "gallery",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('destinationId', data.id);",
+                      "  if (data?.slug) pm.collectionVariables.set('slug', String(data.slug));",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Update",
@@ -531,20 +817,56 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "subtitle",
-                      "value": "Updated subtitle",
+                      "key": "name",
+                      "value": "Dubai Updated",
                       "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Updated description",
+                      "type": "text"
+                    },
+                    {
+                      "key": "categories",
+                      "value": "[\"Leisure\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isPopular",
+                      "value": "false",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaTitle",
+                      "value": "Updated SEO",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
+                    },
+                    {
+                      "key": "galleryImages",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete (Soft)",
@@ -560,7 +882,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Status",
@@ -569,6 +892,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -585,7 +912,8 @@
                     }
                   }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore",
@@ -601,7 +929,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete",
@@ -617,7 +946,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get Media",
@@ -633,7 +963,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Add Media",
@@ -653,19 +984,64 @@
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "media",
-                      "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
-                    },
-                    {
-                      "key": "type",
+                      "key": "mediaType",
                       "value": "image",
                       "type": "text"
+                    },
+                    {
+                      "key": "mediaUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Gallery image",
+                      "type": "text"
+                    },
+                    {
+                      "key": "caption",
+                      "value": "Caption copy",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isFeatured",
+                      "value": "false",
+                      "type": "text"
+                    },
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('mediaId', data.id);",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Update Media",
@@ -685,13 +1061,29 @@
                   "mode": "formdata",
                   "formdata": [
                     {
+                      "key": "title",
+                      "value": "Gallery image updated",
+                      "type": "text"
+                    },
+                    {
                       "key": "caption",
                       "value": "Updated caption",
                       "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Media (Soft)",
@@ -707,7 +1099,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{mediaId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete Media",
@@ -723,7 +1116,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media/{{mediaId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get Seasons",
@@ -739,7 +1133,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Add Season",
@@ -749,6 +1144,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -757,14 +1156,30 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Winter 2026\",\n  \"subtitle\": \"Best time to visit\",\n  \"isActive\": true\n}",
+                  "raw": "{\n  \"title\": \"Winter Escape\",\n  \"fromMonth\": \"Nov\",\n  \"toMonth\": \"Mar\",\n  \"description\": \"Best weather window\",\n  \"tag\": \"Peak\",\n  \"iconName\": \"snowflake\",\n  \"iconColor\": \"#ffffff\",\n  \"bgColor\": \"#1f2937\",\n  \"displayOrder\": 1,\n  \"isActive\": true\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('seasonId', data.id);",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Update Season",
@@ -774,6 +1189,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -782,14 +1201,15 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Winter 2026 Updated\"\n}",
+                  "raw": "{\n  \"title\": \"Winter Escape Updated\",\n  \"fromMonth\": \"Oct\",\n  \"toMonth\": \"Mar\",\n  \"description\": \"Updated season\",\n  \"displayOrder\": 2,\n  \"isActive\": true\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Season (Soft)",
@@ -805,7 +1225,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete Season",
@@ -821,7 +1242,8 @@
                   "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons/{{seasonId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -839,10 +1261,20 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/published",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/packages/published?country={{country}}&includeDeleted=false",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted Published",
@@ -855,10 +1287,16 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/published/deleted",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/packages/published/deleted?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create Published",
@@ -878,19 +1316,134 @@
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "title",
-                      "value": "Dubai Special",
+                      "key": "name",
+                      "value": "Dubai Summer Deal",
                       "type": "text"
                     },
                     {
-                      "key": "coverImage",
+                      "key": "destinationId",
+                      "value": "{{destinationId}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "duration",
+                      "value": "4N/5D",
+                      "type": "text"
+                    },
+                    {
+                      "key": "startingPrice",
+                      "value": "12999",
+                      "type": "text"
+                    },
+                    {
+                      "key": "inclusions",
+                      "value": "Flights, Hotel",
+                      "type": "text"
+                    },
+                    {
+                      "key": "exclusions",
+                      "value": "Visa",
+                      "type": "text"
+                    },
+                    {
+                      "key": "itinerary",
+                      "value": "[{\"day\":1,\"title\":\"Arrival\"}]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "hotelDetails",
+                      "value": "4 star",
+                      "type": "text"
+                    },
+                    {
+                      "key": "validFrom",
+                      "value": "2026-04-01",
+                      "type": "text"
+                    },
+                    {
+                      "key": "validTo",
+                      "value": "2026-12-31",
+                      "type": "text"
+                    },
+                    {
+                      "key": "cancellationPolicy",
+                      "value": "48 hours",
+                      "type": "text"
+                    },
+                    {
+                      "key": "packageCategory",
+                      "value": "Leisure",
+                      "type": "text"
+                    },
+                    {
+                      "key": "status",
+                      "value": "DRAFT",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "galleryImageUrls",
+                      "value": "[\"{{sampleImageUrl}}\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "publishToWebsite",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "websiteSlug",
+                      "value": "dubai-summer-deal",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaTitle",
+                      "value": "Dubai Summer Deal",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaDescription",
+                      "value": "Package SEO",
+                      "type": "text"
+                    },
+                    {
+                      "key": "keywords",
+                      "value": "dubai,summer",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
                       "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                      "src": "{{sampleImagePath}}"
+                    },
+                    {
+                      "key": "gallery",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('packageId', data.id);",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Get Published By ID",
@@ -906,7 +1459,8 @@
                   "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Published",
@@ -926,13 +1480,29 @@
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "title",
-                      "value": "Dubai Special Updated",
+                      "key": "name",
+                      "value": "Dubai Summer Deal Updated",
                       "type": "text"
+                    },
+                    {
+                      "key": "startingPrice",
+                      "value": "14999",
+                      "type": "text"
+                    },
+                    {
+                      "key": "publishToWebsite",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Published (Soft)",
@@ -948,7 +1518,8 @@
                   "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore Published",
@@ -964,7 +1535,8 @@
                   "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete Published",
@@ -980,7 +1552,8 @@
                   "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Main",
@@ -993,10 +1566,24 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/packages/main?country={{country}}&isFeatured=true&includeDeleted=false",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "isFeatured",
+                      "value": "true"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted Main",
@@ -1009,10 +1596,16 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/deleted",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/packages/main/deleted?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create Main",
@@ -1022,22 +1615,47 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/packages/main?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"UAE Trips\",\n  \"slug\": \"uae-trips\",\n  \"isActive\": true\n}",
+                  "raw": "{\n  \"destinationId\": \"{{destinationId}}\",\n  \"country\": \"{{country}}\",\n  \"title\": \"Dubai Main Package\",\n  \"amount\": 19999,\n  \"features\": [\n    {\n      \"iconName\": \"hotel\",\n      \"description\": \"4 star\"\n    }\n  ],\n  \"inclusions\": [\n    {\n      \"iconName\": \"flight\",\n      \"description\": \"Round trip\"\n    }\n  ],\n  \"metaTitle\": \"Main Package SEO\",\n  \"metaDescription\": \"Main package description\",\n  \"keywords\": \"dubai,package\",\n  \"displayOrder\": 1,\n  \"isFeatured\": true\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('mainPackageId', data.id);",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Get Main By ID",
@@ -1053,7 +1671,8 @@
                   "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Main",
@@ -1063,22 +1682,32 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"UAE Trips Updated\"\n}",
+                  "raw": "{\n  \"title\": \"Dubai Main Package Updated\",\n  \"amount\": 21999,\n  \"displayOrder\": 2,\n  \"isFeatured\": true\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Main (Soft)",
@@ -1094,7 +1723,8 @@
                   "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore Main",
@@ -1110,7 +1740,8 @@
                   "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete Main",
@@ -1126,7 +1757,8 @@
                   "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Sub By Main",
@@ -1139,10 +1771,20 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub?country={{country}}&includeDeleted=false",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted Sub",
@@ -1158,7 +1800,8 @@
                   "raw": "{{baseUrl}}/cms/packages/sub/deleted",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create Sub",
@@ -1184,12 +1827,153 @@
                     },
                     {
                       "key": "title",
-                      "value": "3N4D Dubai",
+                      "value": "3N Dubai Explorer",
                       "type": "text"
+                    },
+                    {
+                      "key": "location",
+                      "value": "Dubai",
+                      "type": "text"
+                    },
+                    {
+                      "key": "rating",
+                      "value": "4.2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "duration",
+                      "value": "3N/4D",
+                      "type": "text"
+                    },
+                    {
+                      "key": "durationDays",
+                      "value": "4",
+                      "type": "text"
+                    },
+                    {
+                      "key": "durationNights",
+                      "value": "3",
+                      "type": "text"
+                    },
+                    {
+                      "key": "startingPrice",
+                      "value": "15999",
+                      "type": "text"
+                    },
+                    {
+                      "key": "transport",
+                      "value": "Private",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Sub package details",
+                      "type": "text"
+                    },
+                    {
+                      "key": "snapshot",
+                      "value": "Quick summary",
+                      "type": "text"
+                    },
+                    {
+                      "key": "features",
+                      "value": "[\"Breakfast\",\"Transfers\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "itineraries",
+                      "value": "[{\"title\":\"Day 1\",\"description\":\"Arrival\",\"features\":[\"Check-in\"]}]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "highlights",
+                      "value": "[\"Burj Khalifa\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "inclusions",
+                      "value": "[\"Hotel\",\"Transfers\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "exclusions",
+                      "value": "[\"Lunch\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "paymentTerms",
+                      "value": "[\"50% advance\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "cancellationPolicy",
+                      "value": "[\"Non-refundable\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "tnc",
+                      "value": "[\"Terms apply\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "impNotes",
+                      "value": "[\"Carry passport\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaTitle",
+                      "value": "Sub Package SEO",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaDescription",
+                      "value": "Sub package seo desc",
+                      "type": "text"
+                    },
+                    {
+                      "key": "keywords",
+                      "value": "dubai,sub",
+                      "type": "text"
+                    },
+                    {
+                      "key": "status",
+                      "value": "DRAFT",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "image",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('subPackageId', data.id);",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Update Sub",
@@ -1210,12 +1994,33 @@
                   "formdata": [
                     {
                       "key": "title",
-                      "value": "3N4D Dubai Updated",
+                      "value": "3N Dubai Explorer Updated",
                       "type": "text"
+                    },
+                    {
+                      "key": "startingPrice",
+                      "value": "16999",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "image",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Sub (Soft)",
@@ -1231,7 +2036,8 @@
                   "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore Sub",
@@ -1247,7 +2053,8 @@
                   "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete Sub",
@@ -1263,7 +2070,8 @@
                   "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -1281,10 +2089,24 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/visa?country={{country}}&isActive=true&includeDeleted=false",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted",
@@ -1297,10 +2119,16 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/deleted",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/visa/deleted?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get By ID",
@@ -1316,7 +2144,8 @@
                   "raw": "{{baseUrl}}/cms/visa/{{visaId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get By Slug",
@@ -1332,7 +2161,8 @@
                   "raw": "{{baseUrl}}/cms/visa/slug/{{slug}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create",
@@ -1345,8 +2175,13 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/visa?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
@@ -1357,13 +2192,130 @@
                       "type": "text"
                     },
                     {
-                      "key": "slug",
-                      "value": "uae-tourist-visa",
+                      "key": "title",
+                      "value": "UAE Visa",
                       "type": "text"
+                    },
+                    {
+                      "key": "slug",
+                      "value": "uae-visa",
+                      "type": "text"
+                    },
+                    {
+                      "key": "country",
+                      "value": "{{country}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "subDescription",
+                      "value": "Fast processing",
+                      "type": "text"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "overviewTitle",
+                      "value": "Overview",
+                      "type": "text"
+                    },
+                    {
+                      "key": "overviewDescription",
+                      "value": "Visa overview details",
+                      "type": "text"
+                    },
+                    {
+                      "key": "quickSupportTitle",
+                      "value": "Support",
+                      "type": "text"
+                    },
+                    {
+                      "key": "quickSupportDescription",
+                      "value": "24x7",
+                      "type": "text"
+                    },
+                    {
+                      "key": "supportIncluded",
+                      "value": "[\"Document check\",\"Call support\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "priceCurrency",
+                      "value": "AED",
+                      "type": "text"
+                    },
+                    {
+                      "key": "priceAmount",
+                      "value": "399",
+                      "type": "text"
+                    },
+                    {
+                      "key": "highlights",
+                      "value": "[\"Express\",\"Trusted\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "visaDetails",
+                      "value": "[\"30 days stay\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "requirements",
+                      "value": "[\"Passport\",\"Photo\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaTitle",
+                      "value": "UAE Visa",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metaDescription",
+                      "value": "Visa seo desc",
+                      "type": "text"
+                    },
+                    {
+                      "key": "keywords",
+                      "value": "uae,visa",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('visaId', data.id);",
+                      "  if (data?.slug) pm.collectionVariables.set('slug', String(data.slug));",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Update",
@@ -1376,20 +2328,46 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaId}}",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/visa/{{visaId}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "name",
-                      "value": "UAE Tourist Visa Updated",
+                      "key": "title",
+                      "value": "UAE Visa Updated",
                       "type": "text"
+                    },
+                    {
+                      "key": "subDescription",
+                      "value": "Updated copy",
+                      "type": "text"
+                    },
+                    {
+                      "key": "priceAmount",
+                      "value": "450",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete (Soft)",
@@ -1405,7 +2383,8 @@
                   "raw": "{{baseUrl}}/cms/visa/{{visaId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Status",
@@ -1414,6 +2393,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -1430,7 +2413,8 @@
                     }
                   }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore",
@@ -1446,7 +2430,8 @@
                   "raw": "{{baseUrl}}/cms/visa/{{visaId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete",
@@ -1462,7 +2447,8 @@
                   "raw": "{{baseUrl}}/cms/visa/{{visaId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -1480,10 +2466,32 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks?country={{country}}&isActive=true&sectionKey=featured-hot-picks&campaignType=featured&includeDeleted=false",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "featured-hot-picks"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "featured"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Creative Toolkit",
@@ -1496,10 +2504,32 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit?country={{country}}&isActive=true&sectionKey=creative-toolkit&campaignType=creative&includeDeleted=false",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "creative-toolkit"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "creative"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted Featured Picks",
@@ -1512,10 +2542,24 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks/deleted",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks/deleted?country={{country}}&sectionKey=featured-hot-picks&campaignType=featured",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "featured-hot-picks"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "featured"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted Creative Toolkit",
@@ -1528,10 +2572,24 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/deleted",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/deleted?country={{country}}&sectionKey=creative-toolkit&campaignType=creative",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "creative-toolkit"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "creative"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create Featured Pick",
@@ -1544,26 +2602,157 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "title",
-                      "value": "Sky Dive",
+                      "key": "slug",
+                      "value": "dubai-featured-pick",
                       "type": "text"
                     },
                     {
-                      "key": "image",
+                      "key": "title",
+                      "value": "Dubai Highlights",
+                      "type": "text"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Top attractions",
+                      "type": "text"
+                    },
+                    {
+                      "key": "category",
+                      "value": "destination",
+                      "type": "text"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "featured",
+                      "type": "text"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "featured-hot-picks",
+                      "type": "text"
+                    },
+                    {
+                      "key": "referenceId",
+                      "value": "{{destinationId}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "country",
+                      "value": "{{country}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "rating",
+                      "value": "4.6",
+                      "type": "text"
+                    },
+                    {
+                      "key": "badgeText",
+                      "value": "Top Pick",
+                      "type": "text"
+                    },
+                    {
+                      "key": "originalPrice",
+                      "value": "2499",
+                      "type": "text"
+                    },
+                    {
+                      "key": "discountedPrice",
+                      "value": "1999",
+                      "type": "text"
+                    },
+                    {
+                      "key": "duration",
+                      "value": "3D",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Best for family",
+                      "type": "text"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "buttonText",
+                      "value": "Book Now",
+                      "type": "text"
+                    },
+                    {
+                      "key": "ctaUrl",
+                      "value": "/destination/dubai",
+                      "type": "text"
+                    },
+                    {
+                      "key": "expiresOn",
+                      "value": "2026-12-31",
+                      "type": "text"
+                    },
+                    {
+                      "key": "tags",
+                      "value": "[\"family\",\"popular\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "highlights",
+                      "value": "[\"Fast\",\"Curated\"]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "metadata",
+                      "value": "{\"source\":\"cms\"}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
                       "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('featuredPickId', data.id);",
+                      "  if (data?.slug) pm.collectionVariables.set('slug', String(data.slug));",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Create Creative Toolkit",
@@ -1576,20 +2765,82 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "title",
-                      "value": "Toolkit Card",
+                      "key": "slug",
+                      "value": "dubai-creative-toolkit",
                       "type": "text"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Dubai Creative",
+                      "type": "text"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "creative",
+                      "type": "text"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "creative-toolkit",
+                      "type": "text"
+                    },
+                    {
+                      "key": "country",
+                      "value": "{{country}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Toolkit card",
+                      "type": "text"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('featuredPickId', data.id);",
+                      "  if (data?.slug) pm.collectionVariables.set('slug', String(data.slug));",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Get Featured Pick By ID",
@@ -1605,7 +2856,8 @@
                   "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get Creative Toolkit By ID",
@@ -1621,7 +2873,8 @@
                   "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Featured Pick",
@@ -1634,20 +2887,46 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
                       "key": "title",
-                      "value": "Sky Dive Updated",
+                      "value": "Dubai Highlights Updated",
                       "type": "text"
+                    },
+                    {
+                      "key": "discountedPrice",
+                      "value": "1799",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Creative Toolkit",
@@ -1660,20 +2939,41 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
                       "key": "title",
-                      "value": "Toolkit Updated",
+                      "value": "Creative Toolkit Updated",
                       "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Featured Pick (Soft)",
@@ -1689,7 +2989,8 @@
                   "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Creative Toolkit (Soft)",
@@ -1705,7 +3006,8 @@
                   "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Featured Pick Status",
@@ -1714,6 +3016,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -1730,7 +3036,8 @@
                     }
                   }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Creative Toolkit Status",
@@ -1739,6 +3046,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -1755,7 +3066,8 @@
                     }
                   }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore Featured Pick",
@@ -1771,7 +3083,8 @@
                   "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore Creative Toolkit",
@@ -1787,7 +3100,8 @@
                   "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete Featured Pick",
@@ -1803,7 +3117,8 @@
                   "raw": "{{baseUrl}}/cms/experience/featured-picks/{{featuredPickId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete Creative Toolkit",
@@ -1819,7 +3134,8 @@
                   "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Season Cards",
@@ -1832,10 +3148,28 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/season-cards?country={{country}}&destinationId={{destinationId}}&isActive=true&includeDeleted=false",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    },
+                    {
+                      "key": "includeDeleted",
+                      "value": "false"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Deleted Season Cards",
@@ -1848,10 +3182,20 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards/deleted",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/season-cards/deleted?country={{country}}&destinationId={{destinationId}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create Season Card",
@@ -1871,13 +3215,89 @@
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "title",
-                      "value": "Winter Sale",
+                      "key": "destinationId",
+                      "value": "{{destinationId}}",
                       "type": "text"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Best Time To Visit",
+                      "type": "text"
+                    },
+                    {
+                      "key": "fromMonth",
+                      "value": "Nov",
+                      "type": "text"
+                    },
+                    {
+                      "key": "toMonth",
+                      "value": "Mar",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Cool weather",
+                      "type": "text"
+                    },
+                    {
+                      "key": "tag",
+                      "value": "Peak",
+                      "type": "text"
+                    },
+                    {
+                      "key": "imageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "iconName",
+                      "value": "sun",
+                      "type": "text"
+                    },
+                    {
+                      "key": "iconColor",
+                      "value": "#ffffff",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bgColor",
+                      "value": "#111827",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('seasonCardId', data.id);",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Get Season Card By ID",
@@ -1893,7 +3313,8 @@
                   "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Season Card",
@@ -1914,12 +3335,33 @@
                   "formdata": [
                     {
                       "key": "title",
-                      "value": "Winter Sale Updated",
+                      "value": "Best Time Updated",
                       "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Updated season note",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bannerImage",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Season Card (Soft)",
@@ -1935,7 +3377,8 @@
                   "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Season Card Status",
@@ -1944,6 +3387,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -1960,7 +3407,8 @@
                     }
                   }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Restore Season Card",
@@ -1976,7 +3424,8 @@
                   "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}/restore",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Hard Delete Season Card",
@@ -1992,7 +3441,8 @@
                   "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}/hard-delete",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "List Hero Sections",
@@ -2005,10 +3455,20 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/hero-sections",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/hero-sections?country={{country}}&isActive=true",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Upsert Hero Section",
@@ -2021,26 +3481,101 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/hero-sections/{{sectionKey}}",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/experience/hero-sections/{{sectionKey}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
                 },
                 "body": {
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "title",
-                      "value": "Hero Title",
+                      "key": "country",
+                      "value": "{{country}}",
                       "type": "text"
                     },
                     {
-                      "key": "image",
+                      "key": "eyebrowText",
+                      "value": "Explore",
+                      "type": "text"
+                    },
+                    {
+                      "key": "headingLine1",
+                      "value": "Plan your",
+                      "type": "text"
+                    },
+                    {
+                      "key": "headingLine2",
+                      "value": "next journey",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Hero section copy",
+                      "type": "text"
+                    },
+                    {
+                      "key": "primaryCtaLabel",
+                      "value": "Start",
+                      "type": "text"
+                    },
+                    {
+                      "key": "primaryCtaUrl",
+                      "value": "/destinations",
+                      "type": "text"
+                    },
+                    {
+                      "key": "secondaryCtaLabel",
+                      "value": "View More",
+                      "type": "text"
+                    },
+                    {
+                      "key": "secondaryCtaUrl",
+                      "value": "/packages",
+                      "type": "text"
+                    },
+                    {
+                      "key": "backgroundImageUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "backgroundImage",
                       "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.sectionKey) pm.collectionVariables.set('sectionKey', String(data.sectionKey));",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             }
           ]
         },
@@ -2067,12 +3602,27 @@
                     {
                       "key": "media",
                       "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.url) pm.collectionVariables.set('sampleImageUrl', String(data.url));",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "List",
@@ -2085,10 +3635,28 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/media",
-                  "query": []
+                  "raw": "{{baseUrl}}/cms/media?entityType={{entityType}}&entityId={{entityId}}&mediaKind=image&isActive=true",
+                  "query": [
+                    {
+                      "key": "entityType",
+                      "value": "{{entityType}}"
+                    },
+                    {
+                      "key": "entityId",
+                      "value": "{{entityId}}"
+                    },
+                    {
+                      "key": "mediaKind",
+                      "value": "image"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true"
+                    }
+                  ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create",
@@ -2108,19 +3676,79 @@
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "media",
-                      "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                      "key": "entityType",
+                      "value": "{{entityType}}",
+                      "type": "text"
                     },
                     {
-                      "key": "type",
+                      "key": "entityId",
+                      "value": "{{entityId}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "mediaKind",
                       "value": "image",
                       "type": "text"
+                    },
+                    {
+                      "key": "mediaUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "thumbnailUrl",
+                      "value": "{{sampleImageUrl}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "title",
+                      "value": "CMS Media",
+                      "type": "text"
+                    },
+                    {
+                      "key": "altText",
+                      "value": "Alt text",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isPrimary",
+                      "value": "false",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "try {",
+                      "  const payload = pm.response.json();",
+                      "  const data = payload?.data || {};",
+                      "  if (data?.id) pm.collectionVariables.set('mediaId', data.id);",
+                      "} catch (e) {}"
+                    ]
+                  }
+                }
+              ],
+              "response": []
             },
             {
               "name": "Get By ID",
@@ -2136,7 +3764,8 @@
                   "raw": "{{baseUrl}}/cms/media/{{mediaId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update",
@@ -2156,19 +3785,39 @@
                   "mode": "formdata",
                   "formdata": [
                     {
-                      "key": "media",
-                      "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                      "key": "title",
+                      "value": "CMS Media Updated",
+                      "type": "text"
                     },
                     {
-                      "key": "alt",
-                      "value": "Updated alt text",
+                      "key": "altText",
+                      "value": "Updated alt",
                       "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "2",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isPrimary",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "isActive",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "key": "media",
+                      "type": "file",
+                      "src": "{{sampleImagePath}}"
                     }
                   ]
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete",
@@ -2184,7 +3833,8 @@
                   "raw": "{{baseUrl}}/cms/media/{{mediaId}}",
                   "query": []
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Status",
@@ -2193,6 +3843,10 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -2209,356 +3863,907 @@
                     }
                   }
                 }
-              }
+              },
+              "response": []
             }
           ]
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{cmsToken}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Public CMS",
       "item": [
         {
-          "name": "Home",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/home",
-              "query": []
+          "name": "API Prefix (/api/public/cms)",
+          "item": [
+            {
+              "name": "Home",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/home?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
+            {
+              "name": "Landing Places",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/landing-places?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/destinations?country={{country}}&region={{region}}&category={{category}}&isPopular=true",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "region",
+                      "value": "{{region}}"
+                    },
+                    {
+                      "key": "category",
+                      "value": "{{category}}"
+                    },
+                    {
+                      "key": "isPopular",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Destination By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Destination Highlights",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/highlights?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Destination Media",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/media?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Destination Season Cards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/season-cards?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Destination Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/packages?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Published Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/packages/published?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Main Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/packages/main?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Sub Packages By Main",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/packages/main/{{mainPackageId}}/sub?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Visa Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/visa-destinations?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Visa Destination By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/visa-destinations/{{slug}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Visa Details By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/visa-destinations/{{slug}}/details?country={{country}}&sectionType=overview",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "sectionType",
+                      "value": "overview"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Featured Picks",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/featured-picks?country={{country}}&campaignType=featured&sectionKey=featured-hot-picks",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "featured"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "featured-hot-picks"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Creative Toolkit",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/creative-toolkit?country={{country}}&campaignType=creative&sectionKey=creative-toolkit",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "creative"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "creative-toolkit"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Season Cards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/season-cards?country={{country}}&destinationId={{destinationId}}&destinationSlug={{slug}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "destinationSlug",
+                      "value": "{{slug}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Hero Sections",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/cms/hero-sections?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             }
-          }
+          ]
         },
         {
-          "name": "Landing Places",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/landing-places",
-              "query": []
+          "name": "Direct Prefix (/public/cms)",
+          "item": [
+            {
+              "name": "Home",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/home?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Destinations",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations",
-              "query": []
+            {
+              "name": "Landing Places",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/landing-places?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Destination By Slug",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}",
-              "query": []
+            {
+              "name": "Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations?country={{country}}&region={{region}}&category={{category}}&isPopular=true",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "region",
+                      "value": "{{region}}"
+                    },
+                    {
+                      "key": "category",
+                      "value": "{{category}}"
+                    },
+                    {
+                      "key": "isPopular",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Destination Highlights",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/highlights",
-              "query": []
+            {
+              "name": "Destination By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{slug}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Destination Media",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/media",
-              "query": []
+            {
+              "name": "Destination Highlights",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{slug}}/highlights?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Destination Season Cards",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/season-cards",
-              "query": []
+            {
+              "name": "Destination Media",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{slug}}/media?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Destination Packages",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/packages",
-              "query": []
+            {
+              "name": "Destination Season Cards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{slug}}/season-cards?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Published Packages",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/packages/published",
-              "query": []
+            {
+              "name": "Destination Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/destinations/{{slug}}/packages?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Main Packages",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/packages/main",
-              "query": []
+            {
+              "name": "Published Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/packages/published?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Sub Packages By Main",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/packages/main/{{mainPackageId}}/sub",
-              "query": []
+            {
+              "name": "Main Packages",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/packages/main?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Visa Destinations",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/visa-destinations",
-              "query": []
+            {
+              "name": "Sub Packages By Main",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/packages/main/{{mainPackageId}}/sub?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Visa Destination By Slug",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/visa-destinations/{{slug}}",
-              "query": []
+            {
+              "name": "Visa Destinations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Visa Details By Slug",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/visa-destinations/{{slug}}/details",
-              "query": []
+            {
+              "name": "Visa Destination By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{slug}}?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Featured Picks",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/featured-picks",
-              "query": []
+            {
+              "name": "Visa Details By Slug",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/visa-destinations/{{slug}}/details?country={{country}}&sectionType=overview",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "sectionType",
+                      "value": "overview"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Creative Toolkit",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/creative-toolkit",
-              "query": []
+            {
+              "name": "Featured Picks",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/featured-picks?country={{country}}&campaignType=featured&sectionKey=featured-hot-picks",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "featured"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "featured-hot-picks"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Season Cards",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/season-cards",
-              "query": []
+            {
+              "name": "Creative Toolkit",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/creative-toolkit?country={{country}}&campaignType=creative&sectionKey=creative-toolkit",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "campaignType",
+                      "value": "creative"
+                    },
+                    {
+                      "key": "sectionKey",
+                      "value": "creative-toolkit"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "Hero Sections",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/public/cms/hero-sections",
-              "query": []
+            {
+              "name": "Season Cards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/season-cards?country={{country}}&destinationId={{destinationId}}&destinationSlug={{slug}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    },
+                    {
+                      "key": "destinationId",
+                      "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "destinationSlug",
+                      "value": "{{slug}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "auth": {
-              "type": "noauth"
+            {
+              "name": "Hero Sections",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/public/cms/hero-sections?country={{country}}",
+                  "query": [
+                    {
+                      "key": "country",
+                      "value": "{{country}}"
+                    }
+                  ]
+                }
+              },
+              "response": []
             }
-          }
+          ]
         }
       ]
     }

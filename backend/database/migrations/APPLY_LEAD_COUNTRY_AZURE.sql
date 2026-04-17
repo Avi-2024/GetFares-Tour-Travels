@@ -72,3 +72,52 @@ WHERE u.is_active = 1
   AND COALESCE(u.is_on_leave, 0) = 0
   AND r.name IN ('sales_consultant')
 ORDER BY u.agent_country, r.name, u.full_name;
+
+
+
+
+
+
+
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+TRUNCATE TABLE login_audit;
+
+TRUNCATE TABLE destination_pricing;
+TRUNCATE TABLE destinations;
+
+TRUNCATE TABLE campaigns;
+
+TRUNCATE TABLE lead_activities;
+TRUNCATE TABLE followups;
+TRUNCATE TABLE queued_leads;
+TRUNCATE TABLE leads;
+
+TRUNCATE TABLE quotation_items;
+TRUNCATE TABLE quotation_views;
+TRUNCATE TABLE quotations;
+
+TRUNCATE TABLE payments;
+TRUNCATE TABLE invoices;
+TRUNCATE TABLE refunds;
+TRUNCATE TABLE bookings;
+
+TRUNCATE TABLE visa_documents;
+TRUNCATE TABLE documentation_checklist;
+TRUNCATE TABLE visa_cases;
+
+TRUNCATE TABLE suppliers;
+
+TRUNCATE TABLE customer_leads;
+TRUNCATE TABLE customers;
+
+TRUNCATE TABLE complaint_activities;
+TRUNCATE TABLE complaints;
+
+TRUNCATE TABLE attendance;
+TRUNCATE TABLE leaves;
+
+TRUNCATE TABLE audit_logs;
+
+SET FOREIGN_KEY_CHECKS = 1;
