@@ -1732,6 +1732,9 @@ const BookingsPage: React.FC = () => {
   const normalizePayment = (value?: string): PaymentStatus => {
     switch ((value ?? "").toUpperCase()) {
       case "PAID":
+      case "FULL":
+      case "FULLY_PAID":
+      case "COMPLETE":
         return "paid";
       case "PARTIAL":
         return "partial";
@@ -1906,6 +1909,7 @@ const BookingsPage: React.FC = () => {
         b.customer ??
         b.customerName ??
         b.clientName ??
+        b.leadName ??
         lead?.fullName ??
         lead?.name ??
         "Unknown",
