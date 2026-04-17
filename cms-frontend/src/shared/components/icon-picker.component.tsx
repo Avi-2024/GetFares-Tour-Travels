@@ -199,9 +199,9 @@ const IconPickerComponent = ({
           type="button"
           disabled={disabled}
           onClick={() => setIsOpen(true)}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-(--surface) px-3 text-sm text-[var(--text-primary)] transition hover:border-[var(--primary)]/35 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-(--border) bg-(--surface) px-3 text-sm text-(--text-primary) transition hover:border-(--primary)/35 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-(--background-soft) text-[var(--text-secondary)]">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-(--background-soft) text-(--text-secondary)">
             {selectedOption ?
               <selectedOption.icon size={14} />
             : <Plus size={14} />}
@@ -212,7 +212,7 @@ const IconPickerComponent = ({
           <button
             type="button"
             onClick={() => onChange("")}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)]"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-(--danger)"
             aria-label="Clear icon"
           >
             <X size={14} />
@@ -221,38 +221,38 @@ const IconPickerComponent = ({
       </div>
 
       {isOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/45 p-3 sm:p-6">
-          <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-[var(--border)] bg-(--surface) shadow-[0_36px_110px_color-mix(in_srgb,var(--text-primary)_22%,transparent)]">
-            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3 sm:px-6">
-              <h3 className="text-base font-semibold text-[var(--text-primary)]">
+        <div className="fixed inset-0 z-300 flex items-center justify-center bg-black/45 p-3 sm:p-6">
+          <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-(--border) bg-(--surface) shadow-[0_36px_110px_color-mix(in_srgb,var(--text-primary)_22%,transparent)]">
+            <div className="flex items-center justify-between border-b border-(--border) px-4 py-3 sm:px-6">
+              <h3 className="text-base font-semibold text-(--text-primary)">
                 Choose Icon
               </h3>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-(--surface) text-[var(--text-secondary)]"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-(--border) bg-(--surface) text-(--text-secondary)"
               >
                 <X size={16} />
               </button>
             </div>
-            <div className="border-b border-[var(--border)] px-4 py-3 sm:px-6">
+            <div className="border-b border-(--border) px-4 py-3 sm:px-6">
               <label className="relative block">
                 <Search
                   size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-(--text-secondary)"
                 />
                 <input
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search icon..."
-                  className="h-10 w-full rounded-xl border border-[var(--border)] bg-(--surface) pl-9 pr-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]"
+                  className="h-10 w-full rounded-xl border border-(--border) bg-(--surface) pl-9 pr-3 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
                 />
               </label>
             </div>
             <div className="max-h-[56vh] overflow-y-auto px-4 py-4 sm:px-6">
               {filteredOptions.length === 0 ?
-                <p className="rounded-xl border border-[var(--border)] bg-(--background-soft)/30 px-3 py-5 text-center text-sm text-[var(--text-secondary)]">
+                <p className="rounded-xl border border-(--border) bg-(--background-soft)/30 px-3 py-5 text-center text-sm text-(--text-secondary)">
                   No icons found.
                 </p>
               : <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
@@ -269,8 +269,8 @@ const IconPickerComponent = ({
                         }}
                         className={`inline-flex flex-col items-center justify-center gap-1 rounded-xl border p-2 text-[10px] transition ${
                           selected ?
-                            "border-[color-mix(in_srgb,var(--primary)_45%,transparent)] bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] text-[var(--primary)]"
-                          : "border-[var(--border)] bg-(--surface) text-[var(--text-secondary)] hover:border-[color-mix(in_srgb,var(--primary)_35%,transparent)] hover:text-[var(--text-primary)]"
+                            "border-[color-mix(in_srgb,var(--primary)_45%,transparent)] bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] text-(--primary)"
+                          : "border-(--border) bg-(--surface) text-(--text-secondary) hover:border-[color-mix(in_srgb,var(--primary)_35%,transparent)] hover:text-(--text-primary)"
                         }`}
                       >
                         <Icon size={18} />

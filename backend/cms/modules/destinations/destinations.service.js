@@ -127,6 +127,7 @@ function createDestinationsService({ repository }) {
       isActive: row.is_active,
       isDeleted: row.is_deleted,
       is_deleted: row.is_deleted,
+      gallery: [],
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -171,12 +172,36 @@ function createDestinationsService({ repository }) {
   return Object.freeze({
     async list(filters = {}) {
       const rows = await repository.findAll(filters);
-      return rows.map(toDestination);
+      const destinations = rows.map(toDestination);
+      return Promise.all(
+        destinations.map(async (destination) => {
+          const mediaRows = await repository.findMedia(destination.id);
+          const gallery = mediaRows
+            .map((item) => normalizeText(item.media_url))
+            .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+          return {
+            ...destination,
+            gallery,
+          };
+        }),
+      );
     },
 
     async listDeleted(filters = {}) {
       const rows = await repository.findAll({ ...filters, is_deleted: true });
-      return rows.map(toDestination);
+      const destinations = rows.map(toDestination);
+      return Promise.all(
+        destinations.map(async (destination) => {
+          const mediaRows = await repository.findMedia(destination.id);
+          const gallery = mediaRows
+            .map((item) => normalizeText(item.media_url))
+            .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+          return {
+            ...destination,
+            gallery,
+          };
+        }),
+      );
     },
 
     async getById(id) {
@@ -184,7 +209,15 @@ function createDestinationsService({ repository }) {
       if (!row) {
         throw new AppError(404, "Destination not found", "NOT_FOUND");
       }
-      return toDestination(row);
+      const destination = toDestination(row);
+      const mediaRows = await repository.findMedia(destination.id);
+      const gallery = mediaRows
+        .map((item) => normalizeText(item.media_url))
+        .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+      return {
+        ...destination,
+        gallery,
+      };
     },
 
     async getBySlug(slug) {
@@ -192,7 +225,15 @@ function createDestinationsService({ repository }) {
       if (!row) {
         throw new AppError(404, "Destination not found", "NOT_FOUND");
       }
-      return toDestination(row);
+      const destination = toDestination(row);
+      const mediaRows = await repository.findMedia(destination.id);
+      const gallery = mediaRows
+        .map((item) => normalizeText(item.media_url))
+        .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+      return {
+        ...destination,
+        gallery,
+      };
     },
 
     async create(data) {
@@ -250,7 +291,11 @@ function createDestinationsService({ repository }) {
         is_active: toBoolean(data.isActive, true),
       });
 
-      return toDestination(row);
+      const destination = toDestination(row);
+      return {
+        ...destination,
+        gallery: [],
+      };
     },
 
     async update(id, data) {
@@ -333,7 +378,15 @@ function createDestinationsService({ repository }) {
         updates.is_active = toBoolean(data.isActive, true);
 
       const updated = await repository.update(id, updates);
-      return toDestination(updated);
+      const destination = toDestination(updated);
+      const mediaRows = await repository.findMedia(destination.id);
+      const gallery = mediaRows
+        .map((item) => normalizeText(item.media_url))
+        .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+      return {
+        ...destination,
+        gallery,
+      };
     },
 
     async updateStatus(id, isActive) {
@@ -345,7 +398,15 @@ function createDestinationsService({ repository }) {
       const updated = await repository.update(id, {
         is_active: toBoolean(isActive, true),
       });
-      return toDestination(updated);
+      const destination = toDestination(updated);
+      const mediaRows = await repository.findMedia(destination.id);
+      const gallery = mediaRows
+        .map((item) => normalizeText(item.media_url))
+        .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+      return {
+        ...destination,
+        gallery,
+      };
     },
 
     async delete(id) {
