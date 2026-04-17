@@ -506,7 +506,7 @@ const Leads: React.FC = () => {
           />
         </div>
 
-        <SurfaceCard className="p-0 border border-gray-200 dark:border-gray-800">
+        <SurfaceCard className="max-w-full min-w-0 p-0 border border-gray-200 dark:border-gray-800">
           <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 space-y-3">
             {error ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
@@ -743,19 +743,25 @@ const Leads: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="hidden w-full overflow-x-auto leads-table-scroll lg:block">
-                <table className="w-full min-w-[1330px] table-fixed border-collapse">
+              <div
+                className="leads-table-scroll hidden max-w-full min-w-0 overflow-x-scroll overscroll-x-contain lg:block"
+                style={{ WebkitOverflowScrolling: "touch" }}
+              >
+                <table
+                  className="border-collapse"
+                  style={{ width: "max-content", minWidth: "1440px" }}
+                >
                   <colgroup>
-                    <col className="w-[150px]" />
-                    <col className="w-[200px]" />
-                    <col className="w-[120px]" />
-                    <col className="w-[180px]" />
-                    <col className="w-[140px]" />
-                    <col className="w-[120px]" />
-                    <col className="w-[120px]" />
-                    <col className="w-[100px]" />
-                    <col className="w-[100px]" />
-                    <col className="w-[100px]" />
+                    <col style={{ width: 120, minWidth: 120 }} />
+                    <col style={{ width: 220, minWidth: 220 }} />
+                    <col style={{ width: 110, minWidth: 110 }} />
+                    <col style={{ width: 200, minWidth: 200 }} />
+                    <col style={{ width: 150, minWidth: 150 }} />
+                    <col style={{ width: 120, minWidth: 120 }} />
+                    <col style={{ width: 130, minWidth: 130 }} />
+                    <col style={{ width: 140, minWidth: 140 }} />
+                    <col style={{ width: 110, minWidth: 110 }} />
+                    <col style={{ width: 110, minWidth: 110 }} />
                   </colgroup>
                   <thead className="bg-gray-50  dark:bg-gray-800/50 sticky top-0 z-10">
                     <tr>
@@ -780,10 +786,10 @@ const Leads: React.FC = () => {
                       <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead Country
                       </th>
-                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700 min-w-[120px]">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Status
                       </th>
-                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700 min-w-[110px]">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         SLA
                       </th>
                       <th className="px-3 py-3.5 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
@@ -873,12 +879,12 @@ const Leads: React.FC = () => {
                             {lead.leadCountry || "-"}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-center align-middle">
+                        <td className="min-w-[140px] px-3 py-4 text-center align-middle">
                           <div className="flex justify-center">
                             <StatusBadge status={lead.statusLabel} />
                           </div>
                         </td>
-                        <td className="px-3 py-4 text-center whitespace-nowrap align-middle">
+                        <td className="px-3 py-4 text-center align-middle whitespace-nowrap">
                           <span
                             className={`text-sm font-medium ${
                               lead.slaBreached

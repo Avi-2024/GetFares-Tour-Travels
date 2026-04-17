@@ -36,7 +36,7 @@ const Layout: React.FC = () => {
         className={`flex min-h-screen w-full min-w-0 flex-col transition-all duration-300 ${contentFrameClass}`}
       >
         <Header onMenuClick={() => setSidebarOpen((p) => !p)} />
-        <main className="flex-1 min-w-0 overflow-y-auto p-4 transition-all md:p-6 lg:p-6">
+        <main className="flex-1 min-w-0 overflow-x-auto overflow-y-auto p-4 transition-all md:p-6 lg:p-6">
           <Outlet />
         </main>
       </div>
