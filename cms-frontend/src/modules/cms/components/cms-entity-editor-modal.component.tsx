@@ -232,7 +232,10 @@ class CmsEntityEditorModalComponent extends Component<
       const rows = await this.cmsService.listAdminMainPackages();
       return rows.map((item) => ({
         value: item.id,
-        label: item.row.cells.title?.value || item.row.cells.mainPackage?.value || item.id,
+        label:
+          item.row.cells.title?.value ||
+          item.row.cells.mainPackage?.value ||
+          item.id,
       }));
     }
 
@@ -266,7 +269,10 @@ class CmsEntityEditorModalComponent extends Component<
     if (source === "main-packages") {
       return rows.map((item) => ({
         value: item.id,
-        label: item.row.cells.title?.value || item.row.cells.mainPackage?.value || item.id,
+        label:
+          item.row.cells.title?.value ||
+          item.row.cells.mainPackage?.value ||
+          item.id,
       }));
     }
 
@@ -324,9 +330,15 @@ class CmsEntityEditorModalComponent extends Component<
           this.props.sectionKey === "main-packages" &&
           field.key === "title"
         ) {
-          value = this.getRawValue(this.props.entry as CmsTableEntry, "packageName");
+          value = this.getRawValue(
+            this.props.entry as CmsTableEntry,
+            "packageName",
+          );
           if (value === undefined) {
-            value = this.getRawValue(this.props.entry as CmsTableEntry, "package_name");
+            value = this.getRawValue(
+              this.props.entry as CmsTableEntry,
+              "package_name",
+            );
           }
           if (value === undefined) {
             value = this.getRawValue(this.props.entry as CmsTableEntry, "name");
@@ -337,7 +349,10 @@ class CmsEntityEditorModalComponent extends Component<
           this.props.sectionKey === "main-packages" &&
           field.key === "amount"
         ) {
-          value = this.getRawValue(this.props.entry as CmsTableEntry, "startingPrice");
+          value = this.getRawValue(
+            this.props.entry as CmsTableEntry,
+            "startingPrice",
+          );
           if (value === undefined) {
             value = this.getRawValue(
               this.props.entry as CmsTableEntry,
@@ -346,7 +361,10 @@ class CmsEntityEditorModalComponent extends Component<
           }
         }
         if (value === undefined && field.key === "categories") {
-          value = this.getRawValue(this.props.entry as CmsTableEntry, "category");
+          value = this.getRawValue(
+            this.props.entry as CmsTableEntry,
+            "category",
+          );
         }
         if (value === undefined && field.key === "seasonFocus") {
           value = this.getRawValue(this.props.entry as CmsTableEntry, "season");

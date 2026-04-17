@@ -87,7 +87,7 @@
       "name": "Auth",
       "item": [
         {
-          "name": "Login (Get CMS Token)",
+          "name": "Login",
           "request": {
             "method": "POST",
             "header": [
@@ -130,27 +130,11 @@
               }
             }
           ]
-        },
-        {
-          "name": "Get Current User",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "query": []
-            }
-          }
         }
       ]
     },
     {
-      "name": "CMS Protected",
+      "name": "cms",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -163,10 +147,10 @@
       },
       "item": [
         {
-          "name": "Landing",
+          "name": "Landing Places",
           "item": [
             {
-              "name": "List",
+              "name": "List Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -191,7 +175,7 @@
               }
             },
             {
-              "name": "List Deleted",
+              "name": "List Deleted Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -207,7 +191,7 @@
               }
             },
             {
-              "name": "Get By ID",
+              "name": "Get Landing Place By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -223,7 +207,7 @@
               }
             },
             {
-              "name": "Create",
+              "name": "Create Landing Place",
               "request": {
                 "method": "POST",
                 "header": [
@@ -280,7 +264,7 @@
               }
             },
             {
-              "name": "Update",
+              "name": "Update Landing Place",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -317,7 +301,7 @@
               }
             },
             {
-              "name": "Delete (Soft)",
+              "name": "Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -333,7 +317,7 @@
               }
             },
             {
-              "name": "Update Status",
+              "name": "Update Landing Place Status",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -358,7 +342,7 @@
               }
             },
             {
-              "name": "Restore",
+              "name": "Restore Landing Place",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -374,7 +358,7 @@
               }
             },
             {
-              "name": "Hard Delete",
+              "name": "Hard Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -390,7 +374,7 @@
               }
             },
             {
-              "name": "Reorder",
+              "name": "Reorder Landing Places",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -420,7 +404,7 @@
           "name": "Destinations",
           "item": [
             {
-              "name": "List",
+              "name": "List Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -436,7 +420,7 @@
               }
             },
             {
-              "name": "List Deleted",
+              "name": "List Deleted Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -452,7 +436,7 @@
               }
             },
             {
-              "name": "Get By ID",
+              "name": "Get Landing Place By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -468,7 +452,7 @@
               }
             },
             {
-              "name": "Get By Slug",
+              "name": "Get Destination By Slug",
               "request": {
                 "method": "GET",
                 "header": [
@@ -484,7 +468,7 @@
               }
             },
             {
-              "name": "Create",
+              "name": "Create Landing Place",
               "request": {
                 "method": "POST",
                 "header": [
@@ -521,7 +505,7 @@
               }
             },
             {
-              "name": "Update",
+              "name": "Update Landing Place",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -547,7 +531,7 @@
               }
             },
             {
-              "name": "Delete (Soft)",
+              "name": "Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -563,7 +547,7 @@
               }
             },
             {
-              "name": "Update Status",
+              "name": "Update Landing Place Status",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -588,7 +572,7 @@
               }
             },
             {
-              "name": "Restore",
+              "name": "Restore Landing Place",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -604,7 +588,7 @@
               }
             },
             {
-              "name": "Hard Delete",
+              "name": "Hard Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -620,7 +604,7 @@
               }
             },
             {
-              "name": "Get Media",
+              "name": "Get Destination Media",
               "request": {
                 "method": "GET",
                 "header": [
@@ -636,7 +620,7 @@
               }
             },
             {
-              "name": "Add Media",
+              "name": "Add Destination Media",
               "request": {
                 "method": "POST",
                 "header": [
@@ -668,7 +652,7 @@
               }
             },
             {
-              "name": "Update Media",
+              "name": "Update Destination Media",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -694,7 +678,7 @@
               }
             },
             {
-              "name": "Delete Media (Soft)",
+              "name": "Delete Destination Media",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -710,7 +694,7 @@
               }
             },
             {
-              "name": "Hard Delete Media",
+              "name": "Hard Delete Destination Media",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -726,7 +710,7 @@
               }
             },
             {
-              "name": "Get Seasons",
+              "name": "Get Destination Seasons",
               "request": {
                 "method": "GET",
                 "header": [
@@ -742,7 +726,7 @@
               }
             },
             {
-              "name": "Add Season",
+              "name": "Add Destination Season",
               "request": {
                 "method": "POST",
                 "header": [
@@ -767,7 +751,7 @@
               }
             },
             {
-              "name": "Update Season",
+              "name": "Update Destination Season",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -792,7 +776,7 @@
               }
             },
             {
-              "name": "Delete Season (Soft)",
+              "name": "Delete Destination Season",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -808,7 +792,7 @@
               }
             },
             {
-              "name": "Hard Delete Season",
+              "name": "Hard Delete Destination Season",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -829,7 +813,7 @@
           "name": "Packages",
           "item": [
             {
-              "name": "List Published",
+              "name": "List Published Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -845,7 +829,7 @@
               }
             },
             {
-              "name": "List Deleted Published",
+              "name": "List Deleted Published Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -861,7 +845,7 @@
               }
             },
             {
-              "name": "Create Published",
+              "name": "Create Published Package",
               "request": {
                 "method": "POST",
                 "header": [
@@ -893,7 +877,7 @@
               }
             },
             {
-              "name": "Get Published By ID",
+              "name": "Get Published Package By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -909,7 +893,7 @@
               }
             },
             {
-              "name": "Update Published",
+              "name": "Update Published Package",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -935,7 +919,7 @@
               }
             },
             {
-              "name": "Delete Published (Soft)",
+              "name": "Delete Published Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -951,7 +935,7 @@
               }
             },
             {
-              "name": "Restore Published",
+              "name": "Restore Published Package",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -967,7 +951,7 @@
               }
             },
             {
-              "name": "Hard Delete Published",
+              "name": "Hard Delete Published Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -983,7 +967,7 @@
               }
             },
             {
-              "name": "List Main",
+              "name": "List Main Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -999,7 +983,7 @@
               }
             },
             {
-              "name": "List Deleted Main",
+              "name": "List Deleted Main Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1015,7 +999,7 @@
               }
             },
             {
-              "name": "Create Main",
+              "name": "Create Main Package",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1040,7 +1024,7 @@
               }
             },
             {
-              "name": "Get Main By ID",
+              "name": "Get Main Package By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1056,7 +1040,7 @@
               }
             },
             {
-              "name": "Update Main",
+              "name": "Update Main Package",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -1081,7 +1065,7 @@
               }
             },
             {
-              "name": "Delete Main (Soft)",
+              "name": "Delete Main Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1097,7 +1081,7 @@
               }
             },
             {
-              "name": "Restore Main",
+              "name": "Restore Main Package",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -1113,7 +1097,7 @@
               }
             },
             {
-              "name": "Hard Delete Main",
+              "name": "Hard Delete Main Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1129,7 +1113,7 @@
               }
             },
             {
-              "name": "List Sub By Main",
+              "name": "List Sub Packages By Main Package",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1145,7 +1129,7 @@
               }
             },
             {
-              "name": "List Deleted Sub",
+              "name": "List Deleted Sub Packages",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1161,7 +1145,7 @@
               }
             },
             {
-              "name": "Create Sub",
+              "name": "Create Sub Package",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1192,7 +1176,7 @@
               }
             },
             {
-              "name": "Update Sub",
+              "name": "Update Sub Package",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -1218,7 +1202,7 @@
               }
             },
             {
-              "name": "Delete Sub (Soft)",
+              "name": "Delete Sub Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1234,7 +1218,7 @@
               }
             },
             {
-              "name": "Restore Sub",
+              "name": "Restore Sub Package",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -1250,7 +1234,7 @@
               }
             },
             {
-              "name": "Hard Delete Sub",
+              "name": "Hard Delete Sub Package",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1268,10 +1252,10 @@
           ]
         },
         {
-          "name": "Visa",
+          "name": "Visa Destinations",
           "item": [
             {
-              "name": "List",
+              "name": "List Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1287,7 +1271,7 @@
               }
             },
             {
-              "name": "List Deleted",
+              "name": "List Deleted Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1303,7 +1287,7 @@
               }
             },
             {
-              "name": "Get By ID",
+              "name": "Get Landing Place By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1319,7 +1303,7 @@
               }
             },
             {
-              "name": "Get By Slug",
+              "name": "Get Destination By Slug",
               "request": {
                 "method": "GET",
                 "header": [
@@ -1335,7 +1319,7 @@
               }
             },
             {
-              "name": "Create",
+              "name": "Create Landing Place",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1366,7 +1350,7 @@
               }
             },
             {
-              "name": "Update",
+              "name": "Update Landing Place",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -1392,7 +1376,7 @@
               }
             },
             {
-              "name": "Delete (Soft)",
+              "name": "Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1408,7 +1392,7 @@
               }
             },
             {
-              "name": "Update Status",
+              "name": "Update Landing Place Status",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -1433,7 +1417,7 @@
               }
             },
             {
-              "name": "Restore",
+              "name": "Restore Landing Place",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -1449,7 +1433,7 @@
               }
             },
             {
-              "name": "Hard Delete",
+              "name": "Hard Delete Landing Place",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1676,7 +1660,7 @@
               }
             },
             {
-              "name": "Delete Featured Pick (Soft)",
+              "name": "Delete Featured Pick",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1692,7 +1676,7 @@
               }
             },
             {
-              "name": "Delete Creative Toolkit (Soft)",
+              "name": "Delete Creative Toolkit",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1922,7 +1906,7 @@
               }
             },
             {
-              "name": "Delete Season Card (Soft)",
+              "name": "Delete Season Card",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -2048,7 +2032,7 @@
           "name": "Media",
           "item": [
             {
-              "name": "Upload",
+              "name": "Upload Media",
               "request": {
                 "method": "POST",
                 "header": [
@@ -2075,7 +2059,7 @@
               }
             },
             {
-              "name": "List",
+              "name": "List Landing Places",
               "request": {
                 "method": "GET",
                 "header": [
@@ -2091,7 +2075,7 @@
               }
             },
             {
-              "name": "Create",
+              "name": "Create Landing Place",
               "request": {
                 "method": "POST",
                 "header": [
@@ -2123,7 +2107,7 @@
               }
             },
             {
-              "name": "Get By ID",
+              "name": "Get Landing Place By ID",
               "request": {
                 "method": "GET",
                 "header": [
@@ -2139,7 +2123,7 @@
               }
             },
             {
-              "name": "Update",
+              "name": "Update Landing Place",
               "request": {
                 "method": "PUT",
                 "header": [
@@ -2171,7 +2155,7 @@
               }
             },
             {
-              "name": "Delete",
+              "name": "Delete Media",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -2187,7 +2171,7 @@
               }
             },
             {
-              "name": "Update Status",
+              "name": "Update Landing Place Status",
               "request": {
                 "method": "PATCH",
                 "header": [
@@ -2276,7 +2260,7 @@
           }
         },
         {
-          "name": "Destination By Slug",
+          "name": "Get Destination By Slug",
           "request": {
             "method": "GET",
             "header": [
@@ -2295,7 +2279,7 @@
           }
         },
         {
-          "name": "Destination Highlights",
+          "name": "Get Destination Highlights By Slug",
           "request": {
             "method": "GET",
             "header": [
@@ -2314,7 +2298,7 @@
           }
         },
         {
-          "name": "Destination Media",
+          "name": "Get Destination Media By Slug",
           "request": {
             "method": "GET",
             "header": [
@@ -2333,7 +2317,7 @@
           }
         },
         {
-          "name": "Destination Season Cards",
+          "name": "Get Destination Season Cards By Slug",
           "request": {
             "method": "GET",
             "header": [
@@ -2352,7 +2336,7 @@
           }
         },
         {
-          "name": "Destination Packages",
+          "name": "Get Destination Packages By Slug",
           "request": {
             "method": "GET",
             "header": [
@@ -2409,7 +2393,7 @@
           }
         },
         {
-          "name": "Sub Packages By Main",
+          "name": "Sub Packages By Main Package",
           "request": {
             "method": "GET",
             "header": [
@@ -2447,7 +2431,7 @@
           }
         },
         {
-          "name": "Visa Destination By Slug",
+          "name": "Get Visa Destination By Slug",
           "request": {
             "method": "GET",
             "header": [
@@ -2466,7 +2450,7 @@
           }
         },
         {
-          "name": "Visa Details By Slug",
+          "name": "Get Visa Details By Slug",
           "request": {
             "method": "GET",
             "header": [
