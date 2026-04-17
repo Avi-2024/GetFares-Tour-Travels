@@ -864,7 +864,7 @@ const Leads: React.FC = () => {
                             </p>
                           </div>
                         </td>
-                        <td className="px-3 py-4 align-top" title={lead.destination}>
+                        <td className="px-3 py-4 align-middle" title={lead.destination}>
                           <span className="line-clamp-2 break-words text-sm font-medium text-gray-800 dark:text-gray-200">
                             {lead.destination}
                           </span>
@@ -874,7 +874,7 @@ const Leads: React.FC = () => {
                             {getVisaHolidayLabel(lead)}
                           </span>
                         </td>
-                        <td className="px-3 py-4 align-top">
+                        <td className="px-3 py-4 align-middle">
                           <span className="line-clamp-2 break-words text-sm font-medium text-gray-700 dark:text-gray-300">
                             {lead.leadCountry || "-"}
                           </span>
