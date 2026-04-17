@@ -757,13 +757,13 @@ const CustomersPage: React.FC = () => {
                         >
                           <FaEye className='text-xs sm:text-sm' />
                         </button>
-                        <button
+                        {/* <button
                           onClick={() => handleEditCustomer(customer)}
                           className='p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors'
                           title='Edit'
                         >
                           <FaEdit className='text-xs sm:text-sm' />
-                        </button>
+                        </button> */}
                         <button
                           onClick={() => handleDeleteCustomer(customer.id)}
                           className='p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors'
