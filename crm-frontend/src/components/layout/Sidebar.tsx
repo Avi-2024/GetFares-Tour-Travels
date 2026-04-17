@@ -18,6 +18,14 @@ import {
 } from "react-icons/fa6";
 import { useAuth } from "../../context/AuthContext";
 
+const isAdminRole = (role?: string) => {
+  const normalized = String(role ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  return normalized === "admin" || normalized === "super_admin";
+};
+
 const sections = [
   {
     title: "Pipeline",
@@ -27,6 +35,7 @@ const sections = [
         to: "/dashboard",
         icon: FaTableCellsLarge,
         permission: "reports:read",
+        roles: ["admin", "super_admin"],
       },
       // { label: "Public Lead Form", to: "/public/lead-capture", icon: FaGlobe },
       {

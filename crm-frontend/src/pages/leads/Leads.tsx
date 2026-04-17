@@ -831,6 +831,11 @@ const Leads: React.FC = () => {
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               {formatPaxSummary(lead)}
                             </p>
+                            {lead.consultant && lead.consultant !== "Unassigned" && (
+                              <p className="text-xs text-gray-700 dark:text-gray-300">
+                                Assigned to: {lead.consultant}
+                              </p>
+                            )}
                             {lead.assignedBy && (
                               <p className="text-xs text-blue-600 dark:text-blue-400">
                                 Assigned by: {lead.assignedBy}
@@ -937,6 +942,11 @@ const Leads: React.FC = () => {
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {formatPaxSummary(lead)}
                         </p>
+                        {lead.consultant && lead.consultant !== "Unassigned" && (
+                          <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
+                            Assigned to: {lead.consultant}
+                          </p>
+                        )}
                       
                         {lead.assignedBy && (
                           <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">

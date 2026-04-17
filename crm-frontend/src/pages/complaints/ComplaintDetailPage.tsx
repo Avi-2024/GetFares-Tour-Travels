@@ -2,8 +2,11 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaPlus, FaUser, FaXmark } from "react-icons/fa6";
 import { complaintsApi } from "../../api/complaints";
+import { bookingsApi } from "../../api/bookings";
+import { quotationsApi } from "../../api/quotations";
 import { reportApiError } from "../../lib/notify";
 import { useUsersService } from "../../hooks/useUsersService";
+import { useLeadsService } from "../../hooks/useLeadsService";
 
 interface Complaint {
   id: string;
@@ -33,10 +36,32 @@ type AssignableUser = {
   isActive?: boolean;
 };
 
+type BookingRecord = {
+  id?: string;
+  bookingNumber?: string;
+  quotationId?: string;
+  quotation_id?: string;
+};
+
+type QuotationRecord = {
+  id?: string;
+  leadId?: string;
+  lead_id?: string;
+};
+
+type LeadRecord = {
+  id?: string;
+  fullName?: string;
+  customerName?: string;
+  name?: string;
+  email?: string;
+};
+
 const ComplaintDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const usersService = useUsersService();
+  const leadsService = useLeadsService();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -47,6 +72,8 @@ const ComplaintDetailPage: React.FC = () => {
   const [loadingAssignees, setLoadingAssignees] = useState(false);
   const [assigneeUsers, setAssigneeUsers] = useState<AssignableUser[]>([]);
   const [selectedAssignee, setSelectedAssignee] = useState("");
+  const [customerName, setCustomerName] = useState<string>("");
+  const [bookingNumber, setBookingNumber] = useState<string>("");
 
   const [complaint, setComplaint] = useState<Complaint>({
     id: id || "CMP-001",
@@ -107,6 +134,53 @@ const ComplaintDetailPage: React.FC = () => {
 
     void loadAssignableUsers();
   }, [usersService]);
+
+  useEffect(() => {
+    const loadBookingCustomer = async () => {
+      const bookingId = complaint.bookingId;
+      if (!bookingId) {
+        setCustomerName("");
+        setBookingNumber("");
+        return;
+      }
+      if (!localStorage.getItem("auth_token")) return;
+
+      try {
+        const bookingRes: any = await bookingsApi.getById(bookingId);
+        const bookingPayload: BookingRecord = bookingRes?.data || bookingRes;
+        const quoteId = bookingPayload?.quotationId || bookingPayload?.quotation_id;
+        setBookingNumber(bookingPayload?.bookingNumber || "");
+
+        if (!quoteId) {
+          setCustomerName("");
+          return;
+        }
+
+        const quotationRes: any = await quotationsApi.getById(String(quoteId));
+        const quotationPayload: QuotationRecord =
+          quotationRes?.data || quotationRes;
+        const leadId = quotationPayload?.leadId || quotationPayload?.lead_id;
+        if (!leadId) {
+          setCustomerName("");
+          return;
+        }
+
+        const leadRes: any = await leadsService.getLeadById(String(leadId));
+        const leadPayload: LeadRecord = leadRes?.data || leadRes;
+        const name =
+          leadPayload?.fullName ||
+          leadPayload?.customerName ||
+          leadPayload?.name ||
+          leadPayload?.email ||
+          "";
+        setCustomerName(name);
+      } catch (err) {
+        console.error("Failed to load booking customer for complaint:", err);
+      }
+    };
+
+    void loadBookingCustomer();
+  }, [complaint.bookingId, leadsService]);
 
   useEffect(() => {
     const loadComplaintData = async () => {
@@ -406,6 +480,17 @@ const ComplaintDetailPage: React.FC = () => {
                 </span>
               )}
             </div>
+            {customerName ? (
+              <div className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                {customerName}
+                {bookingNumber ? (
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {" "}
+                    • {bookingNumber}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
               <span>Created {formatDate(complaint.createdAt)}</span>
               <span>Updated {formatDate(complaint.updatedAt)}</span>
@@ -774,6 +859,16 @@ const ComplaintDetailPage: React.FC = () => {
                 </h3>
               </div>
               <div className="p-5">
+                {customerName ? (
+                  <>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      Customer Name
+                    </p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
+                      {customerName}
+                    </p>
+                  </>
+                ) : null}
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                   Booking ID
                 </p>
