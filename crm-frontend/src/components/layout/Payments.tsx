@@ -450,6 +450,40 @@ const mapPaymentToTransaction = (row: any): Transaction => {
   };
 };
 
+const pickBookingCustomerName = (booking: any) => {
+  const candidate =
+    booking?.customerName ??
+    booking?.customer_name ??
+    booking?.customer ??
+    booking?.customerSnapshot?.fullName ??
+    booking?.customerSnapshot?.full_name ??
+    booking?.customerSnapshot?.name ??
+    booking?.customer?.fullName ??
+    booking?.customer?.full_name ??
+    booking?.customer?.name ??
+    booking?.leadName ??
+    booking?.lead_name ??
+    booking?.lead?.fullName ??
+    booking?.lead?.full_name ??
+    booking?.lead?.name ??
+    booking?.fullName ??
+    booking?.full_name ??
+    booking?.name;
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : "";
+};
+
+const pickEntityName = (entity: any) => {
+  const candidate =
+    entity?.fullName ??
+    entity?.full_name ??
+    entity?.name ??
+    entity?.customerName ??
+    entity?.customer_name ??
+    entity?.leadName ??
+    entity?.lead_name;
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : "";
+};
+
 // Toast Component
 const Toast = ({
   message,
@@ -770,7 +804,7 @@ const PaymentFormModal = ({
     bookingId: tx?.bookingId || "",
     amount: tx?.amount ? Math.abs(tx.amount).toString() : "",
     mode: tx?.mode || "bank",
-    referenceId: tx?.referenceId || "",
+    referenceId: tx?.paymentReference || tx?.referenceId || "",
     paymentReference: tx?.paymentReference || "",
     gatewayOrderId: tx?.gatewayOrderId || "",
     gatewayPaymentId: tx?.gatewayPaymentId || "",
@@ -1149,8 +1183,12 @@ const PaymentFormModal = ({
     }
 
     const now = new Date().toISOString();
+    const resolvedPaymentReference =
+      String(formData.paymentReference || formData.referenceId || "").trim();
     onSave({
       ...formData,
+      paymentReference: resolvedPaymentReference || undefined,
+      referenceId: resolvedPaymentReference,
       amount:
         parseFloat(formData.amount) *
         (transaction?.amount && transaction.amount < 0 ? -1 : 1),
@@ -1187,14 +1225,12 @@ const PaymentFormModal = ({
               {transaction ?
                 <input
                   type="text"
-                  value={formData.customer}
-                  onChange={(e) =>
-                    setFormData({ ...formData, customer: e.target.value })
-                  }
+                  value={transaction.customer || formData.customer}
+                  readOnly
                   className={`field-input ${
                     errors.customer ? "border-red-500" : ""
-                  }`}
-                  placeholder="Customer name"
+                  } bg-gray-50 cursor-not-allowed`}
+                  placeholder="Customer"
                 />
               : <SearchableDropdown
                   value={formData.customer}
@@ -1216,13 +1252,15 @@ const PaymentFormModal = ({
               {transaction ?
                 <input
                   type="text"
-                  value={formData.bookingId}
-                  onChange={(e) =>
-                    setFormData({ ...formData, bookingId: e.target.value })
+                  value={
+                    transaction.bookingLabel ||
+                    transaction.bookingId ||
+                    formData.bookingId
                   }
+                  readOnly
                   className={`field-input ${
                     errors.bookingId ? "border-red-500" : ""
-                  }`}
+                  } bg-gray-50 cursor-not-allowed`}
                   placeholder="BK-XXXX"
                 />
               : <SearchableDropdown
@@ -1779,26 +1817,7 @@ const DetailsModal = ({
             </div>
           )}
 
-          {/* Metadata */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Metadata
-            </h4>
-            <div className="space-y-2">
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                <span className="text-sm text-gray-500">Created At</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {formatDateTime(transaction.createdAt)}
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                <span className="text-sm text-gray-500">Updated At</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {formatDateTime(transaction.updatedAt)}
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* Metadata removed */}
         </div>
 
         <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3">
@@ -2515,9 +2534,115 @@ const Payments: React.FC = () => {
       const data = unwrapData<any>(res);
       if (data) {
         const fullTx = mapPaymentToTransaction(data);
-        setSelectedTransaction((current) =>
-          current && current.id === tx.id ? { ...current, ...fullTx } : current,
-        );
+        setSelectedTransaction((current) => {
+          if (!current || current.id !== tx.id) return current;
+
+          const next = { ...current, ...fullTx };
+
+          // Do not downgrade UI fields to fallback values.
+          if (fullTx.customer === "Unknown" && current.customer) {
+            next.customer = current.customer;
+          }
+          if (!fullTx.customerEmail && current.customerEmail) {
+            next.customerEmail = current.customerEmail;
+          }
+          if (!fullTx.customerPhone && current.customerPhone) {
+            next.customerPhone = current.customerPhone;
+          }
+
+          return next;
+        });
+
+        const bookingId =
+          String(data?.bookingId ?? data?.booking_id ?? fullTx.bookingId ?? "")
+            .trim();
+        if (bookingId) {
+          try {
+            const bookingRes = await bookingsApi.getById(bookingId);
+            const bookingData = unwrapData<any>(bookingRes);
+            const booking = bookingData?.data ?? bookingData;
+            const bookingNumber =
+              booking?.bookingNumber ??
+              booking?.booking_number ??
+              booking?.bookingCode ??
+              booking?.booking_code ??
+              "";
+            if (bookingNumber) {
+              setSelectedTransaction((current) =>
+                current && current.id === tx.id ?
+                  {
+                    ...current,
+                    bookingLabel:
+                      current.bookingLabel &&
+                      current.bookingLabel !== current.bookingId ?
+                        current.bookingLabel
+                      : String(bookingNumber),
+                  }
+                : current,
+              );
+            }
+
+            const bookingCustomerName = pickBookingCustomerName(booking);
+            const bookingCustomerId =
+              String(
+                booking?.customerId ??
+                  booking?.customer_id ??
+                  booking?.customer?.id ??
+                  booking?.customer?.customerId ??
+                  booking?.customer?.customer_id ??
+                  "",
+              ).trim();
+            const bookingLeadId =
+              String(
+                booking?.leadId ??
+                  booking?.lead_id ??
+                  booking?.lead?.id ??
+                  booking?.lead?.leadId ??
+                  booking?.lead?.lead_id ??
+                  "",
+              ).trim();
+
+            const applyName = (name: string) => {
+              if (!name) return;
+              setSelectedTransaction((current) =>
+                current &&
+                current.id === tx.id &&
+                (current.customer === "Unknown" || !current.customer) ?
+                  { ...current, customer: name }
+                : current,
+              );
+            };
+
+            if (fullTx.customer === "Unknown" || !fullTx.customer) {
+              applyName(bookingCustomerName);
+            }
+
+            if (
+              (fullTx.customer === "Unknown" || !fullTx.customer) &&
+              !bookingCustomerName &&
+              bookingCustomerId
+            ) {
+              const customerRes = await customersApi.getById(bookingCustomerId);
+              const customerData = unwrapData<any>(customerRes);
+              const customer = customerData?.data ?? customerData;
+              applyName(pickEntityName(customer));
+            }
+
+            if (
+              (fullTx.customer === "Unknown" || !fullTx.customer) &&
+              !bookingCustomerName &&
+              !bookingCustomerId &&
+              bookingLeadId
+            ) {
+              const leadRes = await leadsApi.getById(bookingLeadId);
+              const leadData = unwrapData<any>(leadRes);
+              const lead = leadData?.data ?? leadData;
+              applyName(pickEntityName(lead));
+            }
+          } catch {
+            // ignore booking lookup failures
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to load payment details:", err);
