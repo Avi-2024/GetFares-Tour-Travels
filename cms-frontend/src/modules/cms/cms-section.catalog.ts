@@ -135,23 +135,6 @@ class CmsSectionCatalog {
       "No visa destinations found",
       "Create visa destinations to populate the visa website section.",
     ),
-    "visa-details": CmsSectionCatalog.createSection(
-      "visa-details",
-      "Compliance Content",
-      "Visa Details",
-      "Manage visa detail blocks by destination.",
-      "Add Visa Detail",
-      [
-        new CmsTableColumn("destination", "Destination", true),
-        new CmsTableColumn("sectionType", "Section Type"),
-        new CmsTableColumn("label", "Label"),
-        new CmsTableColumn("value", "Value"),
-        new CmsTableColumn("displayOrder", "Display Order"),
-        new CmsTableColumn("updatedAt", "Updated At"),
-      ],
-      "No visa details found",
-      "Create visa details for each active visa destination.",
-    ),
     "creative-toolkit": CmsSectionCatalog.createSection(
       "creative-toolkit",
       "Creative Assets",

@@ -169,6 +169,15 @@ function createDestinationsService({ repository }) {
     };
   }
 
+  function toGalleryUrls(mediaRows, titleImageUrl) {
+    const titleUrl = normalizeText(titleImageUrl);
+    const urls = mediaRows
+      .sort((a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0))
+      .map((item) => normalizeText(item.media_url))
+      .filter((url) => Boolean(url) && url !== titleUrl);
+    return Array.from(new Set(urls)).slice(0, 4);
+  }
+
   return Object.freeze({
     async list(filters = {}) {
       const rows = await repository.findAll(filters);
@@ -176,9 +185,7 @@ function createDestinationsService({ repository }) {
       return Promise.all(
         destinations.map(async (destination) => {
           const mediaRows = await repository.findMedia(destination.id);
-          const gallery = mediaRows
-            .map((item) => normalizeText(item.media_url))
-            .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+          const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
           return {
             ...destination,
             gallery,
@@ -193,9 +200,7 @@ function createDestinationsService({ repository }) {
       return Promise.all(
         destinations.map(async (destination) => {
           const mediaRows = await repository.findMedia(destination.id);
-          const gallery = mediaRows
-            .map((item) => normalizeText(item.media_url))
-            .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+          const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
           return {
             ...destination,
             gallery,
@@ -211,9 +216,7 @@ function createDestinationsService({ repository }) {
       }
       const destination = toDestination(row);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = mediaRows
-        .map((item) => normalizeText(item.media_url))
-        .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
       return {
         ...destination,
         gallery,
@@ -227,9 +230,7 @@ function createDestinationsService({ repository }) {
       }
       const destination = toDestination(row);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = mediaRows
-        .map((item) => normalizeText(item.media_url))
-        .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
       return {
         ...destination,
         gallery,
@@ -380,9 +381,7 @@ function createDestinationsService({ repository }) {
       const updated = await repository.update(id, updates);
       const destination = toDestination(updated);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = mediaRows
-        .map((item) => normalizeText(item.media_url))
-        .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
       return {
         ...destination,
         gallery,
@@ -400,9 +399,7 @@ function createDestinationsService({ repository }) {
       });
       const destination = toDestination(updated);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = mediaRows
-        .map((item) => normalizeText(item.media_url))
-        .filter((url) => Boolean(url) && url !== destination.titleImageUrl);
+      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
       return {
         ...destination,
         gallery,

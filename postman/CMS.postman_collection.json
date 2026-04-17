@@ -80,6 +80,26 @@
     {
       "key": "sampleImageUrl",
       "value": "https://picsum.photos/1200/800"
+    },
+    {
+      "key": "publicCmsBasePath",
+      "value": "/public/cms"
+    },
+    {
+      "key": "destinationSlug",
+      "value": "japan"
+    },
+    {
+      "key": "visaSlug",
+      "value": "uae-tourist-visa"
+    },
+    {
+      "key": "sampleVideoPath",
+      "value": ""
+    },
+    {
+      "key": "sampleVideoUrl",
+      "value": ""
     }
   ],
   "item": [
@@ -134,7 +154,7 @@
       ]
     },
     {
-      "name": "cms",
+      "name": "CMS Admin",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -182,6 +202,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -198,6 +222,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -214,6 +242,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -261,7 +293,20 @@
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const id = payload?.data?.id;",
+                      "if (id) pm.collectionVariables.set('landingId', id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Landing Place",
@@ -271,6 +316,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -308,6 +357,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -324,6 +377,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -349,6 +406,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -365,6 +426,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -380,6 +445,14 @@
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -404,13 +477,17 @@
           "name": "Destinations",
           "item": [
             {
-              "name": "List Landing Places",
+              "name": "List Destinations",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -420,13 +497,17 @@
               }
             },
             {
-              "name": "List Deleted Landing Places",
+              "name": "List Deleted Destinations",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -436,13 +517,17 @@
               }
             },
             {
-              "name": "Get Landing Place By ID",
+              "name": "Get Destination By ID",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -459,21 +544,33 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/slug/{{slug}}",
+                  "raw": "{{baseUrl}}/cms/destinations/slug/{{destinationSlug}}",
                   "query": []
                 }
               }
             },
             {
-              "name": "Create Landing Place",
+              "name": "Create Destination",
               "request": {
                 "method": "POST",
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -482,35 +579,45 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "name",
-                      "value": "Dubai",
-                      "type": "text"
-                    },
-                    {
-                      "key": "slug",
-                      "value": "dubai",
-                      "type": "text"
-                    },
-                    {
-                      "key": "image",
-                      "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Japan\",\n  \"slug\": \"japan\",\n  \"description\": \"Refined culture, seasonal beauty, and unforgettable city-to-ryokan journeys. From stays and sightseeing to pacing and logistics, we help turn Japan into a seamless premium trip.\",\n  \"shortDescription\": \"Refined culture, seasonal beauty, and unforgettable city-to-ryokan journeys.\",\n  \"country\": \"United Arab Emirates\",\n  \"region\": \"Asia\",\n  \"categories\": [\n    \"honeymoon\"\n  ],\n  \"seasonFocus\": [\n    \"summer\"\n  ],\n  \"rating\": 4.8,\n  \"titleImageUrl\": \"{{sampleImageUrl}}\",\n  \"heroImageUrl\": \"{{sampleImageUrl}}\",\n  \"thumbnailUrl\": \"{{sampleImageUrl}}\",\n  \"keyHighlights\": [\n    \"Overwater villas and iconic island stays\",\n    \"World-class diving and snorkeling\"\n  ],\n  \"services\": [\n    {\n      \"title\": \"Checklist and appointment guidance\",\n      \"description\": \"Practical next steps before submission\"\n    }\n  ],\n  \"bestTimeToVisit\": [\n    {\n      \"iconName\": \"cloud\",\n      \"color\": \"#0EA5E9\",\n      \"title\": \"Dry Season\",\n      \"from\": \"November\",\n      \"to\": \"April\",\n      \"description\": \"Comfortable weather for sightseeing and outdoor touring.\",\n      \"suggestion\": \"Best Time\"\n    }\n  ],\n  \"metaTitle\": \"Japan Holiday Packages\",\n  \"metaDescription\": \"Japan destination page for premium holiday planning.\",\n  \"isPopular\": true,\n  \"isNew\": true,\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const data = payload?.data || {};",
+                      "if (data.id) pm.collectionVariables.set('destinationId', data.id);",
+                      "if (data.slug) pm.collectionVariables.set('destinationSlug', data.slug);"
+                    ]
+                  }
+                }
+              ]
             },
             {
-              "name": "Update Landing Place",
+              "name": "Update Destination",
               "request": {
                 "method": "PUT",
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -519,25 +626,28 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "subtitle",
-                      "value": "Updated subtitle",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"shortDescription\": \"Updated short destination summary.\",\n  \"description\": \"Updated long destination description for website destination page.\",\n  \"categories\": [\n    \"family\",\n    \"cultural\"\n  ],\n  \"seasonFocus\": [\n    \"spring\",\n    \"autumn\"\n  ],\n  \"titleImageUrl\": \"{{sampleImageUrl}}\",\n  \"metaTitle\": \"Japan Trips Updated\",\n  \"metaDescription\": \"Updated SEO description for Japan destination page.\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
               }
             },
             {
-              "name": "Delete Landing Place",
+              "name": "Delete Destination",
               "request": {
                 "method": "DELETE",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -547,12 +657,20 @@
               }
             },
             {
-              "name": "Update Landing Place Status",
+              "name": "Update Destination Status",
               "request": {
                 "method": "PATCH",
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -572,13 +690,17 @@
               }
             },
             {
-              "name": "Restore Landing Place",
+              "name": "Restore Destination",
               "request": {
                 "method": "PATCH",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -588,13 +710,17 @@
               }
             },
             {
-              "name": "Hard Delete Landing Place",
+              "name": "Hard Delete Destination",
               "request": {
                 "method": "DELETE",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -611,6 +737,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -627,6 +757,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -643,13 +777,41 @@
                       "disabled": true
                     },
                     {
-                      "key": "type",
+                      "key": "mediaType",
                       "value": "image",
+                      "type": "text"
+                    },
+                    {
+                      "key": "title",
+                      "value": "Destination Gallery Item",
+                      "type": "text"
+                    },
+                    {
+                      "key": "caption",
+                      "value": "Aerial destination gallery image",
+                      "type": "text"
+                    },
+                    {
+                      "key": "displayOrder",
+                      "value": "1",
                       "type": "text"
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const mediaId = payload?.data?.id;",
+                      "if (mediaId) pm.collectionVariables.set('mediaId', mediaId);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Destination Media",
@@ -659,6 +821,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -666,14 +836,13 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "caption",
-                      "value": "Updated caption",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Destination Gallery Item Updated\",\n  \"caption\": \"Updated gallery caption\",\n  \"displayOrder\": 2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
               }
             },
@@ -685,6 +854,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -701,6 +874,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -717,6 +894,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -733,6 +914,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -741,14 +930,27 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Winter 2026\",\n  \"subtitle\": \"Best time to visit\",\n  \"isActive\": true\n}",
+                  "raw": "{\n  \"title\": \"Spring\",\n  \"fromMonth\": \"Mar\",\n  \"toMonth\": \"May\",\n  \"description\": \"Pleasant temperatures and lighter crowds.\",\n  \"tag\": \"RECOMMENDED\",\n  \"iconName\": \"leaf\",\n  \"iconColor\": \"#22C55E\",\n  \"bgColor\": \"#ECFDF5\",\n  \"displayOrder\": 1\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const seasonId = payload?.data?.id;",
+                      "if (seasonId) pm.collectionVariables.set('seasonId', seasonId);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Destination Season",
@@ -758,6 +960,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -766,7 +976,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Winter 2026 Updated\"\n}",
+                  "raw": "{\n  \"title\": \"Summer\",\n  \"fromMonth\": \"Jun\",\n  \"toMonth\": \"Aug\",\n  \"description\": \"Peak season with long days.\",\n  \"tag\": \"BEST TIME\",\n  \"displayOrder\": 2\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -783,6 +993,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -799,6 +1013,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -820,6 +1038,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -836,6 +1058,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -852,6 +1078,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -859,22 +1093,28 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "title",
-                      "value": "Dubai Special",
-                      "type": "text"
-                    },
-                    {
-                      "key": "coverImage",
-                      "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Maldives Signature Escape\",\n  \"destinationId\": \"{{destinationId}}\",\n  \"duration\": \"5 Days / 4 Nights\",\n  \"startingPriceCurrency\": \"AED\",\n  \"startingPrice\": 2899,\n  \"description\": \"Premium island escape package.\",\n  \"highlights\": [\n    \"Luxury stay\",\n    \"Airport transfers\",\n    \"Guided experiences\"\n  ],\n  \"packageCategory\": \"Luxury\",\n  \"inclusions\": \"Flights, hotel, transfers\",\n  \"exclusions\": \"Personal expenses\",\n  \"publishToWebsite\": true,\n  \"websiteSlug\": \"maldives-signature-escape\",\n  \"metaTitle\": \"Maldives Signature Escape\",\n  \"metaDescription\": \"Luxury Maldives package\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const packageId = payload?.data?.id;",
+                      "if (packageId) pm.collectionVariables.set('packageId', packageId);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Published Package By ID",
@@ -884,6 +1124,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -900,6 +1144,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -907,14 +1159,13 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "title",
-                      "value": "Dubai Special Updated",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"startingPriceCurrency\": \"AED\",\n  \"startingPrice\": 3299,\n  \"description\": \"Updated package description.\",\n  \"highlights\": [\n    \"Updated highlight 1\",\n    \"Updated highlight 2\"\n  ],\n  \"packageCategory\": \"Family\",\n  \"publishToWebsite\": true,\n  \"metaDescription\": \"Updated package SEO description.\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
               }
             },
@@ -926,6 +1177,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -942,6 +1197,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -958,6 +1217,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -974,6 +1237,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -990,6 +1257,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1006,6 +1277,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -1014,14 +1293,27 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"UAE Trips\",\n  \"slug\": \"uae-trips\",\n  \"isActive\": true\n}",
+                  "raw": "{\n  \"title\": \"Japan Cool Package\",\n  \"amountCurrency\": \"AED\",\n  \"amount\": 1000,\n  \"destinationId\": \"{{destinationId}}\",\n  \"country\": \"Japan\",\n  \"description\": \"Top-level package narrative.\",\n  \"highlights\": [\n    \"Best seller\",\n    \"Flexible dates\"\n  ],\n  \"features\": [\n    {\n      \"iconName\": \"play\",\n      \"description\": \"Priority support and curated stays\"\n    }\n  ],\n  \"inclusions\": [\n    {\n      \"iconName\": \"check\",\n      \"description\": \"Handpicked stays\"\n    }\n  ],\n  \"metaTitle\": \"Japan Main Package\",\n  \"metaDescription\": \"Main package meta\",\n  \"displayOrder\": 1,\n  \"isFeatured\": true\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const mainPackageId = payload?.data?.id;",
+                      "if (mainPackageId) pm.collectionVariables.set('mainPackageId', mainPackageId);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Main Package By ID",
@@ -1031,6 +1323,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1047,6 +1343,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -1055,7 +1359,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"UAE Trips Updated\"\n}",
+                  "raw": "{\n  \"title\": \"Japan Cool Package Updated\",\n  \"amountCurrency\": \"AED\",\n  \"amount\": 1200,\n  \"country\": \"Japan\",\n  \"description\": \"Updated top-level narrative.\",\n  \"highlights\": [\n    \"Updated highlight\"\n  ],\n  \"features\": [\n    {\n      \"iconName\": \"star\",\n      \"description\": \"Updated feature text\"\n    }\n  ],\n  \"inclusions\": [\n    {\n      \"iconName\": \"check\",\n      \"description\": \"Updated inclusion text\"\n    }\n  ],\n  \"displayOrder\": 2,\n  \"isFeatured\": true\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1072,6 +1376,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1088,6 +1396,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1104,6 +1416,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1120,6 +1436,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1136,6 +1456,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1152,6 +1476,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -1159,21 +1491,28 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "mainPackageId",
-                      "value": "{{mainPackageId}}",
-                      "type": "text"
-                    },
-                    {
-                      "key": "title",
-                      "value": "3N4D Dubai",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"mainPackageId\": \"{{mainPackageId}}\",\n  \"title\": \"Tokyo City Discovery\",\n  \"image\": \"{{sampleImageUrl}}\",\n  \"rating\": 0,\n  \"location\": \"Tokyo\",\n  \"durationDays\": 3,\n  \"durationNights\": 2,\n  \"startingPriceCurrency\": \"AED\",\n  \"startingPrice\": 799,\n  \"transport\": \"Private transfer\",\n  \"description\": \"Sub package description\",\n  \"snapshot\": \"Quick summary for card\",\n  \"features\": [\n    {\n      \"title\": \"Feature 1\",\n      \"description\": \"Feature description\"\n    }\n  ],\n  \"itineraries\": [\n    {\n      \"day\": 1,\n      \"title\": \"Arrival\",\n      \"description\": \"Arrival and check-in\",\n      \"features\": \"Meet assist, hotel transfer\"\n    }\n  ],\n  \"highlights\": [\n    \"Highlight 1\",\n    \"Highlight 2\"\n  ],\n  \"inclusions\": [\n    \"Hotel\",\n    \"Breakfast\"\n  ],\n  \"exclusions\": [\n    \"Flights\"\n  ],\n  \"paymentTerms\": [\n    \"50% advance\"\n  ],\n  \"cancellationPolicy\": [\n    \"Non-refundable within 7 days\"\n  ],\n  \"tnc\": [\n    \"Standard terms apply\"\n  ],\n  \"impNotes\": [\n    \"Carry passport copy\"\n  ],\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const subPackageId = payload?.data?.id;",
+                      "if (subPackageId) pm.collectionVariables.set('subPackageId', subPackageId);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Update Sub Package",
@@ -1183,6 +1522,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -1190,14 +1537,13 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "title",
-                      "value": "3N4D Dubai Updated",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Tokyo City Discovery Updated\",\n  \"startingPriceCurrency\": \"AED\",\n  \"startingPrice\": 899,\n  \"durationDays\": 4,\n  \"durationNights\": 3,\n  \"highlights\": [\n    \"Updated highlight 1\",\n    \"Updated highlight 2\"\n  ],\n  \"inclusions\": [\n    \"Hotel\",\n    \"Transfers\"\n  ],\n  \"exclusions\": [\n    \"Flights\"\n  ],\n  \"paymentTerms\": [\n    \"Updated terms\"\n  ],\n  \"cancellationPolicy\": [\n    \"Updated cancellation policy\"\n  ],\n  \"tnc\": [\n    \"Updated terms\"\n  ],\n  \"impNotes\": [\n    \"Updated note\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
               }
             },
@@ -1209,6 +1555,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1225,6 +1575,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1241,6 +1595,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1248,6 +1606,26 @@
                   "query": []
                 }
               }
+            },
+            {
+              "name": "Get Sub Package By ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "packages",
+                    "sub",
+                    "{{subPackageId}}"
+                  ]
+                }
+              },
+              "response": []
             }
           ]
         },
@@ -1255,13 +1633,17 @@
           "name": "Visa Destinations",
           "item": [
             {
-              "name": "List Landing Places",
+              "name": "List Visa Destinations",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1271,13 +1653,17 @@
               }
             },
             {
-              "name": "List Deleted Landing Places",
+              "name": "List Deleted Visa Destinations",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1287,13 +1673,17 @@
               }
             },
             {
-              "name": "Get Landing Place By ID",
+              "name": "Get Visa Destination By ID",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1303,28 +1693,40 @@
               }
             },
             {
-              "name": "Get Destination By Slug",
+              "name": "Get Visa Destination By Slug",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/slug/{{slug}}",
+                  "raw": "{{baseUrl}}/cms/visa/slug/{{visaSlug}}",
                   "query": []
                 }
               }
             },
             {
-              "name": "Create Landing Place",
+              "name": "Create Visa Destination",
               "request": {
                 "method": "POST",
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -1333,29 +1735,45 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "name",
-                      "value": "UAE Tourist Visa",
-                      "type": "text"
-                    },
-                    {
-                      "key": "slug",
-                      "value": "uae-tourist-visa",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"country\": \"Japan\",\n  \"title\": \"Japan Tourist Visa\",\n  \"slug\": \"japan-tourist-visa\",\n  \"subDescription\": \"Guided visa support for Japan leisure travel.\",\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"highlights\": [\n    \"Document support\",\n    \"Application review\"\n  ],\n  \"overviewTitle\": \"Single route for Japan holidays\",\n  \"overviewDescription\": \"We help with practical next steps before submission.\",\n  \"quickSupportTitle\": \"Responsive guidance before you apply\",\n  \"quickSupportDescription\": \"Checklist alignment and submission support.\",\n  \"supportIncluded\": [\n    \"Destination-specific document guidance\",\n    \"Practical review support\"\n  ],\n  \"visaDetails\": [\n    {\n      \"title\": \"Processing Time\",\n      \"description\": \"Approx 7-15 working days\"\n    }\n  ],\n  \"requirements\": [\n    \"Passport copy\",\n    \"Photographs\",\n    \"Bank statement\"\n  ],\n  \"priceCurrency\": \"AED\",\n  \"priceAmount\": 250,\n  \"metaTitle\": \"Japan Visa Support\",\n  \"metaDescription\": \"Visa destination metadata.\",\n  \"keywords\": \"japan,visa,support\",\n  \"displayOrder\": 1,\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const data = payload?.data || {};",
+                      "if (data.id) pm.collectionVariables.set('visaId', data.id);",
+                      "if (data.slug) pm.collectionVariables.set('visaSlug', data.slug);"
+                    ]
+                  }
+                }
+              ]
             },
             {
-              "name": "Update Landing Place",
+              "name": "Update Visa Destination",
               "request": {
                 "method": "PUT",
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -1364,25 +1782,28 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "name",
-                      "value": "UAE Tourist Visa Updated",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"subDescription\": \"Updated visa destination short description.\",\n  \"quickSupportTitle\": \"Updated quick support title\",\n  \"quickSupportDescription\": \"Updated support copy.\",\n  \"supportIncluded\": [\n    \"Updated support item\"\n  ],\n  \"visaDetails\": [\n    {\n      \"title\": \"Processing Time\",\n      \"description\": \"Approx 5-10 working days\"\n    }\n  ],\n  \"requirements\": [\n    \"Passport copy\",\n    \"Photo\",\n    \"Travel itinerary\"\n  ],\n  \"priceCurrency\": \"AED\",\n  \"priceAmount\": 300\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
               }
             },
             {
-              "name": "Delete Landing Place",
+              "name": "Delete Visa Destination",
               "request": {
                 "method": "DELETE",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1392,12 +1813,20 @@
               }
             },
             {
-              "name": "Update Landing Place Status",
+              "name": "Update Visa Destination Status",
               "request": {
                 "method": "PATCH",
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -1417,13 +1846,17 @@
               }
             },
             {
-              "name": "Restore Landing Place",
+              "name": "Restore Visa Destination",
               "request": {
                 "method": "PATCH",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1433,13 +1866,17 @@
               }
             },
             {
-              "name": "Hard Delete Landing Place",
+              "name": "Hard Delete Visa Destination",
               "request": {
                 "method": "DELETE",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1461,6 +1898,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1477,6 +1918,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1493,6 +1938,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1509,6 +1958,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1525,6 +1978,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1547,7 +2004,20 @@
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const id = payload?.data?.id;",
+                      "if (id) pm.collectionVariables.set('featuredPickId', id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Create Creative Toolkit",
@@ -1557,6 +2027,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -1564,16 +2042,30 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
+                  "mode": "raw",
                   "formdata": [
                     {
                       "key": "title",
                       "value": "Toolkit Card",
                       "type": "text"
                     }
-                  ]
+                  ],
+                  "raw": "{\n  \"title\": \"Japan Spring Escape\",\n  \"slug\": \"japan-spring-escape\",\n  \"category\": \"destination\",\n  \"campaignType\": \"featured\",\n  \"sectionKey\": \"featured-hot-picks\",\n  \"country\": \"Japan\",\n  \"rating\": 4.8,\n  \"badgeText\": \"Limited Time\",\n  \"offerCurrency\": \"AED\",\n  \"originalPrice\": 4999,\n  \"discountedPrice\": 3999,\n  \"duration\": \"5D/4N\",\n  \"description\": \"Promo card description\",\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"buttonText\": \"Book Now\",\n  \"ctaUrl\": \"/packages/japan-spring-escape\",\n  \"tags\": [\n    \"Family Friendly\"\n  ],\n  \"highlights\": [\n    \"Fast processing\"\n  ],\n  \"displayOrder\": 1,\n  \"isActive\": true\n}"
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const id = payload?.data?.id;",
+                      "if (id) pm.collectionVariables.set('featuredPickId', id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Featured Pick By ID",
@@ -1583,6 +2075,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1599,6 +2095,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1615,6 +2115,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1641,6 +2145,14 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -1648,14 +2160,15 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
+                  "mode": "raw",
                   "formdata": [
                     {
                       "key": "title",
                       "value": "Toolkit Updated",
                       "type": "text"
                     }
-                  ]
+                  ],
+                  "raw": "{\n  \"subtitle\": \"Updated subtitle\",\n  \"offerCurrency\": \"AED\",\n  \"originalPrice\": 5299,\n  \"discountedPrice\": 4199,\n  \"description\": \"Updated creative description\",\n  \"highlights\": [\n    \"Updated highlight\"\n  ]\n}"
                 }
               }
             },
@@ -1667,6 +2180,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1683,6 +2200,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1699,6 +2220,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1724,6 +2249,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1749,6 +2278,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1765,6 +2298,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1781,6 +2318,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1797,6 +2338,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1813,6 +2358,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1829,6 +2378,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1845,6 +2398,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1861,7 +2418,20 @@
                     }
                   ]
                 }
-              }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const payload = pm.response.json();",
+                      "const id = payload?.data?.id;",
+                      "if (id) pm.collectionVariables.set('seasonCardId', id);"
+                    ]
+                  }
+                }
+              ]
             },
             {
               "name": "Get Season Card By ID",
@@ -1871,6 +2441,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1887,6 +2461,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1913,6 +2491,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1929,6 +2511,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1954,6 +2540,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1970,6 +2560,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -1986,6 +2580,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -2002,6 +2600,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -2039,6 +2641,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -2059,13 +2665,17 @@
               }
             },
             {
-              "name": "List Landing Places",
+              "name": "List Media Assets",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -2075,13 +2685,21 @@
               }
             },
             {
-              "name": "Create Landing Place",
+              "name": "Create Media Asset",
               "request": {
                 "method": "POST",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "url": {
@@ -2089,31 +2707,28 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "media",
-                      "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
-                    },
-                    {
-                      "key": "type",
-                      "value": "image",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"entityType\": \"destination\",\n  \"entityId\": \"{{destinationId}}\",\n  \"mediaKind\": \"image\",\n  \"mediaUrl\": \"{{sampleImageUrl}}\",\n  \"thumbnailUrl\": \"{{sampleImageUrl}}\",\n  \"title\": \"Destination Gallery Item\",\n  \"altText\": \"Destination gallery image\",\n  \"displayOrder\": 1,\n  \"isPrimary\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
               }
             },
             {
-              "name": "Get Landing Place By ID",
+              "name": "Get Media Asset By ID",
               "request": {
                 "method": "GET",
                 "header": [
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -2123,12 +2738,20 @@
               }
             },
             {
-              "name": "Update Landing Place",
+              "name": "Update Media Asset",
               "request": {
                 "method": "PUT",
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -2137,20 +2760,13 @@
                   "query": []
                 },
                 "body": {
-                  "mode": "formdata",
-                  "formdata": [
-                    {
-                      "key": "media",
-                      "type": "file",
-                      "src": "{{sampleImagePath}}",
-                      "disabled": true
-                    },
-                    {
-                      "key": "alt",
-                      "value": "Updated alt text",
-                      "type": "text"
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Destination Gallery Item Updated\",\n  \"altText\": \"Updated destination gallery image\",\n  \"displayOrder\": 2,\n  \"isPrimary\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
                     }
-                  ]
+                  }
                 }
               }
             },
@@ -2162,6 +2778,10 @@
                   {
                     "key": "Accept",
                     "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
                   }
                 ],
                 "url": {
@@ -2171,12 +2791,20 @@
               }
             },
             {
-              "name": "Update Landing Place Status",
+              "name": "Update Media Asset Status",
               "request": {
                 "method": "PATCH",
                 "header": [
                   {
                     "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cmsToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
                     "value": "application/json"
                   }
                 ],
@@ -2213,8 +2841,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/home",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/home?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2232,8 +2859,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/landing-places",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/landing-places?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2251,8 +2877,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2270,8 +2895,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2289,8 +2913,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/highlights",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/highlights?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2308,8 +2931,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/media",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/media?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2327,8 +2949,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/season-cards",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/season-cards?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2346,8 +2967,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/destinations/{{slug}}/packages",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/packages?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2365,8 +2985,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/packages/published",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/packages/published?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2384,8 +3003,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/packages/main",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/packages/main?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2403,8 +3021,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/packages/main/{{mainPackageId}}/sub",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/packages/main/{{mainPackageId}}/sub?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2422,8 +3039,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/visa-destinations",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2441,8 +3057,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/visa-destinations/{{slug}}",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations/{{visaSlug}}?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2460,8 +3075,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/visa-destinations/{{slug}}/details",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations/{{visaSlug}}/details?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2479,8 +3093,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/featured-picks",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/featured-picks?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2498,8 +3111,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/creative-toolkit",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/creative-toolkit?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2517,8 +3129,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/season-cards",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/season-cards?country={{country}}"
             },
             "auth": {
               "type": "noauth"
@@ -2536,8 +3147,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/public/cms/hero-sections",
-              "query": []
+              "raw": "{{baseUrl}}{{publicCmsBasePath}}/hero-sections?country={{country}}"
             },
             "auth": {
               "type": "noauth"

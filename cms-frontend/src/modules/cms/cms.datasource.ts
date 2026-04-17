@@ -43,18 +43,6 @@ class CmsDatasource {
     return normalized || null;
   }
 
-  private getVisaDestinationIdParam(): string | null {
-    if (typeof window === "undefined") {
-      return null;
-    }
-
-    const destinationId = new URLSearchParams(window.location.search).get(
-      "visaDestinationId",
-    );
-    const normalized = (destinationId || "").trim();
-    return normalized || null;
-  }
-
   private getBooleanQueryParam(key: string): boolean | null {
     if (typeof window === "undefined") {
       return null;
@@ -173,24 +161,6 @@ class CmsDatasource {
     if (sectionKey === "visa-destinations") {
       const response = await this.httpClient.post(
         "/cms/visa",
-        mappedPayload,
-        countryOptions,
-      );
-      return this.accessor.toRecord(response);
-    }
-
-    if (sectionKey === "visa-details") {
-      const visaDestinationId = String(
-        mappedPayload.visaDestinationId ??
-          mappedPayload.visa_destination_id ??
-          "",
-      );
-      if (!visaDestinationId) {
-        throw new Error("visaDestinationId is required in payload.");
-      }
-
-      const response = await this.httpClient.post(
-        `/cms/visa/${visaDestinationId}/details`,
         mappedPayload,
         countryOptions,
       );
@@ -350,23 +320,6 @@ class CmsDatasource {
       );
     }
 
-    if (sectionKey === "visa-details") {
-      const visaDestinationId = this.getVisaDestinationIdParam();
-      if (visaDestinationId) {
-        return this.sectionEntryMapper.mapVisaDetailEntriesByDestination(
-          "/cms/visa",
-          visaDestinationId,
-          this.getCountryParam(),
-          includeDeleted,
-        );
-      }
-      return this.sectionEntryMapper.mapVisaDetailEntries(
-        "/cms/visa",
-        this.getCountryParam(),
-        includeDeleted,
-      );
-    }
-
     if (sectionKey === "creative-toolkit") {
       const payload = await this.httpClient.get<unknown>(
         "/cms/experience/creative-toolkit",
@@ -446,17 +399,6 @@ class CmsDatasource {
       return this.sectionEntryMapper.mapVisaDestinationEntries(
         this.accessor.toArray(payload),
         "/cms/visa",
-      );
-    }
-
-    if (sectionKey === "visa-details") {
-      const payload = await this.httpClient.get<unknown>(
-        "/cms/visa/details/deleted",
-        this.withCountryParams(),
-      );
-      return this.sectionEntryMapper.mapVisaDetailFlatEntries(
-        this.accessor.toArray(payload),
-        "/cms/visa/details",
       );
     }
 

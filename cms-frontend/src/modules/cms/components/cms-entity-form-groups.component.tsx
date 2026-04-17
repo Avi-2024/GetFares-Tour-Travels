@@ -24,6 +24,43 @@ interface CmsEntityFormGroupsProps {
 }
 
 class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
+  private resolveCurrencyField(
+    field: CmsEntityFieldDefinition,
+  ): CmsEntityFieldDefinition | null {
+    const currencyByAmountKey: Record<string, string> = {
+      amount: "amountCurrency",
+      startingPrice: "startingPriceCurrency",
+      priceAmount: "priceCurrency",
+      originalPrice: "offerCurrency",
+    };
+    const currencyKey = currencyByAmountKey[field.key];
+    if (!currencyKey) {
+      return null;
+    }
+    return (
+      this.props.definition.fields.find(
+        (item) => item.key === currencyKey && item.groupKey === field.groupKey,
+      ) || null
+    );
+  }
+
+  private shouldHideStandaloneField(field: CmsEntityFieldDefinition): boolean {
+    const pairTargets = new Set([
+      "amountCurrency",
+      "startingPriceCurrency",
+      "priceCurrency",
+      "offerCurrency",
+    ]);
+    if (!pairTargets.has(field.key)) {
+      return false;
+    }
+    return this.props.definition.fields.some(
+      (candidate) =>
+        candidate.groupKey === field.groupKey &&
+        this.resolveCurrencyField(candidate)?.key === field.key,
+    );
+  }
+
   private isIconFieldKey(key: string): boolean {
     return key === "iconName" || key === "icon_name";
   }
@@ -98,6 +135,40 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
       : (field.options ?? []);
     const className =
       "h-10 w-full rounded-xl border border-(--border) bg-(--surface) px-3 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)";
+    const currencyField = this.resolveCurrencyField(field);
+
+    if (field.type === "number" && currencyField) {
+      const currencyValue = String(
+        formValues[currencyField.key] ?? currencyField.defaultValue ?? "INR",
+      );
+      const currencyOptions =
+        currencyField.relationSource ?
+          relationOptions[currencyField.relationSource]
+        : (currencyField.options ?? []);
+      return (
+        <div className="flex items-stretch">
+          <div className="w-34 shrink-0">
+            <SearchDropDown
+              value={currencyValue}
+              options={currencyOptions.map((option) => ({
+                label: option.label,
+                value: option.value,
+                meta: option.meta,
+              }))}
+              placeholder="Currency"
+              onChange={(nextValue) => onFieldChange(currencyField, nextValue)}
+              className="h-10 w-full rounded-l-xl rounded-r-none border border-(--border) border-r-0 bg-(--surface) px-9 pr-9 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
+            />
+          </div>
+          <input
+            type="number"
+            value={String(value ?? "")}
+            onChange={(event) => onFieldChange(field, event.target.value)}
+            className="h-10 w-full rounded-r-xl rounded-l-none border border-(--border) bg-(--surface) px-3 text-sm text-(--text-primary) outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--ring)"
+          />
+        </div>
+      );
+    }
 
     if (field.type === "textarea") {
       return (
@@ -460,6 +531,7 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
             >
               {definition.fields
                 .filter((field) => field.groupKey === group.key)
+                .filter((field) => !this.shouldHideStandaloneField(field))
                 .map((field) => (
                   <div
                     key={field.key}

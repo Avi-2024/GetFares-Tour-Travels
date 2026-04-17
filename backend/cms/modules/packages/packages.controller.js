@@ -249,6 +249,14 @@ function createCmsPackagesController({ service, uploadService }) {
       });
     }),
 
+    getSubPackageById: asyncHandler(async (req, res) => {
+      const pkg = await service.getSubPackageById(req.params.id);
+      res.json({
+        success: true,
+        data: pkg,
+      });
+    }),
+
     createSubPackage: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
       const imageFile = getFirstRequestFile(req, [

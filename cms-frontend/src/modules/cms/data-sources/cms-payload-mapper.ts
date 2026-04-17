@@ -50,7 +50,10 @@ class CmsPayloadMapper {
         name: payload.name,
         destinationId: payload.destinationId,
         duration: payload.duration,
+        startingPriceCurrency: payload.startingPriceCurrency,
         startingPrice: payload.startingPrice,
+        description: payload.description,
+        highlights: payload.highlights,
         inclusions: payload.inclusions,
         exclusions: payload.exclusions,
         hotelDetails: payload.hotelDetails,
@@ -71,9 +74,12 @@ class CmsPayloadMapper {
     if (sectionKey === "main-packages") {
       return {
         title: payload.title,
+        amountCurrency: payload.amountCurrency,
         amount: payload.amount,
         destinationId: payload.destinationId,
         country: payload.country,
+        description: payload.description,
+        highlights: payload.highlights,
         features: payload.features,
         inclusions: payload.inclusions,
         metaTitle: payload.metaTitle,
@@ -92,6 +98,7 @@ class CmsPayloadMapper {
         location: payload.location,
         durationDays: payload.durationDays,
         durationNights: payload.durationNights,
+        startingPriceCurrency: payload.startingPriceCurrency,
         startingPrice: payload.startingPrice,
         transport: payload.transport,
         description: payload.description,
@@ -135,15 +142,6 @@ class CmsPayloadMapper {
         isActive: payload.isActive,
       };
     }
-    if (sectionKey === "visa-details") {
-      return {
-        visaDestinationId: payload.visaDestinationId,
-        sectionType: payload.sectionType,
-        label: payload.label,
-        value: payload.value,
-        displayOrder: payload.displayOrder,
-      };
-    }
     if (sectionKey === "creative-toolkit") {
       return {
         title: payload.title,
@@ -155,6 +153,7 @@ class CmsPayloadMapper {
         referenceId: payload.referenceId,
         country: payload.country,
         rating: payload.rating,
+        offerCurrency: payload.offerCurrency,
         badgeText: payload.badgeText,
         originalPrice: payload.originalPrice,
         discountedPrice: payload.discountedPrice,

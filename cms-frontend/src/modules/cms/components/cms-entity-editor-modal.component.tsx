@@ -433,19 +433,63 @@ class CmsEntityEditorModalComponent extends Component<
       const media = await this.cmsService
         .listMedia(entityType, this.props.entry.id)
         .catch(() => []);
-      const mapped = media.map((item) => ({
-        id: item.id,
-        clientId: item.id,
-        mediaUrl: item.mediaUrl,
-        thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
-        title: item.title || "",
-        altText: item.altText || "",
-        isPrimary: item.isPrimary,
-        mediaKind: item.mediaKind || "image",
-        pendingFile: null,
-        previewUrl: undefined,
-      }));
-      this.setState({ mediaItems: mapped });
+      if (this.props.sectionKey === "destinations") {
+        const titleImageUrl = this.toNonEmptyString(
+          this.getRawValue(this.props.entry, "titleImageUrl") ??
+            this.getRawValue(this.props.entry, "thumbnailUrl") ??
+            this.getRawValue(this.props.entry, "heroImageUrl"),
+        );
+        const mappedGallery = media
+          .filter(
+            (item) => this.toNonEmptyString(item.mediaUrl) !== titleImageUrl,
+          )
+          .slice(0, 4)
+          .map((item) => ({
+            id: item.id,
+            clientId: item.id,
+            mediaUrl: item.mediaUrl,
+            thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+            title: item.title || "",
+            altText: item.altText || "",
+            isPrimary: false,
+            mediaKind: item.mediaKind || "image",
+            pendingFile: null,
+            previewUrl: undefined,
+          }));
+        const primaryItem =
+          titleImageUrl ?
+            {
+              id: null,
+              clientId: "destination-title-image",
+              mediaUrl: titleImageUrl,
+              thumbnailUrl: titleImageUrl,
+              title: "Title Image",
+              altText: "Title Image",
+              isPrimary: true,
+              mediaKind: "image" as const,
+              pendingFile: null,
+              previewUrl: undefined,
+            }
+          : null;
+        this.setState({
+          mediaItems:
+            primaryItem ? [primaryItem, ...mappedGallery] : mappedGallery,
+        });
+      } else {
+        const mapped = media.map((item) => ({
+          id: item.id,
+          clientId: item.id,
+          mediaUrl: item.mediaUrl,
+          thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+          title: item.title || "",
+          altText: item.altText || "",
+          isPrimary: item.isPrimary,
+          mediaKind: item.mediaKind || "image",
+          pendingFile: null,
+          previewUrl: undefined,
+        }));
+        this.setState({ mediaItems: mapped });
+      }
     }
 
     this.setState({
@@ -567,12 +611,16 @@ class CmsEntityEditorModalComponent extends Component<
     });
     const mediaItems = mediaItemsOverride ?? this.state.mediaItems;
     const primary = mediaItems.find((item) => item.isPrimary) ?? mediaItems[0];
-    if (primary) {
-      if (this.props.sectionKey === "landing-places")
-        payload.imageUrl = primary.mediaUrl;
+      if (primary) {
+        if (this.props.sectionKey === "landing-places")
+          payload.imageUrl = primary.mediaUrl;
       if (this.props.sectionKey === "destinations") {
+        payload.titleImageUrl = primary.mediaUrl;
         payload.heroImageUrl = primary.mediaUrl;
         payload.thumbnailUrl = primary.thumbnailUrl || primary.mediaUrl;
+        payload.gallery = mediaItems
+          .filter((item) => !item.isPrimary)
+          .map((item) => item.mediaUrl);
       }
       if (this.props.sectionKey === "visa-destinations") {
         payload.imageUrl = primary.mediaUrl;
@@ -654,8 +702,12 @@ class CmsEntityEditorModalComponent extends Component<
     for (const mediaId of this.state.removedMediaIds) {
       await this.cmsService.deleteMedia(mediaId);
     }
-    for (let index = 0; index < this.state.mediaItems.length; index += 1) {
-      const item = this.state.mediaItems[index];
+    const mediaItemsToSync =
+      this.props.sectionKey === "destinations" ?
+        this.state.mediaItems.filter((item) => !item.isPrimary)
+      : this.state.mediaItems;
+    for (let index = 0; index < mediaItemsToSync.length; index += 1) {
+      const item = mediaItemsToSync[index];
       let mediaUrl = item.mediaUrl;
       let thumbnailUrl = item.thumbnailUrl || item.mediaUrl;
       const mediaKind = item.mediaKind ?? "image";

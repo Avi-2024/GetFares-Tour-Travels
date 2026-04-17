@@ -34,6 +34,7 @@ function createExperienceService({ repository }) {
       country: row.country,
       rating: row.rating ? Number(row.rating) : 0,
       badgeText: row.badge_text,
+      offerCurrency: row.offer_currency || null,
       originalPrice: row.original_price ? Number(row.original_price) : null,
       discountedPrice:
         row.discounted_price ? Number(row.discounted_price) : null,
@@ -146,6 +147,7 @@ function createExperienceService({ repository }) {
         country,
         rating: toNumber(data.rating, 0),
         badge_text: normalizeText(data.badgeText),
+        offer_currency: normalizeText(data.offerCurrency || "INR"),
         original_price: toNumber(data.originalPrice, null),
         discounted_price: toNumber(data.discountedPrice, null),
         duration: normalizeText(data.duration),
@@ -200,6 +202,9 @@ function createExperienceService({ repository }) {
       if (data.rating !== undefined) updates.rating = toNumber(data.rating, 0);
       if (data.badgeText !== undefined) {
         updates.badge_text = normalizeText(data.badgeText);
+      }
+      if (data.offerCurrency !== undefined) {
+        updates.offer_currency = normalizeText(data.offerCurrency || "INR");
       }
       if (data.originalPrice !== undefined) {
         updates.original_price = toNumber(data.originalPrice, null);

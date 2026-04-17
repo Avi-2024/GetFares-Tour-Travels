@@ -1,16 +1,34 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import { AppError } from "../../core/middlewares/errorHandler.js";
 import {
   getFirstRequestFile,
   getRequestFiles,
 } from "../../core/uploads/request-files.util.js";
 
 function createDestinationsController({ service, uploadService }) {
-  async function attachGalleryMedia({ destinationId, files, startingOrder = 0 }) {
+  async function attachGalleryMedia({
+    destinationId,
+    files,
+    startingOrder = 0,
+    maxAllowed = 4,
+  }) {
+    const normalizedFiles = Array.isArray(files) ? files : [];
+    if (!normalizedFiles.length) {
+      return [];
+    }
+    if (startingOrder + normalizedFiles.length > maxAllowed) {
+      throw new AppError(
+        400,
+        `Only ${maxAllowed} gallery items allowed.`,
+        "MAX_GALLERY_ITEMS_EXCEEDED",
+      );
+    }
+
     const uploadedFiles = await uploadService.uploadMany({
-      files,
+      files: normalizedFiles,
       prefix: "cms/destinations/gallery",
       allowVideo: true,
-      maxCount: 4,
+      maxCount: maxAllowed - startingOrder,
     });
 
     const createdMedia = [];
@@ -159,6 +177,7 @@ function createDestinationsController({ service, uploadService }) {
         destinationId: req.params.id,
         files: galleryFiles,
         startingOrder: existingMedia.length,
+        maxAllowed: 4,
       });
 
       res.json({
