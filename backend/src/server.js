@@ -1,10 +1,16 @@
 import http from "node:http";
+import { webcrypto } from "node:crypto";
 // import dns from "node:dns";
 import { createApp } from "./app.js";
 import { createSocketServer } from "../crm/core/realtime/index.js";
 import { createAutomationRuntime } from "../crm/core/automation/index.js";
 
 // dns.setServers(["1.1.1.1"]);
+
+// Azure SDK (typespec runtime) expects Web Crypto on global.
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
+}
 
 const { app, container, modules, runtime } = createApp();
 const httpServer = http.createServer(app);
