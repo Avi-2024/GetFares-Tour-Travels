@@ -249,13 +249,34 @@
 .price-box > p {
   font-weight: bold;
   font-size: 12px;
-  margin: 0 0 10px 0;
+  margin:  0;
+  padding: 0;
+  /* margin-bottom: 10px; */
+}
+.price-header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+.price-header p {
+  font-weight: bold;
+  font-size: 12px;
+  margin:  0;
+  padding: 0;
+}
+.price-header span {
+  color: blue;
+  font-weight: bold;
+  font-size: 13px;
 }
 
 .price-row {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
+  padding-top: 2px;
+  border-top: 1px solid #000;
 }
 
 .price-row b {

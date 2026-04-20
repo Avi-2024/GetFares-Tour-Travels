@@ -110,7 +110,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
             </div>
 
             {/* BANNER */}
-            <img src="/banner.png" className="banner" alt="Banner" />
+            <img src="/banner.jpeg" className="banner" alt="Banner" />
 
             {/* PACKAGE SECTION */}
             <div className="package-section">
@@ -199,9 +199,16 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
 
             {/* PRICE */}
             <div className="price-box">
-                <p>Package Fees</p>
+                     <p>Package</p>
+                      <div className='price-header'>
+                <p>Service Charge</p>
+                <span>₹ {data.totalSellValue || data.total}</span>
+                </div>
+                
+                
                 <div className="price-row">
-                    <b>Total Sale Value</b>
+                    <b>Total Value</b>
+                    {/* <span>₹ {0} </span> */}
                     <span>₹ {data.totalSellValue || data.total}</span>
                 </div>
             </div>
