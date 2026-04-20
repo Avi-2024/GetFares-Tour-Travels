@@ -179,10 +179,32 @@ const Dashboard: React.FC = () => {
           const pendingCalls =
             Number(executive.pendingFollowups || 0) +
             Number(executive.overdueFollowups || 0)
+          let revenueValue = Number(executive.revenue || 0)
+          // Fallback: if executive KPI revenue is empty, derive from bookings revenue trend.
+          // This keeps dashboard usable even when reporting revenue backend returns 0.
+          if (!Number.isFinite(revenueValue) || revenueValue <= 0) {
+            try {
+              const revenueResponse = (await dashboardApi.getRevenue({
+                range: 'week'
+              })) as any
+              const points = revenueResponse?.data || revenueResponse
+              if (Array.isArray(points)) {
+                const sum = points.reduce(
+                  (total, point) => total + Number(point?.revenue || 0),
+                  0
+                )
+                if (Number.isFinite(sum) && sum > 0) {
+                  revenueValue = sum
+                }
+              }
+            } catch (_error) {
+              // ignore fallback errors; keep executive KPI revenue
+            }
+          }
           setDashboardStats({
             totalLeads: Number(executive.totalLeads || 0),
             totalLeadsChange: 0,
-            revenue: Number(executive.revenue || 0),
+            revenue: revenueValue,
             currency: executive.currency || 'AED',
             revenueChange: 0,
             pendingCalls,

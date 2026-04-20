@@ -83,6 +83,7 @@ type LeadOption = {
   panNumber?: string | null
   pan_number?: string | null
   budget?: number | null
+  salary?: number | null
   childAges?: number[] | null
 }
 
@@ -754,6 +755,16 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       templates.find(template => template.id === selectedTemplateId) || null,
     [templates, selectedTemplateId]
   )
+
+  const isVisaContext = useMemo(() => {
+    if ((selectedTemplate?.templateType ?? '') === 'VISA') return true
+    const leadType = String(
+      (selectedLead as any)?.leadType ?? (selectedLead as any)?.lead_type ?? ''
+    )
+      .trim()
+      .toUpperCase()
+    return leadType === 'VISA'
+  }, [selectedLead, selectedTemplate?.templateType])
 
   const leadDropdownOptions = useMemo(
     () => [
@@ -2306,6 +2317,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     }
     if (isEditMode && hasLoadedEditSnapshot) return
     if (!selectedLead) return
+    const isVisaLead =
+      (selectedTemplate?.templateType ?? '') === 'VISA' ||
+      String((selectedLead as any)?.leadType ?? (selectedLead as any)?.lead_type ?? '')
+        .toUpperCase() === 'VISA'
 
     const resolvedDestination =
       typeof selectedLead.destination === 'string'
@@ -2326,7 +2341,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       nationality: selectedLead.nationality || prev.nationality,
       addressLine: selectedLead.addressLine || selectedLead.address_line || prev.addressLine,
       panNumber: selectedLead.panNumber || selectedLead.pan_number || prev.panNumber,
-      budget: selectedLead.budget !== undefined && selectedLead.budget !== null ? String(selectedLead.budget) : prev.budget,
+      budget:
+        isVisaLead
+          ? (selectedLead.salary !== undefined && selectedLead.salary !== null
+              ? String(selectedLead.salary)
+              : prev.budget)
+          : selectedLead.budget !== undefined && selectedLead.budget !== null
+            ? String(selectedLead.budget)
+            : prev.budget,
       destination: destinationName,
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
@@ -2356,7 +2378,8 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     destinationMap,
     form.destination,
     hasLoadedEditSnapshot,
-    isEditMode
+    isEditMode,
+    selectedTemplate?.templateType
   ])
 
   useEffect(() => {
@@ -2757,6 +2780,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
   const autofillCustomer = () => {
     if (!selectedLead) return
+    const isVisaLead =
+      (selectedTemplate?.templateType ?? '') === 'VISA' ||
+      String((selectedLead as any)?.leadType ?? (selectedLead as any)?.lead_type ?? '')
+        .toUpperCase() === 'VISA'
 
     const resolvedDestination =
       typeof selectedLead.destination === 'string'
@@ -2777,7 +2804,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
       nationality: selectedLead.nationality || prev.nationality,
       addressLine: selectedLead.addressLine || selectedLead.address_line || prev.addressLine,
       panNumber: selectedLead.panNumber || selectedLead.pan_number || prev.panNumber,
-      budget: selectedLead.budget !== undefined && selectedLead.budget !== null ? String(selectedLead.budget) : prev.budget,
+      budget:
+        isVisaLead
+          ? (selectedLead.salary !== undefined && selectedLead.salary !== null
+              ? String(selectedLead.salary)
+              : prev.budget)
+          : selectedLead.budget !== undefined && selectedLead.budget !== null
+            ? String(selectedLead.budget)
+            : prev.budget,
       destination: destinationName,
       startDate: selectedLead.travelDate
         ? selectedLead.travelDate.slice(0, 10)
@@ -3966,12 +4000,18 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   </p>
                   <div className='mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
                     <div>
-                      <label className='field-label'>Budget</label>
+                      <label className='field-label'>
+                        {isVisaContext ? 'Salary' : 'Budget'}
+                      </label>
                       <input
                         type='number'
                         min='0'
                         className='field-input overflow-hidden text-ellipsis'
-                        placeholder='Customer budget'
+                        placeholder={
+                          isVisaContext
+                            ? 'Customer salary'
+                            : 'Customer budget'
+                        }
                         value={form.budget || ''}
                         onChange={e => {
                           const value = e.target.value

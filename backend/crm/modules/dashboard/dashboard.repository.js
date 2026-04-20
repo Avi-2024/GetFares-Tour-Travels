@@ -29,10 +29,12 @@ class DashboardRepository {
   constructor(dependencies = {}) {
     this.db = dependencies.db;
     this.log = dependencies.logger ?? logger;
+    this.currencyService = dependencies.currencyService || null;
     this.tables = {
       leads: 'leads',
       quotations: 'quotations',
       bookings: 'bookings',
+      payments: 'payments',
     };
     this.columnCache = new Map();
   }
@@ -136,7 +138,18 @@ class DashboardRepository {
 
   parseDate(value) {
     if (!value) return null;
-    const date = new Date(value);
+    if (typeof value === 'number') {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      return date;
+    }
+    const raw = String(value).trim();
+    // MySQL DATETIME often comes as "YYYY-MM-DD HH:mm:ss" (non-ISO). Normalize for stable parsing.
+    const normalized =
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+        ? raw.replace(' ', 'T')
+        : raw;
+    const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) return null;
     return date;
   }
@@ -160,6 +173,103 @@ class DashboardRepository {
 
   getRevenueFromBooking(row) {
     return this.toNumber(row?.total_amount ?? row?.totalAmount ?? 0, 0);
+  }
+
+  normalizeCurrency(value, fallback = "AED") {
+    const normalized = String(value || "")
+      .trim()
+      .toUpperCase();
+    return normalized || fallback;
+  }
+
+  getBookingCurrency(row) {
+    return this.normalizeCurrency(
+      row?.client_currency ??
+        row?.clientCurrency ??
+        row?.currency ??
+        row?.supplier_currency ??
+        row?.supplierCurrency ??
+        "AED",
+      "AED",
+    );
+  }
+
+  getPaymentCurrency(row) {
+    return this.normalizeCurrency(
+      row?.currency ?? row?.client_currency ?? row?.clientCurrency ?? "AED",
+      "AED",
+    );
+  }
+
+  roundAmount(value) {
+    return Number(this.toNumber(value, 0).toFixed(2));
+  }
+
+  async convertSumToBase(amount, fromCurrency, baseCurrency) {
+    const normalizedBase = this.normalizeCurrency(baseCurrency, "AED");
+    const normalizedFrom = this.normalizeCurrency(fromCurrency, normalizedBase);
+    const amountNumber = this.toNumber(amount, 0);
+
+    if (!amountNumber) return 0;
+    if (
+      !this.currencyService ||
+      typeof this.currencyService.convert !== "function" ||
+      normalizedFrom === normalizedBase
+    ) {
+      return amountNumber;
+    }
+
+    try {
+      return await this.currencyService.convert(
+        amountNumber,
+        normalizedFrom,
+        normalizedBase,
+      );
+    } catch (error) {
+      this.log?.warn?.(
+        {
+          module: "dashboard",
+          fromCurrency: normalizedFrom,
+          baseCurrency: normalizedBase,
+          error: error.message,
+        },
+        "Currency conversion failed for dashboard revenue bucket",
+      );
+      return amountNumber;
+    }
+  }
+
+  async sumBucketRevenueInBase(rows, predicate, baseCurrency) {
+    const byCurrency = new Map();
+    rows.forEach((row) => {
+      if (!predicate(row)) return;
+      const currency = this.getBookingCurrency(row);
+      const amount = this.getRevenueFromBooking(row);
+      byCurrency.set(currency, (byCurrency.get(currency) || 0) + amount);
+    });
+
+    let total = 0;
+    for (const [currency, sum] of byCurrency.entries()) {
+      total += await this.convertSumToBase(sum, currency, baseCurrency);
+    }
+    return total;
+  }
+
+  async sumBucketPaymentsInBase(rows, predicate, baseCurrency) {
+    const byCurrency = new Map();
+    rows.forEach((row) => {
+      if (!predicate(row)) return;
+      const currency = this.getPaymentCurrency(row);
+      const amount = this.toNumber(row?.amount ?? 0, 0);
+      if (!amount) return;
+      byCurrency.set(currency, (byCurrency.get(currency) || 0) + amount);
+    });
+
+    let total = 0;
+    for (const [currency, sum] of byCurrency.entries()) {
+      total += await this.convertSumToBase(sum, currency, baseCurrency);
+    }
+    return total;
   }
 
   bucketLabel(date, range, index = 0) {
@@ -261,11 +371,26 @@ class DashboardRepository {
 
   async getRevenueFallback(range = 'week') {
     const normalizedRange = this.normalizeRange(range);
-    const bookings = await this.db.findMany(this.tables.bookings, {});
-    const rows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
-      const status = String(row.status || '').toUpperCase();
-      return status !== 'CANCELLED' && !this.isSoftDeleted(row);
+    const payments = await this.db.findMany(this.tables.payments, {});
+    const toBoolean = (value, fallback = false) => {
+      if (value === null || value === undefined) return fallback;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value === 1;
+      const normalized = String(value).trim().toLowerCase();
+      if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+      if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+      return Boolean(value);
+    };
+    const rows = (Array.isArray(payments) ? payments : []).filter((row) => {
+      const status = String(row?.status || 'PENDING').trim().toUpperCase();
+      const isVerified = toBoolean(row?.is_verified ?? row?.isVerified, false);
+      // Match finance stats: verified payments excluding refunded.
+      return isVerified && status !== 'REFUNDED' && !this.isSoftDeleted(row);
     });
+    const baseCurrency = this.normalizeCurrency(
+      this.currencyService?.baseCurrency || "AED",
+      "AED",
+    );
 
     const now = new Date();
     const buckets = [];
@@ -308,35 +433,52 @@ class DashboardRepository {
       }
     }
 
-    return buckets.map((bucket) => {
-      const revenue = rows
-        .filter((row) => {
-          const created = this.parseDate(row.created_at ?? row.createdAt);
+    const getCreatedAt = (row) =>
+      this.parseDate(
+        row?.paid_at ??
+          row?.paidAt ??
+          row?.date ??
+          row?.created_at ??
+          row?.createdAt,
+      );
+
+    const results = [];
+    for (const bucket of buckets) {
+      const revenue = await this.sumBucketPaymentsInBase(
+        rows,
+        (row) => {
+          const created = getCreatedAt(row);
           return (
             created &&
             created.getTime() >= bucket.start.getTime() &&
             created.getTime() < bucket.end.getTime()
           );
-        })
-        .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
+        },
+        baseCurrency,
+      );
 
-      const last = rows
-        .filter((row) => {
-          const created = this.parseDate(row.created_at ?? row.createdAt);
+      const last = await this.sumBucketPaymentsInBase(
+        rows,
+        (row) => {
+          const created = getCreatedAt(row);
           return (
             created &&
             created.getTime() >= bucket.prevStart.getTime() &&
             created.getTime() < bucket.prevEnd.getTime()
           );
-        })
-        .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
+        },
+        baseCurrency,
+      );
 
-      return {
+      results.push({
         name: this.bucketLabel(bucket.start, normalizedRange, bucket.index),
-        revenue: Number(revenue.toFixed(2)),
-        last: Number(last.toFixed(2)),
-      };
-    });
+        revenue: this.roundAmount(revenue),
+        last: this.roundAmount(last),
+        currency: baseCurrency,
+      });
+    }
+
+    return results;
   }
 
   async getLeadSourcesFallback(period = 'month') {

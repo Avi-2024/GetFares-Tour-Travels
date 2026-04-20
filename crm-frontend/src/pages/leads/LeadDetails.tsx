@@ -78,6 +78,7 @@ type QualificationForm = {
   adultsCount: string
   childrenCount: string
   budget: string
+  salary: string
   visaRequired: 'YES' | 'NO' | ''
   preferredHotelCategory: '3_STAR' | '4_STAR' | '5_STAR' | 'ANY' | ''
   travelPurpose: string
@@ -97,6 +98,7 @@ const emptyQualification: QualificationForm = {
   adultsCount: '2',
   childrenCount: '0',
   budget: '',
+  salary: '',
   visaRequired: '',
   preferredHotelCategory: '',
   travelPurpose: '',
@@ -321,6 +323,17 @@ const LeadDetails: React.FC = () => {
     return name || null
   }, [lead])
 
+  const assignedByName = useMemo(() => {
+    const name = String(
+      lead?.assignedByUser?.fullName ??
+        lead?.assigned_by_user?.full_name ??
+        lead?.assignedByName ??
+        lead?.assigned_by_name ??
+        ''
+    ).trim()
+    return name || null
+  }, [lead])
+
   const qualificationChildrenCount = useMemo(() => {
     const numericValue = Number(qualification.childrenCount || 0)
     if (!Number.isFinite(numericValue)) return 0
@@ -378,6 +391,10 @@ const LeadDetails: React.FC = () => {
       budget:
         item?.budget !== undefined && item?.budget !== null
           ? String(item.budget)
+          : '',
+      salary:
+        item?.salary !== undefined && item?.salary !== null
+          ? String(item.salary)
           : '',
       visaRequired:
         typeof item?.visaRequired === 'boolean'
@@ -900,6 +917,7 @@ const LeadDetails: React.FC = () => {
     }
 
     try {
+      const isVisaLead = (lead?.leadType ?? lead?.lead_type) === 'VISA'
       await leadsService.updateLead(id, {
         panNumber: qualification.panNumber.trim() || undefined,
         addressLine: qualification.addressLine.trim() || undefined,
@@ -912,7 +930,9 @@ const LeadDetails: React.FC = () => {
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
         childAges: cleanChildAges,
-        budget: Number(qualification.budget),
+        ...(isVisaLead
+          ? { salary: Number(qualification.salary) }
+          : { budget: Number(qualification.budget) }),
         visaRequired: qualification.visaRequired === 'YES',
         preferredHotelCategory: qualification.preferredHotelCategory,
         travelPurpose: qualification.travelPurpose.trim(),
@@ -992,6 +1012,7 @@ const LeadDetails: React.FC = () => {
     }
 
     try {
+      const isVisaLead = (lead?.leadType ?? lead?.lead_type) === 'VISA'
       await leadsService.updateLead(id, {
         status: conversion.canonical,
         subStatus: conversion.subStatus,
@@ -1014,7 +1035,9 @@ const LeadDetails: React.FC = () => {
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
         childAges: cleanChildAges,
-        budget: Number(qualification.budget),
+        ...(isVisaLead
+          ? { salary: Number(qualification.salary) }
+          : { budget: Number(qualification.budget) }),
         visaRequired: qualification.visaRequired === 'YES',
         preferredHotelCategory: qualification.preferredHotelCategory,
         travelPurpose: qualification.travelPurpose.trim(),
@@ -1351,6 +1374,14 @@ const LeadDetails: React.FC = () => {
                       {assignedLeadAgentName || 'Unassigned'}
                     </span>
                   </p>
+                  {assignedByName ? (
+                    <p className='mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-300'>
+                      Assigned By:{' '}
+                      <span className='text-gray-900 dark:text-gray-100'>
+                        {assignedByName}
+                      </span>
+                    </p>
+                  ) : null}
                   {lead.nationality ? (
                     <p className='mt-0.5 text-xs font-medium text-blue-600 dark:text-blue-400'>
                       Nationality: {lead.nationality}
@@ -1637,17 +1668,31 @@ const LeadDetails: React.FC = () => {
                     </div>
                   ) : null}
                   <div>
-                    <label className='field-label'>Budget</label>
+                    <label className='field-label'>
+                      {(lead?.leadType ?? lead?.lead_type) === 'VISA'
+                        ? 'Salary'
+                        : 'Budget'}
+                    </label>
                     <input
                       type='number'
                       min={0}
                       className='field-input no-spinner'
-                      placeholder='Budget'
-                      value={qualification.budget}
+                      placeholder={
+                        (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                          ? 'Salary'
+                          : 'Budget'
+                      }
+                      value={
+                        (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                          ? qualification.salary
+                          : qualification.budget
+                      }
                       onChange={event =>
                         setQualification(prev => ({
                           ...prev,
-                          budget: event.target.value
+                          ...( (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                            ? { salary: event.target.value }
+                            : { budget: event.target.value } )
                         }))
                       }
                     />

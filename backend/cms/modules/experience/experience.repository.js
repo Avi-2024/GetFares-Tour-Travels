@@ -1,4 +1,64 @@
 function createExperienceRepository({ db, schema }) {
+  function isMissingColumnError(error) {
+    if (!error || typeof error !== "object") {
+      return false;
+    }
+    const message = String(error.message || "");
+    return (
+      error.code === "42703" ||
+      error.code === "ER_BAD_FIELD_ERROR" ||
+      /unknown column/i.test(message) ||
+      /does not exist/i.test(message)
+    );
+  }
+
+  function getMissingColumnName(error) {
+    if (!isMissingColumnError(error)) {
+      return null;
+    }
+    const message = String(error.message || "");
+    const mysqlQuoteMatch = message.match(/unknown column\s+'([^']+)'/i);
+    if (mysqlQuoteMatch?.[1]) {
+      return mysqlQuoteMatch[1].split(".").pop();
+    }
+    const mysqlTickMatch = message.match(/unknown column\s+`([^`]+)`/i);
+    if (mysqlTickMatch?.[1]) {
+      return mysqlTickMatch[1].split(".").pop();
+    }
+    const pgMatch = message.match(/column\s+"([^"]+)"/i);
+    if (pgMatch?.[1]) {
+      return pgMatch[1];
+    }
+    return null;
+  }
+
+  async function runWithColumnFallback(input, runner, strictColumns = []) {
+    const mutableInput = { ...input };
+    const removedColumns = new Set();
+    const strictSet = new Set(strictColumns);
+    while (true) {
+      try {
+        return await runner(mutableInput);
+      } catch (error) {
+        const missingColumn = getMissingColumnName(error);
+        if (!missingColumn) {
+          throw error;
+        }
+        if (strictSet.has(missingColumn)) {
+          throw error;
+        }
+        if (
+          !(missingColumn in mutableInput) ||
+          removedColumns.has(missingColumn)
+        ) {
+          throw error;
+        }
+        delete mutableInput[missingColumn];
+        removedColumns.add(missingColumn);
+      }
+    }
+  }
+
   return Object.freeze({
     async findFeaturedPicks(filters = {}) {
       const query = { ...filters };
@@ -17,7 +77,10 @@ function createExperienceRepository({ db, schema }) {
     },
 
     async findDeletedFeaturedPicks(filters = {}) {
-      return db.findMany(schema.featuredTable, { ...filters, is_deleted: true });
+      return db.findMany(schema.featuredTable, {
+        ...filters,
+        is_deleted: true,
+      });
     },
 
     async findFeaturedPickById(id) {
@@ -25,11 +88,19 @@ function createExperienceRepository({ db, schema }) {
     },
 
     async createFeaturedPick(data) {
-      return db.insert(schema.featuredTable, { ...data, is_deleted: false });
+      return runWithColumnFallback(
+        { ...data, is_deleted: false },
+        (safeData) => db.insert(schema.featuredTable, safeData),
+        ["title", "country"],
+      );
     },
 
     async updateFeaturedPick(id, data) {
-      return db.update(schema.featuredTable, id, data);
+      return runWithColumnFallback(
+        data,
+        (safeData) => db.update(schema.featuredTable, id, safeData),
+        ["title", "country"],
+      );
     },
 
     async deleteFeaturedPick(id) {

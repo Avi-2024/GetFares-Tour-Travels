@@ -13,7 +13,7 @@ import {
 import { createMemoryUpload } from "../../crm/core/uploads/index.js";
 
 function createCmsModules({ db, storage, logger, upload }) {
-  const uploadMiddleware = upload || createMemoryUpload({ maxFileSizeMb: 10 });
+  const uploadMiddleware = upload || createMemoryUpload({ maxFileSizeMb: 200 });
 
   const landing = createLandingModule({
     db,
@@ -75,7 +75,7 @@ function registerModules(app, dependencies, options = {}) {
   const upload =
     options.upload ||
     createMemoryUpload({
-      maxFileSizeMb: dependencies.config?.uploads?.maxFileSizeMb || 10,
+      maxFileSizeMb: dependencies.config?.uploads?.maxFileSizeMb || 200,
     });
   const requireAuth =
     options.requireAuth || dependencies.middlewares?.requireAuth;

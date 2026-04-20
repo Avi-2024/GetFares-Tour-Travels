@@ -35,9 +35,6 @@ class CmsMediaDatasource {
     if (sectionKey === "visa-destinations") {
       return "visa_destination";
     }
-    if (sectionKey === "visa-details") {
-      return "visa_detail";
-    }
     if (sectionKey === "creative-toolkit") {
       return "featured_pick";
     }

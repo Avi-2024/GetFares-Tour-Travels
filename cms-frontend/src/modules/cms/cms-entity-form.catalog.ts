@@ -102,15 +102,15 @@ class CmsEntityFormCatalog {
   ];
 
   private static currencyOptions: CmsFieldOption[] = [
-    { label: "INR", value: "INR" },
-    { label: "AED", value: "AED" },
-    { label: "USD", value: "USD" },
-    { label: "EUR", value: "EUR" },
-    { label: "GBP", value: "GBP" },
+    { label: "🇮🇳 INR", value: "INR" },
+    { label: "🇦🇪 AED", value: "AED" },
+    { label: "🇺🇸 USD", value: "USD" },
+    { label: "🇪🇺 EUR", value: "EUR" },
+    { label: "🇬🇧 GBP", value: "GBP" },
   ];
 
   private static countryOptions: CmsFieldOption[] = [
-    "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda",
+    "Global","Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda",
     "Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain",
     "Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan",
     "Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria",
@@ -345,10 +345,31 @@ class CmsEntityFormCatalog {
           groupKey: "basic",
         },
         {
+          key: "startingPriceCurrency",
+          label: "Currency",
+          type: "select",
+          options: CmsEntityFormCatalog.currencyOptions,
+          defaultValue: "INR",
+          groupKey: "basic",
+        },
+        {
           key: "startingPrice",
           label: "Starting Price",
           type: "number",
           groupKey: "basic",
+        },
+        {
+          key: "description",
+          label: "Description",
+          type: "textarea",
+          groupKey: "content",
+        },
+        {
+          key: "highlights",
+          label: "Highlights",
+          type: "list-text",
+          groupKey: "content",
+          addLabel: "Add Highlight",
         },
         {
           key: "inclusions",
@@ -477,6 +498,7 @@ class CmsEntityFormCatalog {
       ],
       fields: [
         { key: "title", label: "Title", type: "text", required: true, groupKey: "basic" },
+        { key: "amountCurrency", label: "Currency", type: "select", options: CmsEntityFormCatalog.currencyOptions, defaultValue: "INR", groupKey: "basic" },
         { key: "amount", label: "Amount", type: "number", required: true, groupKey: "basic" },
         {
           key: "destinationId",
@@ -487,6 +509,19 @@ class CmsEntityFormCatalog {
           helperText: "Optional. Main package can exist without destination.",
         },
         { key: "country", label: "Country", type: "select", options: CmsEntityFormCatalog.countryOptions, groupKey: "basic" },
+        {
+          key: "description",
+          label: "Description",
+          type: "textarea",
+          groupKey: "content",
+        },
+        {
+          key: "highlights",
+          label: "Highlights",
+          type: "list-text",
+          groupKey: "content",
+          addLabel: "Add Highlight",
+        },
         {
           key: "features",
           label: "Features",
@@ -571,6 +606,7 @@ class CmsEntityFormCatalog {
         { key: "location", label: "Location", type: "text", groupKey: "basic" },
         { key: "durationDays", label: "Duration Days", type: "number", groupKey: "basic" },
         { key: "durationNights", label: "Duration Nights", type: "number", groupKey: "basic" },
+        { key: "startingPriceCurrency", label: "Currency", type: "select", options: CmsEntityFormCatalog.currencyOptions, defaultValue: "INR", groupKey: "basic" },
         { key: "startingPrice", label: "Starting Price", type: "number", groupKey: "basic" },
         { key: "transport", label: "Transport", type: "text", groupKey: "basic" },
         { key: "description", label: "Description", type: "textarea", groupKey: "content" },
@@ -709,35 +745,6 @@ class CmsEntityFormCatalog {
         { key: "isActive", label: "Active", type: "switch", groupKey: "status" },
       ],
     },
-    "visa-details": {
-      sectionKey: "visa-details",
-      createSize: "4xl",
-      editSize: "4xl",
-      viewSize: "4xl",
-      supportsCreate: true,
-      supportsEdit: true,
-      supportsDelete: true,
-      titleKey: "label",
-      subtitleKey: "sectionType",
-      statusKey: "sectionType",
-      descriptionKey: "value",
-      mediaEnabled: false,
-      groups: [
-        {
-          key: "basic",
-          title: "Basic Information",
-          description: "Visa detail entry configuration.",
-          columns: 2,
-        },
-      ],
-      fields: [
-        { key: "visaDestinationId", label: "Visa Destination", type: "searchable-select", relationSource: "visa-destinations", required: true, groupKey: "basic" },
-        { key: "sectionType", label: "Section Type", type: "select", required: true, groupKey: "basic", options: [{ label: "Overview", value: "overview" }, { label: "Fact", value: "fact" }, { label: "Requirement", value: "requirement" }, { label: "Note", value: "note" }] },
-        { key: "label", label: "Label", type: "text", required: true, groupKey: "basic" },
-        { key: "value", label: "Value", type: "textarea", required: true, groupKey: "basic" },
-        { key: "displayOrder", label: "Display Order", type: "number", required: true, groupKey: "basic" },
-      ],
-    },
     "creative-toolkit": {
       sectionKey: "creative-toolkit",
       createSize: "5xl",
@@ -796,6 +803,7 @@ class CmsEntityFormCatalog {
         { key: "tags", label: "Tags", type: "multi-select", groupKey: "content", options: [{ label: "Flights Included", value: "Flights Included" }, { label: "Family Friendly", value: "Family Friendly" }, { label: "Best Seller", value: "Best Seller" }, { label: "Express", value: "Express" }] },
         { key: "highlights", label: "Highlights", type: "multi-select", groupKey: "content", options: [{ label: "Fast Processing", value: "Fast Processing" }, { label: "Limited Slots", value: "Limited Slots" }, { label: "Premium Stay", value: "Premium Stay" }] },
         { key: "rating", label: "Rating", type: "number", groupKey: "pricing" },
+        { key: "offerCurrency", label: "Offer Currency", type: "select", options: CmsEntityFormCatalog.currencyOptions, defaultValue: "INR", groupKey: "pricing" },
         { key: "originalPrice", label: "Original Price", type: "number", groupKey: "pricing" },
         { key: "discountedPrice", label: "Discounted Price", type: "number", groupKey: "pricing" },
         { key: "expiresOn", label: "Expires On", type: "date", groupKey: "pricing" },

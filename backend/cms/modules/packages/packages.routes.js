@@ -34,6 +34,7 @@ function createCmsPackagesRoutes({ controller, upload }) {
   router.route("/sub").post(upload.any(), controller.createSubPackage);
   router
     .route("/sub/:id")
+    .get(controller.getSubPackageById)
     .put(upload.any(), controller.updateSubPackage)
     .delete(controller.deleteSubPackage);
   router.route("/sub/:id/restore").patch(controller.restoreSubPackage);

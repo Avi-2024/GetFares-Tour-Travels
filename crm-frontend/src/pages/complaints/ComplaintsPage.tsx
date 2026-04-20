@@ -663,6 +663,9 @@ const ComplaintsPage = () => {
               {/* Mobile cards */}
               <div className='divide-y divide-gray-100 dark:divide-gray-800 sm:hidden'>
                 {displayRows.map(row => (
+                  (() => {
+                    const bookingMeta = bookingMetaById[row.bookingId || '']
+                    return (
                   <button
                     key={row.id}
                     onClick={() => navigate(`/complaints/${row.id}`)}
@@ -673,6 +676,11 @@ const ComplaintsPage = () => {
                         <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                           {row.issueType}
                         </p>
+                        {bookingMeta?.customerName ? (
+                          <p className='mt-1 text-xs font-medium text-gray-700 dark:text-gray-200 truncate'>
+                            {bookingMeta.customerName}
+                          </p>
+                        ) : null}
                         <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                           {formatBookingDisplay(row.bookingId)}
                         </p>
@@ -685,6 +693,8 @@ const ComplaintsPage = () => {
                       </span>
                     </div>
                   </button>
+                    )
+                  })()
                 ))}
               </div>
 

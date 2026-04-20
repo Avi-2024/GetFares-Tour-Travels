@@ -75,6 +75,20 @@ const formatPaxSummary = (lead: LeadListItem) => {
   return `${adultLabel}, ${children} ${children === 1 ? "Child" : "Children"}`;
 };
 
+const formatMoney = (amount: number, currency = 'INR') => {
+  const normalized = String(currency || 'INR').toUpperCase()
+  try {
+    return new Intl.NumberFormat(normalized === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency: normalized,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(Number.isFinite(amount) ? amount : 0)
+  } catch (_error) {
+    return `${(Number.isFinite(amount) ? amount : 0).toLocaleString()} ${normalized}`
+  }
+}
+
 
 const truncateEmail = (value: string, maxLength = 26) => {
   const safe = (value || "").trim();
@@ -460,6 +474,19 @@ const Leads: React.FC = () => {
     return source.includes("visa") ? "Visa" : "Holidays";
   };
 
+const getLeadMoneyLabel = (lead: LeadListItem) => {
+  const leadType = String(lead.leadType ?? lead.lead_type ?? '').trim().toUpperCase()
+  const currency = 'INR'
+  if (leadType === 'VISA') {
+    const value = Number(lead.salary ?? 0)
+    if (!value) return null
+    return { label: 'Salary', value: formatMoney(value, currency) }
+  }
+  const value = Number(lead.budget ?? 0)
+  if (!value) return null
+  return { label: 'Budget', value: formatMoney(value, currency) }
+}
+
   return (
     <div className="space-y-4 sm:space-y-6 min-w-0">
       <div className=" mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0">
@@ -831,6 +858,20 @@ const Leads: React.FC = () => {
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               {formatPaxSummary(lead)}
                             </p>
+                            {(() => {
+                              const money = getLeadMoneyLabel(lead)
+                              if (!money) return null
+                              return (
+                                <p className="text-xs text-gray-600 dark:text-gray-300">
+                                  {money.label}: {money.value}
+                                </p>
+                              )
+                            })()}
+                            {lead.consultant && lead.consultant !== "Unassigned" && (
+                              <p className="text-xs text-gray-700 dark:text-gray-300">
+                                Assigned to: {lead.consultant}
+                              </p>
+                            )}
                             {lead.assignedBy && (
                               <p className="text-xs text-blue-600 dark:text-blue-400">
                                 Assigned by: {lead.assignedBy}
@@ -937,6 +978,21 @@ const Leads: React.FC = () => {
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {formatPaxSummary(lead)}
                         </p>
+                        {(() => {
+                          const money = getLeadMoneyLabel(lead)
+                          if (!money) return null
+                          return (
+                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                              <span className="text-gray-500">{money.label}:</span>{" "}
+                              {money.value}
+                            </p>
+                          )
+                        })()}
+                        {lead.consultant && lead.consultant !== "Unassigned" && (
+                          <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
+                            Assigned to: {lead.consultant}
+                          </p>
+                        )}
                       
                         {lead.assignedBy && (
                           <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">

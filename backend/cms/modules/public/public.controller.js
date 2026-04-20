@@ -176,10 +176,7 @@ function createPublicCmsController({
       const packages = await packagesService.listMainPackages(
         country ? { country } : {},
       );
-      res.json({
-        success: true,
-        data: packages.filter((pkg) => pkg.publishToWebsite),
-      });
+      res.json({ success: true, data: packages });
     }),
 
     listSubPackages: asyncHandler(async (req, res) => {

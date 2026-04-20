@@ -955,6 +955,7 @@ function createLeadsService({ repository, logger, events }) {
     const assignedTo = payload.assignedTo || null;
     const temperature = determineLeadTemperature(payload);
     const leadCountry = payload.leadCountry ?? payload.country ?? null;
+    const normalizedLeadType = normalizeLeadType(payload.leadType ?? payload.type);
 
     const mapped = {
       full_name: payload.fullName || null,
@@ -972,10 +973,13 @@ function createLeadsService({ repository, logger, events }) {
       travel_date: payload.travelDate || null,
       travel_end_date: payload.travelEndDate || null,
       budget: payload.budget ?? null,
+      salary:
+        payload.salary ??
+        (normalizedLeadType === "VISA" ? (payload.budget ?? null) : null),
       adults_count: payload.adultsCount ?? 1,
       children_count: payload.childrenCount ?? 0,
       visa_required: payload.visaRequired ?? false,
-      lead_type: normalizeLeadType(payload.leadType ?? payload.type),
+      lead_type: normalizedLeadType,
       preferred_hotel_category: normalizeHotelCategory(
         payload.preferredHotelCategory,
       ),
@@ -1071,6 +1075,9 @@ function createLeadsService({ repository, logger, events }) {
     }
     if (payload.budget !== undefined) {
       mapped.budget = payload.budget;
+    }
+    if (payload.salary !== undefined) {
+      mapped.salary = payload.salary;
     }
     if (payload.source !== undefined) {
       mapped.source = payload.source;
@@ -1264,6 +1271,7 @@ function createLeadsService({ repository, logger, events }) {
       if (roleName === ASSIGNMENT_ROLES.AGENT && requiredLeadType) {
         const perfectMatch = [];
         const typeOnlyMatch = [];
+        const typeAnyCountryMatch = [];
         
         for (const candidate of candidates) {
           const agentCountry = normalizeCategory(candidate.country);
@@ -1284,6 +1292,8 @@ function createLeadsService({ repository, logger, events }) {
           else if (!agentCountry) {
             typeOnlyMatch.push(candidate);
           }
+          // Priority 3: Type match regardless of country
+          typeAnyCountryMatch.push(candidate);
         }
         
         // Select best pool
@@ -1296,6 +1306,9 @@ function createLeadsService({ repository, logger, events }) {
         } else if (typeOnlyMatch.length > 0) {
           selectedPool = typeOnlyMatch;
           tier = 'TYPE_ONLY';
+        } else if (typeAnyCountryMatch.length > 0) {
+          selectedPool = typeAnyCountryMatch;
+          tier = 'TYPE_ANY_COUNTRY';
         }
         
         logger.debug(
@@ -1305,6 +1318,7 @@ function createLeadsService({ repository, logger, events }) {
             tier,
             perfectCount: perfectMatch.length,
             typeOnlyCount: typeOnlyMatch.length,
+            typeAnyCountryCount: typeAnyCountryMatch.length,
             selectedCount: selectedPool.length
           },
           'Agent pool selected by 2-tier priority'

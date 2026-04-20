@@ -360,6 +360,7 @@ function createLeadsRepository({ db, logger, schema }) {
       travelDate: row.travel_date ?? row.travelDate ?? null,
       travelEndDate: row.travel_end_date ?? row.travelEndDate ?? null,
       budget: row.budget ?? null,
+      salary: row.salary ?? null,
       adultsCount: row.adults_count ?? row.adultsCount ?? 1,
       childrenCount: row.children_count ?? row.childrenCount ?? 0,
       childAges:

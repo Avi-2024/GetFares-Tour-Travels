@@ -4,7 +4,10 @@ import { createDashboardService } from './dashboard.service.js';
 import { createDashboardRepository } from './dashboard.repository.js';
 
 function createDashboardModule({ dependencies }) {
-  const repository = createDashboardRepository(dependencies);
+  const repository = createDashboardRepository({
+    ...dependencies,
+    currencyService: dependencies.services?.currency,
+  });
   const service = createDashboardService(
     repository,
     dependencies.services?.reports,

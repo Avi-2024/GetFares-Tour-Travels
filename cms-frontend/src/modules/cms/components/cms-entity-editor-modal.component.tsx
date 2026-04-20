@@ -186,6 +186,44 @@ class CmsEntityEditorModalComponent extends Component<
     return [];
   }
 
+  private normalizeDateInputValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    const text = String(value).trim();
+    if (!text) {
+      return "";
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return text;
+    }
+    const slashMatch = text.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/);
+    if (slashMatch) {
+      const [, mm, dd, yyyy] = slashMatch;
+      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    }
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return "";
+  }
+
+  private mapApiErrorMessage(error: unknown, fallbackMessage: string): string {
+    const rawMessage =
+      error instanceof Error ? error.message
+      : typeof error === "string" ? error
+      : fallbackMessage;
+    const normalized = String(rawMessage || "").trim();
+    if (!normalized) {
+      return fallbackMessage;
+    }
+    if (/unknown column\s+'offer_currency'/i.test(normalized)) {
+      return "Schema missing `offer_currency`. Run latest CMS migration and retry.";
+    }
+    return normalized;
+  }
+
   private getRawValue(entry: CmsTableEntry, key: string): unknown {
     if (entry.raw[key] !== undefined) {
       return entry.raw[key];
@@ -232,7 +270,10 @@ class CmsEntityEditorModalComponent extends Component<
       const rows = await this.cmsService.listAdminMainPackages();
       return rows.map((item) => ({
         value: item.id,
-        label: item.row.cells.title?.value || item.row.cells.mainPackage?.value || item.id,
+        label:
+          item.row.cells.title?.value ||
+          item.row.cells.mainPackage?.value ||
+          item.id,
       }));
     }
 
@@ -266,7 +307,10 @@ class CmsEntityEditorModalComponent extends Component<
     if (source === "main-packages") {
       return rows.map((item) => ({
         value: item.id,
-        label: item.row.cells.title?.value || item.row.cells.mainPackage?.value || item.id,
+        label:
+          item.row.cells.title?.value ||
+          item.row.cells.mainPackage?.value ||
+          item.id,
       }));
     }
 
@@ -324,9 +368,15 @@ class CmsEntityEditorModalComponent extends Component<
           this.props.sectionKey === "main-packages" &&
           field.key === "title"
         ) {
-          value = this.getRawValue(this.props.entry as CmsTableEntry, "packageName");
+          value = this.getRawValue(
+            this.props.entry as CmsTableEntry,
+            "packageName",
+          );
           if (value === undefined) {
-            value = this.getRawValue(this.props.entry as CmsTableEntry, "package_name");
+            value = this.getRawValue(
+              this.props.entry as CmsTableEntry,
+              "package_name",
+            );
           }
           if (value === undefined) {
             value = this.getRawValue(this.props.entry as CmsTableEntry, "name");
@@ -337,7 +387,10 @@ class CmsEntityEditorModalComponent extends Component<
           this.props.sectionKey === "main-packages" &&
           field.key === "amount"
         ) {
-          value = this.getRawValue(this.props.entry as CmsTableEntry, "startingPrice");
+          value = this.getRawValue(
+            this.props.entry as CmsTableEntry,
+            "startingPrice",
+          );
           if (value === undefined) {
             value = this.getRawValue(
               this.props.entry as CmsTableEntry,
@@ -346,7 +399,10 @@ class CmsEntityEditorModalComponent extends Component<
           }
         }
         if (value === undefined && field.key === "categories") {
-          value = this.getRawValue(this.props.entry as CmsTableEntry, "category");
+          value = this.getRawValue(
+            this.props.entry as CmsTableEntry,
+            "category",
+          );
         }
         if (value === undefined && field.key === "seasonFocus") {
           value = this.getRawValue(this.props.entry as CmsTableEntry, "season");
@@ -370,6 +426,10 @@ class CmsEntityEditorModalComponent extends Component<
         }
         if (field.type === "list-text" || field.type === "list-object") {
           formValues[field.key] = this.parseArrayValue(value);
+          return;
+        }
+        if (field.type === "date") {
+          formValues[field.key] = this.normalizeDateInputValue(value);
           return;
         }
         formValues[field.key] = String(value);
@@ -415,19 +475,63 @@ class CmsEntityEditorModalComponent extends Component<
       const media = await this.cmsService
         .listMedia(entityType, this.props.entry.id)
         .catch(() => []);
-      const mapped = media.map((item) => ({
-        id: item.id,
-        clientId: item.id,
-        mediaUrl: item.mediaUrl,
-        thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
-        title: item.title || "",
-        altText: item.altText || "",
-        isPrimary: item.isPrimary,
-        mediaKind: item.mediaKind || "image",
-        pendingFile: null,
-        previewUrl: undefined,
-      }));
-      this.setState({ mediaItems: mapped });
+      if (this.props.sectionKey === "destinations") {
+        const titleImageUrl = this.toNonEmptyString(
+          this.getRawValue(this.props.entry, "titleImageUrl") ??
+            this.getRawValue(this.props.entry, "thumbnailUrl") ??
+            this.getRawValue(this.props.entry, "heroImageUrl"),
+        );
+        const mappedGallery = media
+          .filter(
+            (item) => this.toNonEmptyString(item.mediaUrl) !== titleImageUrl,
+          )
+          .slice(0, 4)
+          .map((item) => ({
+            id: item.id,
+            clientId: item.id,
+            mediaUrl: item.mediaUrl,
+            thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+            title: item.title || "",
+            altText: item.altText || "",
+            isPrimary: false,
+            mediaKind: item.mediaKind || "image",
+            pendingFile: null,
+            previewUrl: undefined,
+          }));
+        const primaryItem =
+          titleImageUrl ?
+            {
+              id: null,
+              clientId: "destination-title-image",
+              mediaUrl: titleImageUrl,
+              thumbnailUrl: titleImageUrl,
+              title: "Title Image",
+              altText: "Title Image",
+              isPrimary: true,
+              mediaKind: "image" as const,
+              pendingFile: null,
+              previewUrl: undefined,
+            }
+          : null;
+        this.setState({
+          mediaItems:
+            primaryItem ? [primaryItem, ...mappedGallery] : mappedGallery,
+        });
+      } else {
+        const mapped = media.map((item) => ({
+          id: item.id,
+          clientId: item.id,
+          mediaUrl: item.mediaUrl,
+          thumbnailUrl: item.thumbnailUrl || item.mediaUrl,
+          title: item.title || "",
+          altText: item.altText || "",
+          isPrimary: item.isPrimary,
+          mediaKind: item.mediaKind || "image",
+          pendingFile: null,
+          previewUrl: undefined,
+        }));
+        this.setState({ mediaItems: mapped });
+      }
     }
 
     this.setState({
@@ -549,12 +653,16 @@ class CmsEntityEditorModalComponent extends Component<
     });
     const mediaItems = mediaItemsOverride ?? this.state.mediaItems;
     const primary = mediaItems.find((item) => item.isPrimary) ?? mediaItems[0];
-    if (primary) {
-      if (this.props.sectionKey === "landing-places")
-        payload.imageUrl = primary.mediaUrl;
+      if (primary) {
+        if (this.props.sectionKey === "landing-places")
+          payload.imageUrl = primary.mediaUrl;
       if (this.props.sectionKey === "destinations") {
+        payload.titleImageUrl = primary.mediaUrl;
         payload.heroImageUrl = primary.mediaUrl;
         payload.thumbnailUrl = primary.thumbnailUrl || primary.mediaUrl;
+        payload.gallery = mediaItems
+          .filter((item) => !item.isPrimary)
+          .map((item) => item.mediaUrl);
       }
       if (this.props.sectionKey === "visa-destinations") {
         payload.imageUrl = primary.mediaUrl;
@@ -636,8 +744,12 @@ class CmsEntityEditorModalComponent extends Component<
     for (const mediaId of this.state.removedMediaIds) {
       await this.cmsService.deleteMedia(mediaId);
     }
-    for (let index = 0; index < this.state.mediaItems.length; index += 1) {
-      const item = this.state.mediaItems[index];
+    const mediaItemsToSync =
+      this.props.sectionKey === "destinations" ?
+        this.state.mediaItems.filter((item) => !item.isPrimary)
+      : this.state.mediaItems;
+    for (let index = 0; index < mediaItemsToSync.length; index += 1) {
+      const item = mediaItemsToSync[index];
       let mediaUrl = item.mediaUrl;
       let thumbnailUrl = item.thumbnailUrl || item.mediaUrl;
       const mediaKind = item.mediaKind ?? "image";
@@ -740,8 +852,7 @@ class CmsEntityEditorModalComponent extends Component<
       this.setState({ isSubmitting: false });
       this.props.onClose();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to save.";
+      const message = this.mapApiErrorMessage(error, "Failed to save.");
       this.setState({
         isSubmitting: false,
         mediaErrorMessage: message,

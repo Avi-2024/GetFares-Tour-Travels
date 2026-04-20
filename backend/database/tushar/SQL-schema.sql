@@ -2567,4 +2567,58 @@ CREATE INDEX idx_cms_media_assets_entity
 CREATE UNIQUE INDEX ux_cms_media_assets_entity_url
   ON cms_media_assets(entity_type, entity_id, media_url(255));
 
+-- =========================================
+-- 2026-04-17 CMS currency/content updates
+-- =========================================
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'packages'
+     AND column_name = 'starting_price_currency') = 0,
+  'ALTER TABLE packages ADD COLUMN starting_price_currency VARCHAR(10) NOT NULL DEFAULT ''INR'' AFTER starting_price',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'main_packages'
+     AND column_name = 'amount_currency') = 0,
+  'ALTER TABLE main_packages ADD COLUMN amount_currency VARCHAR(10) NOT NULL DEFAULT ''INR'' AFTER amount',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'main_packages'
+     AND column_name = 'description') = 0,
+  'ALTER TABLE main_packages ADD COLUMN description TEXT NULL AFTER country',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'main_packages'
+     AND column_name = 'highlights') = 0,
+  'ALTER TABLE main_packages ADD COLUMN highlights JSON NULL AFTER description',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'featured_picks'
+     AND column_name = 'offer_currency') = 0,
+  'ALTER TABLE featured_picks ADD COLUMN offer_currency VARCHAR(10) NOT NULL DEFAULT ''INR'' AFTER badge_text',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 

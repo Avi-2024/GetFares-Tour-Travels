@@ -126,12 +126,18 @@ class CmsSectionEntryMapper {
           ),
           destination: new CmsTableCell(this.accessor.getText(record, "destination")),
           price: new CmsTableCell(
-            this.accessor.getText(
+            `${this.accessor.getText(
+              record,
+              "startingPriceCurrency",
+              "starting_price_currency",
+              "priceCurrency",
+              "price_currency",
+            )} ${this.accessor.getText(
               record,
               "startingPrice",
               "starting_price",
               "price",
-            ),
+            )}`.trim(),
           ),
           publishState: new CmsTableCell(
             isPublished ? "Published" : "Not Published",
@@ -177,7 +183,13 @@ class CmsSectionEntryMapper {
             ),
           ),
           amount: new CmsTableCell(
-            this.accessor.getText(record, "amount", "startingPrice", "starting_price"),
+            `${this.accessor.getText(
+              record,
+              "amountCurrency",
+              "amount_currency",
+              "startingPriceCurrency",
+              "starting_price_currency",
+            )} ${this.accessor.getText(record, "amount", "startingPrice", "starting_price")}`.trim(),
           ),
           destination: new CmsTableCell(
             this.accessor.getText(
@@ -255,7 +267,11 @@ class CmsSectionEntryMapper {
               ),
               duration: new CmsTableCell(this.accessor.getText(subPackage, "duration")),
               priceBand: new CmsTableCell(
-                this.accessor.getText(subPackage, "startingPrice", "starting_price"),
+                `${this.accessor.getText(
+                  subPackage,
+                  "startingPriceCurrency",
+                  "starting_price_currency",
+                )} ${this.accessor.getText(subPackage, "startingPrice", "starting_price")}`.trim(),
               ),
               displayOrder: new CmsTableCell(`#${displayOrder}`),
               updatedAt: new CmsTableCell(
@@ -307,7 +323,11 @@ class CmsSectionEntryMapper {
           ),
           duration: new CmsTableCell(this.accessor.getText(record, "duration")),
           priceBand: new CmsTableCell(
-            this.accessor.getText(record, "startingPrice", "starting_price"),
+            `${this.accessor.getText(
+              record,
+              "startingPriceCurrency",
+              "starting_price_currency",
+            )} ${this.accessor.getText(record, "startingPrice", "starting_price")}`.trim(),
           ),
           displayOrder: new CmsTableCell(`#${displayOrder}`),
           updatedAt: new CmsTableCell(
@@ -545,11 +565,11 @@ class CmsSectionEntryMapper {
       );
       const originalOffer =
         originalPrice !== null ?
-          `${originalPrice}`
+          `${this.accessor.getText(record, "offerCurrency", "offer_currency")} ${originalPrice}`.trim()
         : this.accessor.getText(record, "originalPrice", "original_price");
       const discountedOffer =
         discountedPrice !== null ?
-          `${discountedPrice}`
+          `${this.accessor.getText(record, "offerCurrency", "offer_currency")} ${discountedPrice}`.trim()
         : this.accessor.getText(record, "discountedPrice", "discounted_price");
 
       entries.push({

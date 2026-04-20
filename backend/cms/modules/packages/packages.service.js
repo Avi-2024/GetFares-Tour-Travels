@@ -60,19 +60,55 @@ function createCmsPackagesService({ repository }) {
     if (!row) return null;
     const galleryImageUrls = parseJsonValue(row.gallery_image_urls, []);
     const itinerary = parseJsonValue(row.itinerary, null);
+    const features = normalizeObjectList(row.features, (item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      return {
+        title: normalizeText(item.title),
+        description: normalizeText(item.description),
+      };
+    });
+    const itineraries = normalizeObjectList(row.itineraries, (item, index) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      return {
+        day: toNumber(item.day, index + 1) || index + 1,
+        title: normalizeText(item.title),
+        description: normalizeText(item.description),
+        features: normalizeCsvList(item.features),
+      };
+    });
     return {
       id: row.id,
       name: row.name,
+      title: normalizeText(row.title || row.name),
       destination: row.destination,
       duration: row.duration,
       startingPrice: parseFloat(row.starting_price) || 0,
+      startingPriceCurrency: normalizeText(row.starting_price_currency || "INR"),
       inclusions: row.inclusions,
       exclusions: row.exclusions,
       hotelDetails: row.hotel_details,
       packageCategory: row.package_category,
       bannerImageUrl: row.banner_image_url,
+      image: row.image || row.banner_image_url || null,
       galleryImageUrls: Array.isArray(galleryImageUrls) ? galleryImageUrls : [],
       itinerary,
+      rating: toNumber(row.rating, 0) || 0,
+      location: normalizeText(row.location),
+      durationDays: toNumber(row.duration_days, 0) || 0,
+      durationNights: toNumber(row.duration_nights, 0) || 0,
+      transport: normalizeText(row.transport),
+      description: normalizeText(row.description),
+      snapshot: normalizeText(row.snapshot),
+      features,
+      itineraries,
+      highlights: normalizeStringList(row.highlights),
+      paymentTerms: normalizeStringList(row.payment_terms),
+      tnc: normalizeStringList(row.tnc),
+      impNotes: normalizeStringList(row.imp_notes),
       validFrom: row.valid_from,
       validTo: row.valid_to,
       cancellationPolicy: row.cancellation_policy,
@@ -126,6 +162,9 @@ function createCmsPackagesService({ repository }) {
         normalizeText(
           row.destination_name || row.destination || row.legacy_destination,
         ) || "--",
+      amountCurrency: normalizeText(row.amount_currency || "INR"),
+      description: normalizeText(row.description),
+      highlights: normalizeStringList(row.highlights),
       features,
       inclusions,
       metaTitle: row.meta_title || null,
@@ -140,6 +179,8 @@ function createCmsPackagesService({ repository }) {
 
   function toSubPackage(row) {
     if (!row) return null;
+    const galleryImageUrls = parseJsonValue(row.gallery_image_urls, []);
+    const itinerary = parseJsonValue(row.itinerary, null);
     const features = normalizeObjectList(row.features, (item) => {
       if (!item || typeof item !== "object") {
         return null;
@@ -172,16 +213,24 @@ function createCmsPackagesService({ repository }) {
       id: row.id,
       mainPackageId: row.main_package_id,
       packageId: row.id,
+      name: normalizeText(row.name),
       title: normalizeText(
         row.title || row.name || row.package_name || row.legacy_package_name,
       ),
+      destination: normalizeText(row.destination),
       image: row.image || row.banner_image_url || null,
+      bannerImageUrl: row.banner_image_url || row.image || null,
+      galleryImageUrls: Array.isArray(galleryImageUrls) ? galleryImageUrls : [],
       rating: toNumber(row.rating, 0) || 0,
       location: row.location || null,
       durationDays: toNumber(row.duration_days, 0) || 0,
       durationNights: toNumber(row.duration_nights, 0) || 0,
       duration: row.duration || null,
       startingPrice: toNumber(row.starting_price, 0) || 0,
+      startingPriceCurrency: normalizeText(row.starting_price_currency || "INR"),
+      itinerary,
+      validFrom: row.valid_from || null,
+      validTo: row.valid_to || null,
       transport: row.transport || null,
       description: row.description || null,
       snapshot: row.snapshot || null,
@@ -194,6 +243,13 @@ function createCmsPackagesService({ repository }) {
       cancellationPolicy: normalizeStringList(row.cancellation_policy),
       tnc: normalizeStringList(row.tnc),
       impNotes: normalizeStringList(row.imp_notes),
+      hotelDetails: normalizeText(row.hotel_details),
+      packageCategory: normalizeText(row.package_category),
+      status: normalizeText(row.status),
+      publishToWebsite: toBoolean(row.publish_to_website, false),
+      websiteSlug: normalizeText(row.website_slug),
+      isSoldOut: toBoolean(row.is_sold_out, false),
+      isDeleted: toBoolean(row.is_deleted, false),
       metaTitle: row.meta_title || null,
       metaDescription: row.meta_description || null,
       keywords: row.keywords || null,
@@ -268,9 +324,15 @@ function createCmsPackagesService({ repository }) {
 
       const row = await repository.createPackage({
         name,
+        title: name,
         destination,
         duration: normalizeText(data.duration),
         starting_price: toNumber(data.startingPrice, 0),
+        starting_price_currency: normalizeText(
+          data.startingPriceCurrency || "INR",
+        ),
+        description: normalizeText(data.description),
+        highlights: Array.isArray(data.highlights) ? data.highlights : [],
         inclusions: normalizeText(data.inclusions),
         exclusions: normalizeText(data.exclusions),
         itinerary:
@@ -344,6 +406,17 @@ function createCmsPackagesService({ repository }) {
         updates.duration = normalizeText(data.duration);
       if (data.startingPrice !== undefined)
         updates.starting_price = toNumber(data.startingPrice, 0);
+      if (data.startingPriceCurrency !== undefined) {
+        updates.starting_price_currency = normalizeText(
+          data.startingPriceCurrency || "INR",
+        );
+      }
+      if (data.description !== undefined) {
+        updates.description = normalizeText(data.description);
+      }
+      if (data.highlights !== undefined) {
+        updates.highlights = Array.isArray(data.highlights) ? data.highlights : [];
+      }
       if (data.inclusions !== undefined)
         updates.inclusions = normalizeText(data.inclusions);
       if (data.exclusions !== undefined)
@@ -453,6 +526,21 @@ function createCmsPackagesService({ repository }) {
       return toMainPackage(row);
     },
 
+    async getSubPackageById(id) {
+      const row = await repository.findSubPackageById(id);
+      if (!row || row.is_deleted) {
+        throw new AppError(404, "Sub package not found", "NOT_FOUND");
+      }
+      if (!row.main_package_id) {
+        throw new AppError(
+          400,
+          "Package is not linked with main package",
+          "INVALID_SUB_PACKAGE",
+        );
+      }
+      return toSubPackage(row);
+    },
+
     async createMainPackage(data) {
       const destinationId = normalizeText(data.destinationId);
       const destination = destinationId ?
@@ -476,6 +564,9 @@ function createCmsPackagesService({ repository }) {
             null,
           title,
           amount: toNumber(data.amount, 0),
+          amount_currency: normalizeText(data.amountCurrency || "INR"),
+          description: normalizeText(data.description),
+          highlights: Array.isArray(data.highlights) ? data.highlights : [],
           features: Array.isArray(data.features) ? data.features : [],
           inclusions: Array.isArray(data.inclusions) ? data.inclusions : [],
           meta_title: normalizeText(data.metaTitle),
@@ -488,7 +579,7 @@ function createCmsPackagesService({ repository }) {
         const message = String(error?.message || "");
         if (
           (/unknown column/i.test(message) || /does not exist/i.test(message)) &&
-          /(title|amount|features|inclusions)/i.test(message)
+          /(title|amount|features|inclusions|amount_currency|description|highlights)/i.test(message)
         ) {
           throw new AppError(
             500,
@@ -561,6 +652,15 @@ function createCmsPackagesService({ repository }) {
       if (data.amount !== undefined) {
         updates.amount = toNumber(data.amount, 0);
       }
+      if (data.amountCurrency !== undefined) {
+        updates.amount_currency = normalizeText(data.amountCurrency || "INR");
+      }
+      if (data.description !== undefined) {
+        updates.description = normalizeText(data.description);
+      }
+      if (data.highlights !== undefined) {
+        updates.highlights = Array.isArray(data.highlights) ? data.highlights : [];
+      }
       if (data.features !== undefined) {
         updates.features = Array.isArray(data.features) ? data.features : [];
       }
@@ -588,7 +688,7 @@ function createCmsPackagesService({ repository }) {
         const message = String(error?.message || "");
         if (
           (/unknown column/i.test(message) || /does not exist/i.test(message)) &&
-          /(title|amount|features|inclusions)/i.test(message)
+          /(title|amount|features|inclusions|amount_currency|description|highlights)/i.test(message)
         ) {
           throw new AppError(
             500,
@@ -716,6 +816,9 @@ function createCmsPackagesService({ repository }) {
             return `${days}D/${nights}N`;
           })(),
         starting_price: toNumber(data.startingPrice, 0),
+        starting_price_currency: normalizeText(
+          data.startingPriceCurrency || "INR",
+        ),
         transport: normalizeText(data.transport),
         description: normalizeText(data.description),
         snapshot: normalizeText(data.snapshot),
@@ -786,6 +889,11 @@ function createCmsPackagesService({ repository }) {
       if (data.duration !== undefined) updates.duration = normalizeText(data.duration);
       if (data.startingPrice !== undefined) {
         updates.starting_price = toNumber(data.startingPrice, 0);
+      }
+      if (data.startingPriceCurrency !== undefined) {
+        updates.starting_price_currency = normalizeText(
+          data.startingPriceCurrency || "INR",
+        );
       }
       if (data.transport !== undefined) updates.transport = normalizeText(data.transport);
       if (data.description !== undefined) {
