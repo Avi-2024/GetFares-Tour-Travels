@@ -82,16 +82,20 @@ const TopbarComponent = ({
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <div className="hidden items-center gap-2 xl:flex">
-            <img
-              alt="Tabby"
-              className="h-5 w-auto object-contain"
-              src="/tabby.svg"
-            />
-            <img
-              alt="Tamara"
-              className="h-5 w-auto object-contain"
-              src="/tamara.svg"
-            />
+            <div className="inline-flex h-[38px] items-center rounded-full border border-[var(--border)] bg-(--surface) px-3 shadow-[var(--shadow-soft)]">
+              <img
+                alt="Tabby"
+                className="h-5 w-auto object-contain"
+                src="/tabby.svg"
+              />
+            </div>
+            <div className="inline-flex h-[38px] items-center rounded-full border border-[var(--border)] bg-(--surface) px-3 shadow-[var(--shadow-soft)]">
+              <img
+                alt="Tamara"
+                className="h-5 w-auto object-contain"
+                src="/tamara.svg"
+              />
+            </div>
           </div>
           <ThemeToggle />
 
