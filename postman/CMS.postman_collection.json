@@ -11,7 +11,7 @@
     },
     {
       "key": "publicCmsBasePath",
-      "value": "/public/cms"
+      "value": "/api/public/cms"
     },
     {
       "key": "cmsEmail",
@@ -3549,22 +3549,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/home",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "home"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/home?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3585,22 +3570,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/landing-places",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "landing-places"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/landing-places?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3621,34 +3591,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "destinations"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    },
-                    {
-                      "key": "region",
-                      "value": "{{region}}"
-                    },
-                    {
-                      "key": "category",
-                      "value": "{{category}}"
-                    },
-                    {
-                      "key": "isPopular",
-                      "value": "true"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations?region={{region}}&category={{category}}&isPopular=true&country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3664,23 +3607,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "destinations",
-                    "{{destinationSlug}}"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3696,24 +3623,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/highlights",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "destinations",
-                    "{{destinationSlug}}",
-                    "highlights"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/highlights?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3729,24 +3639,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/media",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "destinations",
-                    "{{destinationSlug}}",
-                    "media"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/media?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3762,24 +3655,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/season-cards",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "destinations",
-                    "{{destinationSlug}}",
-                    "season-cards"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/season-cards?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3795,24 +3671,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/packages",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "destinations",
-                    "{{destinationSlug}}",
-                    "packages"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/destinations/{{destinationSlug}}/packages?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3833,23 +3692,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/packages/published",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "packages",
-                    "published"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/packages/published?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3865,23 +3708,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/packages/main",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "packages",
-                    "main"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/packages/main?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3897,25 +3724,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/packages/main/{{mainPackageId}}/sub",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "packages",
-                    "main",
-                    "{{mainPackageId}}",
-                    "sub"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/packages/main/{{mainPackageId}}/sub?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3936,22 +3745,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "visa-destinations"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3967,23 +3761,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations/{{visaSlug}}",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "visa-destinations",
-                    "{{visaSlug}}"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations/{{visaSlug}}?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }
@@ -3999,24 +3777,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations/{{visaSlug}}/details",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "visa-destinations",
-                    "{{visaSlug}}",
-                    "details"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/visa-destinations/{{visaSlug}}/details?country={{country}}&sectionType=",
                 "auth": {
                   "type": "noauth"
                 }
@@ -4037,30 +3798,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/featured-picks",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "featured-picks"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    },
-                    {
-                      "key": "campaignType",
-                      "value": "featured"
-                    },
-                    {
-                      "key": "sectionKey",
-                      "value": "featured-hot-picks"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/featured-picks?country={{country}}&campaignType=&sectionKey=",
                 "auth": {
                   "type": "noauth"
                 }
@@ -4076,30 +3814,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/creative-toolkit",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "creative-toolkit"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    },
-                    {
-                      "key": "campaignType",
-                      "value": "creative"
-                    },
-                    {
-                      "key": "sectionKey",
-                      "value": "creative-toolkit"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/creative-toolkit?country={{country}}&campaignType=&sectionKey=",
                 "auth": {
                   "type": "noauth"
                 }
@@ -4115,30 +3830,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/season-cards",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "season-cards"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    },
-                    {
-                      "key": "destinationId",
-                      "value": "{{destinationId}}"
-                    },
-                    {
-                      "key": "destinationSlug",
-                      "value": "{{destinationSlug}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/season-cards?country={{country}}&destinationSlug={{destinationSlug}}&destinationId=",
                 "auth": {
                   "type": "noauth"
                 }
@@ -4154,22 +3846,7 @@
                     "value": "application/json"
                   }
                 ],
-                "url": {
-                  "raw": "{{baseUrl}}{{publicCmsBasePath}}/hero-sections",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "{{publicCmsBasePath}}",
-                    "hero-sections"
-                  ],
-                  "query": [
-                    {
-                      "key": "country",
-                      "value": "{{country}}"
-                    }
-                  ]
-                },
+                "url": "{{baseUrl}}{{publicCmsBasePath}}/hero-sections?country={{country}}",
                 "auth": {
                   "type": "noauth"
                 }

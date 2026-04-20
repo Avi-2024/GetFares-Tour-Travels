@@ -226,7 +226,12 @@ function createDestinationsController({ service, uploadService }) {
 
     addMedia: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      const mediaFile = getFirstRequestFile(req, ["media", "file", "image", "video"]);
+      const mediaFile = getFirstRequestFile(req, [
+        "media",
+        "file",
+        "image",
+        "video",
+      ]);
       if (mediaFile) {
         const uploaded = await uploadService.uploadSingle({
           file: mediaFile,
@@ -249,7 +254,12 @@ function createDestinationsController({ service, uploadService }) {
 
     updateMedia: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      const mediaFile = getFirstRequestFile(req, ["media", "file", "image", "video"]);
+      const mediaFile = getFirstRequestFile(req, [
+        "media",
+        "file",
+        "image",
+        "video",
+      ]);
       if (mediaFile) {
         const uploaded = await uploadService.uploadSingle({
           file: mediaFile,
