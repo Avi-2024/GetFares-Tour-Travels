@@ -34,6 +34,8 @@ export type LeadListItem = {
   packageName: string;
   leadType?: string | null;
   lead_type?: string | null;
+  budget?: number | null;
+  salary?: number | null;
   status: CanonicalLeadStatus;
   statusLabel: SopStatusLabel;
   subStatus: string | null;
@@ -341,6 +343,18 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     packageName: lead.packageName ?? lead.package ?? "N/A",
     leadType: (lead as LeadApiRecord & { leadType?: string | null }).leadType ?? null,
     lead_type: (lead as LeadApiRecord & { lead_type?: string | null }).lead_type ?? null,
+    budget:
+      typeof (lead as any)?.budget === "number"
+        ? (lead as any).budget
+        : (lead as any)?.budget != null
+          ? Number((lead as any).budget)
+          : null,
+    salary:
+      typeof (lead as any)?.salary === "number"
+        ? (lead as any).salary
+        : (lead as any)?.salary != null
+          ? Number((lead as any).salary)
+          : null,
     status,
     statusLabel,
     subStatus: lead.subStatus ?? null,

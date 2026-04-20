@@ -79,6 +79,7 @@ const basePayload = z.object({
   travelDate: optionalDateOnly,
   travelEndDate: optionalDateOnly,
   budget: z.coerce.number().nonnegative().optional(),
+  salary: z.coerce.number().nonnegative().optional(),
   source: z.string().min(2).max(100).optional(),
   campaignId: z.string().uuid().optional(),
   utmSource: z.string().max(100).optional(),

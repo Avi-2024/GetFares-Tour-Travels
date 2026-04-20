@@ -217,7 +217,9 @@ CREATE TABLE IF NOT EXISTS currency_rates (
   INDEX idx_updated_at (updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
+ALTER TABLE leads
+  ADD COLUMN salary DECIMAL(12,2) NULL AFTER budget;
+  
 ALTER TABLE destinations ADD COLUMN  slug VARCHAR(180) NULL;
 ALTER TABLE destinations ADD COLUMN  description TEXT NULL;
 ALTER TABLE destinations ADD COLUMN  short_description TEXT NULL;

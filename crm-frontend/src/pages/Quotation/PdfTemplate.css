@@ -1,16 +1,33 @@
-.pdf-container {
+.pdf-document {
   width: 794px;
-  min-height: 1123px;
   margin: auto;
   font-family: Arial;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 46, 122, 0.15) 0%,   /* top pink (light transparent) */
-    rgba(255, 255, 255, 1) 45%,    /* middle white */
-    rgba(255, 255, 255, 1) 55%,    /* keep white center wider */
-    rgba(255, 46, 122, 0.15) 100%  /* bottom pink */
-  );
-  padding: 20px;
+}
+
+.pdf-page {
+  width: 794px;
+  min-height: 1123px;
+  margin: 0 auto;
+  background: url('/quotation_design.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  padding: 78px 44px 70px;
+  box-sizing: border-box;
+  height: 1123px;
+  overflow: hidden;
+}
+
+.pdf-content {
+  padding: 0;
+}
+
+.pdf-page-2 {
+  padding-bottom: 92px;
+}
+
+.pdf-page + .pdf-page {
+  margin-top: 20px;
 }
 
 /* HEADER */
@@ -96,12 +113,13 @@
 
 /* GUEST CARD */
 .guest-card {
-  border: 1px solid #000;
+  border: 1px solid rgba(0,0,0,0.85);
   border-radius: 15px;
   padding: 10px;
   display: flex;
   justify-content: space-between;
   margin-top: 10px;
+  background: rgba(255,255,255,0.65);
 }
 
 .guest-card > div {
@@ -193,11 +211,11 @@
 }
 /* ITINERARY */
 .itinerary-box {
-  border: 1.5px solid #000;
+  border: 1.5px solid rgba(0,0,0,0.85);
   border-radius: 15px;
   overflow: hidden;
   margin-top: 15px;
-  background: white;
+  background: rgba(255,255,255,0.75);
 }
 
 /* HEADER */
@@ -240,6 +258,7 @@
 
 /* PRICE */
 .price-box {
+  background: rgba(255,255,255,0.75);
   border: 1px solid #000;
   border-radius: 15px;
   margin-top: 15px;
@@ -255,6 +274,100 @@
 .price-row {
   display: flex;
   justify-content: space-between;
+  font-size: 12px;
+}
+
+/* PAGE 2 CONTENT */
+.pdf-page-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1f2937;
+  margin-bottom: 10px;
+}
+
+.pdf-block {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.75);
+  border-radius: 14px;
+  padding: 9px 11px;
+  margin-top: 8px;
+}
+
+.pdf-block-title {
+  font-weight: 800;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.pdf-block-body {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.pdf-section {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  border-radius: 12px;
+  padding: 7px 9px;
+  margin-top: 8px;
+}
+
+.pdf-section-title {
+  font-weight: 800;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.pdf-section-body {
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.pdf-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.pdf-muted {
+  color: #6b7280;
+}
+
+.pdf-itinerary-day {
+  margin-bottom: 10px;
+}
+
+.pdf-itinerary-day-title {
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.pdf-itinerary-point {
+  margin-left: 10px;
+}
+
+.pdf-kv {
+  margin: 2px 0;
+}
+
+.pdf-services-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+}
+
+.pdf-service {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1f2937;
+}
+
+.pdf-service-icon .icon {
+  font-size: 16px;
+  margin: 0;
+}
+
+.pdf-service-text {
   font-size: 12px;
 }
 
