@@ -78,6 +78,15 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_E164_DIGITS_MIN = 8
 const PHONE_E164_DIGITS_MAX = 15
 
+const normalizePrefillPhone = (value: unknown): string => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const clipped = digits.slice(0, PHONE_E164_DIGITS_MAX)
+  return raw.startsWith('+') ? `+${clipped}` : `+${clipped}`
+}
+
 type CurrencyMeta = {
   code: string
   locale: string
@@ -236,7 +245,7 @@ const CreateLead: React.FC = () => {
         firstName: nameParts[0] || '',
         lastName: nameParts.slice(1).join(' ') || '',
         email: customerData.email || '',
-        phone: customerData.phone || '',
+        phone: normalizePrefillPhone(customerData.phone),
         leadCountry: customerData.leadCountry || baseForm.leadCountry,
         nationality: customerData.nationality || baseForm.nationality,
         clientCurrency: customerData.clientCurrency || baseForm.clientCurrency,
@@ -627,7 +636,7 @@ const CreateLead: React.FC = () => {
   ) => {
 
     const digitsOnly = phone.replace(/\D/g, '');
-    if(digitsOnly.length > 12) return 
+    if (digitsOnly.length > PHONE_E164_DIGITS_MAX) return 
 
     const iso2 = meta.country?.iso2
     if (!iso2) {
@@ -651,7 +660,10 @@ const CreateLead: React.FC = () => {
 
   const handleSubmit = async () => {
     setShowErrors(true)
-    if (hasError) return
+    if (hasError) {
+      setApiError('Fix highlighted fields, then try again.')
+      return
+    }
 
     setLoading(true)
     setApiError('')
@@ -832,7 +844,7 @@ const CreateLead: React.FC = () => {
                   firstName: nameParts[0] || '',
                   lastName: nameParts.slice(1).join(' ') || '',
                   email: lead.email || '',
-                  phone: lead.phone || '',
+                  phone: normalizePrefillPhone(lead.phone),
                   leadCountry: lead.leadCountry || lead.lead_country || '',
                   nationality: lead.nationality || '',
                   clientCurrency: lead.clientCurrency || lead.client_currency || 'INR',
