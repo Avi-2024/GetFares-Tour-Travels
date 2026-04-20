@@ -2,6 +2,29 @@ import type { CmsSectionKey } from "../models/cms-section-key.type";
 import type { JsonRecord } from "../types/json-record.type";
 
 class CmsPayloadMapper {
+  private normalizeDateValue(value: unknown): string | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    const text = String(value).trim();
+    if (!text) {
+      return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return text;
+    }
+    const slashMatch = text.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/);
+    if (slashMatch) {
+      const [, mm, dd, yyyy] = slashMatch;
+      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    }
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return null;
+  }
+
   public mapForSection(sectionKey: CmsSectionKey, payload: JsonRecord): JsonRecord {
     if (sectionKey === "landing-places") {
       const title = payload.title ?? payload.name;
@@ -162,7 +185,7 @@ class CmsPayloadMapper {
         imageUrl: payload.imageUrl,
         buttonText: payload.buttonText,
         ctaUrl: payload.ctaUrl,
-        expiresOn: payload.expiresOn,
+        expiresOn: this.normalizeDateValue(payload.expiresOn),
         tags: payload.tags,
         highlights: payload.highlights,
         displayOrder: payload.displayOrder,

@@ -17,6 +17,7 @@ interface CmsEntityViewModalProps {
 interface CmsEntityViewModalState {
   isLoadingMedia: boolean;
   mediaItems: CmsMediaAsset[];
+  referenceLabelById: Record<string, string>;
 }
 
 interface CmsEntityViewMetaItem {
@@ -34,11 +35,13 @@ class CmsEntityViewModalComponent extends Component<
   state: CmsEntityViewModalState = {
     isLoadingMedia: false,
     mediaItems: [],
+    referenceLabelById: {},
   };
 
   componentDidMount(): void {
     if (this.props.isOpen) {
       void this.loadMedia();
+      void this.loadReferenceLabels();
     }
   }
 
@@ -50,6 +53,7 @@ class CmsEntityViewModalComponent extends Component<
         prevProps.sectionKey !== this.props.sectionKey);
     if (shouldLoad) {
       void this.loadMedia();
+      void this.loadReferenceLabels();
     }
   }
 
@@ -133,6 +137,78 @@ class CmsEntityViewModalComponent extends Component<
     };
   }
 
+  private isLikelyDateField(key: string): boolean {
+    return (
+      key === "expiresOn" ||
+      key === "validFrom" ||
+      key === "validTo" ||
+      key === "createdAt" ||
+      key === "updatedAt" ||
+      key.toLowerCase().includes("date")
+    );
+  }
+
+  private formatDateValue(value: string): string {
+    const text = String(value || "").trim();
+    if (!text || text === "--") {
+      return value;
+    }
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(parsed);
+  }
+
+  private async loadReferenceLabels(): Promise<void> {
+    if (!this.props.isOpen || !this.props.entry) {
+      this.setState({ referenceLabelById: {} });
+      return;
+    }
+
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    const hasReferenceId = definition.fields.some(
+      (field) => field.key === "referenceId",
+    );
+    if (!hasReferenceId) {
+      this.setState({ referenceLabelById: {} });
+      return;
+    }
+
+    try {
+      const [packages, destinations, visa] = await Promise.all([
+        this.cmsService.list("published-packages"),
+        this.cmsService.list("destinations"),
+        this.cmsService.list("visa-destinations"),
+      ]);
+      const referenceLabelById: Record<string, string> = {};
+
+      packages.forEach((item) => {
+        referenceLabelById[item.id] =
+          item.row.cells.package?.value ||
+          String(item.raw.name || item.raw.title || item.id);
+      });
+      destinations.forEach((item) => {
+        referenceLabelById[item.id] =
+          item.row.cells.destination?.value ||
+          String(item.raw.name || item.raw.title || item.id);
+      });
+      visa.forEach((item) => {
+        referenceLabelById[item.id] =
+          item.row.cells.title?.value ||
+          String(item.raw.title || item.raw.name || item.id);
+      });
+
+      this.setState({ referenceLabelById });
+    } catch {
+      this.setState({ referenceLabelById: {} });
+    }
+  }
+
   private getEntryLabel(): string {
     if (!this.props.entry) {
       return "Record";
@@ -183,10 +259,17 @@ class CmsEntityViewModalComponent extends Component<
         return;
       }
 
+      let displayValue = value;
+      if (field.key === "referenceId") {
+        displayValue = this.state.referenceLabelById[value] || value;
+      } else if (field.type === "date" || this.isLikelyDateField(field.key)) {
+        displayValue = this.formatDateValue(value);
+      }
+
       items.push({
         key: field.key,
         label: field.label,
-        value,
+        value: displayValue,
       });
     });
 
@@ -196,7 +279,7 @@ class CmsEntityViewModalComponent extends Component<
         items.push({
           key: "updatedAt",
           label: "Updated At",
-          value: updatedAt,
+          value: this.formatDateValue(updatedAt),
         });
       }
     }
