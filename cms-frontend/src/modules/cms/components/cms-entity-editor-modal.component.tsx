@@ -186,6 +186,44 @@ class CmsEntityEditorModalComponent extends Component<
     return [];
   }
 
+  private normalizeDateInputValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    const text = String(value).trim();
+    if (!text) {
+      return "";
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return text;
+    }
+    const slashMatch = text.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/);
+    if (slashMatch) {
+      const [, mm, dd, yyyy] = slashMatch;
+      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    }
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return "";
+  }
+
+  private mapApiErrorMessage(error: unknown, fallbackMessage: string): string {
+    const rawMessage =
+      error instanceof Error ? error.message
+      : typeof error === "string" ? error
+      : fallbackMessage;
+    const normalized = String(rawMessage || "").trim();
+    if (!normalized) {
+      return fallbackMessage;
+    }
+    if (/unknown column\s+'offer_currency'/i.test(normalized)) {
+      return "Schema missing `offer_currency`. Run latest CMS migration and retry.";
+    }
+    return normalized;
+  }
+
   private getRawValue(entry: CmsTableEntry, key: string): unknown {
     if (entry.raw[key] !== undefined) {
       return entry.raw[key];
@@ -388,6 +426,10 @@ class CmsEntityEditorModalComponent extends Component<
         }
         if (field.type === "list-text" || field.type === "list-object") {
           formValues[field.key] = this.parseArrayValue(value);
+          return;
+        }
+        if (field.type === "date") {
+          formValues[field.key] = this.normalizeDateInputValue(value);
           return;
         }
         formValues[field.key] = String(value);
@@ -810,8 +852,7 @@ class CmsEntityEditorModalComponent extends Component<
       this.setState({ isSubmitting: false });
       this.props.onClose();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to save.";
+      const message = this.mapApiErrorMessage(error, "Failed to save.");
       this.setState({
         isSubmitting: false,
         mediaErrorMessage: message,
