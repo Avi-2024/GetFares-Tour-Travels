@@ -1849,7 +1849,14 @@ const QuotationDetailPage: React.FC = () => {
                     data={{
                       packageName: displayPackageName || displayQuotationTitle || 'Package',
                       email: displayCustomerEmail,
-                      leadId: quotation?.id || 'N/A',
+                      leadId:
+                        (lead as any)?.leadCode ??
+                        (lead as any)?.leadId ??
+                        (snapshotLead as any)?.leadCode ??
+                        (snapshotLead as any)?.leadId ??
+                        quotation?.lead?.leadCode ??
+                        quotation?.lead?.leadId ??
+                        (quotation?.id ?? 'N/A'),
                       guestName: displayCustomerName,
                       guestEmail: displayCustomerEmail,
                       nights: toNumber(
@@ -1924,7 +1931,14 @@ const QuotationDetailPage: React.FC = () => {
           data={{
             packageName: displayPackageName || displayQuotationTitle || 'Package',
             email: displayCustomerEmail,
-            leadId: quotation?.id || 'N/A',
+            leadId:
+              (lead as any)?.leadCode ??
+              (lead as any)?.leadId ??
+              (snapshotLead as any)?.leadCode ??
+              (snapshotLead as any)?.leadId ??
+              quotation?.lead?.leadCode ??
+              quotation?.lead?.leadId ??
+              (quotation?.id ?? 'N/A'),
             guestName: displayCustomerName,
             guestEmail: displayCustomerEmail,
             nights: toNumber(
