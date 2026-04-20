@@ -1,21 +1,28 @@
-type ColumnFilterType = "text" | "dropdown" | "date";
-type DateFilterBoundary = "from" | "to";
+type UniversalFilterColumnType = "string" | "enum";
 
-interface DateRangeFilter {
-  from: string;
-  to: string;
-}
-
-interface ColumnFilterDefinition {
+interface UniversalFilterColumn {
   key: string;
   label: string;
-  type: ColumnFilterType;
-  options: string[];
+  type: UniversalFilterColumnType;
 }
 
+interface UniversalFilterToken {
+  key: string;
+  value: string;
+}
+
+interface UniversalFilterSuggestion {
+  key: string;
+  value: string;
+  label: string;
+}
+
+type UniversalFilterIndex = Record<string, string[]>;
+
 export type {
-  ColumnFilterType,
-  DateFilterBoundary,
-  DateRangeFilter,
-  ColumnFilterDefinition,
+  UniversalFilterColumnType,
+  UniversalFilterColumn,
+  UniversalFilterToken,
+  UniversalFilterSuggestion,
+  UniversalFilterIndex,
 };
