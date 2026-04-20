@@ -14,9 +14,10 @@ import {
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
-import { quotationsApi } from '../../api/quotations'
+import { quotationsApi } from '../../api'
 import { reportApiError } from '../../lib/notify'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
+import PdfTemplate from './PdfTemplate'
 
 type QuoteStatus =
   | 'DRAFT'
@@ -181,10 +182,12 @@ const QuotationDetailPage: React.FC = () => {
   const [savingStatus, setSavingStatus] = useState(false)
   const [showSendDropdown, setShowSendDropdown] = useState(false)
   const [showRejectModal, setShowRejectModal] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [rejectError, setRejectError] = useState('')
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const pdfExportRef = useRef<HTMLDivElement | null>(null)
+  const pdfTemplateRef = useRef<HTMLDivElement | null>(null)
 
   const loadDetails = useCallback(async () => {
     if (!id) {
@@ -529,6 +532,10 @@ const QuotationDetailPage: React.FC = () => {
           content: block
         }
       })
+      .filter(section => {
+        const titleLower = section.title.toLowerCase()
+        return titleLower === 'trip summary' || titleLower === 'enabled services'
+      })
   }, [quotation?.importantNotes])
 
   const displayCurrency = useMemo(() => {
@@ -750,100 +757,55 @@ const QuotationDetailPage: React.FC = () => {
     setSavingStatus(true)
     setError('')
     try {
-      await quotationsApi.send(id, {
-        channel: method === 'email' ? 'EMAIL' : 'WHATSAPP',
-        ...(method === 'email' ? { recipientEmail } : { recipientPhone })
-      })
-      setShowSendDropdown(false)
-      await loadDetails()
-    } catch (err) {
-      console.error('Failed to send quotation:', err)
-      reportApiError(err, 'Failed to send quotation', setError)
-    } finally {
-      setSavingStatus(false)
-    }
-  }
+      // Generate PDF using the React template
+      if (!pdfTemplateRef.current) {
+        throw new Error('PDF template not available')
+      }
 
-  const handleDownloadPdf = async () => {
-    if (!pdfExportRef.current || downloadingPdf) return
+      const element = pdfTemplateRef.current
+      element.style.display = 'block'
+      element.style.position = 'fixed'
+      element.style.top = '-9999px'
+      element.style.left = '-9999px'
+      element.style.width = '794px'
+      element.style.zIndex = '-9999'
 
-    const exportRoot = pdfExportRef.current
-    setDownloadingPdf(true)
+      await new Promise(resolve => setTimeout(resolve, 500))
 
-    const exportStyle = document.createElement('style')
-    exportStyle.setAttribute('data-quotation-detail-pdf', 'true')
-    exportStyle.innerHTML = `
-      .quotation-detail-pdf-export {
-        background: #ffffff !important;
-        color: #111827 !important;
-      }
-      .quotation-detail-pdf-export * {
-        color: inherit;
-      }
-      .quotation-detail-pdf-export .dark\\:text-gray-100,
-      .quotation-detail-pdf-export .dark\\:text-gray-200,
-      .quotation-detail-pdf-export .dark\\:text-gray-300,
-      .quotation-detail-pdf-export .dark\\:text-gray-400 {
-        color: #111827 !important;
-      }
-      .quotation-detail-pdf-export .dark\\:bg-gray-800,
-      .quotation-detail-pdf-export .dark\\:bg-gray-900,
-      .quotation-detail-pdf-export .dark\\:bg-gray-800\\/50 {
-        background: #ffffff !important;
-      }
-      .quotation-detail-pdf-export .dark\\:border-gray-700,
-      .quotation-detail-pdf-export .dark\\:border-gray-800 {
-        border-color: #e5e7eb !important;
-      }
-      .quotation-detail-pdf-export .border {
-        border-color: #e5e7eb !important;
-      }
-      .quotation-detail-pdf-export .rounded-lg,
-      .quotation-detail-pdf-export .rounded-xl,
-      .quotation-detail-pdf-export .rounded-2xl {
-        box-shadow: none !important;
-      }
-      .quotation-detail-pdf-export table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      .quotation-detail-pdf-export th,
-      .quotation-detail-pdf-export td {
-        border-bottom: 1px solid #e5e7eb;
-      }
-    `
+      // Import html2canvas and jsPDF
+      const html2canvasModule = await import(
+        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
+      )
+      const html2canvas = (html2canvasModule as any).default
 
-    document.head.appendChild(exportStyle)
+      const jsPdfModule = await import(
+        'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
+      )
+      const JsPDF = (jsPdfModule as any).default
 
-    try {
-      exportRoot.classList.add('quotation-detail-pdf-export')
-      await new Promise<void>(resolve => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-      })
-
-      const html2canvasModule = (await import(
-        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
-      )) as any
-      const html2canvas = html2canvasModule.default || html2canvasModule
-
-      const jsPdfModule = (await import(
-        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
-      )) as any
-      const JsPDF = jsPdfModule.default || jsPdfModule
-
-      const canvas = await html2canvas(exportRoot, {
+      // Render to canvas
+      const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
-        scrollX: 0,
-        scrollY: -window.scrollY
+        allowTaint: true,
+        letterRendering: true
       })
 
+      // Create PDF
       const imgData = canvas.toDataURL('image/png')
-      const pdf = new JsPDF('p', 'mm', 'a4')
+      const pdf = new JsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
+
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
-      const imgHeight = (canvas.height * pageWidth) / canvas.width
+      const margin = 10
+      const availableWidth = pageWidth - margin * 2
+      const imgWidth = availableWidth
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
 
       let heightLeft = imgHeight
       let position = 0
@@ -851,14 +813,12 @@ const QuotationDetailPage: React.FC = () => {
       pdf.addImage(
         imgData,
         'PNG',
-        0,
-        position,
-        pageWidth,
-        imgHeight,
-        '',
-        'FAST'
+        margin,
+        margin,
+        imgWidth,
+        imgHeight
       )
-      heightLeft -= pageHeight
+      heightLeft -= pageHeight - margin * 2
 
       while (heightLeft > 0) {
         position = heightLeft - imgHeight
@@ -866,24 +826,160 @@ const QuotationDetailPage: React.FC = () => {
         pdf.addImage(
           imgData,
           'PNG',
-          0,
-          position,
-          pageWidth,
-          imgHeight,
-          '',
-          'FAST'
+          margin,
+          position + margin,
+          imgWidth,
+          imgHeight
         )
-        heightLeft -= pageHeight
+        heightLeft -= pageHeight - margin * 2
       }
 
+      // Convert PDF to blob and send
+      const pdfBlob = pdf.output('blob')
+      const formData = new FormData()
+      formData.append('quotationId', id)
+      formData.append('pdf', pdfBlob, `quotation-${quotation?.quoteNumber || id}.pdf`)
+
+      // Get auth token from localStorage
+      const token = localStorage.getItem('auth_token')
+
+      // Upload PDF to backend via proxy
+      const uploadRes = await fetch(`/api/quotations/${id}/upload-pdf`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!uploadRes.ok) {
+        throw new Error('Failed to upload PDF')
+      }
+
+      const uploadData = await uploadRes.json()
+      const pdfUrl = uploadData.pdfUrl
+
+      // Send quotation with PDF link
+      await quotationsApi.send(id, {
+        channel: method === 'email' ? 'EMAIL' : 'WHATSAPP',
+        ...(method === 'email' ? { recipientEmail } : { recipientPhone }),
+        pdfUrl: pdfUrl
+      })
+
+      setShowSendDropdown(false)
+      setError('')
+      console.log('Quotation sent successfully via ' + method)
+    } catch (err) {
+      console.error('Failed to send quotation:', err)
+      reportApiError(err, 'Failed to send quotation', setError)
+    } finally {
+      // Restore element
+      if (pdfTemplateRef.current) {
+        pdfTemplateRef.current.style.display = 'none'
+        pdfTemplateRef.current.style.position = 'absolute'
+        pdfTemplateRef.current.style.top = '-9999px'
+      }
+      setSavingStatus(false)
+    }
+  }
+
+  const handleDownloadPdf = async () => {
+    if (!pdfTemplateRef.current || downloadingPdf) return
+
+    const element = pdfTemplateRef.current
+    setDownloadingPdf(true)
+
+    try {
+      // Show element temporarily for rendering
+      element.style.display = 'block'
+      element.style.position = 'fixed'
+      element.style.top = '-9999px'
+      element.style.left = '-9999px'
+      element.style.width = '794px'
+      element.style.zIndex = '-9999'
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Import html2canvas and jsPDF
+      const html2canvasModule = await import(
+        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
+      )
+      const html2canvas = (html2canvasModule as any).default
+
+      const jsPdfModule = await import(
+        'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
+      )
+      const JsPDF = (jsPdfModule as any).default
+
+      // Render to canvas
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        letterRendering: true
+      })
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new JsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
+
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 10
+      const availableWidth = pageWidth - margin * 2
+      const imgWidth = availableWidth
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+      let heightLeft = imgHeight
+      let position = 0
+
+      pdf.addImage(
+        imgData,
+        'PNG',
+        margin,
+        margin,
+        imgWidth,
+        imgHeight
+      )
+      heightLeft -= pageHeight - margin * 2
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(
+          imgData,
+          'PNG',
+          margin,
+          position + margin,
+          imgWidth,
+          imgHeight
+        )
+        heightLeft -= pageHeight - margin * 2
+      }
+
+      // Save PDF
       const quoteRef = quotation?.quoteNumber ?? quotation?.id ?? 'quotation'
       pdf.save(`quotation-${quoteRef}.pdf`)
     } catch (err) {
-      console.error('Failed to download PDF:', err)
-      reportApiError(err, 'Failed to download PDF', setError)
+      console.error('PDF Download Error:', err)
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      reportApiError(
+        new Error(`PDF Generation Failed: ${errorMsg}`),
+        'Failed to download PDF - Check console for details',
+        setError
+      )
     } finally {
-      exportRoot.classList.remove('quotation-detail-pdf-export')
-      exportStyle.remove()
+      // Restore element
+      if (element) {
+        element.style.display = 'none'
+        element.style.position = 'absolute'
+        element.style.top = '-9999px'
+      }
       setDownloadingPdf(false)
     }
   }
@@ -999,6 +1095,12 @@ const QuotationDetailPage: React.FC = () => {
             className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center whitespace-nowrap shrink-0 disabled:opacity-60'
           >
             <FaFilePdf className='mr-2' /> PDF
+          </button>
+          <button
+            onClick={() => setShowPreview(true)}
+            className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center whitespace-nowrap shrink-0'
+          >
+            <FaEye className='mr-2' /> Preview
           </button>
         </div>
       </div>
@@ -1757,6 +1859,121 @@ const QuotationDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
+          <div className='relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white dark:bg-gray-900 shadow-2xl'>
+            {/* Modal Header */}
+            <div className='flex items-center justify-between border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6'>
+              <h2 className='text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100'>
+                Quotation Preview
+              </h2>
+              <button
+                onClick={() => setShowPreview(false)}
+                className='inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+              >
+                <FaXmark />
+              </button>
+            </div>
+
+            {/* Modal Content - Scrollable */}
+            <div className='overflow-y-auto' style={{ maxHeight: 'calc(90vh - 120px)' }}>
+              <div className='bg-gray-50 dark:bg-gray-800 p-4 sm:p-6'>
+                <div className='rounded-lg bg-white dark:bg-gray-900 p-4 sm:p-6'>
+                  <PdfTemplate
+                    data={{
+                      packageName: displayPackageName || displayQuotationTitle || 'Package',
+                      email: displayCustomerEmail,
+                      leadId: quotation?.id || 'N/A',
+                      guestName: displayCustomerName,
+                      guestEmail: displayCustomerEmail,
+                      nights: toNumber(
+                        quotation?.durationNights ??
+                          snapshot?.durationNights ??
+                          snapshot?.nights,
+                        1
+                      ),
+                      adults: displayAdultsCount,
+                      children: displayChildrenCount,
+                      travelDate: formatDateOnly(displayTravelStartDate),
+                      validUntil: formatDateOnly(displayValidUntil),
+                      total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
+                      totalSellValue: String(commercial.finalAmount),
+                      itinerary: itineraryItems.map((item: any) => ({
+                        title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
+                        points: item.description ? [item.description] : []
+                      })),
+                      destination: displayDestinationName,
+                      quotationTitle: displayQuotationTitle,
+                      templateName: displayTemplateName,
+                      packageType: displayPackageKind || 'Standard Package',
+                      inclusions: String(contentTemplate?.inclusions ?? '')
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className='flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4 sm:p-6 sm:flex-row sm:justify-end'>
+              <button
+                onClick={() => setShowPreview(false)}
+                className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors inline-flex items-center justify-center whitespace-nowrap'
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  void handleDownloadPdf()
+                  setShowPreview(false)
+                }}
+                disabled={downloadingPdf}
+                className='h-9 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-flex items-center justify-center whitespace-nowrap disabled:opacity-60'
+              >
+                <FaFilePdf className='mr-2' /> Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden PDF Template for export */}
+      <div
+        ref={pdfTemplateRef}
+        style={{ display: 'none', position: 'absolute', top: '-9999px' }}
+      >
+        <PdfTemplate
+          data={{
+            packageName: displayPackageName || displayQuotationTitle || 'Package',
+            email: displayCustomerEmail,
+            leadId: quotation?.id || 'N/A',
+            guestName: displayCustomerName,
+            guestEmail: displayCustomerEmail,
+            nights: toNumber(
+              quotation?.durationNights ??
+                snapshot?.durationNights ??
+                snapshot?.nights,
+              1
+            ),
+            adults: displayAdultsCount,
+            children: displayChildrenCount,
+            travelDate: formatDateOnly(displayTravelStartDate),
+            validUntil: formatDateOnly(displayValidUntil),
+            total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
+            totalSellValue: String(commercial.finalAmount),
+            itinerary: itineraryItems.map((item: any) => ({
+              title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
+              points: item.description ? [item.description] : []
+            })),
+            destination: displayDestinationName,
+            quotationTitle: displayQuotationTitle,
+            templateName: displayTemplateName,
+            packageType: displayPackageKind || 'Standard Package',
+            inclusions: String(contentTemplate?.inclusions ?? '')
+          }}
+        />
+      </div>
     </div>
   )
 }
