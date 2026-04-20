@@ -13,7 +13,12 @@ interface PdfTemplateProps {
     data: {
         packageName: string;
         email: string;
-        leadId: string;
+        leadId?: string; // Top-level UUID
+        // templateSnapshot?: {
+        //     lead?: {
+        //         leadId?: string; // User-friendly code like "A0A0A2"
+        //     };
+        // };
         guestName: string;
         guestEmail: string;
         nights: number;
@@ -55,7 +60,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
     // Get icon based on service name
     const getServiceIcon = (service: string) => {
         const lowerService = service.toLowerCase();
-        
+
         // Check for Transfer/Land Arrangement/Local Transfer/Airport (BEFORE flights check)
         if (
             lowerService.includes('transfer') ||
@@ -65,7 +70,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         ) {
             return <FaCar className="icon" />;
         }
-        
+
         // Check for Flights
         if (
             lowerService.includes('flight') ||
@@ -74,7 +79,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         ) {
             return <FaPlane className="icon" />;
         }
-        
+
         // Check for Hotel/Accommodation
         if (
             lowerService.includes('hotel') ||
@@ -84,7 +89,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         ) {
             return <FaHotel className="icon" />;
         }
-        
+
         // Check for Tours & Activities
         if (
             lowerService.includes('tour') ||
@@ -93,7 +98,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         ) {
             return <GiPalmTree className="icon" />;
         }
-        
+
         // Check for Insurance (but not Land Arrangement)
         if (
             lowerService.includes('insurance') &&
@@ -101,7 +106,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         ) {
             return <FaShieldVirus className="icon" />;
         }
-        
+
         return <GiPalmTree className="icon" />;
     };
 
@@ -123,60 +128,87 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
         <div className="pdf-document" id="pdf-content">
             <div className="pdf-page pdf-page-1">
                 <div className="pdf-content">
-                {/* Header is part of background design (`quotation_design.png`). */}
+                    {/* Header is part of background design (`quotation_design.png`). */}
 
-                {/* BANNER */}
-                <img src="/banner.png" className="banner" alt="Banner" />
+                    {/* BANNER */}
+                    <img src="/banner.jpeg" className="banner" alt="Banner" />
 
-                {/* PACKAGE SECTION */}
-                <div className="package-section">
-                    <div>
-                        <h3>PACKAGE NAME :-</h3>
-                        <p>{data.packageName}</p>
-                        <strong>Guest Email: {data.email}</strong>
-                        {data.packageType && (
-                            <p className="package-type">
-                                <b>Package Type :   {data.packageType}    </b>
+                    {/* PACKAGE SECTION */}
+                    <div className="package-section">
+                        <div>
+                            <h3>PACKAGE NAME :-</h3>
+                            <p>{data.packageName}</p>
+                            <strong>Guest Email: {data.email}</strong>
+                            {data.packageType && (
+                                <p className="package-type">
+                                    <b>Package Type :   {data.packageType}    </b>
+                                </p>
+                            )}
+                        </div>
+                        <div>
+                            <p>
+                                <b>LEAD ID :</b> {data.leadId || 'N/A'}
                             </p>
-                        )}
-                    </div>
-                    <div>
-                        <p>
-                            <b>LEAD ID :</b> {data.leadId}
-                        </p>
-                    </div>
-                </div>
-
-                {/* GUEST CARD */}
-                <div className="guest-card">
-                    <div>
-                        <b className='guest-name'>Guest Name :- <span >{data.guestName}</span></b>
-                        <p>Guest Email :- {data.guestEmail}</p>
-                        <p>
-                            <b>Travel Date:</b> {data.travelDate || 'N/A'}
-                        </p>
+                        </div>
                     </div>
 
-                    <div className="right">
-                        <p>Destination  : {data.destination || 'N/A'}</p>
-                        <p>
-                            {data.nights} nights - {data.adults} adults
-                            {data.children && data.children > 0 ? ` - ${data.children} child${data.children !== 1 ? 'ren' : ''}` : ''}
-                        </p>
-                        <p>
-                            <b>Valid Until: {data.validUntil || 'N/A'}</b>
-                        </p>
-                    </div>
-                </div>
+                    {/* GUEST CARD */}
+                    <div className="guest-card">
+                        <div>
+                            <b className='guest-name'>Guest Name :- <span >{data.guestName}</span></b>
+                            <p>Guest Email :- {data.guestEmail}</p>
+                            <p>
+                                <b>Travel Date:</b> {data.travelDate || 'N/A'}
+                            </p>
+                        </div>
 
-                {/* PRICE */}
-                <div className="price-box">
-                    <p>Package Fees</p>
-                    <div className="price-row">
-                        <b>Total Sale Value</b>
-                        <span>₹ {data.totalSellValue || data.total}</span>
+                        <div className="right">
+                            <p>Destination  : {data.destination || 'N/A'}</p>
+                            <p>
+                                {data.nights} nights - {data.adults} adults
+                                {data.children && data.children > 0 ? ` - ${data.children} child${data.children !== 1 ? 'ren' : ''}` : ''}
+                            </p>
+                            <p>
+                                <b>Valid Until: {data.validUntil || 'N/A'}</b>
+                            </p>
+                        </div>
                     </div>
-                </div>
+                    {/* INCLUDED SERVICES */}
+                    <div className="pdf-block">
+                        <div className="pdf-block-title">Included Services</div>
+                        <div className="pdf-block-body">
+                            {inclusionsList.length > 0 ? (
+                                <div className="pdf-services-grid">
+                                    {inclusionsList.map((service, index) => (
+                                        <div key={index} className="pdf-service">
+                                            <span className="pdf-service-icon">{getServiceIcon(service)}</span>
+                                            <span className="pdf-service-text">{service}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="pdf-muted">No services included</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* PRICE */}
+                    <div className="price-box">
+                        <p>Package</p>
+                        <div className='price-header'>
+                            <p>Service Charge</p>
+                            <span>₹ {data.totalSellValue || data.total}</span>
+                        </div>
+
+                        <div className="price-row">
+                            <b>Total Value</b>
+                            <span>₹ {data.totalSellValue || data.total}</span>
+                        </div>
+                    </div>
+
+
+
+
                 </div>
             </div>
 
@@ -238,7 +270,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                         </div>
 
                         <div className="pdf-col">
-                            <div className="pdf-block">
+                            {/* <div className="pdf-block">
                                 <div className="pdf-block-title">Included Services</div>
                                 <div className="pdf-block-body">
                                     {inclusionsList.length > 0 ? (
@@ -254,7 +286,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                         <div className="pdf-muted">No services included</div>
                                     )}
                                 </div>
-                            </div>
+                            </div> */}
 
                             {section('Header Branding', data.headerBranding)}
                             {section('Payment Terms', data.paymentTerms)}

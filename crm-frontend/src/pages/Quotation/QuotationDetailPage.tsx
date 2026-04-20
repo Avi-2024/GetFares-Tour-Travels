@@ -1827,7 +1827,7 @@ const QuotationDetailPage: React.FC = () => {
       {/* Preview Modal */}
       {showPreview && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
-          <div className='relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white dark:bg-gray-900 shadow-2xl'>
+          <div className='relative max-h-[95vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white dark:bg-gray-900 shadow-2xl'>
             {/* Modal Header */}
             <div className='flex items-center justify-between border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6'>
               <h2 className='text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100'>
@@ -1893,7 +1893,7 @@ const QuotationDetailPage: React.FC = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className='flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4 sm:p-6 sm:flex-row sm:justify-end'>
+            <div className='flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 sm:p-3 sm:flex-row sm:justify-end'>
               <button
                 onClick={() => setShowPreview(false)}
                 className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors inline-flex items-center justify-center whitespace-nowrap'

@@ -256,9 +256,7 @@
   font-size: 13px;
 }
 
-/* PRICE */
-.price-box {
-  background: rgba(255,255,255,0.75);
+/* PRICE */.price-box {
   border: 1px solid #000;
   border-radius: 15px;
   margin-top: 15px;
@@ -268,13 +266,44 @@
 .price-box > p {
   font-weight: bold;
   font-size: 12px;
-  margin: 0 0 10px 0;
+  margin: 0;
+  padding: 0;
+}
+
+.price-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.price-header p {
+  font-weight: bold;
+  font-size: 12px;
+  margin: 0;
+  padding: 0;
+}
+
+.price-header span {
+  color: blue;
+  font-weight: bold;
+  font-size: 13px;
 }
 
 .price-row {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
+  padding-top: 5px;
+  border-top: 1px solid #000;
+}
+
+.price-row b {
+  font-weight: bold;
+}
+
+.price-row span {
+  color: blue;
+  font-weight: bold;
 }
 
 /* PAGE 2 CONTENT */
@@ -302,6 +331,7 @@
   border: 1px solid rgba(0, 0, 0, 0.75);
   border-radius: 14px;
   padding: 9px 11px;
+  margin-top: 15px;
 }
 
 .pdf-block-title {
@@ -360,25 +390,38 @@
 }
 
 .pdf-services-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 10px;
+  display: flex;
+  /* grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px; */
+  gap: 30px;
+  flex-wrap: wrap;
 }
 
 .pdf-service {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  color: #1f2937;
+  justify-content: center;
+  gap: 10px;
+  width: auto;
+  color: #ff2e7a;
+  background-color:transparent;
+  border-radius: 0;
+  padding: 0;
+  text-align: center;
 }
 
 .pdf-service-icon .icon {
-  font-size: 16px;
-  margin: 0;
-}
+  font-size: 30px;
+  margin: 0 0 8px 0;
+   /* background-color: #86f87b;
+  border-radius: 2px; */
+} 
 
 .pdf-service-text {
   font-size: 12px;
+  font-weight: 600;
+  color: #ff2e7a;
 }
 
 .price-row b {
@@ -396,6 +439,7 @@
   align-items: flex-end;
   margin-top: 40px;
   font-size: 12px;
+  margin-bottom: 30px;
 }
 
 .success {

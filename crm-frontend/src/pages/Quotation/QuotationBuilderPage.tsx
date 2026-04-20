@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FaArrowLeft,
@@ -432,6 +432,27 @@ function getDayLabel(index: number): string {
   return `Day ${index + 1}`
 }
 
+function calculateNightsBetweenDates(startDate: string, endDate: string): number {
+  if (!startDate || !endDate) return 0
+  
+  try {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    
+    // Ensure both dates are valid
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0
+    
+    // Calculate difference in milliseconds and convert to days
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    // Return nights (one less than days)
+    return Math.max(0, diffDays)
+  } catch (error) {
+    return 0
+  }
+}
+
 function buildItineraryRows(dayCount: number, existing: Item[] = []): Item[] {
   return Array.from({ length: Math.max(0, dayCount) }, (_, index) => {
     const current = existing[index]
@@ -566,6 +587,19 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
     hotelDetails: '',
     visaDetails: ''
   })
+
+  useEffect(() => {
+  // When component mounts or when prefilled dates change, auto-calculate nights and days
+  if (form.startDate && form.endDate) {
+    const nights = calculateNightsBetweenDates(form.startDate, form.endDate)
+    setForm(p => ({
+      ...p,
+      nights,
+      durationDays: String(nights + 1)
+    }))
+  }
+}, [form.startDate, form.endDate]) // Recalculate whenever dates change
+
   const [downloading, setDownloading] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [itineraryItems, setItineraryItems] = useState<Item[]>(
@@ -1995,8 +2029,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 relationLead?.travelEndDate ??
                 relationLead?.travel_end_date
               ) || prev.endDate,
-            nights,
-            durationDays: String(itineraryDayCount),
+             nights,
+             durationDays: String(itineraryDayCount),
+
             adults: Math.max(
               1,
               Math.floor(
@@ -3766,9 +3801,19 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         type='date'
                         className='field-input'
                         value={form.startDate}
-                        onChange={e =>
-                          setForm(p => ({ ...p, startDate: e.target.value }))
-                        }
+                        onChange={e => {
+                          const newStartDate = e.target.value
+                          setForm(p => {
+                            const updated = { ...p, startDate: newStartDate }
+                            // Auto-calculate nights if both dates are available
+                            if (newStartDate && p.endDate) {
+                              const nights = calculateNightsBetweenDates(newStartDate, p.endDate)
+                              updated.nights = nights
+                              updated.durationDays = String(nights + 1)
+                            }
+                            return updated
+                          })
+                        }}
                       />
                       {!form.startDate && selectedLead?.travelDate ? (
                         <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
@@ -3783,9 +3828,19 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         className='field-input'
                         min={form.startDate || undefined}
                         value={form.endDate}
-                        onChange={e =>
-                          setForm(p => ({ ...p, endDate: e.target.value }))
-                        }
+                        onChange={e => {
+                          const newEndDate = e.target.value
+                          setForm(p => {
+                            const updated = { ...p, endDate: newEndDate }
+                            // Auto-calculate nights if both dates are available
+                            if (p.startDate && newEndDate) {
+                              const nights = calculateNightsBetweenDates(p.startDate, newEndDate)
+                              updated.nights = nights
+                              updated.durationDays = String(nights + 1)
+                            }
+                            return updated
+                          })
+                        }}
                       />
                     </div>
                     <div>
@@ -3801,24 +3856,28 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       <p className='mt-0.5 text-xs text-gray-400'>How long this quoted price is valid for the customer.</p>
                     </div>
                     <div className='md:col-span-2 lg:col-span-1'>
-                      <label className='field-label'>Duration</label>
+                      <label className='field-label'>Duration {form.startDate && form.endDate ? '(Auto-calculated)' : ''}</label>
                       <div className='grid grid-cols-2 gap-2'>
                         <div>
                           <label className='mb-1 block text-[11px] font-medium text-gray-600 dark:text-gray-400'>Nights</label>
                           <input
                             type='number'
                             min='0'
-                            className='field-input overflow-hidden text-ellipsis'
+                            disabled={!!(form.startDate && form.endDate)}
+                            className='field-input overflow-hidden text-ellipsis disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-600 dark:disabled:bg-gray-800'
                             placeholder='Nights'
                             value={form.nights}
                             onChange={e => {
-                              const nights = Number(e.target.value || 0)
-                              const days = nights + 1
-                              setForm(p => ({
-                                ...p,
-                                nights,
-                                durationDays: String(days)
-                              }))
+                              // Only allow manual entry if dates are not set
+                              if (!form.startDate || !form.endDate) {
+                                const nights = Number(e.target.value || 0)
+                                const days = nights + 1
+                                setForm(p => ({
+                                  ...p,
+                                  nights,
+                                  durationDays: String(days)
+                                }))
+                              }
                             }}
                           />
                         </div>
@@ -3827,23 +3886,30 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                           <input
                             type='number'
                             min='1'
-                            className='field-input overflow-hidden text-ellipsis'
+                            disabled={!!(form.startDate && form.endDate)}
+                            className='field-input overflow-hidden text-ellipsis disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-600 dark:disabled:bg-gray-800'
                             placeholder='Days'
                             value={form.durationDays}
                             onChange={e => {
-                              const days = Number(e.target.value || 0)
-                              const nights = Math.max(0, days - 1)
-                              setForm(p => ({
-                                ...p,
-                                durationDays: e.target.value,
-                                nights
-                              }))
+                              // Only allow manual entry if dates are not set
+                              if (!form.startDate || !form.endDate) {
+                                const days = Number(e.target.value || 0)
+                                const nights = Math.max(0, days - 1)
+                                setForm(p => ({
+                                  ...p,
+                                  durationDays: e.target.value,
+                                  nights
+                                }))
+                              }
                             }}
                           />
                         </div>
                       </div>
                       <p className='mt-0.5 text-xs text-gray-500'>
-                        Duration saves as {previewDurationLabel || '0N/0D'}.
+                        {form.startDate && form.endDate 
+                          ? `Auto-calculated from dates: ${previewDurationLabel || '0N/0D'}`
+                          : `Duration saves as ${previewDurationLabel || '0N/0D'}.`
+                        }
                       </p>
                     </div>
                     <div>
