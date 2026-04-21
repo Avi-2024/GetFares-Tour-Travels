@@ -165,8 +165,50 @@ const PackagesValidation = {
   byId,
   list,
   publish,
+  delete: byId,
+  restore: byId,
+  hardDelete: byId,
   createEnquiry,
   listEnquiries,
+
+  // CMS-like main/sub endpoints (keep permissive; CMS service validates deeper)
+  mainList: z.object({
+    body: z.object({}).optional(),
+    params: z.object({}).optional(),
+    query: z.record(z.any()).optional(),
+  }),
+  mainById: byId,
+  mainCreate: z.object({
+    body: z.record(z.any()),
+    params: z.object({}).optional(),
+    query: z.record(z.any()).optional(),
+  }),
+  mainUpdate: z.object({
+    body: z.record(z.any()),
+    params: z.object({ id: z.string().uuid() }),
+    query: z.record(z.any()).optional(),
+  }),
+  mainRestore: byId,
+  mainHardDelete: byId,
+
+  subList: z.object({
+    body: z.object({}).optional(),
+    params: z.object({ mainPackageId: z.string().uuid() }),
+    query: z.record(z.any()).optional(),
+  }),
+  subById: byId,
+  subCreate: z.object({
+    body: z.record(z.any()),
+    params: z.object({}).optional(),
+    query: z.record(z.any()).optional(),
+  }),
+  subUpdate: z.object({
+    body: z.record(z.any()),
+    params: z.object({ id: z.string().uuid() }),
+    query: z.record(z.any()).optional(),
+  }),
+  subRestore: byId,
+  subHardDelete: byId,
 };
 
 export { PackagesValidation };

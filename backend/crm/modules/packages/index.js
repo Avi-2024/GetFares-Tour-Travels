@@ -5,6 +5,9 @@ import { createPackagesRoutes } from "./packages.routes.js";
 import { PackagesValidation } from "./packages.validation.js";
 import { PackagesSchema } from "./packages.schema.js";
 import { createPackagesEvents } from "./packages.events.js";
+import { createCmsPackagesRepository } from "../../../cms/modules/packages/packages.repository.js";
+import { createCmsPackagesService } from "../../../cms/modules/packages/packages.service.js";
+import { CmsPackagesSchema } from "../../../cms/modules/packages/packages.schema.js";
 
 function createPackagesModule({ dependencies }) {
   const repository = createPackagesRepository({
@@ -12,6 +15,12 @@ function createPackagesModule({ dependencies }) {
     logger: dependencies.logger,
     schema: PackagesSchema,
   });
+
+  const cmsRepository = createCmsPackagesRepository({
+    db: dependencies.db,
+    schema: CmsPackagesSchema,
+  });
+  const cmsService = createCmsPackagesService({ repository: cmsRepository });
 
   const events = createPackagesEvents({
     eventBus: dependencies.eventBus,
@@ -24,7 +33,7 @@ function createPackagesModule({ dependencies }) {
     events,
   });
 
-  const controller = createPackagesController({ service });
+  const controller = createPackagesController({ service, cmsService });
 
   const router = createPackagesRoutes({
     controller,
@@ -41,6 +50,8 @@ function createPackagesModule({ dependencies }) {
     service,
     repository,
     events,
+    cmsService,
+    cmsRepository,
   });
 }
 

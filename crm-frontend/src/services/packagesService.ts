@@ -168,6 +168,15 @@ export const createPackagesService = (datasource: PackagesDatasource) => ({
     const item = extractItem<any>(response);
     return item ? toPackageRecord(item) : null;
   },
+  delete: async (id: string): Promise<void> => {
+    await datasource.delete(id);
+  },
+  restore: async (id: string): Promise<void> => {
+    await datasource.restore(id);
+  },
+  hardDelete: async (id: string): Promise<void> => {
+    await datasource.hardDelete(id);
+  },
   listEnquiries: async (id: string): Promise<PackageEnquiry[]> => {
     const response = await datasource.listEnquiries(id);
     return extractList<any>(response).map(toEnquiryRecord);

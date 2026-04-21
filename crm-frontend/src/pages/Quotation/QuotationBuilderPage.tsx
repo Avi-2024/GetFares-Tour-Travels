@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FaArrowLeft,
@@ -3363,6 +3363,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
           headerBranding: form.headerBranding?.trim() || undefined,
           inclusions: form.inclusions?.trim() || undefined,
           exclusions: form.exclusions?.trim() || undefined,
+          itinerary: itineraryItems.map(item => ({
+            id: String(item.id ?? ''),
+            day: String(item.day ?? ''),
+            title: String(item.title ?? ''),
+            description: String(item.description ?? '')
+          })),
+          hotelDetails: form.hotelDetails?.trim() || undefined,
+          visaDetails: form.visaDetails?.trim() || undefined,
           paymentTerms: form.paymentTerms?.trim() || undefined,
           cancellationPolicy: form.cancellationPolicy?.trim() || undefined,
           footerDisclaimer: form.footerDisclaimer?.trim() || undefined

@@ -74,6 +74,38 @@ const listActivities = z.object({
     .optional(),
 });
 
+const statusTransition = z.object({
+  body: z.object({
+    status: complaintStatus,
+    reason: z.string().trim().max(2000).optional(),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const statusHistory = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const assign = z.object({
+  body: z.object({
+    userId: z.string().uuid(),
+    note: z.string().trim().max(2000).optional(),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
+const escalate = z.object({
+  body: z.object({
+    reason: z.string().trim().min(2).max(2000),
+  }),
+  params: z.object({ id: z.string().uuid() }),
+  query: z.object({}).optional(),
+});
+
 const ComplaintsValidation = {
   create,
   update,
@@ -81,6 +113,10 @@ const ComplaintsValidation = {
   list,
   createActivity,
   listActivities,
+  statusTransition,
+  statusHistory,
+  assign,
+  escalate,
 };
 
 export { ComplaintsValidation };

@@ -44,6 +44,41 @@ function createComplaintsController({ service }) {
     res.status(201).json({ data: result });
   }
 
+  async function changeStatus(req, res) {
+    const result = await service.changeStatus(
+      req.validated.params.id,
+      req.validated.body,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
+  async function statusHistory(req, res) {
+    const result = await service.statusHistory(
+      req.validated.params.id,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
+  async function assign(req, res) {
+    const result = await service.assign(
+      req.validated.params.id,
+      req.validated.body,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
+  async function escalate(req, res) {
+    const result = await service.escalate(
+      req.validated.params.id,
+      req.validated.body,
+      req.context,
+    );
+    res.status(200).json({ data: result });
+  }
+
   return Object.freeze({
     list,
     getById,
@@ -51,6 +86,10 @@ function createComplaintsController({ service }) {
     update,
     listActivities,
     createActivity,
+    changeStatus,
+    statusHistory,
+    assign,
+    escalate,
   });
 }
 

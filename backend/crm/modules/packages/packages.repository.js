@@ -68,6 +68,24 @@ function createPackagesRepository({ db, logger, schema }) {
       return db.update(schema.tableName, id, serializeJsonColumns(payload));
     },
 
+    async softDelete(id) {
+      logger.debug({ module: "packages", id }, "Soft deleting package");
+      return db.update(schema.tableName, id, { is_deleted: true });
+    },
+
+    async restore(id) {
+      logger.debug({ module: "packages", id }, "Restoring package");
+      return db.update(schema.tableName, id, { is_deleted: false });
+    },
+
+    async hardDelete(id) {
+      logger.debug({ module: "packages", id }, "Hard deleting package");
+      const existing = await db.findById(schema.tableName, id);
+      if (!existing) return null;
+      await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+      return existing;
+    },
+
     async createEnquiry(payload) {
       logger.debug({ module: "packages", payload }, "Creating package enquiry");
       return db.insert(schema.enquiriesTable, payload);

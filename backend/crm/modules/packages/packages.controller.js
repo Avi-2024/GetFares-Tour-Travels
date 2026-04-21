@@ -1,4 +1,4 @@
-function createPackagesController({ service }) {
+function createPackagesController({ service, cmsService }) {
   return Object.freeze({
     async list(req, res) {
       const result = await service.list(
@@ -33,6 +33,104 @@ function createPackagesController({ service }) {
         req.validated.body || {},
         req.context,
       );
+      res.status(200).json({ data: result });
+    },
+
+    async delete(req, res) {
+      const result = await service.delete(req.validated.params.id, req.context);
+      res.status(200).json({ data: result });
+    },
+
+    async restore(req, res) {
+      const result = await service.restore(req.validated.params.id, req.context);
+      res.status(200).json({ data: result });
+    },
+
+    async hardDelete(req, res) {
+      const result = await service.hardDelete(
+        req.validated.params.id,
+        req.context,
+      );
+      res.status(200).json({ data: result });
+    },
+
+    // CMS-like main/sub package management (served under CRM /api)
+    async listMain(req, res) {
+      const rows = await cmsService.listMainPackages(req.query || {});
+      res.status(200).json({ data: rows });
+    },
+
+    async getMainById(req, res) {
+      const row = await cmsService.getMainPackageById(req.validated.params.id);
+      res.status(200).json({ data: row });
+    },
+
+    async createMain(req, res) {
+      const row = await cmsService.createMainPackage(req.validated.body || {});
+      res.status(201).json({ data: row });
+    },
+
+    async updateMain(req, res) {
+      const row = await cmsService.updateMainPackage(
+        req.validated.params.id,
+        req.validated.body || {},
+      );
+      res.status(200).json({ data: row });
+    },
+
+    async deleteMain(req, res) {
+      const result = await cmsService.deleteMainPackage(req.validated.params.id);
+      res.status(200).json({ data: result });
+    },
+
+    async restoreMain(req, res) {
+      const result = await cmsService.restoreMainPackage(req.validated.params.id);
+      res.status(200).json({ data: result });
+    },
+
+    async hardDeleteMain(req, res) {
+      const result = await cmsService.hardDeleteMainPackage(req.validated.params.id);
+      res.status(200).json({ data: result });
+    },
+
+    async listSub(req, res) {
+      const rows = await cmsService.listSubPackages(
+        req.validated.params.mainPackageId,
+        req.query || {},
+      );
+      res.status(200).json({ data: rows });
+    },
+
+    async getSubById(req, res) {
+      const row = await cmsService.getSubPackageById(req.validated.params.id);
+      res.status(200).json({ data: row });
+    },
+
+    async createSub(req, res) {
+      const row = await cmsService.createSubPackage(req.validated.body || {});
+      res.status(201).json({ data: row });
+    },
+
+    async updateSub(req, res) {
+      const row = await cmsService.updateSubPackage(
+        req.validated.params.id,
+        req.validated.body || {},
+      );
+      res.status(200).json({ data: row });
+    },
+
+    async deleteSub(req, res) {
+      const result = await cmsService.deleteSubPackage(req.validated.params.id);
+      res.status(200).json({ data: result });
+    },
+
+    async restoreSub(req, res) {
+      const result = await cmsService.restoreSubPackage(req.validated.params.id);
+      res.status(200).json({ data: result });
+    },
+
+    async hardDeleteSub(req, res) {
+      const result = await cmsService.hardDeleteSubPackage(req.validated.params.id);
       res.status(200).json({ data: result });
     },
 

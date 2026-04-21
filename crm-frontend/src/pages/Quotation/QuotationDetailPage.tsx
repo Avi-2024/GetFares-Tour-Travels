@@ -1871,6 +1871,7 @@ const QuotationDetailPage: React.FC = () => {
                       validUntil: formatDateOnly(displayValidUntil),
                       total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
                       totalSellValue: String(commercial.finalAmount),
+                      currency: displayCurrency,
                       itinerary: itineraryItems.map((item: any) => ({
                         title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
                         points: item.description ? [item.description] : []
@@ -1953,6 +1954,7 @@ const QuotationDetailPage: React.FC = () => {
             validUntil: formatDateOnly(displayValidUntil),
             total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
             totalSellValue: String(commercial.finalAmount),
+            currency: displayCurrency,
             itinerary: itineraryItems.map((item: any) => ({
               title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
               points: item.description ? [item.description] : []
