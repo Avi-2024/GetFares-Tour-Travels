@@ -8,13 +8,19 @@ import { reportApiError } from "../../lib/notify";
 import { useUsersService } from "../../hooks/useUsersService";
 import { useLeadsService } from "../../hooks/useLeadsService";
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value?: string | null) =>
+  UUID_PATTERN.test(String(value || "").trim());
+
 interface Complaint {
   id: string;
   bookingId: string | null;
   assignedTo: string | null;
   issueType: string;
   description: string;
-  status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
   createdAt: string;
   updatedAt: string;
   priority?: "HIGH" | "MEDIUM" | "LOW";
@@ -24,9 +30,9 @@ interface Activity {
   id: string;
   note: string;
   userId: string;
-  userName: string;
+  userName?: string;
   createdAt: string;
-  type: string;
+  type?: string;
 }
 
 type AssignableUser = {
@@ -76,36 +82,17 @@ const ComplaintDetailPage: React.FC = () => {
   const [bookingNumber, setBookingNumber] = useState<string>("");
 
   const [complaint, setComplaint] = useState<Complaint>({
-    id: id || "CMP-001",
-    bookingId: "BK-2034",
-    assignedTo: "",
-    issueType: "Hotel Downgrade",
-    description:
-      "Client reported mismatch in room type. Booked Deluxe Suite but received Standard Room at check-in.",
-    status: "IN_PROGRESS",
-    createdAt: "2024-01-15T10:30:00Z",
-    updatedAt: "2024-01-15T14:20:00Z",
-    priority: "HIGH",
+    id: id || "",
+    bookingId: null,
+    assignedTo: null,
+    issueType: "",
+    description: "",
+    status: "OPEN",
+    createdAt: "",
+    updatedAt: "",
   });
 
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: "act-1",
-      note: "Complaint created and assigned to support queue.",
-      userId: "user-1",
-      userName: "System",
-      createdAt: "2024-01-15T10:30:00Z",
-      type: "NOTE",
-    },
-    {
-      id: "act-2",
-      note: "Assigned to Alex Thompson (Operations Team)",
-      userId: "user-2",
-      userName: "Manager",
-      createdAt: "2024-01-15T11:15:00Z",
-      type: "ASSIGNMENT",
-    },
-  ]);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   const getUserLabel = (userId: string | null | undefined) => {
     if (!userId) return "Unassigned";
@@ -138,7 +125,7 @@ const ComplaintDetailPage: React.FC = () => {
   useEffect(() => {
     const loadBookingCustomer = async () => {
       const bookingId = complaint.bookingId;
-      if (!bookingId) {
+      if (!bookingId || !isUuid(bookingId)) {
         setCustomerName("");
         setBookingNumber("");
         return;
@@ -184,7 +171,7 @@ const ComplaintDetailPage: React.FC = () => {
 
   useEffect(() => {
     const loadComplaintData = async () => {
-      if (!id) return;
+      if (!id || !isUuid(id)) return;
 
       try {
         setLoading(true);
@@ -227,12 +214,7 @@ const ComplaintDetailPage: React.FC = () => {
         }
       } catch (error) {
         console.error("Failed to load complaint data:", error);
-        reportApiError(
-          error,
-          "Failed to load complaint data. Using default data.",
-          setError,
-        );
-        // Keep the seed data that's already set in state
+        reportApiError(error, "Failed to load complaint data.", setError);
       } finally {
         setLoading(false);
       }
@@ -253,8 +235,6 @@ const ComplaintDetailPage: React.FC = () => {
         return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900";
       case "RESOLVED":
         return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
-      case "CLOSED":
-        return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
     }
@@ -274,18 +254,12 @@ const ComplaintDetailPage: React.FC = () => {
   };
 
   const handleStatusChange = async (
-    newStatus: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED",
+    newStatus: "OPEN" | "IN_PROGRESS" | "RESOLVED",
   ) => {
-    let reason = "";
-    if (newStatus === "CLOSED" || newStatus === "RESOLVED") {
-      reason =
-        window.prompt(`Please provide a reason for marking as ${newStatus}:`) ||
-        "";
-      if (!reason.trim()) {
-        setError("Reason is required for this status change");
-        return;
-      }
-    }
+    const reason =
+      newStatus === "RESOLVED"
+        ? window.prompt(`Reason (optional) for ${newStatus}?`) || ""
+        : "";
 
     try {
       await complaintsApi.changeStatus(id!, newStatus, reason);
@@ -296,15 +270,15 @@ const ComplaintDetailPage: React.FC = () => {
         updatedAt: new Date().toISOString(),
       }));
 
-      const newActivity: Activity = {
-        id: `act-${Date.now()}`,
-        note: `Status changed to ${newStatus}${reason ? `: ${reason}` : ""}`,
-        userId: "current-user",
-        userName: "Current User",
-        createdAt: new Date().toISOString(),
-        type: "STATUS_CHANGE",
-      };
-      setActivities((prev) => [newActivity, ...prev]);
+      setActivities((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          note: `Status changed to ${newStatus}${reason ? `: ${reason}` : ""}`,
+          userId: "system",
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
       setError("");
     } catch (error) {
       console.error("Failed to update status:", error);
@@ -321,16 +295,13 @@ const ComplaintDetailPage: React.FC = () => {
     try {
       await complaintsApi.addActivity(id!, {
         note: newNote,
-        type: "NOTE",
       });
 
       const activity: Activity = {
         id: `act-${Date.now()}`,
         note: newNote,
         userId: "current-user",
-        userName: "Current User",
         createdAt: new Date().toISOString(),
-        type: "NOTE",
       };
 
       setActivities((prev) => [activity, ...prev]);
@@ -368,7 +339,6 @@ const ComplaintDetailPage: React.FC = () => {
         id: `act-${Date.now()}`,
         note: `Complaint reassigned to ${selectedUserLabel}`,
         userId: "current-user",
-        userName: "Current User",
         createdAt: new Date().toISOString(),
         type: "ASSIGNMENT",
       };
@@ -396,7 +366,6 @@ const ComplaintDetailPage: React.FC = () => {
         id: `act-${Date.now()}`,
         note: `Complaint escalated: ${reason}`,
         userId: "current-user",
-        userName: "Current User",
         createdAt: new Date().toISOString(),
         type: "ESCALATION",
       };
@@ -416,7 +385,6 @@ const ComplaintDetailPage: React.FC = () => {
         issueType: complaint.issueType,
         description: complaint.description,
         status: complaint.status,
-        priority: complaint.priority,
       });
 
       setIsEditing(false);
@@ -470,13 +438,13 @@ const ComplaintDetailPage: React.FC = () => {
               >
                 {complaint.status}
               </span>
-              {complaint.priority && (
+              {(complaint as any).priority && (
                 <span
                   className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${getPriorityClass(
-                    complaint.priority,
+                    (complaint as any).priority,
                   )}`}
                 >
-                  {complaint.priority} Priority
+                  {(complaint as any).priority} Priority
                 </span>
               )}
             </div>
@@ -645,7 +613,6 @@ const ComplaintDetailPage: React.FC = () => {
                         <option value="OPEN">OPEN</option>
                         <option value="IN_PROGRESS">IN_PROGRESS</option>
                         <option value="RESOLVED">RESOLVED</option>
-                        <option value="CLOSED">CLOSED</option>
                       </select>
                     ) : (
                       <span
@@ -703,10 +670,7 @@ const ComplaintDetailPage: React.FC = () => {
                       <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-lg p-3">
                         <div className="flex justify-between items-start mb-1">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {activity.userName}
-                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                              • {activity.type.replace("_", " ")}
-                            </span>
+                            {activity.userId || "System"}
                           </p>
                           <p className="text-xs text-gray-400 dark:text-gray-500">
                             {formatDate(activity.createdAt)}
@@ -801,18 +765,6 @@ const ComplaintDetailPage: React.FC = () => {
                   }`}
                 >
                   Mark as RESOLVED
-                </button>
-
-                <button
-                  onClick={() => handleStatusChange("CLOSED")}
-                  disabled={complaint.status === "CLOSED"}
-                  className={`w-full py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                    complaint.status === "CLOSED"
-                      ? "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 cursor-default"
-                      : "bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600"
-                  }`}
-                >
-                  Mark as CLOSED
                 </button>
 
                 <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mt-3">

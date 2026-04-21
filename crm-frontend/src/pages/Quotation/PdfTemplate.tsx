@@ -28,6 +28,7 @@ interface PdfTemplateProps {
         validUntil?: string | null;
         total: string;
         totalSellValue?: string;
+        currency?: string;
         itinerary: ItineraryDay[];
         destination?: string;
         quotationTitle?: string;
@@ -48,6 +49,27 @@ interface PdfTemplateProps {
 }
 
 const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
+    const currency = String(data.currency || 'INR').toUpperCase();
+
+    const parseAmount = (value: unknown) => {
+        if (typeof value === 'number') return value;
+        const raw = String(value ?? '').trim();
+        if (!raw) return 0;
+        const normalized = raw.replace(/[^\d.-]/g, '');
+        const n = Number(normalized);
+        return Number.isFinite(n) ? n : 0;
+    };
+
+    const formatMoney = (amount: unknown, currencyCode: string) => {
+        const normalized = String(currencyCode || 'INR').toUpperCase();
+        const locale = normalized === 'INR' ? 'en-IN' : 'en-US';
+        return new Intl.NumberFormat(locale, {
+            style: 'currency',
+            currency: normalized,
+            maximumFractionDigits: 2,
+        }).format(parseAmount(amount));
+    };
+
     // Parse inclusions from string
     const parseInclusions = (inclusionsText: string | undefined): string[] => {
         if (!inclusionsText) return [];
@@ -197,12 +219,12 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                         <p>Package</p>
                         <div className='price-header'>
                             <p>Service Charge</p>
-                            <span>₹ {data.totalSellValue || data.total}</span>
+                            <span>{formatMoney(data.totalSellValue ?? data.total, currency)}</span>
                         </div>
 
                         <div className="price-row">
                             <b>Total Value</b>
-                            <span>₹ {data.totalSellValue || data.total}</span>
+                            <span>{formatMoney(data.totalSellValue ?? data.total, currency)}</span>
                         </div>
                     </div>
 

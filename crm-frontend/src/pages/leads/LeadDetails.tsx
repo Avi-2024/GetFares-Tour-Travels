@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { FaArrowLeft, FaCheckCircle, FaClock } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
 import { usersApi } from '../../api/users'
+import PdfTemplate from '../Quotation/PdfTemplate'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
 import {
@@ -189,6 +190,8 @@ const LeadDetails: React.FC = () => {
   const [quotationActionError, setQuotationActionError] = useState('')
   const [quotationActionMessage, setQuotationActionMessage] = useState('')
   const [quotationActionLoadingKey, setQuotationActionLoadingKey] = useState('')
+  const [quotationPdfData, setQuotationPdfData] = useState<any | null>(null)
+  const pdfTemplateRef = useRef<HTMLDivElement | null>(null)
   const [conversionFollowUpMessage, setConversionFollowUpMessage] = useState('')
   const [assigneeOptions, setAssigneeOptions] = useState<
     Array<{ value: string; label: string }>
@@ -1247,11 +1250,173 @@ const LeadDetails: React.FC = () => {
     setQuotationActionMessage('')
 
     try {
+      // Build PDF from template and upload, same as QuotationDetailPage flow.
+      const quoteRes = await quotationsApi.getById(selectedLeadQuotation.id)
+      const quotePayload: any = (quoteRes as any)?.data?.data ?? (quoteRes as any)?.data ?? quoteRes
+
+      const safeDateOnly = (value?: string | null) => {
+        if (!value) return 'N/A'
+        const d = new Date(value)
+        if (Number.isNaN(d.getTime())) return String(value)
+        return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+      }
+
+      const itineraryItems: any[] =
+        quotePayload?.itineraryItems ??
+        quotePayload?.itinerary ??
+        quotePayload?.snapshot?.itinerary ??
+        quotePayload?.templateSnapshot?.itinerary ??
+        []
+
+      const pdfData = {
+        packageName:
+          quotePayload?.packageName ??
+          quotePayload?.quotationTitle ??
+          quotePayload?.title ??
+          quotePayload?.templateName ??
+          'Package',
+        email: recipientEmail || '',
+        leadId:
+          lead?.leadCode ??
+          lead?.leadId ??
+          lead?.id ??
+          quotePayload?.lead?.leadCode ??
+          quotePayload?.lead?.leadId ??
+          quotePayload?.leadId ??
+          selectedLeadQuotation.id,
+        guestName: lead?.fullName ?? lead?.name ?? 'Guest',
+        guestEmail: recipientEmail || '',
+        nights: Number(quotePayload?.durationNights ?? quotePayload?.nights ?? 1) || 1,
+        adults: Number(lead?.adultsCount ?? lead?.adults_count ?? 2) || 2,
+        children: Number(lead?.childrenCount ?? lead?.children_count ?? 0) || 0,
+        travelDate: safeDateOnly(lead?.travelDate ?? lead?.travel_date ?? quotePayload?.travelDate ?? null),
+        validUntil: safeDateOnly(quotePayload?.validUntil ?? quotePayload?.valid_until ?? null),
+        currency: String(
+          quotePayload?.clientCurrency ??
+            quotePayload?.client_currency ??
+            quotePayload?.snapshot?.currency ??
+            quotePayload?.snapshot?.pricing?.clientCurrency ??
+            quotePayload?.snapshot?.pricing?.costCurrency ??
+            quotePayload?.pricing?.clientCurrency ??
+            quotePayload?.pricing?.costCurrency ??
+            lead?.clientCurrency ??
+            lead?.client_currency ??
+            'INR',
+        ).toUpperCase(),
+        total: String(
+          quotePayload?.total ??
+            quotePayload?.totalPrice ??
+            quotePayload?.snapshot?.pricing?.total ??
+            quotePayload?.pricing?.total ??
+            '0',
+        ),
+        totalSellValue: String(
+          quotePayload?.totalSellValue ??
+            quotePayload?.totalSaleValue ??
+            quotePayload?.snapshot?.commercial?.finalAmount ??
+            '',
+        ),
+        itinerary: Array.isArray(itineraryItems)
+          ? itineraryItems.map((item: any) => ({
+              title: item?.day && item?.title ? `${item.day}: ${item.title}` : item?.title || item?.day || 'Day',
+              points: item?.description ? [String(item.description)] : [],
+            }))
+          : [],
+        destination:
+          lead?.destinationName ??
+          lead?.travelTo ??
+          lead?.destination ??
+          quotePayload?.destinationName ??
+          quotePayload?.travelTo ??
+          'N/A',
+        quotationTitle: String(quotePayload?.quotationTitle ?? quotePayload?.title ?? ''),
+        templateName: String(quotePayload?.templateName ?? ''),
+        packageType: String(quotePayload?.packageType ?? quotePayload?.packageKind ?? 'Standard Package'),
+        inclusions: String(quotePayload?.inclusions ?? quotePayload?.contentTemplate?.inclusions ?? ''),
+        exclusions: String(quotePayload?.exclusions ?? quotePayload?.contentTemplate?.exclusions ?? ''),
+        headerBranding: String(quotePayload?.headerBranding ?? quotePayload?.contentTemplate?.headerBranding ?? ''),
+        paymentTerms: String(quotePayload?.paymentTerms ?? quotePayload?.contentTemplate?.paymentTerms ?? ''),
+        cancellationPolicy: String(
+          quotePayload?.cancellationPolicy ?? quotePayload?.contentTemplate?.cancellationPolicy ?? '',
+        ),
+        footerDisclaimer: String(
+          quotePayload?.footerDisclaimer ?? quotePayload?.contentTemplate?.footerDisclaimer ?? '',
+        ),
+        hotelDetails: String(quotePayload?.hotelDetails ?? quotePayload?.contentTemplate?.hotelDetails ?? ''),
+        quoteReference: String(quotePayload?.quoteNumber ?? quotePayload?.id ?? selectedLeadQuotation.id),
+        quotationStatus: String(quotePayload?.status ?? ''),
+        supplierName: String(quotePayload?.createdByUser?.fullName ?? quotePayload?.createdBy ?? ''),
+        enabledServices: String(quotePayload?.enabledServices ?? ''),
+      }
+
+      setQuotationPdfData(pdfData)
+
+      if (!pdfTemplateRef.current) {
+        throw new Error('PDF template not ready')
+      }
+
+      const element = pdfTemplateRef.current
+      element.style.display = 'block'
+      element.style.position = 'fixed'
+      element.style.top = '-9999px'
+      element.style.left = '-9999px'
+      element.style.width = '794px'
+      element.style.zIndex = '-9999'
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      const html2canvasModule = await import(
+        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
+      )
+      const html2canvas = (html2canvasModule as any).default
+      const jsPdfModule = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm')
+      const JsPDF = (jsPdfModule as any).default
+
+      const pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pages = Array.from(element.querySelectorAll('.pdf-page')) as HTMLElement[]
+      const targets = pages.length ? pages : [element]
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const margin = 10
+      const availableWidth = pageWidth - margin * 2
+
+      for (let idx = 0; idx < targets.length; idx += 1) {
+        const node = targets[idx]
+        const canvas = await html2canvas(node, {
+          scale: 1.25,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          allowTaint: true,
+          letterRendering: true,
+        })
+        const imgData = canvas.toDataURL('image/jpeg', 0.78)
+        const imgWidth = availableWidth
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        if (idx > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight)
+      }
+
+      const pdfBlob = pdf.output('blob')
+      const formData = new FormData()
+      formData.append('quotationId', selectedLeadQuotation.id)
+      formData.append('pdf', pdfBlob, `quotation-${pdfData.quoteReference || selectedLeadQuotation.id}.pdf`)
+      const token = localStorage.getItem('auth_token')
+      const uploadRes = await fetch(`/api/quotations/${selectedLeadQuotation.id}/upload-pdf`, {
+        method: 'POST',
+        body: formData,
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+      if (!uploadRes.ok) {
+        throw new Error('Failed to upload PDF')
+      }
+      const uploadData = await uploadRes.json()
+      const pdfUrl = uploadData?.pdfUrl
+
       await quotationsApi.send(selectedLeadQuotation.id, {
         channel,
         ...(channel === 'EMAIL'
           ? { recipientEmail }
-          : { recipientPhone })
+          : { recipientPhone }),
+        ...(pdfUrl ? { pdfUrl } : {}),
       })
 
       setQuotationActionMessage(
@@ -1264,6 +1429,11 @@ const LeadDetails: React.FC = () => {
     } catch (error) {
       reportApiError(error, 'Failed to send quotation.', setQuotationActionError)
     } finally {
+      if (pdfTemplateRef.current) {
+        pdfTemplateRef.current.style.display = 'none'
+        pdfTemplateRef.current.style.position = 'absolute'
+        pdfTemplateRef.current.style.top = '-9999px'
+      }
       setQuotationActionLoadingKey('')
     }
   }
@@ -1308,6 +1478,12 @@ const LeadDetails: React.FC = () => {
 
   return (
     <div className='space-y-6'>
+      <div
+        ref={pdfTemplateRef}
+        style={{ display: 'none', position: 'absolute', top: '-9999px' }}
+      >
+        {quotationPdfData ? <PdfTemplate data={quotationPdfData} /> : null}
+      </div>
       <div className='flex items-center gap-3'>
         <button
           onClick={() => navigate('/leads')}

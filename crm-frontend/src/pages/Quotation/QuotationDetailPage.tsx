@@ -15,7 +15,7 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import { quotationsApi } from '../../api'
-import { reportApiError } from '../../lib/notify'
+import { reportApiError, notify } from '../../lib/notify'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
 import PdfTemplate from './PdfTemplate'
 
@@ -850,6 +850,8 @@ const QuotationDetailPage: React.FC = () => {
 
       setShowSendDropdown(false)
       setError('')
+      const methodName = method === 'email' ? 'Email' : 'WhatsApp'
+      notify.success(`Quotation sent successfully via ${methodName}!`)
       console.log('Quotation sent successfully via ' + method)
     } catch (err) {
       console.error('Failed to send quotation:', err)
@@ -1871,6 +1873,7 @@ const QuotationDetailPage: React.FC = () => {
                       validUntil: formatDateOnly(displayValidUntil),
                       total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
                       totalSellValue: String(commercial.finalAmount),
+                      currency: displayCurrency,
                       itinerary: itineraryItems.map((item: any) => ({
                         title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
                         points: item.description ? [item.description] : []
@@ -1953,6 +1956,7 @@ const QuotationDetailPage: React.FC = () => {
             validUntil: formatDateOnly(displayValidUntil),
             total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
             totalSellValue: String(commercial.finalAmount),
+            currency: displayCurrency,
             itinerary: itineraryItems.map((item: any) => ({
               title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
               points: item.description ? [item.description] : []

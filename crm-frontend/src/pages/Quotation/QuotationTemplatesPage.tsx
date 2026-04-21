@@ -28,6 +28,15 @@ type TemplateRow = {
   headerBranding?: string
   inclusions?: string
   exclusions?: string
+  itinerary?: Array<{
+    id?: string
+    day?: string
+    title?: string
+    description?: string
+    [key: string]: unknown
+  }>
+  hotelDetails?: string
+  visaDetails?: string
   paymentTerms?: string
   cancellationPolicy?: string
   footerDisclaimer?: string
@@ -52,6 +61,9 @@ const QuotationTemplatesPage: React.FC = () => {
     headerBranding: '',
     inclusions: '',
     exclusions: '',
+    itinerary: '' as string,
+    hotelDetails: '',
+    visaDetails: '',
     paymentTerms: '',
     cancellationPolicy: '',
     footerDisclaimer: ''
@@ -91,6 +103,9 @@ const QuotationTemplatesPage: React.FC = () => {
     headerBranding: raw?.headerBranding ?? raw?.header_branding ?? '',
     inclusions: raw?.inclusions ?? '',
     exclusions: raw?.exclusions ?? '',
+    itinerary: Array.isArray(raw?.itinerary) ? raw.itinerary : undefined,
+    hotelDetails: raw?.hotelDetails ?? raw?.hotel_details ?? '',
+    visaDetails: raw?.visaDetails ?? raw?.visa_details ?? '',
     paymentTerms: raw?.paymentTerms ?? raw?.payment_terms ?? '',
     cancellationPolicy:
       raw?.cancellationPolicy ?? raw?.cancellation_policy ?? '',
@@ -226,6 +241,9 @@ const QuotationTemplatesPage: React.FC = () => {
       headerBranding: '',
       inclusions: '',
       exclusions: '',
+      itinerary: '',
+      hotelDetails: '',
+      visaDetails: '',
       paymentTerms: '',
       cancellationPolicy: '',
       footerDisclaimer: ''
@@ -235,6 +253,9 @@ const QuotationTemplatesPage: React.FC = () => {
 
   const openEdit = (row: TemplateRow) => {
     setEditingId(row.id)
+    const itineraryText = Array.isArray(row.itinerary)
+      ? JSON.stringify(row.itinerary, null, 2)
+      : ''
     setForm({
       code: row.code,
       name: row.name,
@@ -244,6 +265,9 @@ const QuotationTemplatesPage: React.FC = () => {
       headerBranding: row.headerBranding || '',
       inclusions: row.inclusions || '',
       exclusions: row.exclusions || '',
+      itinerary: itineraryText,
+      hotelDetails: row.hotelDetails || '',
+      visaDetails: row.visaDetails || '',
       paymentTerms: row.paymentTerms || '',
       cancellationPolicy: row.cancellationPolicy || '',
       footerDisclaimer: row.footerDisclaimer || ''
@@ -261,6 +285,16 @@ const QuotationTemplatesPage: React.FC = () => {
     setError('')
     setNotice('')
     try {
+      const parsedItinerary = (() => {
+        const raw = form.itinerary.trim()
+        if (!raw) return undefined
+        try {
+          const parsed = JSON.parse(raw)
+          return Array.isArray(parsed) ? parsed : undefined
+        } catch {
+          return undefined
+        }
+      })()
       const payload = {
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
@@ -270,6 +304,9 @@ const QuotationTemplatesPage: React.FC = () => {
         headerBranding: form.headerBranding.trim() || undefined,
         inclusions: form.inclusions.trim() || undefined,
         exclusions: form.exclusions.trim() || undefined,
+        itinerary: parsedItinerary,
+        hotelDetails: form.hotelDetails.trim() || undefined,
+        visaDetails: form.visaDetails.trim() || undefined,
         paymentTerms: form.paymentTerms.trim() || undefined,
         cancellationPolicy: form.cancellationPolicy.trim() || undefined,
         footerDisclaimer: form.footerDisclaimer.trim() || undefined
@@ -475,6 +512,51 @@ const QuotationTemplatesPage: React.FC = () => {
                   }))
                 }
                 placeholder='Excluded services and terms'
+              />
+            </div>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Itinerary Items (JSON)</label>
+              <textarea
+                rows={6}
+                className='field-input font-mono text-xs'
+                value={form.itinerary}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    itinerary: event.target.value
+                  }))
+                }
+                placeholder='[{ "day": "Day 1", "title": "...", "description": "..." }]'
+              />
+            </div>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Hotel Details</label>
+              <textarea
+                rows={3}
+                className='field-input'
+                value={form.hotelDetails}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    hotelDetails: event.target.value
+                  }))
+                }
+                placeholder='Hotel details text'
+              />
+            </div>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Visa Details</label>
+              <textarea
+                rows={3}
+                className='field-input'
+                value={form.visaDetails}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    visaDetails: event.target.value
+                  }))
+                }
+                placeholder='Visa details text'
               />
             </div>
             <div className='md:col-span-2'>

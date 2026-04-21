@@ -37,6 +37,15 @@ const snapshotSchema = z.object({}).passthrough();
 
 const currencyCode = z.string().trim().min(3).max(10);
 
+const itineraryItemSchema = z
+  .object({
+    id: z.string().max(80).optional(),
+    day: z.string().max(50).optional(),
+    title: z.string().max(200).optional(),
+    description: z.string().max(2000).optional(),
+  })
+  .passthrough();
+
 const create = z.object({
   body: z.object({
     leadId: z.string().uuid(),
@@ -263,6 +272,9 @@ const createTemplate = z.object({
     headerBranding: z.string().max(4000).optional(),
     inclusions: z.string().max(8000).optional(),
     exclusions: z.string().max(8000).optional(),
+    itinerary: z.array(itineraryItemSchema).optional(),
+    hotelDetails: z.string().max(8000).optional(),
+    visaDetails: z.string().max(8000).optional(),
     paymentTerms: z.string().max(4000).optional(),
     cancellationPolicy: z.string().max(4000).optional(),
     footerDisclaimer: z.string().max(4000).optional(),
@@ -282,6 +294,9 @@ const updateTemplate = z.object({
       headerBranding: z.string().max(4000).optional(),
       inclusions: z.string().max(8000).optional(),
       exclusions: z.string().max(8000).optional(),
+      itinerary: z.array(itineraryItemSchema).optional(),
+      hotelDetails: z.string().max(8000).optional(),
+      visaDetails: z.string().max(8000).optional(),
       paymentTerms: z.string().max(4000).optional(),
       cancellationPolicy: z.string().max(4000).optional(),
       footerDisclaimer: z.string().max(4000).optional(),
