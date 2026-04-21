@@ -136,8 +136,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                     {/* PACKAGE SECTION */}
                     <div className="package-section">
                         <div>
-                            <h3>PACKAGE NAME :-</h3>
-                            <p>{data.packageName}</p>
+                            <h3>PACKAGE NAME :- <span>{data.packageName}</span></h3>
                             <strong>Guest Email: {data.email}</strong>
                             {data.packageType && (
                                 <p className="package-type">
@@ -173,8 +172,9 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                             </p>
                         </div>
                     </div>
+
                     {/* INCLUDED SERVICES */}
-                    <div className="pdf-block">
+                    <div className="pdf-block-included-services">
                         <div className="pdf-block-title">Included Services</div>
                         <div className="pdf-block-body">
                             {inclusionsList.length > 0 ? (
@@ -205,10 +205,6 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                             <span>₹ {data.totalSellValue || data.total}</span>
                         </div>
                     </div>
-
-
-
-
                 </div>
             </div>
 
@@ -239,7 +235,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                             </div>
 
                             <div className="pdf-block">
-                                <div className="pdf-block-title">Inclusions</div>
+                                <div className="pdf-block-title-inclusion">Inclusions</div>
                                 <div className="pdf-block-body">
                                     {inclusionsList.length ? (
                                         <ul className="pdf-list">
@@ -293,7 +289,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                             {section('Cancellation Policy', data.cancellationPolicy)}
                             {section('Footer Disclaimer', data.footerDisclaimer)}
                             {section('Hotel Details', data.hotelDetails)}
-
+{/* 
                             <div className="pdf-block">
                                 <div className="pdf-block-title">Trip Summary</div>
                                 <div className="pdf-block-body">
@@ -308,7 +304,7 @@ const PdfTemplate: React.FC<PdfTemplateProps> = ({ data }) => {
                                     <div className="pdf-kv"><b>Package Type:</b> {data.packageType || 'N/A'}</div>
                                     <div className="pdf-kv"><b>Supplier:</b> {data.supplierName || 'N/A'}</div>
                                 </div>
-                            </div>
+                            </div> */}
 
                             <div className="pdf-block">
                                 <div className="pdf-block-title">Enabled Services</div>

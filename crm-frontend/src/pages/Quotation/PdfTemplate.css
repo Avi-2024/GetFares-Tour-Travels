@@ -89,11 +89,14 @@
 
 .package-section h3 {
   font-size: 12px;
-  font-weight: bold;
+  font-weight: lighter;
   color: #333;
   margin: 0 0 5px 0;
 }
-
+.package-section span {
+  color: #2d292b;
+  font-weight: bold;
+}
 .package-section p {
   margin: 2px 0;
   font-size: 12px;
@@ -105,9 +108,9 @@
 
 .package-type {
   margin-top: 4px !important;
-  padding: 5px;
+  /* padding: 5px; */
   /* background: #fff3f8; */
-  border-left: 3px solid;
+  /* border-left: 3px solid; */
   font-size: 12px !important;
 }
 
@@ -256,7 +259,8 @@
   font-size: 13px;
 }
 
-/* PRICE */.price-box {
+/* PRICE */
+.price-box {
   border: 1px solid #000;
   border-radius: 15px;
   margin-top: 15px;
@@ -280,7 +284,7 @@
   font-weight: bold;
   font-size: 12px;
   margin: 0;
-  padding: 0;
+  padding-bottom: 10px;
 }
 
 .price-header span {
@@ -331,9 +335,15 @@
   border: 1px solid rgba(0, 0, 0, 0.75);
   border-radius: 14px;
   padding: 9px 11px;
+  margin-top: 5px;
+}
+.pdf-block-included-services {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.75);
+  border-radius: 14px;
+  padding: 15px 11px;
   margin-top: 15px;
 }
-
 .pdf-block-title {
   font-weight: 800;
   font-size: 13px;
@@ -419,7 +429,7 @@
 } 
 
 .pdf-service-text {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   color: #ff2e7a;
 }
