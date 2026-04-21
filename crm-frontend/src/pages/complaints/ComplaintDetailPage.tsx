@@ -23,13 +23,16 @@ interface Complaint {
   status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
   createdAt: string;
   updatedAt: string;
+  priority?: "HIGH" | "MEDIUM" | "LOW";
 }
 
 interface Activity {
   id: string;
   note: string;
   userId: string;
+  userName?: string;
   createdAt: string;
+  type?: string;
 }
 
 type AssignableUser = {
@@ -336,7 +339,6 @@ const ComplaintDetailPage: React.FC = () => {
         id: `act-${Date.now()}`,
         note: `Complaint reassigned to ${selectedUserLabel}`,
         userId: "current-user",
-        userName: "Current User",
         createdAt: new Date().toISOString(),
         type: "ASSIGNMENT",
       };
@@ -364,7 +366,6 @@ const ComplaintDetailPage: React.FC = () => {
         id: `act-${Date.now()}`,
         note: `Complaint escalated: ${reason}`,
         userId: "current-user",
-        userName: "Current User",
         createdAt: new Date().toISOString(),
         type: "ESCALATION",
       };
@@ -437,13 +438,13 @@ const ComplaintDetailPage: React.FC = () => {
               >
                 {complaint.status}
               </span>
-              {complaint.priority && (
+              {(complaint as any).priority && (
                 <span
                   className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${getPriorityClass(
-                    complaint.priority,
+                    (complaint as any).priority,
                   )}`}
                 >
-                  {complaint.priority} Priority
+                  {(complaint as any).priority} Priority
                 </span>
               )}
             </div>
