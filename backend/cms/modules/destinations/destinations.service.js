@@ -73,12 +73,8 @@ function createDestinationsService({ repository }) {
 
   function toDestination(row) {
     if (!row) return null;
-    const categories = normalizeStringOrList(
-      row.categories ?? row.category,
-    );
-    const seasonFocus = normalizeStringOrList(
-      row.season_focus ?? row.season,
-    );
+    const categories = normalizeStringOrList(row.categories ?? row.category);
+    const seasonFocus = normalizeStringOrList(row.season_focus ?? row.season);
     return {
       id: row.id,
       name: row.name,
@@ -172,7 +168,9 @@ function createDestinationsService({ repository }) {
   function toGalleryUrls(mediaRows, titleImageUrl) {
     const titleUrl = normalizeText(titleImageUrl);
     const urls = mediaRows
-      .sort((a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0))
+      .sort(
+        (a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0),
+      )
       .map((item) => normalizeText(item.media_url))
       .filter((url) => Boolean(url) && url !== titleUrl);
     return Array.from(new Set(urls)).slice(0, 4);
@@ -257,8 +255,12 @@ function createDestinationsService({ repository }) {
         );
       }
 
-      const categories = normalizeStringOrList(data.categories ?? data.category);
-      const seasonFocus = normalizeStringOrList(data.seasonFocus ?? data.season);
+      const categories = normalizeStringOrList(
+        data.categories ?? data.category,
+      );
+      const seasonFocus = normalizeStringOrList(
+        data.seasonFocus ?? data.season,
+      );
 
       const row = await repository.create({
         name: normalizeText(data.name),
@@ -272,7 +274,11 @@ function createDestinationsService({ repository }) {
         rating: (() => {
           const rating = toNumber(data.rating, null);
           if (rating !== null && (rating < 0 || rating > 5)) {
-            throw new AppError(400, "Rating must be between 0 and 5", "INVALID_RATING");
+            throw new AppError(
+              400,
+              "Rating must be between 0 and 5",
+              "INVALID_RATING",
+            );
           }
           return rating;
         })(),
@@ -284,9 +290,11 @@ function createDestinationsService({ repository }) {
         travel_type: normalizeText(data.travelType),
         season: seasonFocus[0] || null,
         season_focus: seasonFocus,
-        key_highlights: Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
+        key_highlights:
+          Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
         services: Array.isArray(data.services) ? data.services : [],
-        best_time_to_visit: Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
+        best_time_to_visit:
+          Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
         is_active: toBoolean(data.isActive, true),
@@ -329,14 +337,20 @@ function createDestinationsService({ repository }) {
       if (data.region !== undefined)
         updates.region = normalizeText(data.region);
       if (data.category !== undefined || data.categories !== undefined) {
-        const categories = normalizeStringOrList(data.categories ?? data.category);
+        const categories = normalizeStringOrList(
+          data.categories ?? data.category,
+        );
         updates.category = categories[0] || null;
         updates.categories = categories;
       }
       if (data.rating !== undefined) {
         const rating = toNumber(data.rating);
         if (rating !== null && (rating < 0 || rating > 5)) {
-          throw new AppError(400, "Rating must be between 0 and 5", "INVALID_RATING");
+          throw new AppError(
+            400,
+            "Rating must be between 0 and 5",
+            "INVALID_RATING",
+          );
         }
         updates.rating = rating;
       }
@@ -350,26 +364,27 @@ function createDestinationsService({ repository }) {
       }
       if (data.isPopular !== undefined)
         updates.is_popular = toBoolean(data.isPopular, false);
-      if (data.isNew !== undefined) updates.is_new = toBoolean(data.isNew, false);
+      if (data.isNew !== undefined)
+        updates.is_new = toBoolean(data.isNew, false);
       if (data.travelType !== undefined)
         updates.travel_type = normalizeText(data.travelType);
       if (data.season !== undefined || data.seasonFocus !== undefined) {
-        const seasonFocus = normalizeStringOrList(data.seasonFocus ?? data.season);
+        const seasonFocus = normalizeStringOrList(
+          data.seasonFocus ?? data.season,
+        );
         updates.season = seasonFocus[0] || null;
         updates.season_focus = seasonFocus;
       }
       if (data.keyHighlights !== undefined) {
-        updates.key_highlights = Array.isArray(data.keyHighlights)
-          ? data.keyHighlights
-          : [];
+        updates.key_highlights =
+          Array.isArray(data.keyHighlights) ? data.keyHighlights : [];
       }
       if (data.services !== undefined) {
         updates.services = Array.isArray(data.services) ? data.services : [];
       }
       if (data.bestTimeToVisit !== undefined) {
-        updates.best_time_to_visit = Array.isArray(data.bestTimeToVisit)
-          ? data.bestTimeToVisit
-          : [];
+        updates.best_time_to_visit =
+          Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [];
       }
       if (data.metaTitle !== undefined)
         updates.meta_title = normalizeText(data.metaTitle);
@@ -611,7 +626,7 @@ function createDestinationsService({ repository }) {
 
       if (
         String(destination.country).toLowerCase() !==
-          String(mainPackage.country).toLowerCase()
+        String(mainPackage.country).toLowerCase()
       ) {
         throw new AppError(
           400,
