@@ -14,8 +14,11 @@ function createLandingService({ repository }) {
     return false;
   }
 
-  async function assertActiveLimit({ excludeId = null } = {}) {
-    const activeRows = await repository.findAll({ is_active: true });
+  async function assertActiveLimit({ excludeId = null, country = null } = {}) {
+    const activeRows = await repository.findAll({
+      is_active: true,
+      ...(country ? { country } : {}),
+    });
     const activeCount = activeRows.filter((row) => {
       if (excludeId && row.id === excludeId) return false;
       return isActiveValue(row.is_active);
@@ -24,8 +27,35 @@ function createLandingService({ repository }) {
     if (activeCount >= MAX_ACTIVE_LANDING_PLACES) {
       throw new AppError(
         400,
-        `Maximum ${MAX_ACTIVE_LANDING_PLACES} landing places can be active at once.`,
+        `Only ${MAX_ACTIVE_LANDING_PLACES} landing places can be active per country.`,
         "MAX_ACTIVE_LIMIT_REACHED",
+      );
+    }
+  }
+
+  async function assertDisplayOrderUnique({
+    displayOrder,
+    excludeId = null,
+    country = null,
+  }) {
+    if (displayOrder === null || displayOrder === undefined) {
+      return;
+    }
+    const rows = await repository.findAll({
+      ...(country ? { country } : {}),
+      includeDeleted: true,
+    });
+    const duplicate = rows.find((row) => {
+      if (excludeId && row.id === excludeId) {
+        return false;
+      }
+      return toNumber(row.display_order, null) === toNumber(displayOrder, null);
+    });
+    if (duplicate) {
+      throw new AppError(
+        400,
+        "Display order must be unique in landing places.",
+        "DUPLICATE_DISPLAY_ORDER",
       );
     }
   }
@@ -86,7 +116,7 @@ function createLandingService({ repository }) {
 
       const requestedIsActive = toBoolean(data.isActive, true);
       if (requestedIsActive) {
-        await assertActiveLimit();
+        await assertActiveLimit({ country });
       }
 
       const title = normalizeText(data.title ?? data.name);
@@ -103,12 +133,15 @@ function createLandingService({ repository }) {
         supportsCountry && country ? { country } : {},
       );
 
+      const displayOrder = toNumber(data.displayOrder, existing.length);
+      await assertDisplayOrderUnique({ displayOrder, country });
+
       const row = await repository.create({
         name: title,
         ...(supportsCountry ? { country } : {}),
         tag: normalizeText(data.tag ?? data.subtitle ?? data.description),
         image_url: imageUrl,
-        display_order: toNumber(data.displayOrder, existing.length),
+        display_order: displayOrder,
         is_active: requestedIsActive,
       });
 
@@ -137,7 +170,7 @@ function createLandingService({ repository }) {
       }
 
       if (nextIsActive) {
-        await assertActiveLimit({ excludeId: id });
+        await assertActiveLimit({ excludeId: id, country: incomingCountry });
       }
 
       if (data.name !== undefined || data.title !== undefined) {
@@ -161,8 +194,14 @@ function createLandingService({ repository }) {
       }
       if (data.imageUrl !== undefined || data.image !== undefined)
         updates.image_url = normalizeText(data.image ?? data.imageUrl);
-      if (data.displayOrder !== undefined)
+      if (data.displayOrder !== undefined) {
         updates.display_order = toNumber(data.displayOrder);
+        await assertDisplayOrderUnique({
+          displayOrder: updates.display_order,
+          excludeId: id,
+          country: incomingCountry,
+        });
+      }
       if (data.isActive !== undefined)
         updates.is_active = toBoolean(data.isActive, true);
 
@@ -178,7 +217,10 @@ function createLandingService({ repository }) {
 
       const nextIsActive = toBoolean(isActive, true);
       if (nextIsActive) {
-        await assertActiveLimit({ excludeId: id });
+        await assertActiveLimit({
+          excludeId: id,
+          country: normalizeText(existing.country),
+        });
       }
 
       const updated = await repository.update(id, {
