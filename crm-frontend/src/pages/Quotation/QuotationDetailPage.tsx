@@ -15,7 +15,7 @@ import {
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
 import { quotationsApi } from '../../api'
-import { reportApiError } from '../../lib/notify'
+import { reportApiError, notify } from '../../lib/notify'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
 import PdfTemplate from './PdfTemplate'
 
@@ -850,6 +850,8 @@ const QuotationDetailPage: React.FC = () => {
 
       setShowSendDropdown(false)
       setError('')
+      const methodName = method === 'email' ? 'Email' : 'WhatsApp'
+      notify.success(`Quotation sent successfully via ${methodName}!`)
       console.log('Quotation sent successfully via ' + method)
     } catch (err) {
       console.error('Failed to send quotation:', err)
