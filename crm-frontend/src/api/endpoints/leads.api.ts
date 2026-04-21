@@ -22,6 +22,7 @@ export interface CreateLeadPayload {
   leadCountry?: string;
   nationality?: string;
   budget?: number;
+  salary?: number;
   travelDate?: string;
   travelEndDate?: string;
   adultsCount?: number;
@@ -44,6 +45,7 @@ export interface UpdateLeadPayload {
   leadCountry?: string;
   nationality?: string;
   budget?: number;
+  salary?: number;
   travelDate?: string;
   travelEndDate?: string;
   adultsCount?: number;

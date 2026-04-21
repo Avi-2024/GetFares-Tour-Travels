@@ -22,6 +22,7 @@ function createQuotationsModule({ dependencies }) {
     repository,
     logger: dependencies.logger,
     events,
+    config: dependencies.config,
     s3: dependencies.storage?.s3,
     mailService: dependencies.services?.mail,
   });

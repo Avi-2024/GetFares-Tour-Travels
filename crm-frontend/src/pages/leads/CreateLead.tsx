@@ -707,10 +707,11 @@ const CreateLead: React.FC = () => {
         adultsCount: adultsCountNumber,
         childrenCount: childrenCountNumber,
         childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
-        budget:
-          form.budget.trim() && Number.isFinite(normalizedBudget)
-            ? normalizedBudget
-            : undefined,
+        ...(form.budget.trim() && Number.isFinite(normalizedBudget)
+          ? leadType === 'VISA'
+            ? { salary: normalizedBudget }
+            : { budget: normalizedBudget }
+          : {}),
         visaRequired: form.visaRequired
           ? form.visaRequired === 'YES'
           : undefined,
@@ -1115,7 +1116,9 @@ const CreateLead: React.FC = () => {
             </div>
           ) : null}
           <div>
-            <label className='field-label'>Budget</label>
+            <label className='field-label'>
+              {leadType === 'VISA' ? 'Salary' : 'Budget'}
+            </label>
             <CurrencyInput
               id='lead-budget'
               name='lead-budget'
@@ -1129,7 +1132,7 @@ const CreateLead: React.FC = () => {
               }}
               className={`field-input ${fieldError('budget') ? 'border-red-500' : ''
                 }`}
-              placeholder='Enter budget'
+              placeholder={leadType === 'VISA' ? 'Enter salary' : 'Enter budget'}
               onValueChange={(value?: string) =>
                 setForm(prev => ({ ...prev, budget: value || '' }))
               }

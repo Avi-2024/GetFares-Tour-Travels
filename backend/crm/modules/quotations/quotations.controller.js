@@ -54,6 +54,26 @@ function createQuotationsController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async uploadPdf(req, res) {
+      const file = req.file || null;
+      const buffer = file?.buffer;
+      if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+        res.status(400).json({ error: "PDF file is required" });
+        return;
+      }
+      const requestBaseUrl = `${req.protocol}://${req.get("host")}`;
+      const result = await service.uploadPdf(
+        req.params.id,
+        {
+          buffer,
+          originalName: file?.originalname || null,
+          mimeType: file?.mimetype || null,
+        },
+        { ...req.context, requestBaseUrl },
+      );
+      res.status(200).json({ data: result });
+    },
+
     async send(req, res) {
       const result = await service.send(
         req.validated.params.id,

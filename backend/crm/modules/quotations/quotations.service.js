@@ -204,7 +204,7 @@ function buildQuoteNumber() {
   return `QT-${stamp}-${randomPart}`;
 }
 
-function createQuotationsService({ repository, logger, events, s3, mailService }) {
+function createQuotationsService({ repository, logger, events, config, s3, mailService }) {
   function assertAuthenticatedUser(user) {
     if (!user?.id) {
       throw new AppError(401, "Authentication required", "AUTH_REQUIRED");
@@ -881,6 +881,10 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       .slice(0, 100);
     const fileName = `${fileSafeQuoteNumber}.pdf`;
 
+    const azureConfigured = Boolean(
+      config?.azureBlob?.connectionString && config?.azureBlob?.containerName,
+    );
+
     if (s3?.uploadBuffer) {
       try {
         const upload = await s3.uploadBuffer({
@@ -892,7 +896,17 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
         if (upload?.url) {
           return upload.url;
         }
+        if (azureConfigured) {
+          throw new AppError(
+            500,
+            "Blob upload returned no URL",
+            "BLOB_UPLOAD_NO_URL",
+          );
+        }
       } catch (error) {
+        if (azureConfigured) {
+          throw error;
+        }
         logger.warn(
           { err: error, quotationId: quotation.id },
           "S3 upload failed for quotation PDF. Falling back to local uploads",
@@ -1294,6 +1308,42 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
     return quotation;
   }
 
+  async function uploadPdf(id, payload = {}, context = {}) {
+    assertAuthenticatedUser(context.user);
+    const buffer = payload?.buffer;
+    if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+      throw new AppError(400, "PDF file is required", "QUOTATION_PDF_REQUIRED");
+    }
+
+    const quotation = await getById(id, context, {
+      includeItems: true,
+      includeRelations: true,
+    });
+
+    const pdfUrl = await storeGeneratedPdf({
+      quotation,
+      pdfBuffer: buffer,
+      context,
+    });
+
+    const updated = await repository.update(id, {
+      pdf_url: pdfUrl,
+      pdf_generated_at: new Date().toISOString(),
+      pdf_generated_by: context.user.id,
+      updated_at: new Date().toISOString(),
+    });
+
+    const next = {
+      ...quotation,
+      pdfUrl: updated.pdfUrl,
+      pdfGeneratedAt: updated.pdfGeneratedAt,
+      pdfGeneratedBy: updated.pdfGeneratedBy,
+    };
+
+    events.emitPdfGenerated({ id: updated.id, pdfUrl: updated.pdfUrl });
+    return next;
+  }
+
   async function send(id, payload = {}, context = {}) {
     assertAuthenticatedUser(context.user);
 
@@ -1544,6 +1594,7 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
     create,
     update,
     generatePdf,
+    uploadPdf,
     send,
     trackView,
 

@@ -784,54 +784,36 @@ const QuotationDetailPage: React.FC = () => {
       const JsPDF = (jsPdfModule as any).default
 
       // Render to canvas
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        allowTaint: true,
-        letterRendering: true
-      })
-
-      // Create PDF
-      const imgData = canvas.toDataURL('image/png')
       const pdf = new JsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       })
 
+      const pages = Array.from(
+        element.querySelectorAll('.pdf-page')
+      ) as HTMLElement[]
+      const targets = pages.length ? pages : [element]
       const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
       const margin = 10
       const availableWidth = pageWidth - margin * 2
-      const imgWidth = availableWidth
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-      let heightLeft = imgHeight
-      let position = 0
+      for (let idx = 0; idx < targets.length; idx += 1) {
+        const node = targets[idx]
+        const canvas = await html2canvas(node, {
+          // Keep file size manageable for uploads.
+          scale: 1.25,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          allowTaint: true,
+          letterRendering: true
+        })
+        const imgData = canvas.toDataURL('image/jpeg', 0.78)
+        const imgWidth = availableWidth
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-      pdf.addImage(
-        imgData,
-        'PNG',
-        margin,
-        margin,
-        imgWidth,
-        imgHeight
-      )
-      heightLeft -= pageHeight - margin * 2
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight
-        pdf.addPage()
-        pdf.addImage(
-          imgData,
-          'PNG',
-          margin,
-          position + margin,
-          imgWidth,
-          imgHeight
-        )
-        heightLeft -= pageHeight - margin * 2
+        if (idx > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight)
       }
 
       // Convert PDF to blob and send
@@ -912,54 +894,36 @@ const QuotationDetailPage: React.FC = () => {
       const JsPDF = (jsPdfModule as any).default
 
       // Render to canvas
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        allowTaint: true,
-        letterRendering: true
-      })
-
-      // Create PDF
-      const imgData = canvas.toDataURL('image/png')
       const pdf = new JsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       })
 
+      const pages = Array.from(
+        element.querySelectorAll('.pdf-page')
+      ) as HTMLElement[]
+      const targets = pages.length ? pages : [element]
       const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
       const margin = 10
       const availableWidth = pageWidth - margin * 2
-      const imgWidth = availableWidth
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-      let heightLeft = imgHeight
-      let position = 0
+      for (let idx = 0; idx < targets.length; idx += 1) {
+        const node = targets[idx]
+        const canvas = await html2canvas(node, {
+          // Keep file size manageable for downloads too.
+          scale: 1.25,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          allowTaint: true,
+          letterRendering: true
+        })
+        const imgData = canvas.toDataURL('image/jpeg', 0.78)
+        const imgWidth = availableWidth
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-      pdf.addImage(
-        imgData,
-        'PNG',
-        margin,
-        margin,
-        imgWidth,
-        imgHeight
-      )
-      heightLeft -= pageHeight - margin * 2
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight
-        pdf.addPage()
-        pdf.addImage(
-          imgData,
-          'PNG',
-          margin,
-          position + margin,
-          imgWidth,
-          imgHeight
-        )
-        heightLeft -= pageHeight - margin * 2
+        if (idx > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight)
       }
 
       // Save PDF
@@ -1863,7 +1827,7 @@ const QuotationDetailPage: React.FC = () => {
       {/* Preview Modal */}
       {showPreview && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
-          <div className='relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white dark:bg-gray-900 shadow-2xl'>
+          <div className='relative max-h-[95vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white dark:bg-gray-900 shadow-2xl'>
             {/* Modal Header */}
             <div className='flex items-center justify-between border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6'>
               <h2 className='text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100'>
@@ -1885,7 +1849,14 @@ const QuotationDetailPage: React.FC = () => {
                     data={{
                       packageName: displayPackageName || displayQuotationTitle || 'Package',
                       email: displayCustomerEmail,
-                      leadId: quotation?.id || 'N/A',
+                      leadId:
+                        (lead as any)?.leadCode ??
+                        (lead as any)?.leadId ??
+                        (snapshotLead as any)?.leadCode ??
+                        (snapshotLead as any)?.leadId ??
+                        quotation?.lead?.leadCode ??
+                        quotation?.lead?.leadId ??
+                        (quotation?.id ?? 'N/A'),
                       guestName: displayCustomerName,
                       guestEmail: displayCustomerEmail,
                       nights: toNumber(
@@ -1908,7 +1879,20 @@ const QuotationDetailPage: React.FC = () => {
                       quotationTitle: displayQuotationTitle,
                       templateName: displayTemplateName,
                       packageType: displayPackageKind || 'Standard Package',
-                      inclusions: String(contentTemplate?.inclusions ?? '')
+                      inclusions: String(contentTemplate?.inclusions ?? ''),
+                      exclusions: String(contentTemplate?.exclusions ?? ''),
+                      headerBranding: String(contentTemplate?.headerBranding ?? ''),
+                      paymentTerms: String(contentTemplate?.paymentTerms ?? ''),
+                      cancellationPolicy: String(contentTemplate?.cancellationPolicy ?? ''),
+                      footerDisclaimer: String(contentTemplate?.footerDisclaimer ?? ''),
+                      hotelDetails: String(contentTemplate?.hotelDetails ?? ''),
+                      quoteReference: String(quotation?.quoteNumber ?? quotation?.id ?? ''),
+                      quotationStatus: String(status ?? ''),
+                      supplierName: String(createdByUser?.fullName ?? createdByUser?.name ?? ''),
+                      enabledServices: String(
+                        noteSections.find(s => s.title.toLowerCase() === 'enabled services')
+                          ?.content ?? ''
+                      )
                     }}
                   />
                 </div>
@@ -1916,7 +1900,7 @@ const QuotationDetailPage: React.FC = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className='flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4 sm:p-6 sm:flex-row sm:justify-end'>
+            <div className='flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 sm:p-3 sm:flex-row sm:justify-end'>
               <button
                 onClick={() => setShowPreview(false)}
                 className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors inline-flex items-center justify-center whitespace-nowrap'
@@ -1947,7 +1931,14 @@ const QuotationDetailPage: React.FC = () => {
           data={{
             packageName: displayPackageName || displayQuotationTitle || 'Package',
             email: displayCustomerEmail,
-            leadId: quotation?.id || 'N/A',
+            leadId:
+              (lead as any)?.leadCode ??
+              (lead as any)?.leadId ??
+              (snapshotLead as any)?.leadCode ??
+              (snapshotLead as any)?.leadId ??
+              quotation?.lead?.leadCode ??
+              quotation?.lead?.leadId ??
+              (quotation?.id ?? 'N/A'),
             guestName: displayCustomerName,
             guestEmail: displayCustomerEmail,
             nights: toNumber(
@@ -1970,7 +1961,20 @@ const QuotationDetailPage: React.FC = () => {
             quotationTitle: displayQuotationTitle,
             templateName: displayTemplateName,
             packageType: displayPackageKind || 'Standard Package',
-            inclusions: String(contentTemplate?.inclusions ?? '')
+            inclusions: String(contentTemplate?.inclusions ?? ''),
+            exclusions: String(contentTemplate?.exclusions ?? ''),
+            headerBranding: String(contentTemplate?.headerBranding ?? ''),
+            paymentTerms: String(contentTemplate?.paymentTerms ?? ''),
+            cancellationPolicy: String(contentTemplate?.cancellationPolicy ?? ''),
+            footerDisclaimer: String(contentTemplate?.footerDisclaimer ?? ''),
+            hotelDetails: String(contentTemplate?.hotelDetails ?? ''),
+            quoteReference: String(quotation?.quoteNumber ?? quotation?.id ?? ''),
+            quotationStatus: String(status ?? ''),
+            supplierName: String(createdByUser?.fullName ?? createdByUser?.name ?? ''),
+            enabledServices: String(
+              noteSections.find(s => s.title.toLowerCase() === 'enabled services')
+                ?.content ?? ''
+            )
           }}
         />
       </div>
