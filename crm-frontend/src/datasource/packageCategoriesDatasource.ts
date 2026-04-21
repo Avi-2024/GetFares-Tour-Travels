@@ -27,6 +27,9 @@ export const createPackageCategoriesDatasource = (client: HttpClient) => ({
   restoreSub: (id: string) => client.patch(`/api/packages/sub/${id}/restore`),
   hardDeleteSub: (id: string) =>
     client.delete(`/api/packages/sub/${id}/hard-delete`),
+
+  uploadMedia: (payload: FormData) =>
+    client.post("/api/packages/media/upload", payload),
 });
 
 export type PackageCategoriesDatasource = ReturnType<

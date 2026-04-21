@@ -7,8 +7,17 @@ function createPackagesRoutes({
   validateRequest,
   requireAuth,
   authorize,
+  upload,
 }) {
   const router = Router();
+
+  router.post(
+    "/media/upload",
+    requireAuth,
+    authorize("settings:update"),
+    upload.any(),
+    asyncHandler(controller.uploadMedia),
+  );
 
   // CMS-like package categories (main/sub) under CRM /api
   router.get(

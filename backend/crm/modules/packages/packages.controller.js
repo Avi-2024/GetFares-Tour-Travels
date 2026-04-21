@@ -1,4 +1,9 @@
-function createPackagesController({ service, cmsService }) {
+import {
+  getFirstRequestFile,
+  getRequestFiles,
+} from "../../../cms/core/uploads/request-files.util.js";
+
+function createPackagesController({ service, cmsService, uploadService }) {
   return Object.freeze({
     async list(req, res) {
       const result = await service.list(
@@ -132,6 +137,46 @@ function createPackagesController({ service, cmsService }) {
     async hardDeleteSub(req, res) {
       const result = await cmsService.hardDeleteSubPackage(req.validated.params.id);
       res.status(200).json({ data: result });
+    },
+
+    async uploadMedia(req, res) {
+      const bannerFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "banner",
+        "image",
+        "file",
+      ]);
+      const galleryFiles = getRequestFiles(req, [
+        "gallery",
+        "galleryImages",
+        "images",
+        "media",
+      ]);
+
+      const uploadedBanner = bannerFile
+        ? await uploadService.uploadSingle({
+            file: bannerFile,
+            prefix: "cms/packages/media",
+            allowVideo: false,
+            required: false,
+          })
+        : null;
+
+      const uploadedGallery = galleryFiles.length
+        ? await uploadService.uploadMany({
+            files: galleryFiles,
+            prefix: "cms/packages/gallery",
+            allowVideo: false,
+            maxCount: 50,
+          })
+        : [];
+
+      res.status(200).json({
+        data: {
+          bannerUrl: uploadedBanner?.url || null,
+          galleryUrls: uploadedGallery.map((item) => item.url),
+        },
+      });
     },
 
     async createEnquiry(req, res) {

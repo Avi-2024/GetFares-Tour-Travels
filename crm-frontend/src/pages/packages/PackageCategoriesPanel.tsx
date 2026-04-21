@@ -244,6 +244,7 @@ const SubViewModal: React.FC<{
 const PackageCategoriesPanel: React.FC = () => {
   const api = usePackageCategoriesService();
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const [mainLoading, setMainLoading] = useState(false);
   const [mainPackages, setMainPackages] = useState<MainPackageRecord[]>([]);
@@ -895,29 +896,77 @@ const PackageCategoriesPanel: React.FC = () => {
                     }
                   />
                 </div>
-                <div className="md:col-span-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-                  <div>
-                    <label className="field-label">Image URL</label>
-                    <input
-                      className="field-input"
-                      value={subForm.image}
-                      onChange={(e) =>
-                        setSubForm((p) => ({ ...p, image: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="field-label">Banner URL</label>
-                    <input
-                      className="field-input"
-                      value={subForm.bannerImageUrl}
-                      onChange={(e) =>
-                        setSubForm((p) => ({
-                          ...p,
-                          bannerImageUrl: e.target.value,
-                        }))
-                      }
-                    />
+                <div className="md:col-span-2">
+                  <label className="field-label">Upload image / banner</label>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                        Main image
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploading}
+                        className="mt-2 block w-full text-sm"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setUploading(true);
+                          setError("");
+                          try {
+                            const fd = new FormData();
+                            fd.append("image", file);
+                            const res = await api.uploadMedia(fd);
+                            const url = res?.bannerUrl;
+                            if (url) {
+                              setSubForm((p) => ({ ...p, image: url }));
+                            }
+                          } catch (err) {
+                            reportApiError(err, "Upload failed.", setError);
+                          } finally {
+                            setUploading(false);
+                            e.target.value = "";
+                          }
+                        }}
+                      />
+                      <div className="mt-1 text-[11px] text-gray-500">
+                        {uploading ? "Uploading..." : "Saved to backend on Save"}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                        Banner image
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploading}
+                        className="mt-2 block w-full text-sm"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setUploading(true);
+                          setError("");
+                          try {
+                            const fd = new FormData();
+                            fd.append("banner", file);
+                            const res = await api.uploadMedia(fd);
+                            const url = res?.bannerUrl;
+                            if (url) {
+                              setSubForm((p) => ({ ...p, bannerImageUrl: url }));
+                            }
+                          } catch (err) {
+                            reportApiError(err, "Upload failed.", setError);
+                          } finally {
+                            setUploading(false);
+                            e.target.value = "";
+                          }
+                        }}
+                      />
+                      <div className="mt-1 text-[11px] text-gray-500">
+                        {uploading ? "Uploading..." : "Saved to backend on Save"}
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="md:col-span-2 grid grid-cols-1 gap-2 md:grid-cols-3">

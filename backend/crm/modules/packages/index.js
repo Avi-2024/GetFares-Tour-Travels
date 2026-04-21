@@ -8,6 +8,8 @@ import { createPackagesEvents } from "./packages.events.js";
 import { createCmsPackagesRepository } from "../../../cms/modules/packages/packages.repository.js";
 import { createCmsPackagesService } from "../../../cms/modules/packages/packages.service.js";
 import { CmsPackagesSchema } from "../../../cms/modules/packages/packages.schema.js";
+import { createCmsUploadService } from "../../../cms/core/uploads/cms-upload.service.js";
+import { createMemoryUpload } from "../../core/uploads/index.js";
 
 function createPackagesModule({ dependencies }) {
   const repository = createPackagesRepository({
@@ -21,6 +23,11 @@ function createPackagesModule({ dependencies }) {
     schema: CmsPackagesSchema,
   });
   const cmsService = createCmsPackagesService({ repository: cmsRepository });
+  const upload = createMemoryUpload({ maxFileSizeMb: 200 });
+  const uploadService = createCmsUploadService({
+    s3: dependencies.storage?.s3,
+    logger: dependencies.logger,
+  });
 
   const events = createPackagesEvents({
     eventBus: dependencies.eventBus,
@@ -33,7 +40,7 @@ function createPackagesModule({ dependencies }) {
     events,
   });
 
-  const controller = createPackagesController({ service, cmsService });
+  const controller = createPackagesController({ service, cmsService, uploadService });
 
   const router = createPackagesRoutes({
     controller,
@@ -41,6 +48,7 @@ function createPackagesModule({ dependencies }) {
     validateRequest: dependencies.middlewares.validateRequest,
     requireAuth: dependencies.middlewares.requireAuth,
     authorize: dependencies.middlewares.authorize,
+    upload,
   });
 
   return Object.freeze({
@@ -52,6 +60,7 @@ function createPackagesModule({ dependencies }) {
     events,
     cmsService,
     cmsRepository,
+    uploadService,
   });
 }
 

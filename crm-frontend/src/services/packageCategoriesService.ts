@@ -109,6 +109,11 @@ export const createPackageCategoriesService = (
     return extractItem<SubPackageRecord>(response);
   },
   deleteSub: async (id: string) => datasource.deleteSub(id),
+
+  uploadMedia: async (payload: FormData): Promise<{ bannerUrl: string | null; galleryUrls: string[] } | null> => {
+    const response = await datasource.uploadMedia(payload);
+    return extractItem<{ bannerUrl: string | null; galleryUrls: string[] }>(response);
+  },
 });
 
 export type PackageCategoriesService = ReturnType<
