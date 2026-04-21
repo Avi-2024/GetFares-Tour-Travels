@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { FaArrowLeft, FaBuilding, FaDownload, FaRotate, FaXmark } from 'react-icons/fa6'
 import { FaSearch } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
@@ -154,6 +155,7 @@ const mapSettlement = (item: any): Settlement => ({
 })
 
 const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ refreshKey = 0 }) => {
+  const location = useLocation()
   const [rows, setRows] = useState<Row[]>([])
   const [payablesBySupplier, setPayablesBySupplier] = useState<Record<string, Payable[]>>({})
   const [supplierCurrencyById, setSupplierCurrencyById] = useState<Record<string, string>>({})
@@ -412,6 +414,14 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
     () => groups.find(group => group.supplierId === selectedSupplierId) || null,
     [groups, selectedSupplierId]
   )
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '')
+    const supplierId = String(params.get('supplierId') || '').trim()
+    if (supplierId && supplierId !== selectedSupplierId) {
+      setSelectedSupplierId(supplierId)
+    }
+  }, [location.search, selectedSupplierId])
 
   useEffect(() => {
     setDetailsPage(1)
