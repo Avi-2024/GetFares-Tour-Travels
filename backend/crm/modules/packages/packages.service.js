@@ -115,6 +115,18 @@ function createPackagesService({ repository, logger, events }) {
     return existing;
   }
 
+  async function requireAnyPackage(id, context = {}) {
+    logger.debug(
+      { module: "packages", requestId: context.requestId, id },
+      "Get package by id (any state)",
+    );
+    const existing = await repository.findById(id);
+    if (!existing) {
+      throw new AppError(404, "Package not found", "PACKAGE_NOT_FOUND");
+    }
+    return existing;
+  }
+
   function computeStartingPrice(payload, existing = null) {
     const baseCost = toNumber(payload.baseCost, toNumber(existing?.base_cost, 0));
     const markupPercent = toNumber(
@@ -275,6 +287,25 @@ function createPackagesService({ repository, logger, events }) {
       const result = toPackage(row);
       events.emitCreated(result);
       return result;
+    },
+
+    async delete(id, context = {}) {
+      const existing = await requirePackage(id, context);
+      await repository.softDelete(existing.id);
+      return { success: true };
+    },
+
+    async restore(id, context = {}) {
+      const existing = await requireAnyPackage(id, context);
+      await repository.restore(existing.id);
+      const refreshed = await repository.findById(existing.id);
+      return toPackage(refreshed);
+    },
+
+    async hardDelete(id, context = {}) {
+      await requireAnyPackage(id, context);
+      await repository.hardDelete(id);
+      return { success: true };
     },
 
     async update(id, payload, context = {}) {

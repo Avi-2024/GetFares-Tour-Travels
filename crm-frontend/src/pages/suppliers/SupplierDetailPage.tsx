@@ -449,6 +449,12 @@ const SupplierDetailPage: React.FC = () => {
           </div>
         </div>
         <div className='flex gap-2'>
+          <button
+            onClick={() => navigate(`/finance-system?supplierId=${encodeURIComponent(supplier.id)}`)}
+            className='inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200'
+          >
+            <FaWallet /> Open in Finance System
+          </button>
           <button onClick={() => { void loadSupplier(); void loadPayables(); void loadBookings() }} className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'>
             <FaRotate /> Refresh
           </button>

@@ -16,6 +16,7 @@ import { createComplaintsDatasource } from "../datasource/complaintsDatasource";
 import { createUsersDatasource } from "../datasource/usersDatasource";
 import { createNotificationsDatasource } from "../datasource/notificationsDatasource";
 import { createPackagesDatasource } from "../datasource/packagesDatasource";
+import { createPackageCategoriesDatasource } from "../datasource/packageCategoriesDatasource";
 import { createAuthService, type AuthService } from "../services/authService";
 import {
   createLeadsService,
@@ -49,6 +50,10 @@ import {
   createPackagesService,
   type PackagesService,
 } from "../services/packagesService";
+import {
+  createPackageCategoriesService,
+  type PackageCategoriesService,
+} from "../services/packageCategoriesService";
 import { useAuth } from "./AuthContext";
 
 export type ServiceContextValue = {
@@ -61,6 +66,7 @@ export type ServiceContextValue = {
   usersService: UsersService;
   notificationsService: NotificationsService;
   packagesService: PackagesService;
+  packageCategoriesService: PackageCategoriesService;
 };
 
 const ServiceContext = createContext<ServiceContextValue | null>(null);
@@ -95,6 +101,7 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
     const usersDatasource = createUsersDatasource(apiClient);
     const notificationsDatasource = createNotificationsDatasource(apiClient);
     const packagesDatasource = createPackagesDatasource(apiClient);
+    const packageCategoriesDatasource = createPackageCategoriesDatasource(apiClient);
 
     return {
       authService: createAuthService(authDatasource),
@@ -106,6 +113,9 @@ export const ServiceProvider = ({ children }: { children: ReactNode }) => {
       usersService: createUsersService(usersDatasource),
       notificationsService: createNotificationsService(notificationsDatasource),
       packagesService: createPackagesService(packagesDatasource),
+      packageCategoriesService: createPackageCategoriesService(
+        packageCategoriesDatasource,
+      ),
     };
   }, [apiClient]);
 

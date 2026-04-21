@@ -2,6 +2,14 @@ import type { CmsTableEntry } from "../types/cms-table-entry.type";
 
 class CmsEntryMediaResolver {
   public getImageUrlFromEntry(entry: CmsTableEntry): string | null {
+    const media = entry.raw.media;
+    if (media && typeof media === "object" && !Array.isArray(media)) {
+      const titleImage = (media as Record<string, unknown>).title_image;
+      if (typeof titleImage === "string" && titleImage.trim().length > 0) {
+        return titleImage;
+      }
+    }
+
     const preferredKeys = [
       "image",
       "imageUrl",

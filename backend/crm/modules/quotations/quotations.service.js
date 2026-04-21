@@ -1812,13 +1812,16 @@ function createQuotationsService({ repository, logger, events, config, s3, mailS
         );
       }
 
-      return repository.createTemplate({
+      const fullPayload = {
         code: payload.code,
         name: payload.name,
         template_type: payload.templateType,
         header_branding: payload.headerBranding || null,
         inclusions: payload.inclusions || null,
         exclusions: payload.exclusions || null,
+        itinerary: Array.isArray(payload.itinerary) ? payload.itinerary : null,
+        hotel_details: payload.hotelDetails || null,
+        visa_details: payload.visaDetails || null,
         payment_terms: payload.paymentTerms || null,
         cancellation_policy: payload.cancellationPolicy || null,
         footer_disclaimer: payload.footerDisclaimer || null,
@@ -1827,7 +1830,31 @@ function createQuotationsService({ repository, logger, events, config, s3, mailS
         created_by: context.user.id,
         updated_by: context.user.id,
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      try {
+        return await repository.createTemplate(fullPayload);
+      } catch (error) {
+        const message = String(error?.message || "");
+        if (message.includes("Unknown column") && message.includes("itinerary")) {
+          logger.warn(
+            {
+              module: "quotations",
+              requestId: context.requestId,
+              err: error,
+            },
+            "Template content columns missing; retry without itinerary fields",
+          );
+          const fallbackPayload = {
+            ...fullPayload,
+            itinerary: undefined,
+            hotel_details: undefined,
+            visa_details: undefined,
+          };
+          return await repository.createTemplate(fallbackPayload);
+        }
+        throw error;
+      }
     },
 
     async updateTemplate(id, payload, context = {}) {
@@ -1853,13 +1880,16 @@ function createQuotationsService({ repository, logger, events, config, s3, mailS
         }
       }
 
-      return repository.updateTemplate(id, {
+      const fullPayload = {
         code: payload.code,
         name: payload.name,
         template_type: payload.templateType,
         header_branding: payload.headerBranding,
         inclusions: payload.inclusions,
         exclusions: payload.exclusions,
+        itinerary: Array.isArray(payload.itinerary) ? payload.itinerary : undefined,
+        hotel_details: payload.hotelDetails,
+        visa_details: payload.visaDetails,
         payment_terms: payload.paymentTerms,
         cancellation_policy: payload.cancellationPolicy,
         footer_disclaimer: payload.footerDisclaimer,
@@ -1870,7 +1900,32 @@ function createQuotationsService({ repository, logger, events, config, s3, mailS
         is_active: payload.isActive,
         updated_by: context.user.id,
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      try {
+        return await repository.updateTemplate(id, fullPayload);
+      } catch (error) {
+        const message = String(error?.message || "");
+        if (message.includes("Unknown column") && message.includes("itinerary")) {
+          logger.warn(
+            {
+              module: "quotations",
+              requestId: context.requestId,
+              err: error,
+              templateId: id,
+            },
+            "Template content columns missing; retry update without itinerary fields",
+          );
+          const fallbackPayload = {
+            ...fullPayload,
+            itinerary: undefined,
+            hotel_details: undefined,
+            visa_details: undefined,
+          };
+          return await repository.updateTemplate(id, fallbackPayload);
+        }
+        throw error;
+      }
     },
   });
 }

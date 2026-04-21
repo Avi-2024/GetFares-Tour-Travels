@@ -43,6 +43,16 @@ class CmsPayloadMapper {
     if (sectionKey === "destinations") {
       const categories = Array.isArray(payload.categories) ? payload.categories : [];
       const seasonFocus = Array.isArray(payload.seasonFocus) ? payload.seasonFocus : [];
+      const gallery =
+        Array.isArray(payload.gallery) ? payload.gallery :
+        Array.isArray((payload.media as JsonRecord | undefined)?.gallery) ?
+          ((payload.media as JsonRecord).gallery as unknown[])
+        : [];
+      const titleImage =
+        typeof payload.titleImageUrl === "string" ? payload.titleImageUrl :
+        typeof (payload.media as JsonRecord | undefined)?.title_image === "string" ?
+          String((payload.media as JsonRecord).title_image)
+        : "";
       return {
         name: payload.name,
         slug: payload.slug,
@@ -53,9 +63,10 @@ class CmsPayloadMapper {
         category: categories[0] ?? payload.category,
         categories,
         rating: payload.rating,
-        titleImageUrl: payload.titleImageUrl,
-        heroImageUrl: payload.heroImageUrl,
-        thumbnailUrl: payload.thumbnailUrl,
+        media: {
+          title_image: titleImage,
+          gallery,
+        },
         keyHighlights: payload.keyHighlights,
         services: payload.services,
         bestTimeToVisit: payload.bestTimeToVisit,

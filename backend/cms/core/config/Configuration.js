@@ -49,7 +49,7 @@ export class Configuration {
     };
 
     this._upload = {
-      maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760', 10),
+      maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '209715200', 10),
       allowedImageTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
       allowedVideoTypes: ['video/mp4', 'video/webm'],
     };

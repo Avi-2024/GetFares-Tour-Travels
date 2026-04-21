@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FaPlus, FaSave, FaTrash } from "react-icons/fa";
+import { FaPlus, FaSave, FaTrash, FaGlobe } from "react-icons/fa";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
 import { reportApiError } from "../../lib/notify";
 import { usePackagesService } from "../../hooks/usePackagesService";
+import PackageCategoriesPanel from "./PackageCategoriesPanel";
 import type {
   PackageCategory,
   PackageKind,
@@ -247,7 +248,9 @@ export function itineraryToPlainText(itinerary: unknown): string {
 const PackageDetailView: React.FC<{
   pkg: PackageRecord;
   onEdit: () => void;
-}> = ({ pkg, onEdit }) => {
+  onTogglePublish: () => void;
+  publishing: boolean;
+}> = ({ pkg, onEdit, onTogglePublish, publishing }) => {
   const itineraryItems = parseItineraryItems(pkg.itinerary);
 
   return (
@@ -261,12 +264,26 @@ const PackageDetailView: React.FC<{
             {pkg.destination} • {pkg.duration}
           </p>
         </div>
-        <button
-          onClick={onEdit}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          Edit Package
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={onEdit}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Edit Package
+          </button>
+          <button
+            onClick={onTogglePublish}
+            disabled={publishing}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${
+              pkg.publishToWebsite
+                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                : "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            } disabled:opacity-60`}
+          >
+            <FaGlobe className="text-xs" />
+            {publishing ? "Updating..." : pkg.publishToWebsite ? "Published" : "Publish"}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -463,9 +480,13 @@ const PackageDetailView: React.FC<{
 
 const PackagesPage: React.FC = () => {
   const packagesService = usePackagesService();
+  const [rootTab, setRootTab] = useState<"CATEGORIES" | "CRM">("CATEGORIES");
+  const [activeTab, setActiveTab] = useState<"ALL" | "PUBLISHED">("ALL");
   const [items, setItems] = useState<PackageRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [publishingId, setPublishingId] = useState("");
+  const [deletingId, setDeletingId] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [viewMode, setViewMode] = useState<"VIEW" | "EDIT">("VIEW");
   const [form, setForm] = useState<PackageFormState>(emptyForm);
@@ -479,6 +500,13 @@ const PackagesPage: React.FC = () => {
     "ALL",
   );
   const [destinationFilter, setDestinationFilter] = useState("");
+
+  const visibleItems = useMemo(() => {
+    if (activeTab === "PUBLISHED") {
+      return items.filter((item) => item.publishToWebsite);
+    }
+    return items;
+  }, [activeTab, items]);
 
   const selectedPackage = useMemo(
     () => items.find((item) => item.id === selectedId) || null,
@@ -753,66 +781,131 @@ const PackagesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Package Management
-          </h1>
-          <p className="text-sm text-gray-500 md:max-w-[80%]">
-            Create Ready (static) or Customized packages per Holidays SOP — full
-            inclusions, itinerary, hotel, visa, and payment terms for quotation
-            prefill. Website/CMS publishing is handled elsewhere.
-          </p>
-        </div>
-        <button
-          onClick={handleNew}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700 md:whitespace-nowrap"
-        >
-          <FaPlus />
-          New Package
-        </button>
-      </div>
-
       <SurfaceCard>
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-          <input
-            className="field-input"
-            placeholder="Search by name/destination"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <input
-            className="field-input"
-            placeholder="Destination filter"
-            value={destinationFilter}
-            onChange={(event) => setDestinationFilter(event.target.value)}
-          />
-          <SearchableDropdown
-            value={statusFilter}
-            options={statusFilterOptions}
-            onChange={(value) =>
-              setStatusFilter(value as PackageStatus | "ALL")
-            }
-            searchPlaceholder="Search status..."
-          />
-          <SearchableDropdown
-            value={categoryFilter}
-            options={categoryFilterOptions}
-            onChange={(value) =>
-              setCategoryFilter(value as PackageCategory | "ALL")
-            }
-            searchPlaceholder="Search category..."
-          />
-        </div>
-        <div className="mt-3 flex gap-2">
-          <button
-            onClick={() => void loadPackages()}
-            className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-          >
-            Apply Filters
-          </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Packages
+            </h1>
+            <p className="text-sm text-gray-500">
+              Main/sub categories + CRM quotation packages.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="inline-flex rounded-xl border border-gray-200 p-1 dark:border-gray-700">
+              <button
+                onClick={() => setRootTab("CATEGORIES")}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                  rootTab === "CATEGORIES"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                }`}
+              >
+                Main/Sub categories
+              </button>
+              <button
+                onClick={() => setRootTab("CRM")}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                  rootTab === "CRM"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                }`}
+              >
+                CRM packages
+              </button>
+            </div>
+            {rootTab === "CRM" ? (
+              <div className="inline-flex rounded-xl border border-gray-200 p-1 dark:border-gray-700">
+                <button
+                  onClick={() => setActiveTab("ALL")}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                    activeTab === "ALL"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setActiveTab("PUBLISHED")}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                    activeTab === "PUBLISHED"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  Published
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </SurfaceCard>
+
+      {rootTab === "CATEGORIES" ? (
+        <PackageCategoriesPanel />
+      ) : (
+        <>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                Package Management
+              </h1>
+              <p className="text-sm text-gray-500 md:max-w-[80%]">
+                Create Ready (static) or Customized packages per Holidays SOP — full
+                inclusions, itinerary, hotel, visa, and payment terms for quotation
+                prefill. Publish to website from here.
+              </p>
+            </div>
+            <button
+              onClick={handleNew}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700 md:whitespace-nowrap"
+            >
+              <FaPlus />
+              New Package
+            </button>
+          </div>
+
+          <SurfaceCard>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+              <input
+                className="field-input"
+                placeholder="Search by name/destination"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <input
+                className="field-input"
+                placeholder="Destination filter"
+                value={destinationFilter}
+                onChange={(event) => setDestinationFilter(event.target.value)}
+              />
+              <SearchableDropdown
+                value={statusFilter}
+                options={statusFilterOptions}
+                onChange={(value) =>
+                  setStatusFilter(value as PackageStatus | "ALL")
+                }
+                searchPlaceholder="Search status..."
+              />
+              <SearchableDropdown
+                value={categoryFilter}
+                options={categoryFilterOptions}
+                onChange={(value) =>
+                  setCategoryFilter(value as PackageCategory | "ALL")
+                }
+                searchPlaceholder="Search category..."
+              />
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => void loadPackages()}
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </SurfaceCard>
 
       {error ?
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
@@ -826,14 +919,16 @@ const PackagesPage: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Packages
             </h2>
-            <span className="text-xs text-gray-500">{items.length} items</span>
+            <span className="text-xs text-gray-500">
+              {visibleItems.length} items
+            </span>
           </div>
           {loading ?
             <p className="text-sm text-gray-500">Loading packages...</p>
-          : items.length === 0 ?
+          : visibleItems.length === 0 ?
             <p className="text-sm text-gray-500">No packages found.</p>
           : <div className="space-y-3">
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <div
                   key={item.id}
                   className={`rounded-xl border p-3 ${
@@ -862,6 +957,56 @@ const PackagesPage: React.FC = () => {
                       <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                         {item.packageKind === "CUSTOMIZED" ? "Custom" : "Ready"}
                       </span>
+                      <button
+                        title="Toggle website publish"
+                        disabled={publishingId === item.id}
+                        onClick={async () => {
+                          setPublishingId(item.id);
+                          setError("");
+                          try {
+                            await packagesService.publish(item.id, {
+                              publishToWebsite: !item.publishToWebsite,
+                            });
+                            await loadPackages();
+                          } catch (err) {
+                            reportApiError(err, "Could not update publish status.", setError);
+                          } finally {
+                            setPublishingId("");
+                          }
+                        }}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                          item.publishToWebsite
+                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                            : "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        } disabled:opacity-60`}
+                      >
+                        <FaGlobe className="text-[10px]" />
+                        {item.publishToWebsite ? "Published" : "Publish"}
+                      </button>
+                      <button
+                        title="Delete package"
+                        disabled={deletingId === item.id}
+                        onClick={async () => {
+                          setDeletingId(item.id);
+                          setError("");
+                          try {
+                            await packagesService.delete(item.id);
+                            await loadPackages();
+                            if (selectedId === item.id) {
+                              setSelectedId("");
+                              setViewMode("VIEW");
+                            }
+                          } catch (err) {
+                            reportApiError(err, "Could not delete package.", setError);
+                          } finally {
+                            setDeletingId("");
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-60"
+                      >
+                        <FaTrash className="text-[10px]" />
+                        {deletingId === item.id ? "Deleting" : "Delete"}
+                      </button>
                     </div>
                   </div>
                   <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
@@ -879,6 +1024,21 @@ const PackagesPage: React.FC = () => {
             <PackageDetailView
               pkg={selectedPackage}
               onEdit={() => setViewMode("EDIT")}
+              publishing={publishingId === selectedPackage.id}
+              onTogglePublish={async () => {
+                setPublishingId(selectedPackage.id);
+                setError("");
+                try {
+                  await packagesService.publish(selectedPackage.id, {
+                    publishToWebsite: !selectedPackage.publishToWebsite,
+                  });
+                  await loadPackages();
+                } catch (err) {
+                  reportApiError(err, "Could not update publish status.", setError);
+                } finally {
+                  setPublishingId("");
+                }
+              }}
             />
           : <>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -1423,156 +1583,9 @@ const PackagesPage: React.FC = () => {
         </SurfaceCard>
       </div>
 
-      {/* <SurfaceCard>
-        <div className='flex items-center gap-2'>
-          <FaBoxOpen />
-          <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-            Package Enquiries
-          </h2>
-        </div>
-        {!selectedId ? (
-          <p className='mt-3 text-sm text-gray-500'>
-            Select a package to manage enquiries.
-          </p>
-        ) : (
-          <>
-            <div className='mt-4 grid grid-cols-1 gap-2 md:grid-cols-4'>
-              <div>
-                <label className='field-label'>Lead ID (optional)</label>
-                <input
-                  className='field-input'
-                  placeholder='Lead ID (optional)'
-                  value={enquiryDraft.leadId}
-                  onChange={event =>
-                    setEnquiryDraft(prev => ({
-                      ...prev,
-                      leadId: event.target.value
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className='field-label'>Full name</label>
-                <input
-                  className='field-input'
-                  placeholder='Full name'
-                  value={enquiryDraft.fullName}
-                  onChange={event =>
-                    setEnquiryDraft(prev => ({
-                      ...prev,
-                      fullName: event.target.value
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className='field-label'>Phone</label>
-                <input
-                  className='field-input'
-                  placeholder='Phone'
-                  value={enquiryDraft.phone}
-                  onChange={event =>
-                    setEnquiryDraft(prev => ({
-                      ...prev,
-                      phone: event.target.value
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className='field-label'>Email</label>
-                <input
-                  className='field-input'
-                  placeholder='Email'
-                  value={enquiryDraft.email}
-                  onChange={event =>
-                    setEnquiryDraft(prev => ({
-                      ...prev,
-                      email: event.target.value
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className='field-label'>Travel date</label>
-                <input
-                  type='date'
-                  className='field-input'
-                  value={enquiryDraft.travelDate}
-                  onChange={event =>
-                    setEnquiryDraft(prev => ({
-                      ...prev,
-                      travelDate: event.target.value
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className='field-label'>Travellers</label>
-                <input
-                  className='field-input'
-                  placeholder='Travellers'
-                  value={enquiryDraft.travellersCount}
-                  onChange={event =>
-                    setEnquiryDraft(prev => ({
-                      ...prev,
-                      travellersCount: event.target.value
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className='field-label'>Source</label>
-                <input
-                  className='field-input'
-                  placeholder='Source'
-                  value={enquiryDraft.source}
-                  onChange={event =>
-                    setEnquiryDraft(prev => ({
-                      ...prev,
-                      source: event.target.value
-                    }))
-                  }
-                />
-              </div>
-              <button
-                onClick={() => void handleCreateEnquiry()}
-                className='rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700'
-              >
-                Add Enquiry
-              </button>
-            </div>
-            {enquiryError ? (
-              <p className='mt-2 text-sm text-red-600'>{enquiryError}</p>
-            ) : null}
-            <div className='mt-4 space-y-2'>
-              {enquiryLoading ? (
-                <p className='text-sm text-gray-500'>Loading enquiries...</p>
-              ) : enquiries.length === 0 ? (
-                <p className='text-sm text-gray-500'>
-                  No enquiries for this package yet.
-                </p>
-              ) : (
-                enquiries.map(enquiry => (
-                  <div
-                    key={enquiry.id}
-                    className='rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700'
-                  >
-                    <p className='font-medium text-gray-900 dark:text-gray-100'>
-                      {enquiry.fullName || 'Unnamed enquiry'}
-                    </p>
-                    <p className='text-xs text-gray-500'>
-                      {enquiry.phone || 'No phone'} •{' '}
-                      {enquiry.email || 'No email'} •{' '}
-                      {enquiry.travelDate || 'No travel date'}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </>
-        )}
-      </SurfaceCard> */}
+      
+        </>
+      )}
     </div>
   );
 };

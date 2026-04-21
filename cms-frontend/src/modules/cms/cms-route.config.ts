@@ -33,15 +33,15 @@ const cmsRouteDefinitions: CmsRouteDefinition[] = [
   {
     path: "/cms/packages/main",
     sectionKey: "main-packages",
-    title: "Main Packages",
-    subtitle: "Build high-level package narratives and featured blocks.",
+    title: "Parent Package",
+    subtitle: "Build high-level parent package narratives and featured blocks.",
     breadcrumb: "CMS / Packages / Main",
   },
   {
     path: "/cms/packages/sub",
     sectionKey: "sub-packages",
-    title: "Sub Packages",
-    subtitle: "Manage modular itinerary units nested under main packages.",
+    title: "Package",
+    subtitle: "Manage package variants nested under parent packages.",
     breadcrumb: "CMS / Packages / Sub",
   },
   {

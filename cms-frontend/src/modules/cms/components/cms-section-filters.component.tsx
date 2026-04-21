@@ -93,13 +93,35 @@ class CmsSectionFiltersComponent extends Component<
   }
 
   private onInputChange = (value: string): void => {
+    let nextValue = value;
+    const normalized = value.trim().toLowerCase();
+    const hasColon = normalized.includes(":");
+    if (!hasColon && normalized.length >= 3) {
+      const matches = this.props.columns.filter((column) => {
+        const key = column.key.toLowerCase();
+        const label = column.label.toLowerCase();
+        return key.startsWith(normalized) || label.startsWith(normalized);
+      });
+      if (matches.length === 1) {
+        nextValue = `${matches[0].key}: `;
+      }
+    }
     this.setState({
-      inputValue: value,
+      inputValue: nextValue,
     });
-    this.scheduleDebounce(value);
+    this.scheduleDebounce(nextValue);
   };
 
   private addFilterToken = (token: UniversalFilterToken): void => {
+    if (!token.value || !token.value.trim()) {
+      this.setState({
+        inputValue: `${token.key}: `,
+        debouncedValue: `${token.key}: `,
+        isInputFocused: true,
+        activeSuggestionIndex: 0,
+      });
+      return;
+    }
     const normalizedTokenKey = `${token.key}:${token.value.trim().toLowerCase()}`;
     const alreadyAdded = this.props.activeFilters.some(
       (existing) =>
@@ -188,9 +210,6 @@ class CmsSectionFiltersComponent extends Component<
 
   private getVisibleSuggestions(): UniversalFilterSuggestion[] {
     if (!this.state.isInputFocused) {
-      return [];
-    }
-    if (!this.state.debouncedValue.trim()) {
       return [];
     }
     return this.props.getSuggestions(

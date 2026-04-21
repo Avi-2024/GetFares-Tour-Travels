@@ -252,6 +252,11 @@ function createQuotationsRepository({ db, logger, schema }) {
       headerBranding: row.header_branding ?? row.headerBranding ?? null,
       inclusions: row.inclusions ?? null,
       exclusions: row.exclusions ?? null,
+      itinerary: toJson(row.itinerary, null),
+      hotelDetails:
+        row.hotel_details ?? row.hotelDetails ?? null,
+      visaDetails:
+        row.visa_details ?? row.visaDetails ?? null,
       paymentTerms: row.payment_terms ?? row.paymentTerms ?? null,
       cancellationPolicy:
         row.cancellation_policy ?? row.cancellationPolicy ?? null,

@@ -71,14 +71,39 @@ function createDestinationsService({ repository }) {
       .filter((item) => Boolean(item));
   }
 
+  function normalizeMediaPayload(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+    const titleImage =
+      normalizeText(value.title_image) ||
+      normalizeText(value.titleImage) ||
+      null;
+    const gallerySource =
+      Array.isArray(value.gallery) ? value.gallery : Array.isArray(value.galary) ? value.galary : [];
+    const gallery = gallerySource
+      .map((item) => normalizeText(item))
+      .filter((item) => Boolean(item))
+      .slice(0, 4);
+    return {
+      title_image: titleImage,
+      gallery,
+    };
+  }
+
   function toDestination(row) {
     if (!row) return null;
-    const categories = normalizeStringOrList(
-      row.categories ?? row.category,
+    const categories = normalizeStringOrList(row.categories ?? row.category);
+    const seasonFocus = normalizeStringOrList(row.season_focus ?? row.season);
+    const parsedMedia = normalizeMediaPayload(
+      parseJsonValue(row.media, row.media),
     );
-    const seasonFocus = normalizeStringOrList(
-      row.season_focus ?? row.season,
-    );
+    const titleImage =
+      normalizeText(parsedMedia?.title_image) ||
+      normalizeText(row.title_image_url) ||
+      normalizeText(row.thumbnail_url) ||
+      normalizeText(row.hero_image_url) ||
+      null;
     return {
       id: row.id,
       name: row.name,
@@ -90,9 +115,6 @@ function createDestinationsService({ repository }) {
       category: categories[0] || normalizeText(row.category),
       categories,
       rating: parseFloat(row.rating) || 0,
-      titleImageUrl: row.title_image_url || row.thumbnail_url || null,
-      heroImageUrl: row.hero_image_url,
-      thumbnailUrl: row.thumbnail_url,
       isPopular: row.is_popular,
       isNew: row.is_new,
       travelType: row.travel_type,
@@ -127,7 +149,10 @@ function createDestinationsService({ repository }) {
       isActive: row.is_active,
       isDeleted: row.is_deleted,
       is_deleted: row.is_deleted,
-      gallery: [],
+      media: {
+        title_image: titleImage,
+        gallery: Array.isArray(parsedMedia?.gallery) ? parsedMedia.gallery : [],
+      },
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -169,12 +194,17 @@ function createDestinationsService({ repository }) {
     };
   }
 
-  function toGalleryUrls(mediaRows, titleImageUrl) {
+  function toGalleryUrls(mediaRows, titleImageUrl, inlineGallery = []) {
     const titleUrl = normalizeText(titleImageUrl);
-    const urls = mediaRows
-      .sort((a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0))
+    const urls = [
+      ...inlineGallery,
+      ...mediaRows
+      .sort(
+        (a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0),
+      )
       .map((item) => normalizeText(item.media_url))
-      .filter((url) => Boolean(url) && url !== titleUrl);
+      .filter((url) => Boolean(url) && url !== titleUrl),
+    ];
     return Array.from(new Set(urls)).slice(0, 4);
   }
 
@@ -185,10 +215,17 @@ function createDestinationsService({ repository }) {
       return Promise.all(
         destinations.map(async (destination) => {
           const mediaRows = await repository.findMedia(destination.id);
-          const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+          const gallery = toGalleryUrls(
+            mediaRows,
+            destination.media?.title_image,
+            destination.media?.gallery,
+          );
           return {
             ...destination,
-            gallery,
+            media: {
+              ...destination.media,
+              gallery,
+            },
           };
         }),
       );
@@ -200,10 +237,17 @@ function createDestinationsService({ repository }) {
       return Promise.all(
         destinations.map(async (destination) => {
           const mediaRows = await repository.findMedia(destination.id);
-          const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+          const gallery = toGalleryUrls(
+            mediaRows,
+            destination.media?.title_image,
+            destination.media?.gallery,
+          );
           return {
             ...destination,
-            gallery,
+            media: {
+              ...destination.media,
+              gallery,
+            },
           };
         }),
       );
@@ -216,10 +260,17 @@ function createDestinationsService({ repository }) {
       }
       const destination = toDestination(row);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+      const gallery = toGalleryUrls(
+        mediaRows,
+        destination.media?.title_image,
+        destination.media?.gallery,
+      );
       return {
         ...destination,
-        gallery,
+        media: {
+          ...destination.media,
+          gallery,
+        },
       };
     },
 
@@ -230,10 +281,17 @@ function createDestinationsService({ repository }) {
       }
       const destination = toDestination(row);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+      const gallery = toGalleryUrls(
+        mediaRows,
+        destination.media?.title_image,
+        destination.media?.gallery,
+      );
       return {
         ...destination,
-        gallery,
+        media: {
+          ...destination.media,
+          gallery,
+        },
       };
     },
 
@@ -257,8 +315,18 @@ function createDestinationsService({ repository }) {
         );
       }
 
-      const categories = normalizeStringOrList(data.categories ?? data.category);
-      const seasonFocus = normalizeStringOrList(data.seasonFocus ?? data.season);
+      const categories = normalizeStringOrList(
+        data.categories ?? data.category,
+      );
+      const seasonFocus = normalizeStringOrList(
+        data.seasonFocus ?? data.season,
+      );
+      const mediaPayload = normalizeMediaPayload(data.media);
+      const titleImageUrl =
+        normalizeText(data.titleImageUrl) ||
+        normalizeText(mediaPayload?.title_image) ||
+        normalizeText(data.thumbnailUrl) ||
+        normalizeText(data.heroImageUrl);
 
       const row = await repository.create({
         name: normalizeText(data.name),
@@ -272,21 +340,26 @@ function createDestinationsService({ repository }) {
         rating: (() => {
           const rating = toNumber(data.rating, null);
           if (rating !== null && (rating < 0 || rating > 5)) {
-            throw new AppError(400, "Rating must be between 0 and 5", "INVALID_RATING");
+            throw new AppError(
+              400,
+              "Rating must be between 0 and 5",
+              "INVALID_RATING",
+            );
           }
           return rating;
         })(),
-        hero_image_url: normalizeText(data.heroImageUrl),
-        thumbnail_url: normalizeText(data.thumbnailUrl || data.titleImageUrl),
-        title_image_url: normalizeText(data.titleImageUrl || data.thumbnailUrl),
+        title_image_url: titleImageUrl,
+        media: mediaPayload,
         is_popular: toBoolean(data.isPopular, false),
         is_new: toBoolean(data.isNew, false),
         travel_type: normalizeText(data.travelType),
         season: seasonFocus[0] || null,
         season_focus: seasonFocus,
-        key_highlights: Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
+        key_highlights:
+          Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
         services: Array.isArray(data.services) ? data.services : [],
-        best_time_to_visit: Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
+        best_time_to_visit:
+          Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
         is_active: toBoolean(data.isActive, true),
@@ -295,7 +368,10 @@ function createDestinationsService({ repository }) {
       const destination = toDestination(row);
       return {
         ...destination,
-        gallery: [],
+        media: {
+          ...destination.media,
+          gallery: Array.isArray(mediaPayload?.gallery) ? mediaPayload.gallery : [],
+        },
       };
     },
 
@@ -329,47 +405,57 @@ function createDestinationsService({ repository }) {
       if (data.region !== undefined)
         updates.region = normalizeText(data.region);
       if (data.category !== undefined || data.categories !== undefined) {
-        const categories = normalizeStringOrList(data.categories ?? data.category);
+        const categories = normalizeStringOrList(
+          data.categories ?? data.category,
+        );
         updates.category = categories[0] || null;
         updates.categories = categories;
       }
       if (data.rating !== undefined) {
         const rating = toNumber(data.rating);
         if (rating !== null && (rating < 0 || rating > 5)) {
-          throw new AppError(400, "Rating must be between 0 and 5", "INVALID_RATING");
+          throw new AppError(
+            400,
+            "Rating must be between 0 and 5",
+            "INVALID_RATING",
+          );
         }
         updates.rating = rating;
       }
-      if (data.heroImageUrl !== undefined)
-        updates.hero_image_url = normalizeText(data.heroImageUrl);
-      if (data.thumbnailUrl !== undefined)
-        updates.thumbnail_url = normalizeText(data.thumbnailUrl);
+      if (data.media !== undefined) {
+        const mediaPayload = normalizeMediaPayload(data.media);
+        if (!mediaPayload) {
+          throw new AppError(400, "Invalid media payload", "INVALID_MEDIA");
+        }
+        updates.media = mediaPayload;
+        updates.title_image_url = normalizeText(mediaPayload.title_image);
+      }
       if (data.titleImageUrl !== undefined) {
         updates.title_image_url = normalizeText(data.titleImageUrl);
-        updates.thumbnail_url = normalizeText(data.titleImageUrl);
       }
       if (data.isPopular !== undefined)
         updates.is_popular = toBoolean(data.isPopular, false);
-      if (data.isNew !== undefined) updates.is_new = toBoolean(data.isNew, false);
+      if (data.isNew !== undefined)
+        updates.is_new = toBoolean(data.isNew, false);
       if (data.travelType !== undefined)
         updates.travel_type = normalizeText(data.travelType);
       if (data.season !== undefined || data.seasonFocus !== undefined) {
-        const seasonFocus = normalizeStringOrList(data.seasonFocus ?? data.season);
+        const seasonFocus = normalizeStringOrList(
+          data.seasonFocus ?? data.season,
+        );
         updates.season = seasonFocus[0] || null;
         updates.season_focus = seasonFocus;
       }
       if (data.keyHighlights !== undefined) {
-        updates.key_highlights = Array.isArray(data.keyHighlights)
-          ? data.keyHighlights
-          : [];
+        updates.key_highlights =
+          Array.isArray(data.keyHighlights) ? data.keyHighlights : [];
       }
       if (data.services !== undefined) {
         updates.services = Array.isArray(data.services) ? data.services : [];
       }
       if (data.bestTimeToVisit !== undefined) {
-        updates.best_time_to_visit = Array.isArray(data.bestTimeToVisit)
-          ? data.bestTimeToVisit
-          : [];
+        updates.best_time_to_visit =
+          Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [];
       }
       if (data.metaTitle !== undefined)
         updates.meta_title = normalizeText(data.metaTitle);
@@ -381,10 +467,17 @@ function createDestinationsService({ repository }) {
       const updated = await repository.update(id, updates);
       const destination = toDestination(updated);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+      const gallery = toGalleryUrls(
+        mediaRows,
+        destination.media?.title_image,
+        destination.media?.gallery,
+      );
       return {
         ...destination,
-        gallery,
+        media: {
+          ...destination.media,
+          gallery,
+        },
       };
     },
 
@@ -399,10 +492,17 @@ function createDestinationsService({ repository }) {
       });
       const destination = toDestination(updated);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+      const gallery = toGalleryUrls(
+        mediaRows,
+        destination.media?.title_image,
+        destination.media?.gallery,
+      );
       return {
         ...destination,
-        gallery,
+        media: {
+          ...destination.media,
+          gallery,
+        },
       };
     },
 
@@ -611,7 +711,7 @@ function createDestinationsService({ repository }) {
 
       if (
         String(destination.country).toLowerCase() !==
-          String(mainPackage.country).toLowerCase()
+        String(mainPackage.country).toLowerCase()
       ) {
         throw new AppError(
           400,

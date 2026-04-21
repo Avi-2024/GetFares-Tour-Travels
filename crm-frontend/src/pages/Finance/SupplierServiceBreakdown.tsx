@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { FaArrowLeft, FaBuilding, FaDownload, FaRotate, FaXmark } from 'react-icons/fa6'
 import { FaSearch } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
@@ -69,7 +70,7 @@ type Pagination = { page: number; limit: number; totalItems: number; totalPages:
 type CreateState = {
   row: Row
   payableAmount: string
-  ledgerCurrency: string
+  supplierCurrency: string
   rateSource: 'api' | 'custom'
   customRate: string
   fxLoading: boolean
@@ -120,6 +121,16 @@ const formatCurrency = (amount: number, currency = 'INR') => {
   }
 }
 
+const pickSupplierCurrency = (
+  supplierId: string,
+  supplierCurrencyById: Record<string, string>,
+  fallbackCurrency: string
+) => {
+  const fromSupplier = toUpper(supplierCurrencyById[supplierId], '')
+  if (fromSupplier) return fromSupplier
+  return toUpper(fallbackCurrency, 'INR')
+}
+
 const mapPayable = (item: any): Payable => {
   const payableAmount = toNumber(item?.payableAmount ?? item?.payable_amount, 0)
   const paidAmount = toNumber(item?.paidAmount ?? item?.paid_amount, 0)
@@ -144,6 +155,7 @@ const mapSettlement = (item: any): Settlement => ({
 })
 
 const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ refreshKey = 0 }) => {
+  const location = useLocation()
   const [rows, setRows] = useState<Row[]>([])
   const [payablesBySupplier, setPayablesBySupplier] = useState<Record<string, Payable[]>>({})
   const [supplierCurrencyById, setSupplierCurrencyById] = useState<Record<string, string>>({})
@@ -161,6 +173,11 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, totalItems: 0, totalPages: 1 })
   const [createModal, setCreateModal] = useState<CreateState | null>(null)
   const [settleModal, setSettleModal] = useState<SettleState | null>(null)
+  const [detailsPage, setDetailsPage] = useState(1)
+  const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(
+    () => new Set()
+  )
+  const detailsPageSize = 20
 
   const paymentModes = useMemo(
     () => ['BANK_TRANSFER', 'UPI', 'CASH', 'CARD', 'CHEQUE', 'OTHER'],
@@ -354,11 +371,15 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
     filteredRows.forEach(row => {
       const supplierKey = row.supplierId && row.supplierId !== '' ? row.supplierId : 'UNASSIGNED'
       if (!map.has(supplierKey)) {
+        const supplierCurrency =
+          supplierKey === 'UNASSIGNED'
+            ? toUpper(row.currency, 'INR')
+            : pickSupplierCurrency(supplierKey, supplierCurrencyById, row.currency)
         map.set(supplierKey, {
           supplierId: supplierKey,
           supplierName:
             supplierKey === 'UNASSIGNED' ? 'Supplier not assigned' : row.supplierName || 'Unknown Supplier',
-          currency: row.currency || 'INR',
+          currency: supplierCurrency || 'INR',
           serviceCount: 0,
           bookingCount: 0,
           serviceMix: [],
@@ -387,15 +408,60 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
       group.serviceMix.sort((a, b) => a.localeCompare(b))
     })
     return Array.from(map.values()).sort((a, b) => a.supplierName.localeCompare(b.supplierName))
-  }, [filteredRows, getPayable])
+  }, [filteredRows, getPayable, supplierCurrencyById])
 
   const selectedGroup = useMemo(
     () => groups.find(group => group.supplierId === selectedSupplierId) || null,
     [groups, selectedSupplierId]
   )
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '')
+    const supplierId = String(params.get('supplierId') || '').trim()
+    if (supplierId && supplierId !== selectedSupplierId) {
+      setSelectedSupplierId(supplierId)
+    }
+  }, [location.search, selectedSupplierId])
+
+  useEffect(() => {
+    setDetailsPage(1)
+    setExpandedBookingIds(new Set())
+  }, [selectedSupplierId])
+
+  const bookingDetailGroups = useMemo(() => {
+    if (!selectedGroup) return []
+    const byBooking = new Map<string, Row[]>()
+    selectedGroup.rows.forEach(r => {
+      const key = r.bookingId || r.bookingNumber || r.id
+      const list = byBooking.get(key) || []
+      list.push(r)
+      byBooking.set(key, list)
+    })
+    return Array.from(byBooking.entries())
+      .map(([key, list]) => ({
+        key,
+        rows: list.slice().sort((a, b) => a.serviceLabel.localeCompare(b.serviceLabel))
+      }))
+      .sort((a, b) => {
+        const left = Math.max(...a.rows.map(r => new Date(r.createdAt || 0).getTime()))
+        const right = Math.max(...b.rows.map(r => new Date(r.createdAt || 0).getTime()))
+        return right - left
+      })
+  }, [selectedGroup])
+
+  const detailsTotalPages = Math.max(
+    1,
+    Math.ceil(bookingDetailGroups.length / detailsPageSize)
+  )
+
+  const pagedBookingDetailGroups = useMemo(() => {
+    const start = (detailsPage - 1) * detailsPageSize
+    return bookingDetailGroups.slice(start, start + detailsPageSize)
+  }, [bookingDetailGroups, detailsPage])
+
   const bookingSummaryRows = useMemo(() => {
     if (!selectedGroup) return []
+    const supplierCurrency = selectedGroup.currency || 'INR'
     const byBooking = new Map<string, Row[]>()
     for (const row of selectedGroup.rows) {
       if (!row.bookingId) continue
@@ -407,37 +473,46 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
       .map(([bookingId, lineRows]) => {
         const sorted = lineRows.slice().sort((a, b) => a.serviceLabel.localeCompare(b.serviceLabel))
         const first = sorted[0]
+        const serviceCount = sorted.filter(r => Boolean(r.serviceLabel)).length
         const serviceTitle = [...new Set(sorted.map(r => r.serviceLabel).filter(Boolean))].join(', ')
         const serviceDetail = sorted.map(r => `${r.serviceLabel}: ${formatCurrency(r.basePrice, r.currency)}`).join(' | ')
         const baseTotal = sorted.reduce((sum, r) => sum + r.basePrice, 0)
         const baseCurrency = first.currency || 'INR'
+        const payableTotal = sorted.reduce((sum, r) => sum + (getPayable(r)?.payableAmount ?? 0), 0)
+        const paidTotal = sorted.reduce((sum, r) => sum + (getPayable(r)?.paidAmount ?? 0), 0)
+        const pendingTotal = sorted.reduce((sum, r) => sum + (getPayable(r)?.pendingAmount ?? 0), 0)
         const created = Math.max(...sorted.map(r => new Date(r.createdAt || 0).getTime()))
         return {
           bookingId,
           customer: first.customerName || first.leadName || 'Unknown',
           bookingNumber: first.bookingNumber,
           destination: first.destination || 'N/A',
+          serviceCount,
           serviceTitle: serviceTitle || 'Other',
           serviceDetail,
           baseTotal,
           baseCurrency,
           amount: first.bookingTotalAmount,
           amountCurrency: first.bookingCurrency || baseCurrency,
+          payableTotal,
+          paidTotal,
+          pendingTotal,
+          supplierCurrency,
           status: first.bookingStatus || 'PENDING',
           sortTs: created
         }
       })
       .sort((a, b) => b.sortTs - a.sortTs)
-  }, [selectedGroup])
+  }, [getPayable, selectedGroup])
 
   const openCreateModal = (row: Row) => {
     const bookingCurrency = toUpper(row.currency, 'INR')
-    const ledgerCurrency = toUpper(supplierCurrencyById[row.supplierId] || row.currency, 'INR')
-    const sameCurrency = bookingCurrency === ledgerCurrency
+    const supplierCurrency = pickSupplierCurrency(row.supplierId, supplierCurrencyById, row.currency)
+    const sameCurrency = bookingCurrency === supplierCurrency
     setCreateModal({
       row,
       payableAmount: String(row.basePrice || ''),
-      ledgerCurrency,
+      supplierCurrency,
       rateSource: sameCurrency ? 'custom' : 'api',
       customRate: sameCurrency ? '1' : '',
       fxLoading: false,
@@ -451,7 +526,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
   useEffect(() => {
     if (!createModal) return
     const from = toUpper(createModal.row.currency, 'INR')
-    const to = toUpper(createModal.ledgerCurrency, 'INR')
+    const to = toUpper(createModal.supplierCurrency, 'INR')
     const baseAmount = toNumber(createModal.row.basePrice, 0)
     if (from === to) {
       setCreateModal(prev =>
@@ -495,11 +570,16 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
       .convert(baseAmount, from, to)
       .then(converted => {
         if (cancelled) return
+        const unitRate = baseAmount > 0 ? converted / baseAmount : 0
         setCreateModal(prev =>
           prev
             ? {
                 ...prev,
                 payableAmount: String(Number(converted.toFixed(2))),
+                customRate:
+                  Number.isFinite(unitRate) && unitRate > 0
+                    ? String(Number(unitRate.toFixed(6)))
+                    : prev.customRate,
                 fxLoading: false,
                 fxError: ''
               }
@@ -523,7 +603,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
     }
   }, [
     createModal?.customRate,
-    createModal?.ledgerCurrency,
+    createModal?.supplierCurrency,
     createModal?.rateSource,
     createModal?.row.basePrice,
     createModal?.row.currency
@@ -723,6 +803,9 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                       <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Destination</th>
                       <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Service</th>
                       <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Base Price</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Payable</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Paid</th>
+                      <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Pending</th>
                       <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Amount</th>
                       <th className='px-4 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Status</th>
                     </tr>
@@ -734,13 +817,27 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                         <td className='px-4 py-3 text-sm font-mono text-gray-600 dark:text-gray-400'>{b.bookingNumber}</td>
                         <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{b.destination}</td>
                         <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
-                          <div>{b.serviceTitle}</div>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <span>{b.serviceTitle}</span>
+                            <span className='rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                              {Number(b.serviceCount || 0)} services
+                            </span>
+                          </div>
                           {b.serviceDetail ? (
                             <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>{b.serviceDetail}</div>
                           ) : null}
                         </td>
                         <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
                           {formatCurrency(b.baseTotal, b.baseCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                          {formatCurrency(b.payableTotal, b.supplierCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-green-700'>
+                          {formatCurrency(b.paidTotal, b.supplierCurrency)}
+                        </td>
+                        <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>
+                          {formatCurrency(b.pendingTotal, b.supplierCurrency)}
                         </td>
                         <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
                           {formatCurrency(b.amount, b.amountCurrency)}
@@ -772,49 +869,168 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
 
           <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
             <div className='border-b border-gray-200 px-4 py-3 text-sm font-semibold dark:border-gray-800'>Service & Price Details</div>
+            <div className='flex flex-col gap-2 border-b border-gray-100 px-4 py-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between'>
+              <div>
+                Bookings: {bookingDetailGroups.length} | Showing: {pagedBookingDetailGroups.length} | Page {detailsPage} / {detailsTotalPages}
+              </div>
+              <div className='flex items-center gap-2'>
+                <button
+                  onClick={() => setExpandedBookingIds(new Set(bookingDetailGroups.map(g => g.key)))}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                >
+                  Expand all (page)
+                </button>
+                <button
+                  onClick={() => setExpandedBookingIds(new Set())}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                >
+                  Collapse all
+                </button>
+                <button
+                  onClick={() => setDetailsPage(p => Math.max(1, p - 1))}
+                  disabled={detailsPage <= 1}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200'
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setDetailsPage(p => Math.min(detailsTotalPages, p + 1))}
+                  disabled={detailsPage >= detailsTotalPages}
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200'
+                >
+                  Next
+                </button>
+              </div>
+            </div>
             <div className='w-full max-w-full overflow-x-auto'>
               <table className='w-full min-w-[960px]'>
                 <thead className='bg-gray-50 dark:bg-gray-800/60'><tr><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Lead</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Booking</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Service</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Base Price</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Payable</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Paid</th><th className='px-4 py-3 text-right text-xs font-semibold text-gray-500'>Pending</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Status</th><th className='px-4 py-3 text-left text-xs font-semibold text-gray-500'>Action</th></tr></thead>
                 <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                  {selectedGroup.rows.map(row => {
-                    const payable = getPayable(row)
-                    return (
-                      <tr key={row.id}>
-                        <td className='px-4 py-3 text-sm'><p className='font-medium'>{row.leadName}</p><p className='text-xs text-gray-500'>{row.quoteNumber}</p></td>
-                        <td className='px-4 py-3 text-sm'><p>{row.bookingNumber}</p><p className='text-xs text-gray-500'>{formatLabel(row.bookingStatus || 'PENDING')} | {formatLabel(row.paymentStatus || 'PENDING')}</p></td>
-                        <td className='px-4 py-3 text-sm'>{row.serviceLabel}</td>
-                        <td className='px-4 py-3 text-right text-sm font-semibold'>{formatCurrency(row.basePrice, row.currency)}</td>
-                        <td className='px-4 py-3 text-right text-sm'>{payable ? formatCurrency(payable.payableAmount, row.currency) : '-'}</td>
-                        <td className='px-4 py-3 text-right text-sm text-green-700'>{payable ? formatCurrency(payable.paidAmount, row.currency) : '-'}</td>
-                        <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>{payable ? formatCurrency(payable.pendingAmount, row.currency) : '-'}</td>
-                        <td className='px-4 py-3 text-sm'>{payable ? formatLabel(payable.status) : 'Not Created'}</td>
-                        <td className='px-4 py-3 text-sm'>
-                          {!payable ? (
+                  {pagedBookingDetailGroups.flatMap((group, groupIndex) => {
+                      const list = group.rows
+                      const first = list[0]
+                      const payable = getPayable(first)
+                      const bookingLabel = `${first.bookingNumber || '-'}`
+                      const baseCurrencies = Array.from(new Set(list.map(r => toUpper(r.currency, 'INR'))))
+                      const baseCurrency = baseCurrencies.length === 1 ? baseCurrencies[0] : ''
+                      const baseTotal = list.reduce((sum, r) => sum + toNumber(r.basePrice, 0), 0)
+                      const statusLabel = payable ? formatLabel(payable.status) : 'Not Created'
+                      const actionCell = !payable ? (
+                        <button
+                          onClick={() => openCreateModal(first)}
+                          disabled={actionLoading || first.supplierId === 'UNASSIGNED'}
+                          title={first.supplierId === 'UNASSIGNED' ? 'Assign a supplier on the quote first' : undefined}
+                          className='rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40'
+                        >
+                          Create Payable
+                        </button>
+                      ) : payable.pendingAmount > 0 ? (
+                        <button
+                          onClick={() => openSettleModal(first, payable)}
+                          disabled={actionLoading}
+                          className='rounded-lg border border-green-500 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-40'
+                        >
+                          Settle Payment
+                        </button>
+                      ) : (
+                        <span className='rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700'>
+                          Settled
+                        </span>
+                      )
+
+                      const expanded = expandedBookingIds.has(group.key)
+                      const groupRowSpan = (expanded ? list.length : 0) + 2
+                      const toggleExpand = () =>
+                        setExpandedBookingIds(prev => {
+                          const next = new Set(prev)
+                          if (next.has(group.key)) next.delete(group.key)
+                          else next.add(group.key)
+                          return next
+                        })
+
+                      const bookingTotalRow = (
+                        <tr key={`${groupIndex}-booking-total`} className='bg-gray-50/70 dark:bg-gray-800/40'>
+                          <td className='px-4 py-3 align-top text-sm' rowSpan={groupRowSpan}>
+                            <p className='font-semibold text-gray-900 dark:text-gray-100'>{first.leadName}</p>
+                            <p className='text-xs text-gray-500'>{first.quoteNumber}</p>
+                          </td>
+                          <td className='px-4 py-3 align-top text-sm' rowSpan={groupRowSpan}>
                             <button
-                              onClick={() => openCreateModal(row)}
-                              disabled={actionLoading || row.supplierId === 'UNASSIGNED'}
-                              title={row.supplierId === 'UNASSIGNED' ? 'Assign a supplier on the quote first' : undefined}
-                              className='rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40'
+                              type='button'
+                              onClick={toggleExpand}
+                              className='flex w-full items-center justify-between gap-2 text-left'
                             >
-                              Create Payable
+                              <span className='font-semibold text-gray-900 dark:text-gray-100'>{bookingLabel}</span>
+                              <span className='rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                                {list.length} services
+                              </span>
                             </button>
-                          ) : payable.pendingAmount > 0 ? (
-                            <button
-                              onClick={() => openSettleModal(row, payable)}
-                              disabled={actionLoading}
-                              className='rounded-lg border border-green-500 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-40'
-                            >
-                              Settle Payment
-                            </button>
-                          ) : (
-                            <span className='rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700'>
-                              Settled
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                            <div className='mt-1 flex flex-wrap gap-1'>
+                              <span className='rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300'>
+                                {formatLabel(first.bookingStatus || 'PENDING')}
+                              </span>
+                              <span className='rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                                {formatLabel(first.paymentStatus || 'PENDING')}
+                              </span>
+                            </div>
+                            <div className='mt-1 text-[11px] text-gray-500'>
+                              {expanded ? 'Hide services' : 'Show services'}
+                            </div>
+                          </td>
+                          <td className='px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200'>Booking Total</td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            {baseCurrency ? formatCurrency(baseTotal, baseCurrency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            {payable ? formatCurrency(payable.payableAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-green-700'>
+                            {payable ? formatCurrency(payable.paidAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>
+                            {payable ? formatCurrency(payable.pendingAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100'>{statusLabel}</td>
+                          <td className='px-4 py-3 text-sm'>{actionCell}</td>
+                        </tr>
+                      )
+
+                      const serviceRows = expanded ? list.map(row => (
+                        <tr key={`${groupIndex}-service-${row.id}`}>
+                          <td className='px-4 py-3 text-sm text-gray-900 dark:text-gray-100'>{row.serviceLabel}</td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold'>
+                            {formatCurrency(row.basePrice, row.currency)}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm text-gray-400'>-</td>
+                          <td className='px-4 py-3 text-right text-sm text-gray-400'>-</td>
+                          <td className='px-4 py-3 text-right text-sm text-gray-400'>-</td>
+                          <td className='px-4 py-3 text-sm text-gray-400'>-</td>
+                          <td className='px-4 py-3 text-sm text-gray-400'>-</td>
+                        </tr>
+                      )) : []
+
+                      const footerTotalRow = (
+                        <tr key={`${groupIndex}-footer`} className='bg-gray-50/70 dark:bg-gray-800/40'>
+                          <td className='px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100'>Total</td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            {baseCurrency ? formatCurrency(baseTotal, baseCurrency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                            {payable ? formatCurrency(payable.payableAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-green-700'>
+                            {payable ? formatCurrency(payable.paidAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-right text-sm font-semibold text-rose-700'>
+                            {payable ? formatCurrency(payable.pendingAmount, selectedGroup.currency) : '-'}
+                          </td>
+                          <td className='px-4 py-3 text-sm'></td>
+                          <td className='px-4 py-3 text-sm'></td>
+                        </tr>
+                      )
+
+                      return [bookingTotalRow, ...serviceRows, footerTotalRow]
+                    })}
                 </tbody>
               </table>
             </div>
@@ -867,7 +1083,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
             </div>
             <div className='space-y-3 px-5 py-4'>
               <div className='rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200'>
-                Booking currency: {toUpper(createModal.row.currency, 'INR')} | Ledger currency: {createModal.ledgerCurrency}
+                Service currency: {toUpper(createModal.row.currency, 'INR')} | Supplier currency: {createModal.supplierCurrency}
               </div>
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <div>
@@ -895,26 +1111,32 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                 </div>
                 <div>
                   <label className='field-label'>
-                    1 {toUpper(createModal.row.currency, 'INR')} = ? {createModal.ledgerCurrency}
+                    1 {toUpper(createModal.row.currency, 'INR')} = ? {createModal.supplierCurrency}
                   </label>
                   <input
                     type='number'
                     min='0'
                     step='0.000001'
-                    disabled={createModal.rateSource !== 'custom'}
                     value={createModal.customRate}
                     onChange={event =>
                       setCreateModal(prev =>
-                        prev ? { ...prev, customRate: event.target.value, fxError: '' } : prev
+                        prev
+                          ? {
+                              ...prev,
+                              customRate: event.target.value,
+                              rateSource: 'custom',
+                              fxError: ''
+                            }
+                          : prev
                       )
                     }
                     className='field-input'
-                    placeholder='Custom rate'
+                    placeholder='Rate'
                   />
                 </div>
               </div>
               <div>
-                <label className='field-label'>Payable Amount *</label>
+                <label className='field-label'>Payable Amount * ({createModal.supplierCurrency})</label>
                 <input
                   type='number'
                   min='0'
@@ -997,7 +1219,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
                 <h3 className='text-base font-semibold'>Settle Supplier Payment</h3>
                 <p className='text-xs text-gray-500'>
                   Pending:{' '}
-                  {formatCurrency(settleModal.payable.pendingAmount, settleModal.row.currency)}
+                  {formatCurrency(settleModal.payable.pendingAmount, selectedGroup?.currency || settleModal.row.currency)}
                 </p>
               </div>
               <button
@@ -1010,7 +1232,7 @@ const SupplierServiceBreakdown: React.FC<SupplierServiceBreakdownProps> = ({ ref
             <div className='space-y-3 px-5 py-4'>
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <div>
-                  <label className='field-label'>Settlement Amount *</label>
+                  <label className='field-label'>Settlement Amount * ({selectedGroup?.currency || toUpper(settleModal.row.currency, 'INR')})</label>
                   <input
                     type='number'
                     min='0'

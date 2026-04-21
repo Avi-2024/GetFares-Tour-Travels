@@ -302,8 +302,14 @@ class CmsEntityViewModalComponent extends Component<
         this.readValue(definition.descriptionKey)
       : "";
     const metadataItems = this.getMetadataItems();
+    const rawMedia = this.props.entry?.raw?.media;
+    const mediaTitleImage =
+      rawMedia && typeof rawMedia === "object" && !Array.isArray(rawMedia) ?
+        (rawMedia as Record<string, unknown>).title_image
+      : null;
     const heroImageCandidates = [
       this.state.mediaItems[0]?.mediaUrl,
+      typeof mediaTitleImage === "string" ? mediaTitleImage : "",
       this.readValue("imageUrl"),
       this.readValue("heroImageUrl"),
       this.readValue("thumbnailUrl"),

@@ -17,22 +17,7 @@ const UUID_PATTERN =
 
 const isUuid = (value: string) => UUID_PATTERN.test(value.trim())
 
-const complaintsSeed = [
-  {
-    id: 'cmp-1',
-    bookingId: 'BK-2034',
-    issueType: 'Hotel downgrade',
-    description: 'Client reported mismatch in room type.',
-    status: 'OPEN'
-  },
-  {
-    id: 'cmp-2',
-    bookingId: 'BK-2030',
-    issueType: 'Transfer delay',
-    description: 'Airport transfer reached late.',
-    status: 'IN_PROGRESS'
-  }
-]
+const complaintsSeed: any[] = []
 
 type AssignableUser = {
   id: string
@@ -103,7 +88,7 @@ const ComplaintsPage = () => {
   const navigate = useNavigate()
   const usersService = useUsersService()
   const leadsService = useLeadsService()
-  const [rows, setRows] = useState(complaintsSeed)
+  const [rows, setRows] = useState<any[]>(complaintsSeed)
   const [loading, setLoading] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -267,7 +252,7 @@ const ComplaintsPage = () => {
     }
 
     fetchComplaints()
-  }, [leadsService])
+  }, [])
 
   useEffect(() => {
     const loadBookingOptions = async () => {

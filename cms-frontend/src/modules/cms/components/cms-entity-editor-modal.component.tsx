@@ -476,11 +476,23 @@ class CmsEntityEditorModalComponent extends Component<
         .listMedia(entityType, this.props.entry.id)
         .catch(() => []);
       if (this.props.sectionKey === "destinations") {
+        const rawMedia = this.getRawValue(this.props.entry, "media");
+        const mediaRecord =
+          rawMedia && typeof rawMedia === "object" && !Array.isArray(rawMedia) ?
+            (rawMedia as Record<string, unknown>)
+          : {};
         const titleImageUrl = this.toNonEmptyString(
-          this.getRawValue(this.props.entry, "titleImageUrl") ??
+          mediaRecord.title_image ??
+            this.getRawValue(this.props.entry, "titleImageUrl") ??
             this.getRawValue(this.props.entry, "thumbnailUrl") ??
             this.getRawValue(this.props.entry, "heroImageUrl"),
         );
+        const inlineGallery =
+          Array.isArray(mediaRecord.gallery) ?
+            mediaRecord.gallery
+              .map((item) => this.toNonEmptyString(item))
+              .filter((item): item is string => Boolean(item))
+          : [];
         const mappedGallery = media
           .filter(
             (item) => this.toNonEmptyString(item.mediaUrl) !== titleImageUrl,
@@ -498,10 +510,26 @@ class CmsEntityEditorModalComponent extends Component<
             pendingFile: null,
             previewUrl: undefined,
           }));
+        if (!mappedGallery.length && inlineGallery.length) {
+          mappedGallery.push(
+            ...inlineGallery.slice(0, 4).map((url, index) => ({
+              id: "",
+              clientId: `destination-gallery-inline-${index}`,
+              mediaUrl: url,
+              thumbnailUrl: url,
+              title: "",
+              altText: "",
+              isPrimary: false,
+              mediaKind: "image" as const,
+              pendingFile: null,
+              previewUrl: undefined,
+            })),
+          );
+        }
         const primaryItem =
           titleImageUrl ?
             {
-              id: null,
+              id: "",
               clientId: "destination-title-image",
               mediaUrl: titleImageUrl,
               thumbnailUrl: titleImageUrl,
@@ -657,12 +685,13 @@ class CmsEntityEditorModalComponent extends Component<
         if (this.props.sectionKey === "landing-places")
           payload.imageUrl = primary.mediaUrl;
       if (this.props.sectionKey === "destinations") {
-        payload.titleImageUrl = primary.mediaUrl;
-        payload.heroImageUrl = primary.mediaUrl;
-        payload.thumbnailUrl = primary.thumbnailUrl || primary.mediaUrl;
-        payload.gallery = mediaItems
-          .filter((item) => !item.isPrimary)
-          .map((item) => item.mediaUrl);
+        payload.media = {
+          title_image: primary.mediaUrl,
+          gallery: mediaItems
+            .filter((item) => !item.isPrimary)
+            .map((item) => item.mediaUrl)
+            .slice(0, 4),
+        };
       }
       if (this.props.sectionKey === "visa-destinations") {
         payload.imageUrl = primary.mediaUrl;

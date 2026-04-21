@@ -22,8 +22,8 @@ const deletedTabs: DeletedTab[] = [
   { key: "landing-places", label: "Landing Places" },
   { key: "destinations", label: "Destinations" },
   { key: "published-packages", label: "Packages" },
-  { key: "main-packages", label: "Main Packages" },
-  { key: "sub-packages", label: "Sub Packages" },
+  { key: "main-packages", label: "Parent Package" },
+  { key: "sub-packages", label: "Package" },
   { key: "visa-destinations", label: "Visa Destinations" },
   { key: "creative-toolkit", label: "Creative Toolkit" },
 ];
