@@ -2581,6 +2581,107 @@ SET @sql = IF(
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- =========================================
+-- 2026-04-21: DESTINATION MEDIA + DISPLAY ORDER UNIQUENESS
+-- =========================================
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'destinations'
+     AND column_name = 'title_image_url') = 0,
+  'ALTER TABLE destinations ADD COLUMN title_image_url TEXT NULL',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.columns
+   WHERE table_schema = DATABASE()
+     AND table_name = 'destinations'
+     AND column_name = 'media') = 0,
+  'ALTER TABLE destinations ADD COLUMN media JSON NULL',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+UPDATE destinations
+SET media = JSON_OBJECT(
+  'title_image', COALESCE(NULLIF(title_image_url, ''), NULLIF(thumbnail_url, ''), NULLIF(hero_image_url, '')),
+  'gallery', JSON_ARRAY()
+)
+WHERE media IS NULL OR JSON_TYPE(media) <> 'OBJECT';
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'landing_places'
+     AND index_name = 'ux_landing_places_country_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_landing_places_country_display_order ON landing_places(country, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'destination_media'
+     AND index_name = 'ux_destination_media_destination_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_destination_media_destination_display_order ON destination_media(destination_id, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'season_cards'
+     AND index_name = 'ux_season_cards_destination_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_season_cards_destination_display_order ON season_cards(destination_id, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'main_packages'
+     AND index_name = 'ux_main_packages_country_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_main_packages_country_display_order ON main_packages(country, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'sub_packages'
+     AND index_name = 'ux_sub_packages_main_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_sub_packages_main_display_order ON sub_packages(main_package_id, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'visa_destinations'
+     AND index_name = 'ux_visa_destinations_country_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_visa_destinations_country_display_order ON visa_destinations(country, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'featured_picks'
+     AND index_name = 'ux_featured_picks_country_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_featured_picks_country_display_order ON featured_picks(country, display_order)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 SET @sql = IF(
   (SELECT COUNT(*) FROM information_schema.columns
    WHERE table_schema = DATABASE()

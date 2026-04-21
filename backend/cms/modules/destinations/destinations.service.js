@@ -95,7 +95,11 @@ function createDestinationsService({ repository }) {
     if (!row) return null;
     const categories = normalizeStringOrList(row.categories ?? row.category);
     const seasonFocus = normalizeStringOrList(row.season_focus ?? row.season);
+    const parsedMedia = normalizeMediaPayload(
+      parseJsonValue(row.media, row.media),
+    );
     const titleImage =
+      normalizeText(parsedMedia?.title_image) ||
       normalizeText(row.title_image_url) ||
       normalizeText(row.thumbnail_url) ||
       normalizeText(row.hero_image_url) ||
@@ -147,7 +151,7 @@ function createDestinationsService({ repository }) {
       is_deleted: row.is_deleted,
       media: {
         title_image: titleImage,
-        gallery: [],
+        gallery: Array.isArray(parsedMedia?.gallery) ? parsedMedia.gallery : [],
       },
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -190,14 +194,17 @@ function createDestinationsService({ repository }) {
     };
   }
 
-  function toGalleryUrls(mediaRows, titleImageUrl) {
+  function toGalleryUrls(mediaRows, titleImageUrl, inlineGallery = []) {
     const titleUrl = normalizeText(titleImageUrl);
-    const urls = mediaRows
+    const urls = [
+      ...inlineGallery,
+      ...mediaRows
       .sort(
         (a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0),
       )
       .map((item) => normalizeText(item.media_url))
-      .filter((url) => Boolean(url) && url !== titleUrl);
+      .filter((url) => Boolean(url) && url !== titleUrl),
+    ];
     return Array.from(new Set(urls)).slice(0, 4);
   }
 
@@ -211,6 +218,7 @@ function createDestinationsService({ repository }) {
           const gallery = toGalleryUrls(
             mediaRows,
             destination.media?.title_image,
+            destination.media?.gallery,
           );
           return {
             ...destination,
@@ -232,6 +240,7 @@ function createDestinationsService({ repository }) {
           const gallery = toGalleryUrls(
             mediaRows,
             destination.media?.title_image,
+            destination.media?.gallery,
           );
           return {
             ...destination,
@@ -251,7 +260,11 @@ function createDestinationsService({ repository }) {
       }
       const destination = toDestination(row);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = toGalleryUrls(mediaRows, destination.media?.title_image);
+      const gallery = toGalleryUrls(
+        mediaRows,
+        destination.media?.title_image,
+        destination.media?.gallery,
+      );
       return {
         ...destination,
         media: {
@@ -268,7 +281,11 @@ function createDestinationsService({ repository }) {
       }
       const destination = toDestination(row);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = toGalleryUrls(mediaRows, destination.media?.title_image);
+      const gallery = toGalleryUrls(
+        mediaRows,
+        destination.media?.title_image,
+        destination.media?.gallery,
+      );
       return {
         ...destination,
         media: {
@@ -450,7 +467,11 @@ function createDestinationsService({ repository }) {
       const updated = await repository.update(id, updates);
       const destination = toDestination(updated);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = toGalleryUrls(mediaRows, destination.media?.title_image);
+      const gallery = toGalleryUrls(
+        mediaRows,
+        destination.media?.title_image,
+        destination.media?.gallery,
+      );
       return {
         ...destination,
         media: {
@@ -471,7 +492,11 @@ function createDestinationsService({ repository }) {
       });
       const destination = toDestination(updated);
       const mediaRows = await repository.findMedia(destination.id);
-      const gallery = toGalleryUrls(mediaRows, destination.media?.title_image);
+      const gallery = toGalleryUrls(
+        mediaRows,
+        destination.media?.title_image,
+        destination.media?.gallery,
+      );
       return {
         ...destination,
         media: {
