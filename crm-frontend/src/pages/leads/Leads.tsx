@@ -551,7 +551,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                     }}
                     className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
                       quickFilter === item.key
-                        ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                        ? "bg-[rgba(96,47,247,0.8)] dark:bg-gray-700 text-white dark:text-blue-400 shadow-sm"
                         : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                     }`}
                   >
@@ -747,7 +747,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                   type="button"
                   onClick={exportCurrentTable}
                   disabled={exporting || (pagination?.total ?? 0) === 0}
-                  className="inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  className="inline-flex items-center justify-center rounded-xl border border-purple-600 bg-[rgba(96,47,247,0.8)] px-4 py-2 text-sm font-medium text-white hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                 >
                   <FaDownload className="mr-2" />
                   <span>{exporting ? "Exporting..." : "Export Filtered"}</span>
@@ -790,36 +790,36 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
                     <col style={{ width: 110, minWidth: 110 }} />
                     <col style={{ width: 110, minWidth: 110 }} />
                   </colgroup>
-                  <thead className="bg-gray-50  dark:bg-gray-800/50 sticky top-0 z-10">
+                  <thead className="bg-[rgba(96,47,247,0.8)]  dark:bg-gray-800/50 sticky top-0 z-10">
                     <tr>
-                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Date
                       </th>
-                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead
                       </th>
-                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead ID
                       </th>
-                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Contact
                       </th>
-                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Destination
                       </th>
-                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Visa/Holidays
                       </th>
-                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead Country
                       </th>
-                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Status
                       </th>
-                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         SLA
                       </th>
-                      <th className="px-3 py-3.5 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-3.5 text-right text-xs font-semibold text-white dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         View
                       </th>
                     </tr>

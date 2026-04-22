@@ -3539,7 +3539,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             ) : null}
           </div>
           <div className='grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center'>
-            <span className='inline-flex w-full items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 sm:w-auto'>
+            <span className='inline-flex w-full items-center justify-center rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700 sm:w-auto'>
               {form.version}
             </span>
             <button
@@ -3556,7 +3556,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             <button
               onClick={handleSave}
               disabled={saving || hasPricingErrors || isEditLocked}
-              className='col-span-3 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto'
+              className='col-span-3 w-full rounded-xl bg-[rgba(96,47,247,0.8)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto'
             >
               <FaFloppyDisk className='mr-2 inline' />{' '}
               {saving
@@ -3581,7 +3581,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 <div className='flex gap-2'>
                   <button
                     onClick={autofillCustomer}
-                    className='text-sm text-blue-600'
+                    className='text-sm text-purple-600'
                   >
                     Auto-fill
                   </button>
@@ -3591,7 +3591,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         selectedLeadId ? `/leads/${selectedLeadId}` : '/leads'
                       )
                     }
-                    className='text-sm text-blue-600'
+                    className='text-sm text-purple-600'
                   >
                     Edit Lead
                   </button>
@@ -3654,7 +3654,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       type='button'
                       onClick={() => applyTemplateDefaults(selectedTemplate)}
                       disabled={!selectedTemplate}
-                      className='rounded-lg border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-900/30'
+                      className='rounded-lg border border-purple-200 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-purple-800 dark:text-purple-200 dark:hover:bg-purple-900/30'
                     >
                       Apply Template Defaults
                     </button>
@@ -4099,7 +4099,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 </p>
               </div>
               {parseDayCount(form.durationDays) <= 0 ? (
-                <div className='rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-3 py-4 text-sm text-gray-500 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-gray-400'>
+                <div className='rounded-xl border border-dashed border-purple-200 bg-purple-50/40 px-3 py-4 text-sm text-gray-500 dark:border-purple-900/40 dark:bg-purple-900/10 dark:text-gray-400'>
                   Enter the total Days in duration to generate itinerary
                   fields.
                 </div>
@@ -4108,10 +4108,10 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   {itineraryItems.map((item, index) => (
                     <div
                       key={item.id}
-                      className='rounded-xl border border-blue-100 bg-blue-50/30 p-3 dark:border-blue-900/40 dark:bg-blue-900/10'
+                      className='rounded-xl border border-purple-100 bg-purple-50/30 p-3 dark:border-purple-900/40 dark:bg-purple-900/10'
                     >
                       <div className='mb-3 flex items-center gap-2'>
-                        <span className='rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200'>
+                        <span className='rounded-md bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-200'>
                           {getDayLabel(index)}
                         </span>
                         <input
@@ -4179,7 +4179,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   }
                 />
               </div>
-              <div className='mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-xs text-blue-700'>
+              <div className='mb-3 rounded-lg border border-purple-100 bg-purple-50 px-3 py-2.5 text-xs text-purple-700'>
                 Formula: <strong>Total Sale Value</strong> = Supplier Cost +
                 Markup + Service Fee + Tax - Discount.
               </div>
@@ -4225,7 +4225,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     suppliers={suppliers}
                     suppliersLoading={suppliersLoading}
                   />
-                  <div className='rounded-xl border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-800 dark:bg-blue-900/10'>
+                  <div className='rounded-xl border border-purple-200 bg-purple-50/30 p-3 dark:border-purple-800 dark:bg-purple-900/10'>
                     <div className='mb-2 flex items-center justify-between'>
                       <h3 className='text-sm font-semibold text-gray-800 dark:text-gray-100'>
                         Add-on Services
@@ -4264,7 +4264,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                             <div className='flex gap-1'>
                               <button
                                 onClick={() => editAddOnService(service)}
-                                className='rounded p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                                className='rounded p-1 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
                                 title='Edit'
                               >
                                 <FaPencil className='text-xs' />
@@ -4298,11 +4298,11 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       </div>
                     )}
                   </div>
-                  <div className='rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/50 dark:bg-blue-900/20'>
-                    <p className='text-xs uppercase text-center text-blue-700 dark:text-blue-300'>
+                  <div className='rounded-lg border border-purple-100 bg-purple-50 px-3 py-3 dark:border-purple-900/50 dark:bg-purple-900/20'>
+                    <p className='text-xs uppercase text-center text-purple-700 dark:text-purple-300'>
                       Total Sale Value
                     </p>
-                    <p className='mt-1 text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-300 truncate'>
+                    <p className='mt-1 text-2xl font-bold tabular-nums text-purple-600 dark:text-purple-300 truncate'>
                       {money(Math.min(total, 999999999999))}
                     </p>
                   </div>
@@ -4348,7 +4348,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         onClick={() => toggleInclusionShortcut(shortcut.line)}
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${isActive
                             ? 'border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-300'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-blue-700 dark:hover:text-blue-300'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-purple-300 hover:text-purple-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-purple-700 dark:hover:text-purple-300'
                           }`}
                       >
                         <Icon className='text-xs' />
@@ -4488,7 +4488,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     <button
                       onClick={() => setMobile(false)}
                       className={`rounded-lg px-2 py-1 text-xs ${!mobile
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-[rgba(96,47,247,0.8)] text-white'
                           : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
                         }`}
                     >
@@ -4497,7 +4497,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                     <button
                       onClick={() => setMobile(true)}
                       className={`rounded-lg px-2 py-1 text-xs ${mobile
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-purple-600 text-white'
                           : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
                         }`}
                     >
@@ -4540,7 +4540,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       </div>
                     </div>
                     <div className='text-center sm:text-right'>
-                      <p className='text-lg font-bold text-blue-600'>
+                      <p className='text-lg font-bold text-purple-600'>
                         QUOTATION
                       </p>
                       <p className='text-xs text-gray-500 whitespace-nowrap'>
@@ -4588,7 +4588,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   </div>
 
                   {selectedTemplate || form.headerBranding.trim() ? (
-                    <div className='mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700'>
+                    <div className='mb-4 rounded-lg border border-purple-100 bg-purple-50 px-3 py-2 text-xs text-purple-700'>
                       {selectedTemplate ? (
                         <p>
                           Template: {selectedTemplate.code} -{' '}
@@ -4654,19 +4654,19 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                   </div>
 
                   {quotationTitleDisplay || selectedPackageKindLabel ? (
-                    <div className='mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3'>
-                      <p className='mb-2 text-xs  font-semibold uppercase tracking-wide text-blue-700'>
+                    <div className='mb-4 rounded-xl border border-purple-100 bg-purple-50 p-3'>
+                      <p className='mb-2 text-xs  font-semibold uppercase tracking-wide text-purple-700'>
                         Trip Snapshot
                       </p>
-                      <div className='grid grid-cols-1 gap-2 text-xs text-blue-900 sm:grid-cols-3'>
+                      <div className='grid grid-cols-1 gap-2 text-xs text-purple-900 sm:grid-cols-3'>
                         <div>
-                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                          <p className='font-semibold uppercase tracking-wide text-purple-600'>
                             Title
                           </p>
                           <p className='mt-1'>{quotationTitleDisplay}</p>
                         </div>
                         <div>
-                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                          <p className='font-semibold uppercase tracking-wide text-purple-600'>
                             Duration
                           </p>
                           <p className='mt-1'>
@@ -4674,7 +4674,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                           </p>
                         </div>
                         <div>
-                          <p className='font-semibold uppercase tracking-wide text-blue-600'>
+                          <p className='font-semibold uppercase tracking-wide text-purple-600'>
                             Type
                           </p>
                           <p className='mt-1'>
@@ -4686,7 +4686,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         </div>
                       </div>
                       {sourcePackageName ? (
-                        <p className='mt-2 text-[11px] text-blue-700'>
+                        <p className='mt-2 text-[11px] text-purple-700'>
                           Source package: {sourcePackageName}
                         </p>
                       ) : null}
@@ -4702,7 +4702,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         {selectedServiceDefinitions.map(definition => (
                           <span
                             key={definition.key}
-                            className='included-service-chip rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700'
+                            className='included-service-chip rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[11px] text-purple-700'
                           >
                             {definition.label}
                           </span>
@@ -4728,7 +4728,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                       </div>
                       <div className='flex items-center justify-between border-t border-gray-200 pt-2 text-sm font-semibold'>
                         <span>Total Sale Value</span>
-                        <span className='text-blue-600'>{money(total)}</span>
+                        <span className='text-purple-600'>{money(total)}</span>
                       </div>
                     </div>
                   </div>
@@ -4862,7 +4862,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
             <SurfaceCard className='flex h-fit items-center justify-center sticky top-4'>
               <button
                 onClick={() => setShowPreview(true)}
-                className='rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white'
+                className='rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white'
               >
                 Show Preview
               </button>
@@ -4929,7 +4929,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 </button>
                 <button
                   onClick={addItineraryItem}
-                  className='px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700'
+                  className='px-4 py-2 text-sm rounded-lg bg-purple-600 text-white hover:bg-purple-700'
                 >
                   Save Item
                 </button>
@@ -5051,7 +5051,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                 </button>
                 <button
                   onClick={addAddOnService}
-                  className='rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700'
+                  className='rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700'
                 >
                   {editingAddOnId ? 'Update Service' : 'Add Service'}
                 </button>
@@ -5134,18 +5134,18 @@ const PricingTable = ({
               />
             ))}
           </div>
-          {/* <div className='rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 dark:border-blue-800 dark:from-blue-900/20 dark:to-indigo-900/20'>
+          {/* <div className='rounded-xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 p-4 dark:border-purple-800 dark:from-purple-900/20 dark:to-indigo-900/20'>
             <div className='flex items-center justify-between'>
               <div>
-                <p className='text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300'>
+                <p className='text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300'>
                   Total Summary
                 </p>
                 <div className='mt-2 flex items-center gap-4'>
                   <div>
-                    <p className='text-xs text-blue-600 dark:text-blue-400'>
+                    <p className='text-xs text-purple-600 dark:text-purple-400'>
                       Total Sell Value
                     </p>
-                    <p className='text-lg font-bold tabular-nums text-blue-900 dark:text-blue-100 truncate max-w-[200px]'>
+                    <p className='text-lg font-bold tabular-nums text-purple-900 dark:text-purple-100 truncate max-w-[200px]'>
                       {money(Math.min(totalSellValue, 999999999999))}
                     </p>
                   </div>
@@ -5235,7 +5235,7 @@ const PricingRow = ({
   const displaySell = row.sellValue.toFixed(2)
 
   const sharedInputClass =
-    'h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-right tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 overflow-hidden text-ellipsis'
+    'h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-right tabular-nums transition-all focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 overflow-hidden text-ellipsis'
 
   const fieldClass = (field: NumericPricingField) => {
     const key = `${row.key}.${field}`
@@ -5274,11 +5274,11 @@ const PricingRow = ({
             Auto-allocated • {row.itemType}
           </p>
         </div>
-        <div className='rounded-lg bg-blue-50 px-3 py-1.5 dark:bg-blue-900/30'>
-          <p className='text-xs font-semibold text-blue-700 dark:text-blue-300 truncate'>
+        <div className='rounded-lg bg-purple-50 px-3 py-1.5 dark:bg-purple-900/30'>
+          <p className='text-xs font-semibold text-purple-700 dark:text-purple-300 truncate'>
             {money(Math.min(row.sellValue, 999999999999))}
           </p>
-          <p className='text-[10px] text-blue-600 dark:text-blue-400'>
+          <p className='text-[10px] text-purple-600 dark:text-purple-400'>
             Sell Value
           </p>
         </div>
@@ -5376,7 +5376,7 @@ const PricingRow = ({
             step='0.01'
             value={displaySell}
             readOnly
-            className={`${sharedInputClass} cursor-not-allowed bg-gray-100 font-semibold text-blue-600 dark:bg-gray-700/60 dark:text-blue-300`}
+            className={`${sharedInputClass} cursor-not-allowed bg-gray-100 font-semibold text-purple-600 dark:bg-gray-700/60 dark:text-purple-300`}
           />
           <p className='mt-1 text-[10px] text-gray-500 dark:text-gray-400'>
             Auto-calculated as Base + {isFlightService ? 'Service Charge' : 'Markup'}
@@ -5397,7 +5397,7 @@ const PricingRow = ({
           onChange={event =>
             onUpdateField(row.key, 'paymentTerms', event.target.value)
           }
-          className="h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-left transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-9 w-full rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm leading-tight text-left transition-all focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         />
       </div> */}
     </div>
@@ -5443,7 +5443,7 @@ const SummaryPanel = ({
   money: (value: number) => string
 }) => {
   const inputClass =
-    'h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+    'h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
   const totalServiceFee = Number((costs.serviceFee + flightServiceCharge).toFixed(2))
 
   const updateCost = (field: keyof PricingCosts, value: string) => {
@@ -5565,7 +5565,7 @@ const SummaryPanel = ({
               onChange={event =>
                 toggleFinanceFlag('gstEnabled', event.target.value === 'yes')
               }
-              className='h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+              className='h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
             >
               <option value='no'>No</option>
               <option value='yes'>Yes</option>
@@ -5594,7 +5594,7 @@ const SummaryPanel = ({
               onChange={event =>
                 toggleFinanceFlag('tcsEnabled', event.target.value === 'yes')
               }
-              className='h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+              className='h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-tight text-right focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
             >
               <option value='no'>No</option>
               <option value='yes'>Yes</option>
@@ -5631,7 +5631,7 @@ const SummaryPanel = ({
           </div> */}
           <div className='grid grid-row-[minmax(0,1fr)_minmax(0,120px)] items-center gap-1'>
             <span className='min-w-0 text-xs leading-snug text-gray-500'>Effective Markup %</span>
-            <div className='h-10 w-full min-w-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300'>
+            <div className='h-10 w-full min-w-0 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2.5 text-sm leading-tight text-right tabular-nums font-semibold text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-300'>
               {effectiveMarkupPercent.toFixed(2)}
             </div>
           </div>
@@ -5766,10 +5766,10 @@ const Field = ({
 // }: {
 //   label: string
 //   value: string
-//   tone: 'blue' | 'green' | 'amber' | 'purple'
+//   tone: 'purple' | 'green' | 'amber' | 'purple'
 // }) => {
 //   const toneMap: Record<typeof tone, string> = {
-//     blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200',
+//     purple: 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-200',
 //     green:
 //       'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-200',
 //     amber:
