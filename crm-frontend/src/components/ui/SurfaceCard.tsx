@@ -10,7 +10,7 @@ const SurfaceCard = ({
   ...props
 }: SurfaceCardProps) => (
   <div
-    className={`surface-card shadow-purple-400 ${hoverable ? "hover:scale-[1.02] hover:shadow-md" : ""} ${className}`}
+    className={`surface-card shadow-[rgba(96,47,247,0.8)] ] ${hoverable ? "hover:scale-[1.02] hover:shadow-md" : ""} ${className}`}
     {...props}
   />
 );
