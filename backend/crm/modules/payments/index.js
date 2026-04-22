@@ -22,6 +22,7 @@ function createPaymentsModule({ dependencies }) {
     repository,
     logger: dependencies.logger,
     events,
+    currencyService: dependencies.services?.currency,
   });
 
   const controller = createPaymentsController({

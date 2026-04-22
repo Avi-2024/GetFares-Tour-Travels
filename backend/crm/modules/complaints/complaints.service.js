@@ -42,6 +42,7 @@ function toComplaint(entity) {
     description: entity.description,
     status: entity.status,
     createdAt: entity.created_at,
+    updatedAt: entity.updated_at ?? entity.updatedAt ?? entity.created_at,
   };
 }
 
@@ -57,6 +58,12 @@ function toComplaintActivity(entity) {
     note: entity.note,
     createdAt: entity.created_at,
   };
+}
+
+function buildSystemNote(prefix, details) {
+  const text = String(details || "").trim();
+  if (!text) return prefix;
+  return `${prefix}\n${text}`.slice(0, 2000);
 }
 
 function createComplaintsService({ repository, logger, events }) {
@@ -129,6 +136,55 @@ function createComplaintsService({ repository, logger, events }) {
     return toComplaintActivity(created);
   }
 
+  async function changeStatus(id, payload, context = {}) {
+    const existing = await getById(id, context);
+    const nextStatus = payload.status;
+    const reason = payload.reason || null;
+
+    const updated = await repository.update(id, mapUpdatePayload({ status: nextStatus }));
+    const note = buildSystemNote(
+      `Status changed: ${existing.status || "UNKNOWN"} -> ${nextStatus}`,
+      reason ? `Reason: ${reason}` : "",
+    );
+    await repository.createActivity({
+      complaint_id: id,
+      user_id: context.user?.id || null,
+      note,
+    });
+    events.emitUpdated(updated);
+    return toComplaint(updated);
+  }
+
+  async function statusHistory(id, context = {}) {
+    await getById(id, context);
+    const rows = await repository.findActivities(id, { limit: 500 });
+    return rows.map(toComplaintActivity);
+  }
+
+  async function assign(id, payload, context = {}) {
+    await getById(id, context);
+    const updated = await repository.update(id, mapUpdatePayload({ assignedTo: payload.userId }));
+    await repository.createActivity({
+      complaint_id: id,
+      user_id: context.user?.id || null,
+      note: buildSystemNote("Assigned to user", payload.note || `UserId: ${payload.userId}`),
+    });
+    events.emitUpdated(updated);
+    return toComplaint(updated);
+  }
+
+  async function escalate(id, payload, context = {}) {
+    await getById(id, context);
+    const updated = await repository.update(id, mapUpdatePayload({ status: "IN_PROGRESS" }));
+    await repository.createActivity({
+      complaint_id: id,
+      user_id: context.user?.id || null,
+      note: buildSystemNote("Escalated", payload.reason),
+    });
+    events.emitUpdated(updated);
+    return toComplaint(updated);
+  }
+
   return Object.freeze({
     list,
     getById,
@@ -136,6 +192,10 @@ function createComplaintsService({ repository, logger, events }) {
     update,
     listActivities,
     createActivity,
+    changeStatus,
+    statusHistory,
+    assign,
+    escalate,
   });
 }
 

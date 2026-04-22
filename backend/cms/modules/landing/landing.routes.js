@@ -7,13 +7,17 @@ function createLandingRoutes({ controller, upload }) {
   router
     .route("/")
     .get(controller.list)
-    .post(upload.single("bannerImage"), controller.create);
+    .post(upload.any(), controller.create);
+  router.route("/deleted").get(controller.listDeleted);
   router.route("/reorder").patch(controller.reorder);
+  router.route(`/${uuidParam}/status`).patch(controller.updateStatus);
   router
     .route(`/${uuidParam}`)
     .get(controller.getById)
-    .put(upload.single("bannerImage"), controller.update)
+    .put(upload.any(), controller.update)
     .delete(controller.delete);
+  router.route(`/${uuidParam}/restore`).patch(controller.restore);
+  router.route(`/${uuidParam}/hard-delete`).delete(controller.hardDelete);
 
   return router;
 }

@@ -12,6 +12,7 @@ function createAuthModule({ dependencies }) {
     db: dependencies.db,
     logger: dependencies.logger,
     schema: AuthSchema,
+    authConfig: dependencies.config?.auth,
   });
 
   const events = createAuthEvents({

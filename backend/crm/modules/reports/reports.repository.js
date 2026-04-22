@@ -1,4 +1,4 @@
-function createReportsRepository({ db, schema }) {
+function createReportsRepository({ db, schema, logger }) {
   function getAdapterName() {
     return String(db.adapter || "").toLowerCase();
   }
@@ -7,8 +7,7 @@ function createReportsRepository({ db, schema }) {
     const adapter = getAdapterName();
     return (
       typeof db.query === "function" &&
-      Boolean(db.pool) &&
-      (adapter === "mysql" || adapter === "mysql")
+      (adapter === "mysql" || adapter === "mssql")
     );
   }
 
@@ -26,13 +25,13 @@ function createReportsRepository({ db, schema }) {
     let nextIndex = startIndex;
 
     if (filters.from) {
-      clauses.push(`${columnName} >= $${nextIndex}`);
+      clauses.push(`${columnName} >= ?`);
       params.push(filters.from);
       nextIndex += 1;
     }
 
     if (filters.to) {
-      clauses.push(`${columnName} <= $${nextIndex}`);
+      clauses.push(`${columnName} <= ?`);
       params.push(filters.to);
       nextIndex += 1;
     }
@@ -51,7 +50,15 @@ function createReportsRepository({ db, schema }) {
     try {
       const result = await db.query(sql, params);
       return result.rows;
-    } catch (_error) {
+    } catch (error) {
+      logger?.warn?.(
+        {
+          err: error,
+          module: "reports",
+          sqlPreview: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 240),
+        },
+        "reports raw SQL failed; returning empty rows",
+      );
       return [];
     }
   }
@@ -94,7 +101,7 @@ function createReportsRepository({ db, schema }) {
         : [];
 
       if (filters.userId) {
-        whereClauses.push(`l.assigned_to = $${params.length + 1}`);
+        whereClauses.push(`l.assigned_to = ?`);
         params.push(filters.userId);
       }
 
@@ -112,10 +119,10 @@ function createReportsRepository({ db, schema }) {
             AVG(
               CASE
                 WHEN l.response_at IS NOT NULL AND l.created_at IS NOT NULL
-                THEN EXTRACT(EPOCH FROM (l.response_at - l.created_at)) / 60
+                THEN TIMESTAMPDIFF(MINUTE, l.created_at, l.response_at)
                 ELSE NULL
               END
-            )::numeric(10,2) AS avg_response_minutes
+            ) AS avg_response_minutes
           FROM ${schema.usersTable} u
           LEFT JOIN ${schema.leadsTable} l ON l.assigned_to = u.id
           ${whereSql}
@@ -152,7 +159,7 @@ function createReportsRepository({ db, schema }) {
             l.assigned_to,
             u.full_name AS consultant_name,
             l.created_at,
-            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - l.created_at)) / 3600 AS age_hours
+            TIMESTAMPDIFF(HOUR, l.created_at, CURRENT_TIMESTAMP) AS age_hours
           FROM ${schema.leadsTable} l
           LEFT JOIN ${schema.usersTable} u ON u.id = l.assigned_to
           ${range.sql}
@@ -204,14 +211,14 @@ function createReportsRepository({ db, schema }) {
       const rows = await queryRows(
         `
           SELECT
-            TO_CHAR(DATE_TRUNC('month', b.created_at), 'YYYY-MM') AS month,
-            SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS revenue,
-            SUM(COALESCE(b.cost_amount, 0))::numeric(14,2) AS cost,
-            SUM(COALESCE(b.total_amount, 0) - COALESCE(b.cost_amount, 0))::numeric(14,2) AS profit
+            DATE_FORMAT(b.created_at, '%Y-%m') AS month,
+            SUM(COALESCE(b.total_amount, 0)) AS revenue,
+            SUM(COALESCE(b.cost_amount, 0)) AS cost,
+            SUM(COALESCE(b.total_amount, 0) - COALESCE(b.cost_amount, 0)) AS profit
           FROM ${schema.bookingsTable} b
           ${range.sql}
-          GROUP BY DATE_TRUNC('month', b.created_at)
-          ORDER BY DATE_TRUNC('month', b.created_at)
+          GROUP BY DATE_FORMAT(b.created_at, '%Y-%m')
+          ORDER BY DATE_FORMAT(b.created_at, '%Y-%m')
         `,
         range.params,
       );
@@ -240,7 +247,7 @@ function createReportsRepository({ db, schema }) {
           SELECT
             service_type,
             COUNT(*) AS total_bookings,
-            SUM(COALESCE(total_amount, 0))::numeric(14,2) AS revenue
+            SUM(COALESCE(total_amount, 0)) AS revenue
           FROM base
           GROUP BY service_type
           ORDER BY revenue DESC
@@ -262,7 +269,7 @@ function createReportsRepository({ db, schema }) {
           SELECT
             COALESCE(d.name, 'UNKNOWN') AS destination,
             COUNT(*) AS total_bookings,
-            SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS revenue
+            SUM(COALESCE(b.total_amount, 0)) AS revenue
           FROM ${schema.bookingsTable} b
           LEFT JOIN ${schema.quotationsTable} q ON q.id = b.quotation_id
           LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
@@ -286,15 +293,15 @@ function createReportsRepository({ db, schema }) {
       const where = [];
       if (filters.from) {
         params.push(filters.from);
-        where.push(`b.created_at >= $${params.length}`);
+        where.push(`b.created_at >= ?`);
       }
       if (filters.to) {
         params.push(filters.to);
-        where.push(`b.created_at <= $${params.length}`);
+        where.push(`b.created_at <= ?`);
       }
       if (filters.userId) {
         params.push(filters.userId);
-        where.push(`u.id = $${params.length}`);
+        where.push(`u.id = ?`);
       }
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
@@ -303,8 +310,8 @@ function createReportsRepository({ db, schema }) {
           SELECT
             u.id AS user_id,
             u.full_name,
-            COALESCE(u.target_amount, 0)::numeric(14,2) AS target_amount,
-            SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS achieved_amount
+            COALESCE(u.target_amount, 0) AS target_amount,
+            SUM(COALESCE(b.total_amount, 0)) AS achieved_amount
           FROM ${schema.usersTable} u
           LEFT JOIN ${schema.quotationsTable} q ON q.created_by = u.id
           LEFT JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
@@ -338,7 +345,7 @@ function createReportsRepository({ db, schema }) {
             b.booking_number,
             b.total_amount,
             b.advance_received,
-            (COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0))::numeric(14,2) AS outstanding_amount,
+            (COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0)) AS outstanding_amount,
             b.payment_status
           FROM ${schema.bookingsTable} b
           ${range.sql}
@@ -366,7 +373,7 @@ function createReportsRepository({ db, schema }) {
           SELECT
             p.payment_mode,
             COUNT(*) AS total_payments,
-            SUM(COALESCE(p.amount, 0))::numeric(14,2) AS total_amount
+            SUM(COALESCE(p.amount, 0)) AS total_amount
           FROM ${schema.paymentsTable} p
           ${range.sql}
           GROUP BY p.payment_mode
@@ -388,9 +395,9 @@ function createReportsRepository({ db, schema }) {
         `
           SELECT
             COUNT(*) AS total_bookings,
-            SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS total_revenue,
-            SUM(COALESCE(b.cost_amount, 0))::numeric(14,2) AS total_cost,
-            SUM(COALESCE(b.total_amount, 0) - COALESCE(b.cost_amount, 0))::numeric(14,2) AS total_profit
+            SUM(COALESCE(b.total_amount, 0)) AS total_revenue,
+            SUM(COALESCE(b.cost_amount, 0)) AS total_cost,
+            SUM(COALESCE(b.total_amount, 0) - COALESCE(b.cost_amount, 0)) AS total_profit
           FROM ${schema.bookingsTable} b
           ${range.sql}
         `,
@@ -420,18 +427,18 @@ function createReportsRepository({ db, schema }) {
 
       if (filters.from) {
         params.push(filters.from);
-        where.push(`q.created_at >= $${params.length}`);
+        where.push(`q.created_at >= ?`);
       }
       if (filters.to) {
         params.push(filters.to);
-        where.push(`q.created_at <= $${params.length}`);
+        where.push(`q.created_at <= ?`);
       }
       if (filters.currency) {
         params.push(String(filters.currency).trim().toUpperCase());
         where.push(`(
-          UPPER(COALESCE(NULLIF(q.cost_currency, ''), '')) = $${params.length}
-          OR UPPER(COALESCE(NULLIF(q.client_currency, ''), '')) = $${params.length}
-          OR UPPER(COALESCE(NULLIF(q.supplier_currency, ''), '')) = $${params.length}
+          UPPER(COALESCE(NULLIF(q.cost_currency, ''), '')) = ?
+          OR UPPER(COALESCE(NULLIF(q.client_currency, ''), '')) = ?
+          OR UPPER(COALESCE(NULLIF(q.supplier_currency, ''), '')) = ?
         )`);
       }
 
@@ -441,13 +448,13 @@ function createReportsRepository({ db, schema }) {
         `
           SELECT
             COUNT(*) AS total_quotes,
-            SUM(COALESCE(q.supplier_cost, 0))::numeric(14,2) AS supplier_cost,
-            SUM(COALESCE(q.supplier_tax_amount, 0))::numeric(14,2) AS supplier_tax_amount,
-            SUM(COALESCE(q.markup_amount, 0))::numeric(14,2) AS markup_amount,
-            SUM(COALESCE(q.service_fee_amount, 0))::numeric(14,2) AS service_fee_amount,
-            SUM(COALESCE(q.gst_amount, 0))::numeric(14,2) AS gst_amount,
-            SUM(COALESCE(q.tcs_amount, 0))::numeric(14,2) AS tcs_amount,
-            SUM(COALESCE(q.total_sale_value, 0))::numeric(14,2) AS total_sale_value
+            SUM(COALESCE(q.supplier_cost, 0)) AS supplier_cost,
+            SUM(COALESCE(q.supplier_tax_amount, 0)) AS supplier_tax_amount,
+            SUM(COALESCE(q.markup_amount, 0)) AS markup_amount,
+            SUM(COALESCE(q.service_fee_amount, 0)) AS service_fee_amount,
+            SUM(COALESCE(q.gst_amount, 0)) AS gst_amount,
+            SUM(COALESCE(q.tcs_amount, 0)) AS tcs_amount,
+            SUM(COALESCE(q.total_sale_value, 0)) AS total_sale_value
           FROM ${schema.quotationsTable} q
           ${whereSql}
         `,
@@ -464,13 +471,13 @@ function createReportsRepository({ db, schema }) {
               'INR'
             ) AS currency,
             COUNT(*) AS total_quotes,
-            SUM(COALESCE(q.supplier_cost, 0))::numeric(14,2) AS supplier_cost,
-            SUM(COALESCE(q.supplier_tax_amount, 0))::numeric(14,2) AS supplier_tax_amount,
-            SUM(COALESCE(q.markup_amount, 0))::numeric(14,2) AS markup_amount,
-            SUM(COALESCE(q.service_fee_amount, 0))::numeric(14,2) AS service_fee_amount,
-            SUM(COALESCE(q.gst_amount, 0))::numeric(14,2) AS gst_amount,
-            SUM(COALESCE(q.tcs_amount, 0))::numeric(14,2) AS tcs_amount,
-            SUM(COALESCE(q.total_sale_value, 0))::numeric(14,2) AS total_sale_value
+            SUM(COALESCE(q.supplier_cost, 0)) AS supplier_cost,
+            SUM(COALESCE(q.supplier_tax_amount, 0)) AS supplier_tax_amount,
+            SUM(COALESCE(q.markup_amount, 0)) AS markup_amount,
+            SUM(COALESCE(q.service_fee_amount, 0)) AS service_fee_amount,
+            SUM(COALESCE(q.gst_amount, 0)) AS gst_amount,
+            SUM(COALESCE(q.tcs_amount, 0)) AS tcs_amount,
+            SUM(COALESCE(q.total_sale_value, 0)) AS total_sale_value
           FROM ${schema.quotationsTable} q
           ${whereSql}
           GROUP BY 1
@@ -503,8 +510,8 @@ function createReportsRepository({ db, schema }) {
           LEFT JOIN ${schema.leadsTable} l ON l.id = q.lead_id
           ${whereSql}
           ORDER BY q.created_at DESC
-          LIMIT $${rowParams.length - 1}
-          OFFSET $${rowParams.length}
+          LIMIT ?
+          OFFSET ?
         `,
         rowParams,
       );
@@ -571,41 +578,20 @@ function createReportsRepository({ db, schema }) {
       const limit = Math.min(Math.max(toNumber(filters.limit, 20), 1), 200);
       const offset = (page - 1) * limit;
       const params = [];
-      const where = [];
+      const where = ["COALESCE(q.is_deleted, FALSE) = FALSE"];
 
       if (filters.from) {
         params.push(filters.from);
-        where.push(`q.created_at >= $${params.length}`);
+        where.push(`q.created_at >= ?`);
       }
       if (filters.to) {
         params.push(filters.to);
-        where.push(`q.created_at <= $${params.length}`);
+        where.push(`q.created_at <= ?`);
       }
-      if (filters.supplierId) {
-        params.push(String(filters.supplierId).trim());
-        where.push(`service_rows.supplier_id = $${params.length}`);
-      }
-
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-      const baseSql = `
-        WITH eligible_bookings AS (
-          SELECT
-            b.id,
-            b.quotation_id,
-            b.booking_number,
-            b.status AS booking_status,
-            b.payment_status,
-            COALESCE(b.advance_received, 0) AS advance_received
-          FROM ${schema.bookingsTable} b
-          WHERE COALESCE(b.is_deleted, FALSE) = FALSE
-            AND (
-              UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) = 'CONFIRMED'
-              OR COALESCE(b.advance_received, 0) > 0
-              OR UPPER(COALESCE(NULLIF(TRIM(b.payment_status), ''), '')) IN ('PARTIAL', 'FULL', 'PAID', 'COMPLETED')
-            )
-        ),
-        quotation_snapshot AS (
+      const quotationRows = await queryRows(
+        `
           SELECT
             q.id AS quotation_id,
             q.quote_number,
@@ -615,139 +601,178 @@ function createReportsRepository({ db, schema }) {
             q.client_currency,
             q.cost_currency,
             q.supplier_currency,
-            COALESCE(q.template_snapshot::jsonb, '{}'::jsonb) AS snapshot_json
+            q.template_snapshot,
+            b.id AS booking_id,
+            b.booking_number,
+            b.status AS booking_status,
+            b.payment_status,
+            COALESCE(b.advance_received, 0) AS advance_received,
+            COALESCE(b.total_amount, 0) AS booking_total_amount,
+            COALESCE(b.cost_amount, 0) AS booking_cost_amount,
+            COALESCE(
+              NULLIF(TRIM(q.client_currency), ''),
+              NULLIF(TRIM(q.cost_currency), ''),
+              NULLIF(TRIM(q.supplier_currency), ''),
+              'INR'
+            ) AS booking_client_currency
           FROM ${schema.quotationsTable} q
-          INNER JOIN eligible_bookings eb ON eb.quotation_id = q.id
-        ),
-        service_rows AS (
-          SELECT
-            qs.quotation_id,
-            qs.quote_number,
-            qs.created_at,
-            qs.quotation_status,
-            qs.lead_id,
-            qs.client_currency,
-            qs.cost_currency,
-            qs.supplier_currency,
-            COALESCE(
-              NULLIF(TRIM(srv.item ->> 'supplierId'), ''),
-              NULLIF(TRIM(qs.snapshot_json -> 'supplierDetails' ->> 'supplierId'), ''),
-              'UNASSIGNED'
-            ) AS supplier_id,
-            COALESCE(
-              NULLIF(TRIM(srv.item ->> 'supplierName'), ''),
-              NULLIF(TRIM(qs.snapshot_json -> 'supplierDetails' ->> 'supplierName'), ''),
-              'Not selected'
-            ) AS supplier_name,
-            COALESCE(
-              NULLIF(TRIM(srv.item ->> 'label'), ''),
-              NULLIF(TRIM(srv.item ->> 'serviceName'), ''),
-              CASE LOWER(COALESCE(NULLIF(TRIM(srv.item ->> 'key'), ''), ''))
-                WHEN 'hotel' THEN 'Accommodation'
-                WHEN 'flights' THEN 'Flights'
-                WHEN 'tours' THEN 'Tours & Activities'
-                WHEN 'visa' THEN 'Visa Services'
-                WHEN 'insurance' THEN 'Insurance'
-                WHEN 'insurance2' THEN 'Land Arrangement'
-                ELSE NULL
-              END,
-              CASE UPPER(COALESCE(NULLIF(TRIM(srv.item ->> 'itemType'), ''), ''))
-                WHEN 'HOTEL' THEN 'Accommodation'
-                WHEN 'FLIGHT' THEN 'Flights'
-                WHEN 'TRANSFER' THEN 'Land Arrangement'
-                WHEN 'VISA' THEN 'Visa Services'
-                WHEN 'INSURANCE' THEN 'Insurance'
-                WHEN 'OTHER' THEN 'Other'
-                ELSE NULL
-              END,
-              NULLIF(TRIM(srv.item ->> 'itemType'), ''),
-              NULLIF(TRIM(srv.item ->> 'key'), ''),
-              'Other'
-            ) AS service_label,
-            CASE
-              WHEN COALESCE(srv.item ->> 'baseCost', '') ~ '^-?\\d+(\\.\\d+)?$'
-              THEN (srv.item ->> 'baseCost')::numeric(14,2)
-              ELSE 0::numeric(14,2)
-            END AS base_price
-          FROM quotation_snapshot qs
-          CROSS JOIN LATERAL jsonb_array_elements(
-            CASE
-              WHEN jsonb_typeof(qs.snapshot_json -> 'serviceRows') = 'array'
-              THEN qs.snapshot_json -> 'serviceRows'
-              WHEN jsonb_typeof(qs.snapshot_json -> 'builderSnapshot' -> 'serviceRows') = 'array'
-              THEN qs.snapshot_json -> 'builderSnapshot' -> 'serviceRows'
-              ELSE '[]'::jsonb
-            END
-          ) AS srv(item)
-        )
-        SELECT
-          service_rows.quotation_id,
-          COALESCE(NULLIF(TRIM(service_rows.quote_number), ''), LEFT(service_rows.quotation_id, 8)) AS quote_number,
-          COALESCE(NULLIF(TRIM(l.full_name), ''), 'Unknown lead') AS lead_name,
-          service_rows.service_label,
-          service_rows.supplier_id,
-          COALESCE(NULLIF(TRIM(s.name), ''), service_rows.supplier_name) AS supplier_name,
-          service_rows.base_price,
-          COALESCE(
-            NULLIF(TRIM(service_rows.client_currency), ''),
-            NULLIF(TRIM(service_rows.cost_currency), ''),
-            NULLIF(TRIM(service_rows.supplier_currency), ''),
-            'INR'
-          ) AS currency,
-          service_rows.quotation_status,
-          service_rows.created_at,
-          eb.id AS booking_id,
-          eb.booking_number,
-          eb.booking_status,
-          eb.payment_status,
-          eb.advance_received
-        FROM service_rows
-        LEFT JOIN ${schema.leadsTable} l ON l.id = service_rows.lead_id
-        LEFT JOIN ${schema.suppliersTable} s ON s.id = service_rows.supplier_id
-        LEFT JOIN eligible_bookings eb ON eb.quotation_id = service_rows.quotation_id
-      `;
-
-      const countRows = await queryRows(
-        `
-          SELECT COUNT(*) AS total_items
-          FROM (${baseSql} ${whereSql}) AS filtered
+          INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
+          ${whereSql}
+            AND UPPER(COALESCE(NULLIF(TRIM(b.status), ''), '')) <> 'CANCELLED'
+          ORDER BY q.created_at DESC, q.quote_number ASC
         `,
         params,
       );
 
-      const listParams = [...params, limit, offset];
-      const rows = await queryRows(
-        `
-          ${baseSql}
-          ${whereSql}
-          ORDER BY created_at DESC, quote_number ASC
-          LIMIT $${listParams.length - 1}
-          OFFSET $${listParams.length}
-        `,
-        listParams,
-      );
+      const toSnapshot = (value) => {
+        if (!value) return {};
+        if (typeof value === "object") return value;
+        try {
+          return JSON.parse(value);
+        } catch {
+          return {};
+        }
+      };
 
-      const totalItems = toNumber(countRows[0]?.total_items, 0);
+      const normalizeText = (value, fallback = "") => {
+        const text = String(value || "").trim();
+        return text || fallback;
+      };
+
+      const deriveServiceLabel = (service = {}) => {
+        const key = normalizeText(service.key).toLowerCase();
+        const itemType = normalizeText(service.itemType).toUpperCase();
+        return (
+          normalizeText(service.label) ||
+          normalizeText(service.serviceName) ||
+          ({
+            hotel: "Accommodation",
+            flights: "Flights",
+            tours: "Tours & Activities",
+            visa: "Visa Services",
+            insurance: "Insurance",
+            insurance2: "Land Arrangement",
+          }[key] || "") ||
+          ({
+            HOTEL: "Accommodation",
+            FLIGHT: "Flights",
+            TRANSFER: "Land Arrangement",
+            VISA: "Visa Services",
+            INSURANCE: "Insurance",
+            OTHER: "Other",
+          }[itemType] || "") ||
+          normalizeText(service.itemType) ||
+          normalizeText(service.key) ||
+          "Other"
+        );
+      };
+
+      const leadIds = [...new Set(quotationRows.map((row) => row.lead_id).filter(Boolean))];
+      const leadMap = new Map();
+      if (leadIds.length > 0) {
+        const placeholders = leadIds.map(() => "?").join(",");
+        const leadRows = await queryRows(
+          `SELECT id, full_name FROM ${schema.leadsTable} WHERE id IN (${placeholders})`,
+          leadIds,
+        );
+        leadRows.forEach((row) => {
+          leadMap.set(String(row.id), normalizeText(row.full_name, "Unknown lead"));
+        });
+      }
+
+      const allRows = [];
+      quotationRows.forEach((row) => {
+        const snapshot = toSnapshot(row.template_snapshot);
+        const serviceRows =
+          Array.isArray(snapshot.serviceRows) ? snapshot.serviceRows
+          : Array.isArray(snapshot.builderSnapshot?.serviceRows) ? snapshot.builderSnapshot.serviceRows
+          : [];
+        const supplierDetails = snapshot.supplierDetails || {};
+        const quoteNumber = normalizeText(row.quote_number, String(row.quotation_id || "").slice(0, 8));
+        const leadName = leadMap.get(String(row.lead_id || "")) || "Unknown lead";
+        const currency =
+          normalizeText(row.client_currency) ||
+          normalizeText(row.cost_currency) ||
+          normalizeText(row.supplier_currency) ||
+          "INR";
+        const customerName =
+          normalizeText(snapshot.customerName) ||
+          normalizeText(snapshot.customer_name) ||
+          normalizeText(snapshot?.lead?.fullName) ||
+          normalizeText(snapshot?.lead?.full_name) ||
+          normalizeText(snapshot?.lead?.name) ||
+          leadName;
+        const destination =
+          normalizeText(snapshot.destination) ||
+          normalizeText(snapshot.tripDestination) ||
+          normalizeText(snapshot.trip_destination) ||
+          "N/A";
+        const bookingTotalAmount = toNumber(row.booking_total_amount, 0);
+        const bookingCostAmount = toNumber(row.booking_cost_amount, 0);
+        const bookingCurrency =
+          normalizeText(row.booking_client_currency) || currency;
+
+        const pushFinanceRow = (service, index, options = {}) => {
+          const synthetic = Boolean(options.synthetic);
+          const supplierId =
+            normalizeText(service?.supplierId) ||
+            normalizeText(supplierDetails?.supplierId) ||
+            "UNASSIGNED";
+          if (filters.supplierId && String(filters.supplierId).trim() !== supplierId) {
+            return;
+          }
+          const baseFromService = toNumber(service?.baseCost, 0);
+          const basePrice = synthetic
+            ? (bookingCostAmount > 0
+                ? bookingCostAmount
+                : bookingTotalAmount)
+            : baseFromService;
+
+          allRows.push({
+            id: `${row.quotation_id}-${index}${synthetic ? "-syn" : ""}`,
+            quotationId: row.quotation_id,
+            bookingId: row.booking_id,
+            bookingNumber: row.booking_number,
+            bookingStatus: row.booking_status,
+            paymentStatus: row.payment_status,
+            advanceReceived: toNumber(row.advance_received, 0),
+            quoteNumber,
+            leadName,
+            customerName,
+            destination,
+            bookingTotalAmount,
+            bookingCurrency,
+            serviceLabel: synthetic
+              ? "Package / quotation (no line items in snapshot)"
+              : deriveServiceLabel(service),
+            supplierId,
+            supplierName:
+              normalizeText(service?.supplierName) ||
+              normalizeText(supplierDetails?.supplierName) ||
+              "Not selected",
+            basePrice,
+            currency,
+            quotationStatus: row.quotation_status,
+            createdAt: row.created_at,
+          });
+        };
+
+        if (!serviceRows.length) {
+          pushFinanceRow({ baseCost: 0, supplierId: supplierDetails?.supplierId }, 0, {
+            synthetic: true,
+          });
+        } else {
+          serviceRows.forEach((service, index) => {
+            pushFinanceRow(service, index);
+          });
+        }
+      });
+
+      const totalItems = allRows.length;
+      const rows = allRows.slice(offset, offset + limit);
 
       return {
-        rows: rows.map((row, index) => ({
-          id: `${row.quotation_id}-${index}`,
-          quotationId: row.quotation_id,
-          bookingId: row.booking_id,
-          bookingNumber: row.booking_number,
-          bookingStatus: row.booking_status,
-          paymentStatus: row.payment_status,
-          advanceReceived: toNumber(row.advance_received, 0),
-          quoteNumber: row.quote_number,
-          leadName: row.lead_name,
-          serviceLabel: row.service_label,
-          supplierId: row.supplier_id,
-          supplierName: row.supplier_name,
-          basePrice: toNumber(row.base_price, 0),
-          currency: row.currency || "INR",
-          quotationStatus: row.quotation_status,
-          createdAt: row.created_at,
-        })),
+        rows,
         pagination: {
           page,
           limit,
@@ -772,7 +797,7 @@ function createReportsRepository({ db, schema }) {
                 THEN (vc.appointment_date - vc.submission_date)
                 ELSE NULL
               END
-            )::numeric(10,2) AS average_processing_days
+            ) AS average_processing_days
           FROM ${schema.visaCasesTable} vc
           ${range.sql}
         `,
@@ -860,15 +885,15 @@ function createReportsRepository({ db, schema }) {
 
       if (filters.from) {
         params.push(filters.from);
-        where.push(`la.created_at >= $${params.length}`);
+        where.push(`la.created_at >= ?`);
       }
       if (filters.to) {
         params.push(filters.to);
-        where.push(`la.created_at <= $${params.length}`);
+        where.push(`la.created_at <= ?`);
       }
       if (filters.userId) {
         params.push(filters.userId);
-        where.push(`la.user_id = $${params.length}`);
+        where.push(`la.user_id = ?`);
       }
 
       const whereSql = `WHERE ${where.join(" AND ")}`;
@@ -906,11 +931,11 @@ function createReportsRepository({ db, schema }) {
       const params = [];
       if (filters.from) {
         params.push(filters.from);
-        where.push(`b.created_at >= $${params.length}`);
+        where.push(`b.created_at >= ?`);
       }
       if (filters.to) {
         params.push(filters.to);
-        where.push(`b.created_at <= $${params.length}`);
+        where.push(`b.created_at <= ?`);
       }
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
@@ -925,8 +950,8 @@ function createReportsRepository({ db, schema }) {
           booking_stats AS (
             SELECT
               COUNT(*) AS total_bookings,
-              SUM(COALESCE(total_amount, 0))::numeric(14,2) AS revenue,
-              SUM(COALESCE(cost_amount, 0))::numeric(14,2) AS cost
+              SUM(COALESCE(total_amount, 0)) AS revenue,
+              SUM(COALESCE(cost_amount, 0)) AS cost
             FROM ${schema.bookingsTable} b
             ${whereSql}
           )
@@ -936,7 +961,7 @@ function createReportsRepository({ db, schema }) {
             bs.total_bookings,
             bs.revenue,
             bs.cost,
-            (COALESCE(bs.revenue, 0) - COALESCE(bs.cost, 0))::numeric(14,2) AS profit
+            (COALESCE(bs.revenue, 0) - COALESCE(bs.cost, 0)) AS profit
           FROM lead_stats ls
           CROSS JOIN booking_stats bs
         `,
@@ -977,8 +1002,8 @@ function createReportsRepository({ db, schema }) {
         `
           SELECT
             COUNT(*) AS total_bookings,
-            SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS total_revenue,
-            SUM(COALESCE(b.cost_amount, 0))::numeric(14,2) AS total_cost,
+            SUM(COALESCE(b.total_amount, 0)) AS total_revenue,
+            SUM(COALESCE(b.cost_amount, 0)) AS total_cost,
             SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_bookings
           FROM ${schema.bookingsTable} b
           ${bookingRange.sql}
@@ -1009,7 +1034,7 @@ function createReportsRepository({ db, schema }) {
           )
           SELECT
             service_type,
-            SUM(total_amount)::numeric(14,2) AS revenue
+            SUM(total_amount) AS revenue
           FROM service_revenue
           GROUP BY service_type
         `,
@@ -1055,10 +1080,10 @@ function createReportsRepository({ db, schema }) {
             AVG(
               CASE
                 WHEN r.processed_at IS NOT NULL
-                THEN EXTRACT(EPOCH FROM (r.processed_at - r.created_at)) / 86400
+                THEN TIMESTAMPDIFF(SECOND, r.created_at, r.processed_at) / 86400
                 ELSE NULL
               END
-            )::numeric(10,2) AS avg_refund_turnaround_days
+            ) AS avg_refund_turnaround_days
           FROM ${schema.refundsTable} r
           ${refundRange.sql}
         `,
@@ -1121,6 +1146,64 @@ function createReportsRepository({ db, schema }) {
         holidayRevenue: Number(revenueByService.holiday.toFixed(2)),
         visaRevenue: Number(revenueByService.visa.toFixed(2)),
       };
+    },
+
+    async getExecutiveBookingRevenueByCurrency(filters = {}) {
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      return queryRows(
+        `
+          SELECT
+            UPPER(
+              COALESCE(
+                NULLIF(TRIM(b.client_currency), ''),
+                NULLIF(TRIM(b.currency), ''),
+                'AED'
+              )
+            ) AS currency,
+            SUM(COALESCE(b.total_amount, 0)) AS revenue
+          FROM ${schema.bookingsTable} b
+          ${bookingRange.sql}
+          GROUP BY
+            UPPER(
+              COALESCE(
+                NULLIF(TRIM(b.client_currency), ''),
+                NULLIF(TRIM(b.currency), ''),
+                'AED'
+              )
+            )
+        `,
+        bookingRange.params,
+      );
+    },
+
+    async getExecutiveServiceRevenueByCurrency(filters = {}) {
+      const bookingRange = buildDateRangeClause("b.created_at", filters);
+      return queryRows(
+        `
+          WITH service_revenue AS (
+            SELECT
+              CASE WHEN vc.id IS NULL THEN 'HOLIDAY' ELSE 'VISA' END AS service_type,
+              UPPER(
+                COALESCE(
+                  NULLIF(TRIM(b.client_currency), ''),
+                  NULLIF(TRIM(b.currency), ''),
+                  'AED'
+                )
+              ) AS currency,
+              COALESCE(b.total_amount, 0) AS total_amount
+            FROM ${schema.bookingsTable} b
+            LEFT JOIN ${schema.visaCasesTable} vc ON vc.booking_id = b.id
+            ${bookingRange.sql}
+          )
+          SELECT
+            service_type,
+            currency,
+            SUM(total_amount) AS revenue
+          FROM service_revenue
+          GROUP BY service_type, currency
+        `,
+        bookingRange.params,
+      );
     },
 
     async getConversionFunnel(filters = {}) {
@@ -1202,7 +1285,7 @@ function createReportsRepository({ db, schema }) {
             SELECT
               l.campaign_id,
               COUNT(b.id) AS total_bookings,
-              SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS revenue
+              SUM(COALESCE(b.total_amount, 0)) AS revenue
             FROM ${schema.leadsTable} l
             LEFT JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
             LEFT JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
@@ -1213,12 +1296,12 @@ function createReportsRepository({ db, schema }) {
             c.id,
             c.name,
             c.source,
-            COALESCE(c.budget, 0)::numeric(14,2) AS budget,
-            COALESCE(c.actual_spend, 0)::numeric(14,2) AS actual_spend,
+            COALESCE(c.budget, 0) AS budget,
+            COALESCE(c.actual_spend, 0) AS actual_spend,
             COALESCE(ls.total_leads, 0) AS total_leads,
             COALESCE(ls.converted_leads, 0) AS converted_leads,
             COALESCE(bs.total_bookings, 0) AS total_bookings,
-            COALESCE(bs.revenue, 0)::numeric(14,2) AS revenue
+            COALESCE(bs.revenue, 0) AS revenue
           FROM ${schema.campaignsTable} c
           LEFT JOIN lead_stats ls ON ls.campaign_id = c.id
           LEFT JOIN booking_stats bs ON bs.campaign_id = c.id
@@ -1260,15 +1343,15 @@ function createReportsRepository({ db, schema }) {
 
       if (filters.from) {
         params.push(filters.from);
-        where.push(`vc.created_at >= $${params.length}`);
+        where.push(`vc.created_at >= ?`);
       }
       if (filters.to) {
         params.push(filters.to);
-        where.push(`vc.created_at <= $${params.length}`);
+        where.push(`vc.created_at <= ?`);
       }
       if (filters.supplierId) {
         params.push(filters.supplierId);
-        where.push(`s.id = $${params.length}`);
+        where.push(`s.id = ?`);
       }
 
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -1281,14 +1364,14 @@ function createReportsRepository({ db, schema }) {
             SUM(CASE WHEN vc.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_cases,
             SUM(CASE WHEN vc.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_cases,
             SUM(CASE WHEN vc.status = 'DOCUMENT_PENDING' THEN 1 ELSE 0 END) AS pending_cases,
-            AVG(COALESCE(vc.fees, 0))::numeric(12,2) AS avg_visa_fee,
+            AVG(COALESCE(vc.fees, 0)) AS avg_visa_fee,
             AVG(
               CASE
                 WHEN vc.submission_date IS NOT NULL AND vc.appointment_date IS NOT NULL
                 THEN (vc.appointment_date - vc.submission_date)
                 ELSE NULL
               END
-            )::numeric(10,2) AS avg_processing_days
+            ) AS avg_processing_days
           FROM ${schema.suppliersTable} s
           LEFT JOIN ${schema.visaCasesTable} vc ON vc.supplier_id = s.id
           ${whereSql}
@@ -1338,28 +1421,28 @@ function createReportsRepository({ db, schema }) {
             COUNT(*) AS total_leads,
             SUM(CASE WHEN l.status = 'CONVERTED' THEN 1 ELSE 0 END) AS converted_leads
           FROM ${schema.leadsTable} l
-          WHERE l.created_at >= (CURRENT_TIMESTAMP - INTERVAL '90 days')
+          WHERE l.created_at >= (CURRENT_TIMESTAMP - INTERVAL 90 DAY)
         `,
       );
 
       const bookingRows = await queryRows(
         `
           SELECT
-            AVG(COALESCE(b.total_amount, 0))::numeric(14,2) AS avg_booking_value
+            AVG(COALESCE(b.total_amount, 0)) AS avg_booking_value
           FROM ${schema.bookingsTable} b
-          WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL '90 days')
+          WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL 90 DAY)
         `,
       );
 
       const seasonalityRows = await queryRows(
         `
           SELECT
-            TO_CHAR(DATE_TRUNC('month', b.created_at), 'YYYY-MM') AS month,
-            SUM(COALESCE(b.total_amount, 0))::numeric(14,2) AS revenue
+            DATE_FORMAT(b.created_at, '%Y-%m') AS month,
+            SUM(COALESCE(b.total_amount, 0)) AS revenue
           FROM ${schema.bookingsTable} b
-          WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL '12 months')
-          GROUP BY DATE_TRUNC('month', b.created_at)
-          ORDER BY DATE_TRUNC('month', b.created_at)
+          WHERE b.created_at >= (CURRENT_TIMESTAMP - INTERVAL 12 MONTH)
+          GROUP BY DATE_FORMAT(b.created_at, '%Y-%m')
+          ORDER BY DATE_FORMAT(b.created_at, '%Y-%m')
         `,
       );
 
@@ -1421,3 +1504,5 @@ function createReportsRepository({ db, schema }) {
 }
 
 export { createReportsRepository };
+
+

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/utils/index.js";
+import { createMemoryUpload } from "../../core/uploads/index.js";
 
 function createQuotationsRoutes({
   controller,
@@ -9,6 +10,8 @@ function createQuotationsRoutes({
   authorize,
 }) {
   const router = Router();
+  const maxFileSizeMb = Number(process.env.UPLOAD_MAX_SIZE_MB || 50);
+  const upload = createMemoryUpload({ maxFileSizeMb });
 
   router.get(
     "/templates",
@@ -102,6 +105,14 @@ function createQuotationsRoutes({
     authorize("quotations:update"),
     validateRequest(validation.generatePdf),
     asyncHandler(controller.generatePdf),
+  );
+
+  router.post(
+    "/:id/upload-pdf",
+    requireAuth,
+    authorize("quotations:update"),
+    upload.single("pdf"),
+    asyncHandler(controller.uploadPdf),
   );
 
   router.post(

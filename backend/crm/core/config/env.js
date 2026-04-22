@@ -1,7 +1,16 @@
 import dotenv from "dotenv";
 import { z } from "zod";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const backendRootEnvPath = path.resolve(__dirname, "../../../.env");
+
+const defaultLoad = dotenv.config();
+if (!defaultLoad.parsed) {
+  dotenv.config({ path: backendRootEnvPath });
+}
 
 const envSchema = z.object({
   NODE_ENV: z
@@ -27,14 +36,27 @@ const envSchema = z.object({
     ),
   JWT_ACCESS_EXPIRES_IN: z.string().default("7d"),
   AUTH_DEFAULT_ROLE: z.string().default("sales_consultant"),
+  AUTH_BCRYPT_ROUNDS: z.coerce.number().int().min(6).max(12).default(8),
+  AUTH_DB_SLOW_QUERY_MS: z.coerce.number().int().positive().default(150),
   RBAC_PERMISSION_CACHE_TTL_SEC: z.coerce.number().int().positive().default(60),
   DATABASE_CLIENT: z.string().optional(),
   DATABASE_URL: z.string().optional(),
   MYSQL_HOST: z.string().optional(),
-  MYSQL_PORT: z.coerce.number().int().positive().optional(),
+  MYSQL_PORT: z.coerce.number().int().positive().default(3306),
   MYSQL_USER: z.string().optional(),
   MYSQL_PASSWORD: z.string().optional(),
   MYSQL_DATABASE: z.string().optional(),
+  MYSQL_POOL_MAX: z.coerce.number().int().positive().max(200).default(50),
+  MYSQL_POOL_QUEUE_LIMIT: z.coerce.number().int().min(0).default(0),
+  MYSQL_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  /** "true" | "false" | omit (auto: SSL on for *.mysql.database.azure.com) */
+  MYSQL_SSL: z.string().optional(),
+  AZURE_SQL_SERVER: z.string().optional(),
+  AZURE_SQL_DATABASE: z.string().optional(),
+  AZURE_SQL_USER: z.string().optional(),
+  AZURE_SQL_PASSWORD: z.string().optional(),
+  AZURE_SQL_PORT: z.coerce.number().int().positive().optional(),
+  AZURE_SQL_TRUST_SERVER_CERTIFICATE: z.coerce.boolean().optional(),
   LOG_LEVEL: z.string().default("info"),
   LOG_DB_URL: z.string().optional(),
   LOG_DB_DIRECT_URL: z.string().optional(),
@@ -132,13 +154,14 @@ const envSchema = z.object({
     .min(1)
     .max(60)
     .default(2),
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
-  AWS_REGION: z.string().optional(),
-  AWS_S3_BUCKET_NAME: z.string().optional(),
-  AWS_S3_PUBLIC_READ: z.coerce.boolean().optional(),
-  AWS_S3_PUBLIC_BASE_URL: z.string().url().optional(),
-  AWS_S3_UPLOAD_PREFIX: z.string().optional(),
+  AZURE_STORAGE_CONNECTION_STRING: z.string().optional(),
+  AZURE_STORAGE_ACCOUNT_NAME: z.string().optional(),
+  AZURE_STORAGE_ACCOUNT_KEY: z.string().optional(),
+  AZURE_STORAGE_ENDPOINT_SUFFIX: z.string().optional(),
+  AZURE_STORAGE_CONTAINER: z.string().optional(),
+  AZURE_STORAGE_PUBLIC_READ: z.coerce.boolean().optional(),
+  AZURE_STORAGE_PUBLIC_BASE_URL: z.string().url().optional(),
+  AZURE_STORAGE_UPLOAD_PREFIX: z.string().optional(),
   UPLOAD_MAX_SIZE_MB: z.coerce.number().int().positive().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -147,6 +170,88 @@ const envSchema = z.object({
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM_EMAIL: z.string().email().optional(),
   SMTP_FROM_NAME: z.string().default("Get2Vacations"),
+  CURRENCY_API_KEY: z.string().optional(),
+  CURRENCY_USE_MOCK: z.string().optional(),
+  CURRENCY_BASE: z.string().default("AED"),
+  CURRENCY_SUPPORTED: z.string().default("AED,USD,EUR,GBP,INR,SAR"),
+}).superRefine((data, ctx) => {
+  const explicitClient = String(data.DATABASE_CLIENT || "")
+    .trim()
+    .toLowerCase();
+  const dbUrl = String(data.DATABASE_URL || "").trim();
+  const dbUrlLower = dbUrl.toLowerCase();
+  const isMysqlUrl =
+    dbUrlLower.startsWith("mysql://") || dbUrlLower.startsWith("mysql2://");
+
+  const hasMysqlDiscreteConfig = Boolean(
+    data.MYSQL_HOST && data.MYSQL_USER && data.MYSQL_DATABASE,
+  );
+
+  // If client is explicitly mysql, enforce mysql-compatible settings.
+  if (explicitClient === "mysql" || explicitClient === "mariadb") {
+    if (!isMysqlUrl && !hasMysqlDiscreteConfig) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["DATABASE_CLIENT"],
+        message:
+          'For DATABASE_CLIENT=mysql, set DATABASE_URL=mysql://... or MYSQL_HOST, MYSQL_USER, MYSQL_DATABASE.',
+      });
+    }
+  }
+
+  if (explicitClient === "mssql") {
+    const server = String(
+      data.AZURE_SQL_SERVER || process.env.DB_HOST || "",
+    ).trim();
+    const database = String(
+      data.AZURE_SQL_DATABASE ||
+        process.env.DB_NAME ||
+        process.env.MYSQL_DATABASE ||
+        "",
+    ).trim();
+    const user = String(
+      data.AZURE_SQL_USER ||
+        process.env.DB_USER ||
+        process.env.MYSQL_USER ||
+        "",
+    ).trim();
+    const password =
+      data.AZURE_SQL_PASSWORD ??
+      process.env.DB_PASSWORD ??
+      process.env.MYSQL_PASSWORD;
+    if (!server || !database || !user || password === undefined || password === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["AZURE_SQL_SERVER"],
+        message:
+          "For DATABASE_CLIENT=mssql set AZURE_SQL_SERVER, AZURE_SQL_DATABASE, AZURE_SQL_USER, AZURE_SQL_PASSWORD (or DB_* / MYSQL_* fallbacks).",
+      });
+    }
+  }
+
+  if (
+    explicitClient &&
+    explicitClient !== "mysql" &&
+    explicitClient !== "mariadb" &&
+    explicitClient !== "mssql"
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["DATABASE_CLIENT"],
+      message:
+        "Unsupported DATABASE_CLIENT. Use mysql, mariadb, or mssql (Azure SQL).",
+    });
+  }
+
+  // If URL is present, validate recognizable URL schemes.
+  if (dbUrl && !isMysqlUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["DATABASE_URL"],
+      message:
+        "DATABASE_URL must start with mysql:// or mysql2://.",
+    });
+  }
 });
 
 const parsed = envSchema.safeParse(process.env);

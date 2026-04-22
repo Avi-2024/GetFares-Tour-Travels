@@ -15,15 +15,35 @@ function deriveFullName(payload) {
 }
 
 function buildLeadPayload(payload, defaultSource) {
+  const notes = [
+    payload.subject ? `Subject: ${payload.subject}` : null,
+    payload.message ? `Message: ${payload.message}` : null,
+    payload.pagePath ? `Path: ${payload.pagePath}` : null,
+    payload.pageUrl ? `URL: ${payload.pageUrl}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   return {
     fullName: deriveFullName(payload),
     phone: payload.phone,
     email: payload.email,
+    destinationName: payload.destinationName || payload.destination,
+    destination: payload.destination,
+    nationality: payload.nationality,
+    leadCountry: payload.leadCountry || payload.country,
+    country: payload.country || payload.leadCountry,
     panNumber: payload.panNumber,
     addressLine: payload.addressLine,
     clientCurrency: payload.clientCurrency,
     budget: payload.budget,
     travelDate: payload.travelDate,
+    travelEndDate: payload.travelEndDate,
+    adultsCount: payload.adultsCount || payload.numberOfTravellers,
+    leadType: payload.leadType,
+    notes: notes || undefined,
+    clientCreatedAt: payload.clientCreatedAt,
+    clientTimezone: payload.clientTimezone,
     campaignId: payload.campaignId,
     utmSource: payload.utmSource,
     utmMedium: payload.utmMedium,

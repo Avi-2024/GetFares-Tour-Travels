@@ -12,6 +12,10 @@ function createAuthService({
   rolesService,
   tokenBlacklistService,
 }) {
+  const bcryptRounds = Number.isInteger(Number(authConfig?.bcryptRounds))
+    ? Number(authConfig.bcryptRounds)
+    : 8;
+
   function serializeUser(user) {
     return {
       id: user.id,
@@ -89,6 +93,7 @@ function createAuthService({
     isTokenBlacklisted,
 
     async register(payload) {
+      const startedAt = Date.now();
       logger.info(
         {
           module: "auth",
@@ -98,60 +103,79 @@ function createAuthService({
         },
         "User registration started",
       );
+      try {
+        const existing = await repository.findUserByEmail(payload.email);
+        if (existing) {
+          logger.warn(
+            {
+              module: "auth",
+              fileName: "auth.service.js",
+              functionName: "register",
+              metadata: { email: payload.email, reason: "AUTH_EMAIL_EXISTS" },
+            },
+            "Validation failure",
+          );
+          throw new AppError(
+            409,
+            "Email is already registered",
+            "AUTH_EMAIL_EXISTS",
+          );
+        }
 
-      const existing = await repository.findUserByEmail(payload.email);
-      if (existing) {
-        logger.warn(
+        const passwordHash = await bcrypt.hash(payload.password, bcryptRounds);
+        const desiredRole =
+          payload.role || authConfig.defaultRole || DEFAULT_ROLE;
+        const resolvedRole =
+          rolesService ?
+            await rolesService.resolveRole({
+              role: desiredRole,
+              roleId: payload.roleId,
+            })
+          : null;
+        const user = await repository.createUser({
+          fullName: payload.fullName,
+          email: payload.email,
+          phone: payload.phone || null,
+          passwordHash,
+          role: desiredRole,
+          roleId: resolvedRole?.id || payload.roleId || null,
+          isActive: true,
+        });
+
+        events.emitRegistered(user);
+        logger.info(
           {
             module: "auth",
             fileName: "auth.service.js",
             functionName: "register",
-            metadata: { email: payload.email, reason: "AUTH_EMAIL_EXISTS" },
+            userId: user.id,
+            metadata: {
+              email: user.email,
+              responseMs: Date.now() - startedAt,
+              bcryptRounds,
+            },
           },
-          "Validation failure",
+          "User created",
         );
-        throw new AppError(
-          409,
-          "Email is already registered",
-          "AUTH_EMAIL_EXISTS",
-        );
+        return buildAuthResponse(user);
+      } catch (error) {
+        const duplicate =
+          error?.code === "23505" ||
+          error?.code === "ER_DUP_ENTRY" ||
+          Number(error?.errno) === 1062;
+        if (duplicate) {
+          throw new AppError(
+            409,
+            "Email is already registered",
+            "AUTH_EMAIL_EXISTS",
+          );
+        }
+        throw error;
       }
-
-      const passwordHash = await bcrypt.hash(payload.password, 12);
-      const desiredRole =
-        payload.role || authConfig.defaultRole || DEFAULT_ROLE;
-      const resolvedRole =
-        rolesService ?
-          await rolesService.resolveRole({
-            role: desiredRole,
-            roleId: payload.roleId,
-          })
-        : null;
-      const user = await repository.createUser({
-        fullName: payload.fullName,
-        email: payload.email,
-        phone: payload.phone || null,
-        passwordHash,
-        role: desiredRole,
-        roleId: resolvedRole?.id || payload.roleId || null,
-        isActive: true,
-      });
-
-      events.emitRegistered(user);
-      logger.info(
-        {
-          module: "auth",
-          fileName: "auth.service.js",
-          functionName: "register",
-          userId: user.id,
-          metadata: { email: user.email },
-        },
-        "User created",
-      );
-      return buildAuthResponse(user);
     },
 
     async login(payload, sessionContext = {}) {
+      const startedAt = Date.now();
       logger.info(
         {
           module: "auth",
@@ -169,7 +193,11 @@ function createAuthService({
             module: "auth",
             fileName: "auth.service.js",
             functionName: "login",
-            metadata: { email: payload.email, reason: "AUTH_INVALID_CREDENTIALS" },
+            metadata: {
+              email: payload.email,
+              reason: "AUTH_INVALID_CREDENTIALS",
+              responseMs: Date.now() - startedAt,
+            },
           },
           "Invalid password",
         );
@@ -188,7 +216,11 @@ function createAuthService({
             fileName: "auth.service.js",
             functionName: "login",
             userId: user.id,
-            metadata: { email: payload.email, reason: "AUTH_INVALID_CREDENTIALS" },
+            metadata: {
+              email: payload.email,
+              reason: "AUTH_INVALID_CREDENTIALS",
+              responseMs: Date.now() - startedAt,
+            },
           },
           "Invalid password",
         );
@@ -206,7 +238,11 @@ function createAuthService({
             fileName: "auth.service.js",
             functionName: "login",
             userId: user.id,
-            metadata: { email: payload.email, reason: "AUTH_INACTIVE_USER" },
+            metadata: {
+              email: payload.email,
+              reason: "AUTH_INACTIVE_USER",
+              responseMs: Date.now() - startedAt,
+            },
           },
           "Permission denied",
         );
@@ -238,7 +274,7 @@ function createAuthService({
           fileName: "auth.service.js",
           functionName: "login",
           userId: user.id,
-          metadata: { email: user.email },
+          metadata: { email: user.email, responseMs: Date.now() - startedAt },
         },
         "Login success",
       );

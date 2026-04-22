@@ -1,4 +1,5 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import { getFirstRequestFile } from "../../core/uploads/request-files.util.js";
 
 function createLandingController({ service, uploadService }) {
   return Object.freeze({
@@ -10,8 +11,23 @@ function createLandingController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const places = await service.list(filters);
+      res.json({
+        success: true,
+        data: places,
+      });
+    }),
+
+    listDeleted: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      const places = await service.listDeleted(filters);
       res.json({
         success: true,
         data: places,
@@ -31,9 +47,16 @@ function createLandingController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "imageFile",
+        "file",
+        "banner",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/landing/banner",
           allowVideo: false,
           required: false,
@@ -53,9 +76,16 @@ function createLandingController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "imageFile",
+        "file",
+        "banner",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/landing/banner",
           allowVideo: false,
           required: false,
@@ -70,8 +100,26 @@ function createLandingController({ service, uploadService }) {
       });
     }),
 
+    updateStatus: asyncHandler(async (req, res) => {
+      const place = await service.updateStatus(req.params.id, req.body?.isActive);
+      res.json({
+        success: true,
+        data: place,
+      });
+    }),
+
     delete: asyncHandler(async (req, res) => {
       const result = await service.delete(req.params.id);
+      res.json(result);
+    }),
+
+    hardDelete: asyncHandler(async (req, res) => {
+      const result = await service.hardDelete(req.params.id);
+      res.json(result);
+    }),
+
+    restore: asyncHandler(async (req, res) => {
+      const result = await service.restore(req.params.id);
       res.json(result);
     }),
 

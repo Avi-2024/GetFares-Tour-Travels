@@ -12,7 +12,10 @@ function createBookingsRepository({ db, logger, schema }) {
   const DEADLINE_ALERT_LOG_JSON_COLUMNS = new Set(["metadata"]);
 
   function canIntrospect() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
+    );
   }
 
   function toNumber(value, fallback = 0) {
@@ -304,11 +307,16 @@ function createBookingsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      result.rows
+        .map((row) => row.column_name ?? row.COLUMN_NAME ?? null)
+        .filter(Boolean)
+        .map((column) => String(column).toLowerCase()),
+    );
     columnCache.set(tableName, columns);
     return columns;
   }
@@ -319,7 +327,7 @@ function createBookingsRepository({ db, logger, schema }) {
       return true;
     }
 
-    return columns.has(columnName);
+    return columns.has(String(columnName).toLowerCase());
   }
 
   async function sanitizeForTable(tableName, payload = {}) {
@@ -335,7 +343,9 @@ function createBookingsRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    return Object.fromEntries(
+      entries.filter(([key]) => columns.has(String(key).toLowerCase())),
+    );
   }
 
   function mapListFilters(filters = {}) {
@@ -462,10 +472,11 @@ function createBookingsRepository({ db, logger, schema }) {
       return limit ? filtered.slice(0, limit) : filtered;
     }
 
-    const params = [scheduledFor];
+    // Placeholder order must match SQL: JOIN (reminder_type, scheduled_for) then WHERE (dateColumn).
+    const params = [];
     let joinClause = "";
     const conditions = [
-      "b.is_deleted = false",
+      "TRUE",
       "b.status = 'CONFIRMED'",
       `b.${dateColumn} = ?`,
     ];
@@ -479,15 +490,17 @@ function createBookingsRepository({ db, logger, schema }) {
       let join = `LEFT JOIN ${schema.reminderLogsTable} r ON r.booking_id = b.id`;
       if (hasReminderTypeColumn) {
         params.push(normalizedType);
-        join += ` AND r.reminder_type = $${params.length}`;
+        join += ` AND r.reminder_type = ?`;
       }
       if (hasScheduledForColumn) {
         params.push(scheduledFor);
-        join += ` AND r.scheduled_for = $${params.length}`;
+        join += ` AND r.scheduled_for = ?`;
       }
       joinClause = join;
       conditions.push("r.id IS NULL");
     }
+
+    params.push(scheduledFor);
 
     let sql = `SELECT b.* FROM ${schema.tableName} b`;
     if (joinClause) {
@@ -498,7 +511,7 @@ function createBookingsRepository({ db, logger, schema }) {
     }
     if (limit) {
       params.push(limit);
-      sql += ` LIMIT $${params.length}`;
+      sql += ` LIMIT ?`;
     }
 
     const result = await db.query(sql, params);
@@ -528,7 +541,7 @@ function createBookingsRepository({ db, logger, schema }) {
     if (typeof db.query === "function") {
       const params = [];
       const conditions = [
-        "COALESCE(b.is_deleted, FALSE) = FALSE",
+        "TRUE",
         "b.status <> 'CANCELLED'",
         "(b.supplier_payment_deadline_at IS NOT NULL OR b.cancellation_deadline_at IS NOT NULL)",
       ];
@@ -536,7 +549,7 @@ function createBookingsRepository({ db, logger, schema }) {
       let sql = `SELECT b.* FROM ${schema.tableName} b WHERE ${conditions.join(" AND ")} ORDER BY COALESCE(b.supplier_payment_deadline_at, b.cancellation_deadline_at) ASC`;
       if (limit) {
         params.push(limit);
-        sql += ` LIMIT $${params.length}`;
+        sql += ` LIMIT ?`;
       }
 
       const result = await db.query(sql, params);
@@ -670,8 +683,8 @@ function createBookingsRepository({ db, logger, schema }) {
               SUM(CASE WHEN status = 'PENDING' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS pending_bookings,
               SUM(CASE WHEN status = 'COMPLETED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS completed_bookings,
               SUM(CASE WHEN status = 'CANCELLED' AND ${notDeletedPredicate} THEN 1 ELSE 0 END) AS cancelled_bookings,
-              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(total_amount, 0) ELSE 0 END), 0)::numeric AS total_revenue,
-              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(advance_received, 0), 0) ELSE 0 END), 0)::numeric AS pending_payments_amount,
+              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN COALESCE(total_amount, 0) ELSE 0 END), 0) AS total_revenue,
+              COALESCE(SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(advance_received, 0), 0) ELSE 0 END), 0) AS pending_payments_amount,
               SUM(CASE WHEN status <> 'CANCELLED' AND ${notDeletedPredicate} AND COALESCE(advance_received, 0) < COALESCE(total_amount, 0) THEN 1 ELSE 0 END) AS pending_payments_count
             FROM ${schema.tableName}
           `;
@@ -797,6 +810,13 @@ function createBookingsRepository({ db, logger, schema }) {
         leadId: row.lead_id ?? row.leadId ?? null,
         isDeleted: row.is_deleted ?? row.isDeleted ?? false,
       };
+    },
+
+    async findUserById(id) {
+      if (!id) {
+        return null;
+      }
+      return db.findById(schema.usersTable, id);
     },
 
     async create(payload) {
@@ -1050,4 +1070,3 @@ function createBookingsRepository({ db, logger, schema }) {
 }
 
 export { createBookingsRepository };
-

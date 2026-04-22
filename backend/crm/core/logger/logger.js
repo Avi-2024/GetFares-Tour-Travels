@@ -6,10 +6,7 @@ import { MongoLogStore } from "./mongo-log.store.js";
 const DEFAULT_LOG_LEVEL = "info";
 const loggerStoreRegistry = new Map();
 const RESERVED_CONTEXT_KEYS = new Set([
-  "module",
-  "fileName",
-  "functionName",
-  "requestId",
+ 
   "userId",
   "method",
   "url",

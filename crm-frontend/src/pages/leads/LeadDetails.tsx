@@ -1,13 +1,15 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { FaArrowLeft, FaCheckCircle, FaClock } from 'react-icons/fa'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import StatusBadge from '../../components/ui/StatusBadge'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
+import { toast } from 'sonner'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
 import { usersApi } from '../../api/users'
+import PdfTemplate from '../Quotation/PdfTemplate'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
 import {
@@ -27,6 +29,43 @@ import {
 import { Country } from 'country-state-city'
 import { getCurrencyOptions } from '../../utils/currency'
 import { getNationalityOptions } from '../../utils/nationality'
+import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
+import {
+  nowWallClockString,
+  parseWallClockLocal,
+  wallClockFromDatetimeLocal
+} from '../../utils/clientWallClock'
+
+function followupSortKey(item: any): number {
+  const local = item?.followupLocalAt ?? item?.followup_local_at
+  if (local && String(local).trim()) {
+    const d = parseWallClockLocal(String(local))
+    if (d) return d.getTime()
+  }
+  const raw = normalizeWallClockDisplay(item?.followupDate ?? item?.followup_date)
+  if (!raw) return 0
+  return parseWallClockLocal(raw)?.getTime() || 0
+}
+
+function isScheduleOnlyFollowup(item: any): boolean {
+  const raw = item?.isScheduleOnly ?? item?.is_schedule_only
+  if (typeof raw === 'boolean') return raw
+  if (typeof raw === 'number') return raw === 1
+  const text = String(raw ?? '').trim().toLowerCase()
+  return text === '1' || text === 'true' || text === 'yes'
+}
+
+function normalizeWallClockDisplay(rawValue: unknown): string | null {
+  const raw = String(rawValue ?? '').trim()
+  if (!raw) return null
+  const m =
+    /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(raw)
+  if (!m) return raw
+  const hh = String(m[2] || '00').padStart(2, '0')
+  const mm = String(m[3] || '00').padStart(2, '0')
+  const ss = String(m[4] || '00').padStart(2, '0')
+  return `${m[1]} ${hh}:${mm}:${ss}`
+}
 
 type QualificationForm = {
   panNumber: string
@@ -40,6 +79,7 @@ type QualificationForm = {
   adultsCount: string
   childrenCount: string
   budget: string
+  salary: string
   visaRequired: 'YES' | 'NO' | ''
   preferredHotelCategory: '3_STAR' | '4_STAR' | '5_STAR' | 'ANY' | ''
   travelPurpose: string
@@ -59,6 +99,7 @@ const emptyQualification: QualificationForm = {
   adultsCount: '2',
   childrenCount: '0',
   budget: '',
+  salary: '',
   visaRequired: '',
   preferredHotelCategory: '',
   travelPurpose: '',
@@ -104,13 +145,16 @@ const LeadDetails: React.FC = () => {
   const leadsService = useLeadsService()
   const campaignsService = useCampaignsService()
   const { hasPermission, user } = useAuth()
-  const { parseApiDateTime, formatDate, formatDateTime } =
+  const { formatDate, formatDateTime } =
     useDateTimePreferences()
 
   const [lead, setLead] = useState<any>(null)
   const [followups, setFollowups] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingFollowups, setLoadingFollowups] = useState(false)
+  const [followupsError, setFollowupsError] = useState('')
+  const [followupScheduleError, setFollowupScheduleError] = useState('')
+  const [followupScheduleOk, setFollowupScheduleOk] = useState('')
   const [error, setError] = useState('')
   const [statusError, setStatusError] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
@@ -146,6 +190,8 @@ const LeadDetails: React.FC = () => {
   const [quotationActionError, setQuotationActionError] = useState('')
   const [quotationActionMessage, setQuotationActionMessage] = useState('')
   const [quotationActionLoadingKey, setQuotationActionLoadingKey] = useState('')
+  const [quotationPdfData, setQuotationPdfData] = useState<any | null>(null)
+  const pdfTemplateRef = useRef<HTMLDivElement | null>(null)
   const [conversionFollowUpMessage, setConversionFollowUpMessage] = useState('')
   const [assigneeOptions, setAssigneeOptions] = useState<
     Array<{ value: string; label: string }>
@@ -156,6 +202,13 @@ const LeadDetails: React.FC = () => {
   const [showSavedQualification, setShowSavedQualification] = useState(false)
 
   const createdAtLabel = useMemo(() => {
+    const wall = lead?.clientCreatedAt ?? lead?.client_created_at
+    const tz = lead?.clientTimezone ?? lead?.client_timezone
+    if (wall && String(wall).trim()) {
+      const w = String(wall).trim()
+      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+      return `${w}${t}`
+    }
     const raw =
       lead?.createdAt ??
       lead?.created_at ??
@@ -169,16 +222,20 @@ const LeadDetails: React.FC = () => {
 
   const firstFollowupLabel = useMemo(() => {
     if (!followups.length) return 'N/A'
-    const dates = followups
-      .map(item => item?.followupDate || item?.followup_date || null)
-      .filter(Boolean)
-      .map(value => parseApiDateTime(value))
-      .filter((value): value is Date => Boolean(value))
-      .filter(value => !Number.isNaN(value.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime())
-    if (!dates.length) return 'N/A'
-    return formatDateTime(dates[0], 'N/A')
-  }, [followups, formatDateTime, parseApiDateTime])
+    const sorted = [...followups].sort((a, b) => followupSortKey(a) - followupSortKey(b))
+    const first = sorted[0]
+    const local = first?.followupLocalAt ?? first?.followup_local_at
+    const tz = first?.clientTimezone ?? first?.client_timezone
+    if (local && String(local).trim()) {
+      const w = String(local).trim()
+      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+      return `${w}${t}` || 'N/A'
+    }
+    const raw = normalizeWallClockDisplay(first?.followupDate ?? first?.followup_date)
+    if (!raw) return 'N/A'
+    const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+    return `${raw}${t}`
+  }, [followups])
 
   const resolveFollowupActorName = useCallback((item: any) => {
     const name = String(
@@ -195,22 +252,67 @@ const LeadDetails: React.FC = () => {
 
   const resolveFollowupActionDate = useCallback(
     (item: any): Date | null => {
-      const actionTimeRaw = item?.createdAt ?? item?.created_at ?? null
-      const actionTime = actionTimeRaw ? parseApiDateTime(actionTimeRaw) : null
+      const localRaw = item?.followupLocalAt ?? item?.followup_local_at ?? null
+      if (localRaw) {
+        const fromWall = parseWallClockLocal(String(localRaw))
+        if (fromWall && !Number.isNaN(fromWall.getTime())) {
+          return fromWall
+        }
+      }
+      const scheduledRaw = normalizeWallClockDisplay(
+        item?.followupDate ?? item?.followup_date ?? null
+      )
+      const scheduled = scheduledRaw ? parseWallClockLocal(scheduledRaw) : null
+      if (scheduled && !Number.isNaN(scheduled.getTime())) {
+        return scheduled
+      }
+
+      const actionTimeRaw = normalizeWallClockDisplay(
+        item?.createdAt ?? item?.created_at ?? null
+      )
+      const actionTime = actionTimeRaw ? parseWallClockLocal(actionTimeRaw) : null
       if (actionTime && !Number.isNaN(actionTime.getTime())) {
         return actionTime
       }
 
-      const fallbackRaw = item?.followupDate ?? item?.followup_date ?? null
-      const fallback = fallbackRaw ? parseApiDateTime(fallbackRaw) : null
-      if (fallback && !Number.isNaN(fallback.getTime())) {
-        return fallback
-      }
-
       return null
     },
-    [parseApiDateTime]
+    []
   )
+
+  const formatFollowupDisplay = useCallback(
+    (item: any) => {
+      const local = item?.followupLocalAt ?? item?.followup_local_at
+      const tz = item?.clientTimezone ?? item?.client_timezone
+      if (local && String(local).trim()) {
+        const w = String(local).trim()
+        const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+        return `${w}${t}`
+      }
+      const raw = normalizeWallClockDisplay(item?.followupDate ?? item?.followup_date)
+      if (raw) {
+        const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+        return `${raw}${t}`
+      }
+      const created = normalizeWallClockDisplay(item?.createdAt ?? item?.created_at)
+      if (created) {
+        const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+        return `${created}${t}`
+      }
+      return 'No date'
+    },
+    []
+  )
+
+  const formatHistoryActionDisplay = useCallback((item: any) => {
+    const created = normalizeWallClockDisplay(item?.createdAt ?? item?.created_at)
+    if (created) {
+      const tz = item?.clientTimezone ?? item?.client_timezone
+      const t = tz && String(tz).trim() ? ` ${String(tz).trim()}` : ''
+      return `${created}${t}`
+    }
+    return 'No date'
+  }, [])
 
   const assignedLeadAgentName = useMemo(() => {
     const name = String(
@@ -221,6 +323,17 @@ const LeadDetails: React.FC = () => {
         ''
     ).trim()
 
+    return name || null
+  }, [lead])
+
+  const assignedByName = useMemo(() => {
+    const name = String(
+      lead?.assignedByUser?.fullName ??
+        lead?.assigned_by_user?.full_name ??
+        lead?.assignedByName ??
+        lead?.assigned_by_name ??
+        ''
+    ).trim()
     return name || null
   }, [lead])
 
@@ -282,12 +395,20 @@ const LeadDetails: React.FC = () => {
         item?.budget !== undefined && item?.budget !== null
           ? String(item.budget)
           : '',
+      salary:
+        item?.salary !== undefined && item?.salary !== null
+          ? String(item.salary)
+          : '',
       visaRequired:
         typeof item?.visaRequired === 'boolean'
           ? item.visaRequired
             ? 'YES'
             : 'NO'
-          : '',
+          : typeof item?.visaRequired === 'number'
+            ? item.visaRequired === 1
+              ? 'YES'
+              : 'NO'
+            : '',
       preferredHotelCategory: item?.preferredHotelCategory ?? '',
       travelPurpose: item?.travelPurpose ?? '',
       leadSource: item?.source ?? 'Website',
@@ -320,7 +441,7 @@ const LeadDetails: React.FC = () => {
         hydrateQualification(data)
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load lead details.'))
+      reportApiError(err, 'Failed to load lead details.', setError)
       setLead(null)
     } finally {
       setLoading(false)
@@ -330,11 +451,17 @@ const LeadDetails: React.FC = () => {
   const loadFollowups = useCallback(async () => {
     if (!id) return
     setLoadingFollowups(true)
+    setFollowupsError('')
     try {
       const rows = await leadsService.getFollowups(id)
       setFollowups(rows)
-    } catch (_error) {
+    } catch (err) {
       setFollowups([])
+      reportApiError(
+        err,
+        'Could not load follow-ups. Check login and API URL.',
+        setFollowupsError
+      )
     } finally {
       setLoadingFollowups(false)
     }
@@ -357,7 +484,6 @@ const LeadDetails: React.FC = () => {
     try {
       const response = await quotationsApi.list({
         leadId: id,
-        includeItems: false,
         limit: 100
       })
       const rows = unwrapApiArray(response) as Record<string, unknown>[]
@@ -469,31 +595,47 @@ const LeadDetails: React.FC = () => {
     void loadCampaigns()
   }, [loadCampaigns])
 
+  /** Compliance counts: workflow rows only (not schedule-only reminders). */
+  const followupsForCompliance = useMemo(
+    () => followups.filter(item => !isScheduleOnlyFollowup(item)),
+    [followups]
+  )
+
   const visibleHistoryFollowups = useMemo(
-    () => followups.filter(item => !item?.isScheduleOnly),
+    () => followups.filter(item => !isScheduleOnlyFollowup(item)),
     [followups]
   )
 
   const visibleScheduledFollowups = useMemo(
-    () => followups.filter(item => item?.isScheduleOnly),
+    () => followups.filter(item => isScheduleOnlyFollowup(item)),
     [followups]
   )
 
+  const latestScheduleForWorkflow = useMemo(() => {
+    const rows = followups.filter(f => isScheduleOnlyFollowup(f))
+    if (!rows.length) return null
+    return [...rows].sort((a, b) => {
+      const ca = followupSortKey(a)
+      const cb = followupSortKey(b)
+      return cb - ca
+    })[0]
+  }, [followups])
+
   const compliance = useMemo(() => {
     const summary = {
-      total: visibleHistoryFollowups.length,
+      total: followupsForCompliance.length,
       calls: 0,
       whatsapp: 0,
       finalReminders: 0
     }
-    visibleHistoryFollowups.forEach(item => {
+    followupsForCompliance.forEach(item => {
       const type = String(item?.followupType || '').toUpperCase()
       if (type === 'CALL') summary.calls += 1
       if (type === 'WHATSAPP') summary.whatsapp += 1
       if (type === 'FINAL_REMINDER') summary.finalReminders += 1
     })
     return summary
-  }, [visibleHistoryFollowups])
+  }, [followupsForCompliance])
 
   const statusOptions = useMemo(
     () =>
@@ -778,6 +920,7 @@ const LeadDetails: React.FC = () => {
     }
 
     try {
+      const isVisaLead = (lead?.leadType ?? lead?.lead_type) === 'VISA'
       await leadsService.updateLead(id, {
         panNumber: qualification.panNumber.trim() || undefined,
         addressLine: qualification.addressLine.trim() || undefined,
@@ -785,12 +928,14 @@ const LeadDetails: React.FC = () => {
         nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim(),
-        travelDate: qualification.travelDate,
-        travelEndDate: qualification.travelEndDate,
+        travelDate: qualification.travelDate.trim() || undefined,
+        travelEndDate: qualification.travelEndDate.trim() || undefined,
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
         childAges: cleanChildAges,
-        budget: Number(qualification.budget),
+        ...(isVisaLead
+          ? { salary: Number(qualification.salary) }
+          : { budget: Number(qualification.budget) }),
         visaRequired: qualification.visaRequired === 'YES',
         preferredHotelCategory: qualification.preferredHotelCategory,
         travelPurpose: qualification.travelPurpose.trim(),
@@ -802,7 +947,7 @@ const LeadDetails: React.FC = () => {
       setShowSavedQualification(true)
       setTimeout(() => setShowSavedQualification(false), 2500)
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Could not update qualification.'))
+      reportApiError(err, 'Could not update qualification.', setStatusError)
     }
   }
 
@@ -818,9 +963,7 @@ const LeadDetails: React.FC = () => {
       qualificationMissing.length
     ) {
       setStatusSaving(false)
-      setStatusError(
-        `Missing required fields: ${qualificationMissing.join(', ')}`
-      )
+      toast.error(`Missing required fields: ${qualificationMissing.join(', ')}`)
       return
     }
     if (
@@ -829,26 +972,32 @@ const LeadDetails: React.FC = () => {
       !isComplianceComplete
     ) {
       setStatusSaving(false)
-      setStatusError(
-        'Follow-up compliance is incomplete. Required: 6 calls + 7 WhatsApp + 1 final reminder.'
-      )
+      toast.error('Follow-up compliance is incomplete. Required: 6 calls + 7 WhatsApp + 1 final reminder.')
       return
     }
     if (conversion.canonical === 'LOST' && !closedReason.trim()) {
       setStatusSaving(false)
-      setStatusError('closedReason is required for LOST.')
+      toast.error('Closed reason is required for LOST.')
+      return
+    }
+    if (
+      selectedWorkflowFollowupType === 'CALL' &&
+      compliance.calls >= REQUIRED_COMPLIANCE.calls
+    ) {
+      setStatusSaving(false)
+      toast.error('CALL limit reached (6). Use WhatsApp or Final Reminder.')
       return
     }
 
     if (conversion.canonical === 'CONVERTED') {
       if (loadingSentQuotations) {
         setStatusSaving(false)
-        setStatusError('Loading sent quotations… please wait.')
+        toast.error('Loading sent quotations… please wait.')
         return
       }
       if (!eligibleConversionQuotations.length) {
         setStatusSaving(false)
-        setStatusError(
+        toast.error(
           sentQuotations.length > 0
             ? 'Sent quotations need margin approval before conversion. Open the quotation and approve margin, then try again.'
             : 'No quotations have been sent to this lead yet. Send a quotation first, then convert.'
@@ -860,19 +1009,20 @@ const LeadDetails: React.FC = () => {
       )
       if (!selectedConversionQuotationId || !picked) {
         setStatusSaving(false)
-        setStatusError(
-          'Choose the accepted quotation from the dropdown before converting.'
-        )
+        toast.error('Choose the accepted quotation from the dropdown before converting.')
         return
       }
     }
 
     try {
+      const isVisaLead = (lead?.leadType ?? lead?.lead_type) === 'VISA'
       await leadsService.updateLead(id, {
         status: conversion.canonical,
         subStatus: conversion.subStatus,
         followupType: selectedWorkflowFollowupType,
         notes: statusNotes.trim() || undefined,
+        activityCreatedAt: nowWallClockString(),
+        activityTimezone: getBrowserTimeZone(),
         closedReason:
           conversion.canonical === 'LOST' || conversion.canonical === 'NON_RESPONSIVE'
             ? closedReason.trim() || undefined
@@ -883,12 +1033,14 @@ const LeadDetails: React.FC = () => {
         nationality: qualification.nationality.trim() || undefined,
         clientCurrency: qualification.clientCurrency.trim() || undefined,
         destinationName: qualification.destinationName.trim(),
-        travelDate: qualification.travelDate,
-        travelEndDate: qualification.travelEndDate,
+        travelDate: qualification.travelDate.trim() || undefined,
+        travelEndDate: qualification.travelEndDate.trim() || undefined,
         adultsCount: Number(qualification.adultsCount),
         childrenCount: Number(qualification.childrenCount),
         childAges: cleanChildAges,
-        budget: Number(qualification.budget),
+        ...(isVisaLead
+          ? { salary: Number(qualification.salary) }
+          : { budget: Number(qualification.budget) }),
         visaRequired: qualification.visaRequired === 'YES',
         preferredHotelCategory: qualification.preferredHotelCategory,
         travelPurpose: qualification.travelPurpose.trim(),
@@ -900,6 +1052,7 @@ const LeadDetails: React.FC = () => {
           ? true
           : undefined
       })
+      console.log('Status updated successfully')
 
       if (
         conversion.canonical === 'CONVERTED' &&
@@ -929,11 +1082,10 @@ const LeadDetails: React.FC = () => {
               status: 'APPROVED'
             })
           } catch (err) {
-            setStatusError(
-              getApiErrorMessage(
-                err,
-                'Lead was updated but the quotation could not be approved.'
-              )
+            reportApiError(
+              err,
+              'Lead was updated but the quotation could not be approved.',
+              setStatusError
             )
             await loadLead()
             await loadLeadQuotationsForLead()
@@ -993,11 +1145,10 @@ const LeadDetails: React.FC = () => {
                     )}…).`
                   : 'Booking was created from this quotation.'
               } catch (cErr) {
-                setStatusError(
-                  getApiErrorMessage(
-                    cErr,
-                    'Lead converted but booking could not be created.'
-                  )
+                reportApiError(
+                  cErr,
+                  'Lead converted but booking could not be created.',
+                  setStatusError
                 )
                 await loadLead()
                 await loadLeadQuotationsForLead()
@@ -1010,15 +1161,16 @@ const LeadDetails: React.FC = () => {
         setConversionFollowUpMessage(followUp)
       }
 
-      await loadLead()
-      if (conversion.canonical === 'CONVERTED') {
-        await loadLeadQuotationsForLead()
-      }
-      await loadFollowups()
+      await Promise.all([
+        loadLead(),
+        loadFollowups(),
+        conversion.canonical === 'CONVERTED' ? loadLeadQuotationsForLead() : Promise.resolve()
+      ])
+      console.log('Data reloaded after status update')
       setStatusNotes('')
       setClosedReason('')
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Could not update lead status.'))
+      reportApiError(err, 'Could not update lead status.', setStatusError)
     } finally {
       setStatusSaving(false)
     }
@@ -1027,17 +1179,22 @@ const LeadDetails: React.FC = () => {
   const scheduleFollowup = async () => {
     if (!id) return
     if (!followupDraft.followupDate) {
-      setStatusError('Please select follow-up date/time.')
+      toast.error('Please select follow-up date/time.')
       return
     }
     setFollowupSaving(true)
-    setStatusError('')
+    setFollowupScheduleError('')
+    setFollowupScheduleOk('')
     try {
+      const wall = wallClockFromDatetimeLocal(followupDraft.followupDate)
       await leadsService.addFollowup(id, {
         followupType: followupDraft.followupType,
-        followupDate: new Date(followupDraft.followupDate).toISOString(),
+        followupLocalAt: wall,
         cadenceCode: followupDraft.cadenceCode || undefined,
-        notes: followupDraft.notes || undefined
+        notes: followupDraft.notes || undefined,
+        clientTimezone: getBrowserTimeZone(),
+        activityCreatedAt: nowWallClockString(),
+        activityTimezone: getBrowserTimeZone()
       })
       setFollowupDraft({
         followupType: 'CALL',
@@ -1045,10 +1202,12 @@ const LeadDetails: React.FC = () => {
         cadenceCode: '',
         notes: ''
       })
-      await loadLead()
-      await loadFollowups()
+      await Promise.all([loadLead(), loadFollowups()])
+      toast.success('Follow-up scheduled successfully.')
+      setFollowupScheduleOk('Saved. Shown under Scheduled Follow-ups.')
+      window.setTimeout(() => setFollowupScheduleOk(''), 6000)
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Could not schedule follow-up.'))
+      reportApiError(err, 'Could not schedule follow-up.', setFollowupScheduleError)
     } finally {
       setFollowupSaving(false)
     }
@@ -1091,11 +1250,173 @@ const LeadDetails: React.FC = () => {
     setQuotationActionMessage('')
 
     try {
+      // Build PDF from template and upload, same as QuotationDetailPage flow.
+      const quoteRes = await quotationsApi.getById(selectedLeadQuotation.id)
+      const quotePayload: any = (quoteRes as any)?.data?.data ?? (quoteRes as any)?.data ?? quoteRes
+
+      const safeDateOnly = (value?: string | null) => {
+        if (!value) return 'N/A'
+        const d = new Date(value)
+        if (Number.isNaN(d.getTime())) return String(value)
+        return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+      }
+
+      const itineraryItems: any[] =
+        quotePayload?.itineraryItems ??
+        quotePayload?.itinerary ??
+        quotePayload?.snapshot?.itinerary ??
+        quotePayload?.templateSnapshot?.itinerary ??
+        []
+
+      const pdfData = {
+        packageName:
+          quotePayload?.packageName ??
+          quotePayload?.quotationTitle ??
+          quotePayload?.title ??
+          quotePayload?.templateName ??
+          'Package',
+        email: recipientEmail || '',
+        leadId:
+          lead?.leadCode ??
+          lead?.leadId ??
+          lead?.id ??
+          quotePayload?.lead?.leadCode ??
+          quotePayload?.lead?.leadId ??
+          quotePayload?.leadId ??
+          selectedLeadQuotation.id,
+        guestName: lead?.fullName ?? lead?.name ?? 'Guest',
+        guestEmail: recipientEmail || '',
+        nights: Number(quotePayload?.durationNights ?? quotePayload?.nights ?? 1) || 1,
+        adults: Number(lead?.adultsCount ?? lead?.adults_count ?? 2) || 2,
+        children: Number(lead?.childrenCount ?? lead?.children_count ?? 0) || 0,
+        travelDate: safeDateOnly(lead?.travelDate ?? lead?.travel_date ?? quotePayload?.travelDate ?? null),
+        validUntil: safeDateOnly(quotePayload?.validUntil ?? quotePayload?.valid_until ?? null),
+        currency: String(
+          quotePayload?.clientCurrency ??
+            quotePayload?.client_currency ??
+            quotePayload?.snapshot?.currency ??
+            quotePayload?.snapshot?.pricing?.clientCurrency ??
+            quotePayload?.snapshot?.pricing?.costCurrency ??
+            quotePayload?.pricing?.clientCurrency ??
+            quotePayload?.pricing?.costCurrency ??
+            lead?.clientCurrency ??
+            lead?.client_currency ??
+            'INR',
+        ).toUpperCase(),
+        total: String(
+          quotePayload?.total ??
+            quotePayload?.totalPrice ??
+            quotePayload?.snapshot?.pricing?.total ??
+            quotePayload?.pricing?.total ??
+            '0',
+        ),
+        totalSellValue: String(
+          quotePayload?.totalSellValue ??
+            quotePayload?.totalSaleValue ??
+            quotePayload?.snapshot?.commercial?.finalAmount ??
+            '',
+        ),
+        itinerary: Array.isArray(itineraryItems)
+          ? itineraryItems.map((item: any) => ({
+              title: item?.day && item?.title ? `${item.day}: ${item.title}` : item?.title || item?.day || 'Day',
+              points: item?.description ? [String(item.description)] : [],
+            }))
+          : [],
+        destination:
+          lead?.destinationName ??
+          lead?.travelTo ??
+          lead?.destination ??
+          quotePayload?.destinationName ??
+          quotePayload?.travelTo ??
+          'N/A',
+        quotationTitle: String(quotePayload?.quotationTitle ?? quotePayload?.title ?? ''),
+        templateName: String(quotePayload?.templateName ?? ''),
+        packageType: String(quotePayload?.packageType ?? quotePayload?.packageKind ?? 'Standard Package'),
+        inclusions: String(quotePayload?.inclusions ?? quotePayload?.contentTemplate?.inclusions ?? ''),
+        exclusions: String(quotePayload?.exclusions ?? quotePayload?.contentTemplate?.exclusions ?? ''),
+        headerBranding: String(quotePayload?.headerBranding ?? quotePayload?.contentTemplate?.headerBranding ?? ''),
+        paymentTerms: String(quotePayload?.paymentTerms ?? quotePayload?.contentTemplate?.paymentTerms ?? ''),
+        cancellationPolicy: String(
+          quotePayload?.cancellationPolicy ?? quotePayload?.contentTemplate?.cancellationPolicy ?? '',
+        ),
+        footerDisclaimer: String(
+          quotePayload?.footerDisclaimer ?? quotePayload?.contentTemplate?.footerDisclaimer ?? '',
+        ),
+        hotelDetails: String(quotePayload?.hotelDetails ?? quotePayload?.contentTemplate?.hotelDetails ?? ''),
+        quoteReference: String(quotePayload?.quoteNumber ?? quotePayload?.id ?? selectedLeadQuotation.id),
+        quotationStatus: String(quotePayload?.status ?? ''),
+        supplierName: String(quotePayload?.createdByUser?.fullName ?? quotePayload?.createdBy ?? ''),
+        enabledServices: String(quotePayload?.enabledServices ?? ''),
+      }
+
+      setQuotationPdfData(pdfData)
+
+      if (!pdfTemplateRef.current) {
+        throw new Error('PDF template not ready')
+      }
+
+      const element = pdfTemplateRef.current
+      element.style.display = 'block'
+      element.style.position = 'fixed'
+      element.style.top = '-9999px'
+      element.style.left = '-9999px'
+      element.style.width = '794px'
+      element.style.zIndex = '-9999'
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      const html2canvasModule = await import(
+        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
+      )
+      const html2canvas = (html2canvasModule as any).default
+      const jsPdfModule = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm')
+      const JsPDF = (jsPdfModule as any).default
+
+      const pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pages = Array.from(element.querySelectorAll('.pdf-page')) as HTMLElement[]
+      const targets = pages.length ? pages : [element]
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const margin = 10
+      const availableWidth = pageWidth - margin * 2
+
+      for (let idx = 0; idx < targets.length; idx += 1) {
+        const node = targets[idx]
+        const canvas = await html2canvas(node, {
+          scale: 1.25,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          allowTaint: true,
+          letterRendering: true,
+        })
+        const imgData = canvas.toDataURL('image/jpeg', 0.78)
+        const imgWidth = availableWidth
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        if (idx > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight)
+      }
+
+      const pdfBlob = pdf.output('blob')
+      const formData = new FormData()
+      formData.append('quotationId', selectedLeadQuotation.id)
+      formData.append('pdf', pdfBlob, `quotation-${pdfData.quoteReference || selectedLeadQuotation.id}.pdf`)
+      const token = localStorage.getItem('auth_token')
+      const uploadRes = await fetch(`/api/quotations/${selectedLeadQuotation.id}/upload-pdf`, {
+        method: 'POST',
+        body: formData,
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+      if (!uploadRes.ok) {
+        throw new Error('Failed to upload PDF')
+      }
+      const uploadData = await uploadRes.json()
+      const pdfUrl = uploadData?.pdfUrl
+
       await quotationsApi.send(selectedLeadQuotation.id, {
         channel,
         ...(channel === 'EMAIL'
           ? { recipientEmail }
-          : { recipientPhone })
+          : { recipientPhone }),
+        ...(pdfUrl ? { pdfUrl } : {}),
       })
 
       setQuotationActionMessage(
@@ -1106,10 +1427,13 @@ const LeadDetails: React.FC = () => {
       await loadLead()
       await loadLeadQuotationsForLead()
     } catch (error) {
-      setQuotationActionError(
-        getApiErrorMessage(error, 'Failed to send quotation.')
-      )
+      reportApiError(error, 'Failed to send quotation.', setQuotationActionError)
     } finally {
+      if (pdfTemplateRef.current) {
+        pdfTemplateRef.current.style.display = 'none'
+        pdfTemplateRef.current.style.position = 'absolute'
+        pdfTemplateRef.current.style.top = '-9999px'
+      }
       setQuotationActionLoadingKey('')
     }
   }
@@ -1118,28 +1442,35 @@ const LeadDetails: React.FC = () => {
     if (!id) return
     const newState = !isCallsDisabled
     try {
-      await leadsService.disableCalls(id, newState)
+      await leadsService.disableCalls(id, newState, {
+        activityCreatedAt: nowWallClockString(),
+        activityTimezone: getBrowserTimeZone()
+      })
       setShowDisablePopup(true)
       window.setTimeout(() => setShowDisablePopup(false), 2500)
       await loadLead()
-    } catch {
+    } catch (err) {
       setShowDisablePopup(false)
+      reportApiError(err, 'Could not update call preference.')
     }
   }
 
   const assignLeadNow = async () => {
     if (!id || !selectedAssigneeId) return
     setAssigning(true)
-    setStatusError('')
     try {
       await leadsService.assignLead(id, {
         assignedTo: selectedAssigneeId,
-        force: true
+        force: true,
+        activityCreatedAt: nowWallClockString(),
+        activityTimezone: getBrowserTimeZone()
       })
       await loadLead()
       setSelectedAssigneeId('')
+      const assignedName = assigneeOptions.find(o => o.value === selectedAssigneeId)?.label ?? 'Agent'
+      toast.success(`Lead assigned to ${assignedName}`)
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'Unable to assign lead.'))
+      reportApiError(err, 'Unable to assign lead.')
     } finally {
       setAssigning(false)
     }
@@ -1147,6 +1478,12 @@ const LeadDetails: React.FC = () => {
 
   return (
     <div className='space-y-6'>
+      <div
+        ref={pdfTemplateRef}
+        style={{ display: 'none', position: 'absolute', top: '-9999px' }}
+      >
+        {quotationPdfData ? <PdfTemplate data={quotationPdfData} /> : null}
+      </div>
       <div className='flex items-center gap-3'>
         <button
           onClick={() => navigate('/leads')}
@@ -1193,6 +1530,12 @@ const LeadDetails: React.FC = () => {
                   <h2 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
                     {lead.fullName || lead.name || 'Lead'}
                   </h2>
+                  <p className='mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-300'>
+                    Lead code:{' '}
+                    <span className='font-mono text-gray-900 dark:text-gray-100'>
+                      {String(lead.leadCode ?? lead.lead_code ?? '—')}
+                    </span>
+                  </p>
                   <p className='text-sm text-gray-500'>
                     {lead.email || 'N/A'} | {lead.phone || 'N/A'}
                   </p>
@@ -1207,6 +1550,14 @@ const LeadDetails: React.FC = () => {
                       {assignedLeadAgentName || 'Unassigned'}
                     </span>
                   </p>
+                  {assignedByName ? (
+                    <p className='mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-300'>
+                      Assigned By:{' '}
+                      <span className='text-gray-900 dark:text-gray-100'>
+                        {assignedByName}
+                      </span>
+                    </p>
+                  ) : null}
                   {lead.nationality ? (
                     <p className='mt-0.5 text-xs font-medium text-blue-600 dark:text-blue-400'>
                       Nationality: {lead.nationality}
@@ -1300,7 +1651,7 @@ const LeadDetails: React.FC = () => {
                     <label className='field-label'>PAN Number (optional)</label>
                     <input
                       className='field-input'
-                      placeholder='Enter PAN number'
+                      placeholder='ABCDE1234F'
                       value={qualification.panNumber}
                       onChange={event =>
                         setQualification(prev => ({
@@ -1493,17 +1844,31 @@ const LeadDetails: React.FC = () => {
                     </div>
                   ) : null}
                   <div>
-                    <label className='field-label'>Budget</label>
+                    <label className='field-label'>
+                      {(lead?.leadType ?? lead?.lead_type) === 'VISA'
+                        ? 'Salary'
+                        : 'Budget'}
+                    </label>
                     <input
                       type='number'
                       min={0}
                       className='field-input no-spinner'
-                      placeholder='Budget'
-                      value={qualification.budget}
+                      placeholder={
+                        (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                          ? 'Salary'
+                          : 'Budget'
+                      }
+                      value={
+                        (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                          ? qualification.salary
+                          : qualification.budget
+                      }
                       onChange={event =>
                         setQualification(prev => ({
                           ...prev,
-                          budget: event.target.value
+                          ...( (lead?.leadType ?? lead?.lead_type) === 'VISA'
+                            ? { salary: event.target.value }
+                            : { budget: event.target.value } )
                         }))
                       }
                     />
@@ -1638,9 +2003,17 @@ const LeadDetails: React.FC = () => {
               }
             />
             <p className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
-              Workflow Action history will use this selected type. Schedule
-              Follow-up reminders stay separate.
+              Workflow Action history uses this type for status changes. Schedule
+              Follow-up also logs below with the same scheduled date and time.
             </p>
+            {latestScheduleForWorkflow?.followupDate ||
+            latestScheduleForWorkflow?.followupLocalAt ||
+            latestScheduleForWorkflow?.followup_local_at ? (
+              <p className='mt-2 text-xs font-medium text-gray-700 dark:text-gray-200'>
+                Latest scheduled action time:{' '}
+                {formatFollowupDisplay(latestScheduleForWorkflow)}
+              </p>
+            ) : null}
             {selectedStatusLabel === 'CONVERTED' ? (
               <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 text-sm dark:border-gray-600 dark:bg-gray-800/40'>
                 <p className='font-medium text-gray-900 dark:text-gray-100'>
@@ -1996,14 +2369,28 @@ const LeadDetails: React.FC = () => {
               Schedule Follow-up
             </p>
             <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-              Use this for the next action only. If the customer already
-              answered your first call, also update the lead status so the
-              first-response SLA is closed. Call follow-ups raise due-time
-              reminders, and WhatsApp, Email, and Final Reminder notifications
-              are sent by automation when the selected date/time is due. Notes
-              stay private for reminders and do not appear in Follow-up
-              History.
+              Date/time uses your device clock. The same wall-clock value and
+              IANA zone ({getBrowserTimeZone()}) are stored for display and
+              reference. Reminders still use the scheduled instant server-side.
+              Assigned agent gets an in-app reminder in a ~1 minute window about{' '}
+              <span className='font-semibold text-gray-700 dark:text-gray-200'>
+                5 minutes before
+              </span>{' '}
+              the scheduled call/WhatsApp (automation job must be running).
+              Rows appear under{' '}
+              <span className='font-semibold'>Scheduled Follow-ups</span>, not
+              Follow-up History.
             </p>
+            {followupScheduleError ? (
+              <p className='mt-2 text-xs font-medium text-red-600 dark:text-red-400'>
+                {followupScheduleError}
+              </p>
+            ) : null}
+            {followupScheduleOk ? (
+              <p className='mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400'>
+                {followupScheduleOk}
+              </p>
+            ) : null}
             <div className='mt-2 grid grid-cols-1 gap-2'>
               <SearchableDropdown
                 value={followupDraft.followupType}
@@ -2059,7 +2446,15 @@ const LeadDetails: React.FC = () => {
         </SurfaceCard>
       </div>
 
+      {followupsError ? (
+        <div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100'>
+          {followupsError}
+        </div>
+      ) : null}
+
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-2'>
+   
+        
         <SurfaceCard className='h-full'>
           <div className='flex items-center justify-between'>
             <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
@@ -2081,11 +2476,11 @@ const LeadDetails: React.FC = () => {
             <div className='mt-3 space-y-2'>
               {visibleScheduledFollowups
                 .slice()
-                .sort((a, b) => {
-                  const left = parseApiDateTime(a.followupDate)?.getTime() || 0
-                  const right = parseApiDateTime(b.followupDate)?.getTime() || 0
-                  return left - right
-                })
+                .sort(
+                  (a, b) =>
+                    followupSortKey(a) -
+                    followupSortKey(b)
+                )
                 .map(item => (
                   <div
                     key={item.id}
@@ -2111,12 +2506,7 @@ const LeadDetails: React.FC = () => {
                       </div>
                       <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
                         <FaClock />
-                        {item.followupDate
-                          ? formatDateTime(
-                              item.followupDate,
-                              String(item.followupDate)
-                            )
-                          : 'No date'}
+                        {formatHistoryActionDisplay(item)}
                       </span>
                     </div>
                     <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
@@ -2152,7 +2542,10 @@ const LeadDetails: React.FC = () => {
           {loadingFollowups ? (
             <p className='mt-3 text-sm text-gray-500'>Loading follow-ups...</p>
           ) : visibleHistoryFollowups.length === 0 ? (
-            <p className='mt-3 text-sm text-gray-500'>No follow-ups yet.</p>
+            <p className='mt-3 text-sm text-gray-500'>
+              No follow-up rows yet. Schedule a call/WhatsApp above or log
+              actions from status workflow.
+            </p>
           ) : (
             <div className='mt-3 space-y-2'>
               {visibleHistoryFollowups
@@ -2187,18 +2580,7 @@ const LeadDetails: React.FC = () => {
                       </div>
                       <span className='inline-flex items-center gap-1 text-xs text-gray-500'>
                         <FaClock />
-                        {resolveFollowupActionDate(item)
-                          ? formatDateTime(
-                              resolveFollowupActionDate(item) as Date,
-                              String(
-                                item?.createdAt ??
-                                  item?.created_at ??
-                                  item?.followupDate ??
-                                  item?.followup_date ??
-                                  ''
-                              )
-                            )
-                          : 'No date'}
+                        {formatFollowupDisplay(item)}
                       </span>
                     </div>
                     <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>

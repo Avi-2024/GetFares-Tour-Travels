@@ -2,8 +2,26 @@ import { AppError } from "../../core/middlewares/errorHandler.js";
 import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createExperienceService({ repository }) {
+  function parseJsonValue(value, fallback) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return fallback;
+      }
+    }
+    return value;
+  }
+
   function toFeaturedPick(row) {
     if (!row) return null;
+    const tags = parseJsonValue(row.tags, []);
+    const highlights = parseJsonValue(row.highlights, []);
+    const metadata = parseJsonValue(row.metadata, {});
+
     return {
       id: row.id,
       slug: row.slug,
@@ -16,6 +34,7 @@ function createExperienceService({ repository }) {
       country: row.country,
       rating: row.rating ? Number(row.rating) : 0,
       badgeText: row.badge_text,
+      offerCurrency: row.offer_currency || null,
       originalPrice: row.original_price ? Number(row.original_price) : null,
       discountedPrice:
         row.discounted_price ? Number(row.discounted_price) : null,
@@ -25,11 +44,13 @@ function createExperienceService({ repository }) {
       buttonText: row.button_text,
       ctaUrl: row.cta_url,
       expiresOn: row.expires_on,
-      tags: row.tags || [],
-      highlights: row.highlights || [],
-      metadata: row.metadata || {},
+      tags: Array.isArray(tags) ? tags : [],
+      highlights: Array.isArray(highlights) ? highlights : [],
+      metadata: metadata && typeof metadata === "object" ? metadata : {},
       displayOrder: row.display_order || 0,
       isActive: row.is_active !== false,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -54,6 +75,8 @@ function createExperienceService({ repository }) {
       bgColor: row.bg_color,
       displayOrder: row.display_order || 0,
       isActive: row.is_active !== false,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -88,6 +111,13 @@ function createExperienceService({ repository }) {
         .sort((first, second) => first.displayOrder - second.displayOrder);
     },
 
+    async listDeletedFeaturedPicks(filters = {}) {
+      const rows = await repository.findDeletedFeaturedPicks(filters);
+      return rows
+        .map(toFeaturedPick)
+        .sort((first, second) => first.displayOrder - second.displayOrder);
+    },
+
     async getFeaturedPickById(id) {
       const row = await repository.findFeaturedPickById(id);
       if (!row) {
@@ -117,6 +147,7 @@ function createExperienceService({ repository }) {
         country,
         rating: toNumber(data.rating, 0),
         badge_text: normalizeText(data.badgeText),
+        offer_currency: normalizeText(data.offerCurrency || "INR"),
         original_price: toNumber(data.originalPrice, null),
         discounted_price: toNumber(data.discountedPrice, null),
         duration: normalizeText(data.duration),
@@ -172,6 +203,9 @@ function createExperienceService({ repository }) {
       if (data.badgeText !== undefined) {
         updates.badge_text = normalizeText(data.badgeText);
       }
+      if (data.offerCurrency !== undefined) {
+        updates.offer_currency = normalizeText(data.offerCurrency || "INR");
+      }
       if (data.originalPrice !== undefined) {
         updates.original_price = toNumber(data.originalPrice, null);
       }
@@ -211,18 +245,55 @@ function createExperienceService({ repository }) {
       return toFeaturedPick(row);
     },
 
+    async updateFeaturedPickStatus(id, isActive) {
+      const existing = await repository.findFeaturedPickById(id);
+      if (!existing) {
+        throw new AppError(404, "Featured pick not found", "NOT_FOUND");
+      }
+
+      const row = await repository.updateFeaturedPick(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      return toFeaturedPick(row);
+    },
+
     async deleteFeaturedPick(id) {
       const existing = await repository.findFeaturedPickById(id);
       if (!existing) {
         throw new AppError(404, "Featured pick not found", "NOT_FOUND");
       }
 
-      await repository.deactivateFeaturedPick(id);
+      await repository.deleteFeaturedPick(id);
+      return { success: true };
+    },
+
+    async hardDeleteFeaturedPick(id) {
+      const existing = await repository.findFeaturedPickById(id);
+      if (!existing) {
+        throw new AppError(404, "Featured pick not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteFeaturedPick(id);
+      return { success: true };
+    },
+
+    async restoreFeaturedPick(id) {
+      const existing = await repository.findFeaturedPickById(id);
+      if (!existing) {
+        throw new AppError(404, "Featured pick not found", "NOT_FOUND");
+      }
+
+      await repository.restoreFeaturedPick(id);
       return { success: true };
     },
 
     async listSeasonCards(filters = {}) {
       const rows = await repository.findSeasonCards(filters);
+      return rows.map(toSeasonCard);
+    },
+
+    async listDeletedSeasonCards(filters = {}) {
+      const rows = await repository.findDeletedSeasonCards(filters);
       return rows.map(toSeasonCard);
     },
 
@@ -294,6 +365,18 @@ function createExperienceService({ repository }) {
       return toSeasonCard(row);
     },
 
+    async updateSeasonCardStatus(id, isActive) {
+      const existing = await repository.findSeasonCardById(id);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      const row = await repository.updateSeasonCard(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      return toSeasonCard(row);
+    },
+
     async deleteSeasonCard(id) {
       const existing = await repository.findSeasonCardById(id);
       if (!existing) {
@@ -301,6 +384,26 @@ function createExperienceService({ repository }) {
       }
 
       await repository.deleteSeasonCard(id);
+      return { success: true };
+    },
+
+    async hardDeleteSeasonCard(id) {
+      const existing = await repository.findSeasonCardById(id);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteSeasonCard(id);
+      return { success: true };
+    },
+
+    async restoreSeasonCard(id) {
+      const existing = await repository.findSeasonCardById(id);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      await repository.restoreSeasonCard(id);
       return { success: true };
     },
 

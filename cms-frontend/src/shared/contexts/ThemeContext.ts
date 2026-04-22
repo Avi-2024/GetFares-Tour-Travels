@@ -11,7 +11,9 @@ export interface IThemeContext {
 class ThemeContextDefaults implements IThemeContext {
   public theme: Theme = "light";
   public toggleTheme(): void {}
-  public setTheme(_theme: Theme): void {}
+  public setTheme(_theme: Theme): void {
+    void _theme;
+  }
 }
 
 export const ThemeContext = createContext<IThemeContext>(

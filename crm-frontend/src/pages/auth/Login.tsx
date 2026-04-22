@@ -9,11 +9,11 @@ import {
   FaLock
 } from 'react-icons/fa'
 import { authApi } from '../../api'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 
-const DEMO_EMAIL = 'admin@travel-crm.com'
-const DEMO_PASSWORD = 'admin@123'
+const DEMO_EMAIL = ''
+const DEMO_PASSWORD = ''
 const PERMISSION_RESOLVE_TIMEOUT_MS = 2500
 const ENABLE_LOGIN_PERF_LOGS = import.meta.env.DEV
 
@@ -130,6 +130,16 @@ const Login = () => {
     return !newErrors.email && !newErrors.password
   }
 
+  const normalizeBooleanFlag = (value: unknown): boolean | null => {
+    if (value === true || value === 1 || value === '1' || value === 'true') {
+      return true
+    }
+    if (value === false || value === 0 || value === '0' || value === 'false') {
+      return false
+    }
+    return null
+  }
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -159,8 +169,10 @@ const Login = () => {
         email: userEmail,
         role: userRole,
         roleId: data.user.roleId,
-        active: data.user.active ?? null,
-        isActive: data.user.isActive
+        active: normalizeBooleanFlag(data.user.active ?? data.user.isActive),
+        isActive:
+          normalizeBooleanFlag(data.user.isActive ?? data.user.active) ??
+          undefined
       })
       const isAdmin = String(userRole || '').toLowerCase() === 'admin'
       if (isAdmin) {
@@ -225,11 +237,10 @@ const Login = () => {
         }
       })
     } catch (err) {
-      setApiError(
-        getApiErrorMessage(
-          err,
-          'Unable to sign in right now. Please try again.'
-        )
+      reportApiError(
+        err,
+        'Unable to sign in right now. Please try again.',
+        setApiError
       )
     } finally {
       setSubmitting(false)

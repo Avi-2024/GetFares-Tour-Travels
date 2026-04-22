@@ -14,6 +14,7 @@ import {
   DEFAULT_DATE_TIME_PREFERENCES,
   formatDateTimeWithPreferences,
   formatDateWithPreferences,
+  getBrowserTimeZone,
   loadDateTimePreferencesFromStorage,
   normalizeDateTimePreferences,
   parseApiDateTime,
@@ -30,7 +31,11 @@ type DateTimePreferencesContextValue = {
   refreshPreferences: () => Promise<void>;
   parseApiDateTime: (value: unknown) => Date | null;
   formatDate: (value: unknown, fallback?: string) => string;
-  formatDateTime: (value: unknown, fallback?: string) => string;
+  formatDateTime: (
+    value: unknown,
+    fallback?: string,
+    timeZoneOverride?: string | null,
+  ) => string;
 };
 
 const DateTimePreferencesContext =
@@ -100,18 +105,24 @@ export const DateTimePreferencesProvider = ({
     try {
       const response = await settingsApi.getSystemPreferences();
       const patch = toDateTimePreferencePatch(extractObject(response));
-      if (Object.keys(patch).length > 0) {
-        applyPreferences(patch, true);
-      }
+      applyPreferences(
+        normalizeDateTimePreferences({
+          ...patch,
+          timezone: getBrowserTimeZone(),
+        }),
+        true,
+      );
     } catch {
-      // Some environments may not have the lightweight endpoint yet.
-      // Fall back to privileged endpoint when available.
       try {
         const response = await settingsApi.getSystem();
         const patch = toDateTimePreferencePatch(extractObject(response));
-        if (Object.keys(patch).length > 0) {
-          applyPreferences(patch, true);
-        }
+        applyPreferences(
+          normalizeDateTimePreferences({
+            ...patch,
+            timezone: getBrowserTimeZone(),
+          }),
+          true,
+        );
       } catch {
         // Keep local/browser defaults.
       }
@@ -160,8 +171,13 @@ export const DateTimePreferencesProvider = ({
       parseApiDateTime,
       formatDate: (input, fallback = "N/A") =>
         formatDateWithPreferences(input, preferences, fallback),
-      formatDateTime: (input, fallback = "N/A") =>
-        formatDateTimeWithPreferences(input, preferences, fallback),
+      formatDateTime: (input, fallback = "N/A", timeZoneOverride?: string | null) =>
+        formatDateTimeWithPreferences(
+          input,
+          preferences,
+          fallback,
+          timeZoneOverride,
+        ),
     }),
     [preferences, refreshPreferences, updatePreferences],
   );

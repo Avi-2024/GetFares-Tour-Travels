@@ -18,6 +18,14 @@ import {
 } from "react-icons/fa6";
 import { useAuth } from "../../context/AuthContext";
 
+// const isAdminRole = (role?: string) => {
+//   const normalized = String(role ?? "")
+//     .trim()
+//     .toLowerCase()
+//     .replace(/[\s-]+/g, "_");
+//   return normalized === "admin" || normalized === "super_admin";
+// };
+
 const sections = [
   {
     title: "Pipeline",
@@ -27,6 +35,7 @@ const sections = [
         to: "/dashboard",
         icon: FaTableCellsLarge,
         permission: "reports:read",
+        roles: ["admin", "super_admin"],
       },
       // { label: "Public Lead Form", to: "/public/lead-capture", icon: FaGlobe },
       {
@@ -40,6 +49,7 @@ const sections = [
         to: "/quotations",
         icon: FaFileInvoiceDollar,
         permission: "quotations:read",
+        end: true,
       },
       {
         label: "Quotation Templates",
@@ -157,7 +167,7 @@ const Sidebar: React.FC<{
   return (
     <aside
       className={`flex h-full flex-col border-r border-gray-200 bg-white transition-all duration-300 dark:border-gray-700  dark:bg-gray-900 ${
-        collapsed ? "w-20" : "w-72"
+        collapsed ? "w-20" : "w-64"
       }`}
     >
       <div className="flex h-16 items-center border-b border-gray-100 px-4 dark:border-gray-800">
@@ -207,6 +217,7 @@ const Sidebar: React.FC<{
                   <NavLink
                     key={item.label}
                     to={item.to}
+                    end={item.end}
                     onClick={onClose}
                     className={({ isActive }) =>
                       `flex rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${

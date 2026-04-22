@@ -2,11 +2,8 @@ import {
   Compass,
   FolderKanban,
   Globe2,
-  MapPinned,
   PackageSearch,
-  Rows3,
   Sparkles,
-  TicketCheck,
   WandSparkles,
 } from "lucide-react";
 import { SidebarItem, SidebarSection } from "./sidebar.models";
@@ -31,25 +28,18 @@ class SidebarConfig {
     ]),
     new SidebarSection("Packages", [
       new SidebarItem(
-        "published-packages",
-        "Published Packages",
-        "/cms/packages/published",
-        "Synced from CRM catalog",
-        PackageSearch,
-      ),
-      new SidebarItem(
         "main-packages",
-        "Main Packages",
+        "Parent Package",
         "/cms/packages/main",
-        "Primary curated offers",
+        "Primary package records",
         FolderKanban,
       ),
       new SidebarItem(
         "sub-packages",
-        "Sub Packages",
+        "Package",
         "/cms/packages/sub",
-        "Nested itinerary units",
-        Rows3,
+        "Package records",
+        PackageSearch,
       ),
     ]),
     new SidebarSection("Visa", [
@@ -60,13 +50,6 @@ class SidebarConfig {
         "Country and region matrix",
         Globe2,
       ),
-      new SidebarItem(
-        "visa-details",
-        "Visa Details",
-        "/cms/visa-details",
-        "Requirements, notes & uploads",
-        TicketCheck,
-      ),
     ]),
     new SidebarSection("Experience", [
       new SidebarItem(
@@ -76,12 +59,14 @@ class SidebarConfig {
         "Brand assets and templates",
         WandSparkles,
       ),
+    ]),
+    new SidebarSection("Deleted Objects", [
       new SidebarItem(
-        "destination-map",
-        "Destination Map",
-        "/cms/destination-map",
-        "Geo preview and clusters",
-        MapPinned,
+        "deleted-objects",
+        "Deleted Objects",
+        "/cms/deleted",
+        "Hard delete archived records",
+        PackageSearch,
       ),
     ]),
   ];

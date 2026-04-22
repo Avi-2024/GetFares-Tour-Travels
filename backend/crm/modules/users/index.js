@@ -24,6 +24,7 @@ function createUsersModule({ dependencies }) {
     events,
     rbacService: dependencies.services?.rbac,
     rolesService: dependencies.services?.roles,
+    authConfig: dependencies.config?.auth,
   });
 
   const controller = createUsersController({ service });

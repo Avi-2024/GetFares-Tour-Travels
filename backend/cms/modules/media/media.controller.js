@@ -78,6 +78,11 @@ function createCmsMediaController({ service, uploadService }) {
       res.json({ success: true, data: asset });
     }),
 
+    updateStatus: asyncHandler(async (req, res) => {
+      const asset = await service.updateStatus(req.params.id, req.body?.isActive);
+      res.json({ success: true, data: asset });
+    }),
+
     delete: asyncHandler(async (req, res) => {
       const result = await service.delete(req.params.id);
       res.json(result);

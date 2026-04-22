@@ -1,5 +1,5 @@
 START TRANSACTION;
-
+Use get2vacations;
 CREATE TEMPORARY TABLE tmp_roles (
   role_code VARCHAR(50) PRIMARY KEY,
   role_description TEXT
@@ -198,10 +198,15 @@ JOIN roles r ON r.name = trp.role_code
 JOIN permissions p ON p.`key` = trp.perm_key;
 
 UPDATE role_permissions rp
-JOIN roles r ON r.id = rp.role_id
-JOIN permissions p ON p.id = rp.permission_id
-JOIN tmp_role_permissions trp ON trp.role_code = r.name AND trp.perm_key = p.`key`
-SET rp.is_active = TRUE, rp.updated_at = CURRENT_TIMESTAMP;
+SET rp.is_active = TRUE, rp.updated_at = CURRENT_TIMESTAMP
+WHERE EXISTS (
+  SELECT 1
+  FROM roles r
+  INNER JOIN permissions p ON p.id = rp.permission_id
+  INNER JOIN tmp_role_permissions trp
+    ON trp.role_code = r.name AND trp.perm_key = p.`key`
+  WHERE r.id = rp.role_id
+);
 
 COMMIT;
 

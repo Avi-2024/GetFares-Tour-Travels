@@ -60,12 +60,16 @@ export class BookingsService {
 
   // Helper methods
   calculateBalance(booking: Booking): number {
-    return booking.totalAmount - booking.paidAmount;
+    const total = booking.totalAmount ?? 0;
+    const paid = booking.paidAmount ?? 0;
+    return total - paid;
   }
 
   getPaymentStatus(booking: Booking): 'PAID' | 'PARTIAL' | 'UNPAID' {
-    if (booking.paidAmount >= booking.totalAmount) return 'PAID';
-    if (booking.paidAmount > 0) return 'PARTIAL';
+    const total = booking.totalAmount ?? 0;
+    const paid = booking.paidAmount ?? 0;
+    if (paid >= total) return 'PAID';
+    if (paid > 0) return 'PARTIAL';
     return 'UNPAID';
   }
 

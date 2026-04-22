@@ -60,7 +60,10 @@ function createPaymentsController({ service, s3 }) {
     },
 
     async stats(req, res) {
-      const result = await service.stats(req.context);
+      const result = await service.stats(
+        req.validated?.query || req.query,
+        req.context,
+      );
       res.status(200).json({ data: result });
     },
 

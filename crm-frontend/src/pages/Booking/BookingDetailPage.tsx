@@ -17,8 +17,17 @@ import {
 import { bookingsApi } from "../../api/bookings";
 import { paymentsApi } from "../../api/payments";
 import { quotationsApi } from "../../api/quotations";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
+
+import {
+  normalizeCurrencyCode,
+  pickFirstValidCurrencyCode,
+  pickLeadDisplayCurrencyCode,
+  pickQuotationDisplayCurrencyCode,
+} from "../../utils/quotationDisplayCurrency";
+import SurfaceCard from "../../components/ui/SurfaceCard";
+
 
 // Types
 type DeadlineRiskLevel = "SAFE" | "D2_DUE" | "DEADLINE_DUE" | "OVERDUE";
@@ -89,6 +98,7 @@ interface Payment {
   date: string;
   mode: "cash" | "card" | "bank" | "gateway";
   reference?: string;
+  notes?: string;
   proofUrl?: string;
   invoiceUrl?: string;
   status: "pending" | "completed" | "failed";
@@ -508,7 +518,7 @@ const mapPaymentFromApi = (raw: any): Payment => {
   const statusRaw = String(raw?.status ?? "").toUpperCase();
   const isVerified = raw?.isVerified === true || raw?.is_verified === true;
   const status: Payment["status"] =
-    isVerified || statusRaw === "FULL" ? "completed"
+    isVerified ? "completed"
     : statusRaw === "REFUNDED" ? "failed"
     : "pending";
   return {
@@ -526,6 +536,7 @@ const mapPaymentFromApi = (raw: any): Payment => {
       undefined,
     proofUrl: raw?.proofUrl ?? raw?.proof_url ?? undefined,
     invoiceUrl: raw?.invoiceUrl ?? raw?.invoice_url ?? undefined,
+    notes: raw?.notes ?? undefined,
     status,
   };
 };
@@ -1023,11 +1034,16 @@ const PaymentDetailsModal = ({
                         Payment Type: {getPaymentModeLabel(payment.mode)}
                       </p>
                       <p className="text-xs text-gray-600 dark:text-gray-400">
-                        Payment Date: {new Date(payment.date).toLocaleString()}
+                        Payment Date: {new Date(payment.date).toISOString().split('T')[0]}
                       </p>
                       {payment.reference && (
                         <p className="text-xs text-gray-600 dark:text-gray-400">
                           Reference: {payment.reference}
+                        </p>
+                      )}
+                      {payment.notes && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                          <span className="font-medium">Notes:</span> {payment.notes}
                         </p>
                       )}
                     </div>
@@ -1174,29 +1190,7 @@ const AddPaymentModal = ({
       proofInputRef.current.value = "";
     }
   }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setFormData({
-      customer: booking?.customerName || "",
-      bookingId: booking?.bookingNumber || "",
-      amount: "",
-      mode: "bank",
-      referenceId: "",
-      status: "completed",
-      notes: "",
-    });
-    setErrors({});
-    clearInvoiceSelection();
-    clearProofSelection();
-  }, [isOpen, booking?.id, maxPayable, clearInvoiceSelection, clearProofSelection]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      clearInvoiceSelection();
-      clearProofSelection();
-    }
-  }, [isOpen, clearInvoiceSelection, clearProofSelection]);
+  if (!isOpen) return null;
 
   const handleInvoiceFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1641,12 +1635,9 @@ const BookingDetailPage: React.FC = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(objectUrl);
     } catch (error) {
-      showToast(
-        getApiErrorMessage(
-          error,
-          `Failed to download ${attachmentType === "invoice" ? "invoice" : "proof"}`,
-        ),
-        "error",
+      reportApiError(
+        error,
+        `Failed to download ${attachmentType === "invoice" ? "invoice" : "proof"}`,
       );
     }
   };
@@ -1913,6 +1904,47 @@ const BookingDetailPage: React.FC = () => {
             : null,
           );
           setQuotationComponents(toRecordArray(components));
+
+          // Backfill booking header name from quotation payload when booking API
+          // doesn't include a customerName field.
+          const candidateCustomerName = String(
+            (quoteRecord as any)?.customerName ??
+              (quoteRecord as any)?.customer_name ??
+              (quoteRecord as any)?.lead?.fullName ??
+              (quoteRecord as any)?.lead?.full_name ??
+              (quoteRecord as any)?.lead?.name ??
+              (quoteRecord as any)?.templateSnapshot?.customerName ??
+              (quoteRecord as any)?.template_snapshot?.customerName ??
+              (quoteRecord as any)?.templateSnapshot?.lead?.fullName ??
+              (quoteRecord as any)?.template_snapshot?.lead?.fullName ??
+              "",
+          ).trim();
+          if (candidateCustomerName) {
+            setBooking((prev) => {
+              if (!prev) return prev;
+              const prevName = String(prev.customerName || "").trim();
+              if (prevName && prevName !== "Unknown") return prev;
+              return { ...prev, customerName: candidateCustomerName };
+            });
+          }
+
+          const leadRecord =
+            (quoteRecord as any)?.lead ??
+            (quoteRecord as any)?.relations?.lead ??
+            null;
+          const mergedClientCurrency = normalizeCurrencyCode(
+            pickFirstValidCurrencyCode(
+              pickQuotationDisplayCurrencyCode(quoteRecord),
+              pickLeadDisplayCurrencyCode(leadRecord),
+              resolvedBooking.clientCurrency,
+              resolvedBooking.supplierCurrency,
+            ),
+          );
+          setBooking((prev) => {
+            if (!prev) return prev;
+            if (mergedClientCurrency === prev.clientCurrency) return prev;
+            return { ...prev, clientCurrency: mergedClientCurrency };
+          });
         } catch {
           setQuotationDetails(null);
           setQuotationComponents([]);
@@ -1920,9 +1952,7 @@ const BookingDetailPage: React.FC = () => {
       }
     } catch (err) {
       console.error("Failed to load booking details:", err);
-      const message = getApiErrorMessage(err, "Failed to load booking details");
-      setError(message);
-      showToast(message, "error");
+      reportApiError(err, "Failed to load booking details", setError);
     } finally {
       setLoading(false);
     }
@@ -1952,10 +1982,7 @@ const BookingDetailPage: React.FC = () => {
       await fetchBookingData();
       showToast(`Booking status updated to ${newStatus}`, "success");
     } catch (err) {
-      showToast(
-        getApiErrorMessage(err, "Failed to update booking status"),
-        "error",
-      );
+      reportApiError(err, "Failed to update booking status");
     } finally {
       setLoading(false);
     }
@@ -1977,7 +2004,7 @@ const BookingDetailPage: React.FC = () => {
       setCancelError("");
       showToast("Booking cancelled successfully", "success");
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to cancel booking"), "error");
+      reportApiError(err, "Failed to cancel booking");
     } finally {
       setLoading(false);
     }
@@ -2014,10 +2041,7 @@ const BookingDetailPage: React.FC = () => {
         "success",
       );
     } catch (err) {
-      showToast(
-        getApiErrorMessage(err, "Failed to mark invoice as paid"),
-        "error",
-      );
+      reportApiError(err, "Failed to mark invoice as paid");
     } finally {
       setLoading(false);
     }
@@ -2063,6 +2087,7 @@ const BookingDetailPage: React.FC = () => {
       apiStatus === "FULL" && remainingAfterPayment > 0 ? "PARTIAL" : apiStatus;
     const normalizedMode = mapPaymentModeToApi(payload.mode);
     const paymentReference = payload.referenceId?.trim() || undefined;
+    const notes = payload.notes?.trim() || undefined;
     const paidAt = isVerified ? new Date().toISOString() : undefined;
     const hasAttachment = Boolean(payload.invoiceFile || payload.proofFile);
     try {
@@ -2077,6 +2102,9 @@ const BookingDetailPage: React.FC = () => {
         formData.append("isVerified", String(isVerified));
         if (paymentReference) {
           formData.append("paymentReference", paymentReference);
+        }
+        if (notes) {
+          formData.append("notes", notes);
         }
         if (paidAt) {
           formData.append("paidAt", paidAt);
@@ -2103,13 +2131,14 @@ const BookingDetailPage: React.FC = () => {
           status: normalizedStatus,
           isVerified,
           paidAt,
+          notes,
         });
       }
       await fetchBookingData();
       setShowAddPaymentModal(false);
       showToast("Payment recorded successfully", "success");
     } catch (err) {
-      showToast(getApiErrorMessage(err, "Failed to record payment"), "error");
+      reportApiError(err, "Failed to record payment");
     } finally {
       setSavingPayment(false);
     }
@@ -2202,10 +2231,10 @@ const BookingDetailPage: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number, currency: string = "USD") => {
+  const formatCurrency = (amount: number, currency?: string) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency,
+      currency: currency ?? booking?.clientCurrency ?? "USD",
     }).format(amount);
   };
 
@@ -2228,8 +2257,8 @@ const BookingDetailPage: React.FC = () => {
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      // hour: "2-digit",
+      // minute: "2-digit",
     });
   };
 
@@ -2517,11 +2546,23 @@ const BookingDetailPage: React.FC = () => {
   const quotationPricing = toRecord(
     quotationSnapshot.pricing ?? quotationBuilderSnapshot.pricing,
   );
+  const quotationClientFromRecord = quotationDetails
+    ? pickQuotationDisplayCurrencyCode(quotationDetails)
+    : null;
   const quotationSnapshotCurrency =
-    toTrimmedText(quotationSnapshot.currency) ||
-    toTrimmedText(quotationDetails?.supplierCurrency);
-  const quotationCurrency =
-    quotationSnapshotCurrency || booking?.clientCurrency || "INR";
+    pickFirstValidCurrencyCode(
+      quotationClientFromRecord,
+      toTrimmedText(quotationSnapshot.currency),
+      quotationDetails && typeof quotationDetails === "object" ?
+        (quotationDetails as Record<string, unknown>).supplierCurrency
+      : null,
+      quotationDetails && typeof quotationDetails === "object" ?
+        (quotationDetails as Record<string, unknown>).supplier_currency
+      : null,
+    ) ?? "";
+  const quotationCurrency = normalizeCurrencyCode(
+    quotationSnapshotCurrency || booking?.clientCurrency,
+  );
   const quotationItinerary = toRecordArray(
     quotationSnapshot.itineraryItems ?? quotationBuilderSnapshot.itineraryItems,
   );
@@ -2564,7 +2605,7 @@ const BookingDetailPage: React.FC = () => {
         formatDate(String(quotationSnapshot.validUntil))
       : undefined,
     packageType: toTrimmedText(quotationSnapshot.packageType) || undefined,
-    currency: quotationSnapshotCurrency || undefined,
+    currency: quotationCurrency || undefined,
   };
   const quotationPricingSummary = {
     supplierCost:
@@ -2823,16 +2864,18 @@ const BookingDetailPage: React.FC = () => {
         onClose={() => setAttachmentPreview(null)}
       />
 
-      <AddPaymentModal
-        isOpen={showAddPaymentModal}
-        booking={booking}
-        maxPayable={remainingPaymentAmount}
-        submitting={savingPayment}
-        onClose={() => setShowAddPaymentModal(false)}
-        onSubmit={(payload) => {
-          void handleAddPayment(payload);
-        }}
-      />
+      {showAddPaymentModal ? (
+        <AddPaymentModal
+          isOpen
+          booking={booking}
+          maxPayable={remainingPaymentAmount}
+          submitting={savingPayment}
+          onClose={() => setShowAddPaymentModal(false)}
+          onSubmit={(payload) => {
+            void handleAddPayment(payload);
+          }}
+        />
+      ) : null}
 
       <div className="max-w-7xl mx-auto px-0 sm:px-0 lg:px-0 py-4 sm:py-6 lg:py-8">
         {/* Header */}
@@ -2962,7 +3005,7 @@ const BookingDetailPage: React.FC = () => {
                           <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
                             {formatCurrency(
                               booking.costAmount,
-                              booking.supplierCurrency,
+                              booking.clientCurrency,
                             )}
                           </p>
                         </div>
@@ -3514,13 +3557,14 @@ const BookingDetailPage: React.FC = () => {
                     </div>
 
                     {/* Recent Payments */}
-                    <div className="space-y-2">
-                      {payments.length === 0 ? (
+                    <div className="space-y-2 overflow-y-auto max-h-[calc(100vh-200px)] pr-2 scrollbar-hide">
+                      <SurfaceCard>
+                        {payments.length === 0 ? (
                         <p className="text-sm text-gray-500 dark:text-gray-400 px-1 py-2">
                           No payments recorded yet.
                         </p>
                       ) : (
-                        payments.slice(0, 3).map((payment) => (
+                        payments.slice(0, 50).map((payment) => (
                           <div
                             key={payment.id}
                             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3"
@@ -3542,6 +3586,11 @@ const BookingDetailPage: React.FC = () => {
                                 {payment.reference && (
                                   <p className="text-xs text-gray-500 dark:text-gray-400">
                                     Reference: {payment.reference}
+                                  </p>
+                                )}
+                                {payment.notes && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Notes: {payment.notes}
                                   </p>
                                 )}
                               </div>
@@ -3618,6 +3667,7 @@ const BookingDetailPage: React.FC = () => {
                           </div>
                         ))
                       )}
+                      </SurfaceCard>
                     </div>
                   </div>
                 )}

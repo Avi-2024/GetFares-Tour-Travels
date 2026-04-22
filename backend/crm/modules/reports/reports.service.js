@@ -1,4 +1,52 @@
-function createReportsService({ repository, logger }) {
+function createReportsService({ repository, logger, currencyService }) {
+  function normalizeCurrency(value, fallback = "AED") {
+    const normalized = String(value || "")
+      .trim()
+      .toUpperCase();
+    return normalized || fallback;
+  }
+
+  function toNumber(value, fallback = 0) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function roundAmount(value) {
+    return Number(toNumber(value, 0).toFixed(2));
+  }
+
+  async function convertAmountToCurrency(amount, fromCurrency, toCurrency) {
+    const normalizedFrom = normalizeCurrency(fromCurrency);
+    const normalizedTo = normalizeCurrency(toCurrency);
+    const amountNumber = toNumber(amount, 0);
+    if (amountNumber === 0 || normalizedFrom === normalizedTo) {
+      return roundAmount(amountNumber);
+    }
+    if (!currencyService?.convert) {
+      throw new Error("currencyService.convert is not available");
+    }
+    const converted = await currencyService.convert(
+      amountNumber,
+      normalizedFrom,
+      normalizedTo,
+    );
+    return roundAmount(converted);
+  }
+
+  async function sumConvertedAmounts(rows = [], amountField, currencyField, targetCurrency) {
+    const normalizedTarget = normalizeCurrency(targetCurrency);
+    let total = 0;
+    for (const row of rows) {
+      const amount = toNumber(row?.[amountField], 0);
+      const sourceCurrency = normalizeCurrency(row?.[currencyField], normalizedTarget);
+      total += await convertAmountToCurrency(amount, sourceCurrency, normalizedTarget);
+    }
+    return roundAmount(total);
+  }
+
   return Object.freeze({
     async leadsBySource(filters = {}, context = {}) {
       logger.debug(
@@ -137,7 +185,91 @@ function createReportsService({ repository, logger }) {
         ...filters,
         userId: context.user?.id,
       };
-      return repository.getExecutiveKpis(enrichedFilters);
+      const result = await repository.getExecutiveKpis(enrichedFilters);
+      const reportingCurrency = normalizeCurrency(
+        currencyService?.baseCurrency || result?.currency || "AED",
+      );
+
+      if (!currencyService?.convert) {
+        return {
+          ...result,
+          currency: reportingCurrency,
+        };
+      }
+
+      try {
+        const bookingCurrencyRows =
+          (await repository.getExecutiveBookingRevenueByCurrency(
+            enrichedFilters,
+          )) || [];
+
+        const convertedTotalRevenue = await sumConvertedAmounts(
+          bookingCurrencyRows,
+          "revenue",
+          "currency",
+          reportingCurrency,
+        );
+
+        const serviceCurrencyRows =
+          (await repository.getExecutiveServiceRevenueByCurrency(
+            enrichedFilters,
+          )) || [];
+
+        const holidayRevenue = await sumConvertedAmounts(
+          serviceCurrencyRows.filter((row) => row.service_type !== "VISA"),
+          "revenue",
+          "currency",
+          reportingCurrency,
+        );
+        const visaRevenue = await sumConvertedAmounts(
+          serviceCurrencyRows.filter((row) => row.service_type === "VISA"),
+          "revenue",
+          "currency",
+          reportingCurrency,
+        );
+
+        const convertedCost = await convertAmountToCurrency(
+          toNumber(result?.cost, 0),
+          normalizeCurrency(result?.currency, reportingCurrency),
+          reportingCurrency,
+        );
+
+        const convertedProfit = Number(
+          (convertedTotalRevenue - convertedCost).toFixed(2),
+        );
+
+        const totalBookings = toNumber(result?.totalBookings, 0);
+
+        return {
+          ...result,
+          revenue: convertedTotalRevenue,
+          cost: convertedCost,
+          profit: convertedProfit,
+          avgBookingValue:
+            totalBookings > 0
+              ? Number((convertedTotalRevenue / totalBookings).toFixed(2))
+              : 0,
+          avgMarginPercent:
+            convertedTotalRevenue > 0
+              ? Number(((convertedProfit / convertedTotalRevenue) * 100).toFixed(2))
+              : 0,
+          holidayRevenue,
+          visaRevenue,
+          currency: reportingCurrency,
+        };
+      } catch (error) {
+        logger?.warn?.(
+          {
+            module: "reports",
+            error: error.message,
+          },
+          "Executive KPI currency conversion failed; returning raw totals",
+        );
+        return {
+          ...result,
+          currency: reportingCurrency,
+        };
+      }
     },
 
     async conversionFunnel(filters = {}, context = {}) {

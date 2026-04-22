@@ -10,6 +10,7 @@ function createReportsModule({ dependencies }) {
   const repository = createReportsRepository({
     db: dependencies.db,
     schema: ReportsSchema,
+    logger: dependencies.logger,
   });
 
   const events = createReportsEvents();
@@ -18,6 +19,7 @@ function createReportsModule({ dependencies }) {
     repository,
     logger: dependencies.logger,
     events,
+    currencyService: dependencies.services?.currency,
   });
 
   const controller = createReportsController({ service });

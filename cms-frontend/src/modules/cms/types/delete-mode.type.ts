@@ -1,3 +1,3 @@
-type DeleteMode = "delete" | "softDeactivate";
+type DeleteMode = "delete" | "softDeactivate" | "hard-delete";
 
 export type { DeleteMode };

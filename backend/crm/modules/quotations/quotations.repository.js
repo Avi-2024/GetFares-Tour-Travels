@@ -1,6 +1,4 @@
 function createQuotationsRepository({ db, logger, schema }) {
-  const tableColumnsCache = new Map();
-
   function toNumber(value, fallback = null) {
     if (value === null || value === undefined) {
       return fallback;
@@ -31,6 +29,13 @@ function createQuotationsRepository({ db, logger, schema }) {
       if (normalized === "false" || normalized === "0" || normalized === "no") {
         return false;
       }
+    }
+
+    if (typeof Buffer !== "undefined" && Buffer.isBuffer?.(value)) {
+      if (value.length === 0) {
+        return fallback;
+      }
+      return value[0] === 1;
     }
 
     return Boolean(value);
@@ -78,42 +83,10 @@ function createQuotationsRepository({ db, logger, schema }) {
   }
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && db.pool;
-  }
-
-  async function getTableColumns(tableName) {
-    if (!canUseRawQuery()) {
-      return null;
-    }
-
-    if (tableColumnsCache.has(tableName)) {
-      return tableColumnsCache.get(tableName);
-    }
-
-    const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
-      [tableName],
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
     );
-
-    const columns = new Set(result.rows.map((row) => row.column_name));
-    tableColumnsCache.set(tableName, columns);
-    return columns;
-  }
-
-  async function sanitizeForTable(tableName, payload = {}) {
-    const entries = Object.entries(payload).filter(
-      ([, value]) => value !== undefined,
-    );
-    if (!entries.length) {
-      return {};
-    }
-
-    const columns = await getTableColumns(tableName);
-    if (columns === null) {
-      return Object.fromEntries(entries);
-    }
-
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
   }
 
   function toQuotation(row) {
@@ -162,6 +135,11 @@ function createQuotationsRepository({ db, logger, schema }) {
         row.payment_terms ?? row.paymentTerms ?? null,
       cancellationPolicy:
         row.cancellation_policy ?? row.cancellationPolicy ?? null,
+      leadCountry: row.lead_country ?? row.leadCountry ?? null,
+      addressLine: row.address_line ?? row.addressLine ?? null,
+      budget: toNumber(row.budget, null),
+      travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
+      leadSource: row.lead_source ?? row.leadSource ?? null,
       quoteNumber: row.quote_number ?? row.quoteNumber ?? null,
       totalCost: toNumber(row.total_cost ?? row.totalCost, 0),
       marginPercent: toNumber(row.margin_percent ?? row.marginPercent, 0),
@@ -197,7 +175,10 @@ function createQuotationsRepository({ db, logger, schema }) {
       approvalNote: row.approval_note ?? row.approvalNote ?? null,
       importantNotes: row.important_notes ?? row.importantNotes ?? null,
       versionNumber: Number(row.version_number ?? row.versionNumber ?? 1),
-      status: row.status,
+      status:
+        row.status === null || row.status === undefined ?
+          null
+        : String(row.status).trim(),
       pdfUrl: row.pdf_url ?? row.pdfUrl ?? null,
       pdfGeneratedAt: toDate(row.pdf_generated_at ?? row.pdfGeneratedAt),
       pdfGeneratedBy: row.pdf_generated_by ?? row.pdfGeneratedBy ?? null,
@@ -271,6 +252,11 @@ function createQuotationsRepository({ db, logger, schema }) {
       headerBranding: row.header_branding ?? row.headerBranding ?? null,
       inclusions: row.inclusions ?? null,
       exclusions: row.exclusions ?? null,
+      itinerary: toJson(row.itinerary, null),
+      hotelDetails:
+        row.hotel_details ?? row.hotelDetails ?? null,
+      visaDetails:
+        row.visa_details ?? row.visaDetails ?? null,
       paymentTerms: row.payment_terms ?? row.paymentTerms ?? null,
       cancellationPolicy:
         row.cancellation_policy ?? row.cancellationPolicy ?? null,
@@ -347,6 +333,12 @@ function createQuotationsRepository({ db, logger, schema }) {
       status: row.status ?? null,
       assignedTo: row.assigned_to ?? row.assignedTo ?? null,
       createdAt: toDate(row.created_at ?? row.createdAt),
+      // Additional fields needed for quotation prefilling
+      leadCountry: row.lead_country ?? row.leadCountry ?? row.country ?? null,
+      addressLine: row.address_line ?? row.addressLine ?? null,
+      budget: row.budget ?? null,
+      travelPurpose: row.travel_purpose ?? row.travelPurpose ?? null,
+      source: row.source ?? null
     };
   }
 
@@ -591,7 +583,7 @@ function createQuotationsRepository({ db, logger, schema }) {
       const notOpenedSql = `
         SELECT *
         FROM ${schema.tableName}
-        WHERE COALESCE(is_deleted, FALSE) = FALSE
+        WHERE COALESCE(is_deleted, 0) = 0
           AND status NOT IN ('APPROVED', 'REJECTED')
           AND sent_at IS NOT NULL
           AND sent_at <= ?
@@ -607,7 +599,7 @@ function createQuotationsRepository({ db, logger, schema }) {
       const viewedNoActionSql = `
         SELECT *
         FROM ${schema.tableName}
-        WHERE COALESCE(is_deleted, FALSE) = FALSE
+        WHERE COALESCE(is_deleted, 0) = 0
           AND status NOT IN ('APPROVED', 'REJECTED')
           AND sent_at IS NOT NULL
           AND last_viewed_at IS NOT NULL
@@ -718,49 +710,49 @@ function createQuotationsRepository({ db, logger, schema }) {
           const values = ["APPROVED"];
           const clauses = [
             "q.status = ?",
-            "q.is_deleted = FALSE",
+            "q.is_deleted = 0",
             "b.id IS NULL",
           ];
 
           if (filters.leadId) {
             values.push(filters.leadId);
-            clauses.push(`q.lead_id = $${values.length}`);
+            clauses.push(`q.lead_id = ?`);
           }
           if (filters.createdBy) {
             values.push(filters.createdBy);
-            clauses.push(`q.created_by = $${values.length}`);
+            clauses.push(`q.created_by = ?`);
           }
           if (filters.templateId) {
             values.push(filters.templateId);
-            clauses.push(`q.template_id = $${values.length}`);
+            clauses.push(`q.template_id = ?`);
           }
           if (filters.sourcePackageId) {
             values.push(filters.sourcePackageId);
-            clauses.push(`q.source_package_id = $${values.length}`);
+            clauses.push(`q.source_package_id = ?`);
           }
           if (filters.quotationTitle) {
             values.push(`%${String(filters.quotationTitle).trim()}%`);
-            clauses.push(`q.quotation_title ILIKE $${values.length}`);
+            clauses.push(`LOWER(COALESCE(q.quotation_title, '')) LIKE LOWER(?)`);
           }
           if (filters.tripDestination) {
             values.push(`%${String(filters.tripDestination).trim()}%`);
-            clauses.push(`q.trip_destination ILIKE $${values.length}`);
+            clauses.push(`LOWER(COALESCE(q.trip_destination, '')) LIKE LOWER(?)`);
           }
           if (filters.durationNights !== undefined) {
             values.push(Number(filters.durationNights));
-            clauses.push(`q.duration_nights = $${values.length}`);
+            clauses.push(`q.duration_nights = ?`);
           }
           if (filters.durationDays !== undefined) {
             values.push(Number(filters.durationDays));
-            clauses.push(`q.duration_days = $${values.length}`);
+            clauses.push(`q.duration_days = ?`);
           }
           if (filters.travelStartDate) {
             values.push(filters.travelStartDate);
-            clauses.push(`q.travel_start_date = $${values.length}`);
+            clauses.push(`q.travel_start_date = ?`);
           }
           if (filters.requiresApproval !== undefined) {
             values.push(toBoolean(filters.requiresApproval));
-            clauses.push(`q.requires_approval = $${values.length}`);
+            clauses.push(`q.requires_approval = ?`);
           }
 
           let query = `
@@ -768,18 +760,18 @@ function createQuotationsRepository({ db, logger, schema }) {
             FROM ${schema.tableName} q
             LEFT JOIN ${schema.bookingsTable} b
               ON b.quotation_id = q.id
-             AND b.is_deleted = FALSE
+             AND b.is_deleted = 0
             WHERE ${clauses.join(" AND ")}
             ORDER BY q.created_at DESC
           `;
 
           if (limit) {
             values.push(limit);
-            query += ` LIMIT $${values.length}`;
+            query += ` LIMIT ?`;
           }
           if (offset !== null) {
             values.push(offset);
-            query += ` OFFSET $${values.length}`;
+            query += ` OFFSET ?`;
           }
 
           const result = await db.query(query, values);
@@ -909,18 +901,17 @@ function createQuotationsRepository({ db, logger, schema }) {
 
     async create(payload) {
       logger.debug({ module: "quotations", payload }, "Creating quotation");
-      const sanitized = await sanitizeForTable(schema.tableName, {
+      const row = await db.insert(schema.tableName, {
         ...payload,
         template_snapshot: toJsonString(payload.template_snapshot),
         itinerary: toJsonString(payload.itinerary),
       });
-      const row = await db.insert(schema.tableName, sanitized);
       return toQuotation(row);
     },
 
     async update(id, payload) {
       logger.debug({ module: "quotations", id, payload }, "Updating quotation");
-      const sanitized = await sanitizeForTable(schema.tableName, {
+      const row = await db.update(schema.tableName, id, {
         ...payload,
         template_snapshot:
           payload.template_snapshot !== undefined
@@ -931,7 +922,6 @@ function createQuotationsRepository({ db, logger, schema }) {
             ? toJsonString(payload.itinerary)
             : undefined,
       });
-      const row = await db.update(schema.tableName, id, sanitized);
       return toQuotation(row);
     },
 
@@ -962,7 +952,7 @@ function createQuotationsRepository({ db, logger, schema }) {
 
     async incrementViewStats(quotationId) {
       if (canUseRawQuery()) {
-        const result = await db.query(
+        await db.query(
           `
             UPDATE ${schema.tableName}
             SET
@@ -971,12 +961,14 @@ function createQuotationsRepository({ db, logger, schema }) {
               last_viewed_at = CURRENT_TIMESTAMP,
               updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-            RETURNING *
           `,
           [quotationId],
         );
-
-        return toQuotation(result.rows[0]);
+        const fetchResult = await db.query(
+          `SELECT * FROM ${schema.tableName} WHERE id = ? LIMIT 1`,
+          [quotationId],
+        );
+        return toQuotation(fetchResult.rows[0]);
       }
 
       const current = await db.findById(schema.tableName, quotationId);
@@ -1125,8 +1117,8 @@ function createQuotationsRepository({ db, logger, schema }) {
         version_number: payload.versionNumber,
         editor_id: payload.editorId || null,
         action: payload.action,
-        change_log: payload.changeLog || {},
-        snapshot: payload.snapshot || null,
+        change_log: toJsonString(payload.changeLog || {}),
+        snapshot: toJsonString(payload.snapshot || null),
       });
 
       return toVersionLog(row);
@@ -1141,7 +1133,7 @@ function createQuotationsRepository({ db, logger, schema }) {
         delivery_channel: payload.deliveryChannel || "MANUAL",
         recipient_email: payload.recipientEmail || null,
         recipient_phone: payload.recipientPhone || null,
-        metadata: payload.metadata || {},
+        metadata: toJsonString(payload.metadata || {}),
       });
 
       return toSendLog(row);
@@ -1154,7 +1146,7 @@ function createQuotationsRepository({ db, logger, schema }) {
         quotation_id: payload.quotationId,
         reminder_type: payload.reminderType,
         triggered_by: payload.triggeredBy || null,
-        metadata: payload.metadata || {},
+        metadata: toJsonString(payload.metadata || {}),
       });
 
       return toReminderLog(row);
@@ -1163,46 +1155,46 @@ function createQuotationsRepository({ db, logger, schema }) {
     findReminderCandidates,
 
     async getLeadToQuoteReport(filters = {}) {
-      const where = ["COALESCE(q.is_deleted, FALSE) = FALSE"];
+      const where = ["COALESCE(q.is_deleted, 0) = 0"];
       const params = [];
 
       if (filters.from) {
         params.push(filters.from);
-        where.push(`q.created_at >= $${params.length}`);
+        where.push(`q.created_at >= ?`);
       }
 
       if (filters.to) {
         params.push(filters.to);
-        where.push(`q.created_at <= $${params.length}`);
+        where.push(`q.created_at <= ?`);
       }
 
       if (filters.createdBy) {
         params.push(filters.createdBy);
-        where.push(`q.created_by = $${params.length}`);
+        where.push(`q.created_by = ?`);
       }
       if (filters.sourcePackageId) {
         params.push(filters.sourcePackageId);
-        where.push(`q.source_package_id = $${params.length}`);
+        where.push(`q.source_package_id = ?`);
       }
       if (filters.quotationTitle) {
         params.push(`%${String(filters.quotationTitle).trim()}%`);
-        where.push(`q.quotation_title ILIKE $${params.length}`);
+        where.push(`LOWER(COALESCE(q.quotation_title, '')) LIKE LOWER(?)`);
       }
       if (filters.tripDestination) {
         params.push(`%${String(filters.tripDestination).trim()}%`);
-        where.push(`q.trip_destination ILIKE $${params.length}`);
+        where.push(`LOWER(COALESCE(q.trip_destination, '')) LIKE LOWER(?)`);
       }
       if (filters.durationNights !== undefined) {
         params.push(Number(filters.durationNights));
-        where.push(`q.duration_nights = $${params.length}`);
+        where.push(`q.duration_nights = ?`);
       }
       if (filters.durationDays !== undefined) {
         params.push(Number(filters.durationDays));
-        where.push(`q.duration_days = $${params.length}`);
+        where.push(`q.duration_days = ?`);
       }
       if (filters.travelStartDate) {
         params.push(filters.travelStartDate);
-        where.push(`q.travel_start_date = $${params.length}`);
+        where.push(`q.travel_start_date = ?`);
       }
 
       const whereSql = where.join(" AND ");
@@ -1214,17 +1206,17 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*) AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotes,
-          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_created_minutes,
-          AVG(
+          ROUND(AVG(TIMESTAMPDIFF(SECOND, l.created_at, q.created_at) / 60.0), 2) AS avg_lead_to_quote_created_minutes,
+          ROUND(AVG(
             CASE
               WHEN q.sent_at IS NOT NULL
-              THEN EXTRACT(EPOCH FROM (q.sent_at - l.created_at)) / 60.0
+              THEN TIMESTAMPDIFF(SECOND, l.created_at, q.sent_at) / 60.0
               ELSE NULL
             END
-          )::numeric(10,2) AS avg_lead_to_quote_sent_minutes,
-          AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
-          AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent,
-          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END) AS sla_breached_quotes
+          ), 2) AS avg_lead_to_quote_sent_minutes,
+          ROUND(AVG(q.final_price), 2) AS avg_quote_value,
+          ROUND(AVG(q.margin_percent), 2) AS avg_margin_percent,
+          SUM(CASE WHEN q.response_sla_breached = 1 THEN 1 ELSE 0 END) AS sla_breached_quotes
         FROM quotations q
         LEFT JOIN users u ON u.id = q.created_by
         LEFT JOIN leads l ON l.id = q.lead_id
@@ -1238,17 +1230,17 @@ function createQuotationsRepository({ db, logger, schema }) {
           COUNT(*) AS total_quotes,
           SUM(CASE WHEN q.status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_quotes,
           SUM(CASE WHEN q.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_quotes,
-          AVG(EXTRACT(EPOCH FROM (q.created_at - l.created_at)) / 60.0)::numeric(10,2) AS avg_lead_to_quote_created_minutes,
-          AVG(
+          ROUND(AVG(TIMESTAMPDIFF(SECOND, l.created_at, q.created_at) / 60.0), 2) AS avg_lead_to_quote_created_minutes,
+          ROUND(AVG(
             CASE
               WHEN q.sent_at IS NOT NULL
-              THEN EXTRACT(EPOCH FROM (q.sent_at - l.created_at)) / 60.0
+              THEN TIMESTAMPDIFF(SECOND, l.created_at, q.sent_at) / 60.0
               ELSE NULL
             END
-          )::numeric(10,2) AS avg_lead_to_quote_sent_minutes,
-          AVG(q.final_price)::numeric(12,2) AS avg_quote_value,
-          AVG(q.margin_percent)::numeric(8,2) AS avg_margin_percent,
-          SUM(CASE WHEN q.response_sla_breached = TRUE THEN 1 ELSE 0 END) AS sla_breached_quotes
+          ), 2) AS avg_lead_to_quote_sent_minutes,
+          ROUND(AVG(q.final_price), 2) AS avg_quote_value,
+          ROUND(AVG(q.margin_percent), 2) AS avg_margin_percent,
+          SUM(CASE WHEN q.response_sla_breached = 1 THEN 1 ELSE 0 END) AS sla_breached_quotes
         FROM quotations q
         LEFT JOIN leads l ON l.id = q.lead_id
         WHERE ${whereSql}

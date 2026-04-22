@@ -74,17 +74,30 @@ const parseTokenExpiryMs = (token: string): number | null => {
   }
 };
 
+const normalizeBooleanFlag = (value: unknown): boolean | null => {
+  if (value === true || value === 1 || value === "1" || value === "true") {
+    return true;
+  }
+  if (value === false || value === 0 || value === "0" || value === "false") {
+    return false;
+  }
+  return null;
+};
+
 const normalizeAuthUser = (payload?: ProfileApiUser | null): AuthUser | null => {
   if (!payload?.id && !payload?.email) return null;
   const fallbackName = payload.email?.split("@")[0] ?? "User";
+  const active = normalizeBooleanFlag(payload.active ?? payload.isActive ?? null);
+  const isActive = normalizeBooleanFlag(payload.isActive ?? payload.active ?? null);
+
   return {
     id: payload.id ?? "",
     name: payload.fullName?.trim() || payload.name?.trim() || fallbackName,
     email: payload.email ?? "",
     role: payload.role,
     roleId: payload.roleId,
-    active: payload.active ?? null,
-    isActive: payload.isActive,
+    active,
+    isActive: isActive ?? undefined,
   };
 };
 

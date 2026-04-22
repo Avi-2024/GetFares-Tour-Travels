@@ -74,8 +74,18 @@ function createCustomersService({ repository, logger, events }) {
       },
       "Listing records",
     );
-    const rows = await repository.findAll(mappedFilters);
-    const activeRows = rows.filter((row) => !(row.is_deleted ?? row.isDeleted));
+    let rows = await repository.findAll(mappedFilters);
+    if (
+      (!Array.isArray(rows) || rows.length === 0) &&
+      typeof repository.backfillFromLeads === "function"
+    ) {
+      await repository.backfillFromLeads();
+      rows = await repository.findAll(mappedFilters);
+    }
+
+    const activeRows = (Array.isArray(rows) ? rows : []).filter(
+      (row) => !(row.is_deleted ?? row.isDeleted),
+    );
     const bookingSummaryByCustomerId =
       await repository.findBookingSummaryByCustomerIds(
         activeRows.map((row) => row.id),

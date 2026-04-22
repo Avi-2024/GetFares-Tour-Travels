@@ -72,6 +72,14 @@ function createSuppliersRoutes({
     asyncHandler(controller.update),
   );
 
+  router.delete(
+    "/:id",
+    requireAuth,
+    authorize("suppliers:delete"),
+    validateRequest(validation.deleteSupplier),
+    asyncHandler(controller.deleteSupplier),
+  );
+
   router.get(
     "/:id/payables",
     requireAuth,

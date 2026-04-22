@@ -89,21 +89,8 @@ function createLeadsRoutes({
     asyncHandler(controller.processCadenceAutomation),
   );
 
-  router.get(
-    "/:id",
-    requireAuth,
-    authorize("leads:read"),
-    validateRequest(validation.byId),
-    asyncHandler(controller.getById),
-  );
-  router.patch(
-    "/:id",
-    requireAuth,
-    authorize("leads:update"),
-    validateRequest(validation.update),
-    asyncHandler(controller.update),
-  );
-
+  // Static segment routes must be registered before `/:id` so paths like
+  // `/:id/followups` are never mistaken for a single-param route.
   router.post(
     "/:id/assign",
     requireAuth,
@@ -133,6 +120,21 @@ function createLeadsRoutes({
     authorize("leads:read"),
     validateRequest(validation.listFollowupsByLeadId),
     asyncHandler(controller.listFollowups),
+  );
+
+  router.get(
+    "/:id",
+    requireAuth,
+    authorize("leads:read"),
+    validateRequest(validation.byId),
+    asyncHandler(controller.getById),
+  );
+  router.patch(
+    "/:id",
+    requireAuth,
+    authorize("leads:update"),
+    validateRequest(validation.update),
+    asyncHandler(controller.update),
   );
 
   return router;

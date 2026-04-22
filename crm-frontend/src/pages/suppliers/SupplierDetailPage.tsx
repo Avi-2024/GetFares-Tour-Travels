@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FaArrowLeft, FaRotate, FaWallet, FaUsers, FaMoneyBill, FaCircleCheck, FaCircleXmark } from 'react-icons/fa6'
+import { FaArrowLeft, FaRotate, FaWallet, FaUsers, FaMoneyBill, FaCircleCheck, FaCircleXmark, FaTrash, FaPlus } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import { suppliersApi } from '../../api/suppliers'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { formatCurrency } from '../../utils/currency'
+import { currencyService } from '../../services/currencyService'
 
 interface Supplier {
   id: string
@@ -46,6 +47,13 @@ interface SupplierBooking {
   customer: string
   destination: string
   serviceName: string
+  supplierBasePrice: number
+  supplierSellValue: number
+  matchedServices: Array<{
+    name: string
+    basePrice: number
+    sellValue: number
+  }>
   totalAmount: number
   currency: string
   status: string
@@ -145,6 +153,37 @@ const SupplierDetailPage: React.FC = () => {
   const [supplier, setSupplier] = useState<Supplier | null>(null)
   const [payables, setPayables] = useState<SupplierPayable[]>([])
   const [bookings, setBookings] = useState<SupplierBooking[]>([])
+  const [deleting, setDeleting] = useState(false)
+
+  const [payableBookingUuid, setPayableBookingUuid] = useState('')
+  const [rateSource, setRateSource] = useState<'api' | 'custom'>('api')
+  const [customUnitRate, setCustomUnitRate] = useState('')
+  const [payableLedgerAmount, setPayableLedgerAmount] = useState('')
+  const [fxLoading, setFxLoading] = useState(false)
+  const [fxError, setFxError] = useState('')
+  const [creatingPayable, setCreatingPayable] = useState(false)
+  const [ratesMeta, setRatesMeta] = useState<{ base: string; source: string } | null>(null)
+
+  const ledgerCurrency = (supplier?.supplierCurrency || 'INR').toUpperCase()
+
+  const selectedPayableBooking = useMemo(
+    () => bookings.find(b => b.id === payableBookingUuid) ?? null,
+    [bookings, payableBookingUuid]
+  )
+
+  const supplierBaseTotalsByCurrency = useMemo(
+    () =>
+      Object.entries(
+        bookings.reduce<Record<string, number>>((acc, b) => {
+          const code = String(b.currency || 'INR').toUpperCase()
+          acc[code] = (acc[code] || 0) + b.supplierBasePrice
+          return acc
+        }, {})
+      )
+        .map(([currency, amount]) => ({ currency, amount }))
+        .sort((a, b) => b.amount - a.amount),
+    [bookings]
+  )
 
   const loadSupplier = async () => {
     if (!id) return
@@ -154,7 +193,7 @@ const SupplierDetailPage: React.FC = () => {
       const response = await suppliersApi.getById(id)
       setSupplier(mapSupplier(unwrapObject(response)))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load supplier'))
+      reportApiError(err, 'Failed to load supplier', setError)
     } finally {
       setLoading(false)
     }
@@ -167,7 +206,7 @@ const SupplierDetailPage: React.FC = () => {
       const response = await suppliersApi.listPayables(id, { page: 1, limit: 200 })
       setPayables(unwrapList(response).map(mapPayable))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load payables'))
+      reportApiError(err, 'Failed to load payables', setError)
     } finally {
       setLoadingPayables(false)
     }
@@ -180,33 +219,45 @@ const SupplierDetailPage: React.FC = () => {
       const response = await suppliersApi.listBookings(id, { limit: 500 })
       const bookings = unwrapList(response)
       
-      const mapped = bookings.map((b: any) => ({
-        id: String(b?.id ?? ''),
-        bookingId: String(b?.bookingNumber ?? b?.bookingId ?? b?.id ?? ''),
-        customer: String(b?.customer ?? 'Unknown Customer'),
-        destination: String(b?.destination ?? 'N/A'),
-        serviceName: String(
-          b?.serviceName ??
-            b?.service_name ??
-            b?.serviceNames ??
-            b?.service_names ??
-            b?.serviceType ??
-            b?.itemType ??
-            'Other'
-        )
-          .split(',')
-          .map((item: string) => normalizeServiceName(item))
-          .filter((item: string) => Boolean(item))
-          .join(', '),
-        totalAmount: toNumber(b?.totalAmount ?? 0),
-        currency: String(b?.currency ?? 'INR'),
-        status: String(b?.status ?? 'pending'),
-        travelStartDate: b?.travelStartDate
-      }))
+      const mapped = bookings.map((b: any) => {
+        const rawMatchedServices = b?.matchedServices ?? b?.matched_services
+        return {
+          id: String(b?.id ?? ''),
+          bookingId: String(b?.bookingNumber ?? b?.bookingId ?? b?.id ?? ''),
+          customer: String(b?.customer ?? 'Unknown Customer'),
+          destination: String(b?.destination ?? 'N/A'),
+          serviceName: String(
+            b?.serviceName ??
+              b?.service_name ??
+              b?.serviceNames ??
+              b?.service_names ??
+              b?.serviceType ??
+              b?.itemType ??
+              'Other'
+          )
+            .split(',')
+            .map((item: string) => normalizeServiceName(item))
+            .filter((item: string) => Boolean(item))
+            .join(', '),
+          supplierBasePrice: toNumber(b?.supplierBasePrice ?? b?.supplier_base_price ?? 0),
+          supplierSellValue: toNumber(b?.supplierSellValue ?? b?.supplier_sell_value ?? 0),
+          matchedServices: Array.isArray(rawMatchedServices)
+            ? rawMatchedServices.map((item: any) => ({
+                name: String(item?.name ?? 'Other'),
+                basePrice: toNumber(item?.basePrice ?? item?.base_price ?? 0),
+                sellValue: toNumber(item?.sellValue ?? item?.sell_value ?? 0)
+              }))
+            : [],
+          totalAmount: toNumber(b?.totalAmount ?? 0),
+          currency: String(b?.currency ?? 'INR'),
+          status: String(b?.status ?? 'pending'),
+          travelStartDate: b?.travelStartDate
+        }
+      })
       
       setBookings(mapped)
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load bookings'))
+      reportApiError(err, 'Failed to load bookings', setError)
     } finally {
       setLoadingBookings(false)
     }
@@ -217,6 +268,125 @@ const SupplierDetailPage: React.FC = () => {
     void loadPayables()
     void loadBookings()
   }, [id])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await currencyService.getRates()
+        if (!cancelled) {
+          setRatesMeta({ base: r.baseCurrency, source: r.source })
+        }
+      } catch {
+        if (!cancelled) setRatesMeta(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedPayableBooking || !supplier) {
+      setPayableLedgerAmount('')
+      setFxError('')
+      setFxLoading(false)
+      return
+    }
+    const from = String(selectedPayableBooking.currency || 'INR').toUpperCase()
+    const to = ledgerCurrency
+    const base = selectedPayableBooking.supplierBasePrice
+
+    if (from === to) {
+      setPayableLedgerAmount(String(Number(base.toFixed(2))))
+      setFxError('')
+      setFxLoading(false)
+      return
+    }
+
+    if (rateSource === 'custom') {
+      const r = parseFloat(String(customUnitRate).replace(/,/g, ''))
+      if (!Number.isFinite(r) || r <= 0) {
+        setPayableLedgerAmount('')
+        setFxError('Enter rate: 1 ' + from + ' = ? ' + to)
+        setFxLoading(false)
+        return
+      }
+      setFxError('')
+      setPayableLedgerAmount(String(Number((base * r).toFixed(2))))
+      setFxLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setFxLoading(true)
+    setFxError('')
+    void (async () => {
+      try {
+        const converted = await currencyService.convert(base, from, to)
+        if (!cancelled) {
+          setPayableLedgerAmount(String(Number(converted.toFixed(2))))
+        }
+      } catch {
+        if (!cancelled) {
+          setFxError('API rate failed. Pick Custom rate.')
+          setPayableLedgerAmount('')
+        }
+      } finally {
+        if (!cancelled) setFxLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    selectedPayableBooking,
+    supplier,
+    rateSource,
+    customUnitRate,
+    ledgerCurrency
+  ])
+
+  const handleDelete = async () => {
+    if (!id || !window.confirm('Are you sure you want to delete this supplier?')) return
+    setDeleting(true)
+    setError('')
+    try {
+      await suppliersApi.delete(id)
+      navigate('/suppliers')
+    } catch (err) {
+      reportApiError(err, 'Failed to delete supplier', setError)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleCreatePayable = async () => {
+    if (!id || !payableBookingUuid) return
+    const amt = parseFloat(String(payableLedgerAmount).replace(/,/g, ''))
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setError('Enter a valid payable amount in supplier currency.')
+      return
+    }
+    setCreatingPayable(true)
+    setError('')
+    try {
+      await suppliersApi.createPayable(id, {
+        bookingId: payableBookingUuid,
+        payableAmount: amt,
+        paidAmount: 0
+      })
+      setPayableBookingUuid('')
+      setPayableLedgerAmount('')
+      setRateSource('api')
+      setCustomUnitRate('')
+      await loadPayables()
+    } catch (err) {
+      reportApiError(err, 'Failed to create payable', setError)
+    } finally {
+      setCreatingPayable(false)
+    }
+  }
 
   const payableStats = {
     totalPayable: payables.reduce((sum, p) => sum + p.payableAmount, 0),
@@ -278,9 +448,20 @@ const SupplierDetailPage: React.FC = () => {
             <p className='text-sm text-gray-500 dark:text-gray-400'>Supplier Details</p>
           </div>
         </div>
-        <button onClick={() => { void loadSupplier(); void loadPayables(); void loadBookings() }} className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'>
-          <FaRotate /> Refresh
-        </button>
+        <div className='flex gap-2'>
+          <button
+            onClick={() => navigate(`/finance-system?supplierId=${encodeURIComponent(supplier.id)}`)}
+            className='inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200'
+          >
+            <FaWallet /> Open in Finance System
+          </button>
+          <button onClick={() => { void loadSupplier(); void loadPayables(); void loadBookings() }} className='inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'>
+            <FaRotate /> Refresh
+          </button>
+          <button onClick={handleDelete} disabled={deleting} className='inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-900/30 dark:text-red-300'>
+            <FaTrash /> Delete
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -367,6 +548,7 @@ const SupplierDetailPage: React.FC = () => {
                   <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Booking ID</th>
                   <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Destination</th>
                   <th className='px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Service</th>
+                  <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Base Price</th>
                   <th className='px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Amount</th>
                   <th className='px-4 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-400'>Status</th>
                 </tr>
@@ -377,7 +559,19 @@ const SupplierDetailPage: React.FC = () => {
                     <td className='px-4 py-3 text-sm text-gray-900 dark:text-gray-100'>{booking.customer}</td>
                     <td className='px-4 py-3 text-sm font-mono text-gray-600 dark:text-gray-400'>{booking.bookingId}</td>
                     <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{booking.destination}</td>
-                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>{booking.serviceName || 'Other'}</td>
+                    <td className='px-4 py-3 text-sm text-gray-700 dark:text-gray-300'>
+                      <div>{booking.serviceName || 'Other'}</div>
+                      {booking.matchedServices.length > 0 ? (
+                        <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                          {booking.matchedServices
+                            .map(service => `${service.name}: ${formatCurrency(service.basePrice, booking.currency)}`)
+                            .join(' | ')}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>
+                      {formatCurrency(booking.supplierBasePrice, booking.currency)}
+                    </td>
                     <td className='px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100'>{formatCurrency(booking.totalAmount, booking.currency)}</td>
                     <td className='px-4 py-3 text-center'>
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
@@ -409,9 +603,31 @@ const SupplierDetailPage: React.FC = () => {
             <FaRotate className={loadingPayables ? 'animate-spin' : ''} /> Refresh
           </button>
         </div>
+
+        <div className='mb-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3 dark:border-blue-900/40 dark:bg-blue-950/20'>
+          <p className='text-xs font-medium text-blue-900 dark:text-blue-200'>Supplier base (from bookings, by currency)</p>
+          <p className='mt-1 text-xs text-blue-800/80 dark:text-blue-300/80'>
+            Sum of supplier base cost per booking currency — same idea as Bookings totals, but uses supplier base not sale amount.
+          </p>
+          <div className='mt-2 flex flex-wrap gap-2'>
+            {supplierBaseTotalsByCurrency.length ? (
+              supplierBaseTotalsByCurrency.map(row => (
+                <span
+                  key={row.currency}
+                  className='inline-flex items-center rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-900 dark:border-blue-800 dark:bg-gray-900 dark:text-blue-100'
+                >
+                  {row.currency}: {formatCurrency(row.amount, row.currency)}
+                </span>
+              ))
+            ) : (
+              <span className='text-xs text-blue-800/70'>No booking data</span>
+            )}
+          </div>
+        </div>
+
         <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3'>
           <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-            <p className='text-xs uppercase text-gray-500 dark:text-gray-400'>Total Payable</p>
+            <p className='text-xs uppercase text-gray-500 dark:text-gray-400'>Total Payable (ledger)</p>
             <p className='mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100'>{formatCurrency(payableStats.totalPayable, supplier.supplierCurrency ?? 'INR')}</p>
           </div>
           <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
@@ -423,8 +639,107 @@ const SupplierDetailPage: React.FC = () => {
             <p className='mt-1 text-lg font-semibold text-red-600 dark:text-red-400'>{formatCurrency(payableStats.totalPayable - payableStats.totalPaid, supplier.supplierCurrency ?? 'INR')}</p>
           </div>
         </div>
+
+        <div className='mb-4 rounded-xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/40'>
+          <p className='text-xs font-semibold text-gray-800 dark:text-gray-200'>Create payable</p>
+          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+            Backend stores one row per booking in <span className='font-mono'>supplier_payables</span>:{' '}
+            <span className='font-mono'>payable_amount</span> is a single number in supplier ledger currency ({ledgerCurrency}). FX is only for this form — convert booking-currency base into {ledgerCurrency}, then save.
+            {ratesMeta ? (
+              <span className='ml-1'>
+                Live rates: source {ratesMeta.source}, base {ratesMeta.base}.
+              </span>
+            ) : null}
+          </p>
+          <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-2'>
+            <label className='block text-xs font-medium text-gray-600 dark:text-gray-300'>
+              Booking
+              <select
+                value={payableBookingUuid}
+                onChange={e => setPayableBookingUuid(e.target.value)}
+                className='mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900'
+              >
+                <option value=''>Select booking…</option>
+                {bookings.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.bookingId} · {b.customer} · {formatCurrency(b.supplierBasePrice, b.currency)} base
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className='block text-xs font-medium text-gray-600 dark:text-gray-300'>
+              Rate source
+              <select
+                value={rateSource}
+                onChange={e => {
+                  const v = e.target.value as 'api' | 'custom'
+                  setRateSource(v)
+                  const bk = bookings.find(x => x.id === payableBookingUuid)
+                  if (v === 'custom' && bk && supplier) {
+                    const from = String(bk.currency || 'INR').toUpperCase()
+                    const to = (supplier.supplierCurrency || 'INR').toUpperCase()
+                    if (from === to) setCustomUnitRate('1')
+                    else {
+                      void currencyService
+                        .convert(1, from, to)
+                        .then(r => setCustomUnitRate(String(Number(r.toFixed(6)))))
+                        .catch(() => setCustomUnitRate(''))
+                    }
+                  }
+                }}
+                className='mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900'
+              >
+                <option value='api'>API rate (/api/currency)</option>
+                <option value='custom'>Custom rate (manual)</option>
+              </select>
+            </label>
+          </div>
+          {rateSource === 'custom' ? (
+            <label className='mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+              1 {selectedPayableBooking ? String(selectedPayableBooking.currency).toUpperCase() : '?'} = ? {ledgerCurrency}
+              <input
+                type='text'
+                inputMode='decimal'
+                value={customUnitRate}
+                onChange={e => setCustomUnitRate(e.target.value)}
+                placeholder='e.g. 22.5'
+                className='mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900'
+              />
+            </label>
+          ) : null}
+          <label className='mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300'>
+            Payable amount ({ledgerCurrency}) — edit if needed
+            <input
+              type='text'
+              inputMode='decimal'
+              value={payableLedgerAmount}
+              onChange={e => setPayableLedgerAmount(e.target.value)}
+              className='mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900'
+            />
+          </label>
+          <div className='mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500'>
+            {fxLoading ? <span>Converting…</span> : null}
+            {fxError ? <span className='text-amber-700 dark:text-amber-300'>{fxError}</span> : null}
+            {selectedPayableBooking && !fxLoading && !fxError && payableLedgerAmount ? (
+              <span>
+                Saves {formatCurrency(parseFloat(payableLedgerAmount) || 0, ledgerCurrency)} payable for booking{' '}
+                <span className='font-mono'>{selectedPayableBooking.bookingId}</span>.
+              </span>
+            ) : null}
+          </div>
+          <button
+            type='button'
+            onClick={() => void handleCreatePayable()}
+            disabled={creatingPayable || !payableBookingUuid || !payableLedgerAmount}
+            className='mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {creatingPayable ? <FaRotate className='animate-spin' /> : <FaPlus />}
+            Add payable
+          </button>
+        </div>
+
         <p className='mb-4 text-xs text-gray-500 dark:text-gray-400'>
-          Payables are shown in supplier ledger currency ({supplier.supplierCurrency ?? 'INR'}). Formula used: Pending = Total Payable - Total Paid. Booking amounts above are shown in each booking&apos;s own currency (no conversion in this view).
+          Ledger totals use supplier currency only (DB has no per-row currency). Pending = Total Payable − Total Paid. If a payable already exists for the same booking, backend updates that row instead of duplicating.
         </p>
         {loadingPayables ? (
           <div className='py-8 text-center text-sm text-gray-500'>Loading payables...</div>

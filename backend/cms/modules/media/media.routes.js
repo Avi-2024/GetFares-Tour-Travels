@@ -9,6 +9,7 @@ function createCmsMediaRoutes({ controller, upload }) {
     .route("/")
     .get(controller.list)
     .post(upload.single("media"), controller.create);
+  router.route("/:id/status").patch(controller.updateStatus);
   router
     .route("/:id")
     .get(controller.getById)

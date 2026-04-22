@@ -29,7 +29,7 @@ const config = Object.freeze({
   },
 
   upload: {
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || "10485760", 10), // 10MB
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || "209715200", 10), // 200MB
     allowedImageTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
     allowedVideoTypes: ["video/mp4", "video/webm"],
   },
@@ -41,12 +41,10 @@ const config = Object.freeze({
   },
 
   storage: {
-    type: process.env.STORAGE_TYPE || "local", // 'local' or 's3'
-    s3: {
-      bucket: process.env.AWS_S3_BUCKET,
-      region: process.env.AWS_REGION || "us-east-1",
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    type: process.env.STORAGE_TYPE || "local", // 'local' or 'azure'
+    azureBlob: {
+      container: process.env.AZURE_STORAGE_CONTAINER,
+      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
     },
     local: {
       uploadDir: process.env.UPLOAD_DIR || "./uploads",

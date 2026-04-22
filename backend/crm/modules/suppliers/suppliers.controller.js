@@ -30,6 +30,11 @@ function createSuppliersController({ service }) {
       res.status(200).json({ data: result });
     },
 
+    async deleteSupplier(req, res) {
+      await service.deleteSupplier(req.validated.params.id, req.context);
+      res.status(200).json({ message: 'Supplier deleted successfully' });
+    },
+
     async listPayables(req, res) {
       const result = await service.listPayables(
         req.validated.params.id,

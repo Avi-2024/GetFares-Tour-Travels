@@ -44,6 +44,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "name",
         readOnly: false,
@@ -73,18 +74,7 @@ class CmsSectionEntryMapper {
             this.accessor.getText(record, "name", "title"),
           ),
           region: new CmsTableCell(this.accessor.getText(record, "region")),
-          travelType: new CmsTableCell(
-            this.accessor.getText(record, "travelType", "travel_type"),
-          ),
-          media: new CmsTableCell(
-            this.accessor.getText(
-              record,
-              "mediaCount",
-              "media_count",
-              "galleryCount",
-              "gallery_count",
-            ),
-          ),
+          category: new CmsTableCell(this.accessor.getText(record, "category")),
           seo: new CmsTableCell(
             hasSeo ? "Ready" : "Missing Meta",
             hasSeo ? "success" : "warning",
@@ -96,7 +86,8 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
-        deleteMode: "softDeactivate",
+        restorePath: `${basePath}/${id}/restore`,
+        deleteMode: "delete",
         editableField: "name",
         readOnly: false,
       });
@@ -116,6 +107,15 @@ class CmsSectionEntryMapper {
         "publishToWebsite",
         "publish_to_website",
       );
+      const isSoldOut = this.accessor.getBoolean(record, "isSoldOut", "is_sold_out");
+      const statusLabel =
+        isSoldOut ? "Sold Out"
+        : isPublished ? "Published"
+        : "Draft";
+      const statusTone =
+        isSoldOut ? "warning"
+        : isPublished ? "success"
+        : "info";
 
       entries.push({
         id,
@@ -125,22 +125,31 @@ class CmsSectionEntryMapper {
             this.accessor.getText(record, "name", "packageName"),
           ),
           destination: new CmsTableCell(this.accessor.getText(record, "destination")),
-          duration: new CmsTableCell(this.accessor.getText(record, "duration")),
           price: new CmsTableCell(
-            this.accessor.getText(
+            `${this.accessor.getText(
+              record,
+              "startingPriceCurrency",
+              "starting_price_currency",
+              "priceCurrency",
+              "price_currency",
+            )} ${this.accessor.getText(
               record,
               "startingPrice",
               "starting_price",
               "price",
-            ),
+            )}`.trim(),
           ),
-          crmState: new CmsTableCell(
-            isPublished ? "Published" : "Draft",
+          publishState: new CmsTableCell(
+            isPublished ? "Published" : "Not Published",
             isPublished ? "success" : "warning",
           ),
+          crmState: new CmsTableCell(statusLabel, statusTone),
           syncAt: new CmsTableCell(this.accessor.getText(record, "updatedAt", "updated_at")),
         }),
         updatePath: `/cms/packages/published/${id}`,
+        deletePath: `/cms/packages/published/${id}`,
+        restorePath: `/cms/packages/published/${id}/restore`,
+        deleteMode: "delete",
         editableField: "publishToWebsite",
         readOnly: false,
       });
@@ -164,31 +173,46 @@ class CmsSectionEntryMapper {
         id,
         raw: record,
         row: new CmsTableRow(id, {
-          mainPackage: new CmsTableCell(
-            this.accessor.getText(record, "packageName", "name"),
-          ),
-          sourcePackage: new CmsTableCell(
-            this.accessor.getText(record, "packageId", "package_id"),
-          ),
-          featured: new CmsTableCell(
-            featured ? "Yes" : "No",
-            featured ? "success" : "warning",
-          ),
-          linkedDestinations: new CmsTableCell(
+          title: new CmsTableCell(
             this.accessor.getText(
               record,
-              "mappedDestinations",
-              "destinationCount",
-              "destination_count",
+              "title",
+              "packageName",
+              "package_name",
+              "name",
             ),
           ),
+          amount: new CmsTableCell(
+            `${this.accessor.getText(
+              record,
+              "amountCurrency",
+              "amount_currency",
+              "startingPriceCurrency",
+              "starting_price_currency",
+            )} ${this.accessor.getText(record, "amount", "startingPrice", "starting_price")}`.trim(),
+          ),
+          destination: new CmsTableCell(
+            this.accessor.getText(
+              record,
+              "destination",
+              "destinationName",
+              "destination_name",
+              "destinationId",
+              "destination_id",
+            ),
+          ),
+          country: new CmsTableCell(
+            this.accessor.getText(record, "country", "destination_country"),
+          ),
           displayOrder: new CmsTableCell(`#${displayOrder}`),
-          updatedAt: new CmsTableCell(
-            this.accessor.getText(record, "updatedAt", "updated_at"),
+          featured: new CmsTableCell(
+            featured ? "T" : "F",
+            featured ? "success" : "warning",
           ),
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "displayOrder",
         readOnly: false,
@@ -200,8 +224,12 @@ class CmsSectionEntryMapper {
   public async mapSubPackageEntries(
     mainPath: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const options = country ? { params: { country } } : undefined;
+    const options =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     const mainPayload = await this.httpClient.get<unknown>(mainPath, options);
     const mainPackages = this.accessor.toArray(mainPayload);
     const entries: CmsTableEntry[] = [];
@@ -232,14 +260,18 @@ class CmsSectionEntryMapper {
             raw: subPackage,
             row: new CmsTableRow(id, {
               variant: new CmsTableCell(
-                this.accessor.getText(subPackage, "packageName", "name"),
+                this.accessor.getText(subPackage, "title", "packageName", "name"),
               ),
               mainPackage: new CmsTableCell(
-                this.accessor.getText(mainPackage, "packageName", "name"),
+                this.accessor.getText(mainPackage, "title", "packageName", "name"),
               ),
               duration: new CmsTableCell(this.accessor.getText(subPackage, "duration")),
               priceBand: new CmsTableCell(
-                this.accessor.getText(subPackage, "startingPrice", "starting_price"),
+                `${this.accessor.getText(
+                  subPackage,
+                  "startingPriceCurrency",
+                  "starting_price_currency",
+                )} ${this.accessor.getText(subPackage, "startingPrice", "starting_price")}`.trim(),
               ),
               displayOrder: new CmsTableCell(`#${displayOrder}`),
               updatedAt: new CmsTableCell(
@@ -248,6 +280,7 @@ class CmsSectionEntryMapper {
             }),
             updatePath: `${mainPath.replace("/main", "/sub")}/${id}`,
             deletePath: `${mainPath.replace("/main", "/sub")}/${id}`,
+            restorePath: `${mainPath.replace("/main", "/sub")}/${id}/restore`,
             deleteMode: "delete",
             editableField: "displayOrder",
             readOnly: false,
@@ -256,6 +289,58 @@ class CmsSectionEntryMapper {
       } catch {
         // continue with next package
       }
+    }
+    return entries;
+  }
+
+  public mapSubPackageFlatEntries(
+    data: JsonRecord[],
+    basePath: string,
+  ): CmsTableEntry[] {
+    const entries: CmsTableEntry[] = [];
+    for (const record of data) {
+      const id = this.accessor.getId(record);
+      if (!id) {
+        continue;
+      }
+      const displayOrder =
+        this.accessor.getNumber(record, "displayOrder", "display_order") ?? 0;
+      entries.push({
+        id,
+        raw: record,
+        row: new CmsTableRow(id, {
+          variant: new CmsTableCell(
+            this.accessor.getText(record, "title", "packageName", "name"),
+          ),
+          mainPackage: new CmsTableCell(
+            this.accessor.getText(
+              record,
+              "mainPackageTitle",
+              "main_package_title",
+              "mainPackageId",
+              "main_package_id",
+            ),
+          ),
+          duration: new CmsTableCell(this.accessor.getText(record, "duration")),
+          priceBand: new CmsTableCell(
+            `${this.accessor.getText(
+              record,
+              "startingPriceCurrency",
+              "starting_price_currency",
+            )} ${this.accessor.getText(record, "startingPrice", "starting_price")}`.trim(),
+          ),
+          displayOrder: new CmsTableCell(`#${displayOrder}`),
+          updatedAt: new CmsTableCell(
+            this.accessor.getText(record, "updatedAt", "updated_at"),
+          ),
+        }),
+        updatePath: `${basePath}/${id}`,
+        deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
+        deleteMode: "delete",
+        editableField: "displayOrder",
+        readOnly: false,
+      });
     }
     return entries;
   }
@@ -273,23 +358,14 @@ class CmsSectionEntryMapper {
         id,
         raw: record,
         row: new CmsTableRow(id, {
-          country: new CmsTableCell(this.accessor.getText(record, "country", "title", "name")),
+          title: new CmsTableCell(this.accessor.getText(record, "title", "name")),
+          country: new CmsTableCell(this.accessor.getText(record, "country")),
           slug: new CmsTableCell(this.accessor.getText(record, "slug")),
-          processingTime: new CmsTableCell(
-            this.accessor.getText(record, "processingTime", "processing_time"),
+          overview: new CmsTableCell(
+            this.accessor.getText(record, "overviewTitle", "overview_title"),
           ),
-          supportInfo: new CmsTableCell(
-            this.accessor.getText(record, "supportInfo", "support_info"),
-          ),
-          heroReady: new CmsTableCell(
-            this.accessor.getText(record, "heroImageUrl", "hero_image_url") !==
-              "--"
-              ? "Yes"
-              : "No",
-            this.accessor.getText(record, "heroImageUrl", "hero_image_url") !==
-              "--"
-              ? "success"
-              : "warning",
+          quickSupport: new CmsTableCell(
+            this.accessor.getText(record, "quickSupportTitle", "support_title"),
           ),
           status: new CmsTableCell(
             isActive ? "Active" : "Inactive",
@@ -298,6 +374,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/${id}`,
         deletePath: `${basePath}/${id}`,
+        restorePath: `${basePath}/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,
@@ -309,8 +386,12 @@ class CmsSectionEntryMapper {
   public async mapVisaDetailEntries(
     visaBasePath: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const options = country ? { params: { country } } : undefined;
+    const options =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     const visaPayload = await this.httpClient.get<unknown>(visaBasePath, options);
     const visaDestinations = this.accessor.toArray(visaPayload);
     const entries: CmsTableEntry[] = [];
@@ -325,6 +406,7 @@ class CmsSectionEntryMapper {
           visaBasePath,
           destinationId,
           destination,
+          includeDeleted,
         );
         entries.push(...detailEntries);
       } catch {
@@ -338,8 +420,12 @@ class CmsSectionEntryMapper {
     visaBasePath: string,
     destinationId: string,
     country: string | null = null,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
-    const destinationOptions = country ? { params: { country } } : undefined;
+    const destinationOptions =
+      country || includeDeleted ?
+        { params: { ...(country ? { country } : {}), ...(includeDeleted ? { includeDeleted: true } : {}) } }
+      : undefined;
     let destinationRecord: JsonRecord | null = null;
 
     try {
@@ -356,6 +442,7 @@ class CmsSectionEntryMapper {
       visaBasePath,
       destinationId,
       destinationRecord ?? { id: destinationId, title: destinationId },
+      includeDeleted,
     );
   }
 
@@ -363,9 +450,11 @@ class CmsSectionEntryMapper {
     visaBasePath: string,
     destinationId: string,
     destinationRecord: JsonRecord,
+    includeDeleted = false,
   ): Promise<CmsTableEntry[]> {
     const detailsPayload = await this.httpClient.get<unknown>(
       `${visaBasePath}/${destinationId}/details`,
+      includeDeleted ? { params: { includeDeleted: true } } : undefined,
     );
     const details = this.accessor.toArray(detailsPayload);
     const destinationLabel = this.accessor.getText(
@@ -403,6 +492,50 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
         deletePath: `${visaBasePath}/${destinationId}/details/${detailId}`,
+        restorePath: `/cms/visa/details/${detailId}/restore`,
+        deleteMode: "delete",
+        editableField: "value",
+        readOnly: false,
+      });
+    }
+    return entries;
+  }
+
+  public mapVisaDetailFlatEntries(
+    data: JsonRecord[],
+    basePath: string,
+  ): CmsTableEntry[] {
+    const entries: CmsTableEntry[] = [];
+    for (const detail of data) {
+      const detailId = this.accessor.getId(detail);
+      if (!detailId) {
+        continue;
+      }
+      entries.push({
+        id: detailId,
+        raw: detail,
+        row: new CmsTableRow(detailId, {
+          destination: new CmsTableCell(
+            this.accessor.getText(detail, "visaDestinationId", "visa_destination_id"),
+          ),
+          sectionType: new CmsTableCell(
+            this.accessor.getText(detail, "sectionType", "section_type"),
+            "info",
+          ),
+          label: new CmsTableCell(this.accessor.getText(detail, "label")),
+          value: new CmsTableCell(this.accessor.getText(detail, "value")),
+          displayOrder: new CmsTableCell(
+            `#${
+              this.accessor.getNumber(detail, "displayOrder", "display_order") ?? 0
+            }`,
+          ),
+          updatedAt: new CmsTableCell(
+            this.accessor.getText(detail, "updatedAt", "updated_at"),
+          ),
+        }),
+        updatePath: `${basePath}/${detailId}`,
+        deletePath: `${basePath}/${detailId}`,
+        restorePath: `${basePath}/${detailId}/restore`,
         deleteMode: "delete",
         editableField: "value",
         readOnly: false,
@@ -430,10 +563,14 @@ class CmsSectionEntryMapper {
         "discountedPrice",
         "discounted_price",
       );
-      const priceHook =
-        originalPrice !== null && discountedPrice !== null ?
-          `${originalPrice} -> ${discountedPrice}`
-        : this.accessor.getText(record, "priceHook", "price_hook", "duration");
+      const originalOffer =
+        originalPrice !== null ?
+          `${this.accessor.getText(record, "offerCurrency", "offer_currency")} ${originalPrice}`.trim()
+        : this.accessor.getText(record, "originalPrice", "original_price");
+      const discountedOffer =
+        discountedPrice !== null ?
+          `${this.accessor.getText(record, "offerCurrency", "offer_currency")} ${discountedPrice}`.trim()
+        : this.accessor.getText(record, "discountedPrice", "discounted_price");
 
       entries.push({
         id,
@@ -450,7 +587,14 @@ class CmsSectionEntryMapper {
               "reference_id",
             ),
           ),
-          priceHook: new CmsTableCell(priceHook),
+          originalOffer: new CmsTableCell(
+            originalOffer === "--" ? "--" : `Original: ${originalOffer}`,
+            originalOffer === "--" ? "default" : "warning",
+          ),
+          discountedOffer: new CmsTableCell(
+            discountedOffer === "--" ? "--" : `Discounted: ${discountedOffer}`,
+            discountedOffer === "--" ? "default" : "success",
+          ),
           badge: new CmsTableCell(
             this.accessor.getText(record, "badgeText", "badge_text"),
           ),
@@ -461,6 +605,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/featured-picks/${id}`,
         deletePath: `${basePath}/featured-picks/${id}`,
+        restorePath: `${basePath}/featured-picks/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,
@@ -500,6 +645,7 @@ class CmsSectionEntryMapper {
         }),
         updatePath: `${basePath}/season-cards/${id}`,
         deletePath: `${basePath}/season-cards/${id}`,
+        restorePath: `${basePath}/season-cards/${id}/restore`,
         deleteMode: "delete",
         editableField: "title",
         readOnly: false,

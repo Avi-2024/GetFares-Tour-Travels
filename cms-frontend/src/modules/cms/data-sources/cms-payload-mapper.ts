@@ -2,6 +2,29 @@ import type { CmsSectionKey } from "../models/cms-section-key.type";
 import type { JsonRecord } from "../types/json-record.type";
 
 class CmsPayloadMapper {
+  private normalizeDateValue(value: unknown): string | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    const text = String(value).trim();
+    if (!text) {
+      return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return text;
+    }
+    const slashMatch = text.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/);
+    if (slashMatch) {
+      const [, mm, dd, yyyy] = slashMatch;
+      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    }
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return null;
+  }
+
   public mapForSection(sectionKey: CmsSectionKey, payload: JsonRecord): JsonRecord {
     if (sectionKey === "landing-places") {
       const title = payload.title ?? payload.name;
@@ -18,6 +41,18 @@ class CmsPayloadMapper {
       };
     }
     if (sectionKey === "destinations") {
+      const categories = Array.isArray(payload.categories) ? payload.categories : [];
+      const seasonFocus = Array.isArray(payload.seasonFocus) ? payload.seasonFocus : [];
+      const gallery =
+        Array.isArray(payload.gallery) ? payload.gallery :
+        Array.isArray((payload.media as JsonRecord | undefined)?.gallery) ?
+          ((payload.media as JsonRecord).gallery as unknown[])
+        : [];
+      const titleImage =
+        typeof payload.titleImageUrl === "string" ? payload.titleImageUrl :
+        typeof (payload.media as JsonRecord | undefined)?.title_image === "string" ?
+          String((payload.media as JsonRecord).title_image)
+        : "";
       return {
         name: payload.name,
         slug: payload.slug,
@@ -25,14 +60,20 @@ class CmsPayloadMapper {
         shortDescription: payload.shortDescription,
         country: payload.country,
         region: payload.region,
-        category: payload.category,
+        category: categories[0] ?? payload.category,
+        categories,
         rating: payload.rating,
-        heroImageUrl: payload.heroImageUrl,
-        thumbnailUrl: payload.thumbnailUrl,
+        media: {
+          title_image: titleImage,
+          gallery,
+        },
+        keyHighlights: payload.keyHighlights,
+        services: payload.services,
+        bestTimeToVisit: payload.bestTimeToVisit,
         isPopular: payload.isPopular,
         isNew: payload.isNew,
-        travelType: payload.travelType,
-        season: payload.season,
+        season: seasonFocus[0] ?? payload.season,
+        seasonFocus,
         metaTitle: payload.metaTitle,
         metaDescription: payload.metaDescription,
         isActive: payload.isActive,
@@ -40,14 +81,44 @@ class CmsPayloadMapper {
     }
     if (sectionKey === "published-packages") {
       return {
+        name: payload.name,
+        destinationId: payload.destinationId,
+        duration: payload.duration,
+        startingPriceCurrency: payload.startingPriceCurrency,
+        startingPrice: payload.startingPrice,
+        description: payload.description,
+        highlights: payload.highlights,
+        inclusions: payload.inclusions,
+        exclusions: payload.exclusions,
+        hotelDetails: payload.hotelDetails,
+        validFrom: payload.validFrom,
+        validTo: payload.validTo,
+        packageCategory: payload.packageCategory,
+        status: payload.status,
         bannerImageUrl: payload.bannerImageUrl,
+        galleryImageUrls: payload.galleryImageUrls,
+        metaTitle: payload.metaTitle,
+        metaDescription: payload.metaDescription,
+        keywords: payload.keywords,
+        websiteSlug: payload.websiteSlug,
+        isSoldOut: payload.isSoldOut,
         publishToWebsite: payload.publishToWebsite,
       };
     }
     if (sectionKey === "main-packages") {
       return {
-        packageId: payload.packageId,
+        title: payload.title,
+        amountCurrency: payload.amountCurrency,
+        amount: payload.amount,
+        destinationId: payload.destinationId,
         country: payload.country,
+        description: payload.description,
+        highlights: payload.highlights,
+        features: payload.features,
+        inclusions: payload.inclusions,
+        metaTitle: payload.metaTitle,
+        metaDescription: payload.metaDescription,
+        keywords: payload.keywords,
         displayOrder: payload.displayOrder,
         isFeatured: payload.isFeatured,
       };
@@ -55,7 +126,29 @@ class CmsPayloadMapper {
     if (sectionKey === "sub-packages") {
       return {
         mainPackageId: payload.mainPackageId,
-        packageId: payload.packageId,
+        title: payload.title,
+        image: payload.image,
+        rating: payload.rating,
+        location: payload.location,
+        durationDays: payload.durationDays,
+        durationNights: payload.durationNights,
+        startingPriceCurrency: payload.startingPriceCurrency,
+        startingPrice: payload.startingPrice,
+        transport: payload.transport,
+        description: payload.description,
+        snapshot: payload.snapshot,
+        features: payload.features,
+        itineraries: payload.itineraries,
+        highlights: payload.highlights,
+        inclusions: payload.inclusions,
+        exclusions: payload.exclusions,
+        paymentTerms: payload.paymentTerms,
+        cancellationPolicy: payload.cancellationPolicy,
+        tnc: payload.tnc,
+        impNotes: payload.impNotes,
+        metaTitle: payload.metaTitle,
+        metaDescription: payload.metaDescription,
+        keywords: payload.keywords,
         displayOrder: payload.displayOrder,
       };
     }
@@ -64,26 +157,23 @@ class CmsPayloadMapper {
         country: payload.country,
         title: payload.title,
         slug: payload.slug,
-        subtitle: payload.subtitle,
-        description: payload.description,
+        subDescription: payload.subDescription,
         imageUrl: payload.imageUrl,
-        heroImageUrl: payload.heroImageUrl,
-        processingTime: payload.processingTime,
-        supportInfo: payload.supportInfo,
-        iconName: payload.iconName,
+        priceCurrency: payload.priceCurrency,
+        priceAmount: payload.priceAmount,
         highlights: payload.highlights,
-        ctaText: payload.ctaText,
+        overviewTitle: payload.overviewTitle,
+        overviewDescription: payload.overviewDescription,
+        quickSupportTitle: payload.quickSupportTitle,
+        quickSupportDescription: payload.quickSupportDescription,
+        supportIncluded: payload.supportIncluded,
+        visaDetails: payload.visaDetails,
+        requirements: payload.requirements,
+        metaTitle: payload.metaTitle,
+        metaDescription: payload.metaDescription,
+        keywords: payload.keywords,
         displayOrder: payload.displayOrder,
         isActive: payload.isActive,
-      };
-    }
-    if (sectionKey === "visa-details") {
-      return {
-        visaDestinationId: payload.visaDestinationId,
-        sectionType: payload.sectionType,
-        label: payload.label,
-        value: payload.value,
-        displayOrder: payload.displayOrder,
       };
     }
     if (sectionKey === "creative-toolkit") {
@@ -97,6 +187,7 @@ class CmsPayloadMapper {
         referenceId: payload.referenceId,
         country: payload.country,
         rating: payload.rating,
+        offerCurrency: payload.offerCurrency,
         badgeText: payload.badgeText,
         originalPrice: payload.originalPrice,
         discountedPrice: payload.discountedPrice,
@@ -105,25 +196,9 @@ class CmsPayloadMapper {
         imageUrl: payload.imageUrl,
         buttonText: payload.buttonText,
         ctaUrl: payload.ctaUrl,
-        expiresOn: payload.expiresOn,
+        expiresOn: this.normalizeDateValue(payload.expiresOn),
         tags: payload.tags,
         highlights: payload.highlights,
-        displayOrder: payload.displayOrder,
-        isActive: payload.isActive,
-      };
-    }
-    if (sectionKey === "destination-map") {
-      return {
-        destinationId: payload.destinationId,
-        title: payload.title,
-        fromMonth: payload.fromMonth,
-        toMonth: payload.toMonth,
-        description: payload.description,
-        tag: payload.tag,
-        imageUrl: payload.imageUrl,
-        iconName: payload.iconName,
-        iconColor: payload.iconColor,
-        bgColor: payload.bgColor,
         displayOrder: payload.displayOrder,
         isActive: payload.isActive,
       };

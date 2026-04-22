@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from "sonner";
 import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
@@ -43,6 +44,13 @@ import SupplierDetailPage from "./pages/suppliers/SupplierDetailPage";
 function App() {
   return (
     <BrowserRouter>
+      <Toaster
+        position="top-right"
+        richColors
+        closeButton
+        duration={4000}
+        toastOptions={{ style: { fontSize: '14px' } }}
+      />
       <Routes>
         {/* Auth Pages (No Sidebar/Header) */}
         <Route path="/" element={<Login />} />
@@ -53,7 +61,7 @@ function App() {
         {/* Dashboard Layout */}
         <Route element={<PermissionRoute />}>
           <Route element={<DashboardLayout />}>
-            <Route element={<PermissionRoute permission="reports:read" />}>
+            <Route element={<PermissionRoute roles={["admin", "super_admin"]} />}>
               <Route path="/dashboard" element={<Dashboard />} />
             </Route>
 

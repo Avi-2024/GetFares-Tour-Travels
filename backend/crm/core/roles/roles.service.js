@@ -21,7 +21,9 @@ function createRolesService({ db, logger }) {
         `SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1`,
         [ROLES_TABLE, columnName],
       );
-      const exists = result.rowCount > 0;
+      const exists =
+        (Array.isArray(result.rows) ? result.rows.length : 0) > 0 ||
+        Number(result.rowCount || 0) > 0;
       columnCache.set(columnName, exists);
       return exists;
     } catch (_error) {
@@ -44,7 +46,9 @@ function createRolesService({ db, logger }) {
         `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1`,
         [tableName],
       );
-      const exists = result.rowCount > 0;
+      const exists =
+        (Array.isArray(result.rows) ? result.rows.length : 0) > 0 ||
+        Number(result.rowCount || 0) > 0;
       tableCache.set(tableName, exists);
       return exists;
     } catch (_error) {
@@ -202,7 +206,7 @@ function createRolesService({ db, logger }) {
       const created = await db.insert(ROLES_TABLE, record);
       return toRole(created);
     } catch (error) {
-      if (error?.code === "23505") {
+      if (error?.code === "23505" || error?.errno === 1062) {
         throw new AppError(409, "Role already exists", "ROLE_ALREADY_EXISTS");
       }
       throw error;
@@ -258,7 +262,7 @@ function createRolesService({ db, logger }) {
       const updated = await db.update(ROLES_TABLE, roleId, updates);
       return toRole(updated);
     } catch (error) {
-      if (error?.code === "23505") {
+      if (error?.code === "23505" || error?.errno === 1062) {
         throw new AppError(409, "Role already exists", "ROLE_ALREADY_EXISTS");
       }
       throw error;

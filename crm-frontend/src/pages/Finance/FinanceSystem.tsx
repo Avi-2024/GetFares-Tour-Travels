@@ -21,7 +21,7 @@ import { suppliersApi } from '../../api/suppliers'
 import { paymentsApi } from '../../api/payments'
 import { bookingsApi } from '../../api/bookings'
 import { reportsApi } from '../../api/reports'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 
 // Types
 interface Client {
@@ -53,6 +53,8 @@ interface Supplier {
   email: string
   phone: string
   name?: string
+  contactPerson?: string
+  country?: string
   invoiceBeneficiaryName?: string
   invoiceBankName?: string
   invoiceAccountNumber?: string
@@ -61,6 +63,25 @@ interface Supplier {
   invoiceDetails: string
   currency: string
   isActive?: boolean
+}
+
+const isSupplierBankingReady = (s: Supplier): boolean => {
+  const upi = s.invoiceUpiId?.trim()
+  if (upi) return true
+  return Boolean(
+    s.invoiceBeneficiaryName?.trim() &&
+      s.invoiceBankName?.trim() &&
+      s.invoiceAccountNumber?.trim()
+  )
+}
+
+const getSupplierMissingFields = (s: Supplier): string[] => {
+  const missing: string[] = []
+  if (!s.address?.trim()) missing.push('Address')
+  if (!s.pan?.trim()) missing.push('PAN')
+  if (!s.gst?.trim()) missing.push('GST')
+  if (!isSupplierBankingReady(s)) missing.push('Banking / UPI')
+  return missing
 }
 
 interface CostBreakup {
@@ -192,6 +213,8 @@ const createClientFormData = (client?: Client | null) => ({
 
 const createSupplierFormData = (supplier?: Supplier | null) => ({
   name: supplier?.name || '',
+  contactPerson: supplier?.contactPerson || '',
+  country: supplier?.country || '',
   pan: supplier?.pan || '',
   gst: supplier?.gst || '',
   email: supplier?.email || '',
@@ -408,6 +431,30 @@ const SupplierModal = ({
                 }
                 className='field-input'
                 placeholder='Maldives Resorts'
+              />
+            </div>
+            <div>
+              <label className='field-label'>Contact Person</label>
+              <input
+                type='text'
+                value={formData.contactPerson}
+                onChange={e =>
+                  setFormData({ ...formData, contactPerson: e.target.value })
+                }
+                className='field-input'
+                placeholder='Primary contact name'
+              />
+            </div>
+            <div>
+              <label className='field-label'>Country</label>
+              <input
+                type='text'
+                value={formData.country}
+                onChange={e =>
+                  setFormData({ ...formData, country: e.target.value })
+                }
+                className='field-input'
+                placeholder='United Kingdom'
               />
             </div>
             <div>
@@ -950,6 +997,9 @@ const FinanceSystem: React.FC = () => {
       email: raw?.email ?? '',
       phone: raw?.phone ?? '',
       name: raw?.name ?? '',
+      contactPerson:
+        raw?.contactPerson ?? raw?.contact_person ?? raw?.contactName ?? '',
+      country: raw?.country ?? raw?.countryName ?? '',
       invoiceBeneficiaryName,
       invoiceBankName,
       invoiceAccountNumber,
@@ -1035,7 +1085,7 @@ const FinanceSystem: React.FC = () => {
       const response = await customersApi.list({ page: 1, limit: 300 })
       setClients(unwrapList(response).map(mapClient))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load clients'))
+      reportApiError(err, 'Failed to load clients', setError)
     } finally {
       setLoading(false)
     }
@@ -1047,7 +1097,7 @@ const FinanceSystem: React.FC = () => {
       const response = await suppliersApi.list({ page: 1, limit: 300 })
       setSuppliers(unwrapList(response).map(mapSupplier))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load suppliers'))
+      reportApiError(err, 'Failed to load suppliers', setError)
     } finally {
       setLoading(false)
     }
@@ -1081,7 +1131,7 @@ const FinanceSystem: React.FC = () => {
       })
       setPayments([...firstRows, ...remainingRows].map(mapPayment))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load payments'))
+      reportApiError(err, 'Failed to load payments', setError)
     } finally {
       setLoading(false)
     }
@@ -1181,7 +1231,7 @@ const FinanceSystem: React.FC = () => {
         totalPages: Math.max(1, toNumber(data?.pagination?.totalPages, 1))
       })
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load cost break-up report'))
+      reportApiError(err, 'Failed to load cost break-up report', setError)
       setCostBreakup(emptyCostBreakup)
       setCurrencyBreakup([])
       setCostRows([])
@@ -1246,6 +1296,8 @@ const FinanceSystem: React.FC = () => {
     const haystack = [
       s.id,
       s.name,
+      s.contactPerson,
+      s.country,
       s.email,
       s.phone,
       s.pan,
@@ -1316,6 +1368,25 @@ const FinanceSystem: React.FC = () => {
     (page - 1) * pageSize,
     page * pageSize
   )
+  const completeClientKycCount = filteredClients.filter(
+    client =>
+      Boolean(client.name?.trim()) &&
+      Boolean(client.email?.trim()) &&
+      Boolean(client.phone?.trim()) &&
+      Boolean(client.pan?.trim()) &&
+      Boolean(client.address?.trim())
+  ).length
+  const incompleteClientKycCount = Math.max(
+    filteredClients.length - completeClientKycCount,
+    0
+  )
+  const supplierBankingReadyCount = filteredSuppliers.filter(s =>
+    isSupplierBankingReady(s)
+  ).length
+  const supplierBankingIncompleteCount = Math.max(
+    filteredSuppliers.length - supplierBankingReadyCount,
+    0
+  )
   const paginatedSuppliers = filteredSuppliers.slice(
     (page - 1) * pageSize,
     page * pageSize
@@ -1344,22 +1415,30 @@ const FinanceSystem: React.FC = () => {
     } else if (activeTab === 'suppliers') {
       headers = [
         'Name',
+        'Contact Person',
+        'Country',
         'Email',
         'Phone',
         'PAN',
         'GST',
+        'Address',
         'Invoice Details',
         'Currency',
+        'Banking Ready',
         'Status'
       ]
       dataRows = paginatedSuppliers.map(supplier => [
         supplier.name ?? '',
+        supplier.contactPerson ?? '',
+        supplier.country ?? '',
         supplier.email ?? '',
         supplier.phone ?? '',
         supplier.pan ?? '',
         supplier.gst ?? '',
+        supplier.address ?? '',
         supplier.invoiceDetails ?? '',
         supplier.currency ?? '',
+        isSupplierBankingReady(supplier) ? 'Yes' : 'No',
         supplier.isActive ? 'Active' : 'Inactive'
       ])
     } else if (activeTab === 'payments') {
@@ -1444,7 +1523,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Client created successfully')
       await fetchClients()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to create client'))
+      reportApiError(err, 'Failed to create client', setError)
     } finally {
       setSaving(false)
     }
@@ -1469,7 +1548,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Client updated successfully')
       await fetchClients()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to update client'))
+      reportApiError(err, 'Failed to update client', setError)
     } finally {
       setSaving(false)
     }
@@ -1485,7 +1564,7 @@ const FinanceSystem: React.FC = () => {
         setNotice('Client deleted')
         await fetchClients()
       } catch (err) {
-        setError(getApiErrorMessage(err, 'Failed to delete client'))
+        reportApiError(err, 'Failed to delete client', setError)
       } finally {
         setSaving(false)
       }
@@ -1499,6 +1578,10 @@ const FinanceSystem: React.FC = () => {
     try {
       await suppliersApi.create({
         name: data.name,
+        ...(data.contactPerson?.trim()
+          ? { contactPerson: data.contactPerson.trim() }
+          : {}),
+        ...(data.country?.trim() ? { country: data.country.trim() } : {}),
         ...(data.pan ? { panNumber: data.pan } : {}),
         gstNumber: data.gst || undefined,
         email: data.email,
@@ -1515,7 +1598,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Supplier created successfully')
       await fetchSuppliers()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to create supplier'))
+      reportApiError(err, 'Failed to create supplier', setError)
     } finally {
       setSaving(false)
     }
@@ -1529,6 +1612,10 @@ const FinanceSystem: React.FC = () => {
     try {
       await suppliersApi.update(editingSupplier.id, {
         name: data.name,
+        ...(data.contactPerson?.trim()
+          ? { contactPerson: data.contactPerson.trim() }
+          : {}),
+        ...(data.country?.trim() ? { country: data.country.trim() } : {}),
         ...(data.pan ? { panNumber: data.pan } : {}),
         gstNumber: data.gst || undefined,
         email: data.email,
@@ -1546,7 +1633,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Supplier updated successfully')
       await fetchSuppliers()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to update supplier'))
+      reportApiError(err, 'Failed to update supplier', setError)
     } finally {
       setSaving(false)
     }
@@ -1562,7 +1649,7 @@ const FinanceSystem: React.FC = () => {
         setNotice('Supplier deactivated')
         await fetchSuppliers()
       } catch (err) {
-        setError(getApiErrorMessage(err, 'Failed to deactivate supplier'))
+        reportApiError(err, 'Failed to deactivate supplier', setError)
       } finally {
         setSaving(false)
       }
@@ -1586,7 +1673,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Payment recorded successfully')
       await fetchPayments()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to record payment'))
+      reportApiError(err, 'Failed to record payment', setError)
     } finally {
       setSaving(false)
     }
@@ -1601,7 +1688,7 @@ const FinanceSystem: React.FC = () => {
       setNotice('Payment verified')
       await fetchPayments()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to verify payment'))
+      reportApiError(err, 'Failed to verify payment', setError)
     } finally {
       setSaving(false)
     }
@@ -1631,6 +1718,15 @@ const FinanceSystem: React.FC = () => {
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return value
     return parsed.toLocaleString()
+  }
+
+  const getClientMissingFields = (client: Client) => {
+    const missing: string[] = []
+    if (!client.pan?.trim()) missing.push('PAN')
+    if (!client.address?.trim()) missing.push('Address')
+    if (!client.email?.trim()) missing.push('Email')
+    if (!client.phone?.trim()) missing.push('Phone')
+    return missing
   }
 
   return (
@@ -1775,7 +1871,7 @@ const FinanceSystem: React.FC = () => {
                     activeTab === 'clients'
                       ? 'Search clients by name, PAN, email, phone, or address...'
                       : activeTab === 'suppliers'
-                      ? 'Search suppliers by name, PAN/GST, contact, or invoice details...'
+                      ? 'Search suppliers by name, contact person, country, email, phone, tax IDs...'
                       : 'Search payments by booking/payment/reference...'
                   }
                   value={search}
@@ -1831,28 +1927,60 @@ const FinanceSystem: React.FC = () => {
           {/* Clients Tab */}
           {activeTab === 'clients' && (
             <>
-              <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20 mb-4'>
-                <div className='flex items-start gap-3'>
-                  <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
-                    <FaUser className='text-blue-600 dark:text-blue-400' />
+              <SurfaceCard className='mb-4 border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-5 dark:border-blue-800 dark:from-blue-950/40 dark:via-gray-900 dark:to-indigo-950/30'>
+                <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+                  <div className='flex items-start gap-3'>
+                    <div className='flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900/50'>
+                      <FaUser className='text-blue-600 dark:text-blue-400' />
+                    </div>
+                    <div className='flex-1'>
+                      <h3 className='text-base font-semibold text-blue-950 dark:text-blue-100'>
+                        Client Onboarding Essentials
+                      </h3>
+                      <p className='mt-1 max-w-2xl text-sm leading-6 text-blue-900/80 dark:text-blue-100/80'>
+                        Finance-first onboarding view. Only billing-ready details are shown:
+                        client name, PAN, email, phone, address, and billing currency.
+                      </p>
+                    </div>
                   </div>
-                  <div className='flex-1'>
-                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Client KYC Information</h3>
-                    <p className='text-sm text-blue-800 dark:text-blue-200'>
-                      Required at lead onboarding: PAN, Address, Email, and Contact Number. This register maintains finance KYC compliance.
-                    </p>
-                    <div className='mt-2 flex flex-wrap gap-2'>
-                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/50 text-xs font-medium text-blue-700 dark:text-blue-300'>
-                        {clients.length} Clients
-                      </span>
-                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-green-100 dark:bg-green-900/50 text-xs font-medium text-green-700 dark:text-green-300'>
-                        {filteredClients.length} Filtered
-                      </span>
+
+                  <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[420px]'>
+                    <div className='rounded-2xl border border-blue-200/70 bg-white/85 px-4 py-3 shadow-sm dark:border-blue-800 dark:bg-gray-900/70'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400'>
+                        Total
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100'>
+                        {clients.length}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-blue-200/70 bg-white/85 px-4 py-3 shadow-sm dark:border-blue-800 dark:bg-gray-900/70'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400'>
+                        Showing
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100'>
+                        {filteredClients.length}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-green-200 bg-green-50/90 px-4 py-3 shadow-sm dark:border-green-800 dark:bg-green-950/30'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-green-700 dark:text-green-300'>
+                        KYC Ready
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-green-700 dark:text-green-300'>
+                        {completeClientKycCount}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 shadow-sm dark:border-amber-800 dark:bg-amber-950/30'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300'>
+                        Needs Review
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-amber-700 dark:text-amber-300'>
+                        {incompleteClientKycCount}
+                      </p>
                     </div>
                   </div>
                 </div>
               </SurfaceCard>
-              <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+              <SurfaceCard className='overflow-hidden border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900'>
                 {paginatedClients.length === 0 ? (
                   <div className='p-8'>
                     <EmptyState
@@ -1862,199 +1990,122 @@ const FinanceSystem: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <>
-                    {/* Desktop Table */}
-                    <div className='hidden md:block overflow-x-auto'>
-                      <table className='w-full'>
-                        <thead className='bg-gray-50 dark:bg-gray-800/50'>
-                          <tr>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Name
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Lead ID
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Contact
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Destination
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Travel Date
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Travelers
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Budget
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Country/Nationality
-                            </th>
-                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-500'>
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                          {paginatedClients.map(client => (
+                  <div className='overflow-x-auto'>
+                    <table className='w-full min-w-[920px] text-left text-sm'>
+                      <thead className='border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/60'>
+                        <tr>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Client
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            KYC
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            PAN
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Contact
+                          </th>
+                          <th className='min-w-[180px] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Address
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Currency
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                        {paginatedClients.map(client => {
+                          const missing = getClientMissingFields(client)
+                          const kycOk = missing.length === 0
+                          return (
                             <tr
                               key={client.id}
-                              className='hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                              className='transition-colors hover:bg-gray-50/90 dark:hover:bg-gray-800/50'
                             >
-                              <td className='px-6 py-4 text-sm'>
-                                <p className='font-medium text-gray-900 dark:text-gray-100'>{client.name}</p>
-                                <p className='text-xs text-gray-500'>PAN: {client.pan || '-'}</p>
-                                <p className='text-xs text-gray-500'>Source: {client.source || '-'}</p>
+                              <td className='max-w-[200px] px-4 py-3 align-top'>
+                                <p className='truncate font-medium text-gray-900 dark:text-gray-100'>
+                                  {client.name || 'Unnamed Client'}
+                                </p>
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.leadCode || client.leadId || '-'}
+                              <td className='whitespace-nowrap px-4 py-3 align-top'>
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                                    kycOk
+                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                  }`}
+                                  title={
+                                    kycOk
+                                      ? 'All onboarding fields present'
+                                      : `Missing: ${missing.join(', ')}`
+                                  }
+                                >
+                                  {kycOk ? 'Ready' : 'Incomplete'}
+                                </span>
+                                {!kycOk ? (
+                                  <p className='mt-1 max-w-[140px] text-[11px] leading-snug text-amber-700 dark:text-amber-300'>
+                                    {missing.join(', ')}
+                                  </p>
+                                ) : null}
                               </td>
-                              <td className='px-6 py-4 text-sm'>
-                                <p className='text-gray-700 dark:text-gray-300'>{client.email}</p>
-                                <p className='text-xs text-gray-500'>{client.phone}</p>
+                              <td className='max-w-[120px] px-4 py-3 align-top text-gray-800 dark:text-gray-200'>
+                                <span className='font-mono text-xs'>
+                                  {client.pan || '—'}
+                                </span>
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.destination || '-'}
+                              <td className='max-w-[220px] px-4 py-3 align-top'>
+                                <p className='break-all text-gray-800 dark:text-gray-200'>
+                                  {client.email || '—'}
+                                </p>
+                                <p className='mt-0.5 text-xs text-gray-500 dark:text-gray-400'>
+                                  {client.phone || '—'}
+                                </p>
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.travelDate ? new Date(client.travelDate).toLocaleDateString() : '-'}
+                              <td className='px-4 py-3 align-top text-gray-800 dark:text-gray-200'>
+                                <span className='line-clamp-2 text-sm'>
+                                  {client.address || '—'}
+                                </span>
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.adultsCount || 0} Adults, {client.childrenCount || 0} Children
+                              <td className='whitespace-nowrap px-4 py-3 align-top'>
+                                <span className='inline-flex rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-800 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200'>
+                                  {client.currency || 'INR'}
+                                </span>
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {client.budget ? formatCurrency(client.budget, client.currency) : '-'}
-                              </td>
-                              <td className='px-6 py-4 text-sm'>
-                                <p className='text-gray-700 dark:text-gray-300'>{client.country || '-'}</p>
-                                <p className='text-xs text-gray-500'>{client.nationality || '-'}</p>
-                              </td>
-                              <td className='px-6 py-4 text-right'>
-                                <div className='flex justify-end gap-2'>
+                              <td className='whitespace-nowrap px-4 py-3 text-right align-top'>
+                                <div className='inline-flex justify-end gap-1'>
                                   <button
+                                    type='button'
                                     onClick={() => {
                                       setEditingClient(client)
                                       setShowClientModal(true)
                                     }}
-                                    className='p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg'
-                                    title='Edit'
+                                    className='rounded-lg p-2 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20'
+                                    title='Edit client'
                                   >
                                     <FaPenToSquare />
                                   </button>
                                   <button
+                                    type='button'
                                     onClick={() =>
                                       handleDeleteClient(client.id)
                                     }
-                                    className='p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg'
-                                    title='Delete'
+                                    className='rounded-lg p-2 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20'
+                                    title='Delete client'
                                   >
                                     <FaTrash />
                                   </button>
                                 </div>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Mobile Cards */}
-                    <div className='md:hidden divide-y divide-gray-100 dark:divide-gray-800'>
-                      {paginatedClients.map(client => (
-                        <div key={client.id} className='p-4 space-y-3'>
-                          <div className='flex items-start justify-between'>
-                            <div>
-                              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                                {client.name}
-                              </p>
-                              <p className='text-xs text-gray-500'>
-                                Lead: {client.leadCode || client.leadId || '-'}
-                              </p>
-                            </div>
-                            <div className='flex gap-1'>
-                              <button
-                                onClick={() => {
-                                  setEditingClient(client)
-                                  setShowClientModal(true)
-                                }}
-                                className='p-1.5 text-gray-500 hover:text-green-600'
-                              >
-                                <FaPenToSquare />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteClient(client.id)}
-                                className='p-1.5 text-gray-500 hover:text-red-600'
-                              >
-                                <FaTrash />
-                              </button>
-                            </div>
-                          </div>
-                          <div className='grid grid-cols-2 gap-2 text-xs'>
-                            <div>
-                              <p className='text-gray-500'>Email</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.email}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Phone</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.phone}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Destination</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.destination || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Travel Date</p>
-                              <p className='text-gray-700 dark:text-gray-300'>
-                                {client.travelDate ? new Date(client.travelDate).toLocaleDateString() : '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Travelers</p>
-                              <p className='text-gray-700 dark:text-gray-300'>
-                                {client.adultsCount || 0}A, {client.childrenCount || 0}C
-                              </p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Budget</p>
-                              <p className='text-gray-700 dark:text-gray-300'>
-                                {client.budget ? formatCurrency(client.budget, client.currency) : '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Country</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.country || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Nationality</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.nationality || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>PAN</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.pan || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Source</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.source || '-'}</p>
-                            </div>
-                            <div className='col-span-2'>
-                              <p className='text-gray-500'>Address</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.address || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Purpose</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.travelPurpose || '-'}</p>
-                            </div>
-                            <div>
-                              <p className='text-gray-500'>Currency</p>
-                              <p className='text-gray-700 dark:text-gray-300'>{client.currency}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </SurfaceCard>
             </>
@@ -2063,31 +2114,70 @@ const FinanceSystem: React.FC = () => {
           {/* Suppliers Tab */}
           {activeTab === 'suppliers' && (
             <>
-              <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20 mb-4'>
-                <div className='flex items-start gap-3'>
-                  <div className='flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center'>
-                    <FaBuilding className='text-blue-600 dark:text-blue-400' />
+              <SurfaceCard className='mb-4 border border-blue-200 bg-gradient-to-br from-slate-50 via-white to-blue-50 p-5 dark:border-blue-800 dark:from-slate-950/40 dark:via-gray-900 dark:to-blue-950/25'>
+                <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+                  <div className='flex items-start gap-3'>
+                    <div className='flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900/50'>
+                      <FaBuilding className='text-blue-600 dark:text-blue-400' />
+                    </div>
+                    <div className='flex-1'>
+                      <h3 className='text-base font-semibold text-blue-950 dark:text-blue-100'>
+                        Supplier Onboarding
+                      </h3>
+                      <p className='mt-1 max-w-2xl text-sm leading-6 text-blue-900/80 dark:text-blue-100/80'>
+                        Data matches API: name, contact person, country, tax IDs, address, billing currency (GBP/INR/…), and bank/UPI for payouts.
+                      </p>
+                    </div>
                   </div>
-                  <div className='flex-1'>
-                    <h3 className='text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1'>Supplier Payment Details</h3>
-                    <p className='text-sm text-blue-800 dark:text-blue-200'>
-                      Complete supplier registration with PAN, GST, address, contact details, and invoice/bank information for payment processing.
-                    </p>
-                    <div className='mt-2 flex flex-wrap gap-2'>
-                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/50 text-xs font-medium text-blue-700 dark:text-blue-300'>
-                        {suppliers.length} Suppliers
-                      </span>
-                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-green-100 dark:bg-green-900/50 text-xs font-medium text-green-700 dark:text-green-300'>
-                        {suppliers.filter(s => s.isActive !== false).length} Active
-                      </span>
-                      <span className='inline-flex items-center px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-medium text-gray-700 dark:text-gray-300'>
-                        {suppliers.filter(s => s.isActive === false).length} Inactive
-                      </span>
+
+                  <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 xl:min-w-[560px]'>
+                    <div className='rounded-2xl border border-blue-200/70 bg-white/85 px-4 py-3 shadow-sm dark:border-blue-800 dark:bg-gray-900/70'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400'>
+                        Total
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100'>
+                        {suppliers.length}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-blue-200/70 bg-white/85 px-4 py-3 shadow-sm dark:border-blue-800 dark:bg-gray-900/70'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400'>
+                        Showing
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100'>
+                        {filteredSuppliers.length}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-green-200 bg-green-50/90 px-4 py-3 shadow-sm dark:border-green-800 dark:bg-green-950/30'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-green-700 dark:text-green-300'>
+                        Active
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-green-700 dark:text-green-300'>
+                        {
+                          filteredSuppliers.filter(s => s.isActive !== false)
+                            .length
+                        }
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300'>
+                        Banking OK
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-emerald-700 dark:text-emerald-300'>
+                        {supplierBankingReadyCount}
+                      </p>
+                    </div>
+                    <div className='rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 shadow-sm dark:border-amber-800 dark:bg-amber-950/30 sm:col-span-2 xl:col-span-1'>
+                      <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300'>
+                        Banking Pending
+                      </p>
+                      <p className='mt-1 text-2xl font-semibold text-amber-700 dark:text-amber-300'>
+                        {supplierBankingIncompleteCount}
+                      </p>
                     </div>
                   </div>
                 </div>
               </SurfaceCard>
-              <SurfaceCard className='overflow-hidden border border-gray-200 dark:border-gray-800'>
+              <SurfaceCard className='overflow-hidden border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900'>
                 {paginatedSuppliers.length === 0 ? (
                   <div className='p-8'>
                     <EmptyState
@@ -2097,87 +2187,146 @@ const FinanceSystem: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <>
-                    {/* Desktop Table */}
-                    <div className='hidden md:block overflow-x-auto'>
-                      <table className='w-full'>
-                        <thead className='bg-gray-50 dark:bg-gray-800/50'>
-                          <tr>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Name
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              PAN
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              GST
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Contact
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Address
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Currency
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Invoice Details
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-semibold text-gray-500'>
-                              Status
-                            </th>
-                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-500'>
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
-                          {paginatedSuppliers.map(supplier => (
+                  <div className='overflow-x-auto'>
+                    <table className='w-full min-w-[1100px] text-left text-sm'>
+                      <thead className='border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/60'>
+                        <tr>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Supplier
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Country
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Contact
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            PAN
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            GST
+                          </th>
+                          <th className='min-w-[160px] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Address
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Currency
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Banking
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Profile
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Status
+                          </th>
+                          <th className='whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className='divide-y divide-gray-100 dark:divide-gray-800'>
+                        {paginatedSuppliers.map(supplier => {
+                          const bankingOk = isSupplierBankingReady(supplier)
+                          const missing = getSupplierMissingFields(supplier)
+                          const profileOk = missing.length === 0
+                          return (
                             <tr
                               key={supplier.id}
-                              className='hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                              className='transition-colors hover:bg-gray-50/90 dark:hover:bg-gray-800/50'
                             >
-                              <td className='px-6 py-4 text-sm text-gray-900 dark:text-gray-100'>
-                                {supplier.name}
+                              <td className='max-w-[200px] px-4 py-3 align-top'>
+                                <p className='truncate font-medium text-gray-900 dark:text-gray-100'>
+                                  {supplier.name || '—'}
+                                </p>
+                                {supplier.contactPerson?.trim() ? (
+                                  <p className='mt-0.5 text-xs text-gray-500 dark:text-gray-400'>
+                                    {supplier.contactPerson.trim()}
+                                  </p>
+                                ) : (
+                                  <p className='mt-0.5 text-xs italic text-gray-400'>
+                                    No contact person
+                                  </p>
+                                )}
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {supplier.pan}
+                              <td className='max-w-[120px] px-4 py-3 align-top text-gray-800 dark:text-gray-200'>
+                                {supplier.country?.trim() || '—'}
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {supplier.gst || '-'}
-                              </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                <p>{supplier.email || '-'}</p>
-                                <p className='text-xs text-gray-500'>
-                                  {supplier.phone || '-'}
+                              <td className='max-w-[220px] px-4 py-3 align-top'>
+                                <p className='break-all text-gray-800 dark:text-gray-200'>
+                                  {supplier.email || '—'}
+                                </p>
+                                <p className='mt-0.5 text-xs text-gray-500 dark:text-gray-400'>
+                                  {supplier.phone || '—'}
                                 </p>
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-sm'>
-                                <p
-                                  className='truncate'
-                                  title={supplier.address}
-                                >
-                                  {supplier.address || '-'}
-                                </p>
+                              <td className='px-4 py-3 align-top'>
+                                <span className='font-mono text-xs text-gray-800 dark:text-gray-200'>
+                                  {supplier.pan?.trim() || '—'}
+                                </span>
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300'>
-                                {supplier.currency}
+                              <td className='px-4 py-3 align-top text-gray-800 dark:text-gray-200'>
+                                {supplier.gst?.trim() || '—'}
                               </td>
-                              <td className='px-6 py-4 text-sm text-gray-700 dark:text-gray-300 max-w-sm'>
-                                <p
-                                  className='truncate'
-                                  title={supplier.invoiceDetails}
-                                >
-                                  {supplier.invoiceDetails || '-'}
-                                </p>
+                              <td className='max-w-[200px] px-4 py-3 align-top text-gray-800 dark:text-gray-200'>
+                                <span className='line-clamp-2 text-sm'>
+                                  {supplier.address?.trim() || '—'}
+                                </span>
                               </td>
-                              <td className='px-6 py-4 text-sm'>
+                              <td className='whitespace-nowrap px-4 py-3 align-top'>
+                                <span className='inline-flex rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-800 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200'>
+                                  {supplier.currency || 'INR'}
+                                </span>
+                              </td>
+                              <td className='max-w-[140px] px-4 py-3 align-top'>
                                 <span
-                                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                                    bankingOk
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                  }`}
+                                  title={
+                                    bankingOk
+                                      ? 'Bank account or UPI on file'
+                                      : 'Add beneficiary + bank + account, or UPI'
+                                  }
+                                >
+                                  {bankingOk ? 'Ready' : 'Incomplete'}
+                                </span>
+                                {!bankingOk ? (
+                                  <p className='mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300'>
+                                    Bank or UPI required
+                                  </p>
+                                ) : null}
+                              </td>
+                              <td className='max-w-[140px] px-4 py-3 align-top'>
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                                    profileOk
+                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                  }`}
+                                  title={
+                                    profileOk
+                                      ? 'PAN, GST, address, banking'
+                                      : `Missing: ${missing.join(', ')}`
+                                  }
+                                >
+                                  {profileOk ? 'Complete' : 'Incomplete'}
+                                </span>
+                                {!profileOk ? (
+                                  <p className='mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300'>
+                                    {missing.join(', ')}
+                                  </p>
+                                ) : null}
+                              </td>
+                              <td className='whitespace-nowrap px-4 py-3 align-top'>
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
                                     supplier.isActive !== false
                                       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                      : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
                                   }`}
                                 >
                                   {supplier.isActive !== false
@@ -2185,100 +2334,38 @@ const FinanceSystem: React.FC = () => {
                                     : 'Inactive'}
                                 </span>
                               </td>
-                              <td className='px-6 py-4 text-right'>
-                                <div className='flex justify-end gap-2'>
+                              <td className='whitespace-nowrap px-4 py-3 text-right align-top'>
+                                <div className='inline-flex justify-end gap-1'>
                                   <button
+                                    type='button'
                                     onClick={() => {
                                       setEditingSupplier(supplier)
                                       setShowSupplierModal(true)
                                     }}
-                                    className='p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg'
-                                    title='Edit'
+                                    className='rounded-lg p-2 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20'
+                                    title='Edit supplier'
                                   >
                                     <FaPenToSquare />
                                   </button>
                                   <button
+                                    type='button'
                                     onClick={() =>
                                       handleDeleteSupplier(supplier.id)
                                     }
                                     disabled={supplier.isActive === false}
-                                    className='px-2 py-1 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
-                                    title='Deactivate'
+                                    className='rounded-lg border border-gray-300 px-2 py-1.5 text-xs text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'
+                                    title='Deactivate supplier'
                                   >
                                     Deactivate
                                   </button>
                                 </div>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Mobile Cards */}
-                    <div className='md:hidden divide-y divide-gray-100 dark:divide-gray-800'>
-                      {paginatedSuppliers.map(supplier => (
-                        <div key={supplier.id} className='p-4 space-y-2'>
-                          <div className='flex items-start justify-between'>
-                            <div>
-                              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                                {supplier.name}
-                              </p>
-                              <p className='text-xs text-gray-500'>
-                                PAN: {supplier.pan}
-                              </p>
-                            </div>
-                            <div className='flex gap-1'>
-                              <button
-                                onClick={() => {
-                                  setEditingSupplier(supplier)
-                                  setShowSupplierModal(true)
-                                }}
-                                className='p-1.5 text-gray-500 hover:text-green-600'
-                              >
-                                <FaPenToSquare />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleDeleteSupplier(supplier.id)
-                                }
-                                disabled={supplier.isActive === false}
-                                className='px-2 py-1 text-[11px] rounded border border-gray-300 text-gray-700 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200'
-                              >
-                                Deactivate
-                              </button>
-                            </div>
-                          </div>
-                          {supplier.gst && (
-                            <p className='text-xs text-gray-600'>
-                              GST: {supplier.gst}
-                            </p>
-                          )}
-                          <p className='text-xs text-gray-600'>
-                            {supplier.email}
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            Phone: {supplier.phone}
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            Address: {supplier.address || '-'}
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            Currency: {supplier.currency}
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            Status:{' '}
-                            {supplier.isActive !== false
-                              ? 'Active'
-                              : 'Inactive'}
-                          </p>
-                          <p className='text-xs text-gray-600'>
-                            Invoice: {supplier.invoiceDetails}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </SurfaceCard>
             </>

@@ -1,4 +1,4 @@
-module.exports = [
+export default [
   {
     ignores: ["node_modules/**", "coverage/**", "database/**", "frontend/**"],
   },
@@ -6,7 +6,7 @@ module.exports = [
     files: ["**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
-      sourceType: "commonjs",
+      sourceType: "module",
     },
     rules: {},
   },

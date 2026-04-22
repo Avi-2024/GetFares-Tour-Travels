@@ -27,6 +27,9 @@ function createCmsMediaService({ repository }) {
       if (query.is_active === undefined) {
         query.is_active = true;
       }
+      if (query.is_deleted === undefined) {
+        query.is_deleted = false;
+      }
       const rows = await repository.findAll(query);
       return rows
         .map(toMediaAsset)
@@ -93,13 +96,35 @@ function createCmsMediaService({ repository }) {
       return toMediaAsset(row);
     },
 
+    async updateStatus(id, isActive) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Media asset not found", "NOT_FOUND");
+      }
+
+      const row = await repository.update(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      return toMediaAsset(row);
+    },
+
     async delete(id) {
       const existing = await repository.findById(id);
       if (!existing) {
         throw new AppError(404, "Media asset not found", "NOT_FOUND");
       }
 
-      await repository.deactivate(id);
+      await repository.delete(id);
+      return { success: true };
+    },
+
+    async hardDelete(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Media asset not found", "NOT_FOUND");
+      }
+
+      await repository.hardDelete(id);
       return { success: true };
     },
   });

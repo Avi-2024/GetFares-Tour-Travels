@@ -13,9 +13,16 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import TextInput from '../../components/form/TextInput'
 import NumberInput from '../../components/form/NumberInput'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 
 type TemplateType = 'READY_PACKAGE' | 'VISA' | 'CUSTOM_ITINERARY'
+
+type ItineraryItem = {
+  id: string
+  day: string
+  title: string
+  description: string
+}
 
 type TemplateRow = {
   id: string
@@ -28,6 +35,15 @@ type TemplateRow = {
   headerBranding?: string
   inclusions?: string
   exclusions?: string
+  itinerary?: Array<{
+    id?: string
+    day?: string
+    title?: string
+    description?: string
+    [key: string]: unknown
+  }>
+  hotelDetails?: string
+  visaDetails?: string
   paymentTerms?: string
   cancellationPolicy?: string
   footerDisclaimer?: string
@@ -43,20 +59,35 @@ const QuotationTemplatesPage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>([])
   const [form, setForm] = useState({
     code: '',
     name: '',
     templateType: 'READY_PACKAGE' as TemplateType,
-    minMarginPercent: 0,
+    minMarginPercent: 0 as number | undefined,
     isActive: true,
     headerBranding: '',
     inclusions: '',
     exclusions: '',
+    hotelDetails: '',
+    visaDetails: '',
     paymentTerms: '',
     cancellationPolicy: '',
     footerDisclaimer: ''
   })
   const pageSize = 15
+
+  const normalizeItinerary = (raw?: unknown): ItineraryItem[] => {
+    if (!Array.isArray(raw)) return []
+    return raw
+      .map((item: any, index: number) => ({
+        id: String(item?.id ?? `day-${index + 1}`),
+        day: String(item?.day ?? `Day ${index + 1}`),
+        title: String(item?.title ?? ''),
+        description: String(item?.description ?? '')
+      }))
+      .filter(item => item.day.trim() || item.title.trim() || item.description.trim())
+  }
 
   const unwrapList = (response: unknown): any[] => {
     const payload = (response as { data?: unknown })?.data ?? response
@@ -91,6 +122,9 @@ const QuotationTemplatesPage: React.FC = () => {
     headerBranding: raw?.headerBranding ?? raw?.header_branding ?? '',
     inclusions: raw?.inclusions ?? '',
     exclusions: raw?.exclusions ?? '',
+    itinerary: Array.isArray(raw?.itinerary) ? raw.itinerary : undefined,
+    hotelDetails: raw?.hotelDetails ?? raw?.hotel_details ?? '',
+    visaDetails: raw?.visaDetails ?? raw?.visa_details ?? '',
     paymentTerms: raw?.paymentTerms ?? raw?.payment_terms ?? '',
     cancellationPolicy:
       raw?.cancellationPolicy ?? raw?.cancellation_policy ?? '',
@@ -104,7 +138,7 @@ const QuotationTemplatesPage: React.FC = () => {
       const response = await quotationsApi.listTemplates()
       setRows(unwrapList(response).map(mapTemplate))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load quotation templates'))
+      reportApiError(err, 'Failed to load quotation templates', setError)
       setRows([])
     } finally {
       setLoading(false)
@@ -226,10 +260,13 @@ const QuotationTemplatesPage: React.FC = () => {
       headerBranding: '',
       inclusions: '',
       exclusions: '',
+      hotelDetails: '',
+      visaDetails: '',
       paymentTerms: '',
       cancellationPolicy: '',
       footerDisclaimer: ''
     })
+    setItineraryItems([])
     setShowForm(true)
   }
 
@@ -244,10 +281,13 @@ const QuotationTemplatesPage: React.FC = () => {
       headerBranding: row.headerBranding || '',
       inclusions: row.inclusions || '',
       exclusions: row.exclusions || '',
+      hotelDetails: row.hotelDetails || '',
+      visaDetails: row.visaDetails || '',
       paymentTerms: row.paymentTerms || '',
       cancellationPolicy: row.cancellationPolicy || '',
       footerDisclaimer: row.footerDisclaimer || ''
     })
+    setItineraryItems(normalizeItinerary(row.itinerary))
     setShowForm(true)
   }
 
@@ -261,15 +301,26 @@ const QuotationTemplatesPage: React.FC = () => {
     setError('')
     setNotice('')
     try {
+      const itinerary = itineraryItems
+        .map((item, index) => ({
+          id: String(item.id || `day-${index + 1}`),
+          day: String(item.day || `Day ${index + 1}`),
+          title: String(item.title || '').trim(),
+          description: String(item.description || '').trim()
+        }))
+        .filter(item => item.day.trim() || item.title.trim() || item.description.trim())
       const payload = {
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         templateType: form.templateType,
-        minMarginPercent: Number(form.minMarginPercent || 0),
+        minMarginPercent: form.minMarginPercent ?? 0,
         isActive: form.isActive,
         headerBranding: form.headerBranding.trim() || undefined,
         inclusions: form.inclusions.trim() || undefined,
         exclusions: form.exclusions.trim() || undefined,
+        itinerary: itinerary.length ? itinerary : undefined,
+        hotelDetails: form.hotelDetails.trim() || undefined,
+        visaDetails: form.visaDetails.trim() || undefined,
         paymentTerms: form.paymentTerms.trim() || undefined,
         cancellationPolicy: form.cancellationPolicy.trim() || undefined,
         footerDisclaimer: form.footerDisclaimer.trim() || undefined
@@ -286,7 +337,7 @@ const QuotationTemplatesPage: React.FC = () => {
       setShowForm(false)
       await loadTemplates()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to save template'))
+      reportApiError(err, 'Failed to save template', setError)
     } finally {
       setSaving(false)
     }
@@ -321,13 +372,7 @@ const QuotationTemplatesPage: React.FC = () => {
         </div>
       </div>
 
-      <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>
-        <p className='text-sm text-blue-800 dark:text-blue-200'>
-          How Template Works: Create/update template here, select it in
-          Quotation Builder, then save quote with `templateId`. A template
-          snapshot is stored on each quotation for audit-safe rendering.
-        </p>
-      </SurfaceCard>
+     
 
       {notice ? (
         <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200'>
@@ -430,15 +475,13 @@ const QuotationTemplatesPage: React.FC = () => {
             </div>
             <NumberInput
               label='Min Margin %'
-              value={form.minMarginPercent}
+              value={form.minMarginPercent ?? ''}
               onChange={value =>
                 setForm(current => ({
                   ...current,
-                  minMarginPercent: Number(value || 0)
+                  minMarginPercent: value === '' ? undefined : Number(value)
                 }))
               }
-              min={0}
-              step={1}
             />
             <div className='md:col-span-2'>
               <label className='field-label'>Header Branding</label>
@@ -483,6 +526,139 @@ const QuotationTemplatesPage: React.FC = () => {
                   }))
                 }
                 placeholder='Excluded services and terms'
+              />
+            </div>
+            <div className='md:col-span-2'>
+              <div className='flex items-center justify-between'>
+                <label className='field-label'>Itinerary</label>
+                <button
+                  type='button'
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                  onClick={() =>
+                    setItineraryItems(prev => {
+                      const nextIndex = prev.length + 1
+                      return [
+                        ...prev,
+                        {
+                          id: `day-${nextIndex}`,
+                          day: `Day ${nextIndex}`,
+                          title: '',
+                          description: ''
+                        }
+                      ]
+                    })
+                  }
+                >
+                  Add Day
+                </button>
+              </div>
+              <div className='mt-2 space-y-2'>
+                {itineraryItems.length === 0 ? (
+                  <div className='rounded-lg border border-dashed border-gray-200 px-3 py-3 text-xs text-gray-500 dark:border-gray-700'>
+                    No itinerary items.
+                  </div>
+                ) : (
+                  itineraryItems.map((item, idx) => (
+                    <div
+                      key={item.id || `row-${idx}`}
+                      className='rounded-xl border border-gray-200 p-3 dark:border-gray-700'
+                    >
+                      <div className='flex items-center justify-between gap-2'>
+                        <div className='text-xs font-semibold text-gray-700 dark:text-gray-200'>
+                          {item.day || `Day ${idx + 1}`}
+                        </div>
+                        <button
+                          type='button'
+                          className='rounded-lg border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900/40 dark:text-red-200 dark:hover:bg-red-900/20'
+                          onClick={() =>
+                            setItineraryItems(prev =>
+                              prev.filter((_, index) => index !== idx)
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className='mt-2 grid grid-cols-1 gap-2 md:grid-cols-2'>
+                        {/* <input
+                          className='field-input'
+                          value={item.day}
+                          onChange={e =>
+                            setItineraryItems(prev =>
+                              prev.map((row, index) =>
+                                index === idx
+                                  ? { ...row, day: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                          placeholder='Day label (e.g. Day 1)'
+                        /> */}
+                        <label>Title</label>
+                        <input 
+                          className='field-input md:col-span-2'
+                          value={item.title}
+                          onChange={e =>
+                            setItineraryItems(prev =>
+                              prev.map((row, index) =>
+                                index === idx
+                                  ? { ...row, title: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                          placeholder='Title'
+                        />
+                        <label>Description</label>
+                        <textarea
+                          className='field-input md:col-span-2'
+                          rows={3}
+                          value={item.description}
+                          onChange={e =>
+                            setItineraryItems(prev =>
+                              prev.map((row, index) =>
+                                index === idx
+                                  ? { ...row, description: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                          placeholder='Description'
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Hotel Details</label>
+              <textarea
+                rows={3}
+                className='field-input'
+                value={form.hotelDetails}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    hotelDetails: event.target.value
+                  }))
+                }
+                placeholder='Hotel details text'
+              />
+            </div>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Visa Details</label>
+              <textarea
+                rows={3}
+                className='field-input'
+                value={form.visaDetails}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    visaDetails: event.target.value
+                  }))
+                }
+                placeholder='Visa details text'
               />
             </div>
             <div className='md:col-span-2'>

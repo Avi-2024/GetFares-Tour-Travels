@@ -23,7 +23,7 @@ import { bookingsApi } from '../../api/bookings'
 import { paymentsApi } from '../../api/payments'
 import { customersApi } from '../../api/customers'
 import { leadsApi } from '../../api/leads'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 import { getCurrencyOptions, formatCurrency } from '../../utils/currency'
 
@@ -411,8 +411,8 @@ const DetailsModal = ({
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      // hour: '2-digit',
+      // minute: '2-digit'
     })
   }
 
@@ -767,17 +767,6 @@ const RefundsPage = () => {
     [payments, bookingById]
   )
 
-  const paymentsByBookingId = useMemo(() => {
-    const map = new Map<string, PaymentLookup[]>()
-    payments.forEach(payment => {
-      if (!payment.bookingId) return
-      const list = map.get(payment.bookingId) ?? []
-      list.push(payment)
-      map.set(payment.bookingId, list)
-    })
-    return map
-  }, [payments])
-
   const toPaymentTimestamp = (payment: PaymentLookup) => {
     const raw =
       payment.paidAt || payment.createdAt || payment.date || ''
@@ -796,16 +785,22 @@ const RefundsPage = () => {
     [bookingOptions, loadingBookings]
   )
 
-  const paymentDropdownOptions = useMemo(
-    () => [
+  const paymentDropdownOptions = useMemo(() => {
+    const selectedBookingId = String(form.bookingId || '').trim()
+    return [
       {
         value: '',
-        label: loadingPayments ? 'Loading payments...' : 'Select payment...'
+        label: loadingPayments
+          ? 'Loading payments...'
+          : !selectedBookingId
+          ? 'Select booking first'
+          : paymentOptions.length === 0
+          ? 'No payments for selected booking'
+          : 'Select payment...'
       },
       ...paymentOptions
-    ],
-    [loadingPayments, paymentOptions]
-  )
+    ]
+  }, [form.bookingId, loadingPayments, paymentOptions])
 
   const statusOptions = useMemo(
     () => [
@@ -1111,7 +1106,7 @@ const RefundsPage = () => {
       } catch (err) {
         console.error('Failed to load refunds:', err)
         setRows([])
-        setError(getApiErrorMessage(err, 'Failed to load refunds.'))
+        reportApiError(err, 'Failed to load refunds.', setError)
       } finally {
         setLoading(false)
       }
@@ -1128,11 +1123,9 @@ const RefundsPage = () => {
     }
 
     setLoadingBookings(true)
-    setLoadingPayments(true)
     try {
-      const [bookingsRes, paymentsRes, customersRes, leadsRes] = await Promise.all([
+      const [bookingsRes, customersRes, leadsRes] = await Promise.all([
         bookingsApi.list({ page: 1, limit: 300 }),
-        paymentsApi.list({ page: 1, limit: 300 }),
         customersApi.list({ page: 1, limit: 500 }),
         leadsApi.list({ page: 1, limit: 500 })
       ])
@@ -1239,16 +1232,34 @@ const RefundsPage = () => {
         })
       )
 
-      const paymentsPayload = paymentsRes as any
-      const paymentsData =
-        paymentsPayload?.data?.data ||
-        paymentsPayload?.data ||
-        paymentsPayload ||
-        []
-      const paymentsList = Array.isArray(paymentsData) ? paymentsData : []
+    } catch (err) {
+      console.error('Failed to load booking/payment lookups:', err)
+    } finally {
+      setLoadingBookings(false)
+    }
+  }, [token])
 
-      setPayments(
-        paymentsList.map((payment: any) => ({
+  const loadPaymentsForBooking = useCallback(
+    async (bookingId: string) => {
+      const normalizedBookingId = String(bookingId || '').trim()
+      if (!token || !normalizedBookingId) {
+        setPayments([])
+        setLoadingPayments(false)
+        return
+      }
+
+      setLoadingPayments(true)
+      try {
+        const paymentsRes = await paymentsApi.list({ bookingId: normalizedBookingId })
+        const paymentsPayload = paymentsRes as any
+        const paymentsData =
+          paymentsPayload?.data?.data ||
+          paymentsPayload?.data ||
+          paymentsPayload ||
+          []
+        const paymentsList = Array.isArray(paymentsData) ? paymentsData : []
+
+        const mappedPayments = paymentsList.map((payment: any) => ({
           id: String(payment.id || ''),
           bookingId: String(
             payment.bookingId ||
@@ -1268,14 +1279,27 @@ const RefundsPage = () => {
           createdAt: payment.createdAt || payment.created_at,
           date: payment.date
         }))
-      )
-    } catch (err) {
-      console.error('Failed to load booking/payment lookups:', err)
-    } finally {
-      setLoadingBookings(false)
-      setLoadingPayments(false)
-    }
-  }, [token])
+
+        setPayments(mappedPayments)
+        setForm(current => {
+          if (current.bookingId !== normalizedBookingId) return current
+          const latestPayment = mappedPayments
+            .slice()
+            .sort((a, b) => toPaymentTimestamp(b) - toPaymentTimestamp(a))[0]
+          return {
+            ...current,
+            paymentId: latestPayment?.id || ''
+          }
+        })
+      } catch (err) {
+        console.error('Failed to load payments for booking:', err)
+        setPayments([])
+      } finally {
+        setLoadingPayments(false)
+      }
+    },
+    [token]
+  )
 
   useEffect(() => {
     void loadLookupData()
@@ -1283,8 +1307,20 @@ const RefundsPage = () => {
 
   useEffect(() => {
     if (!showForm) return
+    setPayments([])
     void loadLookupData()
   }, [showForm, loadLookupData])
+
+  useEffect(() => {
+    if (!showForm) return
+    const selectedBookingId = String(form.bookingId || '').trim()
+    if (!selectedBookingId) {
+      setPayments([])
+      setLoadingPayments(false)
+      return
+    }
+    void loadPaymentsForBooking(selectedBookingId)
+  }, [showForm, form.bookingId, loadPaymentsForBooking])
 
   const createRefund = async () => {
     if (!form.bookingId || form.refundAmount === '') return
@@ -1315,7 +1351,7 @@ const RefundsPage = () => {
       setShowForm(false)
     } catch (err) {
       console.error('Failed to create refund:', err)
-      showToast(getApiErrorMessage(err, 'Failed to create refund'), 'error')
+      reportApiError(err, 'Failed to create refund')
     } finally {
       setLoading(false)
     }
@@ -1346,7 +1382,7 @@ const RefundsPage = () => {
       })
       .catch(err => {
         console.error('Failed to approve refund:', err)
-        showToast(getApiErrorMessage(err, 'Failed to approve refund'), 'error')
+        reportApiError(err, 'Failed to approve refund')
       })
       .finally(() => {
         setShowApproveConfirm(false)
@@ -1382,7 +1418,7 @@ const RefundsPage = () => {
       })
       .catch(err => {
         console.error('Failed to reject refund:', err)
-        showToast(getApiErrorMessage(err, 'Failed to reject refund'), 'error')
+        reportApiError(err, 'Failed to reject refund')
       })
       .finally(() => {
         setShowRejectModal(false)
@@ -1418,7 +1454,7 @@ const RefundsPage = () => {
       })
       .catch(err => {
         console.error('Failed to process refund:', err)
-        showToast(getApiErrorMessage(err, 'Failed to process refund'), 'error')
+        reportApiError(err, 'Failed to process refund')
       })
       .finally(() => {
         setShowProcessModal(false)
@@ -1527,15 +1563,10 @@ const RefundsPage = () => {
               <SearchableDropdown
                 value={form.bookingId}
                 onChange={value => {
-                  const selectedId = String(value || '')
-                  const relatedPayments = paymentsByBookingId.get(selectedId) ?? []
-                  const latestPayment = relatedPayments
-                    .slice()
-                    .sort((a, b) => toPaymentTimestamp(b) - toPaymentTimestamp(a))[0]
                   setForm(current => ({
                     ...current,
                     bookingId: value,
-                    paymentId: latestPayment?.id || current.paymentId || ''
+                    paymentId: ''
                   }))
                 }}
                 options={bookingDropdownOptions}
@@ -1554,7 +1585,7 @@ const RefundsPage = () => {
                 }
                 options={paymentDropdownOptions}
                 searchPlaceholder='Search payment...'
-                disabled={loadingPayments}
+                disabled={loadingPayments || !form.bookingId}
               />
             </div>
             <CurrencyInput

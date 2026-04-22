@@ -1,5 +1,24 @@
+import { isRelationalAdapter } from "../../core/database/adapter-utils.js";
+
 function createUsersRepository({ db, logger, schema }) {
   async function hasColumn(tableName, columnName) {
+    if (db.adapter === "mssql") {
+      try {
+        const result = await db.query(
+          `
+            SELECT TOP 1 1 AS x
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = SCHEMA_NAME()
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+          `,
+          [tableName, columnName],
+        );
+        return result.rowCount > 0;
+      } catch {
+        return false;
+      }
+    }
     if (db.adapter !== "mysql") {
       return false;
     }
@@ -7,16 +26,17 @@ function createUsersRepository({ db, logger, schema }) {
       const result = await db.query(
         `
           SELECT 1
-          FROM information_schema.columns
-          WHERE table_name = ?
-            AND column_name = ?
+          FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = ?
+            AND COLUMN_NAME = ?
           LIMIT 1
         `,
         [tableName, columnName],
       );
       return result.rowCount > 0;
     } catch (error) {
-      if (error?.code === "42P01") {
+      if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
         return false;
       }
       throw error;
@@ -49,9 +69,9 @@ function createUsersRepository({ db, logger, schema }) {
   async function countActiveUsersByRoleId(roleId, { excludeUserId } = {}) {
     if (!roleId) return 0;
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       const values = [roleId];
-      const filters = ["u.role_id = ?", "u.is_active = TRUE"];
+      const filters = ["u.role_id = ?", "u.is_active = 1"];
       if (excludeUserId) {
         values.push(excludeUserId);
         filters.push(`u.id <> ?`);
@@ -80,9 +100,9 @@ function createUsersRepository({ db, logger, schema }) {
       .filter(Boolean);
     if (!normalized.length) return [];
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       try {
-        const placeholders = normalized.map(() => '?').join(',');
+        const placeholders = normalized.map(() => "?").join(", ");
         const result = await db.query(
           `
             SELECT id, code, name, is_active
@@ -94,7 +114,7 @@ function createUsersRepository({ db, logger, schema }) {
         );
         return result.rows;
       } catch (error) {
-        if (error?.code === "42P01") {
+        if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
           return [];
         }
         throw error;
@@ -114,10 +134,10 @@ function createUsersRepository({ db, logger, schema }) {
       return new Map();
     }
 
-    if (db.adapter === "mysql") {
+    if (isRelationalAdapter(db)) {
       let result;
       try {
-        const placeholders = normalized.map(() => '?').join(',');
+        const placeholders = normalized.map(() => "?").join(", ");
         result = await db.query(
           `
             SELECT
@@ -135,7 +155,7 @@ function createUsersRepository({ db, logger, schema }) {
           normalized,
         );
       } catch (error) {
-        if (error?.code === "42P01") {
+        if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
           return new Map();
         }
         throw error;
@@ -173,7 +193,7 @@ function createUsersRepository({ db, logger, schema }) {
     const normalized = [...new Set(countryIds.map((id) => String(id || "").trim()))]
       .filter(Boolean);
 
-    if (db.adapter !== "mysql") {
+    if (!isRelationalAdapter(db)) {
       return [];
     }
 
@@ -183,7 +203,7 @@ function createUsersRepository({ db, logger, schema }) {
         [userId],
       );
     } catch (error) {
-      if (error?.code === "42P01") {
+      if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
         return [];
       }
       throw error;
@@ -199,14 +219,14 @@ function createUsersRepository({ db, logger, schema }) {
             INSERT INTO ${schema.userCountriesTable}
               (user_id, country_id, is_primary, created_by)
             VALUES (?, ?, ?, ?)
-            ON CONFLICT (user_id, country_id)
-            DO UPDATE SET is_primary = EXCLUDED.is_primary
+            ON DUPLICATE KEY UPDATE
+              is_primary = VALUES(is_primary)
           `,
           [userId, countryId, isPrimary, createdBy],
         );
       }
     } catch (error) {
-      if (error?.code === "42P01") {
+      if (error?.code === "ER_NO_SUCH_TABLE" || error?.errno === 1146) {
         return [];
       }
       throw error;

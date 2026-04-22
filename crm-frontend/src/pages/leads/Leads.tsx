@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaCalendarPlus,
@@ -17,11 +17,11 @@ import EmptyState from "../../components/ui/EmptyState";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SurfaceCard from "../../components/ui/SurfaceCard";
 import SearchableDropdown from "../../components/ui/SearchableDropdown";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import { useLeadsService } from "../../hooks/useLeadsService";
-import { useDateTimePreferences } from "../../context/DateTimePreferencesContext";
+
 import type { LeadListItem, LeadsPagination } from "../../services/leadsService";
-import { toStatusLabelText } from "../../utils/leadStatus";
+import { toStatusLabelText, sopLabelToCanonical } from "../../utils/leadStatus";
 
 interface LeadStats {
   totalLeads: number;
@@ -48,7 +48,7 @@ type LeadFilterState = {
   phone: string;
   leadId: string;
   status: "ALL" | "NEW" | "CONTACTED" | "NEGOTIATION" | "QUOTED" | "FOLLOW_UP_1" | "FOLLOW_UP_2" | "FOLLOW_UP_3" | "FOLLOW_UP_4" | "FINAL_REMINDER" | "CONVERTED" | "LOST" | "NON_RESPONSIVE";
-  sla: "ALL" | "BREACHED" | "ON_REQUEST";
+  sla: "ALL" | "OVERDUE" | "WITHIN_SLA" | "PENDING";
   sortBy: "NEWEST_FIRST" | "OLDEST_FIRST" | "NAME_A_Z" | "STATUS";
 };
 
@@ -61,7 +61,7 @@ const defaultFilters: LeadFilterState = {
   phone: "",
   leadId: "",
   status: "ALL",
-  sla: "ALL",
+  sla: "ALL" as const,
   sortBy: "NEWEST_FIRST",
 };
 
@@ -75,8 +75,20 @@ const formatPaxSummary = (lead: LeadListItem) => {
   return `${adultLabel}, ${children} ${children === 1 ? "Child" : "Children"}`;
 };
 
-const formatChildAges = (lead: LeadListItem) =>
-  lead.childAges.length > 0 ? `Child Ages: ${lead.childAges.join(", ")}` : "";
+const formatMoney = (amount: number, currency = 'INR') => {
+  const normalized = String(currency || 'INR').toUpperCase()
+  try {
+    return new Intl.NumberFormat(normalized === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency: normalized,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(Number.isFinite(amount) ? amount : 0)
+  } catch (_error) {
+    return `${(Number.isFinite(amount) ? amount : 0).toLocaleString()} ${normalized}`
+  }
+}
+
 
 const truncateEmail = (value: string, maxLength = 26) => {
   const safe = (value || "").trim();
@@ -95,15 +107,15 @@ const Leads: React.FC = () => {
   const [fetchedLeads, setFetchedLeads] = useState<LeadListItem[]>([]);
   const [pagination, setPagination] = useState<LeadsPagination | null>(null);
   const [destinationNames, setDestinationNames] = useState<string[]>([]);
-  const [draftFilters, setDraftFilters] =
-    useState<LeadFilterState>(defaultFilters);
-  const [appliedFilters, setAppliedFilters] =
-    useState<LeadFilterState>(defaultFilters);
+  const destinationsFetchedRef = React.useRef(false)
+  const [draftFilters, setDraftFilters] = useState<LeadFilterState>(defaultFilters);
+  const [appliedFilters, setAppliedFilters] = useState<LeadFilterState>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Lead ID: separate local input state + debounced value for client-side filtering only
+  
   const pageSize = 15;
   const nav = useNavigate();
   const leadsService = useLeadsService();
-  const { formatDate } = useDateTimePreferences();
 
   const countryOptions = useMemo(
     () => [
@@ -146,8 +158,9 @@ const Leads: React.FC = () => {
   const slaOptions = useMemo(
     () => [
       { value: "ALL", label: "All SLA" },
-      { value: "BREACHED", label: "Breached" },
-      { value: "ON_REQUEST", label: "On Request (Not Breached)" },
+      { value: "OVERDUE", label: "Overdue (Breached)" },
+      { value: "WITHIN_SLA", label: "Within SLA" },
+      { value: "PENDING", label: "Pending" },
     ],
     [],
   );
@@ -162,36 +175,72 @@ const Leads: React.FC = () => {
     [],
   );
 
-  const buildLeadQuery = (queryPage: number, queryLimit: number) => ({
-    page: queryPage,
-    limit: queryLimit,
-    ...(debouncedSearch ? { search: debouncedSearch } : {}),
-    ...(quickFilter !== "ALL" ? { quickFilter } : {}),
-    ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
-    ...(appliedFilters.status !== "ALL"
-      ? { status: appliedFilters.status }
-      : {}),
-    ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
-    ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
-    ...(appliedFilters.leadId.trim() ? { leadId: appliedFilters.leadId.trim().toUpperCase() } : {}),
-    ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
-    ...(appliedFilters.toDate ? { toDate: appliedFilters.toDate } : {}),
-    ...(appliedFilters.destination
-      ? { destination: appliedFilters.destination }
-      : {}),
-    ...(appliedFilters.sla !== "ALL" ? { sla: appliedFilters.sla } : {}),
-    ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
-  });
+  const buildLeadQuery = (queryPage: number, queryLimit: number) => {
+    const normalizedLeadId = appliedFilters.leadId.trim().toUpperCase();
+    const leadIdActive = Boolean(normalizedLeadId);
 
+    // Resolve canonical status + subStatus from SOP label
+    let canonicalStatus: string | undefined
+    let subStatus: string | undefined
+    if (appliedFilters.status !== 'ALL') {
+      const conversion = sopLabelToCanonical(appliedFilters.status as any)
+      canonicalStatus = conversion.canonical
+      subStatus = conversion.subStatus
+    }
+
+    // Common filters applied in both modes
+    const commonFilters = {
+      ...(quickFilter !== "ALL" ? { quickFilter } : {}),
+      ...(appliedFilters.country ? { country: appliedFilters.country } : {}),
+      ...(canonicalStatus ? { status: canonicalStatus } : {}),
+      ...(subStatus ? { subStatus } : {}),
+      ...(appliedFilters.fromDate ? { fromDate: appliedFilters.fromDate } : {}),
+      ...(appliedFilters.toDate ? { toDate: appliedFilters.toDate } : {}),
+      ...(appliedFilters.destination ? { destination: appliedFilters.destination } : {}),
+      ...(appliedFilters.sla !== "ALL" ? { sla: appliedFilters.sla } : {}),
+    }
+
+    // When leadId active: use backend `search` param (supports LIKE on lead_code)
+    // fetch limit:500 so client-side partial match works across all records
+    if (leadIdActive) {
+      return {
+        page: 1,
+        limit: 500,
+        search: normalizedLeadId, // backend LIKE matches lead_code, id, meta_lead_id
+        ...commonFilters,
+      }
+    }
+
+    return {
+      page: queryPage,
+      limit: queryLimit,
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...commonFilters,
+      ...(appliedFilters.email.trim() ? { email: appliedFilters.email.trim() } : {}),
+      ...(appliedFilters.phone.trim() ? { phone: appliedFilters.phone.trim() } : {}),
+      ...(appliedFilters.sortBy ? { sortBy: appliedFilters.sortBy } : {}),
+    }
+  };
+
+  // Load all destination names once on mount — independent of filters
   useEffect(() => {
-    // Extract unique destinations from fetched leads
-    const destinations = fetchedLeads
-      .map((lead) => lead.destination)
-      .filter((dest) => dest && dest !== "N/A")
-      .filter((dest, index, self) => self.indexOf(dest) === index)
-      .sort((a, b) => a.localeCompare(b));
-    setDestinationNames(destinations);
-  }, [fetchedLeads]);
+    if (destinationsFetchedRef.current) return
+    destinationsFetchedRef.current = true
+    const fetchDestinations = async () => {
+      try {
+        const result = await leadsService.listLeadsPage({ page: 1, limit: 500 })
+        const names = result.items
+          .map((lead) => lead.destination)
+          .filter((d) => d && d !== 'N/A')
+          .filter((d, i, self) => self.indexOf(d) === i)
+          .sort((a, b) => a.localeCompare(b))
+        setDestinationNames(names)
+      } catch {
+        // silently ignore — destination filter just won't populate
+      }
+    }
+    void fetchDestinations()
+  }, [leadsService])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -218,7 +267,7 @@ const Leads: React.FC = () => {
           },
         );
       } catch (err) {
-        setError(getApiErrorMessage(err, "Failed to load leads"));
+        reportApiError(err, "Failed to load leads", setError);
         setFetchedLeads([]);
         setPagination({
           page: 1,
@@ -247,7 +296,20 @@ const Leads: React.FC = () => {
   }, [page, pagination]);
 
   const totalPages = Math.max(1, pagination?.totalPages ?? 1);
-  const rows = fetchedLeads;
+  const leadIdFilter = appliedFilters.leadId.trim().toUpperCase();
+  const rows = useMemo(() => {
+    if (!leadIdFilter) return fetchedLeads;
+    // Client-side filter: keep only leads whose leadCode/id contains the typed value
+    // Backend already narrowed results via search LIKE, this ensures only lead_code matches show
+    return fetchedLeads.filter((lead) => {
+      const leadCode = String((lead as any).leadCode ?? lead.leadId ?? '').trim().toUpperCase()
+      const leadId   = String(lead.id ?? '').trim().toUpperCase()
+      const metaId   = String((lead as any).metaLeadId ?? '').trim().toUpperCase()
+      return leadCode.includes(leadIdFilter) || leadId.includes(leadIdFilter) || metaId.includes(leadIdFilter)
+    })
+  }, [fetchedLeads, leadIdFilter]);
+  const leadIdModeActive = Boolean(leadIdFilter);
+  const effectiveTotalPages = leadIdModeActive ? 1 : totalPages;
 
   const leadStats = useMemo<LeadStats>(
     () => ({
@@ -300,6 +362,8 @@ const Leads: React.FC = () => {
     }
 
     setError("");
+    // Use longer debounce for leadId to avoid firing on every keystroke
+    const delay = draftFilters.leadId !== appliedFilters.leadId ? 600 : 250;
     const timer = window.setTimeout(() => {
       setAppliedFilters({
         ...draftFilters,
@@ -308,7 +372,7 @@ const Leads: React.FC = () => {
         leadId: draftFilters.leadId.trim(),
       });
       setPage(1);
-    }, 250);
+    }, delay);
 
     return () => window.clearTimeout(timer);
   }, [draftFilters]);
@@ -391,7 +455,7 @@ const Leads: React.FC = () => {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to export leads"));
+      reportApiError(err, "Failed to export leads", setError);
     } finally {
       setExporting(false);
     }
@@ -410,8 +474,21 @@ const Leads: React.FC = () => {
     return source.includes("visa") ? "Visa" : "Holidays";
   };
 
+const getLeadMoneyLabel = (lead: LeadListItem) => {
+  const leadType = String(lead.leadType ?? lead.lead_type ?? '').trim().toUpperCase()
+  const currency = 'INR'
+  if (leadType === 'VISA') {
+    const value = Number(lead.salary ?? 0)
+    if (!value) return null
+    return { label: 'Salary', value: formatMoney(value, currency) }
+  }
+  const value = Number(lead.budget ?? 0)
+  if (!value) return null
+  return { label: 'Budget', value: formatMoney(value, currency) }
+}
+
   return (
-    <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
+    <div className="space-y-4 sm:space-y-6 min-w-0">
       <div className=" mx-auto space-y-4 sm:space-y-6 px-0 sm:px-0 lg:pl-0 lg:pr-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex flex-col gap-1">
@@ -456,7 +533,7 @@ const Leads: React.FC = () => {
           />
         </div>
 
-        <SurfaceCard className="p-0 overflow-hidden border border-gray-200 dark:border-gray-800">
+        <SurfaceCard className="max-w-full min-w-0 p-0 border border-gray-200 dark:border-gray-800">
           <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800 space-y-3">
             {error ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
@@ -693,87 +770,80 @@ const Leads: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="hidden lg:block w-full max-w-full overflow-x-auto leads-table-scroll">
-                <table className="min-w-[980px] w-full table-fixed">
+              <div
+                className="leads-table-scroll hidden max-w-full min-w-0 overflow-x-scroll overscroll-x-contain lg:block"
+                style={{ WebkitOverflowScrolling: "touch" }}
+              >
+                <table
+                  className="border-collapse"
+                  style={{ width: "max-content", minWidth: "1440px" }}
+                >
                   <colgroup>
-                    <col className="w-[9%]" />
-                    <col className="w-[15%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[11%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[7%]" />
-                    <col className="w-[6%]" />
-                    <col className="w-[8%]" />
+                    <col style={{ width: 120, minWidth: 120 }} />
+                    <col style={{ width: 220, minWidth: 220 }} />
+                    <col style={{ width: 110, minWidth: 110 }} />
+                    <col style={{ width: 200, minWidth: 200 }} />
+                    <col style={{ width: 150, minWidth: 150 }} />
+                    <col style={{ width: 120, minWidth: 120 }} />
+                    <col style={{ width: 130, minWidth: 130 }} />
+                    <col style={{ width: 140, minWidth: 140 }} />
+                    <col style={{ width: 110, minWidth: 110 }} />
+                    <col style={{ width: 110, minWidth: 110 }} />
                   </colgroup>
-                  <thead className="bg-gray-50 dark:bg-gray-800/50">
+                  <thead className="bg-gray-50  dark:bg-gray-800/50 sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Date
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead ID
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Contact
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Destination
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Visa/Holidays
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Lead Country
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         Status
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         SLA
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-3 py-3.5 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 dark:border-gray-700">
                         View
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="bg-white dark:bg-gray-900">
                     {rows.map((lead) => (
                       <tr
                         key={lead.id}
                         className="border-b border-gray-100 hover:bg-gray-50 transition-colors dark:border-gray-800 dark:hover:bg-gray-800/40"
                       >
-                        <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
+                        <td className="px-3 py-4 text-center whitespace-nowrap">
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                            {lead.createdAt
-                              ? formatDate(lead.createdAt, "-")
-                              : "-"}
+                            {(() => {
+                              const raw = String(lead.clientCreatedAt || lead.createdAt || '').trim()
+                              const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
+                              return m ? `${m[3]}/${m[2]}/${m[1]}` : '-'
+                            })()}
                           </p>
                         </td>
-                        <td className="px-4 py-3 leading-tight">
-                          <div className="flex items-center gap-2">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                {lead.name}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatPaxSummary(lead)}
-                              </p>
-                              {formatChildAges(lead) ? (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  {formatChildAges(lead)}
-                                </p>
-                              ) : null}
-                              {lead.assignedBy && (
-                                <p className="text-xs text-blue-600 dark:text-blue-400">
-                                  Assigned by: {lead.assignedBy}
-                                </p>
-                              )}
-                            </div>
+                        <td className="px-3 py-4 align-top">
+                          <div className="min-w-0 space-y-1">
+                            <p className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {lead.name}
+                            </p>
                             <span
                               className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                                 lead.priority === "High"
@@ -785,54 +855,77 @@ const Leads: React.FC = () => {
                             >
                               {lead.priority === "High" ? "🔥 Hot" : lead.priority === "Medium" ? "⚡ Warm" : "❄️ Cold"}
                             </span>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatPaxSummary(lead)}
+                            </p>
+                            {(() => {
+                              const money = getLeadMoneyLabel(lead)
+                              if (!money) return null
+                              return (
+                                <p className="text-xs text-gray-600 dark:text-gray-300">
+                                  {money.label}: {money.value}
+                                </p>
+                              )
+                            })()}
+                            {lead.consultant && lead.consultant !== "Unassigned" && (
+                              <p className="text-xs text-gray-700 dark:text-gray-300">
+                                Assigned to: {lead.consultant}
+                              </p>
+                            )}
+                            {lead.assignedBy && (
+                              <p className="text-xs text-blue-600 dark:text-blue-400">
+                                Assigned by: {lead.assignedBy}
+                              </p>
+                            )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-left leading-tight whitespace-nowrap">
+                        <td className="px-3 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             {lead.leadId}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-left leading-tight">
-                          <div className="flex items-center gap-1">
-                            <p
-                              className="max-w-full truncate text-sm font-medium text-gray-800 dark:text-gray-200"
-                              title={lead.email}
-                            >
-                              {truncateEmail(lead.email)}
-                            </p>
-                            {lead.email && lead.email.length > 26 && (
-                              <FaInfoCircle
-                                className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0"
+                        <td className="px-3 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <p
+                                className="max-w-full truncate text-sm font-medium text-gray-800 dark:text-gray-200"
                                 title={lead.email}
-                              />
-                            )}
+                              >
+                                {truncateEmail(lead.email)}
+                              </p>
+                              {lead.email && lead.email.length > 26 && (
+                                <FaInfoCircle
+                                  className="text-gray-400 hover:text-blue-500 cursor-help flex-shrink-0"
+                                  title={lead.email}
+                                />
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {lead.phone}
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {lead.phone}
-                          </p>
                         </td>
-                        <td
-                          className="px-4 py-3 text-left leading-tight"
-                          title={lead.destination}
-                        >
-                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                        <td className="px-3 py-4 align-middle" title={lead.destination}>
+                          <span className="line-clamp-2 break-words text-sm font-medium text-gray-800 dark:text-gray-200">
                             {lead.destination}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-left leading-tight">
+                        <td className="px-3 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
                             {getVisaHolidayLabel(lead)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-left leading-tight">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <td className="px-3 py-4 align-middle">
+                          <span className="line-clamp-2 break-words text-sm font-medium text-gray-700 dark:text-gray-300">
                             {lead.leadCountry || "-"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center leading-tight">
-                          <StatusBadge status={lead.statusLabel} />
+                        <td className="min-w-[140px] px-3 py-4 text-center align-middle">
+                          <div className="flex justify-center">
+                            <StatusBadge status={lead.statusLabel} />
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-center leading-tight whitespace-nowrap">
+                        <td className="px-3 py-4 text-center align-middle whitespace-nowrap">
                           <span
                             className={`text-sm font-medium ${
                               lead.slaBreached
@@ -843,9 +936,9 @@ const Leads: React.FC = () => {
                             {lead.slaBreached ? "Breached" : lead.sla}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right leading-tight whitespace-nowrap">
+                        <td className="px-3 py-4 text-right  whitespace-nowrap">
                           <button
-                            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1 text-xs hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 transition-colors dark:border-gray-700 dark:hover:bg-gray-800"
                             onClick={() => handleViewLead(lead)}
                           >
                             <FaEye />
@@ -885,11 +978,22 @@ const Leads: React.FC = () => {
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {formatPaxSummary(lead)}
                         </p>
-                        {formatChildAges(lead) ? (
-                          <p className="mt-1 text-xs text-blue-600 dark:text-blue-300">
-                            {formatChildAges(lead)}
+                        {(() => {
+                          const money = getLeadMoneyLabel(lead)
+                          if (!money) return null
+                          return (
+                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                              <span className="text-gray-500">{money.label}:</span>{" "}
+                              {money.value}
+                            </p>
+                          )
+                        })()}
+                        {lead.consultant && lead.consultant !== "Unassigned" && (
+                          <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
+                            Assigned to: {lead.consultant}
                           </p>
-                        ) : null}
+                        )}
+                      
                         {lead.assignedBy && (
                           <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
                             Assigned by: {lead.assignedBy}
@@ -943,42 +1047,39 @@ const Leads: React.FC = () => {
                 ))}
               </div>
 
-	              <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 dark:border-gray-800">
-	                <p className="text-sm text-gray-500 dark:text-gray-400">
-	                  Showing{" "}
-	                  {pagination?.total
-	                    ? (page - 1) * (pagination.limit || pageSize) + 1
-	                    : 0}
-	                  -
-	                  {pagination?.total
-	                    ? Math.min(
-	                        pagination.total,
-	                        (page - 1) * (pagination.limit || pageSize) +
-	                          rows.length,
-	                      )
-	                    : 0}{" "}
-	                  of {pagination?.total ?? rows.length}
-	                </p>
-	                <div className="flex items-center gap-2">
-	                  <button
-	                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-	                    disabled={page === 1 || loading}
-	                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
-	                  >
-                    <FaChevronLeft />
-                  </button>
-                  <span className="px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium">
-                    {page}
-                  </span>
-	                  <button
-	                    onClick={() =>
-	                      setPage((prev) => Math.min(totalPages, prev + 1))
-	                    }
-	                    disabled={page === totalPages || loading}
-	                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
-	                  >
-                    <FaChevronRight />
-                  </button>
+		              <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 dark:border-gray-800">
+		                <p className="text-sm text-gray-500 dark:text-gray-400">
+		                  Showing{" "}
+		                  {leadIdModeActive
+		                    ? (rows.length ? 1 : 0)
+		                    : pagination?.total
+		                      ? (page - 1) * (pagination.limit || pageSize) + 1
+		                      : 0}
+		                  -{leadIdModeActive
+		                    ? rows.length
+		                    : pagination?.total
+		                      ? Math.min(pagination.total, (page - 1) * (pagination.limit || pageSize) + rows.length)
+		                      : 0}{" "}
+		                  of {leadIdModeActive ? rows.length : (pagination?.total ?? rows.length)}
+		                </p>
+		                <div className="flex items-center gap-2">
+		                  <button
+		                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+		                    disabled={leadIdModeActive || page === 1 || loading}
+		                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
+		                  >
+	                    <FaChevronLeft />
+	                  </button>
+	                  <span className="px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium">
+	                    {leadIdModeActive ? 1 : page}
+	                  </span>
+		                  <button
+		                    onClick={() => setPage((prev) => Math.min(effectiveTotalPages, prev + 1))}
+		                    disabled={leadIdModeActive || page === effectiveTotalPages || loading}
+		                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40"
+		                  >
+	                    <FaChevronRight />
+	                  </button>
                 </div>
               </div>
             </>
@@ -986,31 +1087,27 @@ const Leads: React.FC = () => {
         </SurfaceCard>
 
         <style>{`
-          html,
-          body {
-            overflow-x: hidden;
-          }
-
           .leads-table-scroll {
             scrollbar-width: thin;
-            scrollbar-color: rgba(107, 114, 128, 0.22) transparent;
+            scrollbar-color: rgba(59, 130, 246, 0.3) rgba(243, 244, 246, 0.5);
           }
 
           .leads-table-scroll::-webkit-scrollbar {
-            height: 5px;
+            height: 8px;
           }
 
           .leads-table-scroll::-webkit-scrollbar-track {
-            background: transparent;
+            background: rgba(243, 244, 246, 0.5);
+            border-radius: 4px;
           }
 
           .leads-table-scroll::-webkit-scrollbar-thumb {
-            background: rgba(107, 114, 128, 0.22);
-            border-radius: 9999px;
+            background: rgba(59, 130, 246, 0.3);
+            border-radius: 4px;
           }
 
           .leads-table-scroll:hover::-webkit-scrollbar-thumb {
-            background: rgba(107, 114, 128, 0.35);
+            background: rgba(59, 130, 246, 0.5);
           }
         `}</style>
       </div>

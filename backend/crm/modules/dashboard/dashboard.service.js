@@ -82,6 +82,7 @@ class DashboardService {
             previousStats.totalLeads,
           ),
           revenue: Number(currentStats.revenue || 0),
+          currency: currentStats.currency || 'AED',
           revenueChange: this.calculateChange(
             currentStats.revenue,
             previousStats.revenue,
@@ -111,6 +112,7 @@ class DashboardService {
           previousPeriodStats.totalLeads,
         ),
         revenue: currentPeriodStats.revenue || 0,
+        currency: 'AED',
         revenueChange: this.calculateChange(
           currentPeriodStats.revenue,
           previousPeriodStats.revenue,
@@ -133,9 +135,9 @@ class DashboardService {
     }
   }
 
-  async getRevenue(range = 'week') {
+  async getRevenue(range = 'week', currency) {
     try {
-      const revenueData = await this.repository.getRevenue(range);
+      const revenueData = await this.repository.getRevenue(range, currency);
       return revenueData;
     } catch (error) {
       logger.error('Error in dashboard service getRevenue:', error);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const paymentStatus = z.enum(["PENDING", "PARTIAL", "FULL", "REFUNDED"]);
 const paymentMode = z.enum([
@@ -32,6 +33,7 @@ const createPayload = z.object({
   status: paymentStatus.optional(),
   paidAt: dateTimeString.optional(),
   isVerified: z.coerce.boolean().optional(),
+  notes: z.string().trim().min(1).max(4000).optional(),
 });
 
 const updatePayload = z
@@ -49,6 +51,7 @@ const updatePayload = z
     status: paymentStatus.optional(),
     paidAt: dateTimeString.optional(),
     isVerified: z.coerce.boolean().optional(),
+    notes: z.string().trim().min(1).max(4000).optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,
@@ -64,6 +67,7 @@ const verifyPayload = z.object({
       invoiceUrl: z.string().url().max(2000).optional(),
       paymentReference: z.string().trim().min(2).max(100).optional(),
       gatewayPaymentId: z.string().trim().min(2).max(150).optional(),
+      notes: z.string().trim().min(1).max(4000).optional(),
     })
     .optional(),
   params: z.object({ id: z.string().uuid() }),
@@ -109,7 +113,7 @@ const list = z.object({
       bookingId: z.string().uuid().optional(),
       status: paymentStatus.optional(),
       paymentMode: paymentMode.optional(),
-      isVerified: z.coerce.boolean().optional(),
+      isVerified: optionalQueryBoolean,
     })
     .optional(),
 });
@@ -117,7 +121,12 @@ const list = z.object({
 const stats = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),
-  query: z.object({}).optional(),
+  query: z
+    .object({
+      currency: z.string().trim().min(3).max(10).optional(),
+      targetCurrency: z.string().trim().min(3).max(10).optional(),
+    })
+    .optional(),
 });
 
 const PaymentsValidation = {

@@ -1,4 +1,4 @@
-import { Component, type ChangeEvent } from "react";
+import { Component } from "react";
 import CmsSectionFiltersComponent from "./components/cms-section-filters.component";
 import CmsSectionTableComponent from "./components/cms-section-table.component";
 import CmsModalShellComponent from "./components/cms-modal-shell.component";
@@ -12,10 +12,7 @@ import { CmsSectionFilterController } from "./controllers/cms-section-filter.con
 import { CmsEntryMediaResolver } from "./controllers/cms-entry-media.resolver";
 import { CmsTableToneResolver } from "./controllers/cms-table-tone.resolver";
 import type { CmsSectionKey } from "./models/cms-section-key.type";
-import type {
-  DateFilterBoundary,
-  DateRangeFilter,
-} from "./models/cms-column-filter.model";
+import type { UniversalFilterToken } from "./models/cms-column-filter.model";
 import type { CmsTableEntry } from "./types/cms-table-entry.type";
 
 interface CmsSectionPageProps {
@@ -23,10 +20,7 @@ interface CmsSectionPageProps {
 }
 
 interface CmsSectionPageState {
-  searchQuery: string;
-  showAdvancedFilters: boolean;
-  columnFilters: Record<string, string>;
-  dateColumnFilters: Record<string, DateRangeFilter>;
+  activeFilters: UniversalFilterToken[];
   isLoading: boolean;
   rows: CmsTableEntry[];
   successMessage: string;
@@ -40,17 +34,17 @@ interface CmsSectionPageState {
   imagePreviewLabel: string;
 }
 
-class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState> {
+class CmsSectionPage extends Component<
+  CmsSectionPageProps,
+  CmsSectionPageState
+> {
   private readonly cmsService = CmsServiceContainer.getSectionService();
   private readonly filterController = new CmsSectionFilterController();
   private readonly mediaResolver = new CmsEntryMediaResolver();
   private readonly toneResolver = new CmsTableToneResolver();
 
   state: CmsSectionPageState = {
-    searchQuery: "",
-    showAdvancedFilters: false,
-    columnFilters: {},
-    dateColumnFilters: {},
+    activeFilters: [],
     isLoading: false,
     rows: [],
     successMessage: "",
@@ -76,11 +70,8 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
 
   private resetStateForSectionChange(): void {
     this.setState(
-      {
-        searchQuery: "",
-        showAdvancedFilters: false,
-        columnFilters: {},
-        dateColumnFilters: {},
+        {
+        activeFilters: [],
         successMessage: "",
         errorMessage: "",
         modalMode: null,
@@ -119,59 +110,12 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
     }
   }
 
-  private onSearchChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({ searchQuery: event.target.value });
+  private onFilterChange = (filters: UniversalFilterToken[]): void => {
+    this.setState({ activeFilters: filters });
   };
 
-  private onToggleAdvancedFilters = (): void => {
-    this.setState((prevState) => ({
-      showAdvancedFilters: !prevState.showAdvancedFilters,
-    }));
-  };
-
-  private onColumnFilterChange = (columnKey: string, value: string): void => {
-    this.setState((prevState) => ({
-      columnFilters: {
-        ...prevState.columnFilters,
-        [columnKey]: value,
-      },
-    }));
-  };
-
-  private onDateColumnFilterChange = (
-    columnKey: string,
-    boundary: DateFilterBoundary,
-    value: string,
-  ): void => {
-    this.setState((prevState) => ({
-      dateColumnFilters: {
-        ...prevState.dateColumnFilters,
-        [columnKey]: {
-          from: prevState.dateColumnFilters[columnKey]?.from ?? "",
-          to: prevState.dateColumnFilters[columnKey]?.to ?? "",
-          [boundary]: value,
-        },
-      },
-    }));
-  };
-
-  private onDateInputBlur = (
-    columnKey: string,
-    boundary: DateFilterBoundary,
-    value: string,
-  ): void => {
-    this.onDateColumnFilterChange(
-      columnKey,
-      boundary,
-      this.filterController.normalizeDateInput(value),
-    );
-  };
-
-  private clearAllColumnFilters = (): void => {
-    this.setState({
-      columnFilters: {},
-      dateColumnFilters: {},
-    });
+  private clearAllFilters = (): void => {
+    this.setState({ activeFilters: [] });
   };
 
   private openViewModal = (entry: CmsTableEntry): void => {
@@ -225,6 +169,11 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
   };
 
   private openDeleteModal = (entry: CmsTableEntry): void => {
+    const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
+    if (!definition.supportsDelete) {
+      this.setError("Delete operation is not supported for this section.");
+      return;
+    }
     if (entry.readOnly) {
       this.setError("This row is read-only and cannot be deleted.");
       return;
@@ -285,10 +234,7 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
   render() {
     const { sectionKey } = this.props;
     const {
-      searchQuery,
-      showAdvancedFilters,
-      columnFilters,
-      dateColumnFilters,
+      activeFilters,
       isLoading,
       rows,
       successMessage,
@@ -303,61 +249,62 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
     } = this.state;
 
     const section = CmsSectionCatalog.getByKey(sectionKey);
-    const columnFilterDefinitions = this.filterController.buildColumnFilterDefinitions(
+    const filterColumns = this.filterController.buildFilterColumns(
       rows,
       section.columns,
     );
+    const filterIndex = this.filterController.buildFilterIndex(
+      rows,
+      filterColumns,
+    );
     const filteredRows = rows.filter(
-      (entry) =>
-        this.filterController.matchesSearch(entry, searchQuery) &&
-        this.filterController.matchesColumnFilters(
-          entry,
-          columnFilterDefinitions,
-          columnFilters,
-          dateColumnFilters,
-        ),
+      (entry) => this.filterController.matchesFilters(entry, activeFilters),
     );
     const hasActiveFilters = this.filterController.hasAnyActiveFilters(
-      columnFilterDefinitions,
-      columnFilters,
-      dateColumnFilters,
+      activeFilters,
     );
     const dateColumnKeys = new Set(
-      columnFilterDefinitions
-        .filter((definition) => definition.type === "date")
-        .map((definition) => definition.key),
+      section.columns
+        .map((column) => column.key)
+        .filter((columnKey) => {
+          const lower = columnKey.toLowerCase();
+          return (
+            lower.includes("date") ||
+            lower.includes("updated") ||
+            lower.includes("created") ||
+            lower.includes("time")
+          );
+        }),
     );
     const hasImageColumn = filteredRows.some(
       (entry) => this.mediaResolver.getImageUrlFromEntry(entry) !== null,
     );
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {successMessage && (
-          <div className="rounded-xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)] px-3 py-2 text-sm text-[var(--success)]">
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)] px-3 py-2 text-xs text-[var(--success)] sm:text-sm">
             {successMessage}
           </div>
         )}
         {errorMessage && (
-          <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--danger)]">
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-xs text-[var(--danger)] sm:text-sm">
             {errorMessage}
           </div>
         )}
 
         <CmsSectionFiltersComponent
           sectionTitle={section.title}
-          searchQuery={searchQuery}
-          showAdvancedFilters={showAdvancedFilters}
-          columnFilterDefinitions={columnFilterDefinitions}
-          columnFilters={columnFilters}
-          dateColumnFilters={dateColumnFilters}
+          columns={filterColumns}
+          filterIndex={filterIndex}
+          activeFilters={activeFilters}
           hasActiveFilters={hasActiveFilters}
-          onSearchChange={this.onSearchChange}
-          onToggleAdvancedFilters={this.onToggleAdvancedFilters}
-          onColumnFilterChange={this.onColumnFilterChange}
-          onDateColumnFilterChange={this.onDateColumnFilterChange}
-          onDateInputBlur={this.onDateInputBlur}
-          onClearFilters={this.clearAllColumnFilters}
+          onFilterChange={this.onFilterChange}
+          onClearFilters={this.clearAllFilters}
+          getSuggestions={(...args) =>
+            this.filterController.getSuggestions(...args)
+          }
+          createToken={(...args) => this.filterController.createToken(...args)}
         />
 
         <CmsSectionTableComponent
@@ -368,13 +315,19 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
           isLoading={isLoading}
           hasImageColumn={hasImageColumn}
           supportsCreate={CmsEntityFormCatalog.get(sectionKey).supportsCreate}
+          supportsEdit={CmsEntityFormCatalog.get(sectionKey).supportsEdit}
+          supportsDelete={CmsEntityFormCatalog.get(sectionKey).supportsDelete}
+          deleteActionLabel="Move to Trash"
+          emptyStateMessage="No records found for the selected filters."
           dateColumnKeys={dateColumnKeys}
           onCreate={this.openCreateModal}
           onView={this.openViewModal}
           onEdit={this.openEditModal}
           onDelete={this.openDeleteModal}
           onImagePreview={this.openImagePreview}
-          getImageUrl={(entry) => this.mediaResolver.getImageUrlFromEntry(entry)}
+          getImageUrl={(entry) =>
+            this.mediaResolver.getImageUrlFromEntry(entry)
+          }
           getEntryLabel={(entry) => this.mediaResolver.getEntryLabel(entry)}
           getToneClass={(tone) => this.toneResolver.getToneClass(tone)}
           formatDateValue={(value) => this.filterController.toDDMMYYYY(value)}
@@ -396,6 +349,7 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
           recordLabel={this.mediaResolver.getEntryLabel(selectedEntry)}
           isSubmitting={isModalSubmitting}
           errorMessage={modalErrorMessage}
+          mode="soft"
           onCancel={this.closeModal}
           onConfirm={() => void this.handleDeleteConfirm()}
         />
@@ -420,11 +374,11 @@ class CmsSectionPage extends Component<CmsSectionPageProps, CmsSectionPageState>
           onCancel={this.closeImagePreview}
         >
           {imagePreviewUrl && (
-            <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+            <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-(--surface)">
               <img
                 src={imagePreviewUrl}
                 alt={imagePreviewLabel || "Preview"}
-                className="max-h-[70vh] w-full object-contain"
+                className="max-h-[72vh] w-full object-contain sm:max-h-[70vh]"
               />
             </div>
           )}

@@ -1,6 +1,10 @@
-# Lead Distribution Logic - Improvements
+# Lead Distribution Logic — Improvements (backlog)
 
-## Current Problems
+> **Status:** This file describes **proposed** enhancements. It is **not** a description of current production behavior.  
+> **Already in production (partial overlap):** 2-tier country/type agent pool, `AgentCache`, high-value workload + incentive sort, `AUTOMATION_DEFAULTS` — see `docs/memory/LEAD_ASSIGNMENT_LOGIC.md`.  
+> **Not implemented here:** weighted scoring for all leads, priority queue column, `availability_status`, SQL workload metrics block, manager scoring, ML routing.
+
+## Current Problems (as of this backlog doc)
 
 ### 1. No Workload Balancing for Regular Leads
 - Round-robin doesn't consider current workload
@@ -14,8 +18,8 @@
 - Doesn't consider conversion rate, response time, customer satisfaction
 
 ### 4. Country Filtering Too Strict
-- If no agent matches country, lead goes to queue
-- Should fallback to nearby countries or agents with "BOTH" capability
+- **Update:** Production now uses a 2-tier pool (country+type, then type-only agents with **no** `agent_country`). Still no “nearby country” or geo fallback.
+- This backlog still proposes broader fallback (regions, explicit BOTH-only pool, etc.).
 
 ### 5. Manager Assignment Has No Logic
 - Managers are assigned round-robin only
@@ -23,9 +27,9 @@
 
 ---
 
-## Recommended Improvements
+## Recommended Improvements (planned)
 
-### ✅ Improvement 1: Weighted Scoring System
+### Improvement 1: Weighted Scoring System
 
 Instead of binary filters, use a scoring system:
 
@@ -74,7 +78,7 @@ scored.sort((a, b) => b.score - a.score)
 return scored[0].agent
 ```
 
-### ✅ Improvement 2: Fallback Hierarchy
+### Improvement 2: Fallback Hierarchy
 
 ```javascript
 async function selectAssigneeWithFallback(lead, options) {
@@ -99,7 +103,7 @@ async function selectAssigneeWithFallback(lead, options) {
 }
 ```
 
-### ✅ Improvement 3: Manager Assignment Logic
+### Improvement 3: Manager Assignment Logic
 
 ```javascript
 async function selectManagerForLead(lead, options) {
@@ -138,7 +142,7 @@ async function selectManagerForLead(lead, options) {
 }
 ```
 
-### ✅ Improvement 4: Real-time Workload Balancing
+### Improvement 4: Real-time Workload Balancing
 
 ```javascript
 // Add to repository
@@ -160,7 +164,7 @@ async function getAgentWorkloadMetrics(agentIds) {
 }
 ```
 
-### ✅ Improvement 5: Priority Queue System
+### Improvement 5: Priority Queue System
 
 ```javascript
 // Add priority levels to queued leads
@@ -193,7 +197,7 @@ async function processQueuedLeads(payload = {}, context = {}) {
 }
 ```
 
-### ✅ Improvement 6: Agent Availability Status
+### Improvement 6: Agent Availability Status
 
 ```javascript
 // Add to users table
@@ -219,22 +223,22 @@ async function selectAssigneeForLead(lead, options) {
 
 ---
 
-## Implementation Priority
+## Implementation Priority (not started as a full set)
 
-### Phase 1 (High Priority) - Immediate Improvements
-1. ✅ Add workload-based scoring to round-robin
-2. ✅ Implement fallback hierarchy for country/type matching
-3. ✅ Add priority queue system
+### Phase 1 — High priority (planned)
+1. ☐ Add workload-based scoring to **regular** (non–high-value) round-robin
+2. ☐ Extend fallback beyond current 2-tier (see assignment doc for what exists today)
+3. ☐ Add priority queue system (`queued_leads` / schema changes)
 
-### Phase 2 (Medium Priority) - Performance Tracking
-4. ✅ Add agent performance metrics (conversion rate, response time)
-5. ✅ Implement manager assignment logic
-6. ✅ Add agent availability status
+### Phase 2 — Medium priority (planned)
+4. ☐ Add agent performance metrics (conversion rate, response time)
+5. ☐ Implement dedicated manager assignment scoring
+6. ☐ Add agent availability status column + filter
 
-### Phase 3 (Low Priority) - Advanced Features
-7. ✅ Machine learning-based assignment prediction
-8. ✅ Time-based routing (assign to agents in working hours)
-9. ✅ Customer preference matching (language, communication style)
+### Phase 3 — Low priority (planned)
+7. ☐ Machine learning–based assignment prediction
+8. ☐ Time-based routing (working hours)
+9. ☐ Customer preference matching (language, communication style)
 
 ---
 
@@ -262,11 +266,11 @@ ALTER TABLE users ADD COLUMN team_sla_breach_rate DECIMAL(5,2) DEFAULT 0;
 
 ---
 
-## Code Changes Required
+## Code Changes Required (illustrative — not applied as-is)
 
 ### File: `leads.service.js`
 
-**Replace `selectAssigneeForLead` function (lines 1050-1180) with:**
+**Example only — would replace parts of `selectAssigneeForLead` if implemented:**
 
 ```javascript
 async function selectAssigneeForLead(lead, options = {}) {

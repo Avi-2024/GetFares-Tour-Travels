@@ -1,3 +1,5 @@
+import { AppError } from "../../core/errors/index.js";
+
 function createAuthController({ service }) {
   return Object.freeze({
     async register(req, res) {
@@ -28,9 +30,11 @@ function createAuthController({ service }) {
     async toggleActive(req, res) {
       const active = req.body?.active;
       if (typeof active !== "boolean") {
-        return res
-          .status(400)
-          .json({ error: "active must be a boolean value" });
+        throw new AppError(
+          400,
+          "active must be a boolean value",
+          "VALIDATION_ERROR",
+        );
       }
       const result = await service.toggleActive(req.context.user.id, active);
       res.status(200).json({ data: result });

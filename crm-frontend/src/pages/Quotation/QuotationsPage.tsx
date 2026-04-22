@@ -19,7 +19,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useAuth } from '../../context/AuthContext'
 
 type Status = 'pending' | 'accepted' | 'expired' | 'rejected' | 'draft'
@@ -236,7 +236,7 @@ const QuotationsPage: React.FC = () => {
 
       setIsFetchingList(true)
       try {
-        const response = await quotationsApi.list({ includeItems: false })
+        const response = await quotationsApi.list()
 
         // Check if response has the expected structure
         if (response && typeof response === 'object') {
@@ -391,7 +391,7 @@ const QuotationsPage: React.FC = () => {
         }
       } catch (error: any) {
         console.error('Failed to load quotations:', error)
-        setError(getApiErrorMessage(error, 'Failed to load quotations.'))
+        reportApiError(error, 'Failed to load quotations.', setError)
 
         // No fallback data on error
         setQuotations([])
@@ -732,7 +732,7 @@ const QuotationsPage: React.FC = () => {
       setError('')
     } catch (error) {
       console.error('Failed to reject quotation:', error)
-      setError(getApiErrorMessage(error, 'Failed to reject quotation'))
+      reportApiError(error, 'Failed to reject quotation', setError)
     } finally {
       setIsMutating(false)
     }
@@ -779,8 +779,10 @@ const QuotationsPage: React.FC = () => {
       setError('')
     } catch (error) {
       console.error('Failed to send via WhatsApp:', error)
-      setError(
-        getApiErrorMessage(error, 'Failed to send quotation via WhatsApp')
+      reportApiError(
+        error,
+        'Failed to send quotation via WhatsApp',
+        setError
       )
     } finally {
       setIsMutating(false)
@@ -882,7 +884,7 @@ const QuotationsPage: React.FC = () => {
             v: kpis.valueThisMonth.toLocaleString('en-IN', {
               maximumFractionDigits: 0
             }),
-            c: 'This Month (all currencies)'
+            c: ''
           }
         ].map(k => (
           <SurfaceCard key={k.t} hoverable className='p-3 sm:p-5'>
@@ -1284,7 +1286,7 @@ const QuotationsPage: React.FC = () => {
             </div>
 
             {/* Desktop View - Table */}
-            <div className='hidden max-w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 lg:block'>
+            <div className='hidden max-w-full leads-table-scroll overflow-x-auto  dark:scrollbar-thumb-gray-700 lg:block'>
               <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
                 <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
                   <tr>

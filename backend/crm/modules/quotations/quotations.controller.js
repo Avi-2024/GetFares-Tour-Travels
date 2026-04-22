@@ -1,4 +1,4 @@
-﻿function createQuotationsController({ service }) {
+function createQuotationsController({ service }) {
   function extractIp(req) {
     const forwarded = req.headers["x-forwarded-for"];
     if (Array.isArray(forwarded) && forwarded.length) {
@@ -54,6 +54,26 @@
       res.status(200).json({ data: result });
     },
 
+    async uploadPdf(req, res) {
+      const file = req.file || null;
+      const buffer = file?.buffer;
+      if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+        res.status(400).json({ error: "PDF file is required" });
+        return;
+      }
+      const requestBaseUrl = `${req.protocol}://${req.get("host")}`;
+      const result = await service.uploadPdf(
+        req.params.id,
+        {
+          buffer,
+          originalName: file?.originalname || null,
+          mimeType: file?.mimetype || null,
+        },
+        { ...req.context, requestBaseUrl },
+      );
+      res.status(200).json({ data: result });
+    },
+
     async send(req, res) {
       const result = await service.send(
         req.validated.params.id,
@@ -91,7 +111,13 @@
         req.validated.body,
         req.context,
       );
-      res.status(200).json({ data: result });
+      // Service returns { quotation, booking }; expose quotation as `data` (same shape as getById) so `data.status` is APPROVED/REJECTED.
+      const quotation = result?.quotation ?? result;
+      const booking = result?.booking ?? null;
+      res.status(200).json({
+        data:
+          booking != null ? { ...quotation, booking } : quotation,
+      });
     },
 
     async listViews(req, res) {
