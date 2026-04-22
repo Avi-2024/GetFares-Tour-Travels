@@ -2990,7 +2990,7 @@ const Payments: React.FC = () => {
           </button>
           <button
             onClick={() => setShowAddPanel(true)}
-            className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700"
+            className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl bg-[rgba(96,47,247,0.8)] px-4 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700"
           >
             <FaPlus className="mr-2" /> Add Payment
           </button>
@@ -3005,7 +3005,7 @@ const Payments: React.FC = () => {
           subtitle={
             statsLoading ? "Loading..." : `${stats.collectedCount} payments`
           }
-          icon={<FaWallet className="text-blue-600" />}
+          icon={<FaWallet className="text-[#6939f9]" />}
         />
         <StatCard
           title="Outstanding"
@@ -3055,7 +3055,7 @@ const Payments: React.FC = () => {
                   }}
                   className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
                     quickFilter === item.key ?
-                      "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                      "bg-[rgba(96,47,247,0.8)]  dark:bg-gray-700 text-white dark:text-blue-400 shadow-sm"
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                   }`}
                 >
