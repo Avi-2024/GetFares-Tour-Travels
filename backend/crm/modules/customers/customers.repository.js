@@ -1,10 +1,25 @@
 function createCustomersRepository({ db, logger, schema }) {
   const tableColumnsCache = new Map();
 
+  function normalizeEmail(value) {
+    if (!value) {
+      return "";
+    }
+    return String(value).trim().toLowerCase();
+  }
+
+  function normalizePhone(value) {
+    if (!value) {
+      return "";
+    }
+    const compact = String(value).trim().replace(/\s+/g, "");
+    return compact.replace(/[^\d+]/g, "");
+  }
+
   function canUseRawQuery() {
     return (
       typeof db.query === "function" &&
-      db.pool
+      (db.adapter === "mysql" || db.adapter === "mssql")
     );
   }
 
@@ -13,17 +28,22 @@ function createCustomersRepository({ db, logger, schema }) {
       return null;
     }
 
-    if (tableColumnsCache.has(tableName)) {
-      return tableColumnsCache.get(tableName);
+    const cacheKey = String(tableName).toLowerCase();
+    if (tableColumnsCache.has(cacheKey)) {
+      return tableColumnsCache.get(cacheKey);
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?)`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
-    tableColumnsCache.set(tableName, columns);
+    const columns = new Set(
+      (result.rows || []).map((row) =>
+        String(row.column_name ?? row.COLUMN_NAME ?? "").toLowerCase(),
+      ),
+    );
+    tableColumnsCache.set(cacheKey, columns);
     return columns;
   }
 
@@ -40,15 +60,17 @@ function createCustomersRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    return Object.fromEntries(
+      entries.filter(([key]) => columns.has(String(key).toLowerCase())),
+    );
   }
 
   async function hasColumn(tableName, columnName) {
     const columns = await getTableColumns(tableName);
     if (!columns) {
-      return true;
+      return false;
     }
-    return columns.has(columnName);
+    return columns.has(String(columnName).toLowerCase());
   }
 
   function toDateOnly(value) {
@@ -99,6 +121,61 @@ function createCustomersRepository({ db, logger, schema }) {
     return db.update(schema.tableName, id, sanitized);
   }
 
+  async function backfillFromLeads() {
+    const [leadRows, customerRows] = await Promise.all([
+      db.findMany(schema.leadsTable, {}),
+      db.findMany(schema.tableName, {}),
+    ]);
+
+    const existingEmails = new Set();
+    const existingPhones = new Set();
+    (Array.isArray(customerRows) ? customerRows : []).forEach((row) => {
+      if (row?.is_deleted ?? row?.isDeleted ?? false) return;
+      const email = normalizeEmail(row?.email);
+      const phone = normalizePhone(row?.phone);
+      if (email) existingEmails.add(email);
+      if (phone) existingPhones.add(phone);
+    });
+
+    let created = 0;
+    for (const lead of Array.isArray(leadRows) ? leadRows : []) {
+      if (lead?.is_deleted ?? lead?.isDeleted ?? false) continue;
+      const email = normalizeEmail(lead?.email);
+      const phone = normalizePhone(lead?.phone);
+      if ((email && existingEmails.has(email)) || (phone && existingPhones.has(phone))) {
+        continue;
+      }
+
+      const fullName =
+        lead?.full_name ??
+        lead?.fullName ??
+        (email ? email.split("@")[0] : null) ??
+        phone ??
+        null;
+
+      if (!fullName && !email && !phone) {
+        continue;
+      }
+
+      const sanitized = await sanitizeForTable(schema.tableName, {
+        full_name: fullName,
+        email: email || null,
+        phone: phone || null,
+        client_currency: lead?.client_currency ?? lead?.clientCurrency ?? "INR",
+      });
+      if (!Object.keys(sanitized).length) {
+        continue;
+      }
+
+      await db.insert(schema.tableName, sanitized);
+      created += 1;
+      if (email) existingEmails.add(email);
+      if (phone) existingPhones.add(phone);
+    }
+
+    return created;
+  }
+
   async function findBookingSummaryByCustomerIds(customerIds = []) {
     const ids = [...new Set(customerIds.filter(Boolean).map(String))];
     if (!ids.length) {
@@ -106,62 +183,72 @@ function createCustomersRepository({ db, logger, schema }) {
     }
 
     if (canUseRawQuery()) {
-      const leadHasSoftDelete = await hasColumn(schema.leadsTable, "is_deleted");
-      const quotationHasSoftDelete = await hasColumn(
-        schema.quotationsTable,
-        "is_deleted",
-      );
-      const bookingHasSoftDelete = await hasColumn(
-        schema.bookingsTable,
-        "is_deleted",
-      );
+      const [leadHasCustomerId, leadHasSoftDelete, quotationHasSoftDelete, bookingHasSoftDelete] =
+        await Promise.all([
+          hasColumn(schema.leadsTable, "customer_id"),
+          hasColumn(schema.leadsTable, "is_deleted"),
+          hasColumn(schema.quotationsTable, "is_deleted"),
+          hasColumn(schema.bookingsTable, "is_deleted"),
+        ]);
+
+      if (!leadHasCustomerId) {
+        return new Map();
+      }
 
       const leadSoftDeleteClause = leadHasSoftDelete
-        ? "AND COALESCE(l.is_deleted, FALSE) = FALSE"
+        ? "AND COALESCE(l.is_deleted, 0) = 0"
         : "";
       const quotationSoftDeleteClause = quotationHasSoftDelete
-        ? "AND COALESCE(q.is_deleted, FALSE) = FALSE"
+        ? "AND COALESCE(q.is_deleted, 0) = 0"
         : "";
       const bookingSoftDeleteClause = bookingHasSoftDelete
-        ? "AND COALESCE(b.is_deleted, FALSE) = FALSE"
+        ? "AND COALESCE(b.is_deleted, 0) = 0"
+        : "";
+      const bookingSubDeleteClause = bookingHasSoftDelete
+        ? "AND COALESCE(b2.is_deleted, 0) = 0"
         : "";
 
+      const placeholders = ids.map(() => "?").join(", ");
       const query = `
         SELECT
-          l.customer_id AS customer_id,
+          CONVERT(l.customer_id, CHAR) AS customer_id,
           COUNT(DISTINCT b.id) AS total_bookings,
           MAX(COALESCE(b.created_at, b.travel_start_date)) AS last_booking_date,
-          SUBSTRING_INDEX(
-            GROUP_CONCAT(
-              COALESCE(NULLIF(b.booking_number, ''), b.id)
-              ORDER BY COALESCE(b.created_at, b.travel_start_date) DESC, b.created_at DESC
-              SEPARATOR ','
-            ),
-            ',',
-            1
+          (
+            SELECT COALESCE(NULLIF(b2.booking_number, ''), CONVERT(b2.id, CHAR))
+            FROM ${schema.bookingsTable} b2
+            INNER JOIN ${schema.quotationsTable} q2 ON q2.id = b2.quotation_id
+            WHERE q2.lead_id = l.id
+              ${bookingSubDeleteClause}
+            ORDER BY COALESCE(b2.created_at, b2.travel_start_date) DESC
+            LIMIT 1
           ) AS last_booking_number
         FROM ${schema.leadsTable} l
         INNER JOIN ${schema.quotationsTable} q ON q.lead_id = l.id
         INNER JOIN ${schema.bookingsTable} b ON b.quotation_id = q.id
-        WHERE l.customer_id IN (?)
+        WHERE l.customer_id IN (${placeholders})
           ${leadSoftDeleteClause}
           ${quotationSoftDeleteClause}
           ${bookingSoftDeleteClause}
         GROUP BY l.customer_id
       `;
 
-      const result = await db.query(query, [ids]);
-      const summaryMap = new Map();
-      result.rows.forEach((row) => {
-        const customerId = String(row.customer_id || "");
-        if (!customerId) return;
-        summaryMap.set(customerId, {
-          totalBookings: Number(row.total_bookings || 0),
-          lastBookingDate: toDateOnly(row.last_booking_date),
-          lastBookingNumber: row.last_booking_number || null,
+      try {
+        const result = await db.query(query, ids);
+        const summaryMap = new Map();
+        result.rows.forEach((row) => {
+          const customerId = String(row.customer_id || "");
+          if (!customerId) return;
+          summaryMap.set(customerId, {
+            totalBookings: Number(row.total_bookings || 0),
+            lastBookingDate: toDateOnly(row.last_booking_date),
+            lastBookingNumber: row.last_booking_number || null,
+          });
         });
-      });
-      return summaryMap;
+        return summaryMap;
+      } catch (_err) {
+        // Fall through to in-memory fallback
+      }
     }
 
     const [leadRows, quotationRows, bookingRows] = await Promise.all([
@@ -257,6 +344,7 @@ function createCustomersRepository({ db, logger, schema }) {
     findById,
     create,
     update,
+    backfillFromLeads,
     findBookingSummaryByCustomerIds,
   });
 }

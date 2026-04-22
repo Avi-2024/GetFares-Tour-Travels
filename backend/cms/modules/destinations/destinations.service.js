@@ -7,8 +7,74 @@ import {
 } from "../../core/utils/index.js";
 
 function createDestinationsService({ repository }) {
+  function parseJsonValue(value, fallback) {
+    if (value === null || value === undefined) {
+      return fallback;
+    }
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return fallback;
+      }
+    }
+    return value;
+  }
+
+  function normalizeStringList(value) {
+    const parsed = parseJsonValue(value, []);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => normalizeText(item))
+      .filter((item) => Boolean(item));
+  }
+
+  function normalizeStringOrList(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => normalizeText(item))
+        .filter((item) => Boolean(item));
+    }
+
+    if (typeof value === "string") {
+      const normalizedValue = value.trim();
+      if (!normalizedValue) {
+        return [];
+      }
+
+      const parsed = parseJsonValue(normalizedValue, null);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => normalizeText(item))
+          .filter((item) => Boolean(item));
+      }
+
+      return normalizedValue
+        .split(",")
+        .map((item) => normalizeText(item))
+        .filter((item) => Boolean(item));
+    }
+
+    const normalized = normalizeText(value);
+    return normalized ? [normalized] : [];
+  }
+
+  function normalizeObjectList(value, mapper) {
+    const parsed = parseJsonValue(value, []);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item, index) => mapper(item, index))
+      .filter((item) => Boolean(item));
+  }
+
   function toDestination(row) {
     if (!row) return null;
+    const categories = normalizeStringOrList(row.categories ?? row.category);
+    const seasonFocus = normalizeStringOrList(row.season_focus ?? row.season);
     return {
       id: row.id,
       name: row.name,
@@ -17,17 +83,47 @@ function createDestinationsService({ repository }) {
       shortDescription: row.short_description,
       country: row.country,
       region: row.region,
-      category: row.category,
+      category: categories[0] || normalizeText(row.category),
+      categories,
       rating: parseFloat(row.rating) || 0,
+      titleImageUrl: row.title_image_url || row.thumbnail_url || null,
       heroImageUrl: row.hero_image_url,
       thumbnailUrl: row.thumbnail_url,
       isPopular: row.is_popular,
       isNew: row.is_new,
       travelType: row.travel_type,
-      season: row.season,
+      season: seasonFocus[0] || normalizeText(row.season),
+      seasonFocus,
+      keyHighlights: normalizeStringList(row.key_highlights),
+      services: normalizeObjectList(row.services, (item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        return {
+          title: normalizeText(item.title),
+          description: normalizeText(item.description),
+        };
+      }),
+      bestTimeToVisit: normalizeObjectList(row.best_time_to_visit, (item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        return {
+          iconName: normalizeText(item.iconName || item.icon_name),
+          color: normalizeText(item.color),
+          title: normalizeText(item.title),
+          from: normalizeText(item.from),
+          to: normalizeText(item.to),
+          description: normalizeText(item.description),
+          suggestion: normalizeText(item.suggestion),
+        };
+      }),
       metaTitle: row.meta_title,
       metaDescription: row.meta_description,
       isActive: row.is_active,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
+      gallery: [],
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -69,10 +165,46 @@ function createDestinationsService({ repository }) {
     };
   }
 
+  function toGalleryUrls(mediaRows, titleImageUrl) {
+    const titleUrl = normalizeText(titleImageUrl);
+    const urls = mediaRows
+      .sort(
+        (a, b) => toNumber(a.display_order, 0) - toNumber(b.display_order, 0),
+      )
+      .map((item) => normalizeText(item.media_url))
+      .filter((url) => Boolean(url) && url !== titleUrl);
+    return Array.from(new Set(urls)).slice(0, 4);
+  }
+
   return Object.freeze({
     async list(filters = {}) {
       const rows = await repository.findAll(filters);
-      return rows.map(toDestination);
+      const destinations = rows.map(toDestination);
+      return Promise.all(
+        destinations.map(async (destination) => {
+          const mediaRows = await repository.findMedia(destination.id);
+          const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+          return {
+            ...destination,
+            gallery,
+          };
+        }),
+      );
+    },
+
+    async listDeleted(filters = {}) {
+      const rows = await repository.findAll({ ...filters, is_deleted: true });
+      const destinations = rows.map(toDestination);
+      return Promise.all(
+        destinations.map(async (destination) => {
+          const mediaRows = await repository.findMedia(destination.id);
+          const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+          return {
+            ...destination,
+            gallery,
+          };
+        }),
+      );
     },
 
     async getById(id) {
@@ -80,7 +212,13 @@ function createDestinationsService({ repository }) {
       if (!row) {
         throw new AppError(404, "Destination not found", "NOT_FOUND");
       }
-      return toDestination(row);
+      const destination = toDestination(row);
+      const mediaRows = await repository.findMedia(destination.id);
+      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+      return {
+        ...destination,
+        gallery,
+      };
     },
 
     async getBySlug(slug) {
@@ -88,7 +226,13 @@ function createDestinationsService({ repository }) {
       if (!row) {
         throw new AppError(404, "Destination not found", "NOT_FOUND");
       }
-      return toDestination(row);
+      const destination = toDestination(row);
+      const mediaRows = await repository.findMedia(destination.id);
+      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+      return {
+        ...destination,
+        gallery,
+      };
     },
 
     async create(data) {
@@ -111,6 +255,13 @@ function createDestinationsService({ repository }) {
         );
       }
 
+      const categories = normalizeStringOrList(
+        data.categories ?? data.category,
+      );
+      const seasonFocus = normalizeStringOrList(
+        data.seasonFocus ?? data.season,
+      );
+
       const row = await repository.create({
         name: normalizeText(data.name),
         slug,
@@ -118,20 +269,42 @@ function createDestinationsService({ repository }) {
         short_description: normalizeText(data.shortDescription),
         country,
         region: normalizeText(data.region),
-        category: normalizeText(data.category),
-        rating: toNumber(data.rating, 0),
+        category: categories[0] || null,
+        categories,
+        rating: (() => {
+          const rating = toNumber(data.rating, null);
+          if (rating !== null && (rating < 0 || rating > 5)) {
+            throw new AppError(
+              400,
+              "Rating must be between 0 and 5",
+              "INVALID_RATING",
+            );
+          }
+          return rating;
+        })(),
         hero_image_url: normalizeText(data.heroImageUrl),
-        thumbnail_url: normalizeText(data.thumbnailUrl),
+        thumbnail_url: normalizeText(data.thumbnailUrl || data.titleImageUrl),
+        title_image_url: normalizeText(data.titleImageUrl || data.thumbnailUrl),
         is_popular: toBoolean(data.isPopular, false),
         is_new: toBoolean(data.isNew, false),
         travel_type: normalizeText(data.travelType),
-        season: normalizeText(data.season),
+        season: seasonFocus[0] || null,
+        season_focus: seasonFocus,
+        key_highlights:
+          Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
+        services: Array.isArray(data.services) ? data.services : [],
+        best_time_to_visit:
+          Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
         is_active: toBoolean(data.isActive, true),
       });
 
-      return toDestination(row);
+      const destination = toDestination(row);
+      return {
+        ...destination,
+        gallery: [],
+      };
     },
 
     async update(id, data) {
@@ -163,20 +336,56 @@ function createDestinationsService({ repository }) {
       }
       if (data.region !== undefined)
         updates.region = normalizeText(data.region);
-      if (data.category !== undefined)
-        updates.category = normalizeText(data.category);
-      if (data.rating !== undefined) updates.rating = toNumber(data.rating);
+      if (data.category !== undefined || data.categories !== undefined) {
+        const categories = normalizeStringOrList(
+          data.categories ?? data.category,
+        );
+        updates.category = categories[0] || null;
+        updates.categories = categories;
+      }
+      if (data.rating !== undefined) {
+        const rating = toNumber(data.rating);
+        if (rating !== null && (rating < 0 || rating > 5)) {
+          throw new AppError(
+            400,
+            "Rating must be between 0 and 5",
+            "INVALID_RATING",
+          );
+        }
+        updates.rating = rating;
+      }
       if (data.heroImageUrl !== undefined)
         updates.hero_image_url = normalizeText(data.heroImageUrl);
       if (data.thumbnailUrl !== undefined)
         updates.thumbnail_url = normalizeText(data.thumbnailUrl);
+      if (data.titleImageUrl !== undefined) {
+        updates.title_image_url = normalizeText(data.titleImageUrl);
+        updates.thumbnail_url = normalizeText(data.titleImageUrl);
+      }
       if (data.isPopular !== undefined)
         updates.is_popular = toBoolean(data.isPopular, false);
-      if (data.isNew !== undefined) updates.is_new = toBoolean(data.isNew, false);
+      if (data.isNew !== undefined)
+        updates.is_new = toBoolean(data.isNew, false);
       if (data.travelType !== undefined)
         updates.travel_type = normalizeText(data.travelType);
-      if (data.season !== undefined)
-        updates.season = normalizeText(data.season);
+      if (data.season !== undefined || data.seasonFocus !== undefined) {
+        const seasonFocus = normalizeStringOrList(
+          data.seasonFocus ?? data.season,
+        );
+        updates.season = seasonFocus[0] || null;
+        updates.season_focus = seasonFocus;
+      }
+      if (data.keyHighlights !== undefined) {
+        updates.key_highlights =
+          Array.isArray(data.keyHighlights) ? data.keyHighlights : [];
+      }
+      if (data.services !== undefined) {
+        updates.services = Array.isArray(data.services) ? data.services : [];
+      }
+      if (data.bestTimeToVisit !== undefined) {
+        updates.best_time_to_visit =
+          Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [];
+      }
       if (data.metaTitle !== undefined)
         updates.meta_title = normalizeText(data.metaTitle);
       if (data.metaDescription !== undefined)
@@ -185,7 +394,61 @@ function createDestinationsService({ repository }) {
         updates.is_active = toBoolean(data.isActive, true);
 
       const updated = await repository.update(id, updates);
-      return toDestination(updated);
+      const destination = toDestination(updated);
+      const mediaRows = await repository.findMedia(destination.id);
+      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+      return {
+        ...destination,
+        gallery,
+      };
+    },
+
+    async updateStatus(id, isActive) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      const updated = await repository.update(id, {
+        is_active: toBoolean(isActive, true),
+      });
+      const destination = toDestination(updated);
+      const mediaRows = await repository.findMedia(destination.id);
+      const gallery = toGalleryUrls(mediaRows, destination.titleImageUrl);
+      return {
+        ...destination,
+        gallery,
+      };
+    },
+
+    async delete(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      await repository.delete(id);
+      return { success: true };
+    },
+
+    async hardDelete(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      await repository.hardDelete(id);
+      return { success: true };
+    },
+
+    async restore(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Destination not found", "NOT_FOUND");
+      }
+
+      await repository.restore(id);
+      return { success: true };
     },
 
     async getMedia(destinationId) {
@@ -246,6 +509,16 @@ function createDestinationsService({ repository }) {
       }
 
       await repository.deleteMedia(mediaId);
+      return { success: true };
+    },
+
+    async hardDeleteMedia(mediaId) {
+      const existing = await repository.findMediaById(mediaId);
+      if (!existing) {
+        throw new AppError(404, "Media not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteMedia(mediaId);
       return { success: true };
     },
 
@@ -312,6 +585,16 @@ function createDestinationsService({ repository }) {
       return { success: true };
     },
 
+    async hardDeleteSeason(seasonId) {
+      const existing = await repository.findSeasonById(seasonId);
+      if (!existing) {
+        throw new AppError(404, "Season card not found", "NOT_FOUND");
+      }
+
+      await repository.hardDeleteSeason(seasonId);
+      return { success: true };
+    },
+
     async getPackages(destinationId) {
       await this.getById(destinationId);
       const rows = await repository.findPackageMaps(destinationId);
@@ -343,7 +626,7 @@ function createDestinationsService({ repository }) {
 
       if (
         String(destination.country).toLowerCase() !==
-          String(mainPackage.country).toLowerCase()
+        String(mainPackage.country).toLowerCase()
       ) {
         throw new AppError(
           400,
@@ -368,6 +651,11 @@ function createDestinationsService({ repository }) {
 
     async unmapPackage(mapId) {
       await repository.deletePackageMap(mapId);
+      return { success: true };
+    },
+
+    async hardUnmapPackage(mapId) {
+      await repository.hardDeletePackageMap(mapId);
       return { success: true };
     },
   });

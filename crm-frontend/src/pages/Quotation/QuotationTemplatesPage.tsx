@@ -13,7 +13,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import TextInput from '../../components/form/TextInput'
 import NumberInput from '../../components/form/NumberInput'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 
 type TemplateType = 'READY_PACKAGE' | 'VISA' | 'CUSTOM_ITINERARY'
 
@@ -28,6 +28,15 @@ type TemplateRow = {
   headerBranding?: string
   inclusions?: string
   exclusions?: string
+  itinerary?: Array<{
+    id?: string
+    day?: string
+    title?: string
+    description?: string
+    [key: string]: unknown
+  }>
+  hotelDetails?: string
+  visaDetails?: string
   paymentTerms?: string
   cancellationPolicy?: string
   footerDisclaimer?: string
@@ -47,11 +56,14 @@ const QuotationTemplatesPage: React.FC = () => {
     code: '',
     name: '',
     templateType: 'READY_PACKAGE' as TemplateType,
-    minMarginPercent: 0,
+    minMarginPercent: 0 as number | undefined,
     isActive: true,
     headerBranding: '',
     inclusions: '',
     exclusions: '',
+    itinerary: '' as string,
+    hotelDetails: '',
+    visaDetails: '',
     paymentTerms: '',
     cancellationPolicy: '',
     footerDisclaimer: ''
@@ -91,6 +103,9 @@ const QuotationTemplatesPage: React.FC = () => {
     headerBranding: raw?.headerBranding ?? raw?.header_branding ?? '',
     inclusions: raw?.inclusions ?? '',
     exclusions: raw?.exclusions ?? '',
+    itinerary: Array.isArray(raw?.itinerary) ? raw.itinerary : undefined,
+    hotelDetails: raw?.hotelDetails ?? raw?.hotel_details ?? '',
+    visaDetails: raw?.visaDetails ?? raw?.visa_details ?? '',
     paymentTerms: raw?.paymentTerms ?? raw?.payment_terms ?? '',
     cancellationPolicy:
       raw?.cancellationPolicy ?? raw?.cancellation_policy ?? '',
@@ -104,7 +119,7 @@ const QuotationTemplatesPage: React.FC = () => {
       const response = await quotationsApi.listTemplates()
       setRows(unwrapList(response).map(mapTemplate))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load quotation templates'))
+      reportApiError(err, 'Failed to load quotation templates', setError)
       setRows([])
     } finally {
       setLoading(false)
@@ -226,6 +241,9 @@ const QuotationTemplatesPage: React.FC = () => {
       headerBranding: '',
       inclusions: '',
       exclusions: '',
+      itinerary: '',
+      hotelDetails: '',
+      visaDetails: '',
       paymentTerms: '',
       cancellationPolicy: '',
       footerDisclaimer: ''
@@ -235,6 +253,9 @@ const QuotationTemplatesPage: React.FC = () => {
 
   const openEdit = (row: TemplateRow) => {
     setEditingId(row.id)
+    const itineraryText = Array.isArray(row.itinerary)
+      ? JSON.stringify(row.itinerary, null, 2)
+      : ''
     setForm({
       code: row.code,
       name: row.name,
@@ -244,6 +265,9 @@ const QuotationTemplatesPage: React.FC = () => {
       headerBranding: row.headerBranding || '',
       inclusions: row.inclusions || '',
       exclusions: row.exclusions || '',
+      itinerary: itineraryText,
+      hotelDetails: row.hotelDetails || '',
+      visaDetails: row.visaDetails || '',
       paymentTerms: row.paymentTerms || '',
       cancellationPolicy: row.cancellationPolicy || '',
       footerDisclaimer: row.footerDisclaimer || ''
@@ -261,15 +285,28 @@ const QuotationTemplatesPage: React.FC = () => {
     setError('')
     setNotice('')
     try {
+      const parsedItinerary = (() => {
+        const raw = form.itinerary.trim()
+        if (!raw) return undefined
+        try {
+          const parsed = JSON.parse(raw)
+          return Array.isArray(parsed) ? parsed : undefined
+        } catch {
+          return undefined
+        }
+      })()
       const payload = {
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         templateType: form.templateType,
-        minMarginPercent: Number(form.minMarginPercent || 0),
+        minMarginPercent: form.minMarginPercent ?? 0,
         isActive: form.isActive,
         headerBranding: form.headerBranding.trim() || undefined,
         inclusions: form.inclusions.trim() || undefined,
         exclusions: form.exclusions.trim() || undefined,
+        itinerary: parsedItinerary,
+        hotelDetails: form.hotelDetails.trim() || undefined,
+        visaDetails: form.visaDetails.trim() || undefined,
         paymentTerms: form.paymentTerms.trim() || undefined,
         cancellationPolicy: form.cancellationPolicy.trim() || undefined,
         footerDisclaimer: form.footerDisclaimer.trim() || undefined
@@ -286,7 +323,7 @@ const QuotationTemplatesPage: React.FC = () => {
       setShowForm(false)
       await loadTemplates()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to save template'))
+      reportApiError(err, 'Failed to save template', setError)
     } finally {
       setSaving(false)
     }
@@ -321,13 +358,7 @@ const QuotationTemplatesPage: React.FC = () => {
         </div>
       </div>
 
-      <SurfaceCard className='p-4 border border-blue-200 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-900/20'>
-        <p className='text-sm text-blue-800 dark:text-blue-200'>
-          How Template Works: Create/update template here, select it in
-          Quotation Builder, then save quote with `templateId`. A template
-          snapshot is stored on each quotation for audit-safe rendering.
-        </p>
-      </SurfaceCard>
+     
 
       {notice ? (
         <div className='rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200'>
@@ -430,15 +461,13 @@ const QuotationTemplatesPage: React.FC = () => {
             </div>
             <NumberInput
               label='Min Margin %'
-              value={form.minMarginPercent}
+              value={form.minMarginPercent ?? ''}
               onChange={value =>
                 setForm(current => ({
                   ...current,
-                  minMarginPercent: Number(value || 0)
+                  minMarginPercent: value === '' ? undefined : Number(value)
                 }))
               }
-              min={0}
-              step={1}
             />
             <div className='md:col-span-2'>
               <label className='field-label'>Header Branding</label>
@@ -483,6 +512,51 @@ const QuotationTemplatesPage: React.FC = () => {
                   }))
                 }
                 placeholder='Excluded services and terms'
+              />
+            </div>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Itinerary Items (JSON)</label>
+              <textarea
+                rows={6}
+                className='field-input font-mono text-xs'
+                value={form.itinerary}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    itinerary: event.target.value
+                  }))
+                }
+                placeholder='[{ "day": "Day 1", "title": "...", "description": "..." }]'
+              />
+            </div>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Hotel Details</label>
+              <textarea
+                rows={3}
+                className='field-input'
+                value={form.hotelDetails}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    hotelDetails: event.target.value
+                  }))
+                }
+                placeholder='Hotel details text'
+              />
+            </div>
+            <div className='md:col-span-2'>
+              <label className='field-label'>Visa Details</label>
+              <textarea
+                rows={3}
+                className='field-input'
+                value={form.visaDetails}
+                onChange={event =>
+                  setForm(current => ({
+                    ...current,
+                    visaDetails: event.target.value
+                  }))
+                }
+                placeholder='Visa details text'
               />
             </div>
             <div className='md:col-span-2'>

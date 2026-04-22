@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const packageStatus = z.enum(["DRAFT", "ACTIVE", "EXPIRED", "SOLD_OUT"]);
 const packageCategory = z.enum([
@@ -120,8 +121,8 @@ const list = z.object({
       status: packageStatus.optional(),
       destination: z.string().optional(),
       packageCategory: packageCategory.optional(),
-      publishToWebsite: z.coerce.boolean().optional(),
-      isSoldOut: z.coerce.boolean().optional(),
+      publishToWebsite: optionalQueryBoolean,
+      isSoldOut: optionalQueryBoolean,
       search: z.string().max(120).optional(),
     })
     .optional(),
@@ -164,8 +165,50 @@ const PackagesValidation = {
   byId,
   list,
   publish,
+  delete: byId,
+  restore: byId,
+  hardDelete: byId,
   createEnquiry,
   listEnquiries,
+
+  // CMS-like main/sub endpoints (keep permissive; CMS service validates deeper)
+  mainList: z.object({
+    body: z.object({}).optional(),
+    params: z.object({}).optional(),
+    query: z.record(z.any()).optional(),
+  }),
+  mainById: byId,
+  mainCreate: z.object({
+    body: z.record(z.any()),
+    params: z.object({}).optional(),
+    query: z.record(z.any()).optional(),
+  }),
+  mainUpdate: z.object({
+    body: z.record(z.any()),
+    params: z.object({ id: z.string().uuid() }),
+    query: z.record(z.any()).optional(),
+  }),
+  mainRestore: byId,
+  mainHardDelete: byId,
+
+  subList: z.object({
+    body: z.object({}).optional(),
+    params: z.object({ mainPackageId: z.string().uuid() }),
+    query: z.record(z.any()).optional(),
+  }),
+  subById: byId,
+  subCreate: z.object({
+    body: z.record(z.any()),
+    params: z.object({}).optional(),
+    query: z.record(z.any()).optional(),
+  }),
+  subUpdate: z.object({
+    body: z.record(z.any()),
+    params: z.object({ id: z.string().uuid() }),
+    query: z.record(z.any()).optional(),
+  }),
+  subRestore: byId,
+  subHardDelete: byId,
 };
 
 export { PackagesValidation };

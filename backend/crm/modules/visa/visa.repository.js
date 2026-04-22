@@ -3,7 +3,10 @@ function createVisaRepository({ db, logger, schema }) {
   const columnsCache = new Map();
 
   function canIntrospect() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
+    );
   }
 
   function toBoolean(value, fallback = false) {
@@ -94,10 +97,15 @@ function createVisaRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      result.rows
+        .map((row) => row.column_name ?? row.COLUMN_NAME ?? null)
+        .filter(Boolean)
+        .map((column) => String(column).toLowerCase()),
+    );
     columnsCache.set(tableName, columns);
     return columns;
   }
@@ -115,7 +123,9 @@ function createVisaRepository({ db, logger, schema }) {
       return Object.fromEntries(entries);
     }
 
-    return Object.fromEntries(entries.filter(([key]) => columns.has(key)));
+    return Object.fromEntries(
+      entries.filter(([key]) => columns.has(String(key).toLowerCase())),
+    );
   }
 
   function toVisaCase(row) {
@@ -414,11 +424,11 @@ function createVisaRepository({ db, logger, schema }) {
 
       if (filters.from) {
         params.push(filters.from);
-        where.push(`vc.created_at >= $${params.length}`);
+        where.push(`vc.created_at >= ?`);
       }
       if (filters.to) {
         params.push(filters.to);
-        where.push(`vc.created_at <= $${params.length}`);
+        where.push(`vc.created_at <= ?`);
       }
 
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -435,14 +445,14 @@ function createVisaRepository({ db, logger, schema }) {
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'BIOMETRICS_SCHEDULED' THEN 1 ELSE 0 END) AS biometrics_scheduled,
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'UNDER_PROCESS' THEN 1 ELSE 0 END) AS under_process,
           SUM(CASE WHEN COALESCE(vc.workflow_stage, 'DOCUMENT_COLLECTION') = 'DELIVERED' THEN 1 ELSE 0 END) AS delivered,
-          SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' THEN 1 ELSE 0 END) AS expiring_soon_count,
+          SUM(CASE WHEN vc.visa_valid_until IS NOT NULL AND vc.visa_valid_until BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) THEN 1 ELSE 0 END) AS expiring_soon_count,
           AVG(
             CASE
               WHEN vc.submission_date IS NOT NULL AND vc.visa_valid_until IS NOT NULL
               THEN (vc.visa_valid_until - vc.submission_date)
               ELSE NULL
             END
-          )::numeric(10,2) AS avg_processing_days
+          ) AS avg_processing_days
         FROM ${schema.tableName} vc
         ${whereSql}
       `;
@@ -501,4 +511,3 @@ function createVisaRepository({ db, logger, schema }) {
 }
 
 export { createVisaRepository };
-

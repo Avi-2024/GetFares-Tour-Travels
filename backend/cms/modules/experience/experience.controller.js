@@ -1,4 +1,5 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import { getFirstRequestFile } from "../../core/uploads/request-files.util.js";
 
 function createExperienceController({ service, uploadService }) {
   return Object.freeze({
@@ -16,8 +17,27 @@ function createExperienceController({ service, uploadService }) {
       if (req.query.campaignType) {
         filters.campaign_type = req.query.campaignType;
       }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const rows = await service.listFeaturedPicks(filters);
+      res.json({ success: true, data: rows });
+    }),
+
+    listDeletedFeaturedPicks: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      if (req.query.sectionKey) {
+        filters.section_key = req.query.sectionKey;
+      }
+      if (req.query.campaignType) {
+        filters.campaign_type = req.query.campaignType;
+      }
+
+      const rows = await service.listDeletedFeaturedPicks(filters);
       res.json({ success: true, data: rows });
     }),
 
@@ -31,9 +51,14 @@ function createExperienceController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/featured-picks/banner",
           allowVideo: false,
           required: false,
@@ -49,9 +74,14 @@ function createExperienceController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/featured-picks/banner",
           allowVideo: false,
           required: false,
@@ -62,8 +92,26 @@ function createExperienceController({ service, uploadService }) {
       res.json({ success: true, data: row });
     }),
 
+    updateFeaturedPickStatus: asyncHandler(async (req, res) => {
+      const row = await service.updateFeaturedPickStatus(
+        req.params.id,
+        req.body?.isActive,
+      );
+      res.json({ success: true, data: row });
+    }),
+
     deleteFeaturedPick: asyncHandler(async (req, res) => {
       const result = await service.deleteFeaturedPick(req.params.id);
+      res.json(result);
+    }),
+
+    hardDeleteFeaturedPick: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteFeaturedPick(req.params.id);
+      res.json(result);
+    }),
+
+    restoreFeaturedPick: asyncHandler(async (req, res) => {
+      const result = await service.restoreFeaturedPick(req.params.id);
       res.json(result);
     }),
 
@@ -78,7 +126,22 @@ function createExperienceController({ service, uploadService }) {
       if (req.query.isActive !== undefined) {
         filters.isActive = req.query.isActive === "true";
       }
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
       const rows = await service.listSeasonCards(filters);
+      res.json({ success: true, data: rows });
+    }),
+
+    listDeletedSeasonCards: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) {
+        filters.country = req.query.country;
+      }
+      if (req.query.destinationId) {
+        filters.destinationId = req.query.destinationId;
+      }
+      const rows = await service.listDeletedSeasonCards(filters);
       res.json({ success: true, data: rows });
     }),
 
@@ -89,9 +152,14 @@ function createExperienceController({ service, uploadService }) {
 
     createSeasonCard: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/season-cards/banner",
           allowVideo: false,
           required: false,
@@ -104,9 +172,14 @@ function createExperienceController({ service, uploadService }) {
 
     updateSeasonCard: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/season-cards/banner",
           allowVideo: false,
           required: false,
@@ -117,8 +190,26 @@ function createExperienceController({ service, uploadService }) {
       res.json({ success: true, data: row });
     }),
 
+    updateSeasonCardStatus: asyncHandler(async (req, res) => {
+      const row = await service.updateSeasonCardStatus(
+        req.params.id,
+        req.body?.isActive,
+      );
+      res.json({ success: true, data: row });
+    }),
+
     deleteSeasonCard: asyncHandler(async (req, res) => {
       const result = await service.deleteSeasonCard(req.params.id);
+      res.json(result);
+    }),
+
+    hardDeleteSeasonCard: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteSeasonCard(req.params.id);
+      res.json(result);
+    }),
+
+    restoreSeasonCard: asyncHandler(async (req, res) => {
+      const result = await service.restoreSeasonCard(req.params.id);
       res.json(result);
     }),
 
@@ -140,9 +231,15 @@ function createExperienceController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (req.file) {
+      const imageFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "backgroundImage",
+        "image",
+        "file",
+      ]);
+      if (imageFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: imageFile,
           prefix: "cms/hero-sections/banner",
           allowVideo: false,
           required: false,

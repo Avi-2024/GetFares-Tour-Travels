@@ -2,8 +2,17 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaPlus, FaUser, FaXmark } from "react-icons/fa6";
 import { complaintsApi } from "../../api/complaints";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { bookingsApi } from "../../api/bookings";
+import { quotationsApi } from "../../api/quotations";
+import { reportApiError } from "../../lib/notify";
 import { useUsersService } from "../../hooks/useUsersService";
+import { useLeadsService } from "../../hooks/useLeadsService";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value?: string | null) =>
+  UUID_PATTERN.test(String(value || "").trim());
 
 interface Complaint {
   id: string;
@@ -11,19 +20,16 @@ interface Complaint {
   assignedTo: string | null;
   issueType: string;
   description: string;
-  status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
   createdAt: string;
   updatedAt: string;
-  priority?: "HIGH" | "MEDIUM" | "LOW";
 }
 
 interface Activity {
   id: string;
   note: string;
   userId: string;
-  userName: string;
   createdAt: string;
-  type: string;
 }
 
 type AssignableUser = {
@@ -33,10 +39,32 @@ type AssignableUser = {
   isActive?: boolean;
 };
 
+type BookingRecord = {
+  id?: string;
+  bookingNumber?: string;
+  quotationId?: string;
+  quotation_id?: string;
+};
+
+type QuotationRecord = {
+  id?: string;
+  leadId?: string;
+  lead_id?: string;
+};
+
+type LeadRecord = {
+  id?: string;
+  fullName?: string;
+  customerName?: string;
+  name?: string;
+  email?: string;
+};
+
 const ComplaintDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const usersService = useUsersService();
+  const leadsService = useLeadsService();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -47,38 +75,21 @@ const ComplaintDetailPage: React.FC = () => {
   const [loadingAssignees, setLoadingAssignees] = useState(false);
   const [assigneeUsers, setAssigneeUsers] = useState<AssignableUser[]>([]);
   const [selectedAssignee, setSelectedAssignee] = useState("");
+  const [customerName, setCustomerName] = useState<string>("");
+  const [bookingNumber, setBookingNumber] = useState<string>("");
 
   const [complaint, setComplaint] = useState<Complaint>({
-    id: id || "CMP-001",
-    bookingId: "BK-2034",
-    assignedTo: "",
-    issueType: "Hotel Downgrade",
-    description:
-      "Client reported mismatch in room type. Booked Deluxe Suite but received Standard Room at check-in.",
-    status: "IN_PROGRESS",
-    createdAt: "2024-01-15T10:30:00Z",
-    updatedAt: "2024-01-15T14:20:00Z",
-    priority: "HIGH",
+    id: id || "",
+    bookingId: null,
+    assignedTo: null,
+    issueType: "",
+    description: "",
+    status: "OPEN",
+    createdAt: "",
+    updatedAt: "",
   });
 
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: "act-1",
-      note: "Complaint created and assigned to support queue.",
-      userId: "user-1",
-      userName: "System",
-      createdAt: "2024-01-15T10:30:00Z",
-      type: "NOTE",
-    },
-    {
-      id: "act-2",
-      note: "Assigned to Alex Thompson (Operations Team)",
-      userId: "user-2",
-      userName: "Manager",
-      createdAt: "2024-01-15T11:15:00Z",
-      type: "ASSIGNMENT",
-    },
-  ]);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   const getUserLabel = (userId: string | null | undefined) => {
     if (!userId) return "Unassigned";
@@ -109,8 +120,55 @@ const ComplaintDetailPage: React.FC = () => {
   }, [usersService]);
 
   useEffect(() => {
+    const loadBookingCustomer = async () => {
+      const bookingId = complaint.bookingId;
+      if (!bookingId || !isUuid(bookingId)) {
+        setCustomerName("");
+        setBookingNumber("");
+        return;
+      }
+      if (!localStorage.getItem("auth_token")) return;
+
+      try {
+        const bookingRes: any = await bookingsApi.getById(bookingId);
+        const bookingPayload: BookingRecord = bookingRes?.data || bookingRes;
+        const quoteId = bookingPayload?.quotationId || bookingPayload?.quotation_id;
+        setBookingNumber(bookingPayload?.bookingNumber || "");
+
+        if (!quoteId) {
+          setCustomerName("");
+          return;
+        }
+
+        const quotationRes: any = await quotationsApi.getById(String(quoteId));
+        const quotationPayload: QuotationRecord =
+          quotationRes?.data || quotationRes;
+        const leadId = quotationPayload?.leadId || quotationPayload?.lead_id;
+        if (!leadId) {
+          setCustomerName("");
+          return;
+        }
+
+        const leadRes: any = await leadsService.getLeadById(String(leadId));
+        const leadPayload: LeadRecord = leadRes?.data || leadRes;
+        const name =
+          leadPayload?.fullName ||
+          leadPayload?.customerName ||
+          leadPayload?.name ||
+          leadPayload?.email ||
+          "";
+        setCustomerName(name);
+      } catch (err) {
+        console.error("Failed to load booking customer for complaint:", err);
+      }
+    };
+
+    void loadBookingCustomer();
+  }, [complaint.bookingId, leadsService]);
+
+  useEffect(() => {
     const loadComplaintData = async () => {
-      if (!id) return;
+      if (!id || !isUuid(id)) return;
 
       try {
         setLoading(true);
@@ -153,10 +211,7 @@ const ComplaintDetailPage: React.FC = () => {
         }
       } catch (error) {
         console.error("Failed to load complaint data:", error);
-        setError(
-          getApiErrorMessage(error, "Failed to load complaint data. Using default data."),
-        );
-        // Keep the seed data that's already set in state
+        reportApiError(error, "Failed to load complaint data.", setError);
       } finally {
         setLoading(false);
       }
@@ -177,8 +232,6 @@ const ComplaintDetailPage: React.FC = () => {
         return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900";
       case "RESOLVED":
         return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900";
-      case "CLOSED":
-        return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
     }
@@ -198,18 +251,12 @@ const ComplaintDetailPage: React.FC = () => {
   };
 
   const handleStatusChange = async (
-    newStatus: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED",
+    newStatus: "OPEN" | "IN_PROGRESS" | "RESOLVED",
   ) => {
-    let reason = "";
-    if (newStatus === "CLOSED" || newStatus === "RESOLVED") {
-      reason =
-        window.prompt(`Please provide a reason for marking as ${newStatus}:`) ||
-        "";
-      if (!reason.trim()) {
-        setError("Reason is required for this status change");
-        return;
-      }
-    }
+    const reason =
+      newStatus === "RESOLVED"
+        ? window.prompt(`Reason (optional) for ${newStatus}?`) || ""
+        : "";
 
     try {
       await complaintsApi.changeStatus(id!, newStatus, reason);
@@ -220,19 +267,19 @@ const ComplaintDetailPage: React.FC = () => {
         updatedAt: new Date().toISOString(),
       }));
 
-      const newActivity: Activity = {
-        id: `act-${Date.now()}`,
-        note: `Status changed to ${newStatus}${reason ? `: ${reason}` : ""}`,
-        userId: "current-user",
-        userName: "Current User",
-        createdAt: new Date().toISOString(),
-        type: "STATUS_CHANGE",
-      };
-      setActivities((prev) => [newActivity, ...prev]);
+      setActivities((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          note: `Status changed to ${newStatus}${reason ? `: ${reason}` : ""}`,
+          userId: "system",
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
       setError("");
     } catch (error) {
       console.error("Failed to update status:", error);
-      setError(getApiErrorMessage(error, "Failed to update complaint status"));
+      reportApiError(error, "Failed to update complaint status", setError);
     }
   };
 
@@ -245,16 +292,13 @@ const ComplaintDetailPage: React.FC = () => {
     try {
       await complaintsApi.addActivity(id!, {
         note: newNote,
-        type: "NOTE",
       });
 
       const activity: Activity = {
         id: `act-${Date.now()}`,
         note: newNote,
         userId: "current-user",
-        userName: "Current User",
         createdAt: new Date().toISOString(),
-        type: "NOTE",
       };
 
       setActivities((prev) => [activity, ...prev]);
@@ -266,7 +310,7 @@ const ComplaintDetailPage: React.FC = () => {
       }));
     } catch (error) {
       console.error("Failed to add note:", error);
-      setError(getApiErrorMessage(error, "Failed to add note"));
+      reportApiError(error, "Failed to add note", setError);
     }
   };
 
@@ -300,7 +344,7 @@ const ComplaintDetailPage: React.FC = () => {
       setError("");
     } catch (error) {
       console.error("Failed to assign complaint:", error);
-      setError(getApiErrorMessage(error, "Failed to assign complaint"));
+      reportApiError(error, "Failed to assign complaint", setError);
     } finally {
       setAssignmentLoading(false);
     }
@@ -328,7 +372,7 @@ const ComplaintDetailPage: React.FC = () => {
       setError("");
     } catch (error) {
       console.error("Failed to escalate complaint:", error);
-      setError(getApiErrorMessage(error, "Failed to escalate complaint"));
+      reportApiError(error, "Failed to escalate complaint", setError);
     }
   };
 
@@ -340,14 +384,13 @@ const ComplaintDetailPage: React.FC = () => {
         issueType: complaint.issueType,
         description: complaint.description,
         status: complaint.status,
-        priority: complaint.priority,
       });
 
       setIsEditing(false);
       setError("");
     } catch (error) {
       console.error("Failed to update complaint:", error);
-      setError(getApiErrorMessage(error, "Failed to update complaint"));
+      reportApiError(error, "Failed to update complaint", setError);
     }
   };
 
@@ -404,6 +447,17 @@ const ComplaintDetailPage: React.FC = () => {
                 </span>
               )}
             </div>
+            {customerName ? (
+              <div className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                {customerName}
+                {bookingNumber ? (
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {" "}
+                    • {bookingNumber}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1.5">
               <span>Created {formatDate(complaint.createdAt)}</span>
               <span>Updated {formatDate(complaint.updatedAt)}</span>
@@ -558,7 +612,6 @@ const ComplaintDetailPage: React.FC = () => {
                         <option value="OPEN">OPEN</option>
                         <option value="IN_PROGRESS">IN_PROGRESS</option>
                         <option value="RESOLVED">RESOLVED</option>
-                        <option value="CLOSED">CLOSED</option>
                       </select>
                     ) : (
                       <span
@@ -616,10 +669,7 @@ const ComplaintDetailPage: React.FC = () => {
                       <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-lg p-3">
                         <div className="flex justify-between items-start mb-1">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {activity.userName}
-                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                              • {activity.type.replace("_", " ")}
-                            </span>
+                            {activity.userId || "System"}
                           </p>
                           <p className="text-xs text-gray-400 dark:text-gray-500">
                             {formatDate(activity.createdAt)}
@@ -716,18 +766,6 @@ const ComplaintDetailPage: React.FC = () => {
                   Mark as RESOLVED
                 </button>
 
-                <button
-                  onClick={() => handleStatusChange("CLOSED")}
-                  disabled={complaint.status === "CLOSED"}
-                  className={`w-full py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                    complaint.status === "CLOSED"
-                      ? "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 cursor-default"
-                      : "bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600"
-                  }`}
-                >
-                  Mark as CLOSED
-                </button>
-
                 <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mt-3">
                   <select
                     value={selectedAssignee}
@@ -772,6 +810,16 @@ const ComplaintDetailPage: React.FC = () => {
                 </h3>
               </div>
               <div className="p-5">
+                {customerName ? (
+                  <>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      Customer Name
+                    </p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
+                      {customerName}
+                    </p>
+                  </>
+                ) : null}
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                   Booking ID
                 </p>

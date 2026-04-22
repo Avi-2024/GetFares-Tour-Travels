@@ -164,7 +164,7 @@ function normalizeItineraryItems(items) {
     hotel_details: normalizeText(content.hotelDetails),
     visa_details: normalizeText(content.visaDetails),
     payment_terms: normalizeText(content.paymentTerms),
-      cancellation_policy: normalizeText(content.cancellationPolicy),
+    cancellation_policy: normalizeText(content.cancellationPolicy),
     };
   }
 
@@ -204,7 +204,7 @@ function buildQuoteNumber() {
   return `QT-${stamp}-${randomPart}`;
 }
 
-function createQuotationsService({ repository, logger, events, s3, mailService }) {
+function createQuotationsService({ repository, logger, events, config, s3, mailService }) {
   function assertAuthenticatedUser(user) {
     if (!user?.id) {
       throw new AppError(401, "Authentication required", "AUTH_REQUIRED");
@@ -881,6 +881,10 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
       .slice(0, 100);
     const fileName = `${fileSafeQuoteNumber}.pdf`;
 
+    const azureConfigured = Boolean(
+      config?.azureBlob?.connectionString && config?.azureBlob?.containerName,
+    );
+
     if (s3?.uploadBuffer) {
       try {
         const upload = await s3.uploadBuffer({
@@ -892,7 +896,17 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
         if (upload?.url) {
           return upload.url;
         }
+        if (azureConfigured) {
+          throw new AppError(
+            500,
+            "Blob upload returned no URL",
+            "BLOB_UPLOAD_NO_URL",
+          );
+        }
       } catch (error) {
+        if (azureConfigured) {
+          throw error;
+        }
         logger.warn(
           { err: error, quotationId: quotation.id },
           "S3 upload failed for quotation PDF. Falling back to local uploads",
@@ -1294,6 +1308,42 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
     return quotation;
   }
 
+  async function uploadPdf(id, payload = {}, context = {}) {
+    assertAuthenticatedUser(context.user);
+    const buffer = payload?.buffer;
+    if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+      throw new AppError(400, "PDF file is required", "QUOTATION_PDF_REQUIRED");
+    }
+
+    const quotation = await getById(id, context, {
+      includeItems: true,
+      includeRelations: true,
+    });
+
+    const pdfUrl = await storeGeneratedPdf({
+      quotation,
+      pdfBuffer: buffer,
+      context,
+    });
+
+    const updated = await repository.update(id, {
+      pdf_url: pdfUrl,
+      pdf_generated_at: new Date().toISOString(),
+      pdf_generated_by: context.user.id,
+      updated_at: new Date().toISOString(),
+    });
+
+    const next = {
+      ...quotation,
+      pdfUrl: updated.pdfUrl,
+      pdfGeneratedAt: updated.pdfGeneratedAt,
+      pdfGeneratedBy: updated.pdfGeneratedBy,
+    };
+
+    events.emitPdfGenerated({ id: updated.id, pdfUrl: updated.pdfUrl });
+    return next;
+  }
+
   async function send(id, payload = {}, context = {}) {
     assertAuthenticatedUser(context.user);
 
@@ -1544,6 +1594,7 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
     create,
     update,
     generatePdf,
+    uploadPdf,
     send,
     trackView,
 
@@ -1591,23 +1642,31 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
         );
       }
 
-      if (
-        ![
-          QUOTATION_STATUS.DRAFT,
-          QUOTATION_STATUS.SENT,
-          QUOTATION_STATUS.VIEWED,
-        ].includes(quotation.status)
-      ) {
+      const currentStatus = String(quotation.status ?? "")
+        .trim()
+        .toUpperCase();
+      const allowedFrom = new Set([
+        QUOTATION_STATUS.DRAFT,
+        QUOTATION_STATUS.PENDING,
+        QUOTATION_STATUS.SENT,
+        QUOTATION_STATUS.VIEWED,
+      ]);
+      if (!allowedFrom.has(currentStatus)) {
         throw new AppError(
           409,
-          "Invalid status transition",
+          `Invalid status transition (current: ${currentStatus || "unknown"})`,
           "QUOTATION_INVALID_STATUS_TRANSITION",
         );
       }
 
+      const sentOrViewed = new Set([
+        QUOTATION_STATUS.SENT,
+        QUOTATION_STATUS.VIEWED,
+      ]);
       if (
         payload.status === QUOTATION_STATUS.APPROVED &&
-        quotation.requiresApproval
+        quotation.requiresApproval &&
+        !sentOrViewed.has(currentStatus)
       ) {
         throw new AppError(
           409,
@@ -1760,6 +1819,9 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
         header_branding: payload.headerBranding || null,
         inclusions: payload.inclusions || null,
         exclusions: payload.exclusions || null,
+        itinerary: Array.isArray(payload.itinerary) ? payload.itinerary : null,
+        hotel_details: payload.hotelDetails || null,
+        visa_details: payload.visaDetails || null,
         payment_terms: payload.paymentTerms || null,
         cancellation_policy: payload.cancellationPolicy || null,
         footer_disclaimer: payload.footerDisclaimer || null,
@@ -1801,6 +1863,9 @@ function createQuotationsService({ repository, logger, events, s3, mailService }
         header_branding: payload.headerBranding,
         inclusions: payload.inclusions,
         exclusions: payload.exclusions,
+        itinerary: Array.isArray(payload.itinerary) ? payload.itinerary : undefined,
+        hotel_details: payload.hotelDetails,
+        visa_details: payload.visaDetails,
         payment_terms: payload.paymentTerms,
         cancellation_policy: payload.cancellationPolicy,
         footer_disclaimer: payload.footerDisclaimer,

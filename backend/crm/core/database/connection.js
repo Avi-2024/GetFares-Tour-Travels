@@ -1,12 +1,6 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { Pool as PostgresPool } from "pg";
 import mysql from "mysql2/promise";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { MssqlDatabase } from "./mssql-database.js";
 
 const RESERVED_FILTER_KEYS = new Set([
   "page",
@@ -34,6 +28,20 @@ function toNonNegativeInt(value) {
   return parsed;
 }
 
+function toBoundedInt(value, { min, max, fallback }) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    return fallback;
+  }
+  if (parsed < min) {
+    return min;
+  }
+  if (parsed > max) {
+    return max;
+  }
+  return parsed;
+}
+
 function normalizeFilters(filters = {}) {
   return Object.entries(filters).filter(([key, value]) => {
     if (RESERVED_FILTER_KEYS.has(key)) {
@@ -44,16 +52,79 @@ function normalizeFilters(filters = {}) {
   });
 }
 
-function quoteIdentifier(identifier, dialect = "postgres") {
+function toMysqlUtcDateTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
+    date.getUTCDate(),
+  )} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(
+    date.getUTCSeconds(),
+  )}`;
+}
+
+function maybeNormalizeIsoDateTimeString(value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+  const trimmed = value.trim();
+  // Fixed wall-clock storage (client_created_at, followup_local_at, etc.): digits only, no UTC rewrite.
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  // datetime-local sends "YYYY-MM-DDTHH:mm" with NO seconds — old regex required :ss and skipped these.
+  // Passing that through raw let MySQL/TIMESTAMP mis-parse. Normalize any date+time string via Date.
+  if (!/^\d{4}-\d{2}-\d{2}([T ]\d)/.test(trimmed)) {
+    return value;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  const normalized = toMysqlUtcDateTime(parsed);
+  return normalized || value;
+}
+
+// Plain objects must become JSON strings for MySQL JSON columns (pg/jsonb passed objects through).
+function bindValueForMysql(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (value instanceof Date) {
+    return toMysqlUtcDateTime(value);
+  }
+  if (typeof value === "string") {
+    return maybeNormalizeIsoDateTimeString(value);
+  }
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
+    return value;
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return value;
+}
+
+// MySQL uses backtick quoting for identifiers
+function quoteIdentifier(identifier) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
     throw new Error(`Unsafe SQL identifier: ${identifier}`);
   }
 
-  if (dialect === "mysql") {
-    return `\`${identifier}\``;
-  }
+  return `\`${identifier}\``;
+}
 
-  return `"${identifier}"`;
+function wrapDuplicateKeyError(error) {
+  if (error && (error.code === "ER_DUP_ENTRY" || error.errno === 1062)) {
+    const wrapped = new Error(error.message);
+    wrapped.code = "23505";
+    wrapped.errno = error.errno;
+    wrapped.sqlMessage = error.sqlMessage;
+    return wrapped;
+  }
+  return error;
 }
 
 function runWithTimeout(task, timeoutMs, timeoutMessage) {
@@ -86,18 +157,11 @@ function normalizeRawSql(sql) {
     .replace(/;+\s*$/, "");
 }
 
-function stripPostgresTypeCasts(sql) {
-  return sql.replace(
-    /::\s*[A-Za-z_][A-Za-z0-9_]*(?:\s*\([^)]*\))?/g,
-    "",
-  );
+function convertQuotedIdentifiersToMySql(sql) {
+  return sql.replace(/"([A-Za-z_][A-Za-z0-9_]*)"/g, (_match, identifier) => `\`${identifier}\``);
 }
 
-function convertPostgresQuotesToMySql(sql) {
-  return sql.replace(/"([A-Za-z_][A-Za-z0-9_]*)"/g, "`$1`");
-}
-
-function normalizePostgresIntervalLiterals(sql) {
+function normalizeIntervalLiterals(sql) {
   return String(sql || "").replace(
     /\bINTERVAL\s*'(-?\d+)\s*(microsecond|microseconds|second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)'\b/gi,
     (_match, amount, rawUnit) => {
@@ -117,96 +181,31 @@ function normalizeTableSchemaPublic(sql) {
   );
 }
 
-function normalizePostgresOnConflict(sql) {
-  let normalized = String(sql || "");
-
-  if (/\bON\s+CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING\b/i.test(normalized)) {
-    normalized = normalized.replace(
-      /^\s*INSERT\s+INTO\b/i,
-      (match) => match.replace(/\bINSERT\s+INTO\b/i, "INSERT IGNORE INTO"),
-    );
-    normalized = normalized.replace(
-      /\s+ON\s+CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING\b/gi,
-      "",
-    );
-  }
-
-  normalized = normalized.replace(
-    /\bON\s+CONFLICT\s*\([^)]+\)\s*DO\s+UPDATE\s+SET\s+([\s\S]+?)(?=\s+RETURNING\b|$)/gi,
-    (_match, setClause = "") => {
-      const rewritten = String(setClause).replace(
-        /\bEXCLUDED\.([A-Za-z_][A-Za-z0-9_]*)\b/gi,
-        "VALUES($1)",
-      );
-      return `ON DUPLICATE KEY UPDATE ${rewritten}`;
-    },
-  );
-
-  return normalized;
+/** PostgreSQL-only; MySQL uses LIKE (often with LOWER() for case-insensitivity). */
+function replaceIlikeWithLike(sql) {
+  return String(sql || "").replace(/\bILIKE\b/gi, "LIKE");
 }
 
-function extractParamIndexes(sqlFragment = "") {
-  const indexes = [];
-  sqlFragment.replace(/\$([0-9]+)/g, (_, idx) => {
-    indexes.push(Number(idx));
-    return "";
-  });
-  return indexes;
-}
-
-function pickParamsByIndexes(params = [], indexes = []) {
-  return indexes.map((idx) => params[idx - 1]);
-}
-
-function replacePostgresPlaceholders(sql, params = []) {
-  const orderedParams = [];
-  const replacedSql = String(sql || "").replace(/\$([0-9]+)/g, (_, rawIndex) => {
-    const index = Number(rawIndex) - 1;
-    orderedParams.push(params[index]);
-    return "?";
-  });
-
-  if (!orderedParams.length) {
-    return { sql: replacedSql, params };
-  }
-
-  return { sql: replacedSql, params: orderedParams };
-}
-
-function normalizePostgresSqlForMySql(sql, params = []) {
+function normalizeSqlForMySql(sql, params = []) {
   let normalizedSql = String(sql || "");
-  normalizedSql = stripPostgresTypeCasts(normalizedSql);
-  normalizedSql = convertPostgresQuotesToMySql(normalizedSql);
-  normalizedSql = normalizePostgresIntervalLiterals(normalizedSql);
+  normalizedSql = convertQuotedIdentifiersToMySql(normalizedSql);
+  normalizedSql = normalizeIntervalLiterals(normalizedSql);
   normalizedSql = normalizeTableSchemaPublic(normalizedSql);
-  normalizedSql = normalizePostgresOnConflict(normalizedSql);
-  normalizedSql = normalizedSql.replace(/\bILIKE\b/gi, "LIKE");
-  normalizedSql = normalizedSql.replace(
-    /=\s*ANY\(\s*\$([0-9]+)\s*\)/gi,
-    "IN ($1)",
-  );
-
-  const placeholderNormalized = replacePostgresPlaceholders(normalizedSql, params);
-  const sqlWithAny = placeholderNormalized.sql.replace(
-    /=\s*ANY\(\s*\?\s*\)/gi,
-    "IN (?)",
-  );
+  normalizedSql = replaceIlikeWithLike(normalizedSql);
 
   return {
-    sql: sqlWithAny,
-    params: placeholderNormalized.params,
+    sql: normalizedSql,
+    params,
   };
 }
 
 function hasUnsupportedMySqlConstruct(sql = "") {
   const checks = [
-    /\bDATE_TRUNC\s*\(/i,
     /\bFILTER\s*\(/i,
-    /\bjsonb_[a-z_]+\s*\(/i,
-    /'[^']*'::jsonb/i,
     /\-\>\>?/i,
-    /\bpg_try_advisory_lock\s*\(/i,
-    /\bpg_advisory_unlock\s*\(/i,
+    /\bRETURNING\b/i,
+    /\bANY\s*\(\s*\?/i,
+    /\bDISTINCT\s+ON\b/i,
   ];
 
   return checks.some((pattern) => pattern.test(sql));
@@ -227,16 +226,17 @@ class InMemoryDatabase {
 
   async insert(tableName, payload) {
     const table = this.getTable(tableName);
-    const nowIso = new Date().toISOString();
-    const createdAt = payload.created_at || payload.createdAt || nowIso;
+    const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+    const istDate = new Date(now).toISOString();
+    const createdAt = payload.created_at || payload.createdAt || istDate;
 
     const row = {
       ...payload,
       id: payload.id || randomUUID(),
       created_at: createdAt,
       createdAt,
-      updated_at: nowIso,
-      updatedAt: nowIso,
+      updated_at: istDate,
+      updatedAt: istDate,
     };
 
     table.set(row.id, row);
@@ -294,13 +294,14 @@ class InMemoryDatabase {
       return null;
     }
 
-    const nowIso = new Date().toISOString();
+    const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+    const istDate = new Date(now).toISOString();
     const updated = {
       ...existing,
       ...payload,
       id,
-      updated_at: nowIso,
-      updatedAt: nowIso,
+      updated_at: istDate,
+      updatedAt: istDate,
     };
 
     table.set(id, updated);
@@ -325,350 +326,50 @@ class InMemoryDatabase {
   }
 }
 
-class PostgresDatabase {
-  constructor({ pool, logger }) {
+class MySQLDatabase {
+  constructor({ pool }) {
     this.pool = pool;
-    this.logger = logger;
-    this.adapter = "postgres";
-  }
-
-  async executeWithErrorLog(operationName, metadata, executor) {
-    try {
-      return await executor();
-    } catch (error) {
-      this.logger?.error(
-        {
-          module: "database",
-          fileName: "connection.js",
-          functionName: operationName,
-          stack: error?.stack,
-          metadata,
-        },
-        "Database query failed",
-      );
-      throw error;
-    }
+    this.adapter = "mysql";
   }
 
   async insert(tableName, payload) {
-    return this.executeWithErrorLog("insert", { tableName }, async () => {
-      const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
-      const table = quoteIdentifier(tableName, "postgres");
+    const table = quoteIdentifier(tableName);
 
+    const id = payload.id || randomUUID();
+    const entries = Object.entries({ ...payload, id }).filter(
+      ([, value]) => value !== undefined,
+    );
+
+    try {
       if (!entries.length) {
-        const result = await this.pool.query(
-          `INSERT INTO ${table} DEFAULT VALUES RETURNING *`,
+        await this.pool.query(`INSERT INTO ${table} (id) VALUES (?)`, [id]);
+      } else {
+        const columns = entries.map(([col]) => quoteIdentifier(col)).join(", ");
+        const placeholders = entries.map(() => "?").join(", ");
+        const values = entries.map(([, v]) => bindValueForMysql(v));
+        await this.pool.query(
+          `INSERT INTO ${table} (${columns}) VALUES (${placeholders})`,
+          values,
         );
-        return result.rows[0] || null;
       }
+    } catch (error) {
+      throw wrapDuplicateKeyError(error);
+    }
 
-      const columns = entries.map(([column]) => quoteIdentifier(column, "postgres")).join(", ");
-      const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
-      const values = entries.map(([, value]) => value);
-
-      const result = await this.pool.query(
-        `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`,
-        values,
-      );
-
-      return result.rows[0] || null;
-    });
-  }
-
-  async findById(tableName, id) {
-    return this.executeWithErrorLog("findById", { tableName }, async () => {
-      const table = quoteIdentifier(tableName, "postgres");
-      const result = await this.pool.query(
-        `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
-        [id],
-      );
-      return result.rows[0] || null;
-    });
-  }
-
-  async findOne(tableName, filters = {}) {
-    const rows = await this.findMany(tableName, { ...filters, limit: 1 });
+    const [rows] = await this.pool.query(
+      `SELECT * FROM ${table} WHERE id = ? LIMIT 1`,
+      [id],
+    );
     return rows[0] || null;
   }
 
-  async findMany(tableName, filters = {}) {
-    return this.executeWithErrorLog("findMany", { tableName }, async () => {
-      const table = quoteIdentifier(tableName, "postgres");
-      const normalizedFilters = normalizeFilters(filters);
-      const values = [];
-
-      const whereClause = normalizedFilters
-        .map(([key, value], index) => {
-          values.push(value);
-          return `${quoteIdentifier(key, "postgres")} = $${index + 1}`;
-        })
-        .join(" AND ");
-
-      let query = `SELECT * FROM ${table}`;
-      if (whereClause) {
-        query += ` WHERE ${whereClause}`;
-      }
-
-      const limit = toPositiveInt(filters.limit);
-      const page = toPositiveInt(filters.page);
-      const requestedOffset = toNonNegativeInt(filters.offset);
-      const offset =
-        requestedOffset !== null ? requestedOffset
-        : limit && page ? (page - 1) * limit
-        : null;
-
-      if (limit) {
-        values.push(limit);
-        query += ` LIMIT $${values.length}`;
-      }
-
-      if (offset !== null) {
-        values.push(offset);
-        query += ` OFFSET $${values.length}`;
-      }
-
-      const result = await this.pool.query(query, values);
-      return result.rows;
-    });
-  }
-
-  async update(tableName, id, payload) {
-    return this.executeWithErrorLog("update", { tableName }, async () => {
-      const entries = Object.entries(payload).filter(
-        ([key, value]) => key !== "id" && value !== undefined,
-      );
-      if (!entries.length) {
-        return this.findById(tableName, id);
-      }
-
-      const table = quoteIdentifier(tableName, "postgres");
-      const values = entries.map(([, value]) => value);
-      const setClause = entries
-        .map(([key], index) => `${quoteIdentifier(key, "postgres")} = $${index + 1}`)
-        .join(", ");
-
-      values.push(id);
-      const result = await this.pool.query(
-        `UPDATE ${table} SET ${setClause} WHERE id = $${values.length} RETURNING *`,
-        values,
-      );
-
-      return result.rows[0] || null;
-    });
-  }
-
-  async query(sql, params = []) {
-    return this.executeWithErrorLog("query", {}, async () => this.pool.query(sql, params));
-  }
-
-  async healthCheck({ timeoutMs } = {}) {
-    const startedAt = Date.now();
-
-    await runWithTimeout(
-      () => this.pool.query("SELECT 1"),
-      timeoutMs,
-      `PostgreSQL health check timed out after ${timeoutMs}ms`,
-    );
-
-    return {
-      ok: true,
-      adapter: this.adapter,
-      latencyMs: Date.now() - startedAt,
-      checkedAt: new Date().toISOString(),
-    };
-  }
-
-  async close() {
-    await this.pool.end();
-  }
-}
-
-class MySqlDatabase {
-  constructor({ pool, logger }) {
-    this.pool = pool;
-    this.logger = logger;
-    this.adapter = "mysql";
-    this.columnCache = new Map();
-  }
-
-  async hasColumn(tableName, columnName) {
-    const cacheKey = `${tableName}.${columnName}`;
-    if (this.columnCache.has(cacheKey)) {
-      return this.columnCache.get(cacheKey);
-    }
-
-    const sql = `
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = DATABASE()
-        AND table_name = ?
-        AND column_name = ?
-      LIMIT 1
-    `;
-
-    const [rows] = await this.pool.query(sql, [tableName, columnName]);
-    const exists = Array.isArray(rows) && rows.length > 0;
-    this.columnCache.set(cacheKey, exists);
-    return exists;
-  }
-
-  async runQuery(sql, params = []) {
-    const normalized = normalizePostgresSqlForMySql(sql, params);
-    if (hasUnsupportedMySqlConstruct(normalized.sql)) {
-      throw new Error(
-        `Unsupported PostgreSQL SQL construct for MySQL adapter. Query must be rewritten: ${normalizeRawSql(
-          sql,
-        ).slice(0, 220)}`,
-      );
-    }
-
-    return this.pool.query(normalized.sql, normalized.params);
-  }
-
-  async runSelect(sql, params = []) {
-    const [rows] = await this.runQuery(sql, params);
-    return Array.isArray(rows) ? rows : [];
-  }
-
-  async tryReturningCompatibility(sql, params = []) {
-    const normalizedSql = normalizeRawSql(sql);
-    if (!/\bRETURNING\b/i.test(normalizedSql)) {
-      return null;
-    }
-
-    const toSelectColumns = (returningClause) => {
-      const trimmed = String(returningClause || "").trim();
-      if (!trimmed || trimmed === "*") {
-        return "*";
-      }
-      return trimmed;
-    };
-
-    const deleteMatch = normalizedSql.match(
-      /^\s*DELETE\s+FROM\s+([^\s]+)\s+WHERE\s+([\s\S]+?)\s+RETURNING\s+([\s\S]+)\s*$/i,
-    );
-    if (deleteMatch) {
-      const table = deleteMatch[1];
-      const whereClause = deleteMatch[2];
-      const returningClause = toSelectColumns(deleteMatch[3]);
-      const whereParamIndexes = extractParamIndexes(whereClause);
-      const whereParams = pickParamsByIndexes(params, whereParamIndexes);
-      const beforeRows = await this.runSelect(
-        `SELECT ${returningClause} FROM ${table} WHERE ${whereClause}`,
-        whereParams,
-      );
-      await this.runQuery(`DELETE FROM ${table} WHERE ${whereClause}`, whereParams);
-      return { rows: beforeRows, rowCount: beforeRows.length };
-    }
-
-    const updateMatch = normalizedSql.match(
-      /^\s*UPDATE\s+([^\s]+)\s+SET\s+([\s\S]+?)\s+WHERE\s+([\s\S]+?)\s+RETURNING\s+([\s\S]+)\s*$/i,
-    );
-    if (updateMatch) {
-      const table = updateMatch[1];
-      const setClause = updateMatch[2];
-      const whereClause = updateMatch[3];
-      const returningClause = toSelectColumns(updateMatch[4]);
-      await this.runQuery(`UPDATE ${table} SET ${setClause} WHERE ${whereClause}`, params);
-
-      const whereParamIndexes = extractParamIndexes(whereClause);
-      const whereParams = pickParamsByIndexes(params, whereParamIndexes);
-      const rows = await this.runSelect(
-        `SELECT ${returningClause} FROM ${table} WHERE ${whereClause}`,
-        whereParams,
-      );
-      return { rows, rowCount: rows.length };
-    }
-
-    const insertMatch = normalizedSql.match(
-      /^\s*INSERT\s+INTO\s+([^\s(]+)\s*\(([\s\S]+?)\)\s*VALUES\s*\(([\s\S]+?)\)\s*RETURNING\s+([\s\S]+)\s*$/i,
-    );
-    if (insertMatch) {
-      const table = insertMatch[1];
-      const columns = insertMatch[2]
-        .split(",")
-        .map((item) => item.trim().replace(/^["`]|["`]$/g, ""));
-      const valuesFragment = insertMatch[3];
-      const returningClause = toSelectColumns(insertMatch[4]);
-      const valueParamIndexes = extractParamIndexes(valuesFragment);
-      const [insertResult] = await this.runQuery(
-        `INSERT INTO ${table} (${insertMatch[2]}) VALUES (${valuesFragment})`,
-        params,
-      );
-
-      const idColumnIndex = columns.findIndex((item) => item === "id");
-      if (idColumnIndex >= 0 && valueParamIndexes[idColumnIndex]) {
-        const idValue = params[valueParamIndexes[idColumnIndex] - 1];
-        if (idValue) {
-          const rows = await this.runSelect(
-            `SELECT ${returningClause} FROM ${table} WHERE id = $1`,
-            [idValue],
-          );
-          return { rows, rowCount: rows.length };
-        }
-      }
-
-      const insertId = insertResult?.insertId;
-      if (insertId !== undefined && insertId !== null && insertId !== 0) {
-        const rows = await this.runSelect(
-          `SELECT ${returningClause} FROM ${table} WHERE id = $1`,
-          [insertId],
-        );
-        if (rows.length > 0) {
-          return { rows, rowCount: rows.length };
-        }
-      }
-
-      return { rows: [], rowCount: 0 };
-    }
-
-    throw new Error(
-      `Unsupported RETURNING query for MySQL adapter. Rewrite query manually: ${normalizedSql.slice(
-        0,
-        220,
-      )}`,
-    );
-  }
-
-  async insert(tableName, payload) {
-    const entries = Object.entries(payload).filter(([, value]) => value !== undefined);
-    const table = quoteIdentifier(tableName, "mysql");
-    let finalEntries = entries;
-
-    const hasIdColumn = await this.hasColumn(tableName, "id");
-    const includesId = entries.some(([column]) => column === "id");
-    if (hasIdColumn && !includesId) {
-      finalEntries = [["id", randomUUID()], ...entries];
-    }
-
-    if (!finalEntries.length) {
-      const idValue = hasIdColumn ? randomUUID() : null;
-      if (idValue) {
-        await this.runQuery(`INSERT INTO ${table} (id) VALUES ($1)`, [idValue]);
-        return this.findById(tableName, idValue);
-      }
-      await this.runQuery(`INSERT INTO ${table} () VALUES ()`, []);
-      return null;
-    }
-
-    const columns = finalEntries.map(([column]) => quoteIdentifier(column, "mysql")).join(", ");
-    const placeholders = finalEntries.map(() => "?").join(", ");
-    const values = finalEntries.map(([, value]) => value);
-
-    await this.pool.query(`INSERT INTO ${table} (${columns}) VALUES (${placeholders})`, values);
-
-    const idValue = finalEntries.find(([column]) => column === "id")?.[1];
-    if (idValue) {
-      return this.findById(tableName, idValue);
-    }
-
-    return null;
-  }
-
   async findById(tableName, id) {
-    const table = quoteIdentifier(tableName, "mysql");
-    const [rows] = await this.pool.query(`SELECT * FROM ${table} WHERE id = ? LIMIT 1`, [id]);
-    return rows?.[0] || null;
+    const table = quoteIdentifier(tableName);
+    const [rows] = await this.pool.query(
+      `SELECT * FROM ${table} WHERE id = ? LIMIT 1`,
+      [id],
+    );
+    return rows[0] || null;
   }
 
   async findOne(tableName, filters = {}) {
@@ -684,7 +385,7 @@ class MySqlDatabase {
     const whereClause = normalizedFilters
       .map(([key, value]) => {
         values.push(value);
-        return `${quoteIdentifier(key, "mysql")} = ?`;
+        return `${quoteIdentifier(key)} = ?`;
       })
       .join(" AND ");
 
@@ -702,17 +403,17 @@ class MySqlDatabase {
       : null;
 
     if (limit) {
+      query += ` LIMIT ?`;
       values.push(limit);
-      query += " LIMIT ?";
     }
 
     if (offset !== null) {
+      query += ` OFFSET ?`;
       values.push(offset);
-      query += " OFFSET ?";
     }
 
     const [rows] = await this.pool.query(query, values);
-    return rows || [];
+    return rows;
   }
 
   async update(tableName, id, payload) {
@@ -723,42 +424,43 @@ class MySqlDatabase {
       return this.findById(tableName, id);
     }
 
-    const table = quoteIdentifier(tableName, "mysql");
-    const values = entries.map(([, value]) => value);
+    const table = quoteIdentifier(tableName);
+    const values = entries.map(([, v]) => bindValueForMysql(v));
     const setClause = entries
-      .map(([key]) => `${quoteIdentifier(key, "mysql")} = ?`)
+      .map(([key]) => `${quoteIdentifier(key)} = ?`)
       .join(", ");
 
     values.push(id);
-    await this.pool.query(`UPDATE ${table} SET ${setClause} WHERE id = ?`, values);
+    try {
+      await this.pool.query(
+        `UPDATE ${table} SET ${setClause} WHERE id = ?`,
+        values,
+      );
+    } catch (error) {
+      throw wrapDuplicateKeyError(error);
+    }
 
     return this.findById(tableName, id);
   }
 
   async query(sql, params = []) {
-    const returningResult = await this.tryReturningCompatibility(sql, params).catch(
-      (error) => {
-        this.logger?.warn?.(
-          { err: error, module: "database", adapter: "mysql" },
-          "MySQL RETURNING compatibility fallback failed.",
-        );
-        throw error;
-      },
-    );
-
-    if (returningResult) {
-      return returningResult;
-    }
-
-    const [result] = await this.runQuery(sql, params);
-    if (Array.isArray(result)) {
-      return { rows: result, rowCount: result.length };
-    }
-
+    const normalizedParams = Array.isArray(params)
+      ? params.map((param) => {
+          if (param instanceof Date) {
+            return toMysqlUtcDateTime(param);
+          }
+          if (typeof param === "string") {
+            return maybeNormalizeIsoDateTimeString(param);
+          }
+          return param;
+        })
+      : params;
+    const [result, fields] = await this.pool.query(sql, normalizedParams);
+    const rows = Array.isArray(result) ? result : [];
     return {
-      rows: [],
-      rowCount: Number(result?.affectedRows || 0),
-      insertId: result?.insertId ?? null,
+      rows,
+      rowCount: Array.isArray(result) ? result.length : (result?.affectedRows ?? 0),
+      fields,
     };
   }
 
@@ -784,201 +486,209 @@ class MySqlDatabase {
   }
 }
 
-function detectDatabaseClient(config = {}) {
-  const explicit = String(config.database?.client || "")
+function resolveMysqlSslFlag() {
+  const raw = String(process.env.MYSQL_SSL ?? "")
     .trim()
     .toLowerCase();
-  if (explicit === "mysql" || explicit === "mariadb") {
-    return "mysql";
+  console.log('[DEBUG] MYSQL_SSL env var:', process.env.MYSQL_SSL, '| normalized:', raw);
+  if (["0", "false", "no", "off"].includes(raw)) {
+    console.log('[DEBUG] SSL explicitly disabled');
+    return false;
   }
-  if (explicit === "postgres" || explicit === "postgresql" || explicit === "pg") {
-    return "postgres";
+  if (["1", "true", "yes", "on"].includes(raw)) {
+    console.log('[DEBUG] SSL explicitly enabled');
+    return true;
   }
-
-  const url = String(config.database?.url || "").trim().toLowerCase();
-  if (url.startsWith("mysql://") || url.startsWith("mysql2://")) {
-    return "mysql";
-  }
-  return "postgres";
+  console.log('[DEBUG] SSL flag not set, will auto-detect');
+  return null;
 }
 
-function parseMysqlUrl(databaseUrl) {
-  const parsed = new URL(databaseUrl);
-  return {
-    host: parsed.hostname,
-    port: parsed.port ? Number(parsed.port) : 3306,
-    user: decodeURIComponent(parsed.username || ""),
-    password: decodeURIComponent(parsed.password || ""),
-    database: decodeURIComponent((parsed.pathname || "").replace(/^\//, "")),
-  };
-}
-
-function createMySqlPoolConfig({ config }) {
-  const url = String(config.database?.url || "").trim();
-  const useUrl = /^mysql(2)?:\/\//i.test(url);
-
-  const base =
-    useUrl ? parseMysqlUrl(url)
-    : {
-        host: config.database?.mysql?.host,
-        port: config.database?.mysql?.port || 3306,
-        user: config.database?.mysql?.user,
-        password: config.database?.mysql?.password,
-        database: config.database?.mysql?.database,
-      };
-
-  if (!base.host || !base.user || !base.database) {
-    return null;
+function shouldUseMysqlTls(host, flag) {
+  console.log('[DEBUG] shouldUseMysqlTls - host:', host, '| flag:', flag);
+  if (flag === true) {
+    console.log('[DEBUG] Using SSL because flag is true');
+    return true;
   }
-
-  const sslRejectUnauthorizedOverride =
-    process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
-  let ssl;
-  if (sslRejectUnauthorizedOverride === "false") {
-    ssl = { rejectUnauthorized: false };
-  } else if (process.env.DATABASE_SSL_CA) {
-    ssl = {
-      rejectUnauthorized: true,
-      ca: process.env.DATABASE_SSL_CA.replace(/\\n/g, "\n"),
-    };
+  if (flag === false) {
+    console.log('[DEBUG] Not using SSL because flag is false');
+    return false;
   }
-
-  return {
-    host: base.host,
-    port: base.port,
-    user: base.user,
-    password: base.password,
-    database: base.database,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-    timezone: "Z",
-    ssl,
-  };
+  // Auto-detect Azure MySQL and other cloud providers that require SSL
+  const hostLower = String(host || "").toLowerCase();
+  const shouldUse = (
+    hostLower.includes(".mysql.database.azure.com") ||
+    hostLower.includes(".rds.amazonaws.com") ||
+    hostLower.includes(".db.ondigitalocean.com")
+  );
+  console.log('[DEBUG] Auto-detect SSL:', shouldUse, '| host:', hostLower);
+  return shouldUse;
 }
 
 function createDatabaseConnection({ config, logger }) {
-  if (!config.database.url && !config.database?.mysql?.host) {
-    logger.warn("Database config is not set. Falling back to in-memory adapter.");
-    return new InMemoryDatabase();
-  }
+  const explicitClient = String(
+    process.env.DATABASE_CLIENT || config?.database?.client || "",
+  )
+    .trim()
+    .toLowerCase();
 
-  const dbClient = detectDatabaseClient(config);
+  if (explicitClient === "mssql") {
+    const azure = config?.database?.azureSql;
+    const server =
+      process.env.AZURE_SQL_SERVER ||
+      azure?.server ||
+      process.env.DB_HOST;
+    const database =
+      process.env.AZURE_SQL_DATABASE ||
+      azure?.database ||
+      process.env.DB_NAME;
+    const user =
+      process.env.AZURE_SQL_USER ||
+      azure?.user ||
+      process.env.DB_USER;
+    const password =
+      process.env.AZURE_SQL_PASSWORD ||
+      azure?.password ||
+      process.env.DB_PASSWORD;
+    const port = Number(
+      process.env.AZURE_SQL_PORT ||
+        azure?.port ||
+        process.env.DB_PORT ||
+        1433,
+    );
 
-  if (dbClient === "mysql") {
-    const poolConfig = createMySqlPoolConfig({ config });
-    if (!poolConfig) {
-      logger.warn(
-        "MySQL client selected but connection settings are incomplete. Falling back to in-memory adapter.",
+    if (!server || !database || !user || password === undefined) {
+      throw new Error(
+        "Azure SQL / MSSQL config missing. Set AZURE_SQL_SERVER, AZURE_SQL_DATABASE, AZURE_SQL_USER, AZURE_SQL_PASSWORD (or DB_*), DATABASE_CLIENT=mssql.",
       );
-      return new InMemoryDatabase();
     }
 
+    const trustCert =
+      String(process.env.AZURE_SQL_TRUST_SERVER_CERTIFICATE || "")
+        .trim()
+        .toLowerCase() === "true" ||
+      config?.database?.azureSql?.trustServerCertificate === true;
+
+    const poolConfig = {
+      server,
+      database,
+      user,
+      password,
+      port,
+      options: {
+        encrypt: true,
+        trustServerCertificate: trustCert,
+        enableArithAbort: true,
+      },
+      pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 30000,
+      },
+    };
+
+    logger.info(
+      { server, database, port, adapter: "mssql" },
+      "Using Azure SQL / MSSQL database adapter.",
+    );
+
+    return new MssqlDatabase({ poolConfig, logger });
+  }
+
+  const mysqlHost =
+    process.env.MYSQL_HOST ||
+    process.env.DB_HOST ||
+    config?.database?.mysql?.host;
+  const mysqlUser =
+    process.env.MYSQL_USER ||
+    process.env.DB_USER ||
+    config?.database?.mysql?.user;
+  const mysqlPassword =
+    process.env.MYSQL_PASSWORD ||
+    process.env.DB_PASSWORD ||
+    config?.database?.mysql?.password;
+  const mysqlDatabase =
+    process.env.MYSQL_DATABASE ||
+    process.env.DB_NAME ||
+    config?.database?.mysql?.database;
+  const mysqlPort =
+    Number(process.env.MYSQL_PORT || process.env.DB_PORT || config?.database?.mysql?.port) ||
+    3306;
+  const allowInMemory =
+    process.env.ALLOW_IN_MEMORY_DB === "true" || process.env.NODE_ENV === "test";
+
+  if (mysqlHost && mysqlDatabase) {
+    const isServerless =
+      process.env.VERCEL === "1" || process.env.AWS_EXECUTION_ENV;
+    const desiredPoolMax = toBoundedInt(
+      process.env.MYSQL_POOL_MAX ||
+        config?.database?.mysql?.poolMax ||
+        (isServerless ? 4 : 50),
+      { min: 2, max: 200, fallback: isServerless ? 4 : 50 },
+    );
+    const desiredQueueLimit = toBoundedInt(
+      process.env.MYSQL_POOL_QUEUE_LIMIT ||
+        config?.database?.mysql?.poolQueueLimit ||
+        0,
+      { min: 0, max: 100000, fallback: 0 },
+    );
+    const desiredConnectTimeout = toBoundedInt(
+      process.env.MYSQL_CONNECT_TIMEOUT_MS ||
+        config?.database?.mysql?.connectTimeoutMs ||
+        (isServerless ? 7000 : 15000),
+      { min: 1000, max: 120000, fallback: isServerless ? 7000 : 15000 },
+    );
+
+    const poolConfig = {
+      host: mysqlHost,
+      port: mysqlPort,
+      user: mysqlUser,
+      password: mysqlPassword,
+      database: mysqlDatabase,
+      waitForConnections: true,
+      connectionLimit: desiredPoolMax,
+      queueLimit: desiredQueueLimit,
+      connectTimeout: desiredConnectTimeout,
+      timezone: "+05:30",
+    };
+
+    const sslFlag = resolveMysqlSslFlag();
+    console.log('[DEBUG] Final SSL flag:', sslFlag);
+    // ✅ FORCE SSL (no condition)
+poolConfig.ssl = {
+  minVersion: "TLSv1.2",
+  rejectUnauthorized: false,
+};
+
+console.log("[FIX] SSL FORCE ENABLED");
     logger.info(
       {
-        databaseUrlConfigured: Boolean(config.database.url),
-        adapter: "mysql",
-        host: poolConfig.host,
-        port: poolConfig.port,
-        database: poolConfig.database,
+        mysqlHost,
+        mysqlDatabase,
+        mysqlPort,
+        mysqlTls: Boolean(poolConfig.ssl),
+        isServerless,
+        poolConfig: {
+          connectionLimit: poolConfig.connectionLimit,
+          connectTimeout: poolConfig.connectTimeout,
+        },
       },
       "Using MySQL database adapter.",
     );
 
     const pool = mysql.createPool(poolConfig);
-    return new MySqlDatabase({ pool, logger });
+    return new MySQLDatabase({ pool });
   }
 
-  if (config.database.url) {
-    const sslRejectUnauthorizedOverride =
-      process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
-    const sslCaOverride = process.env.DATABASE_SSL_CA;
-    const sslCaPathOverride = process.env.DATABASE_SSL_CA_PATH;
-
-    const isServerless =
-      process.env.VERCEL === "1" || process.env.AWS_EXECUTION_ENV;
-    const isProduction = config.env === "production";
-    const isAWSRDS =
-      config.database.url.includes(".rds.") ||
-      config.database.url.includes(".rds-");
-
-    const poolConfig = {
-      connectionString: config.database.url,
-      max: isServerless ? 2 : 10,
-      idleTimeoutMillis: isServerless ? 20000 : 30000,
-      connectionTimeoutMillis: isServerless ? 7000 : 15000,
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
-      statement_timeout: 60000,
-      query_timeout: 60000,
-      options: "-c timezone=Asia/Kolkata",
-    };
-
-    if (isAWSRDS) {
-      if (isProduction) {
-        const fallbackCaPath = path.resolve(
-          __dirname,
-          "../../..",
-          "global-bundle.pem",
-        );
-        const caPath = sslCaPathOverride || fallbackCaPath;
-
-        if (sslCaOverride) {
-          poolConfig.ssl = {
-            rejectUnauthorized: true,
-            ca: sslCaOverride.replace(/\\n/g, "\n"),
-          };
-        } else if (fs.existsSync(caPath)) {
-          poolConfig.ssl = {
-            rejectUnauthorized: true,
-            ca: fs.readFileSync(caPath, "utf8"),
-          };
-        } else {
-          poolConfig.ssl = { rejectUnauthorized: false };
-          logger.warn(
-            { caPath },
-            "RDS CA bundle not found. Falling back to rejectUnauthorized=false.",
-          );
-        }
-      } else {
-        poolConfig.ssl = { rejectUnauthorized: false };
-      }
-    }
-
-    if (sslRejectUnauthorizedOverride === "false") {
-      const current = poolConfig.ssl && poolConfig.ssl !== true ? poolConfig.ssl : {};
-      poolConfig.ssl = { ...current, rejectUnauthorized: false };
-    }
-
-    logger.info(
-      {
-        databaseUrlConfigured: true,
-        isServerless,
-        isAWSRDS,
-        sslEnabled: !!poolConfig.ssl,
-        adapter: "postgres",
-        poolConfig: {
-          max: poolConfig.max,
-          idleTimeoutMillis: poolConfig.idleTimeoutMillis,
-          connectionTimeoutMillis: poolConfig.connectionTimeoutMillis,
-        },
-      },
-      "Using PostgreSQL database adapter.",
+  if (!allowInMemory) {
+    throw new Error(
+      "MySQL configuration missing. Set MYSQL_HOST/MYSQL_DATABASE (or DB_HOST/DB_NAME).",
     );
-    const pool = new PostgresPool(poolConfig);
-    pool.on("error", (error) => {
-      logger.error({ err: error }, "Unexpected PostgreSQL pool error");
-    });
-    return new PostgresDatabase({ pool, logger });
   }
 
-  logger.warn("DATABASE_URL is not set. Falling back to in-memory adapter.");
+  logger.warn(
+    "MySQL config missing. Falling back to in-memory adapter because ALLOW_IN_MEMORY_DB=true or NODE_ENV=test.",
+  );
   return new InMemoryDatabase();
 }
 
-export {
-  createDatabaseConnection,
-  InMemoryDatabase,
-  PostgresDatabase,
-  MySqlDatabase,
-};
+export { createDatabaseConnection, InMemoryDatabase, MySQLDatabase };

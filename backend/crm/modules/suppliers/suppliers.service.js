@@ -68,34 +68,104 @@ function toSupplier(entity) {
     return null;
   }
 
-  return {
-    id: entity.id,
-    name: entity.name,
-    contactPerson: entity.contact_person,
-    phone: entity.phone,
-    email: entity.email,
-    panNumber: entity.pan_number,
-    gstNumber: entity.gst_number,
-    address: entity.address,
-    addressLine: entity.address_line,
-    country: entity.country,
-    invoiceBeneficiaryName: entity.invoice_beneficiary_name,
-    invoiceBankName: entity.invoice_bank_name,
-    invoiceAccountNumber: entity.invoice_account_number,
-    invoiceIfscSwift: entity.invoice_ifsc_swift,
-    invoiceUpiId: entity.invoice_upi_id,
-    bankName: entity.bank_name,
-    bankAccountNumber: entity.bank_account_number,
-    ifscCode: entity.ifsc_code,
-    supplierCurrency: entity.supplier_currency,
-    contractUrl: entity.contract_url,
-    rateValidUntil: entity.rate_valid_until,
-    productionCommitment: entity.production_commitment,
-    paymentDeadlineDate: entity.payment_deadline_date,
-    isActive: entity.is_active,
-    isDeleted: entity.is_deleted,
-    createdAt: entity.created_at,
+  const pick = (...values) => values.find((value) => value !== undefined);
+  const toBoolean = (value) => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "number") {
+      return value === 1;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0") {
+      return false;
+    }
+    return Boolean(value);
   };
+
+  return {
+    id: pick(entity.id),
+    name: pick(entity.name),
+    contactPerson: pick(entity.contact_person, entity.contactPerson),
+    phone: pick(entity.phone),
+    email: pick(entity.email),
+    panNumber: pick(entity.pan_number, entity.panNumber),
+    gstNumber: pick(entity.gst_number, entity.gstNumber),
+    address: pick(entity.address),
+    addressLine: pick(entity.address_line, entity.addressLine, entity.address),
+    country: pick(entity.country),
+    invoiceBeneficiaryName: pick(
+      entity.invoice_beneficiary_name,
+      entity.invoiceBeneficiaryName,
+    ),
+    invoiceBankName: pick(entity.invoice_bank_name, entity.invoiceBankName),
+    invoiceAccountNumber: pick(
+      entity.invoice_account_number,
+      entity.invoiceAccountNumber,
+    ),
+    invoiceIfscSwift: pick(
+      entity.invoice_ifsc_swift,
+      entity.invoiceIfscSwift,
+    ),
+    invoiceUpiId: pick(entity.invoice_upi_id, entity.invoiceUpiId),
+    bankName: pick(entity.bank_name, entity.bankName),
+    bankAccountNumber: pick(
+      entity.bank_account_number,
+      entity.bankAccountNumber,
+    ),
+    ifscCode: pick(entity.ifsc_code, entity.ifscCode),
+    supplierCurrency: pick(
+      entity.supplier_currency,
+      entity.supplierCurrency,
+      "INR",
+    ),
+    contractUrl: pick(entity.contract_url, entity.contractUrl),
+    rateValidUntil: pick(entity.rate_valid_until, entity.rateValidUntil),
+    productionCommitment: pick(
+      entity.production_commitment,
+      entity.productionCommitment,
+    ),
+    paymentDeadlineDate: pick(
+      entity.payment_deadline_date,
+      entity.paymentDeadlineDate,
+    ),
+    isActive: toBoolean(pick(entity.is_active, entity.isActive)),
+    isDeleted: toBoolean(pick(entity.is_deleted, entity.isDeleted)),
+    createdAt: pick(entity.created_at, entity.createdAt),
+  };
+}
+
+function normalizeDeletedFlag(value) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value === 1;
+  }
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
+    return value.length > 0 && value[0] === 1;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "1" || normalized === "true" || normalized === "yes") {
+    return true;
+  }
+  if (normalized === "0" || normalized === "false" || normalized === "no") {
+    return false;
+  }
+  return Boolean(value);
+}
+
+function isSupplierDeleted(entity) {
+  return normalizeDeletedFlag(entity?.is_deleted ?? entity?.isDeleted);
 }
 
 function toPayable(entity) {
@@ -161,6 +231,56 @@ function toSettlement(entity) {
 }
 
 function createSuppliersService({ repository, logger, events }) {
+  function pickFirst(payload, keys = []) {
+    for (const key of keys) {
+      if (payload?.[key] !== undefined && payload?.[key] !== null) {
+        return payload[key];
+      }
+    }
+    return undefined;
+  }
+
+  function pickText(payload, keys = []) {
+    const value = pickFirst(payload, keys);
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    const normalized = String(value).trim();
+    return normalized ? normalized : undefined;
+  }
+
+  function pickBoolean(payload, keys = []) {
+    const value = pickFirst(payload, keys);
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "number") {
+      return value === 1;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0") {
+      return false;
+    }
+    return undefined;
+  }
+
+  function pickDate(payload, keys = []) {
+    const value = pickFirst(payload, keys);
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (String(value).trim() === "") {
+      return null;
+    }
+    return toDateOnly(value);
+  }
+
   function toDateOnly(value) {
     if (!value) {
       return null;
@@ -189,59 +309,99 @@ function createSuppliersService({ repository, logger, events }) {
 
   function mapCreatePayload(payload) {
     return {
-      name: payload.name,
-      contact_person: payload.contactPerson,
-      phone: payload.phone,
-      email: payload.email,
-      pan_number: payload.panNumber,
-      gst_number: payload.gstNumber,
-      address: payload.address,
-      address_line: payload.addressLine,
-      country: payload.country,
-      invoice_beneficiary_name: payload.invoiceBeneficiaryName,
-      invoice_bank_name: payload.invoiceBankName,
-      invoice_account_number: payload.invoiceAccountNumber,
-      invoice_ifsc_swift: payload.invoiceIfscSwift,
-      invoice_upi_id: payload.invoiceUpiId,
-      bank_name: payload.bankName,
-      bank_account_number: payload.bankAccountNumber,
-      ifsc_code: payload.ifscCode,
-      supplier_currency: payload.supplierCurrency,
-      contract_url: payload.contractUrl,
-      rate_valid_until: payload.rateValidUntil,
-      production_commitment: payload.productionCommitment,
-      payment_deadline_date: payload.paymentDeadlineDate,
-      is_active: payload.isActive,
-      is_deleted: false,
+      name: pickText(payload, ["name", "fullName", "full_name"]),
+      contact_person: pickText(payload, ["contactPerson", "contact_person"]),
+      phone: pickText(payload, ["phone"]),
+      email: pickText(payload, ["email"]),
+      pan_number: pickText(payload, ["panNumber", "pan_number"]),
+      gst_number: pickText(payload, ["gstNumber", "gst_number"]),
+      address_line: pickText(payload, ["addressLine", "address_line", "address"]),
+      country: pickText(payload, ["country"]),
+      invoice_beneficiary_name: pickText(payload, [
+        "invoiceBeneficiaryName",
+        "invoice_beneficiary_name",
+      ]),
+      invoice_bank_name: pickText(payload, ["invoiceBankName", "invoice_bank_name"]),
+      invoice_account_number: pickText(payload, [
+        "invoiceAccountNumber",
+        "invoice_account_number",
+      ]),
+      invoice_ifsc_swift: pickText(payload, [
+        "invoiceIfscSwift",
+        "invoice_ifsc_swift",
+      ]),
+      invoice_upi_id: pickText(payload, ["invoiceUpiId", "invoice_upi_id"]),
+      bank_name: pickText(payload, ["bankName", "bank_name"]),
+      bank_account_number: pickText(payload, [
+        "bankAccountNumber",
+        "bank_account_number",
+      ]),
+      ifsc_code: pickText(payload, ["ifscCode", "ifsc_code"]),
+      supplier_currency: pickText(payload, [
+        "supplierCurrency",
+        "supplier_currency",
+        "currency",
+      ]),
+      contract_url: pickText(payload, ["contractUrl", "contract_url"]),
+      rate_valid_until: pickDate(payload, ["rateValidUntil", "rate_valid_until"]),
+      production_commitment: pickText(payload, [
+        "productionCommitment",
+        "production_commitment",
+      ]),
+      payment_deadline_date: pickDate(payload, [
+        "paymentDeadlineDate",
+        "payment_deadline_date",
+      ]),
+      is_active: pickBoolean(payload, ["isActive", "is_active"]),
     };
   }
 
   function mapUpdatePayload(payload) {
     return {
-      name: payload.name,
-      contact_person: payload.contactPerson,
-      phone: payload.phone,
-      email: payload.email,
-      pan_number: payload.panNumber,
-      gst_number: payload.gstNumber,
-      address: payload.address,
-      address_line: payload.addressLine,
-      country: payload.country,
-      invoice_beneficiary_name: payload.invoiceBeneficiaryName,
-      invoice_bank_name: payload.invoiceBankName,
-      invoice_account_number: payload.invoiceAccountNumber,
-      invoice_ifsc_swift: payload.invoiceIfscSwift,
-      invoice_upi_id: payload.invoiceUpiId,
-      bank_name: payload.bankName,
-      bank_account_number: payload.bankAccountNumber,
-      ifsc_code: payload.ifscCode,
-      supplier_currency: payload.supplierCurrency,
-      contract_url: payload.contractUrl,
-      rate_valid_until: payload.rateValidUntil,
-      production_commitment: payload.productionCommitment,
-      payment_deadline_date: payload.paymentDeadlineDate,
-      is_active: payload.isActive,
-      is_deleted: payload.isDeleted,
+      name: pickText(payload, ["name", "fullName", "full_name"]),
+      contact_person: pickText(payload, ["contactPerson", "contact_person"]),
+      phone: pickText(payload, ["phone"]),
+      email: pickText(payload, ["email"]),
+      pan_number: pickText(payload, ["panNumber", "pan_number"]),
+      gst_number: pickText(payload, ["gstNumber", "gst_number"]),
+      address_line: pickText(payload, ["addressLine", "address_line", "address"]),
+      country: pickText(payload, ["country"]),
+      invoice_beneficiary_name: pickText(payload, [
+        "invoiceBeneficiaryName",
+        "invoice_beneficiary_name",
+      ]),
+      invoice_bank_name: pickText(payload, ["invoiceBankName", "invoice_bank_name"]),
+      invoice_account_number: pickText(payload, [
+        "invoiceAccountNumber",
+        "invoice_account_number",
+      ]),
+      invoice_ifsc_swift: pickText(payload, [
+        "invoiceIfscSwift",
+        "invoice_ifsc_swift",
+      ]),
+      invoice_upi_id: pickText(payload, ["invoiceUpiId", "invoice_upi_id"]),
+      bank_name: pickText(payload, ["bankName", "bank_name"]),
+      bank_account_number: pickText(payload, [
+        "bankAccountNumber",
+        "bank_account_number",
+      ]),
+      ifsc_code: pickText(payload, ["ifscCode", "ifsc_code"]),
+      supplier_currency: pickText(payload, [
+        "supplierCurrency",
+        "supplier_currency",
+        "currency",
+      ]),
+      contract_url: pickText(payload, ["contractUrl", "contract_url"]),
+      rate_valid_until: pickDate(payload, ["rateValidUntil", "rate_valid_until"]),
+      production_commitment: pickText(payload, [
+        "productionCommitment",
+        "production_commitment",
+      ]),
+      payment_deadline_date: pickDate(payload, [
+        "paymentDeadlineDate",
+        "payment_deadline_date",
+      ]),
+      is_active: pickBoolean(payload, ["isActive", "is_active"]),
     };
   }
 
@@ -265,7 +425,7 @@ function createSuppliersService({ repository, logger, events }) {
       "Get supplier by id",
     );
     const item = await repository.findById(id);
-    if (!item || item.is_deleted) {
+    if (!item || isSupplierDeleted(item)) {
       throw new AppError(404, "Supplier not found", "SUPPLIER_NOT_FOUND");
     }
     return toSupplier(item);
@@ -278,13 +438,21 @@ function createSuppliersService({ repository, logger, events }) {
         "List suppliers",
       );
       const rows = await repository.findAll(mapListFilters(filters));
-      return rows.filter((row) => !row.is_deleted).map(toSupplier);
+      return rows.filter((row) => !isSupplierDeleted(row)).map(toSupplier);
     },
 
     getById,
 
     async create(payload) {
-      const created = await repository.create(mapCreatePayload(payload));
+      const mappedPayload = mapCreatePayload(payload);
+      if (!mappedPayload.name) {
+        throw new AppError(
+          400,
+          "Supplier name is required",
+          "SUPPLIER_NAME_REQUIRED",
+        );
+      }
+      const created = await repository.create(mappedPayload);
       const supplier = toSupplier(created);
       events.emitCreated(supplier);
       return supplier;
@@ -296,6 +464,12 @@ function createSuppliersService({ repository, logger, events }) {
       const supplier = toSupplier(updated);
       events.emitUpdated(supplier);
       return supplier;
+    },
+
+    async deleteSupplier(id, context = {}) {
+      await getById(id, context);
+      await repository.deleteById(id);
+      events.emitDeleted({ id });
     },
 
     async listPayables(supplierId, filters = {}, context = {}) {
@@ -597,6 +771,22 @@ function createSuppliersService({ repository, logger, events }) {
             row.itemType ??
             row.item_type,
         ),
+        supplierBasePrice: toNumber(
+          row.supplier_base_price ?? row.supplierBasePrice,
+          0,
+        ),
+        supplierSellValue: toNumber(
+          row.supplier_sell_value ?? row.supplierSellValue,
+          0,
+        ),
+        matchedServices: Array.isArray(row.matched_services)
+          ? row.matched_services.map((item) => ({
+              name: String(item?.name ?? "Other"),
+              itemType: String(item?.itemType ?? "OTHER"),
+              basePrice: toNumber(item?.basePrice ?? 0, 0),
+              sellValue: toNumber(item?.sellValue ?? 0, 0),
+            }))
+          : [],
         status: row.status,
         travelStartDate: row.travel_start_date ?? row.travelStartDate,
         createdAt: row.created_at ?? row.createdAt,

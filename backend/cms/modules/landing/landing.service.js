@@ -1,11 +1,35 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import {
-  normalizeText,
-  toBoolean,
-  toNumber,
-} from "../../core/utils/index.js";
+import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createLandingService({ repository }) {
+  const MAX_ACTIVE_LANDING_PLACES = 4;
+
+  function isActiveValue(value) {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value === 1;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      return normalized === "true" || normalized === "1";
+    }
+    return false;
+  }
+
+  async function assertActiveLimit({ excludeId = null } = {}) {
+    const activeRows = await repository.findAll({ is_active: true });
+    const activeCount = activeRows.filter((row) => {
+      if (excludeId && row.id === excludeId) return false;
+      return isActiveValue(row.is_active);
+    }).length;
+
+    if (activeCount >= MAX_ACTIVE_LANDING_PLACES) {
+      throw new AppError(
+        400,
+        `Maximum ${MAX_ACTIVE_LANDING_PLACES} landing places can be active at once.`,
+        "MAX_ACTIVE_LIMIT_REACHED",
+      );
+    }
+  }
+
   function toLandingPlace(row) {
     if (!row) return null;
     return {
@@ -19,6 +43,8 @@ function createLandingService({ repository }) {
       imageUrl: row.image_url,
       displayOrder: row.display_order,
       isActive: row.is_active,
+      isDeleted: row.is_deleted,
+      is_deleted: row.is_deleted,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -27,6 +53,13 @@ function createLandingService({ repository }) {
   return Object.freeze({
     async list(filters = {}) {
       const rows = await repository.findAll(filters);
+      return rows
+        .map(toLandingPlace)
+        .sort((a, b) => a.displayOrder - b.displayOrder);
+    },
+
+    async listDeleted(filters = {}) {
+      const rows = await repository.findAll({ ...filters, is_deleted: true });
       return rows
         .map(toLandingPlace)
         .sort((a, b) => a.displayOrder - b.displayOrder);
@@ -51,17 +84,9 @@ function createLandingService({ repository }) {
         );
       }
 
-      const existing = await repository.findAll(
-        supportsCountry && country ? { is_active: true, country } : { is_active: true },
-      );
-      if (existing.length >= 4) {
-        throw new AppError(
-          400,
-          supportsCountry && country ?
-            `Maximum 4 landing places allowed per country (${country})`
-          : "Maximum 4 landing places allowed.",
-          "MAX_LIMIT_REACHED",
-        );
+      const requestedIsActive = toBoolean(data.isActive, true);
+      if (requestedIsActive) {
+        await assertActiveLimit();
       }
 
       const title = normalizeText(data.title ?? data.name);
@@ -74,13 +99,17 @@ function createLandingService({ repository }) {
         throw new AppError(400, "Image is required", "IMAGE_REQUIRED");
       }
 
+      const existing = await repository.findAll(
+        supportsCountry && country ? { country } : {},
+      );
+
       const row = await repository.create({
         name: title,
         ...(supportsCountry ? { country } : {}),
         tag: normalizeText(data.tag ?? data.subtitle ?? data.description),
         image_url: imageUrl,
         display_order: toNumber(data.displayOrder, existing.length),
-        is_active: toBoolean(data.isActive, true),
+        is_active: requestedIsActive,
       });
 
       return toLandingPlace(row);
@@ -94,32 +123,37 @@ function createLandingService({ repository }) {
 
       const updates = {};
       const supportsCountry = await repository.supportsCountry();
+      const incomingCountry =
+        supportsCountry && data.country !== undefined ?
+          normalizeText(data.country)
+        : normalizeText(existing.country);
+      const nextIsActive =
+        data.isActive !== undefined ?
+          toBoolean(data.isActive, true)
+        : isActiveValue(existing.is_active);
+
+      if (supportsCountry && data.country !== undefined && !incomingCountry) {
+        throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
+      }
+
+      if (nextIsActive) {
+        await assertActiveLimit({ excludeId: id });
+      }
+
       if (data.name !== undefined || data.title !== undefined) {
         updates.name = normalizeText(data.title ?? data.name);
       }
       if (supportsCountry && data.country !== undefined) {
-        const country = normalizeText(data.country);
-        if (!country) {
-          throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
-        }
-        if (String(existing.country || "").toLowerCase() !== country.toLowerCase()) {
-          const countryPlaces = await repository.findAll({ is_active: true, country });
-          if (countryPlaces.length >= 4) {
-            throw new AppError(
-              400,
-              `Maximum 4 landing places allowed per country (${country})`,
-              "MAX_LIMIT_REACHED",
-            );
-          }
-        }
-        updates.country = country;
+        updates.country = incomingCountry;
       }
       if (
         data.tag !== undefined ||
         data.subtitle !== undefined ||
         data.description !== undefined
       ) {
-        const tag = normalizeText(data.tag ?? data.subtitle ?? data.description);
+        const tag = normalizeText(
+          data.tag ?? data.subtitle ?? data.description,
+        );
         if (!tag) {
           throw new AppError(400, "Tag cannot be empty", "INVALID_TAG");
         }
@@ -136,6 +170,23 @@ function createLandingService({ repository }) {
       return toLandingPlace(updated);
     },
 
+    async updateStatus(id, isActive) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Landing place not found", "NOT_FOUND");
+      }
+
+      const nextIsActive = toBoolean(isActive, true);
+      if (nextIsActive) {
+        await assertActiveLimit({ excludeId: id });
+      }
+
+      const updated = await repository.update(id, {
+        is_active: nextIsActive,
+      });
+      return toLandingPlace(updated);
+    },
+
     async delete(id) {
       const existing = await repository.findById(id);
       if (!existing) {
@@ -143,6 +194,26 @@ function createLandingService({ repository }) {
       }
 
       await repository.delete(id);
+      return { success: true };
+    },
+
+    async hardDelete(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Landing place not found", "NOT_FOUND");
+      }
+
+      await repository.hardDelete(id);
+      return { success: true };
+    },
+
+    async restore(id) {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new AppError(404, "Landing place not found", "NOT_FOUND");
+      }
+
+      await repository.restore(id);
       return { success: true };
     },
 

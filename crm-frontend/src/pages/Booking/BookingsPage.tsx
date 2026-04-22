@@ -30,8 +30,14 @@ import { useBookingsService } from "../../hooks/useBookingsService";
 import { useLeadsService } from "../../hooks/useLeadsService";
 import { quotationsApi } from "../../api/quotations";
 import { suppliersApi } from "../../api/suppliers";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 import { getCurrencyOptions } from "../../utils/currency";
+import {
+  normalizeCurrencyCode,
+  pickFirstValidCurrencyCode,
+  pickLeadDisplayCurrencyCode,
+  pickQuotationDisplayCurrencyCode,
+} from "../../utils/quotationDisplayCurrency";
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled'
 type PaymentStatus = 'partial' | 'unpaid' | 'paid' | 'refunded'
@@ -191,13 +197,6 @@ const toIsoDate = (value?: string | null) => {
   if (Number.isNaN(parsed.getTime())) return ''
   return parsed.toISOString().split('T')[0]
 }
-
-const normalizeCurrencyCode = (currency?: string | null) => {
-  const code = String(currency ?? "INR")
-    .trim()
-    .toUpperCase();
-  return /^[A-Z]{3}$/.test(code) ? code : "INR";
-};
 
 const toAmountNumber = (value: unknown, fallback = 0) => {
   if (typeof value === "number") {
@@ -465,7 +464,7 @@ const CreateBookingModal = ({
       setQuotationOptions(options);
     } catch (error) {
       console.error("Failed to load quotations:", error);
-      setQuotationError(getApiErrorMessage(error, "Failed to load quotations"));
+      reportApiError(error, "Failed to load quotations", setQuotationError);
       setQuotationOptions([]);
     } finally {
       setQuotationLoading(false);
@@ -510,7 +509,7 @@ const CreateBookingModal = ({
       setSupplierOptions(options);
     } catch (error) {
       console.error("Failed to load suppliers:", error);
-      setSupplierError(getApiErrorMessage(error, "Failed to load suppliers"));
+      reportApiError(error, "Failed to load suppliers", setSupplierError);
       setSupplierOptions([]);
     } finally {
       setSupplierLoading(false);
@@ -786,8 +785,10 @@ const CreateBookingModal = ({
       }
     } catch (error) {
       console.error("Failed to load quotation:", error);
-      setQuotationError(
-        getApiErrorMessage(error, "Failed to load quotation details"),
+      reportApiError(
+        error,
+        "Failed to load quotation details",
+        setQuotationError,
       );
     } finally {
       setQuotationAutofillLoading(false);
@@ -934,9 +935,13 @@ const CreateBookingModal = ({
               <input
                 type="text"
                 value={formData.customer}
-                onChange={(e) =>
-                  setFormData({ ...formData, customer: e.target.value })
-                }
+                onChange={(e) =>{
+                  const value = e.target.value;
+                  const OnlyLetters = /^[A-Za-z\s]+$/;
+                  if (OnlyLetters.test(value) || value === "") {
+                    setFormData({ ...formData, customer: value });
+                  }
+                }}
                 className={`field-input ${
                   errors.customer ? "border-red-500" : ""
                 }`}
@@ -1727,6 +1732,9 @@ const BookingsPage: React.FC = () => {
   const normalizePayment = (value?: string): PaymentStatus => {
     switch ((value ?? "").toUpperCase()) {
       case "PAID":
+      case "FULL":
+      case "FULLY_PAID":
+      case "COMPLETE":
         return "paid";
       case "PARTIAL":
         return "partial";
@@ -1884,6 +1892,16 @@ const BookingsPage: React.FC = () => {
       lead?.created_date
     );
 
+    const quotationCurrency = pickQuotationDisplayCurrencyCode(quotation);
+    const leadCurrency = pickLeadDisplayCurrencyCode(lead);
+    const storedBookingCurrency = pickFirstValidCurrencyCode(
+      b.clientCurrency,
+      b.client_currency,
+      b.currency,
+      b.supplierCurrency,
+      b.supplier_currency,
+    );
+
     return {
       id: String(b.id ?? idx),
       bookingId: b.bookingId ?? b.bookingNumber ?? b.code ?? `BK-${idx + 1}`,
@@ -1891,6 +1909,7 @@ const BookingsPage: React.FC = () => {
         b.customer ??
         b.customerName ??
         b.clientName ??
+        b.leadName ??
         lead?.fullName ??
         lead?.name ??
         "Unknown",
@@ -1937,11 +1956,7 @@ const BookingsPage: React.FC = () => {
         0,
       ),
       currency: normalizeCurrencyCode(
-        b.currency ??
-          b.clientCurrency ??
-          b.client_currency ??
-          b.supplierCurrency ??
-          b.supplier_currency,
+        quotationCurrency ?? leadCurrency ?? storedBookingCurrency,
       ),
       documentsReady: Number(b.documentsReady ?? b.documents?.ready ?? 0),
       documentsTotal: Number(b.documentsTotal ?? b.documents?.total ?? 0),
@@ -2155,8 +2170,8 @@ const BookingsPage: React.FC = () => {
       setStats(calculateStats(mapped));
     } catch (err) {
       console.error("Failed to load bookings:", err);
-      setError(getApiErrorMessage(err, "Failed to load bookings"));
-      setStatsError(getApiErrorMessage(err, "Failed to load booking stats"));
+      const message = reportApiError(err, "Failed to load bookings", setError);
+      setStatsError(message);
       setBookingItems([]);
     } finally {
       setLoading(false);
@@ -2184,10 +2199,7 @@ const BookingsPage: React.FC = () => {
       showToast("Booking confirmed successfully", "success");
     } catch (error) {
       console.error("Failed to send confirmation:", error);
-      showToast(
-        getApiErrorMessage(error, "Failed to confirm booking"),
-        "error",
-      );
+      reportApiError(error, "Failed to confirm booking");
     } finally {
       setLoading(false);
     }
@@ -2206,18 +2218,10 @@ const BookingsPage: React.FC = () => {
       showToast("Booking approved successfully", "success");
     } catch (error) {
       console.error("Failed to approve booking:", error);
-      showToast(
-        getApiErrorMessage(error, "Failed to approve booking"),
-        "error",
-      );
+      reportApiError(error, "Failed to approve booking");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleRecordPayment = (booking: Booking) => {
-    setSelectedBooking(booking);
-    setShowPaymentModal(true);
   };
 
   const handlePaymentSubmit = async (
@@ -2231,7 +2235,7 @@ const BookingsPage: React.FC = () => {
       showToast("Payment recorded successfully", "success");
     } catch (error) {
       console.error("Failed to record payment:", error);
-      showToast(getApiErrorMessage(error, "Failed to record payment"), "error");
+      reportApiError(error, "Failed to record payment");
     } finally {
       setLoading(false);
     }
@@ -2244,10 +2248,7 @@ const BookingsPage: React.FC = () => {
       showToast("Invoice generated successfully", "success");
     } catch (error) {
       console.error("Failed to generate invoice:", error);
-      showToast(
-        getApiErrorMessage(error, "Failed to generate invoice"),
-        "error",
-      );
+      reportApiError(error, "Failed to generate invoice");
     } finally {
       setLoading(false);
     }
@@ -2274,7 +2275,7 @@ const BookingsPage: React.FC = () => {
           data.supplierPaymentDeadlineAt,
         ),
         cancellationDeadlineAt: toIsoDateTime(data.cancellationDeadlineAt),
-        currency: data.currency || "INR",
+        clientCurrency: normalizeCurrencyCode(data.currency),
         supplierDetails:
           data.supplierId || data.supplierName ?
             {
@@ -2294,7 +2295,7 @@ const BookingsPage: React.FC = () => {
       return true;
     } catch (error) {
       console.error("Failed to create booking:", error);
-      showToast(getApiErrorMessage(error, "Failed to create booking"), "error");
+      reportApiError(error, "Failed to create booking");
       return false;
     } finally {
       setLoading(false);
@@ -2327,7 +2328,7 @@ const BookingsPage: React.FC = () => {
       showToast("Booking cancelled successfully", "success");
     } catch (error) {
       console.error("Failed to cancel booking:", error);
-      showToast(getApiErrorMessage(error, "Failed to cancel booking"), "error");
+      reportApiError(error, "Failed to cancel booking");
     } finally {
       setLoading(false);
     }
@@ -3267,9 +3268,9 @@ const BookingsPage: React.FC = () => {
                           >
                             {booking.payment}
                           </span>
-                          {(booking.payment === "partial" ||
+                          {/* {(booking.payment === "partial" ||
                             booking.payment === "unpaid") && (
-                            <button
+                            <button 
                               onClick={() => handleRecordPayment(booking)}
                               disabled={loading}
                               className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
@@ -3277,7 +3278,7 @@ const BookingsPage: React.FC = () => {
                             >
                               Pay
                             </button>
-                          )}
+                          )} */}
                         </div>
 	                        <p className="mt-1 text-xs text-gray-500">
 	                          {formatPaidVsTotal(

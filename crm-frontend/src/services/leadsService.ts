@@ -1,4 +1,5 @@
 import type {
+  LeadActivityCreatePayload,
   LeadApiRecord,
   LeadDestinationRecord,
   LeadFollowupRecord,
@@ -20,6 +21,8 @@ export type LeadListItem = {
   id: number | string;
   leadId: string;
   createdAt: string | null;
+  clientCreatedAt?: string | null;
+  clientTimezone?: string | null;
   name: string;
   email: string;
   phone: string;
@@ -31,6 +34,8 @@ export type LeadListItem = {
   packageName: string;
   leadType?: string | null;
   lead_type?: string | null;
+  budget?: number | null;
+  salary?: number | null;
   status: CanonicalLeadStatus;
   statusLabel: SopStatusLabel;
   subStatus: string | null;
@@ -182,20 +187,6 @@ const extractListPayload = (response: LeadsListResponse) => {
   return { items, pagination };
 };
 
-const extractFollowups = (response: LeadFollowupsResponse) => {
-  const data =
-    (response as {
-      data?: { data?: LeadFollowupRecord[]; items?: LeadFollowupRecord[] };
-    })?.data?.data ??
-    (response as {
-      data?: { data?: LeadFollowupRecord[]; items?: LeadFollowupRecord[] };
-    })?.data?.items ??
-    (response as { data?: LeadFollowupRecord[] })?.data ??
-    response;
-
-  return Array.isArray(data) ? data : [];
-};
-
 const extractArray = (response: unknown) => {
   const payload = (response as { data?: unknown })?.data ?? response;
   if (Array.isArray(payload)) return payload;
@@ -217,6 +208,11 @@ const extractArray = (response: unknown) => {
   if (Array.isArray(secondLevelItems)) return secondLevelItems;
 
   return [];
+};
+
+const extractFollowups = (response: LeadFollowupsResponse) => {
+  const rows = extractArray(response);
+  return Array.isArray(rows) ? (rows as LeadFollowupRecord[]) : [];
 };
 
 const normalizePriority = (lead: LeadApiRecord): LeadPriority => {
@@ -306,11 +302,12 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
   const status = normalizeCanonicalStatus(lead.status);
   const statusLabel = deriveSopStatusLabel(lead.status, lead.subStatus, lead.statusLabel);
   const leadIdFromBackend = toPlainText(
-    lead.leadId ??
-      (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
-        .leadCode ??
+    (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
+      .leadCode ??
       (lead as LeadApiRecord & { leadCode?: string | null; lead_code?: string | null })
         .lead_code ??
+      lead.leadId ??
+      lead.id ??
       lead.code ??
       "",
     "",
@@ -320,6 +317,8 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     id: lead.id ?? index,
     leadId: leadIdFromBackend || "N/A",
     createdAt: lead.createdAt ?? lead.created_at ?? null,
+    clientCreatedAt: lead.clientCreatedAt ?? lead.client_created_at ?? null,
+    clientTimezone: lead.clientTimezone ?? lead.client_timezone ?? null,
     name: lead.name ?? lead.fullName ?? lead.customerName ?? "Unknown",
     email: lead.email ?? "N/A",
     phone: lead.phone ?? lead.mobile ?? "N/A",
@@ -344,6 +343,18 @@ const toListItem = (lead: LeadApiRecord, index: number): LeadListItem => {
     packageName: lead.packageName ?? lead.package ?? "N/A",
     leadType: (lead as LeadApiRecord & { leadType?: string | null }).leadType ?? null,
     lead_type: (lead as LeadApiRecord & { lead_type?: string | null }).lead_type ?? null,
+    budget:
+      typeof (lead as any)?.budget === "number"
+        ? (lead as any).budget
+        : (lead as any)?.budget != null
+          ? Number((lead as any).budget)
+          : null,
+    salary:
+      typeof (lead as any)?.salary === "number"
+        ? (lead as any).salary
+        : (lead as any)?.salary != null
+          ? Number((lead as any).salary)
+          : null,
     status,
     statusLabel,
     subStatus: lead.subStatus ?? null,
@@ -419,8 +430,14 @@ export const createLeadsService = (datasource: LeadsDatasource) => ({
     datasource.processNonResponsive(payload),
   processCadenceAutomation: (payload?: { staleDays?: number; limit?: number }) =>
     datasource.processCadenceAutomation(payload),
-  disableCalls: (id: string, disabled: boolean) =>
-    datasource.disableCalls(id, disabled),
+  createLeadActivity: (payload: LeadActivityCreatePayload) =>
+    datasource.createLeadActivity(payload),
+  listLeadActivities: (leadId: string) => datasource.listLeadActivities(leadId),
+  disableCalls: (
+    id: string,
+    disabled: boolean,
+    extra?: { activityCreatedAt?: string; activityTimezone?: string },
+  ) => datasource.disableCalls(id, disabled, extra),
   submitPublicLead: (payload: unknown) => datasource.publicCapture(payload),
 });
 

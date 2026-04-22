@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const permissionKeySchema = z
   .string()
@@ -31,7 +32,7 @@ const listPermissions = z.object({
   params: z.object({}).optional(),
   query: z
     .object({
-      includeInactive: z.coerce.boolean().optional(),
+      includeInactive: optionalQueryBoolean,
     })
     .optional(),
 });
@@ -68,7 +69,7 @@ const listRoles = z.object({
   params: z.object({}).optional(),
   query: z
     .object({
-      includeInactive: z.coerce.boolean().optional(),
+      includeInactive: optionalQueryBoolean,
     })
     .optional(),
 });

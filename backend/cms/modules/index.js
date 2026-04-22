@@ -13,10 +13,14 @@ import {
 import { createMemoryUpload } from "../../crm/core/uploads/index.js";
 
 function createCmsModules({ db, storage, logger, upload }) {
-  const uploadMiddleware =
-    upload || createMemoryUpload({ maxFileSizeMb: 10 });
+  const uploadMiddleware = upload || createMemoryUpload({ maxFileSizeMb: 200 });
 
-  const landing = createLandingModule({ db, storage, upload: uploadMiddleware, logger });
+  const landing = createLandingModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
   const destinations = createDestinationsModule({
     db,
     storage,
@@ -29,14 +33,24 @@ function createCmsModules({ db, storage, logger, upload }) {
     upload: uploadMiddleware,
     logger,
   });
-  const visa = createVisaModule({ db, storage, upload: uploadMiddleware, logger });
+  const visa = createVisaModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
   const experience = createExperienceModule({
     db,
     storage,
     upload: uploadMiddleware,
     logger,
   });
-  const media = createCmsMediaModule({ db, storage, upload: uploadMiddleware, logger });
+  const media = createCmsMediaModule({
+    db,
+    storage,
+    upload: uploadMiddleware,
+    logger,
+  });
   const publicCms = createPublicCmsModule({
     landingService: landing.service,
     destinationsService: destinations.service,
@@ -61,7 +75,7 @@ function registerModules(app, dependencies, options = {}) {
   const upload =
     options.upload ||
     createMemoryUpload({
-      maxFileSizeMb: dependencies.config?.uploads?.maxFileSizeMb || 10,
+      maxFileSizeMb: dependencies.config?.uploads?.maxFileSizeMb || 200,
     });
   const requireAuth =
     options.requireAuth || dependencies.middlewares?.requireAuth;

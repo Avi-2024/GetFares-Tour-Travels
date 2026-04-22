@@ -20,7 +20,7 @@ import {
   FaPause,
 } from "react-icons/fa";
 import { MdCheckCircle, MdAccessTime } from "react-icons/md";
-import { getApiErrorMessage } from "../../api/apiClient";
+import { reportApiError } from "../../lib/notify";
 
 interface Campaign {
   id: string;
@@ -282,7 +282,7 @@ const CampaignsPage: React.FC = () => {
         setCampaigns((prev) => prev.filter((c) => c.id !== id));
       } catch (error) {
         console.error("Failed to delete campaign:", error);
-        setError(getApiErrorMessage(error, "Failed to delete campaign"));
+        reportApiError(error, "Failed to delete campaign", setError);
       }
     }
   };
@@ -303,7 +303,7 @@ const CampaignsPage: React.FC = () => {
       setCampaigns((prev) => [newCampaign, ...prev]);
     } catch (error) {
       console.error("Failed to duplicate campaign:", error);
-      setError(getApiErrorMessage(error, "Failed to duplicate campaign"));
+      reportApiError(error, "Failed to duplicate campaign", setError);
     }
   };
 
@@ -401,7 +401,7 @@ const CampaignsPage: React.FC = () => {
       setShowCreateModal(false);
       setEditingCampaign(null);
     } catch (error) {
-      setError(getApiErrorMessage(error, "Failed to save campaign"));
+      reportApiError(error, "Failed to save campaign", setError);
     } finally {
       setLoading(false);
     }
@@ -613,7 +613,7 @@ const CampaignsPage: React.FC = () => {
                     document.body.removeChild(a);
                   } catch (error) {
                     console.error("Export failed:", error);
-                    setError(getApiErrorMessage(error, "Failed to export campaigns"));
+                    reportApiError(error, "Failed to export campaigns", setError);
                   }
                 }}
                 className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"

@@ -120,6 +120,24 @@ function createPublicCmsController({
       res.json({ success: true, data: destination });
     }),
 
+    getDestinationHighlightsBySlug: asyncHandler(async (req, res) => {
+      const country = parseCountry(req.query.country);
+      const destination = await resolveActiveDestination(req.params.slug, country);
+      res.json({
+        success: true,
+        data: {
+          keyHighlights: Array.isArray(destination.keyHighlights) ?
+            destination.keyHighlights
+          : [],
+          services: Array.isArray(destination.services) ? destination.services : [],
+          bestTimeToVisit:
+            Array.isArray(destination.bestTimeToVisit) ?
+              destination.bestTimeToVisit
+            : [],
+        },
+      });
+    }),
+
     getDestinationMediaBySlug: asyncHandler(async (req, res) => {
       const country = parseCountry(req.query.country);
       const destination = await resolveActiveDestination(req.params.slug, country);
@@ -158,10 +176,7 @@ function createPublicCmsController({
       const packages = await packagesService.listMainPackages(
         country ? { country } : {},
       );
-      res.json({
-        success: true,
-        data: packages.filter((pkg) => pkg.publishToWebsite),
-      });
+      res.json({ success: true, data: packages });
     }),
 
     listSubPackages: asyncHandler(async (req, res) => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const uuid = z.string().uuid();
 const payableStatus = z.enum(["PENDING", "PARTIAL", "PAID"]);
@@ -70,7 +71,7 @@ const list = z.object({
       name: z.string().trim().optional(),
       country: z.string().trim().optional(),
       supplierCurrency: z.string().trim().optional(),
-      isActive: z.coerce.boolean().optional(),
+      isActive: optionalQueryBoolean,
     })
     .optional(),
 });
@@ -198,11 +199,18 @@ const processPayableDeadlineAlerts = z.object({
   query: z.object({}).optional(),
 });
 
+const deleteSupplier = z.object({
+  body: z.object({}).optional(),
+  params: z.object({ id: uuid }),
+  query: z.object({}).optional(),
+});
+
 const SuppliersValidation = {
   create,
   update,
   byId,
   list,
+  deleteSupplier,
   createPayable,
   updatePayable,
   listPayables,

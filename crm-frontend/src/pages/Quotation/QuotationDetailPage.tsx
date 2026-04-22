@@ -14,9 +14,10 @@ import {
 } from 'react-icons/fa6'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import EmptyState from '../../components/ui/EmptyState'
-import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { quotationsApi } from '../../api'
+import { reportApiError, notify } from '../../lib/notify'
 import { validateQuoteTransition } from '../../utils/workflowValidation'
+import PdfTemplate from './PdfTemplate'
 
 type QuoteStatus =
   | 'DRAFT'
@@ -181,15 +182,17 @@ const QuotationDetailPage: React.FC = () => {
   const [savingStatus, setSavingStatus] = useState(false)
   const [showSendDropdown, setShowSendDropdown] = useState(false)
   const [showRejectModal, setShowRejectModal] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [rejectError, setRejectError] = useState('')
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const pdfExportRef = useRef<HTMLDivElement | null>(null)
+  const pdfTemplateRef = useRef<HTMLDivElement | null>(null)
 
   const loadDetails = useCallback(async () => {
     if (!id) {
       setLoading(false)
-      return
+      return null
     }
 
     setLoading(true)
@@ -216,14 +219,34 @@ const QuotationDetailPage: React.FC = () => {
       setQuotation(quoteData)
       setStatus(mapStatus(quoteData.status))
 
-      const itemRows = Array.isArray(quoteData.items)
+      const snapshotServiceRows = Array.isArray(
+        quoteData.templateSnapshot?.serviceRows
+      )
+        ? quoteData.templateSnapshot.serviceRows
+        : Array.isArray(quoteData.templateSnapshot?.builderSnapshot?.serviceRows)
+          ? quoteData.templateSnapshot.builderSnapshot.serviceRows
+          : []
+
+      const itemRows = Array.isArray(quoteData.items) && quoteData.items.length
         ? quoteData.items.map((item: any) => ({
             id: String(item.id ?? `${item.itemType}-${item.description}`),
             itemType: (item.itemType || 'OTHER') as ComponentRow['itemType'],
             description: String(item.description || 'N/A'),
             cost: toNumber(item.cost, 0)
           }))
-        : []
+        : snapshotServiceRows.map((item: any, index: number) => ({
+            id: String(item.id ?? `${item.key ?? index}`),
+            itemType: (item.itemType || 'OTHER') as ComponentRow['itemType'],
+            description: String(
+              item.description ??
+                `${item.label ?? item.key ?? 'Service'} - ${
+                  quoteData.tripDestination ??
+                  quoteData.templateSnapshot?.destination ??
+                  'N/A'
+                }`
+            ),
+            cost: toNumber(item.baseCost ?? item.cost, 0)
+          }))
       setRows(itemRows)
 
       const versionRowsRaw =
@@ -285,13 +308,15 @@ const QuotationDetailPage: React.FC = () => {
       })
 
       setLogs(mappedLogs)
+      return quoteData
     } catch (err) {
       console.error('Failed to load quotation detail:', err)
-      setError(getApiErrorMessage(err, 'Failed to load quotation details'))
+      reportApiError(err, 'Failed to load quotation details', setError)
       setQuotation(null)
       setRows([])
       setVersions([])
       setLogs([])
+      return null
     } finally {
       setLoading(false)
     }
@@ -305,6 +330,7 @@ const QuotationDetailPage: React.FC = () => {
   const snapshot = quotation?.templateSnapshot ?? null
   const snapshotBuilder = snapshot?.builderSnapshot ?? null
   const snapshotLead = snapshot?.lead ?? snapshot?.builderSnapshot?.lead ?? null
+  const snapshotPricing = snapshot?.pricing ?? snapshotBuilder?.pricing ?? null
   const packageSnapshot =
     snapshot?.package ?? snapshot?.builderSnapshot?.package ?? null
   const destination =
@@ -413,18 +439,57 @@ const QuotationDetailPage: React.FC = () => {
       )
     ) ||
       'N/A')
-  const displayTravellerSummary = pluralize(
-    Math.max(0, toNumber(snapshot?.adults ?? snapshotBuilder?.adults, 0)),
-    'adult'
+  const displayAdultsCount = Math.max(
+    0,
+    toNumber(
+      snapshot?.adults ??
+        snapshotBuilder?.adults ??
+        lead?.adultsCount ??
+        lead?.adults_count,
+      0
+    )
   )
+  const displayChildrenCount = Math.max(
+    0,
+    toNumber(
+      snapshot?.children ??
+        snapshotBuilder?.children ??
+        lead?.childrenCount ??
+        lead?.children_count,
+      0
+    )
+  )
+  const displayChildAges = (
+    snapshot?.childAges ??
+    snapshotBuilder?.childAges ??
+    lead?.childAges ??
+    []
+  )
+    .map((value: unknown) => Number(value))
+    .filter((value: number) => Number.isFinite(value) && value >= 0)
+
+  const displayTravellerSummary = [
+    pluralize(displayAdultsCount, 'adult'),
+    displayChildrenCount > 0
+      ? pluralize(displayChildrenCount, 'child', 'children')
+      : null,
+    displayChildAges.length ? `Ages ${displayChildAges.join(', ')}` : null
+  ]
+    .filter(Boolean)
+    .join(', ')
+
   const displayTravelStartDate =
-    quotation?.travelStartDate ??
     snapshot?.travelStartDate ??
     snapshotBuilder?.travelStartDate ??
+    quotation?.travelStartDate ??
     lead?.travelDate ??
     null
   const displayTravelEndDate =
-    snapshot?.travelEndDate ?? snapshotBuilder?.travelEndDate ?? null
+    snapshot?.travelEndDate ??
+    snapshotBuilder?.travelEndDate ??
+    quotation?.travelEndDate ??
+    lead?.travelEndDate ??
+    null
   const displayValidUntil =
     snapshot?.validUntil ??
     snapshotBuilder?.validUntil ??
@@ -467,25 +532,38 @@ const QuotationDetailPage: React.FC = () => {
           content: block
         }
       })
+      .filter(section => {
+        const titleLower = section.title.toLowerCase()
+        return titleLower === 'trip summary' || titleLower === 'enabled services'
+      })
   }, [quotation?.importantNotes])
 
   const displayCurrency = useMemo(() => {
     const value =
       quotation?.clientCurrency ??
       quotation?.costCurrency ??
+      snapshot?.currency ??
+      snapshotBuilder?.currency ??
+      snapshotPricing?.clientCurrency ??
+      snapshotPricing?.costCurrency ??
       quotation?.pricing?.clientCurrency ??
       quotation?.pricing?.costCurrency ??
       'INR'
     return String(value || 'INR').toUpperCase()
-  }, [quotation])
+  }, [quotation, snapshot, snapshotBuilder, snapshotPricing])
 
   const summary = useMemo(() => {
     const totalCost =
       toNumber(quotation?.totalCost, NaN) ||
+      toNumber(snapshotPricing?.supplierCost, NaN) ||
       rows.reduce((sum, row) => sum + toNumber(row.cost, 0), 0)
-    const persistedMarginPercent = toNumber(quotation?.marginPercent, NaN)
+    const persistedMarginPercent =
+      toNumber(quotation?.marginPercent, NaN) ||
+      toNumber(snapshotPricing?.margin, NaN)
     const markupAmount = Number.isFinite(toNumber(quotation?.markupAmount, NaN))
       ? toNumber(quotation?.markupAmount, 0)
+      : Number.isFinite(toNumber(snapshotPricing?.profit, NaN))
+        ? toNumber(snapshotPricing?.profit, 0)
       : Number(
           (
             totalCost *
@@ -500,49 +578,87 @@ const QuotationDetailPage: React.FC = () => {
       Number.isFinite(persistedMarginPercent) && persistedMarginPercent > 0
         ? persistedMarginPercent
         : derivedMarginPercent
-    const discount = toNumber(quotation?.discount, 0)
-    const taxAmount = toNumber(quotation?.taxAmount ?? quotation?.tax, 0)
+    const discount = toNumber(quotation?.discount ?? snapshotPricing?.discount, 0)
+    const taxAmount = toNumber(
+      quotation?.taxAmount ?? quotation?.tax ?? snapshotPricing?.taxAmount,
+      0
+    )
     const finalPrice = toNumber(
-      quotation?.finalPrice ?? quotation?.totalSaleValue,
+      quotation?.finalPrice ??
+        quotation?.totalSaleValue ??
+        snapshotPricing?.totalPrice,
       totalCost - discount + taxAmount
     )
 
     return { totalCost, marginPercent, markupAmount, discount, taxAmount, finalPrice }
-  }, [quotation, rows])
+  }, [quotation, rows, snapshotPricing])
 
   const commercial = useMemo(() => {
     const supplierCost =
       toNumber(quotation?.supplierCost, NaN) ||
+      toNumber(snapshotPricing?.supplierCost, NaN) ||
       rows.reduce((sum, row) => sum + toNumber(row.cost, 0), 0)
     const markupAmount =
       toNumber(quotation?.markupAmount, NaN) ||
-      supplierCost * (toNumber(quotation?.marginPercent, 0) / 100)
-    const serviceFeeAmount = toNumber(quotation?.serviceFeeAmount, 0)
-    const baseTaxAmount = toNumber(quotation?.taxAmount ?? quotation?.tax, 0)
-    const supplierTaxAmount = toNumber(quotation?.supplierTaxAmount, 0)
-    const supplierTaxPercent = toNumber(quotation?.supplierTaxPercent, 0)
-    const gstAmount = toNumber(quotation?.gstAmount, 0)
-    const gstPercent = toNumber(quotation?.gstPercent, 0)
-    const tcsAmount = toNumber(quotation?.tcsAmount, 0)
-    const tcsPercent = toNumber(quotation?.tcsPercent, 0)
-    const taxAmount = Number(
-      (baseTaxAmount + supplierTaxAmount + gstAmount + tcsAmount).toFixed(2)
+      toNumber(snapshotPricing?.profit, NaN) ||
+      supplierCost *
+        (toNumber(quotation?.marginPercent ?? snapshotPricing?.margin, 0) / 100)
+    const serviceFeeAmount = toNumber(
+      quotation?.serviceFeeAmount ?? snapshotPricing?.serviceFee,
+      0
     )
+    const persistedTotalTax = toNumber(
+      quotation?.taxAmount ?? quotation?.tax ?? snapshotPricing?.taxAmount,
+      NaN
+    )
+    const supplierTaxAmount = toNumber(quotation?.supplierTaxAmount, 0)
+    const supplierTaxPercent = toNumber(
+      quotation?.supplierTaxPercent ?? snapshotPricing?.supplierTaxPercent,
+      0
+    )
+    const gstAmount = toNumber(quotation?.gstAmount, 0)
+    const gstPercent = toNumber(
+      quotation?.gstPercent ?? snapshotPricing?.gstPercent,
+      0
+    )
+    const tcsAmount = toNumber(quotation?.tcsAmount, 0)
+    const tcsPercent = toNumber(
+      quotation?.tcsPercent ?? snapshotPricing?.tcsPercent,
+      0
+    )
+    const computedTaxAmount = Number(
+      (supplierTaxAmount + gstAmount + tcsAmount).toFixed(2)
+    )
+    const taxAmount = Number.isFinite(persistedTotalTax)
+      ? persistedTotalTax
+      : computedTaxAmount
     const discount = toNumber(quotation?.discount, 0)
     const subtotal = supplierCost + markupAmount + serviceFeeAmount
     const taxableBase = Math.max(subtotal - discount, 0)
     const effectiveTaxPercent =
       taxableBase > 0 ? Number(((taxAmount / taxableBase) * 100).toFixed(2)) : 0
     const finalAmount = toNumber(
-      quotation?.totalSaleValue ?? quotation?.finalPrice,
+      quotation?.totalSaleValue ??
+        quotation?.finalPrice ??
+        snapshotPricing?.totalPrice,
       Math.max(subtotal + taxAmount - discount, 0)
     )
+    const rawMarginPercent = toNumber(
+      quotation?.marginPercent ?? snapshotPricing?.margin,
+      NaN
+    )
+    const derivedMarginPercent =
+      supplierCost > 0
+        ? Number(((markupAmount / supplierCost) * 100).toFixed(2))
+        : 0
 
     return {
       supplierCost,
       markupAmount,
       serviceFeeAmount,
-      baseTaxAmount,
+      persistedTotalTax: Number.isFinite(persistedTotalTax)
+        ? persistedTotalTax
+        : null,
       supplierTaxAmount,
       supplierTaxPercent,
       gstAmount,
@@ -555,21 +671,34 @@ const QuotationDetailPage: React.FC = () => {
       discount,
       subtotal,
       finalAmount,
-      marginPercent: toNumber(quotation?.marginPercent, 0)
+      marginPercent:
+        Number.isFinite(rawMarginPercent) && rawMarginPercent > 0
+          ? rawMarginPercent
+          : derivedMarginPercent
     }
-  }, [quotation, rows])
+  }, [quotation, rows, snapshotPricing])
 
   const handleApprove = async () => {
     if (!id) return
     setSavingStatus(true)
     setError('')
     try {
-      await quotationsApi.changeStatus(id, { status: 'APPROVED' })
-      setStatus('APPROVED')
-      await loadDetails()
+      const res = await quotationsApi.changeStatus(id, { status: 'APPROVED' })
+      const payload = unwrapData<any>(res)
+      if (payload?.status) {
+        setStatus(mapStatus(payload.status))
+      } else {
+        setStatus('APPROVED')
+      }
+      const latest = await loadDetails()
+      if (latest && mapStatus(latest.status) !== 'APPROVED') {
+        setError(
+          'Approval did not save. Approve margin first if required, then retry.'
+        )
+      }
     } catch (err) {
       console.error('Failed to approve quotation:', err)
-      setError(getApiErrorMessage(err, 'Failed to approve quotation'))
+      reportApiError(err, 'Failed to approve quotation', setError)
     } finally {
       setSavingStatus(false)
     }
@@ -600,7 +729,7 @@ const QuotationDetailPage: React.FC = () => {
       await loadDetails()
     } catch (err) {
       console.error('Failed to reject quotation:', err)
-      setRejectError(getApiErrorMessage(err, 'Failed to reject quotation'))
+      reportApiError(err, 'Failed to reject quotation', setRejectError)
     } finally {
       setSavingStatus(false)
     }
@@ -628,140 +757,195 @@ const QuotationDetailPage: React.FC = () => {
     setSavingStatus(true)
     setError('')
     try {
+      // Generate PDF using the React template
+      if (!pdfTemplateRef.current) {
+        throw new Error('PDF template not available')
+      }
+
+      const element = pdfTemplateRef.current
+      element.style.display = 'block'
+      element.style.position = 'fixed'
+      element.style.top = '-9999px'
+      element.style.left = '-9999px'
+      element.style.width = '794px'
+      element.style.zIndex = '-9999'
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Import html2canvas and jsPDF
+      const html2canvasModule = await import(
+        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
+      )
+      const html2canvas = (html2canvasModule as any).default
+
+      const jsPdfModule = await import(
+        'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
+      )
+      const JsPDF = (jsPdfModule as any).default
+
+      // Render to canvas
+      const pdf = new JsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
+
+      const pages = Array.from(
+        element.querySelectorAll('.pdf-page')
+      ) as HTMLElement[]
+      const targets = pages.length ? pages : [element]
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const margin = 10
+      const availableWidth = pageWidth - margin * 2
+
+      for (let idx = 0; idx < targets.length; idx += 1) {
+        const node = targets[idx]
+        const canvas = await html2canvas(node, {
+          // Keep file size manageable for uploads.
+          scale: 1.25,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          allowTaint: true,
+          letterRendering: true
+        })
+        const imgData = canvas.toDataURL('image/jpeg', 0.78)
+        const imgWidth = availableWidth
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+        if (idx > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight)
+      }
+
+      // Convert PDF to blob and send
+      const pdfBlob = pdf.output('blob')
+      const formData = new FormData()
+      formData.append('quotationId', id)
+      formData.append('pdf', pdfBlob, `quotation-${quotation?.quoteNumber || id}.pdf`)
+
+      // Get auth token from localStorage
+      const token = localStorage.getItem('auth_token')
+
+      // Upload PDF to backend via proxy
+      const uploadRes = await fetch(`/api/quotations/${id}/upload-pdf`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!uploadRes.ok) {
+        throw new Error('Failed to upload PDF')
+      }
+
+      const uploadData = await uploadRes.json()
+      const pdfUrl = uploadData.pdfUrl
+
+      // Send quotation with PDF link
       await quotationsApi.send(id, {
         channel: method === 'email' ? 'EMAIL' : 'WHATSAPP',
-        ...(method === 'email' ? { recipientEmail } : { recipientPhone })
+        ...(method === 'email' ? { recipientEmail } : { recipientPhone }),
+        pdfUrl: pdfUrl
       })
+
       setShowSendDropdown(false)
-      await loadDetails()
+      setError('')
+      const methodName = method === 'email' ? 'Email' : 'WhatsApp'
+      notify.success(`Quotation sent successfully via ${methodName}!`)
+      console.log('Quotation sent successfully via ' + method)
     } catch (err) {
       console.error('Failed to send quotation:', err)
-      setError(getApiErrorMessage(err, 'Failed to send quotation'))
+      reportApiError(err, 'Failed to send quotation', setError)
     } finally {
+      // Restore element
+      if (pdfTemplateRef.current) {
+        pdfTemplateRef.current.style.display = 'none'
+        pdfTemplateRef.current.style.position = 'absolute'
+        pdfTemplateRef.current.style.top = '-9999px'
+      }
       setSavingStatus(false)
     }
   }
 
   const handleDownloadPdf = async () => {
-    if (!pdfExportRef.current || downloadingPdf) return
+    if (!pdfTemplateRef.current || downloadingPdf) return
 
-    const exportRoot = pdfExportRef.current
+    const element = pdfTemplateRef.current
     setDownloadingPdf(true)
 
-    const exportStyle = document.createElement('style')
-    exportStyle.setAttribute('data-quotation-detail-pdf', 'true')
-    exportStyle.innerHTML = `
-      .quotation-detail-pdf-export {
-        background: #ffffff !important;
-        color: #111827 !important;
-      }
-      .quotation-detail-pdf-export * {
-        color: inherit;
-      }
-      .quotation-detail-pdf-export .dark\\:text-gray-100,
-      .quotation-detail-pdf-export .dark\\:text-gray-200,
-      .quotation-detail-pdf-export .dark\\:text-gray-300,
-      .quotation-detail-pdf-export .dark\\:text-gray-400 {
-        color: #111827 !important;
-      }
-      .quotation-detail-pdf-export .dark\\:bg-gray-800,
-      .quotation-detail-pdf-export .dark\\:bg-gray-900,
-      .quotation-detail-pdf-export .dark\\:bg-gray-800\\/50 {
-        background: #ffffff !important;
-      }
-      .quotation-detail-pdf-export .dark\\:border-gray-700,
-      .quotation-detail-pdf-export .dark\\:border-gray-800 {
-        border-color: #e5e7eb !important;
-      }
-      .quotation-detail-pdf-export .border {
-        border-color: #e5e7eb !important;
-      }
-      .quotation-detail-pdf-export .rounded-lg,
-      .quotation-detail-pdf-export .rounded-xl,
-      .quotation-detail-pdf-export .rounded-2xl {
-        box-shadow: none !important;
-      }
-      .quotation-detail-pdf-export table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      .quotation-detail-pdf-export th,
-      .quotation-detail-pdf-export td {
-        border-bottom: 1px solid #e5e7eb;
-      }
-    `
-
-    document.head.appendChild(exportStyle)
-
     try {
-      exportRoot.classList.add('quotation-detail-pdf-export')
-      await new Promise<void>(resolve => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-      })
+      // Show element temporarily for rendering
+      element.style.display = 'block'
+      element.style.position = 'fixed'
+      element.style.top = '-9999px'
+      element.style.left = '-9999px'
+      element.style.width = '794px'
+      element.style.zIndex = '-9999'
 
-      const html2canvasModule = (await import(
-        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
-      )) as any
-      const html2canvas = html2canvasModule.default || html2canvasModule
+      await new Promise(resolve => setTimeout(resolve, 500))
 
-      const jsPdfModule = (await import(
-        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
-      )) as any
-      const JsPDF = jsPdfModule.default || jsPdfModule
-
-      const canvas = await html2canvas(exportRoot, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        scrollX: 0,
-        scrollY: -window.scrollY
-      })
-
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new JsPDF('p', 'mm', 'a4')
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      const imgHeight = (canvas.height * pageWidth) / canvas.width
-
-      let heightLeft = imgHeight
-      let position = 0
-
-      pdf.addImage(
-        imgData,
-        'PNG',
-        0,
-        position,
-        pageWidth,
-        imgHeight,
-        '',
-        'FAST'
+      // Import html2canvas and jsPDF
+      const html2canvasModule = await import(
+        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'
       )
-      heightLeft -= pageHeight
+      const html2canvas = (html2canvasModule as any).default
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight
-        pdf.addPage()
-        pdf.addImage(
-          imgData,
-          'PNG',
-          0,
-          position,
-          pageWidth,
-          imgHeight,
-          '',
-          'FAST'
-        )
-        heightLeft -= pageHeight
+      const jsPdfModule = await import(
+        'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm'
+      )
+      const JsPDF = (jsPdfModule as any).default
+
+      // Render to canvas
+      const pdf = new JsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
+
+      const pages = Array.from(
+        element.querySelectorAll('.pdf-page')
+      ) as HTMLElement[]
+      const targets = pages.length ? pages : [element]
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const margin = 10
+      const availableWidth = pageWidth - margin * 2
+
+      for (let idx = 0; idx < targets.length; idx += 1) {
+        const node = targets[idx]
+        const canvas = await html2canvas(node, {
+          // Keep file size manageable for downloads too.
+          scale: 1.25,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          allowTaint: true,
+          letterRendering: true
+        })
+        const imgData = canvas.toDataURL('image/jpeg', 0.78)
+        const imgWidth = availableWidth
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+        if (idx > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight)
       }
 
+      // Save PDF
       const quoteRef = quotation?.quoteNumber ?? quotation?.id ?? 'quotation'
       pdf.save(`quotation-${quoteRef}.pdf`)
     } catch (err) {
-      console.error('Failed to download PDF:', err)
-      setError(getApiErrorMessage(err, 'Failed to download PDF'))
+      console.error('PDF Download Error:', err)
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      reportApiError(
+        new Error(`PDF Generation Failed: ${errorMsg}`),
+        'Failed to download PDF - Check console for details',
+        setError
+      )
     } finally {
-      exportRoot.classList.remove('quotation-detail-pdf-export')
-      exportStyle.remove()
+      // Restore element
+      if (element) {
+        element.style.display = 'none'
+        element.style.position = 'absolute'
+        element.style.top = '-9999px'
+      }
       setDownloadingPdf(false)
     }
   }
@@ -848,9 +1032,7 @@ const QuotationDetailPage: React.FC = () => {
                     await quotationsApi.approveMargin(id!)
                     await loadDetails()
                   } catch (err) {
-                    setError(
-                      getApiErrorMessage(err, 'Failed to approve margin')
-                    )
+                    reportApiError(err, 'Failed to approve margin', setError)
                   } finally {
                     setSavingStatus(false)
                   }
@@ -880,62 +1062,68 @@ const QuotationDetailPage: React.FC = () => {
           >
             <FaFilePdf className='mr-2' /> PDF
           </button>
+          <button
+            onClick={() => setShowPreview(true)}
+            className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors inline-flex items-center whitespace-nowrap shrink-0'
+          >
+            <FaEye className='mr-2' /> Preview
+          </button>
         </div>
       </div>
 
-      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-2 sm:gap-4'>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Total Cost
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={formatMoney(summary.totalCost, displayCurrency)}>
             {formatMoney(summary.totalCost, displayCurrency)}
           </p>
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Markup
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={summary.marginPercent > 0 ? `${summary.marginPercent}%` : formatMoney(summary.markupAmount, displayCurrency)}>
             {summary.marginPercent > 0
               ? `${summary.marginPercent}%`
               : formatMoney(summary.markupAmount, displayCurrency)}
           </p>
           {summary.marginPercent > 0 ? (
-            <p className='text-xs mt-1 text-gray-500'>
+            <p className='text-xs mt-1 text-gray-500 truncate' title={formatMoney(summary.markupAmount, displayCurrency)}>
               {formatMoney(summary.markupAmount, displayCurrency)}
             </p>
           ) : null}
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Discount
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={formatMoney(summary.discount, displayCurrency)}>
             {formatMoney(summary.discount, displayCurrency)}
           </p>
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Service Fee
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={formatMoney(commercial.serviceFeeAmount, displayCurrency)}>
             {formatMoney(commercial.serviceFeeAmount, displayCurrency)}
           </p>
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Tax
           </p>
-          <p className='text-xl font-bold mt-1 text-gray-900 dark:text-gray-100'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-gray-900 dark:text-gray-100 truncate' title={formatMoney(commercial.taxAmount, displayCurrency)}>
             {formatMoney(commercial.taxAmount, displayCurrency)}
           </p>
         </SurfaceCard>
-        <SurfaceCard className='p-4'>
-          <p className='text-xs uppercase tracking-wide text-gray-500'>
+        <SurfaceCard className='p-3 sm:p-4'>
+          <p className='text-xs uppercase tracking-wide text-gray-500 truncate'>
             Final Price
           </p>
-          <p className='text-xl font-bold mt-1 text-blue-600 dark:text-blue-400'>
+          <p className='text-lg sm:text-xl font-bold mt-1 text-blue-600 dark:text-blue-400 truncate' title={formatMoney(summary.finalPrice, displayCurrency)}>
             {formatMoney(summary.finalPrice, displayCurrency)}
           </p>
         </SurfaceCard>
@@ -1108,7 +1296,7 @@ const QuotationDetailPage: React.FC = () => {
               </p>
             </div>
             <div className='rounded-lg border border-gray-200 p-3 dark:border-gray-700'>
-              <p className='text-xs text-gray-500'>Tax</p>
+              <p className='text-xs text-gray-500'>Tax (Client Bill)</p>
               <p className='mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100'>
                 {formatMoney(commercial.taxAmount, displayCurrency)}
               </p>
@@ -1116,18 +1304,29 @@ const QuotationDetailPage: React.FC = () => {
                 {commercial.effectiveTaxPercent}% on{' '}
                 {formatMoney(commercial.taxableBase, displayCurrency)}
               </p>
-              <p className='text-[11px] text-gray-500'>
-                GST ({commercial.gstPercent}%):{' '}
-                {formatMoney(commercial.gstAmount, displayCurrency)}
-              </p>
-              <p className='text-[11px] text-gray-500'>
-                TCS ({commercial.tcsPercent}%):{' '}
-                {formatMoney(commercial.tcsAmount, displayCurrency)}
-              </p>
-              <p className='text-[11px] text-gray-500'>
-                Supplier Tax ({commercial.supplierTaxPercent}%):{' '}
-                {formatMoney(commercial.supplierTaxAmount, displayCurrency)}
-              </p>
+              {commercial.persistedTotalTax !== null ? (
+                <p className='text-[11px] text-gray-500'>
+                  Source: quotation tax total
+                </p>
+              ) : null}
+              {commercial.gstAmount > 0 ? (
+                <p className='text-[11px] text-gray-500'>
+                  GST (Government Tax, {commercial.gstPercent}%):{' '}
+                  {formatMoney(commercial.gstAmount, displayCurrency)}
+                </p>
+              ) : null}
+              {commercial.tcsAmount > 0 ? (
+                <p className='text-[11px] text-gray-500'>
+                  TCS (Collected from Client, {commercial.tcsPercent}%):{' '}
+                  {formatMoney(commercial.tcsAmount, displayCurrency)}
+                </p>
+              ) : null}
+              {commercial.supplierTaxAmount > 0 ? (
+                <p className='text-[11px] text-gray-500'>
+                  Supplier Tax (Vendor Side, {commercial.supplierTaxPercent}%):{' '}
+                  {formatMoney(commercial.supplierTaxAmount, displayCurrency)}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -1558,7 +1757,7 @@ const QuotationDetailPage: React.FC = () => {
                 </div>
                 <div className='flex items-center justify-between'>
                   <span className='text-gray-600 dark:text-gray-400'>Margin</span>
-                  <span className='font-semibold'>{commercial.marginPercent}%</span>
+                  <span className='font-semibold'>{summary.marginPercent}%</span>
                 </div>
                 <div className='flex items-center justify-between'>
                   <span className='text-gray-600 dark:text-gray-400'>Views</span>
@@ -1626,6 +1825,163 @@ const QuotationDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
+          <div className='relative max-h-[95vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white dark:bg-gray-900 shadow-2xl'>
+            {/* Modal Header */}
+            <div className='flex items-center justify-between border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6'>
+              <h2 className='text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100'>
+                Quotation Preview
+              </h2>
+              <button
+                onClick={() => setShowPreview(false)}
+                className='inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+              >
+                <FaXmark />
+              </button>
+            </div>
+
+            {/* Modal Content - Scrollable */}
+            <div className='overflow-y-auto' style={{ maxHeight: 'calc(90vh - 120px)' }}>
+              <div className='bg-gray-50 dark:bg-gray-800 p-4 sm:p-6'>
+                <div className='rounded-lg bg-white dark:bg-gray-900 p-4 sm:p-6'>
+                  <PdfTemplate
+                    data={{
+                      packageName: displayPackageName || displayQuotationTitle || 'Package',
+                      email: displayCustomerEmail,
+                      leadId:
+                        (lead as any)?.leadCode ??
+                        (lead as any)?.leadId ??
+                        (snapshotLead as any)?.leadCode ??
+                        (snapshotLead as any)?.leadId ??
+                        quotation?.lead?.leadCode ??
+                        quotation?.lead?.leadId ??
+                        (quotation?.id ?? 'N/A'),
+                      guestName: displayCustomerName,
+                      guestEmail: displayCustomerEmail,
+                      nights: toNumber(
+                        quotation?.durationNights ??
+                          snapshot?.durationNights ??
+                          snapshot?.nights,
+                        1
+                      ),
+                      adults: displayAdultsCount,
+                      children: displayChildrenCount,
+                      travelDate: formatDateOnly(displayTravelStartDate),
+                      validUntil: formatDateOnly(displayValidUntil),
+                      total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
+                      totalSellValue: String(commercial.finalAmount),
+                      currency: displayCurrency,
+                      itinerary: itineraryItems.map((item: any) => ({
+                        title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
+                        points: item.description ? [item.description] : []
+                      })),
+                      destination: displayDestinationName,
+                      quotationTitle: displayQuotationTitle,
+                      templateName: displayTemplateName,
+                      packageType: displayPackageKind || 'Standard Package',
+                      inclusions: String(contentTemplate?.inclusions ?? ''),
+                      exclusions: String(contentTemplate?.exclusions ?? ''),
+                      headerBranding: String(contentTemplate?.headerBranding ?? ''),
+                      paymentTerms: String(contentTemplate?.paymentTerms ?? ''),
+                      cancellationPolicy: String(contentTemplate?.cancellationPolicy ?? ''),
+                      footerDisclaimer: String(contentTemplate?.footerDisclaimer ?? ''),
+                      hotelDetails: String(contentTemplate?.hotelDetails ?? ''),
+                      quoteReference: String(quotation?.quoteNumber ?? quotation?.id ?? ''),
+                      quotationStatus: String(status ?? ''),
+                      supplierName: String(createdByUser?.fullName ?? createdByUser?.name ?? ''),
+                      enabledServices: String(
+                        noteSections.find(s => s.title.toLowerCase() === 'enabled services')
+                          ?.content ?? ''
+                      )
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className='flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 sm:p-3 sm:flex-row sm:justify-end'>
+              <button
+                onClick={() => setShowPreview(false)}
+                className='h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors inline-flex items-center justify-center whitespace-nowrap'
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  void handleDownloadPdf()
+                  setShowPreview(false)
+                }}
+                disabled={downloadingPdf}
+                className='h-9 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-flex items-center justify-center whitespace-nowrap disabled:opacity-60'
+              >
+                <FaFilePdf className='mr-2' /> Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden PDF Template for export */}
+      <div
+        ref={pdfTemplateRef}
+        style={{ display: 'none', position: 'absolute', top: '-9999px' }}
+      >
+        <PdfTemplate
+          data={{
+            packageName: displayPackageName || displayQuotationTitle || 'Package',
+            email: displayCustomerEmail,
+            leadId:
+              (lead as any)?.leadCode ??
+              (lead as any)?.leadId ??
+              (snapshotLead as any)?.leadCode ??
+              (snapshotLead as any)?.leadId ??
+              quotation?.lead?.leadCode ??
+              quotation?.lead?.leadId ??
+              (quotation?.id ?? 'N/A'),
+            guestName: displayCustomerName,
+            guestEmail: displayCustomerEmail,
+            nights: toNumber(
+              quotation?.durationNights ??
+                snapshot?.durationNights ??
+                snapshot?.nights,
+              1
+            ),
+            adults: displayAdultsCount,
+            children: displayChildrenCount,
+            travelDate: formatDateOnly(displayTravelStartDate),
+            validUntil: formatDateOnly(displayValidUntil),
+            total: String(snapshotPricing?.total ?? quotation?.total ?? '0'),
+            totalSellValue: String(commercial.finalAmount),
+            currency: displayCurrency,
+            itinerary: itineraryItems.map((item: any) => ({
+              title: item.day && item.title ? `${item.day}: ${item.title}` : item.title || item.day || 'Day',
+              points: item.description ? [item.description] : []
+            })),
+            destination: displayDestinationName,
+            quotationTitle: displayQuotationTitle,
+            templateName: displayTemplateName,
+            packageType: displayPackageKind || 'Standard Package',
+            inclusions: String(contentTemplate?.inclusions ?? ''),
+            exclusions: String(contentTemplate?.exclusions ?? ''),
+            headerBranding: String(contentTemplate?.headerBranding ?? ''),
+            paymentTerms: String(contentTemplate?.paymentTerms ?? ''),
+            cancellationPolicy: String(contentTemplate?.cancellationPolicy ?? ''),
+            footerDisclaimer: String(contentTemplate?.footerDisclaimer ?? ''),
+            hotelDetails: String(contentTemplate?.hotelDetails ?? ''),
+            quoteReference: String(quotation?.quoteNumber ?? quotation?.id ?? ''),
+            quotationStatus: String(status ?? ''),
+            supplierName: String(createdByUser?.fullName ?? createdByUser?.name ?? ''),
+            enabledServices: String(
+              noteSections.find(s => s.title.toLowerCase() === 'enabled services')
+                ?.content ?? ''
+            )
+          }}
+        />
+      </div>
     </div>
   )
 }

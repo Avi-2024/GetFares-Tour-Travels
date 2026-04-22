@@ -41,12 +41,10 @@ const config = Object.freeze({
   },
 
   storage: {
-    type: process.env.STORAGE_TYPE || "local", // 'local' or 's3'
-    s3: {
-      bucket: process.env.AWS_S3_BUCKET,
-      region: process.env.AWS_REGION || "us-east-1",
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    type: process.env.STORAGE_TYPE || "local", // 'local' or 'azure'
+    azureBlob: {
+      container: process.env.AZURE_STORAGE_CONTAINER,
+      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
     },
     local: {
       uploadDir: process.env.UPLOAD_DIR || "./uploads",

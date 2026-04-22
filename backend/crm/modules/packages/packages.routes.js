@@ -7,8 +7,118 @@ function createPackagesRoutes({
   validateRequest,
   requireAuth,
   authorize,
+  upload,
 }) {
   const router = Router();
+
+  router.post(
+    "/media/upload",
+    requireAuth,
+    authorize("settings:update"),
+    upload.any(),
+    asyncHandler(controller.uploadMedia),
+  );
+
+  // CMS-like package categories (main/sub) under CRM /api
+  router.get(
+    "/main",
+    requireAuth,
+    authorize("settings:read"),
+    validateRequest(validation.mainList),
+    asyncHandler(controller.listMain),
+  );
+  router.post(
+    "/main",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.mainCreate),
+    asyncHandler(controller.createMain),
+  );
+  router.get(
+    "/main/:id",
+    requireAuth,
+    authorize("settings:read"),
+    validateRequest(validation.mainById),
+    asyncHandler(controller.getMainById),
+  );
+  router.put(
+    "/main/:id",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.mainUpdate),
+    asyncHandler(controller.updateMain),
+  );
+  router.delete(
+    "/main/:id",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.mainById),
+    asyncHandler(controller.deleteMain),
+  );
+  router.patch(
+    "/main/:id/restore",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.mainRestore),
+    asyncHandler(controller.restoreMain),
+  );
+  router.delete(
+    "/main/:id/hard-delete",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.mainHardDelete),
+    asyncHandler(controller.hardDeleteMain),
+  );
+
+  router.get(
+    "/main/:mainPackageId/sub",
+    requireAuth,
+    authorize("settings:read"),
+    validateRequest(validation.subList),
+    asyncHandler(controller.listSub),
+  );
+  router.post(
+    "/sub",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.subCreate),
+    asyncHandler(controller.createSub),
+  );
+  router.get(
+    "/sub/:id",
+    requireAuth,
+    authorize("settings:read"),
+    validateRequest(validation.subById),
+    asyncHandler(controller.getSubById),
+  );
+  router.put(
+    "/sub/:id",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.subUpdate),
+    asyncHandler(controller.updateSub),
+  );
+  router.delete(
+    "/sub/:id",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.subById),
+    asyncHandler(controller.deleteSub),
+  );
+  router.patch(
+    "/sub/:id/restore",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.subRestore),
+    asyncHandler(controller.restoreSub),
+  );
+  router.delete(
+    "/sub/:id/hard-delete",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.subHardDelete),
+    asyncHandler(controller.hardDeleteSub),
+  );
 
   router.get(
     "/",
@@ -48,6 +158,30 @@ function createPackagesRoutes({
     authorize("settings:update"),
     validateRequest(validation.publish),
     asyncHandler(controller.publish),
+  );
+
+  router.delete(
+    "/:id",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.delete ?? validation.byId),
+    asyncHandler(controller.delete),
+  );
+
+  router.patch(
+    "/:id/restore",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.restore ?? validation.byId),
+    asyncHandler(controller.restore),
+  );
+
+  router.delete(
+    "/:id/hard-delete",
+    requireAuth,
+    authorize("settings:update"),
+    validateRequest(validation.hardDelete ?? validation.byId),
+    asyncHandler(controller.hardDelete),
   );
 
   router.get(

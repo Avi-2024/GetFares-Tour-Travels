@@ -56,16 +56,20 @@ const toPricingDraft = (item: DestinationPricingRecord): PricingDraft => ({
   baseCost: String(item.baseCost ?? 0),
   minProfitPercent: String(item.minProfitPercent ?? 0),
   recommendedProfitPercent:
-    item.recommendedProfitPercent !== null &&
-    item.recommendedProfitPercent !== undefined
-      ? String(item.recommendedProfitPercent)
-      : "",
+    (
+      item.recommendedProfitPercent !== null &&
+      item.recommendedProfitPercent !== undefined
+    ) ?
+      String(item.recommendedProfitPercent)
+    : "",
   taxPercent: String(item.taxPercent ?? 0),
   validFrom: item.validFrom ?? "",
   validTo: item.validTo ?? "",
 });
 
-const buildDestinationDraft = (item?: DestinationRecord | null): DestinationDraft => ({
+const buildDestinationDraft = (
+  item?: DestinationRecord | null,
+): DestinationDraft => ({
   name: item?.name || "",
   country: item?.country || "",
   isActive: item?.isActive !== false,
@@ -109,10 +113,12 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
   const [destinationDrafts, setDestinationDrafts] = useState<
     Record<string, DestinationDraft>
   >({});
-  const [pricingRows, setPricingRows] = useState<DestinationPricingRecord[]>([]);
-  const [pricingDrafts, setPricingDrafts] = useState<Record<string, PricingDraft>>(
-    {},
+  const [pricingRows, setPricingRows] = useState<DestinationPricingRecord[]>(
+    [],
   );
+  const [pricingDrafts, setPricingDrafts] = useState<
+    Record<string, PricingDraft>
+  >({});
   const [loadingPricing, setLoadingPricing] = useState(false);
   const [savingDestinationId, setSavingDestinationId] = useState("");
   const [savingPricingId, setSavingPricingId] = useState("");
@@ -140,7 +146,8 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
   });
 
   const selectedDestination = useMemo(
-    () => destinations.find((item) => item.id === selectedDestinationId) ?? null,
+    () =>
+      destinations.find((item) => item.id === selectedDestinationId) ?? null,
     [destinations, selectedDestinationId],
   );
 
@@ -178,17 +185,21 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
 
   const destinationStats = useMemo(() => {
     const total = destinations.length;
-    const active = destinations.filter((item) => item.isActive !== false).length;
+    const active = destinations.filter(
+      (item) => item.isActive !== false,
+    ).length;
     return { total, active, inactive: total - active };
   }, [destinations]);
 
-  const selectedCurrentPricing = pricingHistory[0] ?? selectedDestination?.currentPricing;
+  const selectedCurrentPricing =
+    pricingHistory[0] ?? selectedDestination?.currentPricing;
 
   const newPricingPreview = useMemo(() => {
     const baseCost = Number(newPricing.baseCost);
     const minProfitPercent = Number(newPricing.minProfitPercent);
-    const recommendedProfitPercent = newPricing.recommendedProfitPercent
-      ? Number(newPricing.recommendedProfitPercent)
+    const recommendedProfitPercent =
+      newPricing.recommendedProfitPercent ?
+        Number(newPricing.recommendedProfitPercent)
       : minProfitPercent;
     const taxPercent = Number(newPricing.taxPercent || 0);
 
@@ -236,12 +247,14 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
       const rows = extractRows<DestinationRecord>(response);
       setDestinations(rows);
       setDestinationDrafts(
-        Object.fromEntries(rows.map((item) => [item.id, buildDestinationDraft(item)])),
+        Object.fromEntries(
+          rows.map((item) => [item.id, buildDestinationDraft(item)]),
+        ),
       );
       setSelectedDestinationId((previous) =>
-        previous && rows.some((item) => item.id === previous)
-          ? previous
-          : (rows[0]?.id ?? ""),
+        previous && rows.some((item) => item.id === previous) ?
+          previous
+        : (rows[0]?.id ?? ""),
       );
     } catch (e) {
       setDestinations([]);
@@ -424,8 +437,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
       await destinationsApi.createPricing(selectedDestinationId, {
         baseCost,
         minProfitPercent,
-        recommendedProfitPercent: newPricing.recommendedProfitPercent
-          ? Number(newPricing.recommendedProfitPercent)
+        recommendedProfitPercent:
+          newPricing.recommendedProfitPercent ?
+            Number(newPricing.recommendedProfitPercent)
           : undefined,
         taxPercent: newPricing.taxPercent ? Number(newPricing.taxPercent) : 0,
         validFrom: newPricing.validFrom || undefined,
@@ -479,8 +493,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
       await destinationsApi.updatePricing(pricingId, {
         baseCost,
         minProfitPercent,
-        recommendedProfitPercent: draft.recommendedProfitPercent
-          ? Number(draft.recommendedProfitPercent)
+        recommendedProfitPercent:
+          draft.recommendedProfitPercent ?
+            Number(draft.recommendedProfitPercent)
           : undefined,
         taxPercent: draft.taxPercent ? Number(draft.taxPercent) : 0,
         validFrom: draft.validFrom || undefined,
@@ -508,16 +523,16 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
 
   return (
     <div className="space-y-5">
-      {error ? (
+      {error ?
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
-      ) : null}
-      {message ? (
+      : null}
+      {message ?
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {message}
         </div>
-      ) : null}
+      : null}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-5">
@@ -587,7 +602,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <FaPlus className="text-xs" />
-                {creatingDestination ? "Creating destination..." : "Create destination"}
+                {creatingDestination ?
+                  "Creating destination..."
+                : "Create destination"}
               </button>
             </div>
           </SurfaceCard>
@@ -609,7 +626,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                 onClick={() => void loadDestinations()}
                 className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-200 hover:text-blue-700"
               >
-                <FaSyncAlt className={loadingDestinations ? "animate-spin" : ""} />
+                <FaSyncAlt
+                  className={loadingDestinations ? "animate-spin" : ""}
+                />
                 Refresh
               </button>
             </div>
@@ -627,7 +646,8 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
 
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gray-50 px-3 py-3 text-sm text-gray-600">
                 <span>
-                  Showing {visibleDestinations.length} of {destinationStats.total}
+                  Showing {visibleDestinations.length} of{" "}
+                  {destinationStats.total}
                 </span>
                 <label className="inline-flex items-center gap-2">
                   <input
@@ -639,16 +659,15 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                 </label>
               </div>
 
-              {loadingDestinations ? (
+              {loadingDestinations ?
                 <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
                   Loading destinations...
                 </div>
-              ) : visibleDestinations.length === 0 ? (
+              : visibleDestinations.length === 0 ?
                 <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
                   No destinations match this search yet.
                 </div>
-              ) : (
-                <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1">
+              : <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1">
                   {visibleDestinations.map((item) => {
                     const isSelected = selectedDestinationId === item.id;
                     return (
@@ -657,9 +676,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                         type="button"
                         onClick={() => setSelectedDestinationId(item.id)}
                         className={`w-full rounded-2xl border p-4 text-left transition ${
-                          isSelected
-                            ? "border-blue-300 bg-blue-50 shadow-sm"
-                            : "border-gray-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
+                          isSelected ?
+                            "border-blue-300 bg-blue-50 shadow-sm"
+                          : "border-gray-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -670,12 +689,14 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                               </p>
                               <span
                                 className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                                  item.isActive === false
-                                    ? "bg-gray-200 text-gray-700"
-                                    : "bg-emerald-100 text-emerald-700"
+                                  item.isActive === false ?
+                                    "bg-gray-200 text-gray-700"
+                                  : "bg-emerald-100 text-emerald-700"
                                 }`}
                               >
-                                {item.isActive === false ? "Inactive" : "Active"}
+                                {item.isActive === false ?
+                                  "Inactive"
+                                : "Active"}
                               </span>
                             </div>
                             <div className="mt-2 inline-flex items-center gap-2 text-sm text-gray-500">
@@ -683,11 +704,11 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                               <span>{item.country || "Country not added"}</span>
                             </div>
                           </div>
-                          {isSelected ? (
+                          {isSelected ?
                             <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
                               Selected
                             </span>
-                          ) : null}
+                          : null}
                         </div>
 
                         <div className="mt-4 rounded-xl bg-white/80 px-3 py-2">
@@ -695,29 +716,28 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                             Current pricing
                           </p>
                           <p className="mt-1 text-sm font-medium text-gray-700">
-                            {item.currentPricing
-                              ? formatCurrency(item.currentPricing.baseCost)
-                              : "Not priced yet"}
+                            {item.currentPricing ?
+                              formatCurrency(item.currentPricing.baseCost)
+                            : "Not priced yet"}
                           </p>
                         </div>
                       </button>
                     );
                   })}
                 </div>
-              )}
+              }
             </div>
           </SurfaceCard>
         </div>
 
         <div className="space-y-5">
-          {!selectedDestination || !selectedDestinationDraft ? (
+          {!selectedDestination || !selectedDestinationDraft ?
             <EmptyState
               title="Choose a destination to start"
               description="Select a destination from the left to edit details, review active pricing, or add a new pricing slab."
               icon={<FaGlobe />}
             />
-          ) : (
-            <>
+          : <>
               <SurfaceCard className="overflow-hidden border-blue-100 bg-gradient-to-br from-white via-white to-blue-50">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -735,14 +755,14 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                     <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium">
                       <span
                         className={`rounded-full px-3 py-1 ${
-                          selectedDestination.isActive === false
-                            ? "bg-gray-200 text-gray-700"
-                            : "bg-emerald-100 text-emerald-700"
+                          selectedDestination.isActive === false ?
+                            "bg-gray-200 text-gray-700"
+                          : "bg-emerald-100 text-emerald-700"
                         }`}
                       >
-                        {selectedDestination.isActive === false
-                          ? "Inactive destination"
-                          : "Active destination"}
+                        {selectedDestination.isActive === false ?
+                          "Inactive destination"
+                        : "Active destination"}
                       </span>
                       <span className="rounded-full bg-white px-3 py-1 text-gray-600 ring-1 ring-gray-200">
                         Added {formatDate(selectedDestination.createdAt)}
@@ -755,14 +775,14 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                       Current base cost
                     </p>
                     <p className="mt-2 text-2xl font-semibold text-gray-900">
-                      {selectedCurrentPricing
-                        ? formatCurrency(selectedCurrentPricing.baseCost)
-                        : "Not set"}
+                      {selectedCurrentPricing ?
+                        formatCurrency(selectedCurrentPricing.baseCost)
+                      : "Not set"}
                     </p>
                     <p className="mt-1 text-sm text-gray-500">
-                      {selectedCurrentPricing
-                        ? `Valid from ${formatDate(selectedCurrentPricing.validFrom)}`
-                        : "Create the first pricing slab for this destination"}
+                      {selectedCurrentPricing ?
+                        `Valid from ${formatDate(selectedCurrentPricing.validFrom)}`
+                      : "Create the first pricing slab for this destination"}
                     </p>
                   </div>
                 </div>
@@ -777,8 +797,8 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                       Edit destination information
                     </h3>
                     <p className="mt-1 text-sm text-gray-500">
-                      Keep the destination name, country, and status accurate for
-                      your sales team.
+                      Keep the destination name, country, and status accurate
+                      for your sales team.
                     </p>
                   </div>
 
@@ -822,19 +842,23 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
 
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <button
-                        onClick={() => void onSaveDestination(selectedDestination.id)}
+                        onClick={() =>
+                          void onSaveDestination(selectedDestination.id)
+                        }
                         disabled={
                           !canUpdateSettings ||
                           savingDestinationId === selectedDestination.id
                         }
                         className="inline-flex flex-1 items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {savingDestinationId === selectedDestination.id
-                          ? "Saving changes..."
-                          : "Save destination"}
+                        {savingDestinationId === selectedDestination.id ?
+                          "Saving changes..."
+                        : "Save destination"}
                       </button>
                       <button
-                        onClick={() => void onRemoveDestination(selectedDestination)}
+                        onClick={() =>
+                          void onRemoveDestination(selectedDestination)
+                        }
                         disabled={
                           !canUpdateSettings ||
                           deletingDestinationId === selectedDestination.id ||
@@ -842,15 +866,15 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                         }
                         className="inline-flex items-center justify-center rounded-xl border border-red-200 px-4 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {deletingDestinationId === selectedDestination.id
-                          ? "Deleting..."
-                          : "Delete destination"}
+                        {deletingDestinationId === selectedDestination.id ?
+                          "Deleting..."
+                        : "Delete destination"}
                       </button>
                     </div>
 
                     <p className="text-xs leading-5 text-gray-500">
-                      Tip: if a destination should stop appearing in active sales
-                      workflows, you can set it to inactive and save.
+                      Tip: if a destination should stop appearing in active
+                      sales workflows, you can set it to inactive and save.
                     </p>
                   </div>
                 </SurfaceCard>
@@ -901,7 +925,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="field-label">Recommended profit %</label>
+                      <label className="field-label">
+                        Recommended profit %
+                      </label>
                       <input
                         type="number"
                         className="field-input"
@@ -966,9 +992,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                         Minimum selling price
                       </p>
                       <p className="mt-2 text-xl font-semibold text-gray-900">
-                        {newPricingPreview
-                          ? formatCurrency(newPricingPreview.minimum)
-                          : "Add values to preview"}
+                        {newPricingPreview ?
+                          formatCurrency(newPricingPreview.minimum)
+                        : "Add values to preview"}
                       </p>
                     </div>
                     <div className="rounded-2xl bg-gray-50 p-4">
@@ -976,9 +1002,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                         Recommended selling price
                       </p>
                       <p className="mt-2 text-xl font-semibold text-gray-900">
-                        {newPricingPreview
-                          ? formatCurrency(newPricingPreview.recommended)
-                          : "Add values to preview"}
+                        {newPricingPreview ?
+                          formatCurrency(newPricingPreview.recommended)
+                        : "Add values to preview"}
                       </p>
                     </div>
                   </div>
@@ -989,7 +1015,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                     className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <FaPlus className="text-xs" />
-                    {creatingPricing ? "Creating pricing slab..." : "Add pricing slab"}
+                    {creatingPricing ?
+                      "Creating pricing slab..."
+                    : "Add pricing slab"}
                   </button>
                 </SurfaceCard>
               </div>
@@ -1009,16 +1037,17 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                     </p>
                   </div>
                   <div className="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                    {pricingHistory.length} slab{pricingHistory.length === 1 ? "" : "s"} saved
+                    {pricingHistory.length} slab
+                    {pricingHistory.length === 1 ? "" : "s"} saved
                   </div>
                 </div>
 
                 <div className="mt-5">
-                  {loadingPricing ? (
+                  {loadingPricing ?
                     <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
                       Loading pricing...
                     </div>
-                  ) : pricingHistory.length === 0 ? (
+                  : pricingHistory.length === 0 ?
                     <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-10 text-center">
                       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
                         <FaDollarSign />
@@ -1027,18 +1056,21 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                         No pricing slabs saved yet
                       </h4>
                       <p className="mt-2 text-sm text-gray-500">
-                        Add the first slab above to give your team pricing guidance
-                        for this destination.
+                        Add the first slab above to give your team pricing
+                        guidance for this destination.
                       </p>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
+                  : <div className="space-y-4">
                       {pricingHistory.map((item) => {
-                        const draft = pricingDrafts[item.id] || toPricingDraft(item);
+                        const draft =
+                          pricingDrafts[item.id] || toPricingDraft(item);
                         const baseCost = Number(draft.baseCost || 0);
-                        const minProfitPercent = Number(draft.minProfitPercent || 0);
-                        const recommendedProfitPercent = draft.recommendedProfitPercent
-                          ? Number(draft.recommendedProfitPercent)
+                        const minProfitPercent = Number(
+                          draft.minProfitPercent || 0,
+                        );
+                        const recommendedProfitPercent =
+                          draft.recommendedProfitPercent ?
+                            Number(draft.recommendedProfitPercent)
                           : minProfitPercent;
                         const taxPercent = Number(draft.taxPercent || 0);
 
@@ -1050,24 +1082,44 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-600 ring-1 ring-gray-200">
-                                  {formatDate(item.validFrom)} to {formatDate(item.validTo)}
+                                  {formatDate(item.validFrom)} to{" "}
+                                  {formatDate(item.validTo)}
                                 </span>
                                 <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
                                   Created {formatDate(item.createdAt)}
                                 </span>
                                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200">
-                                  Min sell {formatCurrency(calculateSellingPrice(baseCost, minProfitPercent, taxPercent))}
+                                  Min sell{" "}
+                                  {formatCurrency(
+                                    calculateSellingPrice(
+                                      baseCost,
+                                      minProfitPercent,
+                                      taxPercent,
+                                    ),
+                                  )}
                                 </span>
                                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200">
-                                  Recommended {formatCurrency(calculateSellingPrice(baseCost, recommendedProfitPercent, taxPercent))}
+                                  Recommended{" "}
+                                  {formatCurrency(
+                                    calculateSellingPrice(
+                                      baseCost,
+                                      recommendedProfitPercent,
+                                      taxPercent,
+                                    ),
+                                  )}
                                 </span>
                               </div>
                               <button
                                 onClick={() => void onSavePricing(item.id)}
-                                disabled={!canUpdateSettings || savingPricingId === item.id}
+                                disabled={
+                                  !canUpdateSettings ||
+                                  savingPricingId === item.id
+                                }
                                 className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                {savingPricingId === item.id ? "Saving..." : "Save slab"}
+                                {savingPricingId === item.id ?
+                                  "Saving..."
+                                : "Save slab"}
                               </button>
                             </div>
 
@@ -1090,7 +1142,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                                 />
                               </div>
                               <div>
-                                <label className="field-label">Minimum profit %</label>
+                                <label className="field-label">
+                                  Minimum profit %
+                                </label>
                                 <input
                                   type="number"
                                   className="field-input"
@@ -1107,7 +1161,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                                 />
                               </div>
                               <div>
-                                <label className="field-label">Recommended profit %</label>
+                                <label className="field-label">
+                                  Recommended profit %
+                                </label>
                                 <input
                                   type="number"
                                   className="field-input"
@@ -1117,7 +1173,8 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                                       ...previous,
                                       [item.id]: {
                                         ...draft,
-                                        recommendedProfitPercent: e.target.value,
+                                        recommendedProfitPercent:
+                                          e.target.value,
                                       },
                                     }))
                                   }
@@ -1141,7 +1198,9 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                                 />
                               </div>
                               <div>
-                                <label className="field-label">Valid from</label>
+                                <label className="field-label">
+                                  Valid from
+                                </label>
                                 <input
                                   type="date"
                                   className="field-input"
@@ -1179,11 +1238,11 @@ const DestinationPricingManager: React.FC<DestinationPricingManagerProps> = ({
                         );
                       })}
                     </div>
-                  )}
+                  }
                 </div>
               </SurfaceCard>
             </>
-          )}
+          }
         </div>
       </div>
     </div>

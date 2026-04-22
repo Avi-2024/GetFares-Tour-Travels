@@ -29,22 +29,18 @@ class DashboardRepository {
   constructor(dependencies = {}) {
     this.db = dependencies.db;
     this.log = dependencies.logger ?? logger;
+    this.currencyService = dependencies.currencyService || null;
     this.tables = {
       leads: 'leads',
       quotations: 'quotations',
       bookings: 'bookings',
+      payments: 'payments',
     };
     this.columnCache = new Map();
   }
 
   canUseRawQuery() {
-    const adapter = String(this.db.adapter || '').toLowerCase();
-    return (
-      this.db &&
-      typeof this.db.query === 'function' &&
-      Boolean(this.db.pool) &&
-      (adapter === 'mysql')
-    );
+    return false;
   }
 
   toNumber(value, fallback = 0) {
@@ -78,14 +74,14 @@ class DashboardRepository {
   getPeriodStartSql(period) {
     switch (period) {
       case 'day':
-        return "DATE_TRUNC('day', CURRENT_TIMESTAMP)";
+        return 'CURRENT_DATE';
       case 'week':
-        return "DATE_TRUNC('week', CURRENT_TIMESTAMP)";
+        return "DATE_SUB(CURRENT_DATE, INTERVAL WEEKDAY(CURRENT_DATE) DAY)";
       case 'year':
-        return "DATE_TRUNC('year', CURRENT_TIMESTAMP)";
+        return "DATE_FORMAT(CURRENT_DATE, '%Y-01-01')";
       case 'month':
       default:
-        return "DATE_TRUNC('month', CURRENT_TIMESTAMP)";
+        return "DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')";
     }
   }
 
@@ -142,7 +138,18 @@ class DashboardRepository {
 
   parseDate(value) {
     if (!value) return null;
-    const date = new Date(value);
+    if (typeof value === 'number') {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      return date;
+    }
+    const raw = String(value).trim();
+    // MySQL DATETIME often comes as "YYYY-MM-DD HH:mm:ss" (non-ISO). Normalize for stable parsing.
+    const normalized =
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+        ? raw.replace(' ', 'T')
+        : raw;
+    const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) return null;
     return date;
   }
@@ -166,6 +173,103 @@ class DashboardRepository {
 
   getRevenueFromBooking(row) {
     return this.toNumber(row?.total_amount ?? row?.totalAmount ?? 0, 0);
+  }
+
+  normalizeCurrency(value, fallback = "AED") {
+    const normalized = String(value || "")
+      .trim()
+      .toUpperCase();
+    return normalized || fallback;
+  }
+
+  getBookingCurrency(row) {
+    return this.normalizeCurrency(
+      row?.client_currency ??
+        row?.clientCurrency ??
+        row?.currency ??
+        row?.supplier_currency ??
+        row?.supplierCurrency ??
+        "AED",
+      "AED",
+    );
+  }
+
+  getPaymentCurrency(row) {
+    return this.normalizeCurrency(
+      row?.currency ?? row?.client_currency ?? row?.clientCurrency ?? "AED",
+      "AED",
+    );
+  }
+
+  roundAmount(value) {
+    return Number(this.toNumber(value, 0).toFixed(2));
+  }
+
+  async convertSumToBase(amount, fromCurrency, baseCurrency) {
+    const normalizedBase = this.normalizeCurrency(baseCurrency, "AED");
+    const normalizedFrom = this.normalizeCurrency(fromCurrency, normalizedBase);
+    const amountNumber = this.toNumber(amount, 0);
+
+    if (!amountNumber) return 0;
+    if (
+      !this.currencyService ||
+      typeof this.currencyService.convert !== "function" ||
+      normalizedFrom === normalizedBase
+    ) {
+      return amountNumber;
+    }
+
+    try {
+      return await this.currencyService.convert(
+        amountNumber,
+        normalizedFrom,
+        normalizedBase,
+      );
+    } catch (error) {
+      this.log?.warn?.(
+        {
+          module: "dashboard",
+          fromCurrency: normalizedFrom,
+          baseCurrency: normalizedBase,
+          error: error.message,
+        },
+        "Currency conversion failed for dashboard revenue bucket",
+      );
+      return amountNumber;
+    }
+  }
+
+  async sumBucketRevenueInBase(rows, predicate, baseCurrency) {
+    const byCurrency = new Map();
+    rows.forEach((row) => {
+      if (!predicate(row)) return;
+      const currency = this.getBookingCurrency(row);
+      const amount = this.getRevenueFromBooking(row);
+      byCurrency.set(currency, (byCurrency.get(currency) || 0) + amount);
+    });
+
+    let total = 0;
+    for (const [currency, sum] of byCurrency.entries()) {
+      total += await this.convertSumToBase(sum, currency, baseCurrency);
+    }
+    return total;
+  }
+
+  async sumBucketPaymentsInBase(rows, predicate, baseCurrency) {
+    const byCurrency = new Map();
+    rows.forEach((row) => {
+      if (!predicate(row)) return;
+      const currency = this.getPaymentCurrency(row);
+      const amount = this.toNumber(row?.amount ?? 0, 0);
+      if (!amount) return;
+      byCurrency.set(currency, (byCurrency.get(currency) || 0) + amount);
+    });
+
+    let total = 0;
+    for (const [currency, sum] of byCurrency.entries()) {
+      total += await this.convertSumToBase(sum, currency, baseCurrency);
+    }
+    return total;
   }
 
   bucketLabel(date, range, index = 0) {
@@ -267,11 +371,26 @@ class DashboardRepository {
 
   async getRevenueFallback(range = 'week') {
     const normalizedRange = this.normalizeRange(range);
-    const bookings = await this.db.findMany(this.tables.bookings, {});
-    const rows = (Array.isArray(bookings) ? bookings : []).filter((row) => {
-      const status = String(row.status || '').toUpperCase();
-      return status !== 'CANCELLED' && !this.isSoftDeleted(row);
+    const payments = await this.db.findMany(this.tables.payments, {});
+    const toBoolean = (value, fallback = false) => {
+      if (value === null || value === undefined) return fallback;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value === 1;
+      const normalized = String(value).trim().toLowerCase();
+      if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+      if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+      return Boolean(value);
+    };
+    const rows = (Array.isArray(payments) ? payments : []).filter((row) => {
+      const status = String(row?.status || 'PENDING').trim().toUpperCase();
+      const isVerified = toBoolean(row?.is_verified ?? row?.isVerified, false);
+      // Match finance stats: verified payments excluding refunded.
+      return isVerified && status !== 'REFUNDED' && !this.isSoftDeleted(row);
     });
+    const baseCurrency = this.normalizeCurrency(
+      this.currencyService?.baseCurrency || "AED",
+      "AED",
+    );
 
     const now = new Date();
     const buckets = [];
@@ -314,35 +433,52 @@ class DashboardRepository {
       }
     }
 
-    return buckets.map((bucket) => {
-      const revenue = rows
-        .filter((row) => {
-          const created = this.parseDate(row.created_at ?? row.createdAt);
+    const getCreatedAt = (row) =>
+      this.parseDate(
+        row?.paid_at ??
+          row?.paidAt ??
+          row?.date ??
+          row?.created_at ??
+          row?.createdAt,
+      );
+
+    const results = [];
+    for (const bucket of buckets) {
+      const revenue = await this.sumBucketPaymentsInBase(
+        rows,
+        (row) => {
+          const created = getCreatedAt(row);
           return (
             created &&
             created.getTime() >= bucket.start.getTime() &&
             created.getTime() < bucket.end.getTime()
           );
-        })
-        .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
+        },
+        baseCurrency,
+      );
 
-      const last = rows
-        .filter((row) => {
-          const created = this.parseDate(row.created_at ?? row.createdAt);
+      const last = await this.sumBucketPaymentsInBase(
+        rows,
+        (row) => {
+          const created = getCreatedAt(row);
           return (
             created &&
             created.getTime() >= bucket.prevStart.getTime() &&
             created.getTime() < bucket.prevEnd.getTime()
           );
-        })
-        .reduce((sum, row) => sum + this.getRevenueFromBooking(row), 0);
+        },
+        baseCurrency,
+      );
 
-      return {
+      results.push({
         name: this.bucketLabel(bucket.start, normalizedRange, bucket.index),
-        revenue: Number(revenue.toFixed(2)),
-        last: Number(last.toFixed(2)),
-      };
-    });
+        revenue: this.roundAmount(revenue),
+        last: this.roundAmount(last),
+        currency: baseCurrency,
+      });
+    }
+
+    return results;
   }
 
   async getLeadSourcesFallback(period = 'month') {
@@ -454,343 +590,15 @@ class DashboardRepository {
   }
 
   async getStats(period = 'month') {
-    try {
-      if (!this.canUseRawQuery()) {
-        return this.getStatsFallback(period);
-      }
-
-      const normalizedPeriod = this.normalizePeriod(period);
-      const periodStartSql = this.getPeriodStartSql(normalizedPeriod);
-      const previousStartSql = `${periodStartSql} - INTERVAL '${this.getPeriodInterval(normalizedPeriod)}'`;
-
-      const revenueExpression = await this.resolveRevenueExpression('q');
-      const quotationSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.quotations,
-        'q',
-      );
-      const leadSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.leads,
-        'l',
-      );
-
-      const currentQuery = `
-        SELECT
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.leads} l
-            WHERE l.created_at >= ${periodStartSql}
-            ${leadSoftDeleteClause}
-          ) AS total_leads,
-          (
-            SELECT COALESCE(SUM(${revenueExpression}), 0)::numeric(14,2)
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= ${periodStartSql}
-              AND q.status = 'APPROVED'
-              ${quotationSoftDeleteClause}
-          ) AS revenue,
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.leads} l
-            WHERE l.next_followup_date IS NOT NULL
-              AND l.next_followup_date <= CURRENT_DATE
-              AND COALESCE(l.status, '') IN (?)
-              ${leadSoftDeleteClause}
-          ) AS pending_calls,
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= ${periodStartSql}
-          ) AS bookings
-      `;
-
-      const previousQuery = `
-        SELECT
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.leads} l
-            WHERE l.created_at >= ${previousStartSql}
-              AND l.created_at < ${periodStartSql}
-            ${leadSoftDeleteClause}
-          ) AS total_leads,
-          (
-            SELECT COALESCE(SUM(${revenueExpression}), 0)::numeric(14,2)
-            FROM ${this.tables.quotations} q
-            WHERE q.created_at >= ${previousStartSql}
-              AND q.created_at < ${periodStartSql}
-              AND q.status = 'APPROVED'
-              ${quotationSoftDeleteClause}
-          ) AS revenue,
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.leads} l
-            WHERE l.next_followup_date IS NOT NULL
-              AND l.next_followup_date < ${periodStartSql}
-              AND COALESCE(l.status, '') IN (?)
-              ${leadSoftDeleteClause}
-          ) AS pending_calls,
-          (
-            SELECT COUNT(*)
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= ${previousStartSql}
-              AND b.created_at < ${periodStartSql}
-          ) AS bookings
-      `;
-
-      const [currentResult, previousResult] = await Promise.all([
-        this.querySingle(currentQuery, [PENDING_LEAD_STATUSES]),
-        this.querySingle(previousQuery, [PENDING_LEAD_STATUSES]),
-      ]);
-
-      return {
-        current: {
-          totalLeads: this.toNumber(currentResult?.total_leads),
-          revenue: this.toNumber(currentResult?.revenue),
-          pendingCalls: this.toNumber(currentResult?.pending_calls),
-          bookings: this.toNumber(currentResult?.bookings),
-        },
-        previous: {
-          totalLeads: this.toNumber(previousResult?.total_leads),
-          revenue: this.toNumber(previousResult?.revenue),
-          pendingCalls: this.toNumber(previousResult?.pending_calls),
-          bookings: this.toNumber(previousResult?.bookings),
-        },
-      };
-    } catch (error) {
-      this.log.error({ err: error, period }, 'Error fetching dashboard stats.');
-      return this.getStatsFallback(period);
-    }
+    return this.getStatsFallback(period);
   }
 
   async getRevenue(range = 'week') {
-    try {
-      if (!this.canUseRawQuery()) {
-        return this.getRevenueFallback(range);
-      }
-
-      const normalizedRange = this.normalizeRange(range);
-      const bookingRevenueExpression = `COALESCE(b.total_amount, 0)`;
-      const bookingSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.bookings,
-        'b',
-      );
-
-      const bookedRevenueWhere = `COALESCE(b.status, '') <> 'CANCELLED'${bookingSoftDeleteClause}`;
-
-      const queries = {
-        today: `
-          WITH hourly_slots AS (
-            SELECT generate_series(
-              DATE_TRUNC('day', CURRENT_TIMESTAMP),
-              DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '23 hours',
-              INTERVAL '1 hour'
-            ) AS slot_start
-          ),
-          current_period AS (
-            SELECT
-              DATE_TRUNC('hour', b.created_at) AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP)
-              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          ),
-          previous_period AS (
-            SELECT
-              DATE_TRUNC('hour', b.created_at + INTERVAL '1 day') AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '1 day'
-              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP)
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          )
-          SELECT
-            TO_CHAR(h.slot_start, 'HH24:00') AS name,
-            COALESCE(c.revenue, 0)::numeric(14,2) AS revenue,
-            COALESCE(p.revenue, 0)::numeric(14,2) AS last
-          FROM hourly_slots h
-          LEFT JOIN current_period c ON c.slot_start = h.slot_start
-          LEFT JOIN previous_period p ON p.slot_start = h.slot_start
-          ORDER BY h.slot_start
-        `,
-        week: `
-          WITH daily_slots AS (
-            SELECT generate_series(
-              DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days',
-              DATE_TRUNC('day', CURRENT_TIMESTAMP),
-              INTERVAL '1 day'
-            ) AS slot_start
-          ),
-          current_period AS (
-            SELECT
-              DATE_TRUNC('day', b.created_at) AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days'
-              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          ),
-          previous_period AS (
-            SELECT
-              DATE_TRUNC('day', b.created_at + INTERVAL '7 days') AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '13 days'
-              AND b.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) - INTERVAL '6 days'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          )
-          SELECT
-            TO_CHAR(d.slot_start, 'Dy') AS name,
-            COALESCE(c.revenue, 0)::numeric(14,2) AS revenue,
-            COALESCE(p.revenue, 0)::numeric(14,2) AS last
-          FROM daily_slots d
-          LEFT JOIN current_period c ON c.slot_start = d.slot_start
-          LEFT JOIN previous_period p ON p.slot_start = d.slot_start
-          ORDER BY d.slot_start
-        `,
-        month: `
-          WITH weekly_slots AS (
-            SELECT generate_series(
-              DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks',
-              DATE_TRUNC('week', CURRENT_TIMESTAMP),
-              INTERVAL '1 week'
-            ) AS slot_start
-          ),
-          current_period AS (
-            SELECT
-              DATE_TRUNC('week', b.created_at) AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks'
-              AND b.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) + INTERVAL '1 week'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          ),
-          previous_period AS (
-            SELECT
-              DATE_TRUNC('week', b.created_at + INTERVAL '4 weeks') AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '7 weeks'
-              AND b.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) - INTERVAL '3 weeks'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          )
-          SELECT
-            CONCAT('W', ROW_NUMBER() OVER (ORDER BY w.slot_start)) AS name,
-            COALESCE(c.revenue, 0)::numeric(14,2) AS revenue,
-            COALESCE(p.revenue, 0)::numeric(14,2) AS last
-          FROM weekly_slots w
-          LEFT JOIN current_period c ON c.slot_start = w.slot_start
-          LEFT JOIN previous_period p ON p.slot_start = w.slot_start
-          ORDER BY w.slot_start
-        `,
-        year: `
-          WITH monthly_slots AS (
-            SELECT generate_series(
-              DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months',
-              DATE_TRUNC('month', CURRENT_TIMESTAMP),
-              INTERVAL '1 month'
-            ) AS slot_start
-          ),
-          current_period AS (
-            SELECT
-              DATE_TRUNC('month', b.created_at) AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months'
-              AND b.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) + INTERVAL '1 month'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          ),
-          previous_period AS (
-            SELECT
-              DATE_TRUNC('month', b.created_at + INTERVAL '1 year') AS slot_start,
-              SUM(${bookingRevenueExpression})::numeric(14,2) AS revenue
-            FROM ${this.tables.bookings} b
-            WHERE b.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '23 months'
-              AND b.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) - INTERVAL '11 months'
-              AND ${bookedRevenueWhere}
-            GROUP BY 1
-          )
-          SELECT
-            TO_CHAR(m.slot_start, 'Mon') AS name,
-            COALESCE(c.revenue, 0)::numeric(14,2) AS revenue,
-            COALESCE(p.revenue, 0)::numeric(14,2) AS last
-          FROM monthly_slots m
-          LEFT JOIN current_period c ON c.slot_start = m.slot_start
-          LEFT JOIN previous_period p ON p.slot_start = m.slot_start
-          ORDER BY m.slot_start
-        `,
-      };
-
-      const rows = await this.queryRows(queries[normalizedRange]);
-      return rows.map((row) => ({
-        name: String(row.name ?? ''),
-        revenue: this.toNumber(row.revenue),
-        last: this.toNumber(row.last),
-      }));
-    } catch (error) {
-      this.log.error({ err: error, range }, 'Error fetching revenue data.');
-      return this.getRevenueFallback(range);
-    }
+    return this.getRevenueFallback(range);
   }
 
   async getLeadSources(period = 'month') {
-    try {
-      if (!this.canUseRawQuery()) {
-        return this.getLeadSourcesFallback(period);
-      }
-
-      const normalizedPeriod = this.normalizePeriod(period);
-      const periodStartSql = this.getPeriodStartSql(normalizedPeriod);
-      const leadSoftDeleteClause = await this.getSoftDeleteClause(
-        this.tables.leads,
-        'l',
-      );
-
-      const rows = await this.queryRows(`
-        WITH filtered_leads AS (
-          SELECT
-            COALESCE(NULLIF(TRIM(l.source), ''), 'Unknown') AS source_name
-          FROM ${this.tables.leads} l
-          WHERE l.created_at >= ${periodStartSql}
-          ${leadSoftDeleteClause}
-        ),
-        source_counts AS (
-          SELECT
-            source_name,
-            COUNT(*) AS source_count
-          FROM filtered_leads
-          GROUP BY source_name
-        ),
-        totals AS (
-          SELECT COALESCE(SUM(source_count), 0)::numeric AS total_count
-          FROM source_counts
-        )
-        SELECT
-          s.source_name AS name,
-          CASE
-            WHEN t.total_count > 0
-            THEN ROUND((s.source_count::numeric * 100.0) / t.total_count, 1)
-            ELSE 0
-          END AS value
-        FROM source_counts s
-        CROSS JOIN totals t
-        ORDER BY s.source_count DESC, s.source_name ASC
-      `);
-
-      return rows.map((row) => ({
-        name: String(row.name ?? 'Unknown'),
-        value: this.toNumber(row.value),
-      }));
-    } catch (error) {
-      this.log.error({ err: error, period }, 'Error fetching lead sources.');
-      return this.getLeadSourcesFallback(period);
-    }
+    return this.getLeadSourcesFallback(period);
   }
 }
 

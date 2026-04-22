@@ -25,6 +25,7 @@ import { FaEdit } from "react-icons/fa";
 import SurfaceCard from "../ui/SurfaceCard";
 import EmptyState from "../ui/EmptyState";
 import SearchableDropdown from "../ui/SearchableDropdown";
+import CurrencySelector from "../ui/CurrencySelector";
 import { paymentsApi } from "../../api/payments";
 import { bookingsApi } from "../../api/bookings";
 import { quotationsApi } from "../../api/quotations";
@@ -449,6 +450,40 @@ const mapPaymentToTransaction = (row: any): Transaction => {
   };
 };
 
+const pickBookingCustomerName = (booking: any) => {
+  const candidate =
+    booking?.customerName ??
+    booking?.customer_name ??
+    booking?.customer ??
+    booking?.customerSnapshot?.fullName ??
+    booking?.customerSnapshot?.full_name ??
+    booking?.customerSnapshot?.name ??
+    booking?.customer?.fullName ??
+    booking?.customer?.full_name ??
+    booking?.customer?.name ??
+    booking?.leadName ??
+    booking?.lead_name ??
+    booking?.lead?.fullName ??
+    booking?.lead?.full_name ??
+    booking?.lead?.name ??
+    booking?.fullName ??
+    booking?.full_name ??
+    booking?.name;
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : "";
+};
+
+const pickEntityName = (entity: any) => {
+  const candidate =
+    entity?.fullName ??
+    entity?.full_name ??
+    entity?.name ??
+    entity?.customerName ??
+    entity?.customer_name ??
+    entity?.leadName ??
+    entity?.lead_name;
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : "";
+};
+
 // Toast Component
 const Toast = ({
   message,
@@ -769,7 +804,7 @@ const PaymentFormModal = ({
     bookingId: tx?.bookingId || "",
     amount: tx?.amount ? Math.abs(tx.amount).toString() : "",
     mode: tx?.mode || "bank",
-    referenceId: tx?.referenceId || "",
+    referenceId: tx?.paymentReference || tx?.referenceId || "",
     paymentReference: tx?.paymentReference || "",
     gatewayOrderId: tx?.gatewayOrderId || "",
     gatewayPaymentId: tx?.gatewayPaymentId || "",
@@ -1148,14 +1183,20 @@ const PaymentFormModal = ({
     }
 
     const now = new Date().toISOString();
+    const resolvedPaymentReference =
+      String(formData.paymentReference || formData.referenceId || "").trim();
     onSave({
       ...formData,
+      paymentReference: resolvedPaymentReference || undefined,
+      referenceId: resolvedPaymentReference,
       amount:
         parseFloat(formData.amount) *
         (transaction?.amount && transaction.amount < 0 ? -1 : 1),
       id: transaction?.id || `tx-${Date.now()}`,
       createdAt: transaction?.createdAt || now,
       updatedAt: now,
+      invoiceFile,
+      proofFile,
       invoiceAttachment,
       proofAttachment,
     });
@@ -1184,14 +1225,12 @@ const PaymentFormModal = ({
               {transaction ?
                 <input
                   type="text"
-                  value={formData.customer}
-                  onChange={(e) =>
-                    setFormData({ ...formData, customer: e.target.value })
-                  }
+                  value={transaction.customer || formData.customer}
+                  readOnly
                   className={`field-input ${
                     errors.customer ? "border-red-500" : ""
-                  }`}
-                  placeholder="Customer name"
+                  } bg-gray-50 cursor-not-allowed`}
+                  placeholder="Customer"
                 />
               : <SearchableDropdown
                   value={formData.customer}
@@ -1213,13 +1252,15 @@ const PaymentFormModal = ({
               {transaction ?
                 <input
                   type="text"
-                  value={formData.bookingId}
-                  onChange={(e) =>
-                    setFormData({ ...formData, bookingId: e.target.value })
+                  value={
+                    transaction.bookingLabel ||
+                    transaction.bookingId ||
+                    formData.bookingId
                   }
+                  readOnly
                   className={`field-input ${
                     errors.bookingId ? "border-red-500" : ""
-                  }`}
+                  } bg-gray-50 cursor-not-allowed`}
                   placeholder="BK-XXXX"
                 />
               : <SearchableDropdown
@@ -1541,8 +1582,8 @@ const DetailsModal = ({
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      // hour: "2-digit",
+      // minute: "2-digit",
     });
   };
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
@@ -1565,7 +1606,7 @@ const DetailsModal = ({
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Payment Details
+            Payment Details 
           </h3>
           <button
             onClick={onClose}
@@ -1776,26 +1817,7 @@ const DetailsModal = ({
             </div>
           )}
 
-          {/* Metadata */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Metadata
-            </h4>
-            <div className="space-y-2">
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                <span className="text-sm text-gray-500">Created At</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {formatDateTime(transaction.createdAt)}
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                <span className="text-sm text-gray-500">Updated At</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {formatDateTime(transaction.updatedAt)}
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* Metadata removed */}
         </div>
 
         <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 flex justify-end gap-3">
@@ -1869,6 +1891,8 @@ const Payments: React.FC = () => {
     type: "success",
   });
   const [stats, setStats] = useState({
+    currency: "AED",
+    baseCurrency: "AED",
     collectedAmount: 0,
     collectedCount: 0,
     outstandingAmount: 0,
@@ -1886,11 +1910,12 @@ const Payments: React.FC = () => {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState('AED');
 
   const pageSize = 15;
 
   const formatAmount = (value: number) =>
-    `$${Number(value || 0).toLocaleString()}`;
+    `${selectedCurrency} ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const modeOptions = useMemo(
     () => [
@@ -2467,13 +2492,15 @@ const Payments: React.FC = () => {
     }
   }, []);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (currencyCode: string) => {
     setStatsLoading(true);
     setStatsError("");
     try {
-      const res = await paymentsApi.stats();
+      const res = await paymentsApi.stats({ currency: currencyCode });
       const data = unwrapData<any>(res) ?? {};
       setStats({
+        currency: String(data?.currency || currencyCode || "AED").toUpperCase(),
+        baseCurrency: String(data?.baseCurrency || "AED").toUpperCase(),
         collectedAmount: Number(data?.collectedAmount ?? 0),
         collectedCount: Number(data?.collectedCount ?? 0),
         outstandingAmount: Number(data?.outstandingAmount ?? 0),
@@ -2493,8 +2520,11 @@ const Payments: React.FC = () => {
 
   useEffect(() => {
     void fetchTransactions();
-    void fetchStats();
-  }, [fetchStats, fetchTransactions]);
+  }, [fetchTransactions]);
+
+  useEffect(() => {
+    void fetchStats(selectedCurrency);
+  }, [fetchStats, selectedCurrency]);
 
   const handleViewDetails = async (tx: Transaction) => {
     setSelectedTransaction(tx);
@@ -2504,9 +2534,115 @@ const Payments: React.FC = () => {
       const data = unwrapData<any>(res);
       if (data) {
         const fullTx = mapPaymentToTransaction(data);
-        setSelectedTransaction((current) =>
-          current && current.id === tx.id ? { ...current, ...fullTx } : current,
-        );
+        setSelectedTransaction((current) => {
+          if (!current || current.id !== tx.id) return current;
+
+          const next = { ...current, ...fullTx };
+
+          // Do not downgrade UI fields to fallback values.
+          if (fullTx.customer === "Unknown" && current.customer) {
+            next.customer = current.customer;
+          }
+          if (!fullTx.customerEmail && current.customerEmail) {
+            next.customerEmail = current.customerEmail;
+          }
+          if (!fullTx.customerPhone && current.customerPhone) {
+            next.customerPhone = current.customerPhone;
+          }
+
+          return next;
+        });
+
+        const bookingId =
+          String(data?.bookingId ?? data?.booking_id ?? fullTx.bookingId ?? "")
+            .trim();
+        if (bookingId) {
+          try {
+            const bookingRes = await bookingsApi.getById(bookingId);
+            const bookingData = unwrapData<any>(bookingRes);
+            const booking = bookingData?.data ?? bookingData;
+            const bookingNumber =
+              booking?.bookingNumber ??
+              booking?.booking_number ??
+              booking?.bookingCode ??
+              booking?.booking_code ??
+              "";
+            if (bookingNumber) {
+              setSelectedTransaction((current) =>
+                current && current.id === tx.id ?
+                  {
+                    ...current,
+                    bookingLabel:
+                      current.bookingLabel &&
+                      current.bookingLabel !== current.bookingId ?
+                        current.bookingLabel
+                      : String(bookingNumber),
+                  }
+                : current,
+              );
+            }
+
+            const bookingCustomerName = pickBookingCustomerName(booking);
+            const bookingCustomerId =
+              String(
+                booking?.customerId ??
+                  booking?.customer_id ??
+                  booking?.customer?.id ??
+                  booking?.customer?.customerId ??
+                  booking?.customer?.customer_id ??
+                  "",
+              ).trim();
+            const bookingLeadId =
+              String(
+                booking?.leadId ??
+                  booking?.lead_id ??
+                  booking?.lead?.id ??
+                  booking?.lead?.leadId ??
+                  booking?.lead?.lead_id ??
+                  "",
+              ).trim();
+
+            const applyName = (name: string) => {
+              if (!name) return;
+              setSelectedTransaction((current) =>
+                current &&
+                current.id === tx.id &&
+                (current.customer === "Unknown" || !current.customer) ?
+                  { ...current, customer: name }
+                : current,
+              );
+            };
+
+            if (fullTx.customer === "Unknown" || !fullTx.customer) {
+              applyName(bookingCustomerName);
+            }
+
+            if (
+              (fullTx.customer === "Unknown" || !fullTx.customer) &&
+              !bookingCustomerName &&
+              bookingCustomerId
+            ) {
+              const customerRes = await customersApi.getById(bookingCustomerId);
+              const customerData = unwrapData<any>(customerRes);
+              const customer = customerData?.data ?? customerData;
+              applyName(pickEntityName(customer));
+            }
+
+            if (
+              (fullTx.customer === "Unknown" || !fullTx.customer) &&
+              !bookingCustomerName &&
+              !bookingCustomerId &&
+              bookingLeadId
+            ) {
+              const leadRes = await leadsApi.getById(bookingLeadId);
+              const leadData = unwrapData<any>(leadRes);
+              const lead = leadData?.data ?? leadData;
+              applyName(pickEntityName(lead));
+            }
+          } catch {
+            // ignore booking lookup failures
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to load payment details:", err);
@@ -2544,7 +2680,7 @@ const Payments: React.FC = () => {
       setShowVerifyModal(false);
       setSelectedTransaction(null);
       await fetchTransactions();
-      await fetchStats();
+      await fetchStats(selectedCurrency);
     } catch (err) {
       console.error("Failed to verify payment:", err);
       showToast(getApiErrorMessage(err, "Failed to verify payment"), "error");
@@ -2559,17 +2695,59 @@ const Payments: React.FC = () => {
   const handleSaveEdit = async (data: any) => {
     if (!data?.id) return;
     try {
-      await paymentsApi.update(data.id, {
-        amount: toNumber(data.amount, 0),
-        paymentMode: mapTxModeToApi(data.mode),
-        paymentReference: data.paymentReference || undefined,
-        gatewayOrderId: data.gatewayOrderId || undefined,
-        gatewayPaymentId: data.gatewayPaymentId || undefined,
-        gatewaySignature: data.gatewaySignature || undefined,
-        proofUrl: data.proofUrl || undefined,
-        status: mapTxStatusToApi(data.status),
-        paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
-      });
+      const hasAttachment = Boolean(data.invoiceFile || data.proofFile);
+      if (hasAttachment) {
+        const formData = new FormData();
+        formData.append("amount", String(toNumber(data.amount, 0)));
+        formData.append("paymentMode", mapTxModeToApi(data.mode));
+        formData.append("status", mapTxStatusToApi(data.status));
+        if (data.paymentReference) {
+          formData.append("paymentReference", data.paymentReference);
+        }
+        if (data.gatewayOrderId) {
+          formData.append("gatewayOrderId", data.gatewayOrderId);
+        }
+        if (data.gatewayPaymentId) {
+          formData.append("gatewayPaymentId", data.gatewayPaymentId);
+        }
+        if (data.gatewaySignature) {
+          formData.append("gatewaySignature", data.gatewaySignature);
+        }
+        if (data.proofUrl) {
+          formData.append("proofUrl", data.proofUrl);
+        }
+        if (data.invoiceUrl) {
+          formData.append("invoiceUrl", data.invoiceUrl);
+        }
+        if (data.notes) {
+          formData.append("notes", data.notes);
+        }
+        const paidAt = toIsoDate(data.paidAt ?? data.date);
+        if (paidAt) {
+          formData.append("paidAt", paidAt);
+        }
+        if (data.proofFile) {
+          formData.append("proofFile", data.proofFile, data.proofFile.name);
+        }
+        if (data.invoiceFile) {
+          formData.append("invoiceFile", data.invoiceFile, data.invoiceFile.name);
+        }
+        await paymentsApi.update(data.id, formData);
+      } else {
+        await paymentsApi.update(data.id, {
+          amount: toNumber(data.amount, 0),
+          paymentMode: mapTxModeToApi(data.mode),
+          paymentReference: data.paymentReference || undefined,
+          gatewayOrderId: data.gatewayOrderId || undefined,
+          gatewayPaymentId: data.gatewayPaymentId || undefined,
+          gatewaySignature: data.gatewaySignature || undefined,
+          proofUrl: data.proofUrl || undefined,
+          invoiceUrl: data.invoiceUrl || undefined,
+          status: mapTxStatusToApi(data.status),
+          paidAt: toIsoDate(data.paidAt ?? data.date) || undefined,
+          notes: data.notes || undefined,
+        });
+      }
       let refreshedTx: Transaction | null = null;
       try {
         const res = await paymentsApi.getById(data.id);
@@ -2629,7 +2807,7 @@ const Payments: React.FC = () => {
       setSelectedTransaction(null);
       showToast("Payment updated successfully", "success");
       await fetchTransactions();
-      await fetchStats();
+      await fetchStats(selectedCurrency);
     } catch (err) {
       console.error("Failed to update payment:", err);
       showToast(getApiErrorMessage(err, "Failed to update payment"), "error");
@@ -2638,23 +2816,67 @@ const Payments: React.FC = () => {
 
   const handleAddPayment = async (data: any) => {
     try {
-      await paymentsApi.create({
-        bookingId: data.bookingId,
-        amount: toNumber(data.amount, 0),
-        paymentMode: mapTxModeToApi(data.mode),
-        paymentReference: data.paymentReference || undefined,
-        gatewayOrderId: data.gatewayOrderId || undefined,
-        gatewayPaymentId: data.gatewayPaymentId || undefined,
-        gatewaySignature: data.gatewaySignature || undefined,
-        proofUrl: data.proofUrl || undefined,
-        status: mapTxStatusToApi(data.status),
-        paidAt: toIsoDate(data.date) || undefined,
-        isVerified: data.status === "completed",
-      });
+      const hasAttachment = Boolean(data.invoiceFile || data.proofFile);
+      if (hasAttachment) {
+        const formData = new FormData();
+        formData.append("bookingId", data.bookingId);
+        formData.append("amount", String(toNumber(data.amount, 0)));
+        formData.append("paymentMode", mapTxModeToApi(data.mode));
+        formData.append("status", mapTxStatusToApi(data.status));
+        formData.append("isVerified", String(data.status === "completed"));
+        if (data.paymentReference) {
+          formData.append("paymentReference", data.paymentReference);
+        }
+        if (data.gatewayOrderId) {
+          formData.append("gatewayOrderId", data.gatewayOrderId);
+        }
+        if (data.gatewayPaymentId) {
+          formData.append("gatewayPaymentId", data.gatewayPaymentId);
+        }
+        if (data.gatewaySignature) {
+          formData.append("gatewaySignature", data.gatewaySignature);
+        }
+        if (data.proofUrl) {
+          formData.append("proofUrl", data.proofUrl);
+        }
+        if (data.invoiceUrl) {
+          formData.append("invoiceUrl", data.invoiceUrl);
+        }
+        if (data.notes) {
+          formData.append("notes", data.notes);
+        }
+        const paidAt = toIsoDate(data.date);
+        if (paidAt) {
+          formData.append("paidAt", paidAt);
+        }
+        if (data.proofFile) {
+          formData.append("proofFile", data.proofFile, data.proofFile.name);
+        }
+        if (data.invoiceFile) {
+          formData.append("invoiceFile", data.invoiceFile, data.invoiceFile.name);
+        }
+        await paymentsApi.create(formData);
+      } else {
+        await paymentsApi.create({
+          bookingId: data.bookingId,
+          amount: toNumber(data.amount, 0),
+          paymentMode: mapTxModeToApi(data.mode),
+          paymentReference: data.paymentReference || undefined,
+          gatewayOrderId: data.gatewayOrderId || undefined,
+          gatewayPaymentId: data.gatewayPaymentId || undefined,
+          gatewaySignature: data.gatewaySignature || undefined,
+          proofUrl: data.proofUrl || undefined,
+          invoiceUrl: data.invoiceUrl || undefined,
+          status: mapTxStatusToApi(data.status),
+          paidAt: toIsoDate(data.date) || undefined,
+          isVerified: data.status === "completed",
+          notes: data.notes || undefined,
+        });
+      }
       setShowAddPanel(false);
       showToast("Payment added successfully", "success");
       await fetchTransactions();
-      await fetchStats();
+      await fetchStats(selectedCurrency);
     } catch (err) {
       console.error("Failed to add payment:", err);
       showToast(getApiErrorMessage(err, "Failed to add payment"), "error");
@@ -2752,6 +2974,14 @@ const Payments: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+          <CurrencySelector
+            value={selectedCurrency}
+            onChange={setSelectedCurrency}
+            baseCurrency={stats.baseCurrency}
+          />
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Base: {stats.baseCurrency}
+          </span>
           <button
             onClick={() => navigate("/refunds")}
             className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -2771,9 +3001,7 @@ const Payments: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Collected"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.collectedAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(stats.collectedAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.collectedCount} payments`
           }
@@ -2781,9 +3009,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Outstanding"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(stats.outstandingAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.outstandingCount} pending`
           }
@@ -2791,9 +3017,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Overdue"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(stats.overdueAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.overdueCount} invoices`
           }
@@ -2801,9 +3025,7 @@ const Payments: React.FC = () => {
         />
         <StatCard
           title="Refunds"
-          value={
-            statsLoading ? "Loading..." : formatAmount(stats.refundsAmount)
-          }
+          value={statsLoading ? "Loading..." : formatAmount(stats.refundsAmount)}
           subtitle={
             statsLoading ? "Loading..." : `${stats.refundsCount} processed`
           }
@@ -3167,6 +3389,41 @@ const Payments: React.FC = () => {
                     </p>
                   </div>
 
+                  <div className="flex flex-wrap gap-2">
+                    {tx.invoiceUrl ? (
+                      <a
+                        href={tx.invoiceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                      >
+                        <FaReceipt className="text-[10px]" />
+                        Invoice
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                        <FaReceipt className="text-[10px]" />
+                        No Invoice
+                      </span>
+                    )}
+                    {tx.proofUrl ? (
+                      <a
+                        href={tx.proofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      >
+                        <FaEye className="text-[10px]" />
+                        Proof
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                        <FaEye className="text-[10px]" />
+                        No Proof
+                      </span>
+                    )}
+                  </div>
+
                   {/* Actions */}
                   <div className="flex justify-end gap-2 pt-2">
                     <button
@@ -3218,6 +3475,9 @@ const Payments: React.FC = () => {
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Date
                     </th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Docs
+                    </th>
                     <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Actions
                     </th>
@@ -3266,6 +3526,42 @@ const Payments: React.FC = () => {
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
                         {tx.date}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {tx.invoiceUrl ? (
+                            <a
+                              href={tx.invoiceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                            >
+                              <FaReceipt className="text-[10px]" />
+                              Invoice
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                              <FaReceipt className="text-[10px]" />
+                              No Invoice
+                            </span>
+                          )}
+                          {tx.proofUrl ? (
+                            <a
+                              href={tx.proofUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300"
+                            >
+                              <FaEye className="text-[10px]" />
+                              Proof
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                              <FaEye className="text-[10px]" />
+                              No Proof
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-2">

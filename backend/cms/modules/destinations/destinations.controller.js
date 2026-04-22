@@ -1,12 +1,34 @@
 import { asyncHandler } from "../../core/utils/index.js";
+import { AppError } from "../../core/middlewares/errorHandler.js";
+import {
+  getFirstRequestFile,
+  getRequestFiles,
+} from "../../core/uploads/request-files.util.js";
 
 function createDestinationsController({ service, uploadService }) {
-  async function attachGalleryMedia({ destinationId, files, startingOrder = 0 }) {
+  async function attachGalleryMedia({
+    destinationId,
+    files,
+    startingOrder = 0,
+    maxAllowed = 4,
+  }) {
+    const normalizedFiles = Array.isArray(files) ? files : [];
+    if (!normalizedFiles.length) {
+      return [];
+    }
+    if (startingOrder + normalizedFiles.length > maxAllowed) {
+      throw new AppError(
+        400,
+        `Only ${maxAllowed} gallery items allowed.`,
+        "MAX_GALLERY_ITEMS_EXCEEDED",
+      );
+    }
+
     const uploadedFiles = await uploadService.uploadMany({
-      files,
+      files: normalizedFiles,
       prefix: "cms/destinations/gallery",
       allowVideo: true,
-      maxCount: 50,
+      maxCount: maxAllowed - startingOrder,
     });
 
     const createdMedia = [];
@@ -36,8 +58,21 @@ function createDestinationsController({ service, uploadService }) {
         filters.is_active = req.query.isActive === "true";
       if (req.query.isPopular !== undefined)
         filters.is_popular = req.query.isPopular === "true";
+      if (req.query.includeDeleted !== undefined) {
+        filters.includeDeleted = req.query.includeDeleted === "true";
+      }
 
       const destinations = await service.list(filters);
+      res.json({
+        success: true,
+        data: destinations,
+      });
+    }),
+
+    listDeleted: asyncHandler(async (req, res) => {
+      const filters = {};
+      if (req.query.country) filters.country = req.query.country;
+      const destinations = await service.listDeleted(filters);
       res.json({
         success: true,
         data: destinations,
@@ -65,8 +100,19 @@ function createDestinationsController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      const bannerFile = req.files?.bannerImage?.[0] || null;
-      const galleryFiles = req.files?.gallery || [];
+      const bannerFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "heroImage",
+        "thumbnailImage",
+        "image",
+        "file",
+      ]);
+      const galleryFiles = getRequestFiles(req, [
+        "gallery",
+        "galleryImages",
+        "media",
+        "files",
+      ]);
 
       if (bannerFile) {
         const bannerUpload = await uploadService.uploadSingle({
@@ -100,8 +146,19 @@ function createDestinationsController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      const bannerFile = req.files?.bannerImage?.[0] || null;
-      const galleryFiles = req.files?.gallery || [];
+      const bannerFile = getFirstRequestFile(req, [
+        "bannerImage",
+        "heroImage",
+        "thumbnailImage",
+        "image",
+        "file",
+      ]);
+      const galleryFiles = getRequestFiles(req, [
+        "gallery",
+        "galleryImages",
+        "media",
+        "files",
+      ]);
 
       if (bannerFile) {
         const bannerUpload = await uploadService.uploadSingle({
@@ -120,6 +177,7 @@ function createDestinationsController({ service, uploadService }) {
         destinationId: req.params.id,
         files: galleryFiles,
         startingOrder: existingMedia.length,
+        maxAllowed: 4,
       });
 
       res.json({
@@ -129,6 +187,32 @@ function createDestinationsController({ service, uploadService }) {
           galleryCount: gallery.length,
         },
       });
+    }),
+
+    updateStatus: asyncHandler(async (req, res) => {
+      const destination = await service.updateStatus(
+        req.params.id,
+        req.body?.isActive,
+      );
+      res.json({
+        success: true,
+        data: destination,
+      });
+    }),
+
+    delete: asyncHandler(async (req, res) => {
+      const result = await service.delete(req.params.id);
+      res.json(result);
+    }),
+
+    hardDelete: asyncHandler(async (req, res) => {
+      const result = await service.hardDelete(req.params.id);
+      res.json(result);
+    }),
+
+    restore: asyncHandler(async (req, res) => {
+      const result = await service.restore(req.params.id);
+      res.json(result);
     }),
 
     // Media endpoints
@@ -142,9 +226,15 @@ function createDestinationsController({ service, uploadService }) {
 
     addMedia: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const mediaFile = getFirstRequestFile(req, [
+        "media",
+        "file",
+        "image",
+        "video",
+      ]);
+      if (mediaFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: mediaFile,
           prefix: "cms/destinations/gallery",
           allowVideo: true,
           required: false,
@@ -164,9 +254,15 @@ function createDestinationsController({ service, uploadService }) {
 
     updateMedia: asyncHandler(async (req, res) => {
       const payload = { ...req.body };
-      if (req.file) {
+      const mediaFile = getFirstRequestFile(req, [
+        "media",
+        "file",
+        "image",
+        "video",
+      ]);
+      if (mediaFile) {
         const uploaded = await uploadService.uploadSingle({
-          file: req.file,
+          file: mediaFile,
           prefix: "cms/destinations/gallery",
           allowVideo: true,
           required: false,
@@ -186,6 +282,11 @@ function createDestinationsController({ service, uploadService }) {
 
     deleteMedia: asyncHandler(async (req, res) => {
       const result = await service.deleteMedia(req.params.mediaId);
+      res.json(result);
+    }),
+
+    hardDeleteMedia: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteMedia(req.params.mediaId);
       res.json(result);
     }),
 
@@ -219,6 +320,11 @@ function createDestinationsController({ service, uploadService }) {
       res.json(result);
     }),
 
+    hardDeleteSeason: asyncHandler(async (req, res) => {
+      const result = await service.hardDeleteSeason(req.params.seasonId);
+      res.json(result);
+    }),
+
     // Package mapping endpoints
     getPackages: asyncHandler(async (req, res) => {
       const packages = await service.getPackages(req.params.id);
@@ -243,6 +349,11 @@ function createDestinationsController({ service, uploadService }) {
 
     unmapPackage: asyncHandler(async (req, res) => {
       const result = await service.unmapPackage(req.params.mapId);
+      res.json(result);
+    }),
+
+    hardUnmapPackage: asyncHandler(async (req, res) => {
+      const result = await service.hardUnmapPackage(req.params.mapId);
       res.json(result);
     }),
   });

@@ -8,6 +8,10 @@ function createSuppliersEvents({ eventBus, logger }) {
       logger.info({ id: payload.id }, "suppliers.updated");
       eventBus.emit("suppliers.updated", payload);
     },
+    emitDeleted(payload) {
+      logger.info({ id: payload.id }, "suppliers.deleted");
+      eventBus.emit("suppliers.deleted", payload);
+    },
     emitPayableCreated(payload) {
       logger.info(
         { id: payload.id, supplierId: payload.supplierId },

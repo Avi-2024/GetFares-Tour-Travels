@@ -9,6 +9,9 @@ export const createPackagesDatasource = (client: HttpClient) => ({
   update: (id: string, payload: unknown) => client.patch(`/api/packages/${id}`, payload),
   publish: (id: string, payload?: { publishToWebsite?: boolean }) =>
     client.post(`/api/packages/${id}/publish`, payload),
+  delete: (id: string) => client.delete(`/api/packages/${id}`),
+  restore: (id: string) => client.patch(`/api/packages/${id}/restore`),
+  hardDelete: (id: string) => client.delete(`/api/packages/${id}/hard-delete`),
   listEnquiries: (id: string) => client.get(`/api/packages/${id}/enquiries`),
   createEnquiry: (id: string, payload: unknown) =>
     client.post(`/api/packages/${id}/enquiries`, payload),

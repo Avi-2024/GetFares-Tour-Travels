@@ -6,7 +6,7 @@ import SearchableDropdown from '../../components/ui/SearchableDropdown'
 import { bookingsApi } from '../../api/bookings'
 import { suppliersApi } from '../../api/suppliers'
 import { visaApi } from '../../api/visa'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { validateVisaTransition } from '../../utils/workflowValidation'
 import {
   getCountryVisaChecklist,
@@ -95,7 +95,7 @@ const VisaCreatePage = () => {
         )
       } catch (err) {
         console.error('Failed to load visa lookup data:', err)
-        setError(getApiErrorMessage(err, 'Failed to load bookings/suppliers.'))
+        reportApiError(err, 'Failed to load bookings/suppliers.', setError)
       } finally {
         setLoadingLookups(false)
       }
@@ -187,7 +187,7 @@ const VisaCreatePage = () => {
       navigate(`/visa/${created?.id}`)
     } catch (err) {
       console.error('Failed to create visa case:', err)
-      setError(getApiErrorMessage(err, 'Failed to create visa case.'))
+      reportApiError(err, 'Failed to create visa case.', setError)
     } finally {
       setSaving(false)
     }

@@ -2,23 +2,29 @@ import express from "express";
 
 function createDestinationsRoutes({ controller, upload }) {
   const router = express.Router();
-  const destinationUpload = upload.fields([
-    { name: "bannerImage", maxCount: 1 },
-    { name: "gallery", maxCount: 50 },
-  ]);
+  const destinationUpload = upload.any();
 
   router.route("/").get(controller.list).post(destinationUpload, controller.create);
+  router.route("/deleted").get(controller.listDeleted);
   router.route("/slug/:slug").get(controller.getBySlug);
-  router.route("/:id").get(controller.getById).put(destinationUpload, controller.update);
+  router
+    .route("/:id")
+    .get(controller.getById)
+    .put(destinationUpload, controller.update)
+    .delete(controller.delete);
+  router.route("/:id/restore").patch(controller.restore);
+  router.route("/:id/hard-delete").delete(controller.hardDelete);
+  router.route("/:id/status").patch(controller.updateStatus);
 
   router
     .route("/:id/media")
     .get(controller.getMedia)
-    .post(upload.single("media"), controller.addMedia);
+    .post(upload.any(), controller.addMedia);
   router
     .route("/:id/media/:mediaId")
-    .put(upload.single("media"), controller.updateMedia)
+    .put(upload.any(), controller.updateMedia)
     .delete(controller.deleteMedia);
+  router.route("/:id/media/:mediaId/hard-delete").delete(controller.hardDeleteMedia);
 
   router
     .route("/:id/seasons")
@@ -28,12 +34,7 @@ function createDestinationsRoutes({ controller, upload }) {
     .route("/:id/seasons/:seasonId")
     .put(controller.updateSeason)
     .delete(controller.deleteSeason);
-
-  router
-    .route("/:id/packages")
-    .get(controller.getPackages)
-    .post(controller.mapPackage);
-  router.route("/:id/packages/:mapId").delete(controller.unmapPackage);
+  router.route("/:id/seasons/:seasonId/hard-delete").delete(controller.hardDeleteSeason);
 
   return router;
 }

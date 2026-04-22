@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalQueryBoolean } from "../../core/utils/zod-query-boolean.js";
 
 const visaStatus = z.enum([
   "DOCUMENT_PENDING",
@@ -195,7 +196,7 @@ const listDocuments = z.object({
     .object({
       page: z.coerce.number().int().positive().optional(),
       limit: z.coerce.number().int().positive().optional(),
-      isVerified: z.coerce.boolean().optional(),
+      isVerified: optionalQueryBoolean,
     })
     .optional(),
 });

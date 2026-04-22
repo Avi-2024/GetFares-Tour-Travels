@@ -154,7 +154,16 @@ function toUser(entity, roleLookup, permissions = [], countries = []) {
   };
 }
 
-function createUsersService({ repository, logger, events, rbacService }) {
+function createUsersService({
+  repository,
+  logger,
+  events,
+  rbacService,
+  authConfig,
+}) {
+  const bcryptRounds = Number.isInteger(Number(authConfig?.bcryptRounds))
+    ? Number(authConfig.bcryptRounds)
+    : 8;
   let parentIdColumnSupported;
 
   async function supportsParentIdColumn() {
@@ -402,7 +411,9 @@ function createUsersService({ repository, logger, events, rbacService }) {
     try {
       const passwordHash =
         payload.passwordHash ||
-        (payload.password ? await bcryptjs.hash(payload.password, 12) : null);
+        (payload.password ?
+          await bcryptjs.hash(payload.password, bcryptRounds)
+        : null);
 
       if (!passwordHash) {
         throw new AppError(
@@ -591,9 +602,13 @@ function createUsersService({ repository, logger, events, rbacService }) {
         }
       }
 
+      // Skip country validation for deactivation-only updates
+      const isDeactivationOnly = Object.keys(payload).every(k =>
+        ['isActive', 'active', 'isOnLeave'].includes(k)
+      );
       const countryResolution = await resolveAndValidateCountries({
         payload: enriched,
-        roleKind,
+        roleKind: isDeactivationOnly ? 'OTHER' : roleKind,
         existingCountryFallback: existing.country || existing.agentCountry || null,
       });
       if (countryResolution.primaryCountryName && !enriched.agentCountry) {

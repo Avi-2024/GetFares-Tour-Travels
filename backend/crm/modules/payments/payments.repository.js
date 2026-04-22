@@ -3,7 +3,10 @@ function createPaymentsRepository({ db, logger, schema }) {
   const columnCache = new Map();
 
   function canUseRawQuery() {
-    return typeof db.query === "function" && Boolean(db.pool);
+    return (
+      typeof db.query === "function" &&
+      (db.adapter === "mysql" || db.adapter === "mssql")
+    );
   }
 
   function toNumber(value, fallback = 0) {
@@ -77,6 +80,7 @@ function createPaymentsRepository({ db, logger, schema }) {
       verifiedBy: row.verified_by ?? row.verifiedBy ?? null,
       verifiedAt: toDate(row.verified_at ?? row.verifiedAt),
       paidAt: toDate(row.paid_at ?? row.paidAt),
+      notes: row.notes ?? row.note ?? null,
       createdAt: toDate(row.created_at ?? row.createdAt),
       updatedAt: toDate(row.updated_at ?? row.updatedAt),
     };
@@ -138,11 +142,16 @@ function createPaymentsRepository({ db, logger, schema }) {
     }
 
     const result = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
+      `SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name=?`,
       [tableName],
     );
 
-    const columns = new Set(result.rows.map((row) => row.column_name));
+    const columns = new Set(
+      result.rows
+        .map((row) => row.column_name ?? row.COLUMN_NAME ?? null)
+        .filter(Boolean)
+        .map((column) => String(column).toLowerCase()),
+    );
     columnCache.set(tableName, columns);
     return columns;
   }
@@ -153,7 +162,7 @@ function createPaymentsRepository({ db, logger, schema }) {
       return true;
     }
 
-    return columns.has(columnName);
+    return columns.has(String(columnName).toLowerCase());
   }
 
   async function hasColumnFresh(tableName, columnName) {
@@ -229,7 +238,7 @@ function createPaymentsRepository({ db, logger, schema }) {
   }
 
   return Object.freeze({
-    async getStats() {
+    async getStatsBreakdown() {
       const [paymentsTableExists, bookingsTableExists, refundsTableExists] =
         await Promise.all([
           hasTable(schema.tableName),
@@ -237,43 +246,56 @@ function createPaymentsRepository({ db, logger, schema }) {
           hasTable(schema.refundsTable),
         ]);
 
-      const empty = {
-        collectedAmount: 0,
-        collectedCount: 0,
-        outstandingAmount: 0,
-        outstandingCount: 0,
-        overdueAmount: 0,
-        overdueCount: 0,
-        refundsAmount: 0,
-        refundsCount: 0,
+      const emptyBreakdown = {
+        collected: [],
+        outstanding: [],
+        overdue: [],
+        refunds: [],
       };
 
       if (!paymentsTableExists && !bookingsTableExists && !refundsTableExists) {
-        return empty;
+        return emptyBreakdown;
       }
 
       if (canUseRawQuery()) {
+        const normalizeBreakdownRows = (
+          rows,
+          amountKey = "amount",
+          countKey = "count",
+        ) =>
+          (rows || [])
+            .map((row) => ({
+              currency: String(row?.currency || "INR").trim().toUpperCase() || "INR",
+              amount: toNumber(row?.[amountKey], 0),
+              count: toNumber(row?.[countKey], 0),
+            }))
+            .filter((row) => row.amount > 0 || row.count > 0);
+
         const paymentsQuery = `
           SELECT
-            COALESCE(SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
-              AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-              THEN amount ELSE 0 END), 0)::numeric AS collected_amount,
-            SUM(CASE WHEN COALESCE(is_verified, FALSE) = TRUE
-              AND COALESCE(status, 'PENDING') <> 'REFUNDED'
-              THEN 1 ELSE 0 END) AS collected_count
+            UPPER(COALESCE(NULLIF(currency, ''), 'INR')) AS currency,
+            COALESCE(SUM(
+              CASE WHEN COALESCE(is_verified, FALSE) = TRUE
+                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+                THEN amount ELSE 0 END
+            ), 0) AS amount,
+            SUM(
+              CASE WHEN COALESCE(is_verified, FALSE) = TRUE
+                AND COALESCE(status, 'PENDING') <> 'REFUNDED'
+                THEN 1 ELSE 0 END
+            ) AS count
           FROM ${schema.tableName}
+          GROUP BY UPPER(COALESCE(NULLIF(currency, ''), 'INR'))
         `;
 
-        let bookingStats = {
-          outstanding_amount: 0,
-          outstanding_count: 0,
-          overdue_amount: 0,
-          overdue_count: 0,
-        };
+        let bookingOutstanding = [];
+        let bookingOverdue = [];
 
         if (bookingsTableExists) {
           let hasSoftDelete = false;
           let hasTravelStartDate = true;
+          let hasClientCurrency = true;
+          let hasCurrencyColumn = true;
 
           try {
             hasSoftDelete = await hasColumn(schema.bookingsTable, "is_deleted");
@@ -281,6 +303,11 @@ function createPaymentsRepository({ db, logger, schema }) {
               schema.bookingsTable,
               "travel_start_date",
             );
+            hasClientCurrency = await hasColumn(
+              schema.bookingsTable,
+              "client_currency",
+            );
+            hasCurrencyColumn = await hasColumn(schema.bookingsTable, "currency");
           } catch (error) {
             logger?.warn?.(
               { err: error, table: schema.bookingsTable },
@@ -294,39 +321,71 @@ function createPaymentsRepository({ db, logger, schema }) {
           let overdueDatePredicate = hasTravelStartDate
             ? "b.travel_start_date < CURRENT_DATE"
             : "FALSE";
+          const bookingCurrencyExpression = hasClientCurrency && hasCurrencyColumn
+            ? "UPPER(COALESCE(NULLIF(b.client_currency, ''), NULLIF(b.currency, ''), 'INR'))"
+            : hasClientCurrency
+              ? "UPPER(COALESCE(NULLIF(b.client_currency, ''), 'INR'))"
+              : hasCurrencyColumn
+                ? "UPPER(COALESCE(NULLIF(b.currency, ''), 'INR'))"
+                : "'INR'";
 
-          const buildBookingsQuery = (notDeleted, overdueDate) => `
+          const buildBookingsQuery = (notDeleted, overdueDate, currencyExpr) => `
             SELECT
-              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
-                THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
-                ELSE 0 END), 0)::numeric AS outstanding_amount,
-              SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
-                AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
-                THEN 1 ELSE 0 END) AS outstanding_count,
-              COALESCE(SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
-                AND ${overdueDate}
-                AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
-                THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
-                ELSE 0 END), 0)::numeric AS overdue_amount,
-              SUM(CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
-                AND ${overdueDate}
-                AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
-                THEN 1 ELSE 0 END) AS overdue_count
+              ${currencyExpr} AS currency,
+              COALESCE(SUM(
+                CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                  THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
+                  ELSE 0 END
+              ), 0) AS outstanding_amount,
+              SUM(
+                CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                  AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
+                  THEN 1 ELSE 0 END
+              ) AS outstanding_count,
+              COALESCE(SUM(
+                CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                  AND ${overdueDate}
+                  AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
+                  THEN GREATEST(COALESCE(b.total_amount, 0) - COALESCE(b.advance_received, 0), 0)
+                  ELSE 0 END
+              ), 0) AS overdue_amount,
+              SUM(
+                CASE WHEN b.status <> 'CANCELLED' AND ${notDeleted}
+                  AND ${overdueDate}
+                  AND COALESCE(b.advance_received, 0) < COALESCE(b.total_amount, 0)
+                  THEN 1 ELSE 0 END
+              ) AS overdue_count
             FROM ${schema.bookingsTable} b
+            GROUP BY ${currencyExpr}
           `;
 
           try {
             const result = await db.query(
-              buildBookingsQuery(notDeletedPredicate, overdueDatePredicate),
+              buildBookingsQuery(
+                notDeletedPredicate,
+                overdueDatePredicate,
+                bookingCurrencyExpression,
+              ),
             );
-            bookingStats = result.rows[0] || bookingStats;
+            bookingOutstanding = normalizeBreakdownRows(
+              result.rows,
+              "outstanding_amount",
+              "outstanding_count",
+            );
+            bookingOverdue = normalizeBreakdownRows(
+              result.rows,
+              "overdue_amount",
+              "overdue_count",
+            );
           } catch (error) {
             const message = String(error?.message || "");
             const code = error?.code;
             const missingColumn =
               code === "42703" ||
               message.includes("is_deleted") ||
-              message.includes("travel_start_date");
+              message.includes("travel_start_date") ||
+              message.includes("client_currency") ||
+              message.includes("currency");
 
             if (missingColumn) {
               if (message.includes("is_deleted")) {
@@ -337,117 +396,212 @@ function createPaymentsRepository({ db, logger, schema }) {
               }
 
               const result = await db.query(
-                buildBookingsQuery(notDeletedPredicate, overdueDatePredicate),
+                buildBookingsQuery(
+                  notDeletedPredicate,
+                  overdueDatePredicate,
+                  "'INR'",
+                ),
               );
-              bookingStats = result.rows[0] || bookingStats;
+              bookingOutstanding = normalizeBreakdownRows(
+                result.rows,
+                "outstanding_amount",
+                "outstanding_count",
+              );
+              bookingOverdue = normalizeBreakdownRows(
+                result.rows,
+                "overdue_amount",
+                "overdue_count",
+              );
             } else {
               throw error;
             }
           }
         }
 
-        let refundStats = { refunds_amount: 0, refunds_count: 0 };
+        let refundBreakdown = [];
         if (refundsTableExists) {
-          const refundResult = await db.query(
-            `
-              SELECT
-                COALESCE(SUM(refund_amount), 0)::numeric AS refunds_amount,
-                COUNT(*) AS refunds_count
-              FROM ${schema.refundsTable}
-              WHERE status = 'PROCESSED'
-            `,
-          );
-          refundStats = refundResult.rows[0] || refundStats;
+          if (bookingsTableExists) {
+            const hasClientCurrency = await hasColumn(
+              schema.bookingsTable,
+              "client_currency",
+            );
+            const hasCurrencyColumn = await hasColumn(
+              schema.bookingsTable,
+              "currency",
+            );
+            const refundsCurrencyExpression = hasClientCurrency && hasCurrencyColumn
+              ? "UPPER(COALESCE(NULLIF(b.client_currency, ''), NULLIF(b.currency, ''), 'INR'))"
+              : hasClientCurrency
+                ? "UPPER(COALESCE(NULLIF(b.client_currency, ''), 'INR'))"
+                : hasCurrencyColumn
+                  ? "UPPER(COALESCE(NULLIF(b.currency, ''), 'INR'))"
+                  : "'INR'";
+
+            const refundResult = await db.query(
+              `
+                SELECT
+                  ${refundsCurrencyExpression} AS currency,
+                  COALESCE(SUM(r.refund_amount), 0) AS amount,
+                  COUNT(*) AS count
+                FROM ${schema.refundsTable} r
+                LEFT JOIN ${schema.bookingsTable} b ON b.id = r.booking_id
+                WHERE r.status = 'PROCESSED'
+                GROUP BY ${refundsCurrencyExpression}
+              `,
+            );
+            refundBreakdown = normalizeBreakdownRows(
+              refundResult.rows,
+              "amount",
+              "count",
+            );
+          } else {
+            const refundResult = await db.query(
+              `
+                SELECT
+                  'INR' AS currency,
+                  COALESCE(SUM(refund_amount), 0) AS amount,
+                  COUNT(*) AS count
+                FROM ${schema.refundsTable}
+                WHERE status = 'PROCESSED'
+              `,
+            );
+            refundBreakdown = normalizeBreakdownRows(
+              refundResult.rows,
+              "amount",
+              "count",
+            );
+          }
         }
 
-        const paymentsResult = paymentsTableExists
+        const collectedResult = paymentsTableExists
           ? await db.query(paymentsQuery)
-          : { rows: [{}] };
-        const paymentStats = paymentsResult.rows[0] || {};
+          : { rows: [] };
 
         return {
-          collectedAmount: toNumber(paymentStats.collected_amount, 0),
-          collectedCount: toNumber(paymentStats.collected_count, 0),
-          outstandingAmount: toNumber(bookingStats.outstanding_amount, 0),
-          outstandingCount: toNumber(bookingStats.outstanding_count, 0),
-          overdueAmount: toNumber(bookingStats.overdue_amount, 0),
-          overdueCount: toNumber(bookingStats.overdue_count, 0),
-          refundsAmount: toNumber(refundStats.refunds_amount, 0),
-          refundsCount: toNumber(refundStats.refunds_count, 0),
+          collected: normalizeBreakdownRows(collectedResult.rows, "amount", "count"),
+          outstanding: bookingOutstanding,
+          overdue: bookingOverdue,
+          refunds: refundBreakdown,
         };
       }
 
       const payments = paymentsTableExists
         ? await db.findMany(schema.tableName, {})
         : [];
-      const collectedPayments = payments
+      const addToBreakdown = (accumulator, currency, amount, count = 0) => {
+        const code = String(currency || "INR").trim().toUpperCase() || "INR";
+        if (!accumulator[code]) {
+          accumulator[code] = { currency: code, amount: 0, count: 0 };
+        }
+        accumulator[code].amount += toNumber(amount, 0);
+        accumulator[code].count += toNumber(count, 0);
+      };
+
+      const collectedMap = {};
+      payments
         .filter((row) => toBoolean(row.is_verified ?? row.isVerified, false))
-        .filter((row) => (row.status ?? "PENDING") !== "REFUNDED");
-      const collectedAmount = collectedPayments.reduce(
-        (sum, row) => sum + toNumber(row.amount, 0),
-        0,
-      );
+        .filter((row) => (row.status ?? "PENDING") !== "REFUNDED")
+        .forEach((row) => {
+          addToBreakdown(
+            collectedMap,
+            row.currency,
+            toNumber(row.amount, 0),
+            1,
+          );
+        });
 
       const bookings = bookingsTableExists
         ? await db.findMany(schema.bookingsTable, {})
         : [];
       const today = new Date();
-      const bookingStats = bookings.reduce(
-        (acc, row) => {
-          const isDeleted = toBoolean(row.is_deleted ?? row.isDeleted, false);
-          const status = row.status ?? "PENDING";
-          if (isDeleted || status === "CANCELLED") {
-            return acc;
-          }
-          const total = toNumber(row.total_amount ?? row.totalAmount, 0);
-          const received = toNumber(
-            row.advance_received ?? row.advanceReceived,
-            0,
-          );
-          const outstanding = Math.max(total - received, 0);
-          if (outstanding > 0) {
-            acc.outstandingAmount += outstanding;
-            acc.outstandingCount += 1;
+      const outstandingMap = {};
+      const overdueMap = {};
+      bookings.forEach((row) => {
+        const isDeleted = toBoolean(row.is_deleted ?? row.isDeleted, false);
+        const status = row.status ?? "PENDING";
+        if (isDeleted || status === "CANCELLED") {
+          return;
+        }
+        const total = toNumber(row.total_amount ?? row.totalAmount, 0);
+        const received = toNumber(row.advance_received ?? row.advanceReceived, 0);
+        const outstanding = Math.max(total - received, 0);
+        if (outstanding <= 0) {
+          return;
+        }
 
-            const travelStart = row.travel_start_date ?? row.travelStartDate;
-            if (travelStart) {
-              const travelDate = new Date(travelStart);
-              if (!Number.isNaN(travelDate.getTime()) && travelDate < today) {
-                acc.overdueAmount += outstanding;
-                acc.overdueCount += 1;
-              }
-            }
-          }
-          return acc;
-        },
-        {
-          outstandingAmount: 0,
-          outstandingCount: 0,
-          overdueAmount: 0,
-          overdueCount: 0,
-        },
-      );
+        const bookingCurrency =
+          row.client_currency ?? row.clientCurrency ?? row.currency ?? "INR";
+        addToBreakdown(outstandingMap, bookingCurrency, outstanding, 1);
+
+        const travelStart = row.travel_start_date ?? row.travelStartDate;
+        if (!travelStart) {
+          return;
+        }
+        const travelDate = new Date(travelStart);
+        if (!Number.isNaN(travelDate.getTime()) && travelDate < today) {
+          addToBreakdown(overdueMap, bookingCurrency, outstanding, 1);
+        }
+      });
 
       const refunds = refundsTableExists
         ? await db.findMany(schema.refundsTable, {})
         : [];
-      const processedRefunds = refunds.filter(
-        (row) => (row.status ?? "INITIATED") === "PROCESSED",
-      );
-      const refundsAmount = processedRefunds.reduce(
-        (sum, row) => sum + toNumber(row.refund_amount ?? row.refundAmount, 0),
-        0,
-      );
+      const bookingById = bookings.reduce((accumulator, bookingRow) => {
+        if (bookingRow?.id) {
+          accumulator[String(bookingRow.id)] = bookingRow;
+        }
+        return accumulator;
+      }, {});
+      const refundsMap = {};
+      refunds
+        .filter((row) => (row.status ?? "INITIATED") === "PROCESSED")
+        .forEach((row) => {
+          const bookingRow = bookingById[String(row.booking_id ?? row.bookingId ?? "")];
+          const bookingCurrency =
+            bookingRow?.client_currency ??
+            bookingRow?.clientCurrency ??
+            bookingRow?.currency ??
+            "INR";
+          addToBreakdown(
+            refundsMap,
+            bookingCurrency,
+            toNumber(row.refund_amount ?? row.refundAmount, 0),
+            1,
+          );
+        });
 
       return {
-        collectedAmount,
-        collectedCount: collectedPayments.length,
-        outstandingAmount: bookingStats.outstandingAmount,
-        outstandingCount: bookingStats.outstandingCount,
-        overdueAmount: bookingStats.overdueAmount,
-        overdueCount: bookingStats.overdueCount,
-        refundsAmount,
-        refundsCount: processedRefunds.length,
+        collected: Object.values(collectedMap),
+        outstanding: Object.values(outstandingMap),
+        overdue: Object.values(overdueMap),
+        refunds: Object.values(refundsMap),
+      };
+    },
+    async getStats() {
+      const breakdown = await this.getStatsBreakdown();
+      const sumBucket = (rows = []) =>
+        rows.reduce(
+          (accumulator, row) => ({
+            amount: accumulator.amount + toNumber(row.amount, 0),
+            count: accumulator.count + toNumber(row.count, 0),
+          }),
+          { amount: 0, count: 0 },
+        );
+
+      const collected = sumBucket(breakdown.collected);
+      const outstanding = sumBucket(breakdown.outstanding);
+      const overdue = sumBucket(breakdown.overdue);
+      const refunds = sumBucket(breakdown.refunds);
+
+      return {
+        collectedAmount: collected.amount,
+        collectedCount: collected.count,
+        outstandingAmount: outstanding.amount,
+        outstandingCount: outstanding.count,
+        overdueAmount: overdue.amount,
+        overdueCount: overdue.count,
+        refundsAmount: refunds.amount,
+        refundsCount: refunds.count,
       };
     },
     async findAll(filters = {}) {
@@ -544,4 +698,3 @@ function createPaymentsRepository({ db, logger, schema }) {
 }
 
 export { createPaymentsRepository };
-

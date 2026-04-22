@@ -20,13 +20,17 @@ class ThemeToggle extends Component {
         whileTap={{ scale: 0.96 }}
         whileHover={{ y: -1 }}
         onClick={this.handleToggle}
-        className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-soft)] transition-colors"
+        className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-(--surface) px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-soft)] transition-colors"
         aria-label="Toggle color theme"
       >
         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-[var(--primary)]">
-          {isDark ? <MoonStar size={14} /> : <SunMedium size={14} />}
+          {isDark ?
+            <MoonStar size={14} />
+          : <SunMedium size={14} />}
         </span>
-        <span className="text-[var(--text-secondary)]">{isDark ? "Dark" : "Light"}</span>
+        <span className="text-[var(--text-secondary)]">
+          {isDark ? "Dark" : "Light"}
+        </span>
       </motion.button>
     );
   }

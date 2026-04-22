@@ -24,7 +24,7 @@ const DEADLINE_RISK = Object.freeze({
   OVERDUE: "OVERDUE",
 });
 
-function createBookingsService({ repository, logger, events, config }) {
+function createBookingsService({ repository, logger, events, config, leadsRepository }) {
   const reminderConfig = {
     preTravelDays: config?.whatsapp?.preTravelDays ?? 2,
     postTravelDays: config?.whatsapp?.postTravelDays ?? 1,
@@ -202,6 +202,55 @@ function createBookingsService({ repository, logger, events, config }) {
     );
   }
 
+  async function enrichBookingsWithLeadNames(bookings) {
+    if (!leadsRepository || !Array.isArray(bookings) || bookings.length === 0) {
+      return bookings;
+    }
+
+    try {
+      const leadIds = [...new Set(bookings
+        .map((b) => b.leadId)
+        .filter(Boolean)
+      )];
+
+      if (leadIds.length === 0) {
+        return bookings;
+      }
+
+      const leadsMap = new Map();
+      for (const leadId of leadIds) {
+        try {
+          const lead = await leadsRepository.findById(leadId);
+          if (lead) {
+            leadsMap.set(leadId, lead);
+          }
+        } catch (error) {
+          logger.warn(
+            { leadId, error: error?.message },
+            "Failed to fetch lead details",
+          );
+        }
+      }
+
+      return bookings.map((booking) => {
+        if (booking.leadId && leadsMap.has(booking.leadId)) {
+          const lead = leadsMap.get(booking.leadId);
+          return {
+            ...booking,
+            leadName: lead.fullName || null,
+          };
+        }
+        return { ...booking, leadName: null };
+      });
+    } catch (error) {
+      logger.error(
+        { error: error?.message },
+        "Error enriching bookings with lead names",
+      );
+      return bookings;
+    }
+  }
+
   async function getById(id, context = {}) {
     logger.debug(
       { module: "bookings", requestId: context.requestId, id },
@@ -213,11 +262,22 @@ function createBookingsService({ repository, logger, events, config }) {
       throw new AppError(404, "Booking not found", "BOOKING_NOT_FOUND");
     }
 
-    return withDeadlineInsights(booking);
+    const withDeadline = withDeadlineInsights(booking);
+    const enriched = await enrichBookingsWithLeadNames([withDeadline]);
+    return enriched[0];
   }
 
   async function ensureQuotationExists(quotationId) {
-    const quotation = await repository.findQuotationById(quotationId);
+    const normalizedQuotationId = String(quotationId || "").trim();
+    if (!normalizedQuotationId) {
+      throw new AppError(
+        400,
+        "quotationId is required",
+        "BOOKING_QUOTATION_ID_REQUIRED",
+      );
+    }
+
+    const quotation = await repository.findQuotationById(normalizedQuotationId);
     if (!quotation) {
       throw new AppError(
         404,
@@ -538,7 +598,7 @@ function createBookingsService({ repository, logger, events, config }) {
     return [...new Set(alerts)];
   }
 
-  function buildCreateRecord(payload, context = {}) {
+  function buildCreateRecord(payload, context = {}, options = {}) {
     const totalAmount = toNumber(payload.totalAmount, 0);
     const costAmount = toNumber(payload.costAmount, 0);
     const nonRefundable = Boolean(payload.isNonRefundable);
@@ -619,8 +679,13 @@ function createBookingsService({ repository, logger, events, config }) {
       );
     }
 
+    const createdBy =
+      options.createdBy !== undefined
+        ? options.createdBy
+        : context.user?.id || null;
+
     return {
-      quotation_id: payload.quotationId,
+      quotation_id: String(payload.quotationId || "").trim(),
       booking_number: payload.bookingNumber || buildBookingNumber(),
       travel_start_date: toDateString(payload.travelStartDate),
       travel_end_date: toDateString(payload.travelEndDate),
@@ -646,9 +711,21 @@ function createBookingsService({ repository, logger, events, config }) {
       balance_due_by: insights.balanceDueBy,
       deadline_risk_level: insights.deadlineRiskLevel,
       deadline_last_evaluated_at: insights.deadlineLastEvaluatedAt,
-      created_by: context.user?.id || null,
+      created_by: createdBy,
       updated_at: new Date().toISOString(),
     };
+  }
+
+  async function resolveBookingCreatorId(userId) {
+    const normalized = String(userId || "").trim();
+    if (!normalized) {
+      return null;
+    }
+    if (typeof repository.findUserById !== "function") {
+      return normalized;
+    }
+    const userRow = await repository.findUserById(normalized);
+    return userRow?.id ? normalized : null;
   }
 
   return Object.freeze({
@@ -662,7 +739,9 @@ function createBookingsService({ repository, logger, events, config }) {
         "Listing bookings",
       );
       const list = await repository.findAll(filters);
-      return list.map((item) => withDeadlineInsights(item));
+      const withDeadlines = list.map((item) => withDeadlineInsights(item));
+      const enriched = await enrichBookingsWithLeadNames(withDeadlines);
+      return enriched;
     },
 
     async stats(context = {}) {
@@ -676,10 +755,11 @@ function createBookingsService({ repository, logger, events, config }) {
     getById,
 
     async create(payload, context = {}) {
-      await ensureQuotationExists(payload.quotationId);
+      const normalizedQuotationId = String(payload.quotationId || "").trim();
+      await ensureQuotationExists(normalizedQuotationId);
 
       const existingForQuotation = await repository.findByQuotationId(
-        payload.quotationId,
+        normalizedQuotationId,
       );
       if (existingForQuotation && !existingForQuotation.isDeleted) {
         throw new AppError(
@@ -689,10 +769,54 @@ function createBookingsService({ repository, logger, events, config }) {
         );
       }
 
-      const record = buildCreateRecord(payload, context);
+      const creatorId = await resolveBookingCreatorId(context.user?.id);
+      const record = buildCreateRecord(
+        { ...payload, quotationId: normalizedQuotationId },
+        context,
+        { createdBy: creatorId },
+      );
       await ensureBookingNumberUnique(record.booking_number);
-
-      const created = await repository.create(record);
+      let created;
+      try {
+        created = await repository.create(record);
+      } catch (error) {
+        const message = String(error?.message || "");
+        const mysqlFkViolation =
+          error?.code === "ER_NO_REFERENCED_ROW_2" ||
+          error?.errno === 1452 ||
+          /foreign key constraint fails/i.test(message);
+        if (
+          mysqlFkViolation &&
+          /bookings_ibfk_1/i.test(message)
+        ) {
+          const quotationStillExists = await repository
+            .findQuotationById(normalizedQuotationId)
+            .catch(() => null);
+          if (quotationStillExists && !quotationStillExists.isDeleted) {
+            throw new AppError(
+              409,
+              "Booking could not be linked to selected quotation due to database constraint. Retry once.",
+              "BOOKING_QUOTATION_LINK_FAILED",
+            );
+          }
+          throw new AppError(
+            409,
+            "Selected quotation does not exist. Refresh quotations and select again.",
+            "BOOKING_QUOTATION_NOT_FOUND",
+          );
+        }
+        if (
+          mysqlFkViolation &&
+          /bookings_ibfk_2/i.test(message)
+        ) {
+          throw new AppError(
+            401,
+            "Current user session is stale. Please logout and login again.",
+            "BOOKING_CREATOR_NOT_FOUND",
+          );
+        }
+        throw error;
+      }
 
       await appendStatusHistory({
         bookingId: created.id,

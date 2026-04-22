@@ -3,7 +3,7 @@ import { Component } from "react";
 class NotFoundPage extends Component {
   render() {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-6 text-[var(--text-primary)]">
+      <div className="flex min-h-screen items-center justify-center bg-(--background) px-6 text-[var(--text-primary)]">
         <div className="surface-card-elevated max-w-md space-y-4 p-8 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--primary)]">
             Page not found

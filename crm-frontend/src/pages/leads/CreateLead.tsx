@@ -10,7 +10,7 @@ import 'react-international-phone/style.css'
 import CurrencyInput, { formatValue } from 'react-currency-input-field'
 import SurfaceCard from '../../components/ui/SurfaceCard'
 import SearchableDropdown from '../../components/ui/SearchableDropdown'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useLeadsService } from '../../hooks/useLeadsService'
 import { useCampaignsService } from '../../hooks/useCampaignsService'
 import { Country } from 'country-state-city'
@@ -18,6 +18,8 @@ import {
   getCurrencyLocaleByCode
 } from '../../utils/currency'
 import { getNationalityOptions } from '../../utils/nationality'
+import { nowWallClockString } from '../../utils/clientWallClock'
+import { getBrowserTimeZone } from '../../utils/dateTimePreferences'
 
 type LeadType = 'HOLIDAY' | 'VISA' | null
 
@@ -75,6 +77,15 @@ const initialForm: FormState = {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_E164_DIGITS_MIN = 8
 const PHONE_E164_DIGITS_MAX = 15
+
+const normalizePrefillPhone = (value: unknown): string => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const clipped = digits.slice(0, PHONE_E164_DIGITS_MAX)
+  return raw.startsWith('+') ? `+${clipped}` : `+${clipped}`
+}
 
 type CurrencyMeta = {
   code: string
@@ -159,7 +170,7 @@ const createCountryCurrencyMap = (): Record<string, string> => {
     'Mauritius': 'MUR',
     'Seychelles': 'SCR'
   }
-  
+
   const euroCountries = [
     'Germany', 'France', 'Italy', 'Spain', 'Portugal', 'Netherlands',
     'Belgium', 'Austria', 'Greece', 'Ireland', 'Finland', 'Luxembourg',
@@ -169,7 +180,7 @@ const createCountryCurrencyMap = (): Record<string, string> => {
   euroCountries.forEach(country => {
     map[country] = 'EUR'
   })
-  
+
   return map
 }
 
@@ -226,7 +237,7 @@ const CreateLead: React.FC = () => {
   const handleLeadTypeSelect = (type: 'HOLIDAY' | 'VISA') => {
     setLeadType(type)
     const baseForm = createInitialFormState()
-    
+
     if (customerData) {
       const nameParts = (customerData.fullName || '').split(' ')
       setForm({
@@ -234,7 +245,7 @@ const CreateLead: React.FC = () => {
         firstName: nameParts[0] || '',
         lastName: nameParts.slice(1).join(' ') || '',
         email: customerData.email || '',
-        phone: customerData.phone || '',
+        phone: normalizePrefillPhone(customerData.phone),
         leadCountry: customerData.leadCountry || baseForm.leadCountry,
         nationality: customerData.nationality || baseForm.nationality,
         clientCurrency: customerData.clientCurrency || baseForm.clientCurrency,
@@ -243,7 +254,7 @@ const CreateLead: React.FC = () => {
     } else {
       setForm(baseForm)
     }
-    
+
     setChildAges([])
     setShowErrors(false)
     setApiError('')
@@ -286,25 +297,25 @@ const CreateLead: React.FC = () => {
     const checkDuplicates = async () => {
       const email = form.email.trim()
       const phone = form.phone.replace(/\D/g, '')
-      
+
       if (!email && !phone) {
         setDuplicateWarning('')
         setDuplicateLead(null)
         return
       }
-      
+
       if (email && !EMAIL_PATTERN.test(email)) {
         setDuplicateWarning('')
         setDuplicateLead(null)
         return
       }
-      
+
       if (phone && phone.length < PHONE_E164_DIGITS_MIN) {
         setDuplicateWarning('')
         setDuplicateLead(null)
         return
       }
-      
+
       try {
         const result = await leadsService.checkDuplicate(
           email || undefined,
@@ -449,18 +460,18 @@ const CreateLead: React.FC = () => {
         .map(name => String(name).trim())
         .filter(Boolean)
 
-    const mergedNames = Array.from(
-      new Set([...allCountryNames, ...destinationNames])
-    ).sort((a, b) => a.localeCompare(b))
+      const mergedNames = Array.from(
+        new Set([...allCountryNames, ...destinationNames])
+      ).sort((a, b) => a.localeCompare(b))
 
-    return [
-      { value: '', label: 'Select destination' },
-      ...mergedNames.map(name => ({
-        value: name,
-        label: name
-      }))
-    ]
-  }, [allCountryNames, destinations])
+      return [
+        { value: '', label: 'Select destination' },
+        ...mergedNames.map(name => ({
+          value: name,
+          label: name
+        }))
+      ]
+    }, [allCountryNames, destinations])
 
   const visaOptions = useMemo(
     () => [
@@ -623,6 +634,10 @@ const CreateLead: React.FC = () => {
     phone: string,
     meta: { country: { iso2: CountryIso2 } }
   ) => {
+
+    const digitsOnly = phone.replace(/\D/g, '');
+    if (digitsOnly.length > PHONE_E164_DIGITS_MAX) return 
+
     const iso2 = meta.country?.iso2
     if (!iso2) {
       setForm(prev => ({ ...prev, phone }))
@@ -645,7 +660,10 @@ const CreateLead: React.FC = () => {
 
   const handleSubmit = async () => {
     setShowErrors(true)
-    if (hasError) return
+    if (hasError) {
+      setApiError('Fix highlighted fields, then try again.')
+      return
+    }
 
     setLoading(true)
     setApiError('')
@@ -677,6 +695,8 @@ const CreateLead: React.FC = () => {
         fullName,
         email: form.email.trim(),
         phone: normalizedPhone,
+        clientCreatedAt: nowWallClockString(),
+        clientTimezone: getBrowserTimeZone(),
         leadCountry: form.leadCountry,
         nationality: form.nationality.trim(),
         addressLine: form.location.trim() || undefined,
@@ -687,10 +707,11 @@ const CreateLead: React.FC = () => {
         adultsCount: adultsCountNumber,
         childrenCount: childrenCountNumber,
         childAges: cleanChildAges.length > 0 ? cleanChildAges : undefined,
-        budget:
-          form.budget.trim() && Number.isFinite(normalizedBudget)
-            ? normalizedBudget
-            : undefined,
+        ...(form.budget.trim() && Number.isFinite(normalizedBudget)
+          ? leadType === 'VISA'
+            ? { salary: normalizedBudget }
+            : { budget: normalizedBudget }
+          : {}),
         visaRequired: form.visaRequired
           ? form.visaRequired === 'YES'
           : undefined,
@@ -706,8 +727,7 @@ const CreateLead: React.FC = () => {
       })
       navigate('/leads')
     } catch (error) {
-      const errorMessage = getApiErrorMessage(error, 'Could not create lead.')
-      setApiError(errorMessage)
+      reportApiError(error, 'Could not create lead.', setApiError)
       setLoading(false)
     }
   }
@@ -825,7 +845,7 @@ const CreateLead: React.FC = () => {
                   firstName: nameParts[0] || '',
                   lastName: nameParts.slice(1).join(' ') || '',
                   email: lead.email || '',
-                  phone: lead.phone || '',
+                  phone: normalizePrefillPhone(lead.phone),
                   leadCountry: lead.leadCountry || lead.lead_country || '',
                   nationality: lead.nationality || '',
                   clientCurrency: lead.clientCurrency || lead.client_currency || 'INR',
@@ -867,13 +887,19 @@ const CreateLead: React.FC = () => {
           <Field
             label='First Name *'
             value={form.firstName}
-            onChange={value => setForm(prev => ({ ...prev, firstName: value }))}
+            onChange={value => { 
+              const Onlyletters=/^[a-zA-Z\s]*$/
+              if (!Onlyletters.test(value)) return
+              setForm(prev => ({ ...prev, firstName: value }))}}
             error={fieldError('firstName')}
           />
           <Field
             label='Last Name *'
             value={form.lastName}
-            onChange={value => setForm(prev => ({ ...prev, lastName: value }))}
+            onChange={value => {
+              const Onlyletters=/^[a-zA-Z\s]*$/
+              if (!Onlyletters.test(value)) return
+              setForm(prev => ({ ...prev, lastName: value }))}}
             error={fieldError('lastName')}
           />
           <Field
@@ -890,9 +916,8 @@ const CreateLead: React.FC = () => {
               value={form.phone}
               defaultCountry={phoneCountryIso2}
               onChange={handlePhoneChange}
-              inputClassName={`field-input !w-full ${
-                fieldError('phone') ? '!border-red-500' : ''
-              }`}
+              inputClassName={`field-input !w-full ${fieldError('phone') ? '!border-red-500' : ''
+                }`}
               countrySelectorStyleProps={{
                 buttonClassName:
                   'h-[52px] rounded-l-xl border border-gray-200 dark:border-gray-700'
@@ -904,11 +929,7 @@ const CreateLead: React.FC = () => {
                 placeholder: 'Phone number'
               }}
             />
-            {form.phone && !fieldError('phone') ? (
-              <p className='mt-1 text-xs text-green-600 dark:text-green-400'>
-                Phone number format looks valid.
-              </p>
-            ) : null}
+           
           </div>
           <div>
             <label className='field-label'>Lead Country *</label>
@@ -952,7 +973,7 @@ const CreateLead: React.FC = () => {
               </p>
             )}
           </div>
-          
+
           <Field
             label='Address / Location'
             value={form.location}
@@ -974,9 +995,8 @@ const CreateLead: React.FC = () => {
             <label className='field-label'>Travel Start Date *</label>
             <input
               type='date'
-              className={`field-input ${
-                fieldError('travelDate') ? 'border-red-500' : ''
-              }`}
+              className={`field-input ${fieldError('travelDate') ? 'border-red-500' : ''
+                }`}
               value={form.travelDate}
               onChange={event =>
                 setForm(prev => ({ ...prev, travelDate: event.target.value }))
@@ -992,9 +1012,8 @@ const CreateLead: React.FC = () => {
             <label className='field-label'>Travel End Date *</label>
             <input
               type='date'
-              className={`field-input ${
-                fieldError('travelEndDate') ? 'border-red-500' : ''
-              }`}
+              className={`field-input ${fieldError('travelEndDate') ? 'border-red-500' : ''
+                }`}
               value={form.travelEndDate}
               onChange={event =>
                 setForm(prev => ({ ...prev, travelEndDate: event.target.value }))
@@ -1017,16 +1036,18 @@ const CreateLead: React.FC = () => {
               <input
                 type='number'
                 min={1}
-                className={`field-input ${
-                  fieldError('adultsChildren') ? 'border-red-500' : ''
-                }`}
+                max={999}
+                className={`field-input ${fieldError('adultsChildren') ? 'border-red-500' : ''
+                  }`}
                 value={form.adultsCount}
-                onChange={event =>
+                onChange={event => {
+                  const value = Number(event.target.value)
+                  if (value > 999) return
                   setForm(prev => ({
                     ...prev,
                     adultsCount: event.target.value
                   }))
-                }
+                }}
               />
             </div>
             <div>
@@ -1034,12 +1055,14 @@ const CreateLead: React.FC = () => {
               <input
                 type='number'
                 min={0}
-                className={`field-input ${
-                  fieldError('adultsChildren') ? 'border-red-500' : ''
-                }`}
+                max={99}
+                className={`field-input ${fieldError('adultsChildren') ? 'border-red-500' : ''
+                  }`}
                 value={form.childrenCount}
                 onChange={event => {
                   const rawValue = event.target.value
+                  const value = Number(rawValue)
+                  if(value>99) return
                   const nextCount = Math.max(
                     0,
                     Math.floor(Number(rawValue || 0))
@@ -1076,9 +1099,8 @@ const CreateLead: React.FC = () => {
                       max={18}
                       step='1'
                       placeholder={`Child ${index + 1} age`}
-                      className={`field-input ${
-                        fieldError('childrenAges') ? 'border-red-500' : ''
-                      }`}
+                      className={`field-input ${fieldError('childrenAges') ? 'border-red-500' : ''
+                        }`}
                       value={childAges[index] ?? ''}
                       onChange={event =>
                         setChildAges(prev => {
@@ -1094,21 +1116,23 @@ const CreateLead: React.FC = () => {
             </div>
           ) : null}
           <div>
-            <label className='field-label'>Budget</label>
+            <label className='field-label'>
+              {leadType === 'VISA' ? 'Salary' : 'Budget'}
+            </label>
             <CurrencyInput
               id='lead-budget'
               name='lead-budget'
               value={form.budget}
               decimalsLimit={2}
+              maxLength={16}
               allowNegativeValue={false}
               intlConfig={{
                 locale: selectedCurrencyMeta.locale,
                 currency: selectedCurrencyMeta.code
               }}
-              className={`field-input ${
-                fieldError('budget') ? 'border-red-500' : ''
-              }`}
-              placeholder='Enter budget'
+              className={`field-input ${fieldError('budget') ? 'border-red-500' : ''
+                }`}
+              placeholder={leadType === 'VISA' ? 'Enter salary' : 'Enter budget'}
               onValueChange={(value?: string) =>
                 setForm(prev => ({ ...prev, budget: value || '' }))
               }
@@ -1196,7 +1220,7 @@ const CreateLead: React.FC = () => {
               />
             </div>
           )} */}
-        
+
           <div className='md:col-span-2'>
             <label className='field-label'>Notes</label>
             <textarea

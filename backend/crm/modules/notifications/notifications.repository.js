@@ -152,7 +152,7 @@ function createNotificationsRepository({ db, logger, schema }) {
   function canUseRawQuery() {
     return (
       typeof db.query === "function" &&
-      db.pool
+      (db.adapter === "mysql" || db.adapter === "mssql")
     );
   }
 
@@ -178,7 +178,7 @@ function createNotificationsRepository({ db, logger, schema }) {
         entity_id: payload.entityId || null,
         title: payload.title || null,
         message: payload.message || null,
-        payload: payload.payload || {},
+        payload: JSON.stringify(payload.payload || {}),
         recipient_user_id: payload.recipientUserId || null,
         recipient_role: payload.recipientRole || null,
         recipient_team_id: payload.recipientTeamId || null,
@@ -264,10 +264,12 @@ function createNotificationsRepository({ db, logger, schema }) {
             )
           `;
           const result = await db.query(sql, [
+            schema.statuses.READ,
             identity.userId || null,
             identity.role || null,
+            identity.role || null,
             identity.teamId || null,
-            schema.statuses.READ,
+            identity.teamId || null,
           ]);
           return Number(result.rows[0]?.total || 0);
         }
@@ -372,3 +374,4 @@ function createNotificationsRepository({ db, logger, schema }) {
 }
 
 export { createNotificationsRepository };
+

@@ -7,17 +7,17 @@ function createVisaRoutes({ controller, upload }) {
   router
     .route("/")
     .get(controller.list)
-    .post(upload.single("bannerImage"), controller.create);
+    .post(upload.any(), controller.create);
+  router.route("/deleted").get(controller.listDeleted);
   router.route("/slug/:slug").get(controller.getBySlug);
+  router.route("/:id/status").patch(controller.updateStatus);
   router
     .route("/:id")
     .get(controller.getById)
-    .put(upload.single("bannerImage"), controller.update)
+    .put(upload.any(), controller.update)
     .delete(controller.delete);
-
-  // Details routes
-  router.route("/:id/details").get(controller.getDetails).post(controller.addDetail);
-  router.route("/:id/details/:detailId").put(controller.updateDetail).delete(controller.deleteDetail);
+  router.route("/:id/restore").patch(controller.restore);
+  router.route("/:id/hard-delete").delete(controller.hardDelete);
 
   return router;
 }

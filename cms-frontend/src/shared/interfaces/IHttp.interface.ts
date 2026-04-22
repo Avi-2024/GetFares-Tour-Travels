@@ -1,3 +1,8 @@
+import type {
+  AxiosResponse,
+  InternalAxiosRequestConfig,
+} from "axios";
+
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type Primitive = string | number | boolean | null | undefined;
 export type QueryParams = Record<string, Primitive>;
@@ -20,8 +25,10 @@ export interface IHttpClient {
 }
 
 export interface IHttpInterceptor {
-  onRequest?(config: any): any;
+  onRequest?(
+    config: InternalAxiosRequestConfig,
+  ): InternalAxiosRequestConfig | Promise<InternalAxiosRequestConfig>;
   onRequestError?(error: unknown): Promise<never>;
-  onResponse?(response: any): any;
+  onResponse?(response: AxiosResponse): AxiosResponse | Promise<AxiosResponse>;
   onResponseError?(error: unknown): Promise<never>;
 }

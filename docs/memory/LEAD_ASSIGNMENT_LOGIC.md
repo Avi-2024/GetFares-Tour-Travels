@@ -1,8 +1,10 @@
 # Lead Assignment Logic - Complete Documentation
 
+> **Source of truth:** This document matches `backend/crm/modules/leads/leads.service.js` and `leads.repository.js`. Updated to reflect actual behavior (in-memory round-robin, 2-tier agent pool, no `last_login` gate).
+
 ## Overview
 
-Lead assignment system automatically assigns incoming leads to the most suitable agent/manager based on multiple criteria including availability, workload, expertise, country match, and agent type.
+Lead assignment automatically picks an agent or manager using role filters, optional manager-team scope, **2-tier** country/type matching (with an in-memory agent cache), destination expertise, high-value workload rules, and **in-process** round-robin state—not DB-backed “last assignee” history.
 
 ---
 
@@ -17,13 +19,15 @@ Check if lead is closed? (CONVERTED/LOST/NON_RESPONSIVE)
     ↓ No
 Determine assignment role (agent/manager)
     ↓
-Find all active assignable users
+Find all active assignable users (active + not on leave only)
+    ↓
+Build agent pool (role = agent):
+    ├─ 2-tier match: (1) country + type, or (2) type match + agent has no country set
+    ├─ Optional: AgentCache (5 min) keyed by country + lead type
     ↓
 Apply filters:
     ├─ Manager filter (if agent role + manager context)
-    ├─ Country filter (lead country vs agent country)
-    ├─ Agent type filter (VISA/HOLIDAY/BOTH)
-    └─ Destination expertise filter
+    └─ Destination expertise filter (optional narrow)
     ↓
 Check if high-value lead? (VIP or budget >= 150k)
     ├─ YES → Assign to agent with lowest workload + highest incentive
@@ -43,11 +47,13 @@ Assignee found?
 ```javascript
 // From leads.repository.js - findActiveAssignableUsers()
 
-Active User Criteria:
-✅ is_active = true
+Active User Criteria (implemented):
+✅ is_active = true (or treated as true if missing)
 ✅ is_on_leave = false
-✅ active_status = true (presence toggle)
-✅ last_login IS NOT NULL (has valid token)
+
+Not implemented in repository (do not assume in code):
+❌ Presence / `active` toggle on user
+❌ `last_login` or “has valid token” requirement
 
 Role Filtering:
 - If roleName = "agent" → Filter by ASSIGNABLE_ROLES
@@ -59,17 +65,12 @@ Role Filtering:
 - If roleName = null → Return all ASSIGNABLE_ROLES users
 ```
 
-**Code Reference:**
+**Code Reference (actual filter):**
 ```javascript
 const activeUsers = users.filter((row) => {
   const isActive = row.is_active ?? true
-  const isOnLeave = row.is_on_leave ?? false
-  const activeToggle = row.active ?? undefined
-  const isPresenceActive = activeToggle === undefined ? true : Boolean(activeToggle)
-  const lastLogin = row.last_login ?? null
-  const hasToken = Boolean(lastLogin)
-  
-  return isActive && !isOnLeave && isPresenceActive && hasToken
+  const isOnLeave = row.is_on_leave ?? row.isOnLeave ?? false
+  return Boolean(isActive) && !Boolean(isOnLeave)
 })
 ```
 
@@ -105,54 +106,43 @@ if (options.managerId && roleName === ASSIGNMENT_ROLES.AGENT) {
 
 ---
 
-### 3. **Country & Agent Type Matching**
+### 3. **Country & Agent Type Matching (2-tier pool)**
 
 ```javascript
 // From leads.service.js - selectAssigneeForLead()
 
+When roleName === "agent" and requiredLeadType is set (lead is not type BOTH):
+
+1. Agent type must match: VISA/HOLIDAY or agent has BOTH.
+
+2. Two-tier pool (not strict “country OR nothing”):
+   - perfectMatch: same lead country AND agent country (case-insensitive), both set
+   - typeOnlyMatch: agent has no country restriction (empty / null) but type matches
+   - Use perfectMatch if non-empty; else use typeOnlyMatch if non-empty; else [].
+
+3. In-memory AgentCache (5 min TTL) stores the chosen pool per (leadCountry, requiredLeadType).
+
+4. If lead.leadType is BOTH, requiredLeadType is null — this 2-tier block is skipped;
+   candidates come straight from findActiveAssignableUsers(roleName).
+
 Lead Properties:
-├─ leadCountry: "india" / "uae" / null
-└─ leadType: "VISA" / "HOLIDAY" / "BOTH"
-
-Agent Properties:
-├─ country: "india" / "uae" / null
-└─ agentType: "VISA" / "HOLIDAY" / "BOTH"
-
-Matching Logic:
-1. Country Match:
-   - If lead.leadCountry exists AND agent.country exists
-   - Must match exactly (case-insensitive)
-   - If no match → Filter out agent
-
-2. Agent Type Match:
-   - If lead.leadType = "BOTH" → No filtering
-   - If lead.leadType = "VISA" → Agent must be "VISA" or "BOTH"
-   - If lead.leadType = "HOLIDAY" → Agent must be "HOLIDAY" or "BOTH"
-   - If no match → Filter out agent
+├─ leadCountry / country
+└─ leadType / type → normalized to requiredLeadType unless BOTH
 ```
 
-**Code Reference:**
+**Code Reference (pattern):**
 ```javascript
-const leadCountry = normalizeCategory(lead.leadCountry ?? lead.country ?? null)
-const leadType = normalizeAgentType(lead.leadType ?? lead.type ?? null)
-const requiredLeadType = leadType === "BOTH" ? null : leadType
-
-const scoped = candidates.filter((candidate) => {
-  const agentCountry = normalizeCategory(candidate.country)
-  const agentType = normalizeAgentType(candidate.agentType)
-  
-  // Country check
-  if (leadCountry && (!agentCountry || agentCountry !== leadCountry)) {
-    return false
+// Simplified — see selectAssigneeForLead in leads.service.js
+for (const candidate of candidates) {
+  const typeMatches = agentType === requiredLeadType || agentType === "BOTH"
+  if (!typeMatches) continue
+  if (leadCountry && agentCountry && agentCountry === leadCountry) {
+    perfectMatch.push(candidate)
+  } else if (!agentCountry) {
+    typeOnlyMatch.push(candidate)
   }
-  
-  // Type check
-  if (requiredLeadType && (!agentType || (agentType !== requiredLeadType && agentType !== "BOTH"))) {
-    return false
-  }
-  
-  return true
-})
+}
+candidates = perfectMatch.length ? perfectMatch : typeOnlyMatch
 ```
 
 ---
@@ -277,45 +267,37 @@ if (isHighValueLead) {
 ### 6. **Round-Robin Assignment**
 
 ```javascript
-// From leads.service.js - selectAssigneeForLead()
+// From leads.service.js - selectAssigneeForLead() + RoundRobinState class
 
-Round-Robin Logic:
-1. Sort all candidates by ID (alphabetical)
-2. Find last assigned user from this pool
-3. Select next user in rotation
+Round-Robin Logic (implemented):
+1. Sort pool by user id (string compare).
+2. Last assignee is NOT read from the database. Repository has findLatestAssignedUserId()
+   but it is not used here.
+3. In-memory RoundRobinState maps key (leadCountry || 'all') + (requiredLeadType) → last agent id.
+4. Pick next agent after last id in sorted pool; wrap to first if at end or last not in pool.
+5. Process restart clears rotation (no persistence).
 
 Example:
 Pool: [A1, A2, A3, A4] (sorted by ID)
-Last assigned: A2
-Next: A3 ← SELECTED
-
-Edge Cases:
-- Last assigned = A4 → Next = A1 (wrap around)
-- Last assigned not in pool → Select A1 (first)
-- No last assigned → Select A1 (first)
+State key: e.g. "india:HOLIDAY"
+Last assigned in memory: A2 → Next: A3
 ```
 
 **Code Reference:**
 ```javascript
+class RoundRobinState {
+  getLastAssigned(country, agentType) { /* Map key: country:type */ }
+  setLastAssigned(country, agentType, agentId) { /* ... */ }
+}
+
 const roundRobinPool = [...pool].sort((left, right) =>
   String(left.id).localeCompare(String(right.id))
 )
-
-const lastAssignedUserId = await repository.findLatestAssignedUserId(poolIds)
-
-if (!lastAssignedUserId) {
-  return roundRobinPool[0]
-}
-
-const lastIndex = roundRobinPool.findIndex(
-  (candidate) => candidate.id === lastAssignedUserId
+const lastAssignedUserId = roundRobinState.getLastAssigned(
+  leadCountry || 'all',
+  requiredLeadType
 )
-
-if (lastIndex === -1 || lastIndex === roundRobinPool.length - 1) {
-  return roundRobinPool[0]
-}
-
-return roundRobinPool[lastIndex + 1]
+// then index + 1 or wrap to [0]
 ```
 
 ---
@@ -430,7 +412,7 @@ Is lead closed? (CONVERTED/LOST/NON_RESPONSIVE)
     ├─ YES → Return lead (no assignment)
     └─ NO → Continue
     ↓
-Get all active users (is_active=true, is_on_leave=false, has_token=true)
+Get all active users (is_active=true, is_on_leave=false)
     ↓
 Filter by role (agent/manager)
     ↓
@@ -438,7 +420,7 @@ Is manager assigning to agent?
     ├─ YES → Filter to manager's team only
     └─ NO → Continue
     ↓
-Filter by country & agent type
+2-tier agent pool (country+type, else type-only with no agent country) + cache
     ↓
 Any candidates left?
     ├─ NO → Queue lead + Escalate → END
@@ -477,11 +459,11 @@ A1: { country: "india", agentType: "HOLIDAY", expertise: ["paris"], openLeads: 5
 A2: { country: "india", agentType: "BOTH", expertise: ["london"], openLeads: 3 }
 A3: { country: "uae", agentType: "HOLIDAY", expertise: ["paris"], openLeads: 2 }
 
-Step 1: Filter by country
-└─ Result: [A1, A2] (A3 removed - country mismatch)
+Step 1: 2-tier pool (HOLIDAY lead) — perfectMatch = country india + type
+└─ Result: [A1, A2] (A3 excluded — wrong country and has country set)
 
-Step 2: Filter by agent type
-└─ Result: [A1, A2] (both match HOLIDAY)
+Step 2: Agent type already applied in tier
+└─ Result: [A1, A2]
 
 Step 3: Filter by expertise
 └─ Result: [A1] (only A1 has Paris expertise)
@@ -673,17 +655,17 @@ if (managerId && !isSuperAdminRole(requestRole) &&
 ## 📈 Performance Optimization
 
 ### Current Implementation:
-- ✅ Loads all users once per assignment
-- ✅ Filters in-memory (fast)
-- ✅ Caches role lookup
-- ❌ No workload caching (queries DB each time)
-- ❌ No agent availability status
+- Loads all users per `findActiveAssignableUsers` call (cache may short-circuit agent pool for country+type)
+- In-memory **AgentCache**: 5 min TTL for filtered agent list per (country, lead type)
+- **RoundRobinState**: in-memory only; no DB persistence for last assignee
+- High-value leads: `getOpenLeadLoadByUserIds` per assignment (not cached 5 min)
+- No `last_login` / presence filter in repository
+- No agent availability status column in code path
 
-### Recommended Improvements:
-1. Cache agent workload for 5 minutes
-2. Add agent availability status (AVAILABLE/BUSY/OFFLINE)
-3. Pre-filter inactive agents at DB level
-4. Add agent performance scoring
+### Possible follow-ups (see LEAD_DISTRIBUTION_IMPROVEMENTS.md):
+1. Persist round-robin or use DB last assignee
+2. Optional `last_login` / availability gate
+3. Workload cache for non-VIP pool
 
 ---
 
@@ -717,15 +699,14 @@ Activity Log:
 ## 📝 Summary
 
 **Lead Assignment Priority:**
-1. ✅ Active users only (not on leave, has token)
-2. ✅ Role-based filtering (agent/manager)
-3. ✅ Manager team restriction (if applicable)
-4. ✅ Country match (lead country = agent country)
-5. ✅ Agent type match (VISA/HOLIDAY/BOTH)
-6. ✅ Destination expertise (preferred)
-7. ✅ High-value leads → Lowest workload + highest incentive
-8. ✅ Regular leads → Round-robin rotation
-9. ✅ No agent available → Queue + escalate
+1. Active users only (`is_active`, not on leave) — no token/presence check in repository
+2. Role-based filtering (agent/manager)
+3. Manager team restriction (if applicable)
+4. Agent pool: 2-tier country/type (or uncached full list when not agent+typed lead)
+5. Destination expertise narrows pool when matches exist
+6. High-value leads → lowest open load, then highest incentive, then id
+7. Regular leads → in-memory round-robin per country+type key
+8. No agent available → Queue + escalate
 
 **Key Features:**
 - Automatic assignment on lead creation

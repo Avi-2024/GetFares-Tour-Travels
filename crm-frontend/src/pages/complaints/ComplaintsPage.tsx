@@ -8,7 +8,7 @@ import Timeline from '../../components/ui/Timeline'
 import { complaintsApi } from '../../api/complaints'
 import { bookingsApi } from '../../api/bookings'
 import { quotationsApi } from '../../api/quotations'
-import { getApiErrorMessage } from '../../api/apiClient'
+import { reportApiError } from '../../lib/notify'
 import { useUsersService } from '../../hooks/useUsersService'
 import { useLeadsService } from '../../hooks/useLeadsService'
 
@@ -17,22 +17,7 @@ const UUID_PATTERN =
 
 const isUuid = (value: string) => UUID_PATTERN.test(value.trim())
 
-const complaintsSeed = [
-  {
-    id: 'cmp-1',
-    bookingId: 'BK-2034',
-    issueType: 'Hotel downgrade',
-    description: 'Client reported mismatch in room type.',
-    status: 'OPEN'
-  },
-  {
-    id: 'cmp-2',
-    bookingId: 'BK-2030',
-    issueType: 'Transfer delay',
-    description: 'Airport transfer reached late.',
-    status: 'IN_PROGRESS'
-  }
-]
+const complaintsSeed: any[] = []
 
 type AssignableUser = {
   id: string
@@ -103,7 +88,7 @@ const ComplaintsPage = () => {
   const navigate = useNavigate()
   const usersService = useUsersService()
   const leadsService = useLeadsService()
-  const [rows, setRows] = useState(complaintsSeed)
+  const [rows, setRows] = useState<any[]>(complaintsSeed)
   const [loading, setLoading] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [loadingBookings, setLoadingBookings] = useState(false)
@@ -255,11 +240,10 @@ const ComplaintsPage = () => {
         }
       } catch (err) {
         console.error('Failed to fetch complaints:', err)
-        setError(
-          getApiErrorMessage(
-            err,
-            'Authentication required. Please login to view complaints.'
-          )
+        reportApiError(
+          err,
+          'Authentication required. Please login to view complaints.',
+          setError
         )
         // Keep using seed data on error
       } finally {
@@ -268,7 +252,7 @@ const ComplaintsPage = () => {
     }
 
     fetchComplaints()
-  }, [leadsService])
+  }, [])
 
   useEffect(() => {
     const loadBookingOptions = async () => {
@@ -482,8 +466,10 @@ const ComplaintsPage = () => {
       }
     } catch (err) {
       console.error('Failed to create complaint:', err)
-      setError(
-        getApiErrorMessage(err, 'Failed to create complaint. Please try again.')
+      reportApiError(
+        err,
+        'Failed to create complaint. Please try again.',
+        setError
       )
     } finally {
       setLoading(false)
@@ -662,6 +648,9 @@ const ComplaintsPage = () => {
               {/* Mobile cards */}
               <div className='divide-y divide-gray-100 dark:divide-gray-800 sm:hidden'>
                 {displayRows.map(row => (
+                  (() => {
+                    const bookingMeta = bookingMetaById[row.bookingId || '']
+                    return (
                   <button
                     key={row.id}
                     onClick={() => navigate(`/complaints/${row.id}`)}
@@ -672,6 +661,11 @@ const ComplaintsPage = () => {
                         <p className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                           {row.issueType}
                         </p>
+                        {bookingMeta?.customerName ? (
+                          <p className='mt-1 text-xs font-medium text-gray-700 dark:text-gray-200 truncate'>
+                            {bookingMeta.customerName}
+                          </p>
+                        ) : null}
                         <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
                           {formatBookingDisplay(row.bookingId)}
                         </p>
@@ -684,6 +678,8 @@ const ComplaintsPage = () => {
                       </span>
                     </div>
                   </button>
+                    )
+                  })()
                 ))}
               </div>
 
