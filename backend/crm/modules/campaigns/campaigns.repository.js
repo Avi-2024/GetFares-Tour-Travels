@@ -17,11 +17,18 @@ function createCampaignsRepository({ db, logger, schema }) {
     return db.update(schema.tableName, id, payload);
   }
 
+  async function remove(id) {
+    logger.debug({ module: "campaigns", id }, "Deleting record");
+    await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
+    return { id };
+  }
+
   return Object.freeze({
     findAll,
     findById,
     create,
     update,
+    remove,
   });
 }
 
