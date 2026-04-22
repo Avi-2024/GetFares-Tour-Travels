@@ -1124,7 +1124,7 @@ const KpiCard = ({
   value: string;
   icon: React.ReactNode;
 }) => (
-  <SurfaceCard hoverable className="p-3 sm:p-5">
+  <SurfaceCard hoverable className="p-3 sm:p-5 shadow-purple-400">
     <div className="flex items-start justify-between">
       <div className="min-w-0">
         <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 truncate">
