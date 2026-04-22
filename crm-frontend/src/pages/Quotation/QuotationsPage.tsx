@@ -932,7 +932,7 @@ const QuotationsPage: React.FC = () => {
                   }}
                   className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
                     quickFilter === item.key
-                      ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                      ? 'bg-[rgba(96,47,247,0.8)]  dark:bg-gray-700 text-white dark:text-blue-400 shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   }`}
                 >
@@ -1322,7 +1322,7 @@ const QuotationsPage: React.FC = () => {
                       key={q.id}
                       className='group hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors'
                     >
-                      <td className='px-3 xl:px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300 whitespace-nowrap'>
+                      <td className='px-3 xl:px-5 py-4 text-sm font-medium text-[#6939f9] dark:text-blue-300 whitespace-nowrap'>
                         {q.quoteNumber}
                       </td>
                       <td className='px-3 xl:px-5 py-4 min-w-[150px] max-w-[200px]'>
@@ -1337,7 +1337,7 @@ const QuotationsPage: React.FC = () => {
                         </p>
                         <p className='text-xs text-gray-500 truncate'>{q.details}</p>
                         {q.templateName ? (
-                          <p className='text-[11px] text-blue-600 dark:text-blue-300 truncate'>
+                          <p className='text-[11px] text-[#6939f9] dark:text-blue-300 truncate'>
                             Template:{' '}
                             {q.templateCode ? `${q.templateCode} - ` : ''}
                             {q.templateName}
