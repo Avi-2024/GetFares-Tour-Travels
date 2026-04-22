@@ -16,8 +16,9 @@ export class CampaignsService {
   }
 
   async create(payload: CreateCampaignPayload) {
-    // Validate dates
-    this.validateDateRange(payload.startDate, payload.endDate);
+    if (payload.startDate && payload.endDate) {
+      this.validateDateRange(payload.startDate, payload.endDate);
+    }
 
     const response = await campaignsEndpoints.create(payload);
     return response.data;
@@ -51,12 +52,10 @@ export class CampaignsService {
   validateDateRange(startDate: string, endDate: string): void {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const now = new Date();
 
     if (end <= start) {
-      throw new Error('End date must be after start date');
+      throw new Error("End date must be after start date");
     }
-
   }
 
   getStatusColor(status: string): string {
@@ -81,6 +80,7 @@ export class CampaignsService {
   }
 
   isActive(campaign: Campaign): boolean {
+    if (!campaign.startDate || !campaign.endDate) return false;
     const now = new Date();
     const start = new Date(campaign.startDate);
     const end = new Date(campaign.endDate);
@@ -88,12 +88,14 @@ export class CampaignsService {
   }
 
   isUpcoming(campaign: Campaign): boolean {
+    if (!campaign.startDate) return false;
     const now = new Date();
     const start = new Date(campaign.startDate);
     return now < start;
   }
 
   isCompleted(campaign: Campaign): boolean {
+    if (!campaign.endDate) return false;
     const now = new Date();
     const end = new Date(campaign.endDate);
     return now > end;
@@ -111,12 +113,12 @@ export class CampaignsService {
   }
 
   getDaysRemaining(campaign: Campaign): number {
+    if (!campaign.endDate) return 0;
     const now = new Date();
     const end = new Date(campaign.endDate);
     const diffMs = end.getTime() - now.getTime();
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   }
-
 }
 
 export const campaignsService = new CampaignsService();
