@@ -643,6 +643,15 @@ class CmsEntityEditorModalComponent extends Component<
       imageFieldFiles: this.state.fieldImageFiles,
     });
     this.setState({ formErrors: result.errors });
+    if (!result.isValid) {
+      const firstErrorField = definition.fields.find(
+        (field) => result.errors[field.key],
+      );
+      const message = firstErrorField
+        ? `Please fill in the "${firstErrorField.label}" field.`
+        : "Please fill in all required fields.";
+      this.setState({ formUploadErrorMessage: message });
+    }
     return result.isValid;
   }
 
@@ -673,7 +682,7 @@ class CmsEntityEditorModalComponent extends Component<
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     definition.fields.forEach((field) => {
       const value = this.state.formValues[field.key];
-      if (field.type === "number") {
+      if (field.type === "number" || field.key === "displayOrder") {
         payload[field.key] = String(value ?? "").trim() ? Number(value) : null;
       } else {
         payload[field.key] = value;
