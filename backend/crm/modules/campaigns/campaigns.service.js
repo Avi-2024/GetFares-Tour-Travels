@@ -99,6 +99,20 @@ function createCampaignsService({ repository, logger, events }) {
     return toCampaign(created);
   }
 
+  async function duplicate(id, context = {}) {
+    const item = await getById(id, context);
+    return create({
+      name: `${item.name} (Copy)`,
+      source: item.source,
+      budget: item.budget,
+      actualSpend: 0,
+      leadsGenerated: 0,
+      revenueGenerated: 0,
+      startDate: item.startDate,
+      endDate: item.endDate,
+    });
+  }
+
   async function update(id, payload, context = {}) {
     await getById(id, context);
 
@@ -107,11 +121,19 @@ function createCampaignsService({ repository, logger, events }) {
     return toCampaign(updated);
   }
 
+  async function remove(id, context = {}) {
+    await getById(id, context);
+    await repository.remove(id);
+    return { id };
+  }
+
   return Object.freeze({
     list,
     getById,
     create,
+    duplicate,
     update,
+    remove,
   });
 }
 

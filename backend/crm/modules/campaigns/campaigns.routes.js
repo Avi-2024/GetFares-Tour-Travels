@@ -31,12 +31,26 @@ function createCampaignsRoutes({
     validateRequest(validation.create),
     asyncHandler(controller.create),
   );
+  router.post(
+    "/:id/duplicate",
+    requireAuth,
+    authorize("campaigns:create"),
+    validateRequest(validation.byId),
+    asyncHandler(controller.duplicate),
+  );
   router.patch(
     "/:id",
     requireAuth,
     authorize("campaigns:update"),
     validateRequest(validation.update),
     asyncHandler(controller.update),
+  );
+  router.delete(
+    "/:id",
+    requireAuth,
+    authorize("campaigns:update"),
+    validateRequest(validation.byId),
+    asyncHandler(controller.remove),
   );
 
   return router;

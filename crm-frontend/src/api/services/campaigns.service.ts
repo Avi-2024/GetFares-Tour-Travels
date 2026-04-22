@@ -3,10 +3,14 @@
  * Business logic layer for campaign management
  */
 
-import { campaignsEndpoints, type Campaign, type CreateCampaignPayload } from '../endpoints/campaigns.api';
+import {
+  campaignsEndpoints,
+  type Campaign,
+  type CreateCampaignPayload,
+} from "../endpoints/campaigns.api";
 
 export class CampaignsService {
-  async list(params?: { page?: number; limit?: number; status?: string }) {
+  async list(params?: { page?: number; limit?: number; source?: string; name?: string }) {
     const response = await campaignsEndpoints.list(params);
     return response.data;
   }
@@ -43,11 +47,6 @@ export class CampaignsService {
     return response.data;
   }
 
-  async export(params?: Record<string, any>) {
-    const blob = await campaignsEndpoints.export(params);
-    this.downloadBlob(blob, 'campaigns.xlsx');
-  }
-
   // Helper methods
   validateDateRange(startDate: string, endDate: string): void {
     const start = new Date(startDate);
@@ -58,39 +57,34 @@ export class CampaignsService {
       throw new Error('End date must be after start date');
     }
 
-    if (start < now && end < now) {
-      throw new Error('Campaign dates cannot be in the past');
-    }
   }
 
   getStatusColor(status: string): string {
     const statusMap: Record<string, string> = {
       DRAFT: 'gray',
       ACTIVE: 'green',
-      PAUSED: 'yellow',
       COMPLETED: 'blue',
-      CANCELLED: 'red',
     };
-    return statusMap[status.toUpperCase()] || 'gray';
+    return statusMap[status.toUpperCase()] || "gray";
   }
 
-  getTypeColor(type: string): string {
-    const typeMap: Record<string, string> = {
-      FACEBOOK: 'blue',
-      INSTAGRAM: 'purple',
-      GOOGLE: 'red',
-      WHATSAPP: 'green',
-      EMAIL: 'yellow',
-      WEBSITE: 'orange',
+  getTypeColor(source: string): string {
+    const sourceMap: Record<string, string> = {
+      META: "blue",
+      INSTAGRAM: "purple",
+      GOOGLE: "red",
+      TWITTER: "sky",
+      LINKEDIN: "indigo",
+      OTHER: "gray",
     };
-    return typeMap[type.toUpperCase()] || 'gray';
+    return sourceMap[source.toUpperCase()] || "gray";
   }
 
   isActive(campaign: Campaign): boolean {
     const now = new Date();
     const start = new Date(campaign.startDate);
     const end = new Date(campaign.endDate);
-    return campaign.status === 'ACTIVE' && now >= start && now <= end;
+    return now >= start && now <= end;
   }
 
   isUpcoming(campaign: Campaign): boolean {
@@ -102,7 +96,7 @@ export class CampaignsService {
   isCompleted(campaign: Campaign): boolean {
     const now = new Date();
     const end = new Date(campaign.endDate);
-    return now > end || campaign.status === 'COMPLETED';
+    return now > end;
   }
 
   calculateROI(campaign: Campaign): number {
@@ -123,16 +117,6 @@ export class CampaignsService {
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   }
 
-  private downloadBlob(blob: any, filename: string) {
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  }
 }
 
 export const campaignsService = new CampaignsService();

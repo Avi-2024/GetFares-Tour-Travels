@@ -117,7 +117,7 @@ const sections = [
         icon: FaUsers,
         permission: "suppliers:read",
       },
-      // { label: "Campaigns", to: "/campaigns", icon: FaChartPie, permission: "campaigns:read" },
+      { label: "Campaigns", to: "/campaigns", icon: FaChartPie, permission: "campaigns:read" },
       {
         label: "Notifications",
         to: "/notifications",

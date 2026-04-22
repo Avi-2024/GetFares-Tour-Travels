@@ -1,37 +1,41 @@
-/**
- * Campaigns API
- * Handles marketing campaign operations
- */
-
-import { apiClient, withQuery } from '../core';
+import { apiClient, withQuery } from "../core";
 
 export interface Campaign {
   id: string;
   name: string;
-  type: string;
-  status: string;
-  startDate: string;
-  endDate: string;
+  source?: string;
   budget?: number;
+  actualSpend?: number;
   leadsGenerated?: number;
-  createdAt: string;
+  revenueGenerated?: number;
+  metaCampaignId?: string;
+  metaAdsetId?: string;
+  metaAdId?: string;
+  startDate?: string;
+  endDate?: string;
+  createdAt?: string;
 }
 
 export interface CreateCampaignPayload {
   name: string;
-  type: string;
-  startDate: string;
-  endDate: string;
+  source?: string;
   budget?: number;
-  description?: string;
+  actualSpend?: number;
+  leadsGenerated?: number;
+  revenueGenerated?: number;
+  metaCampaignId?: string;
+  metaAdsetId?: string;
+  metaAdId?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export const campaignsEndpoints = {
   list: (params?: Record<string, any>) =>
-    apiClient.get<{ data: Campaign[] }>(withQuery('/api/campaigns', params)),
+    apiClient.get<{ data: Campaign[] }>(withQuery("/api/campaigns", params)),
 
   create: (payload: CreateCampaignPayload) =>
-    apiClient.post<{ data: Campaign }>('/api/campaigns', payload),
+    apiClient.post<{ data: Campaign }>("/api/campaigns", payload),
 
   getById: (id: string) =>
     apiClient.get<{ data: Campaign }>(`/api/campaigns/${id}`),
@@ -39,12 +43,8 @@ export const campaignsEndpoints = {
   update: (id: string, payload: Partial<CreateCampaignPayload>) =>
     apiClient.patch<{ data: Campaign }>(`/api/campaigns/${id}`, payload),
 
-  delete: (id: string) =>
-    apiClient.delete(`/api/campaigns/${id}`),
+  delete: (id: string) => apiClient.delete<{ data: { id: string } }>(`/api/campaigns/${id}`),
 
   duplicate: (id: string) =>
     apiClient.post<{ data: Campaign }>(`/api/campaigns/${id}/duplicate`),
-
-  export: (params?: Record<string, any>) =>
-    apiClient.get(withQuery('/api/campaigns/export', params), { responseType: 'blob' }),
 };
