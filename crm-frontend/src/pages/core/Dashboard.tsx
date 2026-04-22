@@ -332,7 +332,7 @@ const Dashboard: React.FC = () => {
         }%`,
         up: dashboardStats.totalLeadsChange >= 0,
         icon: FaUserGroup,
-        bg: 'bg-blue-100 text-blue-600'
+        bg: 'bg-[rgb(96,47,247,0.1)] text-[rgb(96,47,247,0.9)]'
       },
       {
         title: 'Revenue',
@@ -406,7 +406,7 @@ const Dashboard: React.FC = () => {
         {loading
           ? // Loading skeleton for KPI cards
             Array.from({ length: 4 }).map((_, index) => (
-              <SurfaceCard key={index} className='p-5'>
+              <SurfaceCard key={index} className='p-5 '>
                 <div className='animate-pulse'>
                   <div className='flex items-start justify-between'>
                     <div className='h-10 w-10 rounded-xl bg-gray-200 dark:bg-gray-700'></div>
@@ -418,7 +418,7 @@ const Dashboard: React.FC = () => {
               </SurfaceCard>
             ))
           : kpis.map(k => (
-              <SurfaceCard key={k.title} hoverable className='p-5'>
+              <SurfaceCard key={k.title} hoverable className='p-5 shadow-purple-400'>
                 <div className='flex items-start justify-between'>
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-xl ${k.bg}`}
@@ -472,7 +472,7 @@ const Dashboard: React.FC = () => {
                   key={r}
                   onClick={() => setRange(r)}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-                    range === r ? 'bg-blue-600 text-white' : 'text-gray-600'
+                    range === r ? 'bg-[rgba(96,47,247,0.8)] text-white' : 'text-gray-600'
                   }`}
                 >
                   {r}
@@ -518,14 +518,14 @@ const Dashboard: React.FC = () => {
                   type='monotone'
                   dataKey='revenue'
                   fill='url(#g)'
-                  stroke='#2563eb'
+                  stroke='#602FF7'
                   strokeWidth={2}
                   name='Current'
                 />
                 <Line
                   type='monotone'
                   dataKey='last'
-                  stroke='#94a3b8'
+                  stroke='#602FF7'
                   strokeWidth={2}
                   dot={false}
                   name='Previous'

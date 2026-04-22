@@ -246,7 +246,7 @@ const Header: React.FC<{
             onClick={() => setMenuOpen((p) => !p)}
             className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgb(96,47,247)] text-xs font-semibold text-white">
               {initials}
             </div>
             <div className="hidden max-w-[220px] text-left xl:block">
