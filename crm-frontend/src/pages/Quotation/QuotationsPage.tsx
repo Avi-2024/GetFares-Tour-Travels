@@ -853,7 +853,7 @@ const QuotationsPage: React.FC = () => {
         <div className='flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end lg:w-auto lg:self-start'>
           <button
             onClick={() => nav('/quotations/builder')}
-            className='inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto'
+            className='inline-flex w-full items-center justify-center rounded-xl bg-[rgba(96,47,247,0.8)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto'
           >
             <FaPlus className='mr-2' />
             <span>Create Quotation</span>

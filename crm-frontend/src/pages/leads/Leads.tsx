@@ -502,7 +502,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <button
               onClick={() => nav("/create-lead")}
-              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto"
+              className="inline-flex items-center justify-center rounded-xl bg-[rgba(96,47,247,0.8)] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors w-full sm:w-auto"
             >
               <FaPlus className="mr-2" />
               <span>Create Lead</span>
@@ -514,7 +514,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
           <KpiCard
             title="All Leads"
             value={String(leadStats.totalLeads)}
-            icon={<FaUsers className="text-blue-600 text-xl" />}
+            icon={<FaUsers className="text-purple-500 text-xl" />}
           />
           <KpiCard
             title="New Today"

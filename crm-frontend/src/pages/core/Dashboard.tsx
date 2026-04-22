@@ -392,7 +392,7 @@ const Dashboard: React.FC = () => {
             baseCurrency={dashboardStats?.currency || 'AED'}
           />
           <div className='flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
-            <FaCalendarDays className='text-blue-600' />{' '}
+            <FaCalendarDays className='text-[rgba(96,47,247,0.8)]' />{' '}
             {new Date().toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'long',
@@ -499,10 +499,11 @@ const Dashboard: React.FC = () => {
             <ResponsiveContainer width='100%' height={320}>
               <ComposedChart data={rev}>
                 <defs>
-                  <linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>
-                    <stop offset='5%' stopColor='#2563eb' stopOpacity={0.25} />
-                    <stop offset='95%' stopColor='#2563eb' stopOpacity={0} />
-                  </linearGradient>
+                  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.4} />
+  <stop offset="60%" stopColor="#602FF7" stopOpacity={0.2} />
+  <stop offset="100%" stopColor="#4C1D95" stopOpacity={0} />
+</linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray='3 3' stroke='#e5e7eb' />
                 <XAxis dataKey='name' stroke='#9ca3af' fontSize={12} />

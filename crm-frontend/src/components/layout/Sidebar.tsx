@@ -175,9 +175,9 @@ const Sidebar: React.FC<{
           <img src="/logo1.png" alt="Get2Vacations" className="h-8 w-6" />
         </div> */}
         {!collapsed ?
-          <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
-           RITS CRM
-          </span>
+          <span className="text-lg font-bold bg-gradient-to-r from-[#602FF7] via-purple-500 to-indigo-500 bg-clip-text text-transparent">
+  RITS CRM
+</span>
         : null}
         <button
           onClick={onClose}
@@ -224,7 +224,7 @@ const Sidebar: React.FC<{
                         collapsed ? "justify-center" : "items-center gap-3"
                       } ${
                         isActive ?
-                          "bg-purple-50 text-purple-600 dark:bg-blue-900/30 dark:text-blue-300"
+                          "bg-[rgba(96,47,247,0.8)] text-white dark:bg-blue-900/30 dark:text-blue-300"
                         : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                       }`
                     }
