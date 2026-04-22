@@ -535,11 +535,15 @@ class CmsEntityFormGroupsComponent extends Component<CmsEntityFormGroupsProps> {
                 .map((field) => (
                   <div
                     key={field.key}
-                    className="block space-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-(--text-secondary)"
+                    className={`space-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-(--text-secondary) ${
+                      field.type === "switch" ? "flex flex-col justify-end" : "block"
+                    }`}
                   >
                     <span>
                       {field.label}
-                      {field.required ? " *" : ""}
+                      {field.required && (
+                        <span className="ml-0.5 text-[var(--danger)]">*</span>
+                      )}
                     </span>
                     {this.renderInput(field)}
                     {field.helperText && (
