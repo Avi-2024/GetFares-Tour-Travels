@@ -226,7 +226,7 @@ class CmsSectionFiltersComponent extends Component<
     const listboxId = `${this.props.sectionTitle.replaceAll(/\s+/g, "-").toLowerCase()}-filter-suggestions`;
 
     return (
-      <SurfaceCardComponent>
+      <SurfaceCardComponent className="overflow-visible relative z-10">
         <div className="space-y-3" ref={this.rootRef}>
           <div className="relative">
             <Search
@@ -269,7 +269,7 @@ class CmsSectionFiltersComponent extends Component<
               <div
                 id={listboxId}
                 role="listbox"
-                className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-[var(--border)] bg-(--surface) p-1 shadow-lg"
+                className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-[var(--border)] bg-(--surface) p-1 shadow-lg"
               >
                 {suggestions.map((suggestion, index) => (
                   <button
