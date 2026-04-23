@@ -37,6 +37,8 @@ interface CmsEntityEditorModalState {
   fieldImageFiles: Record<string, File | null>;
   fieldImagePreviews: Record<string, string>;
   relationOptions: Record<RelationSourceKey, CmsFieldOption[]>;
+  allDestinations: CmsFieldOption[];
+  allMainPackages: CmsFieldOption[];
   mediaItems: CmsEntityMediaEditorItem[];
   removedMediaIds: string[];
   mediaErrorMessage: string;
@@ -68,6 +70,8 @@ class CmsEntityEditorModalComponent extends Component<
       "visa-destinations": [],
       "featured-references": [],
     },
+    allDestinations: [],
+    allMainPackages: [],
     mediaItems: [],
     removedMediaIds: [],
     mediaErrorMessage: "",
@@ -274,6 +278,9 @@ class CmsEntityEditorModalComponent extends Component<
           item.row.cells.title?.value ||
           item.row.cells.mainPackage?.value ||
           item.id,
+        meta: {
+          country: String(item.raw.country ?? item.raw.destination_country ?? ""),
+        },
       }));
     }
 
@@ -301,6 +308,9 @@ class CmsEntityEditorModalComponent extends Component<
       return rows.map((item) => ({
         value: item.id,
         label: item.row.cells.destination?.value || item.id,
+        meta: {
+          country: String(item.raw.country ?? item.raw.destination_country ?? ""),
+        },
       }));
     }
 
@@ -311,6 +321,9 @@ class CmsEntityEditorModalComponent extends Component<
           item.row.cells.title?.value ||
           item.row.cells.mainPackage?.value ||
           item.id,
+        meta: {
+          country: String(item.raw.country ?? item.raw.destination_country ?? ""),
+        },
       }));
     }
 
@@ -452,6 +465,8 @@ class CmsEntityEditorModalComponent extends Component<
       mediaErrorMessage: "",
       mediaInfoMessage: "",
       slugTouched: false,
+      allDestinations: [],
+      allMainPackages: [],
     });
 
     const relationSources = Array.from(
@@ -466,6 +481,19 @@ class CmsEntityEditorModalComponent extends Component<
       nextOptions[source] = await this.loadRelationOptions(source).catch(
         () => [],
       );
+    }
+
+    // Store full lists before filtering, then filter by pre-selected country (edit mode)
+    const allDestinations = nextOptions.destinations;
+    const allMainPackages = nextOptions["main-packages"];
+    const currentCountry = String(formValues["country"] ?? "");
+    if (currentCountry) {
+      if (allDestinations.length > 0) {
+        nextOptions.destinations = this.filterByCountry(allDestinations, currentCountry);
+      }
+      if (allMainPackages.length > 0) {
+        nextOptions["main-packages"] = this.filterByCountry(allMainPackages, currentCountry);
+      }
     }
 
     if (this.props.entry && definition.mediaEnabled) {
@@ -564,8 +592,20 @@ class CmsEntityEditorModalComponent extends Component<
 
     this.setState({
       relationOptions: nextOptions,
+      allDestinations,
+      allMainPackages,
       isBootstrapping: false,
     });
+  }
+
+  private filterByCountry(
+    options: CmsFieldOption[],
+    country: string,
+  ): CmsFieldOption[] {
+    if (!country) return options;
+    return options.filter(
+      (option) => String(option.meta?.country ?? "") === country,
+    );
   }
 
   private onFieldChange = (
@@ -582,12 +622,28 @@ class CmsEntityEditorModalComponent extends Component<
           formValues[slugField.key] = this.slugify(String(nextValue || ""));
         }
       }
+
+      let nextRelationOptions = prev.relationOptions;
+      if (field.key === "country") {
+        const country = String(nextValue ?? "");
+        nextRelationOptions = { ...prev.relationOptions };
+        if (prev.allDestinations.length > 0) {
+          nextRelationOptions.destinations = this.filterByCountry(prev.allDestinations, country);
+          formValues["destinationId"] = "";
+        }
+        if (prev.allMainPackages.length > 0) {
+          nextRelationOptions["main-packages"] = this.filterByCountry(prev.allMainPackages, country);
+          formValues["mainPackageId"] = "";
+        }
+      }
+
       return {
         formValues,
         formErrors: { ...prev.formErrors, [field.key]: "" },
         formUploadErrorMessage: "",
         slugTouched:
           field.key.toLowerCase().includes("slug") ? true : prev.slugTouched,
+        relationOptions: nextRelationOptions,
       };
     });
   };
@@ -681,6 +737,12 @@ class CmsEntityEditorModalComponent extends Component<
     const payload: Record<string, unknown> = {};
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     definition.fields.forEach((field) => {
+      if (
+        this.props.sectionKey === "sub-packages" &&
+        field.key === "country"
+      ) {
+        return;
+      }
       const value = this.state.formValues[field.key];
       if (field.type === "number" || field.key === "displayOrder") {
         payload[field.key] = String(value ?? "").trim() ? Number(value) : null;

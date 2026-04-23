@@ -761,6 +761,14 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
+            key: "country",
+            label: "Country",
+            type: "select",
+            options: CmsEntityFormCatalog.countryOptions,
+            groupKey: "basic",
+            helperText: "Filter parent packages by country.",
+          },
+          {
             key: "mainPackageId",
             label: "Parent Package",
             type: "searchable-select",
