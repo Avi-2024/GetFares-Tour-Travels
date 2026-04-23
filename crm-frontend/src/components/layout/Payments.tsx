@@ -3098,7 +3098,7 @@ const Payments: React.FC = () => {
           <div
             className={`${
               showMobileFilters ? "block" : "hidden"
-            } lg:block space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30`}
+            } lg:block space-y-3 rounded-xl  border border-gray-200 bg-gray-50/60 p-3 dark:border-gray-700 dark:bg-gray-900/30`}
           >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
               <div>
@@ -3453,32 +3453,32 @@ const Payments: React.FC = () => {
             </div>
 
             {/* Desktop View - Table */}
-            <div className="hidden lg:block overflow-x-auto">
-              <table className="min-w-[980px] w-full divide-y divide-gray-200 dark:divide-gray-800">
-                <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95">
-                  <tr>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <div className="hidden lg:block   overflow-x-auto">
+              <table className="min-w-[980px]  w-full divide-y divide-gray-200  dark:divide-gray-800">
+                <thead className="sticky   top-0 z-10 bg-gray-50 dark:bg-gray-800/95">
+                  <tr className="bg-[rgba(96,47,247,0.8)] rounded-xl  dark:bg-gray-800/50">
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white">
                       Reference
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white">
                       Customer
                     </th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-white">
                       Amount
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white">
                       Mode
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white">
                       Status
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white">
                       Date
                     </th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white">
                       Docs
                     </th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-white">
                       Actions
                     </th>
                   </tr>
@@ -3489,7 +3489,7 @@ const Payments: React.FC = () => {
                       key={tx.id}
                       className="hover:bg-blue-50/30 dark:hover:bg-gray-800/40 transition-colors"
                     >
-                      <td className="px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300">
+                      <td className="px-5 py-4 text-sm font-medium text-[#602FF7] dark:text-blue-300">
                         #{tx.referenceId}
                       </td>
                       <td className="px-5 py-4">

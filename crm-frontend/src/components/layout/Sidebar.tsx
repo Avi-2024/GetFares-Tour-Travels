@@ -15,6 +15,7 @@ import {
   FaUserGroup,
   FaUsers,
   FaXmark,
+  FaChartLine,
 } from "react-icons/fa6";
 import { useAuth } from "../../context/AuthContext";
 
@@ -171,14 +172,22 @@ const Sidebar: React.FC<{
       }`}
     >
       <div className="flex h-16 items-center border-b border-gray-100 px-4 dark:border-gray-800">
-        {/* <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-lg">
-          <img src="/logo1.png" alt="Get2Vacations" className="h-8 w-6" />
-        </div> */}
-        {!collapsed ?
-          <span className="text-lg font-bold bg-gradient-to-r from-[#602FF7] via-purple-500 to-indigo-500 bg-clip-text text-transparent">
-  RITS CRM
-</span>
-        : null}
+        {!collapsed ? (
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#602FF7] via-purple-500 to-indigo-500 shadow-lg">
+              <FaChartLine className="text-white text-lg" />
+            </div>
+            <span className="text-xl font-black tracking-tight bg-gradient-to-r from-[#602FF7] via-purple-500 to-indigo-500 bg-clip-text text-transparent" style={{ fontFamily: '"Inter", "Poppins", "Montserrat", system-ui, -apple-system, sans-serif', letterSpacing: '-0.02em' }}>
+              RITS CRM
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center w-full">
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#602FF7] via-purple-500 to-indigo-500 shadow-lg">
+              <FaChartLine className="text-white text-lg" />
+            </div>
+          </div>
+        )}
         <button
           onClick={onClose}
           className="ml-auto rounded-lg p-2 text-gray-400 hover:bg-gray-100 lg:hidden dark:hover:bg-gray-800"

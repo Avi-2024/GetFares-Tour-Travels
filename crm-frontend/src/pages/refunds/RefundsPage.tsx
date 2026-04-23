@@ -1541,7 +1541,7 @@ const RefundsPage = () => {
           <PermissionGate permission='refunds:update'>
             <button
               onClick={() => setShowForm(open => !open)}
-              className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors w-full sm:w-auto'
+              className='inline-flex items-center justify-center gap-2 px-4 py-2 bg-[rgba(96,47,247,0.8)] text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors w-full sm:w-auto'
             >
               <FaPlus /> Create Refund
             </button>
@@ -1660,7 +1660,7 @@ const RefundsPage = () => {
                 }}
                 className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
                   quickFilter === item.key
-                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    ? 'bg-[rgba(96,47,247,0.8)] dark:bg-gray-700 text-white dark:text-blue-400 shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
@@ -1865,7 +1865,7 @@ const RefundsPage = () => {
               type='button'
               onClick={exportCurrentTable}
               disabled={!paginatedRows.length}
-              className='inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-green-500 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
+              className='inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[rgba(96,47,247,0.8)] border border-purple-500 text-sm font-medium text-white hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
             >
               <FaDownload /> Export
             </button>

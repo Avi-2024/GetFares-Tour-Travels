@@ -771,7 +771,7 @@ const getLeadMoneyLabel = (lead: LeadListItem) => {
           ) : (
             <>
               <div
-                className="leads-table-scroll hidden max-w-full min-w-0 overflow-x-scroll overscroll-x-contain lg:block"
+                className="leads-table-scroll hidden max-w-full  rounded-xl min-w-0 overflow-x-scroll overscroll-x-contain lg:block"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 <table
