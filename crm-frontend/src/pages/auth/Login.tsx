@@ -6,7 +6,11 @@ import {
   FaEye,
   FaEyeSlash,
   FaGlobeAsia,
-  FaLock
+  FaLock,
+  FaRocket,
+  FaUsers,
+  FaChartLine,
+  FaShieldAlt
 } from 'react-icons/fa'
 import { authApi } from '../../api'
 import { reportApiError } from '../../lib/notify'
@@ -248,241 +252,223 @@ const Login = () => {
   }
 
   return (
-    <main className='min-h-screen bg-slate-50 text-slate-900'>
+    <main className='min-h-screen bg-[#0A0A0F] text-white'>
       <div className='relative min-h-screen overflow-hidden'>
-        <div className='absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.18),_transparent_55%)]' />
-        <div className='absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_rgba(6,182,212,0.14),_transparent_45%)]' />
+        {/* Background with #602FF7 gradient */}
+        <div className='absolute inset-0 bg-gradient-to-br from-[#602FF7] via-[#4a1fd8] to-[#0A0A0F]' />
+        
+        {/* Animated background patterns */}
+        <div className='absolute inset-0 bg-[url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.03"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")] opacity-40' />
+        
+        {/* Floating gradient orbs */}
+        <div className='absolute top-20 left-1/4 w-96 h-96 bg-[#8B5CF6] rounded-full blur-[120px] opacity-20 animate-pulse' />
+        <div className='absolute bottom-20 right-1/4 w-80 h-80 bg-[#602FF7] rounded-full blur-[100px] opacity-30 animate-pulse' style={{ animationDelay: '2s' }} />
+        <div className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#C084FC] rounded-full blur-[150px] opacity-10' />
+        
+        {/* Stars twinkling effect */}
+        <div className='absolute inset-0 overflow-hidden'>
+          {[...Array(50)].map((_, i) => (
+            <div
+              key={i}
+              className='absolute w-1 h-1 bg-white rounded-full animate-twinkle'
+              style={{
+                top: `${Math.random() * 100}%`,
+                left: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 5}s`,
+                opacity: Math.random() * 0.5 + 0.2
+              }}
+            />
+          ))}
+        </div>
 
         <div className='relative z-10 grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]'>
-          {/* LEFT BRAND PANEL */}
-          <section className='hidden lg:flex relative flex-col justify-between px-16 py-16 xl:px-20 xl:py-20 overflow-hidden bg-[#020617]'>
-            {/* INLINE ANIMATIONS */}
+          {/* LEFT BRAND PANEL - New design */}
+          <section className='hidden lg:flex relative flex-col justify-between px-16 py-16 xl:px-20 xl:py-20 overflow-hidden bg-gradient-to-br from-[#602FF7]/30 via-[#4a1fd8]/20 to-transparent backdrop-blur-sm'>
+            {/* Inline animations */}
             <style>{`
-              @keyframes orbit-rotate {
-                0% { transform: translate(-50%, -50%) rotate(0deg); }
-                100% { transform: translate(-50%, -50%) rotate(360deg); }
+              @keyframes float {
+                0%, 100% { transform: translateY(0px) translateX(0px); }
+                25% { transform: translateY(-20px) translateX(10px); }
+                50% { transform: translateY(-10px) translateX(-10px); }
+                75% { transform: translateY(10px) translateX(5px); }
               }
-              @keyframes core-pulse {
-                0%, 100% { transform: scale(1); opacity: 0.9; filter: blur(0px); }
-                50% { transform: scale(1.08); opacity: 1; filter: blur(2px); }
+              @keyframes glow-pulse {
+                0%, 100% { opacity: 0.4; transform: scale(1); }
+                50% { opacity: 0.8; transform: scale(1.05); }
               }
-              @keyframes comet-move {
-                0% { transform: translateX(-100%) translateY(0) rotate(-35deg); opacity: 0; }
-                10% { opacity: 0.6; }
-                90% { opacity: 0.6; }
-                100% { transform: translateX(200%) translateY(100px) rotate(-35deg); opacity: 0; }
+              @keyframes slide-up {
+                from { opacity: 0; transform: translateY(30px); }
+                to { opacity: 1; transform: translateY(0); }
               }
-              @keyframes drift {
-                0%, 100% { transform: translate(0, 0); }
-                50% { transform: translate(40px, -40px); }
+              @keyframes orbit-spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
               }
-              @keyframes twinkle-star {
+              .animate-twinkle {
+                animation: twinkle 4s ease-in-out infinite;
+              }
+              @keyframes twinkle {
                 0%, 100% { opacity: 0.2; transform: scale(0.7); }
                 50% { opacity: 1; transform: scale(1.2); }
               }
               .glass-card {
-                background: rgba(255, 255, 255, 0.03);
-                backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+                background: rgba(255, 255, 255, 0.05);
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
               }
             `}</style>
 
-            {/* BACKGROUND DEPTH LAYERS */}
-            <div className='absolute inset-0 z-0 pointer-events-none'>
-              <div className='absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/20 blur-[140px] rounded-full animate-[drift_15s_ease-in-out_infinite]' />
-              <div className='absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/25 blur-[120px] rounded-full animate-[drift_18s_ease-in-out_infinite_reverse]' />
-              <div className='absolute top-[30%] right-[10%] w-[35%] h-[35%] bg-cyan-500/15 blur-[100px] rounded-full animate-[drift_22s_ease-in-out_infinite]' />
-              <div className='absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#020617_85%)]' />
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-            </div>
-
-            {/* MAIN ANIMATION SYSTEM (AS BACKGROUND) */}
-            <div className='absolute inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden opacity-70'>
-              <div className='relative w-[800px] h-[800px] translate-x-1/4'>
-                {/* CORE ENERGY NODE */}
-                <div className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30'>
-                  <div className='w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 via-indigo-600 to-cyan-500 p-[1px] shadow-[0_0_100px_rgba(59,130,246,0.4)] animate-[core-pulse_4s_ease-in-out_infinite]'>
-                    <div className='w-full h-full rounded-full bg-slate-950 flex items-center justify-center border border-white/10 overflow-hidden relative'>
-                      <div className='absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.4),_transparent_75%)]' />
-                      <div className='relative z-10 flex flex-col items-center'>
-                        <FaGlobeAsia className='text-5xl text-blue-400 drop-shadow-[0_0_15px_rgba(96,165,250,0.8)] animate-[spin_12s_linear_infinite]' />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ORBIT RINGS */}
-                {[...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className='absolute top-1/2 left-1/2 rounded-full border border-white/[0.03] shadow-[inset_0_0_60px_rgba(255,255,255,0.01)]'
-                    style={{
-                      width: `${(i + 1) * 180 + 100}px`,
-                      height: `${(i + 1) * 180 + 100}px`,
-                      animation: `orbit-rotate ${
-                        25 + i * 20
-                      }s linear infinite ${i % 2 === 0 ? '' : 'reverse'}`
-                    }}
-                  >
-                    {/* Floating Glow Nodes */}
-                    <div
-                      className='absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gradient-to-br from-white/80 to-blue-300 shadow-[0_0_25px_rgba(255,255,255,0.5)] border border-white/40'
-                      style={{ filter: `hue-rotate(${i * 45}deg)` }}
-                    />
-                  </div>
-                ))}
-
-                {/* FLOATING PARTICLES */}
-                {[...Array(40)].map((_, i) => (
-                  <div
-                    key={i}
-                    className='absolute w-1.5 h-1.5 bg-white rounded-full animate-[twinkle-star_4s_ease-in-out_infinite]'
-                    style={{
-                      top: `${Math.random() * 100}%`,
-                      left: `${Math.random() * 100}%`,
-                      animationDelay: `${Math.random() * 5}s`,
-                      opacity: Math.random() * 0.4 + 0.1
-                    }}
-                  />
-                ))}
-
-                {/* COMET SWEEP LINES */}
-                <div className='absolute inset-[-200px] pointer-events-none'>
-                  <div className='absolute top-[20%] left-[-10%] w-[150%] h-[1px] bg-gradient-to-r from-transparent via-blue-400/30 to-transparent animate-[comet-move_8s_linear_infinite]' />
-                  <div className='absolute top-[65%] left-[-10%] w-[150%] h-[1px] bg-gradient-to-r from-transparent via-indigo-400/20 to-transparent animate-[comet-move_12s_linear_infinite_4s]' />
+            {/* Animated globe / icon */}
+            <div className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-40'>
+              <div className='relative w-[500px] h-[500px]'>
+                <div className='absolute inset-0 rounded-full border-2 border-white/10 animate-[orbit-spin_20s_linear_infinite]' />
+                <div className='absolute inset-[50px] rounded-full border border-white/5 animate-[orbit-spin_30s_linear_infinite_reverse]' />
+                <div className='absolute inset-[100px] rounded-full border border-white/5 animate-[orbit-spin_40s_linear_infinite]' />
+                <div className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2'>
+                  <FaGlobeAsia className='text-8xl text-white/30' />
                 </div>
               </div>
             </div>
 
-            {/* CONTENT LAYER */}
+            {/* Content */}
             <div className='relative z-10 h-full flex flex-col justify-between'>
-              {/* TOP: BRANDING */}
-              <div className='flex items-center gap-4 group cursor-default'>
+              {/* Brand */}
+              <div className='flex items-center gap-4 group cursor-default animate-[slide-up_0.6s_ease-out]'>
                 <div className='p-0 rounded-2xl transition-all duration-500 group-hover:scale-110'>
                   <img
                     src='/logo1.png'
-                    alt='Get2Vacations'
-                    className='h-8 w-6 transition-transform duration-500 group-hover:rotate-12'
+                    alt='ROYALITSERVICE'
+                    className='h-10 w-8 brightness-0 invert transition-transform duration-500 group-hover:rotate-12'
                   />
                 </div>
                 <div className='flex flex-col'>
                   <span className='text-2xl font-black tracking-tighter text-white uppercase'>
-                    Get2Vacations <span className='text-blue-500'>CRM</span>
+                    ROYALITSERVICE <span className='text-[#C084FC]'>CRM</span>
                   </span>
-                  <span className='text-[10px] font-bold tracking-[0.4em] text-blue-400/70 uppercase'>
+                  <span className='text-[10px] font-bold tracking-[0.4em] text-white/60 uppercase'>
                     Travel Intelligence
                   </span>
                 </div>
               </div>
 
-              {/* MIDDLE: HEADLINE & DESCRIPTION */}
-              <div className='max-w-xl'>
-                <h1 className='text-6xl xl:text-7xl font-black tracking-tight text-white leading-[0.95] mb-6'>
-                  Redefine your <br />
-                  <span className='bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-500'>
-                    Travel Ops.
+              {/* Main Headline */}
+              <div className='max-w-xl animate-[slide-up_0.6s_ease-out_0.2s_both]'>
+                <div className='inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card mb-6'>
+                  <FaRocket className='text-[#C084FC] text-xs' />
+                  <span className='text-xs font-medium text-white/80'>Next-Gen Travel Platform</span>
+                </div>
+                <h1 className='text-6xl xl:text-7xl font-black tracking-tight text-white leading-[1.1] mb-6'>
+                  Transform Your
+                  <br />
+                  <span className='bg-gradient-to-r from-[#C084FC] via-[#A855F7] to-[#8B5CF6] bg-clip-text text-transparent'>
+                    Travel Business
                   </span>
                 </h1>
-                <p className='text-xl text-slate-400/90 font-medium leading-relaxed max-w-md'>
-                  A premium operating system for modern travel agencies. Fast,
-                  automated, and hyper-scalable.
+                <p className='text-lg text-white/70 leading-relaxed max-w-md'>
+                  Enterprise-grade CRM solution designed for modern travel agencies. 
+                  Streamline operations, automate workflows, and scale with confidence.
                 </p>
 
-                <div className='mt-10 flex flex-wrap gap-4'>
-                  <div className='glass-card px-5 py-2.5 rounded-full text-xs font-bold text-blue-100 flex items-center gap-2.5 transition-all hover:bg-white/10 cursor-default'>
-                    <div className='w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]' />
-                    SLA Monitoring
+                {/* Stats */}
+                <div className='mt-10 flex gap-8'>
+                  <div>
+                    <div className='text-3xl font-black text-white'>98%</div>
+                    <div className='text-xs text-white/50'>Client Satisfaction</div>
                   </div>
-                  <div className='glass-card px-5 py-2.5 rounded-full text-xs font-bold text-indigo-100 flex items-center gap-2.5 transition-all hover:bg-white/10 cursor-default'>
-                    <div className='w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]' />
-                    Visa Automation
+                  <div>
+                    <div className='text-3xl font-black text-white'>24/7</div>
+                    <div className='text-xs text-white/50'>Support Available</div>
                   </div>
-                  <div className='glass-card px-5 py-2.5 rounded-full text-xs font-bold text-cyan-100 flex items-center gap-2.5 transition-all hover:bg-white/10 cursor-default'>
-                    <div className='w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_rgba(34,211,238,0.8)]' />
-                    Revenue Intelligence
+                  <div>
+                    <div className='text-3xl font-black text-white'>500+</div>
+                    <div className='text-xs text-white/50'>Agencies Trust Us</div>
+                  </div>
+                </div>
+
+                {/* Feature pills */}
+                <div className='mt-10 flex flex-wrap gap-3'>
+                  <div className='glass-card px-4 py-2 rounded-full text-xs font-medium text-white/80 flex items-center gap-2'>
+                    <FaShieldAlt className='text-[#C084FC] text-xs' />
+                    Enterprise Security
+                  </div>
+                  <div className='glass-card px-4 py-2 rounded-full text-xs font-medium text-white/80 flex items-center gap-2'>
+                    <FaChartLine className='text-[#C084FC] text-xs' />
+                    Real-time Analytics
+                  </div>
+                  <div className='glass-card px-4 py-2 rounded-full text-xs font-medium text-white/80 flex items-center gap-2'>
+                    <FaUsers className='text-[#C084FC] text-xs' />
+                    Team Collaboration
                   </div>
                 </div>
               </div>
 
-              {/* FOOTER: TRUST BADGE */}
-              <div className='flex items-center justify-between border-t border-white/10 pt-8'>
+              {/* Trust Badge */}
+              <div className='flex items-center justify-between border-t border-white/10 pt-8 animate-[slide-up_0.6s_ease-out_0.4s_both]'>
                 <div className='flex -space-x-3'>
                   {[1, 2, 3, 4].map(i => (
                     <div
                       key={i}
-                      className='w-10 h-10 rounded-full border-2 border-[#020617] bg-slate-800 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden ring-1 ring-white/10'
+                      className='w-10 h-10 rounded-full border-2 border-[#602FF7] bg-gradient-to-br from-[#8B5CF6] to-[#602FF7] flex items-center justify-center text-[10px] font-bold text-white overflow-hidden'
                     >
                       <img
                         src={`https://i.pravatar.cc/100?u=${i}`}
                         alt='user'
-                        className='w-full h-full object-cover opacity-80'
+                        className='w-full h-full object-cover'
                       />
                     </div>
                   ))}
-                  <div className='w-10 h-10 rounded-full border-2 border-[#020617] bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white ring-1 ring-white/10'>
+                  <div className='w-10 h-10 rounded-full border-2 border-[#602FF7] bg-gradient-to-br from-[#C084FC] to-[#8B5CF6] flex items-center justify-center text-xs font-bold text-white'>
                     +2k
                   </div>
                 </div>
                 <div className='text-right'>
-                  <p className='text-xs font-bold text-white'>
-                    Join 2,000+ travel pros
+                  <p className='text-xs font-medium text-white/80'>
+                    Trusted by industry leaders
                   </p>
-                  <p className='text-[10px] font-medium text-slate-500'>
-                    Industry-leading CRM since 2024
+                  <p className='text-[10px] font-medium text-white/40'>
+                    Join the future of travel management
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* RIGHT LOGIN FORM */}
+          {/* RIGHT LOGIN FORM - Redesigned */}
           <section className='flex items-center justify-center px-6 py-12 lg:px-10'>
             <div className='w-full max-w-md'>
-              <div className='rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-2xl shadow-blue-500/10'>
-                <div className='flex items-center gap-3 mb-6'>
-                  <div className='h-11 w-11 rounded-xl flex items-center justify-center'>
+              <div className='rounded-3xl bg-white/95 backdrop-blur-sm p-8 shadow-2xl border border-white/20'>
+                <div className='text-center mb-8'>
+                  <div className='mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-[#602FF7] to-[#8B5CF6] flex items-center justify-center mb-4 shadow-lg shadow-[#602FF7]/30'>
                     <img
                       src='/logo1.png'
-                      alt='Get2Vacations'
-                      className='h-8 w-6'
+                      alt='ROYALITSERVICE'
+                      className='h-8 w-6 brightness-0 invert'
                     />
                   </div>
-                  <div>
-                    <p className='text-xs font-semibold uppercase tracking-[0.2em] text-blue-600'>
-                      Get2Vacations CRM
-                    </p>
-                    <p className='text-lg font-semibold text-slate-900'>
-                      Sign in to continue
-                    </p>
-                  </div>
-                </div>
-
-                <div className='mb-6'>
-                  <h2 className='text-2xl font-semibold text-slate-900'>
+                  <h2 className='text-2xl font-bold text-gray-900'>
                     Welcome back
                   </h2>
-                  <p className='text-sm text-slate-500'>
-                    Use your admin or team credentials to enter the workspace.
+                  <p className='text-sm text-gray-500 mt-1'>
+                    Sign in to access your workspace
                   </p>
                 </div>
 
                 <form className='space-y-5' onSubmit={handleSignIn}>
                   <div>
-                    <label className='text-sm font-medium text-slate-700'>
+                    <label className='text-sm font-medium text-gray-700'>
                       Email address
                     </label>
                     <div className='relative mt-2'>
-                      <div className='absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400'>
-                        <FaEnvelope />
+                      <div className='absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400'>
+                        <FaEnvelope className='text-sm' />
                       </div>
                       <input
                         type='email'
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         placeholder='name@company.com'
-                        className={`w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                          errors.email ? 'border-red-300' : 'border-slate-200'
+                        className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-[#602FF7] focus:border-[#602FF7] transition-all ${
+                          errors.email ? 'border-red-300' : 'border-gray-200'
                         }`}
                       />
                     </div>
@@ -494,28 +480,28 @@ const Login = () => {
                   </div>
 
                   <div>
-                    <label className='text-sm font-medium text-slate-700'>
+                    <label className='text-sm font-medium text-gray-700'>
                       Password
                     </label>
                     <div className='relative mt-2'>
-                      <div className='absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400'>
-                        <FaLock />
+                      <div className='absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400'>
+                        <FaLock className='text-sm' />
                       </div>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         placeholder='Enter your password'
-                        className={`w-full pl-10 pr-10 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        className={`w-full pl-10 pr-10 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-[#602FF7] focus:border-[#602FF7] transition-all ${
                           errors.password
                             ? 'border-red-300'
-                            : 'border-slate-200'
+                            : 'border-gray-200'
                         }`}
                       />
                       <button
                         type='button'
                         onClick={togglePassword}
-                        className='absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors'
+                        className='absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors'
                       >
                         {showPassword ? <FaEyeSlash /> : <FaEye />}
                       </button>
@@ -528,16 +514,16 @@ const Login = () => {
                   </div>
 
                   <div className='flex items-center justify-between text-sm'>
-                    <label className='flex items-center gap-2 text-slate-600'>
+                    <label className='flex items-center gap-2 text-gray-600 cursor-pointer'>
                       <input
                         type='checkbox'
-                        className='h-4 w-4 rounded border-slate-300 text-blue-600'
+                        className='h-4 w-4 rounded border-gray-300 text-[#602FF7] focus:ring-[#602FF7] cursor-pointer'
                       />
-                      Remember me
+                      <span>Remember me</span>
                     </label>
                     <Link
                       to='/forgot-password'
-                      className='text-blue-600 font-medium hover:text-blue-700'
+                      className='text-[#602FF7] font-medium hover:text-[#4a1fd8] transition-colors'
                     >
                       Forgot password?
                     </Link>
@@ -546,22 +532,37 @@ const Login = () => {
                   <button
                     type='submit'
                     disabled={submitting}
-                    className='w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 text-white font-semibold py-3.5 shadow-md shadow-blue-500/30 hover:bg-blue-700 transition-colors'
+                    className='w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#602FF7] to-[#8B5CF6] text-white font-semibold py-3.5 shadow-lg shadow-[#602FF7]/30 hover:shadow-xl hover:shadow-[#602FF7]/40 transition-all duration-300 hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed'
                   >
-                    {submitting ? 'Signing in...' : 'Sign in'}
-                    {!submitting && <FaArrowRight />}
+                    {submitting ? (
+                      <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                    ) : (
+                      <>
+                        Sign in
+                        <FaArrowRight className='text-sm' />
+                      </>
+                    )}
                   </button>
 
                   {apiError && (
-                    <p className='text-sm text-red-600 text-center'>
+                    <p className='text-sm text-red-600 text-center bg-red-50 rounded-lg p-2'>
                       {apiError}
                     </p>
                   )}
                 </form>
+
+                <div className='mt-6 pt-6 border-t border-gray-100'>
+                  <p className='text-center text-xs text-gray-400'>
+                    Don't have an account?{' '}
+                    <Link to='/contact' className='text-[#602FF7] font-medium hover:underline'>
+                      Contact Sales
+                    </Link>
+                  </p>
+                </div>
               </div>
 
-              <p className='mt-6 text-center text-xs text-slate-400'>
-                Powered by Get2Vacations Tour & Travels CRM
+              <p className='mt-6 text-center text-xs text-white/50'>
+                Powered by ROYALITSERVICE Tour & Travels CRM
               </p>
             </div>
           </section>

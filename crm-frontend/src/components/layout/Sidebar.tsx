@@ -40,38 +40,38 @@ const sections = [
       },
       // { label: "Public Lead Form", to: "/public/lead-capture", icon: FaGlobe },
       {
-        label: "Leads",
+        label: " Lead Management",
         to: "/leads",
         icon: FaUserGroup,
         permission: "leads:read",
       },
       {
-        label: "Quotations",
+        label: "Quotes",
         to: "/quotations",
         icon: FaFileInvoiceDollar,
         permission: "quotations:read",
         end: true,
       },
       {
-        label: "Quotation Templates",
+        label: "Quote Templates",
         to: "/quotations/templates",
         icon: FaFileInvoiceDollar,
         permission: "quotations:read",
       },
       {
-        label: "Bookings",
+        label: "Orders",
         to: "/bookings",
         icon: FaPassport,
         permission: "bookings:read",
       },
       {
-        label: "Payments",
+        label: "Transactions",
         to: "/payments",
         icon: FaCreditCard,
         permission: "payments:read",
       },
       {
-        label: "Refunds",
+        label: "Refund Center",
         to: "/refunds",
         icon: FaCreditCard,
         permission: "refunds:read",
@@ -79,10 +79,10 @@ const sections = [
     ],
   },
   {
-    title: "Operations",
+    title: "Operations Hub",
     items: [
       {
-        label: "Visa Cases",
+        label: "Visa Requests",
         to: "/visa",
         icon: FaPassport,
         permission: "visa:read",
@@ -94,31 +94,31 @@ const sections = [
       //   permission: 'settings:read'
       // },
       {
-        label: "Packages",
+        label: "Travel Packages",
         to: "/packages",
         icon: FaBoxOpen,
         permission: "settings:read",
       },
       // { label: 'Documents', to: '#', icon: FaFolderOpen },
       {
-        label: "Complaints",
+        label: "Help Desk",
         to: "/complaints",
         icon: FaFolderOpen,
         permission: "complaints:read",
       },
       {
-        label: "Customers",
+        label: "Clients",
         to: "/customers",
         icon: FaUsers,
         permission: "customers:read",
       },
       {
-        label: "Suppliers",
+        label: "Vendors",
         to: "/suppliers",
         icon: FaUsers,
         permission: "suppliers:read",
       },
-      { label: "Campaigns", to: "/campaigns", icon: FaChartPie, permission: "campaigns:read" },
+      { label: "Campaign Manager", to: "/campaigns", icon: FaChartPie, permission: "campaigns:read" },
       {
         label: "Notifications",
         to: "/notifications",
@@ -177,9 +177,23 @@ const Sidebar: React.FC<{
             <div className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#602FF7] via-purple-500 to-indigo-500 shadow-lg">
               <FaChartLine className="text-white text-lg" />
             </div>
-            <span className="text-xl font-black tracking-tight bg-gradient-to-r from-[#602FF7] via-purple-500 to-indigo-500 bg-clip-text text-transparent" style={{ fontFamily: '"Inter", "Poppins", "Montserrat", system-ui, -apple-system, sans-serif', letterSpacing: '-0.02em' }}>
-              RITS CRM
-            </span>
+            <span
+  className="text-xl font-black tracking-tight bg-gradient-to-r from-[#602FF7] via-purple-500 to-indigo-500 bg-clip-text text-transparent"
+>
+  <span
+style={{ fontFamily: '"Audiowide", cursive', letterSpacing: '0.06em' }}  >
+    RITS
+  </span>{' '}
+  <span
+    style={{
+      fontFamily: '"Inter", "Poppins", sans-serif',
+      letterSpacing: '-0.02em',
+      fontWeight: '600',
+    }}
+  >
+    CRM
+  </span>
+</span>
           </div>
         ) : (
           <div className="flex items-center justify-center w-full">

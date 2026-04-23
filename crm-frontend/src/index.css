@@ -125,3 +125,8 @@
           .leads-table-scroll:hover::-webkit-scrollbar-thumb {
             background: rgba(107, 114, 128, 0.35);
           }
+
+          .font-rits {
+  font-family: 'Audiowide', cursive;
+  letter-spacing: 0.06em;
+}

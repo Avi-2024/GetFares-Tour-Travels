@@ -418,7 +418,7 @@ const Dashboard: React.FC = () => {
               </SurfaceCard>
             ))
           : kpis.map(k => (
-              <SurfaceCard key={k.title} hoverable className='p-5 shadow-purple-400'>
+              <SurfaceCard key={k.title} hoverable className='p-5 shadow-[0_2px_2px_rgba(96,47,249,0.3)]'>
                 <div className='flex items-start justify-between'>
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-xl ${k.bg}`}
