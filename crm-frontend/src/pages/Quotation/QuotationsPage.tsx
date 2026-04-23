@@ -1286,32 +1286,32 @@ const QuotationsPage: React.FC = () => {
             </div>
 
             {/* Desktop View - Table */}
-            <div className='hidden max-w-full leads-table-scroll overflow-x-auto  dark:scrollbar-thumb-gray-700 lg:block'>
-              <table className='w-full divide-y divide-gray-200 dark:divide-gray-800'>
-                <thead className='sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/95'>
+            <div className='hidden max-w-full leads-table-scroll overflow-x-auto rounded-2xl mx-1 dark:scrollbar-thumb-gray-700 lg:block'>
+              <table className='w-full divide-y divide-gray-200  dark:divide-gray-800'>
+                <thead className='sticky top-0 z-10 bg-[rgba(96,47,247,0.8)]  dark:bg-gray-800/95'>
                   <tr>
-                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white whitespace-nowrap'>
                       Quote #
                     </th>
-                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white whitespace-nowrap'>
                       Customer
                     </th>
-                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white whitespace-nowrap'>
                       Destination
                     </th>
-                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-white whitespace-nowrap'>
                       Total
                     </th>
-                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-white whitespace-nowrap'>
                       Status
                     </th>
-                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                    <th className='px-3 xl:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-white whitespace-nowrap'>
                       Last Sent
                     </th>
-                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                    <th className='px-3 xl:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-white whitespace-nowrap'>
                       SLA
                     </th>
-                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap'>
+                    <th className='px-3 xl:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-white whitespace-nowrap'>
                       Actions
                     </th>
                   </tr>
