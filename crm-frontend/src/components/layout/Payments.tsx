@@ -3304,7 +3304,7 @@ const Payments: React.FC = () => {
                   type="button"
                   onClick={exportCurrentTable}
                   disabled={!rows.length}
-                  className="inline-flex items-center justify-center rounded-xl border border-green-500 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  className="inline-flex items-center justify-center rounded-xl border border-purple-500 bg-[rgba(96,47,247,0.8)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                 >
                   <FaDownload className="mr-2" /> Export
                 </button>
