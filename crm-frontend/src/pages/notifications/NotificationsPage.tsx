@@ -454,7 +454,7 @@ const NotificationsPage: React.FC = () => {
       <div className="mx-auto max-w-9xl px-0 py-4 sm:py-6 lg:py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-              <FaBell className="text-2xl text-blue-600 dark:text-blue-400" />
+              <FaBell className="text-2xl text-[#602FF7] dark:text-blue-400" />
               <div>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">
                   Notifications
@@ -481,7 +481,7 @@ const NotificationsPage: React.FC = () => {
             <button
               onClick={() => void handleMarkAllRead()}
               disabled={loading || actionLoadingAll || unreadCount === 0}
-              className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-lg bg-[rgba(96,47,247,0.8)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <FaCheckDouble />
               Mark all read

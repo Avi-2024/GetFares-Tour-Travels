@@ -331,13 +331,13 @@ const VisaCasesPage = () => {
           <button
             onClick={exportCurrentTable}
             disabled={!paginatedRows.length}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-green-500 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-green-500 px-4 py-2 text-sm font-medium text-white transition-colors bg-[rgba(96,47,247,0.8)] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
           >
             <FaDownload className="text-sm" /> Export
           </button>
           <button
             onClick={() => navigate("/visa/new")}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[rgba(96,47,247,0.8)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
           >
             <FaPlus className="text-sm" /> Create Visa Case
           </button>
@@ -358,7 +358,7 @@ const VisaCasesPage = () => {
         ))}
       </div>
 
-      <SurfaceCard className="border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+      <SurfaceCard className="border border-blue-200 bg-purple-50/70 p-4 dark:border-blue-800 dark:bg-blue-900/20">
         <p className="text-sm text-blue-800 dark:text-blue-200">
           Required by docs: country-specific visa checklist, appointment tracking, fee tracking, expiry visibility, and document upload. Case creation now starts from linked booking and supplier selection instead of raw IDs.
         </p>
@@ -383,7 +383,7 @@ const VisaCasesPage = () => {
             onClick={() => setShowMobileFilters(!showMobileFilters)}
             className={`rounded-xl border p-2.5 transition-colors ${
               showMobileFilters
-                ? "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-900/20"
+                ? "border-blue-200 bg-purple-50 text-[#602FF7] dark:border-blue-800 dark:bg-blue-900/20"
                 : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-400"
             }`}
           >
@@ -410,7 +410,7 @@ const VisaCasesPage = () => {
                   }}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                     tab === item.id
-                      ? "bg-blue-600 text-white"
+                      ? "bg-[rgba(96,47,247,0.8)] text-white"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                   }`}
                 >

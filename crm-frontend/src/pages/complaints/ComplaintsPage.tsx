@@ -490,7 +490,7 @@ const ComplaintsPage = () => {
         <button
           onClick={exportAllRows}
           disabled={!rows.length}
-          className='inline-flex items-center justify-center rounded-xl border border-green-500 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
+          className='inline-flex items-center justify-center rounded-xl border border-purple-500 bg-[rgba(96,47,247,0.8)] px-4 py-2 text-sm font-medium text-white hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-green-400 dark:text-gray-200 dark:hover:bg-gray-800'
         >
           <FaDownload className='mr-2' /> Export
         </button>
@@ -597,7 +597,7 @@ const ComplaintsPage = () => {
         <button
           onClick={createComplaint}
           disabled={loading}
-          className='mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
+          className='mt-4 rounded-xl bg-[rgba(96,47,247,0.8)] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
         >
           <FaPlus className='mr-2 inline' />{' '}
           {loading ? 'Creating...' : 'Create Complaint'}
@@ -712,7 +712,7 @@ const ComplaintsPage = () => {
                       onClick={() => navigate(`/complaints/${row.id}`)}
                       className='cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors'
                     >
-                      <td className='px-5 py-4 text-xs font-medium text-blue-600 dark:text-blue-300'>
+                      <td className='px-5 py-4 text-xs font-medium text-[#602FF7] dark:text-blue-300'>
                         {row.id}
                       </td>
                       <td className='px-3 py-4 text-xs text-gray-700 dark:text-gray-200'>
