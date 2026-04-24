@@ -1,4 +1,4 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 
 /**
  * Configuration Class
@@ -23,15 +23,15 @@ export class Configuration {
    * Private method following encapsulation
    */
   _loadConfiguration() {
-    this._env = process.env.NODE_ENV || 'development';
-    this._port = parseInt(process.env.PORT || '3000', 10);
+    this._env = process.env.NODE_ENV || "development";
+    this._port = parseInt(process.env.PORT || "3000", 10);
 
     this._database = {
       client: process.env.DATABASE_CLIENT,
       url: process.env.DATABASE_URL,
       mysql: {
         host: process.env.MYSQL_HOST,
-        port: parseInt(process.env.MYSQL_PORT || '3306', 10),
+        port: parseInt(process.env.MYSQL_PORT || "3306", 10),
         user: process.env.MYSQL_USER,
         password: process.env.MYSQL_PASSWORD,
         database: process.env.MYSQL_DATABASE,
@@ -39,36 +39,36 @@ export class Configuration {
     };
 
     this._jwt = {
-      secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      secret: process.env.JWT_SECRET || "your-secret-key-change-in-production",
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
     };
 
     this._cors = {
-      origin: process.env.CORS_ORIGIN || '*',
+      origin: process.env.CORS_ORIGIN || "*",
       credentials: true,
     };
 
     this._upload = {
-      maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '209715200', 10),
-      allowedImageTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-      allowedVideoTypes: ['video/mp4', 'video/webm'],
+      maxFileSize: parseInt(process.env.MAX_FILE_SIZE || "1073741824", 10),
+      allowedImageTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+      allowedVideoTypes: ["video/mp4", "video/webm"],
     };
 
     this._cache = {
-      enabled: process.env.CACHE_ENABLED === 'true',
-      ttl: parseInt(process.env.CACHE_TTL || '3600', 10),
+      enabled: process.env.CACHE_ENABLED === "true",
+      ttl: parseInt(process.env.CACHE_TTL || "3600", 10),
       redisUrl: process.env.REDIS_URL,
     };
 
     this._storage = {
-      type: process.env.STORAGE_TYPE || 'local',
+      type: process.env.STORAGE_TYPE || "local",
       azureBlob: {
         container: process.env.AZURE_STORAGE_CONTAINER,
         connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
       },
       local: {
-        uploadDir: process.env.UPLOAD_DIR || './uploads',
-        publicUrl: process.env.PUBLIC_URL || 'http://localhost:3000',
+        uploadDir: process.env.UPLOAD_DIR || "./uploads",
+        publicUrl: process.env.PUBLIC_URL || "http://localhost:3000",
       },
     };
   }
@@ -107,15 +107,15 @@ export class Configuration {
   }
 
   get isDevelopment() {
-    return this._env === 'development';
+    return this._env === "development";
   }
 
   get isProduction() {
-    return this._env === 'production';
+    return this._env === "production";
   }
 
   get isTest() {
-    return this._env === 'test';
+    return this._env === "test";
   }
 
   /**
@@ -124,21 +124,24 @@ export class Configuration {
   validate() {
     const errors = [];
 
-    const dbClient = String(this._database.client || '')
+    const dbClient = String(this._database.client || "")
       .trim()
       .toLowerCase();
     const mysqlHostConfigured = Boolean(this._database.mysql.host);
 
     if (!this._database.url && !mysqlHostConfigured) {
-      errors.push('DATABASE_URL or MYSQL_HOST is required');
+      errors.push("DATABASE_URL or MYSQL_HOST is required");
     }
 
-    if (dbClient === 'mysql' && !this._database.url && !mysqlHostConfigured) {
-      errors.push('MySQL config missing. Set DATABASE_URL or MYSQL_HOST.');
+    if (dbClient === "mysql" && !this._database.url && !mysqlHostConfigured) {
+      errors.push("MySQL config missing. Set DATABASE_URL or MYSQL_HOST.");
     }
 
-    if (this.isProduction && this._jwt.secret === 'your-secret-key-change-in-production') {
-      errors.push('JWT_SECRET must be changed in production');
+    if (
+      this.isProduction &&
+      this._jwt.secret === "your-secret-key-change-in-production"
+    ) {
+      errors.push("JWT_SECRET must be changed in production");
     }
 
     return {

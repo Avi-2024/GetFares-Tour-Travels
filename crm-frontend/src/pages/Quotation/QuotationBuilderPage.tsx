@@ -542,6 +542,7 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [templatesError, setTemplatesError] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const AUTO_TEMPLATE_SENTINEL = 'AUTO_TEMPLATE'
   const [suppliers, setSuppliers] = useState<
     Array<{ id: string; name: string }>
   >([])
@@ -783,17 +784,18 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
 
   const quotationTemplateOptions = useMemo(
     () => [
-      // { value: "", label: "No template (manual quotation)" },
-      // Use empty value for custom/manual quotations.
-      // This keeps `templateId` undefined on save payload.
-      { value: '', label: 'Custom Quotation' },
+      { value: '', label: 'No Template (Custom Quotation)' },
+      {
+        value: AUTO_TEMPLATE_SENTINEL,
+        label: 'Custom Template (Save to Templates)'
+      },
       ...templates.map(template => ({
         value: template.id,
         label: `${template.code} - ${template.name}${!template.isActive ? ' (Inactive)' : ''
           }`
       }))
     ],
-    [templates]
+    [AUTO_TEMPLATE_SENTINEL, templates]
   )
 
   const supplierDropdownOptions = useMemo(
@@ -3351,9 +3353,9 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
         ? selectedTemplateId
         : undefined
 
-      // If "Custom Quotation" selected, auto-save it as a reusable template
+      // If "Custom Template (Save to Templates)" selected, auto-save it as a reusable template
       // before saving quotation.
-      if (!isEditMode && !selectedTemplateId) {
+      if (!isEditMode && selectedTemplateId === AUTO_TEMPLATE_SENTINEL) {
         const templatePayload = {
           code: buildAutoTemplateCode(),
           name: buildAutoTemplateName(),
@@ -3635,10 +3637,14 @@ const QuotationBuilderPage: React.FC<QuotationBuilderPageProps> = ({
                         searchPlaceholder='Search quotation template...'
                         onChange={nextId => {
                           // Backward-compat for older "CUSTOM" sentinel.
-                          const normalizedId = nextId === 'CUSTOM' ? '' : nextId
+                          const normalizedId =
+                            nextId === 'CUSTOM' ? AUTO_TEMPLATE_SENTINEL : nextId
                           setSelectedTemplateId(normalizedId)
                           const template =
-                            templates.find(item => item.id === normalizedId) ||
+                            normalizedId &&
+                              normalizedId !== AUTO_TEMPLATE_SENTINEL
+                              ? templates.find(item => item.id === normalizedId) || null
+                              : null
                             null
                           applyTemplateDefaults(template)
                         }}

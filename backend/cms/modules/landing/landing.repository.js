@@ -1,5 +1,6 @@
 function createLandingRepository({ db, schema }) {
   let countryColumnSupported = null;
+  let countryIdsColumnSupported = null;
   let isDeletedColumnSupported = null;
 
   async function supportsCountryColumn() {
@@ -60,6 +61,35 @@ function createLandingRepository({ db, schema }) {
     return isDeletedColumnSupported;
   }
 
+  async function supportsCountryIdsColumn() {
+    if (countryIdsColumnSupported !== null) {
+      return countryIdsColumnSupported;
+    }
+
+    if (db?.adapter === "in-memory" || typeof db?.query !== "function") {
+      countryIdsColumnSupported = true;
+      return countryIdsColumnSupported;
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+           AND table_name = ?
+           AND column_name = 'country_ids'
+         LIMIT 1`,
+        [schema.tableName],
+      );
+      countryIdsColumnSupported =
+        (result?.rowCount ?? result?.rows?.length ?? 0) > 0;
+    } catch {
+      countryIdsColumnSupported = false;
+    }
+
+    return countryIdsColumnSupported;
+  }
+
   return Object.freeze({
     async findAll(filters = {}) {
       const query = { ...filters };
@@ -67,12 +97,16 @@ function createLandingRepository({ db, schema }) {
         query.is_active = filters.active;
         delete query.active;
       }
-      const includeDeleted = query.includeDeleted === true || query.includeDeleted === "true";
+      const includeDeleted =
+        query.includeDeleted === true || query.includeDeleted === "true";
       if (query.includeDeleted !== undefined) {
         delete query.includeDeleted;
       }
       if (!(await supportsCountryColumn())) {
         delete query.country;
+      }
+      if (!(await supportsCountryIdsColumn())) {
+        delete query.country_ids;
       }
       if (await supportsIsDeletedColumn()) {
         if (!includeDeleted && query.is_deleted === undefined) {
@@ -99,6 +133,9 @@ function createLandingRepository({ db, schema }) {
       if (!(await supportsCountryColumn())) {
         delete payload.country;
       }
+      if (!(await supportsCountryIdsColumn())) {
+        delete payload.country_ids;
+      }
       if (await supportsIsDeletedColumn()) {
         payload.is_deleted = false;
       } else {
@@ -111,6 +148,9 @@ function createLandingRepository({ db, schema }) {
       const payload = { ...data };
       if (!(await supportsCountryColumn())) {
         delete payload.country;
+      }
+      if (!(await supportsCountryIdsColumn())) {
+        delete payload.country_ids;
       }
       return db.update(schema.tableName, id, payload);
     },
@@ -158,6 +198,10 @@ function createLandingRepository({ db, schema }) {
 
     async supportsCountry() {
       return supportsCountryColumn();
+    },
+
+    async supportsCountryIds() {
+      return supportsCountryIdsColumn();
     },
 
     async supportsIsDeleted() {

@@ -17,6 +17,13 @@ import { reportApiError } from '../../lib/notify'
 
 type TemplateType = 'READY_PACKAGE' | 'VISA' | 'CUSTOM_ITINERARY'
 
+type ItineraryItem = {
+  id: string
+  day: string
+  title: string
+  description: string
+}
+
 type TemplateRow = {
   id: string
   code: string
@@ -52,6 +59,7 @@ const QuotationTemplatesPage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>([])
   const [form, setForm] = useState({
     code: '',
     name: '',
@@ -61,7 +69,6 @@ const QuotationTemplatesPage: React.FC = () => {
     headerBranding: '',
     inclusions: '',
     exclusions: '',
-    itinerary: '' as string,
     hotelDetails: '',
     visaDetails: '',
     paymentTerms: '',
@@ -69,6 +76,18 @@ const QuotationTemplatesPage: React.FC = () => {
     footerDisclaimer: ''
   })
   const pageSize = 15
+
+  const normalizeItinerary = (raw?: unknown): ItineraryItem[] => {
+    if (!Array.isArray(raw)) return []
+    return raw
+      .map((item: any, index: number) => ({
+        id: String(item?.id ?? `day-${index + 1}`),
+        day: String(item?.day ?? `Day ${index + 1}`),
+        title: String(item?.title ?? ''),
+        description: String(item?.description ?? '')
+      }))
+      .filter(item => item.day.trim() || item.title.trim() || item.description.trim())
+  }
 
   const unwrapList = (response: unknown): any[] => {
     const payload = (response as { data?: unknown })?.data ?? response
@@ -241,21 +260,18 @@ const QuotationTemplatesPage: React.FC = () => {
       headerBranding: '',
       inclusions: '',
       exclusions: '',
-      itinerary: '',
       hotelDetails: '',
       visaDetails: '',
       paymentTerms: '',
       cancellationPolicy: '',
       footerDisclaimer: ''
     })
+    setItineraryItems([])
     setShowForm(true)
   }
 
   const openEdit = (row: TemplateRow) => {
     setEditingId(row.id)
-    const itineraryText = Array.isArray(row.itinerary)
-      ? JSON.stringify(row.itinerary, null, 2)
-      : ''
     setForm({
       code: row.code,
       name: row.name,
@@ -265,13 +281,13 @@ const QuotationTemplatesPage: React.FC = () => {
       headerBranding: row.headerBranding || '',
       inclusions: row.inclusions || '',
       exclusions: row.exclusions || '',
-      itinerary: itineraryText,
       hotelDetails: row.hotelDetails || '',
       visaDetails: row.visaDetails || '',
       paymentTerms: row.paymentTerms || '',
       cancellationPolicy: row.cancellationPolicy || '',
       footerDisclaimer: row.footerDisclaimer || ''
     })
+    setItineraryItems(normalizeItinerary(row.itinerary))
     setShowForm(true)
   }
 
@@ -285,16 +301,14 @@ const QuotationTemplatesPage: React.FC = () => {
     setError('')
     setNotice('')
     try {
-      const parsedItinerary = (() => {
-        const raw = form.itinerary.trim()
-        if (!raw) return undefined
-        try {
-          const parsed = JSON.parse(raw)
-          return Array.isArray(parsed) ? parsed : undefined
-        } catch {
-          return undefined
-        }
-      })()
+      const itinerary = itineraryItems
+        .map((item, index) => ({
+          id: String(item.id || `day-${index + 1}`),
+          day: String(item.day || `Day ${index + 1}`),
+          title: String(item.title || '').trim(),
+          description: String(item.description || '').trim()
+        }))
+        .filter(item => item.day.trim() || item.title.trim() || item.description.trim())
       const payload = {
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
@@ -304,7 +318,7 @@ const QuotationTemplatesPage: React.FC = () => {
         headerBranding: form.headerBranding.trim() || undefined,
         inclusions: form.inclusions.trim() || undefined,
         exclusions: form.exclusions.trim() || undefined,
-        itinerary: parsedItinerary,
+        itinerary: itinerary.length ? itinerary : undefined,
         hotelDetails: form.hotelDetails.trim() || undefined,
         visaDetails: form.visaDetails.trim() || undefined,
         paymentTerms: form.paymentTerms.trim() || undefined,
@@ -515,19 +529,107 @@ const QuotationTemplatesPage: React.FC = () => {
               />
             </div>
             <div className='md:col-span-2'>
-              <label className='field-label'>Itinerary Items (JSON)</label>
-              <textarea
-                rows={6}
-                className='field-input font-mono text-xs'
-                value={form.itinerary}
-                onChange={event =>
-                  setForm(current => ({
-                    ...current,
-                    itinerary: event.target.value
-                  }))
-                }
-                placeholder='[{ "day": "Day 1", "title": "...", "description": "..." }]'
-              />
+              <div className='flex items-center justify-between'>
+                <label className='field-label'>Itinerary</label>
+                <button
+                  type='button'
+                  className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                  onClick={() =>
+                    setItineraryItems(prev => {
+                      const nextIndex = prev.length + 1
+                      return [
+                        ...prev,
+                        {
+                          id: `day-${nextIndex}`,
+                          day: `Day ${nextIndex}`,
+                          title: '',
+                          description: ''
+                        }
+                      ]
+                    })
+                  }
+                >
+                  Add Day
+                </button>
+              </div>
+              <div className='mt-2 space-y-2'>
+                {itineraryItems.length === 0 ? (
+                  <div className='rounded-lg border border-dashed border-gray-200 px-3 py-3 text-xs text-gray-500 dark:border-gray-700'>
+                    No itinerary items.
+                  </div>
+                ) : (
+                  itineraryItems.map((item, idx) => (
+                    <div
+                      key={item.id || `row-${idx}`}
+                      className='rounded-xl border border-gray-200 p-3 dark:border-gray-700'
+                    >
+                      <div className='flex items-center justify-between gap-2'>
+                        <div className='text-xs font-semibold text-gray-700 dark:text-gray-200'>
+                          {item.day || `Day ${idx + 1}`}
+                        </div>
+                        <button
+                          type='button'
+                          className='rounded-lg border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900/40 dark:text-red-200 dark:hover:bg-red-900/20'
+                          onClick={() =>
+                            setItineraryItems(prev =>
+                              prev.filter((_, index) => index !== idx)
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className='mt-2 grid grid-cols-1 gap-2 md:grid-cols-2'>
+                        {/* <input
+                          className='field-input'
+                          value={item.day}
+                          onChange={e =>
+                            setItineraryItems(prev =>
+                              prev.map((row, index) =>
+                                index === idx
+                                  ? { ...row, day: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                          placeholder='Day label (e.g. Day 1)'
+                        /> */}
+                        <label>Title</label>
+                        <input 
+                          className='field-input md:col-span-2'
+                          value={item.title}
+                          onChange={e =>
+                            setItineraryItems(prev =>
+                              prev.map((row, index) =>
+                                index === idx
+                                  ? { ...row, title: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                          placeholder='Title'
+                        />
+                        <label>Description</label>
+                        <textarea
+                          className='field-input md:col-span-2'
+                          rows={3}
+                          value={item.description}
+                          onChange={e =>
+                            setItineraryItems(prev =>
+                              prev.map((row, index) =>
+                                index === idx
+                                  ? { ...row, description: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                          placeholder='Description'
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
             <div className='md:col-span-2'>
               <label className='field-label'>Hotel Details</label>

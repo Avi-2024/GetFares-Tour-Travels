@@ -11,6 +11,12 @@ function createLandingController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
+      if (req.query.countryId) {
+        filters.countryId = req.query.countryId;
+      }
+      if (req.query.countryIds) {
+        filters.countryIds = req.query.countryIds;
+      }
       if (req.query.includeDeleted !== undefined) {
         filters.includeDeleted = req.query.includeDeleted === "true";
       }
@@ -26,6 +32,12 @@ function createLandingController({ service, uploadService }) {
       const filters = {};
       if (req.query.country) {
         filters.country = req.query.country;
+      }
+      if (req.query.countryId) {
+        filters.countryId = req.query.countryId;
+      }
+      if (req.query.countryIds) {
+        filters.countryIds = req.query.countryIds;
       }
       const places = await service.listDeleted(filters);
       res.json({
@@ -46,6 +58,9 @@ function createLandingController({ service, uploadService }) {
       const payload = { ...req.body };
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
+      }
+      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
+        payload.countryIds = [req.query.countryId];
       }
       const imageFile = getFirstRequestFile(req, [
         "bannerImage",
@@ -76,6 +91,9 @@ function createLandingController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
+      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
+        payload.countryIds = [req.query.countryId];
+      }
       const imageFile = getFirstRequestFile(req, [
         "bannerImage",
         "image",
@@ -101,7 +119,10 @@ function createLandingController({ service, uploadService }) {
     }),
 
     updateStatus: asyncHandler(async (req, res) => {
-      const place = await service.updateStatus(req.params.id, req.body?.isActive);
+      const place = await service.updateStatus(
+        req.params.id,
+        req.body?.isActive,
+      );
       res.json({
         success: true,
         data: place,

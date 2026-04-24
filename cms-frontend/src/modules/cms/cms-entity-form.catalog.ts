@@ -77,6 +77,7 @@ interface CmsEntityFormDefinition {
 
 class CmsEntityFormCatalog {
   private static destinationRegionOptions: CmsFieldOption[] = [
+    { label: "All", value: "All" },
     { label: "Asia", value: "Asia" },
     { label: "Europe", value: "Europe" },
     { label: "Africa", value: "Africa" },
@@ -186,13 +187,6 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
-            key: "name",
-            label: "Title",
-            type: "text",
-            required: true,
-            groupKey: "basic",
-          },
-          {
             key: "country",
             label: "Country",
             type: "select",
@@ -200,6 +194,13 @@ class CmsEntityFormCatalog {
             groupKey: "basic",
             helperText:
               "Optional when landing places are not configured country-wise.",
+          },
+          {
+            key: "name",
+            label: "Title",
+            type: "text",
+            required: true,
+            groupKey: "basic",
           },
           { key: "tag", label: "Tag", type: "text", groupKey: "basic" },
           {
@@ -219,9 +220,13 @@ class CmsEntityFormCatalog {
           {
             key: "displayOrder",
             label: "Display Order",
-            type: "number",
+            type: "select",
             required: true,
             groupKey: "status",
+            options: Array.from({ length: 4 }, (_, i) => ({
+              label: String(i + 1),
+              value: String(i + 1),
+            })),
           },
           {
             key: "isActive",
@@ -274,6 +279,14 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
+            key: "country",
+            label: "Country",
+            type: "select",
+            options: CmsEntityFormCatalog.countryOptions,
+            required: true,
+            groupKey: "basic",
+          },
+          {
             key: "name",
             label: "Destination Name",
             type: "text",
@@ -287,14 +300,6 @@ class CmsEntityFormCatalog {
             required: true,
             groupKey: "basic",
             autoSlugSource: "name",
-          },
-          {
-            key: "country",
-            label: "Country",
-            type: "select",
-            options: CmsEntityFormCatalog.countryOptions,
-            required: true,
-            groupKey: "basic",
           },
           {
             key: "region",
@@ -616,6 +621,13 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
+            key: "country",
+            label: "Country",
+            type: "select",
+            options: CmsEntityFormCatalog.countryOptions,
+            groupKey: "basic",
+          },
+          {
             key: "title",
             label: "Title",
             type: "text",
@@ -645,13 +657,6 @@ class CmsEntityFormCatalog {
             groupKey: "basic",
             helperText:
               "Optional. Parent package can exist without destination.",
-          },
-          {
-            key: "country",
-            label: "Country",
-            type: "select",
-            options: CmsEntityFormCatalog.countryOptions,
-            groupKey: "basic",
           },
           {
             key: "description",
@@ -756,6 +761,14 @@ class CmsEntityFormCatalog {
           },
         ],
         fields: [
+          {
+            key: "country",
+            label: "Country",
+            type: "select",
+            options: CmsEntityFormCatalog.countryOptions,
+            groupKey: "basic",
+            helperText: "Filter parent packages by country.",
+          },
           {
             key: "mainPackageId",
             label: "Parent Package",
@@ -979,6 +992,14 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
+            key: "country",
+            label: "Country",
+            type: "select",
+            options: CmsEntityFormCatalog.countryOptions,
+            required: true,
+            groupKey: "basic",
+          },
+          {
             key: "title",
             label: "Title",
             type: "text",
@@ -992,14 +1013,6 @@ class CmsEntityFormCatalog {
             required: true,
             groupKey: "basic",
             autoSlugSource: "title",
-          },
-          {
-            key: "country",
-            label: "Country",
-            type: "select",
-            options: CmsEntityFormCatalog.countryOptions,
-            required: true,
-            groupKey: "basic",
           },
           {
             key: "imageUrl",
@@ -1155,6 +1168,13 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
+            key: "country",
+            label: "Country",
+            type: "select",
+            options: CmsEntityFormCatalog.countryOptions,
+            groupKey: "basic",
+          },
+          {
             key: "title",
             label: "Title",
             type: "text",
@@ -1173,13 +1193,6 @@ class CmsEntityFormCatalog {
             key: "subtitle",
             label: "Subtitle",
             type: "text",
-            groupKey: "basic",
-          },
-          {
-            key: "country",
-            label: "Country",
-            type: "select",
-            options: CmsEntityFormCatalog.countryOptions,
             groupKey: "basic",
           },
           {

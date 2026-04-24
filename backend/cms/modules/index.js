@@ -5,6 +5,7 @@ import { createVisaModule } from "./visa/index.js";
 import { createExperienceModule } from "./experience/index.js";
 import { createCmsMediaModule } from "./media/index.js";
 import { createPublicCmsModule } from "./public/index.js";
+import { createCountriesModule } from "./countries/index.js";
 import {
   CMS_ROLE_ALIASES,
   CMS_ROLE_NAME,
@@ -13,8 +14,10 @@ import {
 import { createMemoryUpload } from "../../crm/core/uploads/index.js";
 
 function createCmsModules({ db, storage, logger, upload }) {
-  const uploadMiddleware = upload || createMemoryUpload({ maxFileSizeMb: 200 });
+  const uploadMiddleware =
+    upload || createMemoryUpload({ maxFileSizeMb: 1024 });
 
+  const countries = createCountriesModule({ db, logger });
   const landing = createLandingModule({
     db,
     storage,
@@ -60,6 +63,7 @@ function createCmsModules({ db, storage, logger, upload }) {
   });
 
   return {
+    countries,
     landing,
     destinations,
     packages,
@@ -75,7 +79,7 @@ function registerModules(app, dependencies, options = {}) {
   const upload =
     options.upload ||
     createMemoryUpload({
-      maxFileSizeMb: dependencies.config?.uploads?.maxFileSizeMb || 200,
+      maxFileSizeMb: dependencies.config?.uploads?.maxFileSizeMb || 1024,
     });
   const requireAuth =
     options.requireAuth || dependencies.middlewares?.requireAuth;
@@ -91,6 +95,12 @@ function registerModules(app, dependencies, options = {}) {
     typeof requireAuth === "function" ?
       [requireAuth, requireCmsAccess]
     : [requireCmsAccess];
+
+  const countries = createCountriesModule({
+    db: dependencies.db,
+    logger: dependencies.logger,
+  });
+  mountedModules.countries = countries;
 
   const landing = createLandingModule({
     db: dependencies.db,
@@ -152,6 +162,7 @@ function registerModules(app, dependencies, options = {}) {
   app.use("/public/cms", publicCms.routes);
   app.use("/api/public/cms", publicCms.routes);
 
+  app.use("/cms/countries", ...cmsGuards, countries.routes);
   app.use("/cms/destinations", ...cmsGuards, destinations.routes);
   app.use("/cms/packages", ...cmsGuards, packages.routes);
   app.use("/cms/visa", ...cmsGuards, visa.routes);

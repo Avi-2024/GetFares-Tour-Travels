@@ -309,8 +309,8 @@ class CmsSectionTableComponent extends Component<CmsSectionTableProps> {
                           }
                         </td>
                       )}
-                      <td className="w-[164px] px-4 py-3">
-                        <div className="inline-flex flex-wrap gap-1.5">
+                      <td className="w-[120px] whitespace-nowrap px-4 py-3">
+                        <div className="flex flex-nowrap gap-1.5">
                           {this.renderActionButton({
                             label: `View ${entryLabel}`,
                             title: "View",

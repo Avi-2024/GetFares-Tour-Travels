@@ -66,8 +66,8 @@ export class CmsApplication {
   _setupMiddleware() {
     this._app.locals.logger = this._logger;
     this._app.use(cors(this._config.cors));
-    this._app.use(express.json({ limit: "10mb" }));
-    this._app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+    this._app.use(express.json({ limit: "1gb" }));
+    this._app.use(express.urlencoded({ extended: true, limit: "1gb" }));
     this._app.use(requestContext);
     this._app.use(createRequestLoggingMiddleware({ logger: this._logger }));
   }

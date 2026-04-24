@@ -37,106 +37,101 @@ WHERE (title_image_url IS NULL OR title_image_url = '')
 -- 2) normalize duplicate display_order values before unique indexes
 
 -- landing_places: unique display_order per country
-SET @rownum := 0;
-SET @grp := '';
 UPDATE landing_places lp
 JOIN (
-  SELECT id, country,
-         (@rownum := IF(@grp = COALESCE(country,''), @rownum + 1, 1)) AS rn,
-         (@grp := COALESCE(country,'')) AS grp_marker
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY country
+           ORDER BY display_order, created_at, id
+         ) AS rn
   FROM landing_places
   WHERE is_deleted = 0
-  ORDER BY COALESCE(country,''), display_order, created_at, id
 ) x ON x.id = lp.id
 SET lp.display_order = x.rn
 WHERE lp.is_deleted = 0;
 
 -- destination_media: unique display_order per destination
-SET @rownum := 0;
-SET @grp := '';
 UPDATE destination_media dm
 JOIN (
-  SELECT id, destination_id,
-         (@rownum := IF(@grp = COALESCE(destination_id,''), @rownum + 1, 1)) AS rn,
-         (@grp := COALESCE(destination_id,'')) AS grp_marker
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY destination_id
+           ORDER BY display_order, created_at, id
+         ) AS rn
   FROM destination_media
   WHERE is_deleted = 0
-  ORDER BY COALESCE(destination_id,''), display_order, created_at, id
 ) x ON x.id = dm.id
 SET dm.display_order = x.rn
 WHERE dm.is_deleted = 0;
 
 -- season_cards: unique display_order per destination
-SET @rownum := 0;
-SET @grp := '';
 UPDATE season_cards sc
 JOIN (
-  SELECT id, destination_id,
-         (@rownum := IF(@grp = COALESCE(destination_id,''), @rownum + 1, 1)) AS rn,
-         (@grp := COALESCE(destination_id,'')) AS grp_marker
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY destination_id
+           ORDER BY display_order, created_at, id
+         ) AS rn
   FROM season_cards
   WHERE is_deleted = 0
-  ORDER BY COALESCE(destination_id,''), display_order, created_at, id
 ) x ON x.id = sc.id
 SET sc.display_order = x.rn
 WHERE sc.is_deleted = 0;
 
 -- main_packages: unique display_order per country
-SET @rownum := 0;
-SET @grp := '';
 UPDATE main_packages mp
 JOIN (
-  SELECT id, country,
-         (@rownum := IF(@grp = COALESCE(country,''), @rownum + 1, 1)) AS rn,
-         (@grp := COALESCE(country,'')) AS grp_marker
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY country
+           ORDER BY display_order, created_at, id
+         ) AS rn
   FROM main_packages
   WHERE is_deleted = 0
-  ORDER BY COALESCE(country,''), display_order, created_at, id
 ) x ON x.id = mp.id
 SET mp.display_order = x.rn
 WHERE mp.is_deleted = 0;
 
--- sub_packages: unique display_order per main_package_id
-SET @rownum := 0;
-SET @grp := '';
-UPDATE sub_packages sp
+-- packages linked as sub packages: unique display_order per main_package_id
+UPDATE packages p
 JOIN (
-  SELECT id, main_package_id,
-         (@rownum := IF(@grp = COALESCE(main_package_id,''), @rownum + 1, 1)) AS rn,
-         (@grp := COALESCE(main_package_id,'')) AS grp_marker
-  FROM sub_packages
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY main_package_id
+           ORDER BY display_order, created_at, id
+         ) AS rn
+  FROM packages
   WHERE is_deleted = 0
-  ORDER BY COALESCE(main_package_id,''), display_order, created_at, id
-) x ON x.id = sp.id
-SET sp.display_order = x.rn
-WHERE sp.is_deleted = 0;
+    AND main_package_id IS NOT NULL
+) x ON x.id = p.id
+SET p.display_order = x.rn
+WHERE p.is_deleted = 0
+  AND p.main_package_id IS NOT NULL;
 
 -- visa_destinations: unique display_order per country
-SET @rownum := 0;
-SET @grp := '';
 UPDATE visa_destinations vd
 JOIN (
-  SELECT id, country,
-         (@rownum := IF(@grp = COALESCE(country,''), @rownum + 1, 1)) AS rn,
-         (@grp := COALESCE(country,'')) AS grp_marker
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY country
+           ORDER BY display_order, created_at, id
+         ) AS rn
   FROM visa_destinations
   WHERE is_deleted = 0
-  ORDER BY COALESCE(country,''), display_order, created_at, id
 ) x ON x.id = vd.id
 SET vd.display_order = x.rn
 WHERE vd.is_deleted = 0;
 
 -- featured_picks: unique display_order per country
-SET @rownum := 0;
-SET @grp := '';
 UPDATE featured_picks fp
 JOIN (
-  SELECT id, country,
-         (@rownum := IF(@grp = COALESCE(country,''), @rownum + 1, 1)) AS rn,
-         (@grp := COALESCE(country,'')) AS grp_marker
+  SELECT id,
+         ROW_NUMBER() OVER (
+           PARTITION BY country
+           ORDER BY display_order, created_at, id
+         ) AS rn
   FROM featured_picks
   WHERE is_deleted = 0
-  ORDER BY COALESCE(country,''), display_order, created_at, id
 ) x ON x.id = fp.id
 SET fp.display_order = x.rn
 WHERE fp.is_deleted = 0;
@@ -176,8 +171,8 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
   (SELECT COUNT(*) FROM information_schema.statistics
-   WHERE table_schema = @db AND table_name = 'sub_packages' AND index_name = 'ux_sub_packages_main_display_order') = 0,
-  'CREATE UNIQUE INDEX ux_sub_packages_main_display_order ON sub_packages(main_package_id, display_order)',
+   WHERE table_schema = @db AND table_name = 'packages' AND index_name = 'ux_packages_main_display_order') = 0,
+  'CREATE UNIQUE INDEX ux_packages_main_display_order ON packages(main_package_id, display_order)',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

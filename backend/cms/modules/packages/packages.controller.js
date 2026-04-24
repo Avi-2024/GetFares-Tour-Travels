@@ -11,6 +11,12 @@ function createCmsPackagesController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
+      if (req.query.countryId) {
+        filters.countryId = req.query.countryId;
+      }
+      if (req.query.countryIds) {
+        filters.countryIds = req.query.countryIds;
+      }
       if (req.query.includeDeleted !== undefined) {
         filters.includeDeleted = req.query.includeDeleted === "true";
       }
@@ -26,6 +32,12 @@ function createCmsPackagesController({ service, uploadService }) {
       const filters = {};
       if (req.query.country) {
         filters.country = req.query.country;
+      }
+      if (req.query.countryId) {
+        filters.countryId = req.query.countryId;
+      }
+      if (req.query.countryIds) {
+        filters.countryIds = req.query.countryIds;
       }
       const packages = await service.listDeleted(filters);
       res.json({
@@ -149,6 +161,12 @@ function createCmsPackagesController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
+      if (req.query.countryId) {
+        filters.countryId = req.query.countryId;
+      }
+      if (req.query.countryIds) {
+        filters.countryIds = req.query.countryIds;
+      }
       if (req.query.isFeatured !== undefined) {
         filters.is_featured = req.query.isFeatured === "true";
       }
@@ -167,6 +185,12 @@ function createCmsPackagesController({ service, uploadService }) {
       const filters = {};
       if (req.query.country) {
         filters.country = req.query.country;
+      }
+      if (req.query.countryId) {
+        filters.countryId = req.query.countryId;
+      }
+      if (req.query.countryIds) {
+        filters.countryIds = req.query.countryIds;
       }
       const packages = await service.listDeletedMainPackages(filters);
       res.json({
@@ -188,6 +212,9 @@ function createCmsPackagesController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
+      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
+        payload.countryIds = [req.query.countryId];
+      }
 
       const pkg = await service.createMainPackage(payload);
       res.status(201).json({
@@ -200,6 +227,9 @@ function createCmsPackagesController({ service, uploadService }) {
       const payload = { ...req.body };
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
+      }
+      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
+        payload.countryIds = [req.query.countryId];
       }
 
       const pkg = await service.updateMainPackage(req.params.id, payload);
@@ -230,11 +260,20 @@ function createCmsPackagesController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
+      if (req.query.countryId) {
+        filters.countryId = req.query.countryId;
+      }
+      if (req.query.countryIds) {
+        filters.countryIds = req.query.countryIds;
+      }
       if (req.query.includeDeleted !== undefined) {
         filters.includeDeleted = req.query.includeDeleted === "true";
       }
 
-      const packages = await service.listSubPackages(req.params.mainPackageId, filters);
+      const packages = await service.listSubPackages(
+        req.params.mainPackageId,
+        filters,
+      );
       res.json({
         success: true,
         data: packages,
