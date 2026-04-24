@@ -692,8 +692,7 @@ const ReportsHubPage = () => {
       </SurfaceCard>
 
       <SurfaceCard className='w-full space-y-5 overflow-hidden border border-slate-200/70 bg-white shadow-[0_22px_44px_-30px_rgba(15,23,42,0.6)] dark:border-slate-800 dark:bg-slate-900'>
-        <div className='rounded-2xl border border-slate-800/70 bg-gradient-to-r from-slate-950 via-slate-900 to-blue-900 p-4 text-white sm:p-5'>
-          <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
+<div className="rounded-2xl border border-[#602FF7]/20 bg-gradient-to-r from-[#2d1b69] via-[#4c1d95] to-[#602FF7] p-4 text-white sm:p-5">          <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
             <div className='max-w-3xl'>
               <p className='text-[10px] uppercase tracking-[0.22em] text-blue-200'>
                 Active Report

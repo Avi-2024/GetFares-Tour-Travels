@@ -540,7 +540,7 @@ const VisaCasesPage = () => {
                     const daysToExpiry = getDaysToExpiry(row.visaValidUntil);
                     return (
                       <tr key={row.id} className="group transition-all duration-200 hover:bg-blue-50/30 dark:hover:bg-gray-800/40">
-                        <td className="px-5 py-4 text-sm font-medium text-blue-600 dark:text-blue-300">Case {shortId(row.id)}</td>
+                        <td className="px-5 py-4 text-sm font-medium text-[#b33aff] dark:text-blue-300">Case {shortId(row.id)}</td>
                         <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{getBookingLabel(row.bookingId)}</td>
                         <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.country}</td>
                         <td className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">{row.visaType}</td>
