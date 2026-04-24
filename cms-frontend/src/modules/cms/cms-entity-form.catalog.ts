@@ -77,6 +77,7 @@ interface CmsEntityFormDefinition {
 
 class CmsEntityFormCatalog {
   private static destinationRegionOptions: CmsFieldOption[] = [
+    { label: "All", value: "All" },
     { label: "Asia", value: "Asia" },
     { label: "Europe", value: "Europe" },
     { label: "Africa", value: "Africa" },
@@ -620,11 +621,12 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
-            key: "country",
-            label: "Country",
-            type: "select",
+            key: "countryIds",
+            label: "Countries",
+            type: "multi-select",
             options: CmsEntityFormCatalog.countryOptions,
             groupKey: "basic",
+            helperText: "Select one or more countries for this package.",
           },
           {
             key: "title",
@@ -761,9 +763,9 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
-            key: "country",
-            label: "Country",
-            type: "select",
+            key: "countryIds",
+            label: "Countries",
+            type: "multi-select",
             options: CmsEntityFormCatalog.countryOptions,
             groupKey: "basic",
             helperText: "Filter parent packages by country.",

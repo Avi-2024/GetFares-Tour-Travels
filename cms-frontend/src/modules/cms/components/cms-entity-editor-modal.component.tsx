@@ -483,18 +483,8 @@ class CmsEntityEditorModalComponent extends Component<
       );
     }
 
-    // Store full lists before filtering, then filter by pre-selected country (edit mode)
     const allDestinations = nextOptions.destinations;
     const allMainPackages = nextOptions["main-packages"];
-    const currentCountry = String(formValues["country"] ?? "");
-    if (currentCountry) {
-      if (allDestinations.length > 0) {
-        nextOptions.destinations = this.filterByCountry(allDestinations, currentCountry);
-      }
-      if (allMainPackages.length > 0) {
-        nextOptions["main-packages"] = this.filterByCountry(allMainPackages, currentCountry);
-      }
-    }
 
     if (this.props.entry && definition.mediaEnabled) {
       const entityType = this.cmsService.getMediaEntityType(
@@ -598,16 +588,6 @@ class CmsEntityEditorModalComponent extends Component<
     });
   }
 
-  private filterByCountry(
-    options: CmsFieldOption[],
-    country: string,
-  ): CmsFieldOption[] {
-    if (!country) return options;
-    return options.filter(
-      (option) => String(option.meta?.country ?? "") === country,
-    );
-  }
-
   private onFieldChange = (
     field: CmsEntityFieldDefinition,
     nextValue: unknown,
@@ -623,19 +603,7 @@ class CmsEntityEditorModalComponent extends Component<
         }
       }
 
-      let nextRelationOptions = prev.relationOptions;
-      if (field.key === "country") {
-        const country = String(nextValue ?? "");
-        nextRelationOptions = { ...prev.relationOptions };
-        if (prev.allDestinations.length > 0) {
-          nextRelationOptions.destinations = this.filterByCountry(prev.allDestinations, country);
-          formValues["destinationId"] = "";
-        }
-        if (prev.allMainPackages.length > 0) {
-          nextRelationOptions["main-packages"] = this.filterByCountry(prev.allMainPackages, country);
-          formValues["mainPackageId"] = "";
-        }
-      }
+      const nextRelationOptions = prev.relationOptions;
 
       return {
         formValues,
@@ -737,12 +705,6 @@ class CmsEntityEditorModalComponent extends Component<
     const payload: Record<string, unknown> = {};
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     definition.fields.forEach((field) => {
-      if (
-        this.props.sectionKey === "sub-packages" &&
-        field.key === "country"
-      ) {
-        return;
-      }
       const value = this.state.formValues[field.key];
       if (field.type === "number" || field.key === "displayOrder") {
         payload[field.key] = String(value ?? "").trim() ? Number(value) : null;

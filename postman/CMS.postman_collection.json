@@ -116,6 +116,18 @@
     {
       "key": "category",
       "value": "honeymoon"
+    },
+    {
+      "key": "countryId",
+      "value": "00000000-0000-0000-0000-000000000012"
+    },
+    {
+      "key": "countryIds",
+      "value": "[\"{{countryId}}\"]"
+    },
+    {
+      "key": "countryCode",
+      "value": "IN"
     }
   ],
   "item": [
@@ -265,6 +277,207 @@
           ]
         },
         {
+          "name": "Countries",
+          "item": [
+            {
+              "name": "List Countries",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Country By ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries/{{countryId}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries",
+                    "{{countryId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Country By Code",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries/code/{{countryCode}}?countryId={{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries",
+                    "code",
+                    "{{countryCode}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Country",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"India\",\n  \"code\": \"IND\",\n  \"codeAlpha2\": \"IN\",\n  \"currencyCode\": \"INR\",\n  \"currencySymbol\": \"Rs\",\n  \"phoneCode\": \"+91\",\n  \"isActive\": true,\n  \"displayOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let payload = {}; try { payload = pm.response.json(); } catch (e) {}",
+                      "const id = payload?.data?.id || payload?.id; if (id) pm.collectionVariables.set('countryId', String(id));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Country",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries/{{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries",
+                    "{{countryId}}"
+                  ],
+                  "query": []
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"displayOrder\": 2,\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete Country",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cms/countries/{{countryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "cms",
+                    "countries",
+                    "{{countryId}}"
+                  ],
+                  "query": []
+                }
+              }
+            }
+          ]
+        },
+        {
           "name": "Landing Places",
           "item": [
             {
@@ -282,14 +495,19 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms",
+                  "raw": "cms?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "cms"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -308,7 +526,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/deleted",
+                  "raw": "cms/deleted?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -316,7 +534,12 @@
                     "cms",
                     "deleted"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -335,7 +558,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/{{landingPlaceId}}",
+                  "raw": "cms/{{landingPlaceId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -343,7 +566,12 @@
                     "cms",
                     "{{landingPlaceId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -377,7 +605,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Maldives\",\n  \"slug\": \"maldives\",\n  \"subtitle\": \"Luxury Escape\",\n  \"description\": \"Premium island experiences.\",\n  \"tag\": \"luxury\",\n  \"ctaText\": \"View Details\",\n  \"ctaUrl\": \"/destinations/maldives\",\n  \"displayOrder\": 1,\n  \"isActive\": true,\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"country\": \"{{country}}\"\n}",
+                  "raw": "{\n  \"name\": \"Maldives\",\n  \"slug\": \"maldives\",\n  \"subtitle\": \"Luxury Escape\",\n  \"description\": \"Premium island experiences.\",\n  \"tag\": \"luxury\",\n  \"ctaText\": \"View Details\",\n  \"ctaUrl\": \"/destinations/maldives\",\n  \"displayOrder\": 1,\n  \"isActive\": true,\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -431,7 +659,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"subtitle\": \"Luxury Escape Updated\",\n  \"tag\": \"luxury-updated\"\n}",
+                  "raw": "{\n  \"subtitle\": \"Luxury Escape Updated\",\n  \"tag\": \"luxury-updated\",\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -624,7 +852,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations",
+                  "raw": "cms/destinations?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -632,7 +860,12 @@
                     "cms",
                     "destinations"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -651,7 +884,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/deleted",
+                  "raw": "cms/destinations/deleted?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -660,7 +893,12 @@
                     "destinations",
                     "deleted"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -679,7 +917,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}",
+                  "raw": "cms/destinations/{{destinationId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -688,7 +926,12 @@
                     "destinations",
                     "{{destinationId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -707,7 +950,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/slug/{{destinationSlug}}",
+                  "raw": "cms/destinations/slug/{{destinationSlug}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -717,7 +960,12 @@
                     "slug",
                     "{{destinationSlug}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -752,7 +1000,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Japan\",\n  \"slug\": \"japan\",\n  \"shortDescription\": \"Short description\",\n  \"description\": \"Long description\",\n  \"country\": \"{{country}}\",\n  \"region\": \"{{region}}\",\n  \"categories\": [\n    \"honeymoon\"\n  ],\n  \"seasonFocus\": [\n    \"summer\"\n  ],\n  \"titleImageUrl\": \"{{sampleImageUrl}}\",\n  \"heroImageUrl\": \"{{sampleImageUrl}}\",\n  \"thumbnailUrl\": \"{{sampleImageUrl}}\",\n  \"keyHighlights\": [\n    \"Highlight 1\"\n  ],\n  \"services\": [\n    {\n      \"title\": \"Checklist\",\n      \"description\": \"Checklist details\"\n    }\n  ],\n  \"bestTimeToVisit\": [\n    {\n      \"iconName\": \"cloud\",\n      \"color\": \"#2563EB\",\n      \"title\": \"Dry Season\",\n      \"from\": \"Nov\",\n      \"to\": \"Apr\",\n      \"description\": \"Good weather\",\n      \"suggestion\": \"Best Time\"\n    }\n  ],\n  \"isActive\": true\n}",
+                  "raw": "{\n  \"name\": \"Japan\",\n  \"slug\": \"japan\",\n  \"shortDescription\": \"Short description\",\n  \"description\": \"Long description\",\n  \"region\": \"{{region}}\",\n  \"categories\": [\n    \"honeymoon\"\n  ],\n  \"seasonFocus\": [\n    \"summer\"\n  ],\n  \"titleImageUrl\": \"{{sampleImageUrl}}\",\n  \"heroImageUrl\": \"{{sampleImageUrl}}\",\n  \"thumbnailUrl\": \"{{sampleImageUrl}}\",\n  \"keyHighlights\": [\n    \"Highlight 1\"\n  ],\n  \"services\": [\n    {\n      \"title\": \"Checklist\",\n      \"description\": \"Checklist details\"\n    }\n  ],\n  \"bestTimeToVisit\": [\n    {\n      \"iconName\": \"cloud\",\n      \"color\": \"#2563EB\",\n      \"title\": \"Dry Season\",\n      \"from\": \"Nov\",\n      \"to\": \"Apr\",\n      \"description\": \"Good weather\",\n      \"suggestion\": \"Best Time\"\n    }\n  ],\n  \"isActive\": true,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -811,7 +1059,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"shortDescription\": \"Updated short description\"\n}",
+                  "raw": "{\n  \"shortDescription\": \"Updated short description\",\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -963,7 +1211,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/media",
+                  "raw": "cms/destinations/{{destinationId}}/media?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -973,7 +1221,12 @@
                     "{{destinationId}}",
                     "media"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1152,7 +1405,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/destinations/{{destinationId}}/seasons",
+                  "raw": "cms/destinations/{{destinationId}}/seasons?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1162,7 +1415,12 @@
                     "{{destinationId}}",
                     "seasons"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1346,7 +1604,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/published",
+                  "raw": "cms/packages/published?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1355,7 +1613,12 @@
                     "packages",
                     "published"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1374,7 +1637,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/published/deleted",
+                  "raw": "cms/packages/published/deleted?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1384,7 +1647,12 @@
                     "published",
                     "deleted"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1403,7 +1671,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/published/{{packageId}}",
+                  "raw": "cms/packages/published/{{packageId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1413,7 +1681,12 @@
                     "published",
                     "{{packageId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1618,7 +1891,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main",
+                  "raw": "cms/packages/main?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1627,7 +1900,12 @@
                     "packages",
                     "main"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1646,7 +1924,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/deleted",
+                  "raw": "cms/packages/main/deleted?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1656,7 +1934,12 @@
                     "main",
                     "deleted"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1675,7 +1958,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}",
+                  "raw": "cms/packages/main/{{mainPackageId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1685,7 +1968,12 @@
                     "main",
                     "{{mainPackageId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1721,7 +2009,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Maldives Parent Package\",\n  \"amountCurrency\": \"INR\",\n  \"amount\": 20999,\n  \"destinationId\": \"{{destinationId}}\",\n  \"country\": \"{{country}}\",\n  \"description\": \"Parent package description\",\n  \"highlights\": [\n    \"Top highlight\"\n  ],\n  \"features\": [\n    {\n      \"iconName\": \"timer\",\n      \"description\": \"4 Days / 3 Nights\"\n    }\n  ],\n  \"inclusions\": [\n    {\n      \"iconName\": \"hotel\",\n      \"description\": \"Hotel\"\n    }\n  ],\n  \"metaTitle\": \"SEO title\",\n  \"metaDescription\": \"SEO desc\",\n  \"keywords\": \"maldives,luxury\",\n  \"displayOrder\": 1,\n  \"isFeatured\": true\n}",
+                  "raw": "{\n  \"title\": \"Maldives Parent Package\",\n  \"amountCurrency\": \"INR\",\n  \"amount\": 20999,\n  \"destinationId\": \"{{destinationId}}\",\n  \"description\": \"Parent package description\",\n  \"highlights\": [\n    \"Top highlight\"\n  ],\n  \"features\": [\n    {\n      \"iconName\": \"timer\",\n      \"description\": \"4 Days / 3 Nights\"\n    }\n  ],\n  \"inclusions\": [\n    {\n      \"iconName\": \"hotel\",\n      \"description\": \"Hotel\"\n    }\n  ],\n  \"metaTitle\": \"SEO title\",\n  \"metaDescription\": \"SEO desc\",\n  \"keywords\": \"maldives,luxury\",\n  \"displayOrder\": 1,\n  \"isFeatured\": true,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1777,7 +2065,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"description\": \"Updated description\",\n  \"highlights\": [\n    \"Updated highlight\"\n  ]\n}",
+                  "raw": "{\n  \"description\": \"Updated description\",\n  \"highlights\": [\n    \"Updated highlight\"\n  ],\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1890,7 +2178,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/main/{{mainPackageId}}/sub",
+                  "raw": "cms/packages/main/{{mainPackageId}}/sub?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1901,7 +2189,12 @@
                     "{{mainPackageId}}",
                     "sub"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1920,7 +2213,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/sub/deleted",
+                  "raw": "cms/packages/sub/deleted?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1930,7 +2223,12 @@
                     "sub",
                     "deleted"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -1949,7 +2247,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/packages/sub/{{subPackageId}}",
+                  "raw": "cms/packages/sub/{{subPackageId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -1959,7 +2257,12 @@
                     "sub",
                     "{{subPackageId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2169,7 +2472,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa",
+                  "raw": "cms/visa?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2177,7 +2480,12 @@
                     "cms",
                     "visa"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2196,7 +2504,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/deleted",
+                  "raw": "cms/visa/deleted?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2205,7 +2513,12 @@
                     "visa",
                     "deleted"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2224,7 +2537,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/{{visaDestinationId}}",
+                  "raw": "cms/visa/{{visaDestinationId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2233,7 +2546,12 @@
                     "visa",
                     "{{visaDestinationId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2252,7 +2570,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/visa/slug/{{visaSlug}}",
+                  "raw": "cms/visa/slug/{{visaSlug}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2262,7 +2580,12 @@
                     "slug",
                     "{{visaSlug}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2297,7 +2620,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Schengen Visa\",\n  \"slug\": \"schengen-visa\",\n  \"country\": \"{{country}}\",\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"subDescription\": \"Visa short description\",\n  \"priceCurrency\": \"EUR\",\n  \"priceAmount\": 199,\n  \"highlights\": [\n    \"Highlight 1\"\n  ],\n  \"overviewTitle\": \"Overview\",\n  \"overviewDescription\": \"Overview text\",\n  \"quickSupportTitle\": \"Quick Support\",\n  \"quickSupportDescription\": \"Support text\",\n  \"supportIncluded\": [\n    \"Support item\"\n  ],\n  \"visaDetails\": [\n    {\n      \"title\": \"Processing\",\n      \"description\": \"5 days\"\n    }\n  ],\n  \"requirements\": [\n    \"Passport\"\n  ],\n  \"metaTitle\": \"Visa meta\",\n  \"metaDescription\": \"Visa meta description\",\n  \"keywords\": \"visa,schengen\",\n  \"displayOrder\": 1,\n  \"isActive\": true\n}",
+                  "raw": "{\n  \"title\": \"Schengen Visa\",\n  \"slug\": \"schengen-visa\",\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"subDescription\": \"Visa short description\",\n  \"priceCurrency\": \"EUR\",\n  \"priceAmount\": 199,\n  \"highlights\": [\n    \"Highlight 1\"\n  ],\n  \"overviewTitle\": \"Overview\",\n  \"overviewDescription\": \"Overview text\",\n  \"quickSupportTitle\": \"Quick Support\",\n  \"quickSupportDescription\": \"Support text\",\n  \"supportIncluded\": [\n    \"Support item\"\n  ],\n  \"visaDetails\": [\n    {\n      \"title\": \"Processing\",\n      \"description\": \"5 days\"\n    }\n  ],\n  \"requirements\": [\n    \"Passport\"\n  ],\n  \"metaTitle\": \"Visa meta\",\n  \"metaDescription\": \"Visa meta description\",\n  \"keywords\": \"visa,schengen\",\n  \"displayOrder\": 1,\n  \"isActive\": true,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2356,7 +2679,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"priceCurrency\": \"INR\",\n  \"priceAmount\": 14999\n}",
+                  "raw": "{\n  \"priceCurrency\": \"INR\",\n  \"priceAmount\": 14999,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2513,7 +2836,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit",
+                  "raw": "cms/experience/creative-toolkit?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2522,7 +2845,12 @@
                     "experience",
                     "creative-toolkit"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2541,7 +2869,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/deleted",
+                  "raw": "cms/experience/creative-toolkit/deleted?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2551,7 +2879,12 @@
                     "creative-toolkit",
                     "deleted"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2570,7 +2903,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/creative-toolkit/{{featuredPickId}}",
+                  "raw": "cms/experience/creative-toolkit/{{featuredPickId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2580,7 +2913,12 @@
                     "creative-toolkit",
                     "{{featuredPickId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2616,7 +2954,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Summer Offer\",\n  \"slug\": \"summer-offer\",\n  \"subtitle\": \"Limited Deal\",\n  \"category\": \"offers\",\n  \"campaignType\": \"featured\",\n  \"sectionKey\": \"featured-hot-picks\",\n  \"referenceId\": \"{{packageId}}\",\n  \"country\": \"{{country}}\",\n  \"rating\": 4.8,\n  \"offerCurrency\": \"AED\",\n  \"originalPrice\": 5299,\n  \"discountedPrice\": 4199,\n  \"badgeText\": \"discounted\",\n  \"duration\": \"5D/4N\",\n  \"description\": \"Offer description\",\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"buttonText\": \"Book now\",\n  \"ctaUrl\": \"/offers/summer\",\n  \"expiresOn\": \"2026-12-31\",\n  \"tags\": [\n    \"summer\"\n  ],\n  \"highlights\": [\n    \"Limited seats\"\n  ],\n  \"displayOrder\": 1,\n  \"isActive\": true\n}",
+                  "raw": "{\n  \"title\": \"Summer Offer\",\n  \"slug\": \"summer-offer\",\n  \"subtitle\": \"Limited Deal\",\n  \"category\": \"offers\",\n  \"campaignType\": \"featured\",\n  \"sectionKey\": \"featured-hot-picks\",\n  \"referenceId\": \"{{packageId}}\",\n  \"rating\": 4.8,\n  \"offerCurrency\": \"AED\",\n  \"originalPrice\": 5299,\n  \"discountedPrice\": 4199,\n  \"badgeText\": \"discounted\",\n  \"duration\": \"5D/4N\",\n  \"description\": \"Offer description\",\n  \"imageUrl\": \"{{sampleImageUrl}}\",\n  \"buttonText\": \"Book now\",\n  \"ctaUrl\": \"/offers/summer\",\n  \"expiresOn\": \"2026-12-31\",\n  \"tags\": [\n    \"summer\"\n  ],\n  \"highlights\": [\n    \"Limited seats\"\n  ],\n  \"displayOrder\": 1,\n  \"isActive\": true,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2672,7 +3010,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"offerCurrency\": \"INR\",\n  \"originalPrice\": 99999,\n  \"discountedPrice\": 79999\n}",
+                  "raw": "{\n  \"offerCurrency\": \"INR\",\n  \"originalPrice\": 99999,\n  \"discountedPrice\": 79999,\n  \"countryIds\": [\n    \"{{countryId}}\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2828,7 +3166,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards",
+                  "raw": "cms/experience/season-cards?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2837,7 +3175,12 @@
                     "experience",
                     "season-cards"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2856,7 +3199,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards/deleted",
+                  "raw": "cms/experience/season-cards/deleted?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2866,7 +3209,12 @@
                     "season-cards",
                     "deleted"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -2885,7 +3233,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/season-cards/{{seasonCardId}}",
+                  "raw": "cms/experience/season-cards/{{seasonCardId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2895,7 +3243,12 @@
                     "season-cards",
                     "{{seasonCardId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -3143,7 +3496,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/experience/hero-sections",
+                  "raw": "cms/experience/hero-sections?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3152,7 +3505,12 @@
                     "experience",
                     "hero-sections"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },
@@ -3271,7 +3629,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/media",
+                  "raw": "cms/media?entityType=destination&entityId={{destinationId}}&countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3287,6 +3645,10 @@
                     {
                       "key": "entityId",
                       "value": "{{destinationId}}"
+                    },
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
                     }
                   ]
                 }
@@ -3398,7 +3760,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/cms/media/{{mediaAssetId}}",
+                  "raw": "cms/media/{{mediaAssetId}}?countryId={{countryId}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -3407,7 +3769,12 @@
                     "media",
                     "{{mediaAssetId}}"
                   ],
-                  "query": []
+                  "query": [
+                    {
+                      "key": "countryId",
+                      "value": "{{countryId}}"
+                    }
+                  ]
                 }
               }
             },

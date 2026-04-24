@@ -2,6 +2,30 @@ import { AppError } from "../../core/middlewares/errorHandler.js";
 import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 
 function createExperienceService({ repository }) {
+  function parseCountryIds(value) {
+    const parsed = parseJsonValue(value, value);
+    const source =
+      Array.isArray(parsed) ? parsed
+      : typeof parsed === "string" ? parsed.split(",")
+      : [];
+    return Array.from(
+      new Set(
+        source
+          .map((item) => normalizeText(item))
+          .filter((item) => Boolean(item)),
+      ),
+    );
+  }
+
+  function includesCountryId(countryIds, countryId) {
+    if (!countryId) return true;
+    return (countryIds || []).some(
+      (item) =>
+        String(item).trim().toLowerCase() ===
+        String(countryId).trim().toLowerCase(),
+    );
+  }
+
   function parseJsonValue(value, fallback) {
     if (value === null || value === undefined) {
       return fallback;
@@ -21,6 +45,7 @@ function createExperienceService({ repository }) {
     const tags = parseJsonValue(row.tags, []);
     const highlights = parseJsonValue(row.highlights, []);
     const metadata = parseJsonValue(row.metadata, {});
+    const countryIds = parseCountryIds(row.country_ids);
 
     return {
       id: row.id,
@@ -31,7 +56,11 @@ function createExperienceService({ repository }) {
       campaignType: row.campaign_type || "featured",
       sectionKey: row.section_key || "featured-hot-picks",
       referenceId: row.reference_id,
+      referenceName: normalizeText(row.reference_name),
+      reference:
+        normalizeText(row.reference_name) || normalizeText(row.reference_id),
       country: row.country,
+      countryIds,
       rating: row.rating ? Number(row.rating) : 0,
       badgeText: row.badge_text,
       offerCurrency: row.offer_currency || null,
@@ -105,16 +134,24 @@ function createExperienceService({ repository }) {
 
   return Object.freeze({
     async listFeaturedPicks(filters = {}) {
-      const rows = await repository.findFeaturedPicks(filters);
+      const { countryId, countryIds, ...repositoryFilters } = filters;
+      const rows = await repository.findFeaturedPicks(repositoryFilters);
+      const requestedCountryId =
+        normalizeText(countryId) || parseCountryIds(countryIds)[0] || null;
       return rows
         .map(toFeaturedPick)
+        .filter((row) => includesCountryId(row.countryIds, requestedCountryId))
         .sort((first, second) => first.displayOrder - second.displayOrder);
     },
 
     async listDeletedFeaturedPicks(filters = {}) {
-      const rows = await repository.findDeletedFeaturedPicks(filters);
+      const { countryId, countryIds, ...repositoryFilters } = filters;
+      const rows = await repository.findDeletedFeaturedPicks(repositoryFilters);
+      const requestedCountryId =
+        normalizeText(countryId) || parseCountryIds(countryIds)[0] || null;
       return rows
         .map(toFeaturedPick)
+        .filter((row) => includesCountryId(row.countryIds, requestedCountryId))
         .sort((first, second) => first.displayOrder - second.displayOrder);
     },
 
@@ -128,10 +165,13 @@ function createExperienceService({ repository }) {
 
     async createFeaturedPick(data) {
       const country = normalizeText(data.country);
-      if (!country) {
+      const countryIds = parseCountryIds(
+        data.countryIds ?? data.country_ids ?? data.countryId,
+      );
+      if (!country && !countryIds.length) {
         throw new AppError(
           400,
-          "Country is required for featured pick",
+          "At least one country or countryId is required for featured pick",
           "COUNTRY_REQUIRED",
         );
       }
@@ -145,6 +185,7 @@ function createExperienceService({ repository }) {
         section_key: normalizeText(data.sectionKey || "featured-hot-picks"),
         reference_id: normalizeText(data.referenceId),
         country,
+        country_ids: countryIds,
         rating: toNumber(data.rating, 0),
         badge_text: normalizeText(data.badgeText),
         offer_currency: normalizeText(data.offerCurrency || "INR"),
@@ -198,6 +239,15 @@ function createExperienceService({ repository }) {
           throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
         }
         updates.country = country;
+      }
+      if (
+        data.countryIds !== undefined ||
+        data.country_ids !== undefined ||
+        data.countryId !== undefined
+      ) {
+        updates.country_ids = parseCountryIds(
+          data.countryIds ?? data.country_ids ?? data.countryId,
+        );
       }
       if (data.rating !== undefined) updates.rating = toNumber(data.rating, 0);
       if (data.badgeText !== undefined) {

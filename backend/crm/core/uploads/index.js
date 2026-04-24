@@ -1,6 +1,6 @@
 import multer from "multer";
 
-function createMemoryUpload({ maxFileSizeMb = 10 } = {}) {
+function createMemoryUpload({ maxFileSizeMb = 1024 } = {}) {
   const normalized =
     Number.isFinite(Number(maxFileSizeMb)) && Number(maxFileSizeMb) > 0 ?
       Number(maxFileSizeMb)
