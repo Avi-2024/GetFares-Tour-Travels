@@ -77,6 +77,7 @@ interface CmsEntityFormDefinition {
 
 class CmsEntityFormCatalog {
   private static destinationRegionOptions: CmsFieldOption[] = [
+    { label: "All", value: "All" },
     { label: "Asia", value: "Asia" },
     { label: "Europe", value: "Europe" },
     { label: "Africa", value: "Africa" },

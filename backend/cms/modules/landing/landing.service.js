@@ -4,6 +4,32 @@ import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
 function createLandingService({ repository }) {
   const MAX_ACTIVE_LANDING_PLACES = 4;
 
+  function parseCountryIds(value) {
+    if (value === null || value === undefined) {
+      return [];
+    }
+    const source =
+      Array.isArray(value) ? value
+      : typeof value === "string" ? value.split(",")
+      : [];
+    return Array.from(
+      new Set(
+        source
+          .map((item) => normalizeText(item))
+          .filter((item) => Boolean(item)),
+      ),
+    );
+  }
+
+  function includesCountryId(countryIds, countryId) {
+    if (!countryId) return true;
+    return (countryIds || []).some(
+      (item) =>
+        String(item).trim().toLowerCase() ===
+        String(countryId).trim().toLowerCase(),
+    );
+  }
+
   function isActiveValue(value) {
     if (typeof value === "boolean") return value;
     if (typeof value === "number") return value === 1;
@@ -62,11 +88,13 @@ function createLandingService({ repository }) {
 
   function toLandingPlace(row) {
     if (!row) return null;
+    const countryIds = parseCountryIds(row.country_ids);
     return {
       id: row.id,
       title: row.name,
       name: row.name,
       country: row.country ?? null,
+      countryIds,
       description: row.tag ?? null,
       tag: row.tag,
       image: row.image_url,
@@ -82,16 +110,27 @@ function createLandingService({ repository }) {
 
   return Object.freeze({
     async list(filters = {}) {
-      const rows = await repository.findAll(filters);
+      const { countryId, countryIds, ...repositoryFilters } = filters;
+      const rows = await repository.findAll(repositoryFilters);
+      const requestedCountryId =
+        normalizeText(countryId) || parseCountryIds(countryIds)[0] || null;
       return rows
         .map(toLandingPlace)
+        .filter((row) => includesCountryId(row.countryIds, requestedCountryId))
         .sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
     async listDeleted(filters = {}) {
-      const rows = await repository.findAll({ ...filters, is_deleted: true });
+      const { countryId, countryIds, ...repositoryFilters } = filters;
+      const rows = await repository.findAll({
+        ...repositoryFilters,
+        is_deleted: true,
+      });
+      const requestedCountryId =
+        normalizeText(countryId) || parseCountryIds(countryIds)[0] || null;
       return rows
         .map(toLandingPlace)
+        .filter((row) => includesCountryId(row.countryIds, requestedCountryId))
         .sort((a, b) => a.displayOrder - b.displayOrder);
     },
 
@@ -105,11 +144,20 @@ function createLandingService({ repository }) {
 
     async create(data) {
       const country = normalizeText(data.country);
+      const countryIds = parseCountryIds(
+        data.countryIds ?? data.country_ids ?? data.countryId,
+      );
       const supportsCountry = await repository.supportsCountry();
-      if (supportsCountry && !country) {
+      const supportsCountryIds = await repository.supportsCountryIds();
+      if (
+        supportsCountry &&
+        supportsCountryIds &&
+        !country &&
+        !countryIds.length
+      ) {
         throw new AppError(
           400,
-          "Country is required for landing place",
+          "At least one country or countryId is required for landing place",
           "COUNTRY_REQUIRED",
         );
       }
@@ -139,6 +187,7 @@ function createLandingService({ repository }) {
       const row = await repository.create({
         name: title,
         ...(supportsCountry ? { country } : {}),
+        ...(supportsCountryIds ? { country_ids: countryIds } : {}),
         tag: normalizeText(data.tag ?? data.subtitle ?? data.description),
         image_url: imageUrl,
         display_order: displayOrder,
@@ -156,10 +205,20 @@ function createLandingService({ repository }) {
 
       const updates = {};
       const supportsCountry = await repository.supportsCountry();
+      const supportsCountryIds = await repository.supportsCountryIds();
       const incomingCountry =
         supportsCountry && data.country !== undefined ?
           normalizeText(data.country)
         : normalizeText(existing.country);
+      const incomingCountryIds =
+        (
+          supportsCountryIds &&
+          (data.countryIds !== undefined ||
+            data.countryId !== undefined ||
+            data.country_ids !== undefined)
+        ) ?
+          parseCountryIds(data.countryIds ?? data.country_ids ?? data.countryId)
+        : parseCountryIds(existing.country_ids);
       const nextIsActive =
         data.isActive !== undefined ?
           toBoolean(data.isActive, true)
@@ -167,6 +226,20 @@ function createLandingService({ repository }) {
 
       if (supportsCountry && data.country !== undefined && !incomingCountry) {
         throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
+      }
+      if (
+        supportsCountryIds &&
+        (data.countryIds !== undefined ||
+          data.countryId !== undefined ||
+          data.country_ids !== undefined) &&
+        !incomingCountryIds.length &&
+        !incomingCountry
+      ) {
+        throw new AppError(
+          400,
+          "At least one countryId is required",
+          "INVALID_COUNTRY_IDS",
+        );
       }
 
       if (nextIsActive) {
@@ -178,6 +251,14 @@ function createLandingService({ repository }) {
       }
       if (supportsCountry && data.country !== undefined) {
         updates.country = incomingCountry;
+      }
+      if (
+        supportsCountryIds &&
+        (data.countryIds !== undefined ||
+          data.countryId !== undefined ||
+          data.country_ids !== undefined)
+      ) {
+        updates.country_ids = incomingCountryIds;
       }
       if (
         data.tag !== undefined ||

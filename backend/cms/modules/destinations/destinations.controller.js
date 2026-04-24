@@ -52,6 +52,8 @@ function createDestinationsController({ service, uploadService }) {
     list: asyncHandler(async (req, res) => {
       const filters = {};
       if (req.query.country) filters.country = req.query.country;
+      if (req.query.countryId) filters.countryId = req.query.countryId;
+      if (req.query.countryIds) filters.countryIds = req.query.countryIds;
       if (req.query.region) filters.region = req.query.region;
       if (req.query.category) filters.category = req.query.category;
       if (req.query.isActive !== undefined)
@@ -72,6 +74,8 @@ function createDestinationsController({ service, uploadService }) {
     listDeleted: asyncHandler(async (req, res) => {
       const filters = {};
       if (req.query.country) filters.country = req.query.country;
+      if (req.query.countryId) filters.countryId = req.query.countryId;
+      if (req.query.countryIds) filters.countryIds = req.query.countryIds;
       const destinations = await service.listDeleted(filters);
       res.json({
         success: true,
@@ -107,6 +111,9 @@ function createDestinationsController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
+      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
+        payload.countryIds = [req.query.countryId];
+      }
       const bannerFile = getFirstRequestFile(req, [
         "bannerImage",
         "heroImage",
@@ -129,9 +136,12 @@ function createDestinationsController({ service, uploadService }) {
           required: false,
         });
         payload.media = {
-          ...(payload.media && typeof payload.media === "object" ? payload.media : {}),
+          ...(payload.media && typeof payload.media === "object" ?
+            payload.media
+          : {}),
           title_image: bannerUpload?.url || payload.media?.title_image || null,
-          gallery: Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
+          gallery:
+            Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
         };
       }
 
@@ -163,6 +173,9 @@ function createDestinationsController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
+      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
+        payload.countryIds = [req.query.countryId];
+      }
       const bannerFile = getFirstRequestFile(req, [
         "bannerImage",
         "heroImage",
@@ -185,9 +198,12 @@ function createDestinationsController({ service, uploadService }) {
           required: false,
         });
         payload.media = {
-          ...(payload.media && typeof payload.media === "object" ? payload.media : {}),
+          ...(payload.media && typeof payload.media === "object" ?
+            payload.media
+          : {}),
           title_image: bannerUpload?.url || payload.media?.title_image || null,
-          gallery: Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
+          gallery:
+            Array.isArray(payload.media?.gallery) ? payload.media.gallery : [],
         };
       }
 

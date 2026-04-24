@@ -10,7 +10,9 @@ function resolveAzureStorageConnectionString() {
   if (!name || !key) {
     return undefined;
   }
-  const suffix = String(env.AZURE_STORAGE_ENDPOINT_SUFFIX || "core.windows.net").trim() || "core.windows.net";
+  const suffix =
+    String(env.AZURE_STORAGE_ENDPOINT_SUFFIX || "core.windows.net").trim() ||
+    "core.windows.net";
   return `DefaultEndpointsProtocol=https;AccountName=${name};AccountKey=${key};EndpointSuffix=${suffix}`;
 }
 
@@ -114,7 +116,8 @@ const config = Object.freeze({
       leadFollowupReminder: env.AUTOMATION_LEAD_FOLLOWUP_REMINDER_INTERVAL_MS,
       leadQueue: env.AUTOMATION_LEAD_QUEUE_INTERVAL_MS,
       quotationReminders: env.AUTOMATION_QUOTATION_REMINDERS_INTERVAL_MS,
-      bookingTravelReminders: env.AUTOMATION_BOOKING_TRAVEL_REMINDERS_INTERVAL_MS,
+      bookingTravelReminders:
+        env.AUTOMATION_BOOKING_TRAVEL_REMINDERS_INTERVAL_MS,
       bookingDeadlines: env.AUTOMATION_BOOKING_DEADLINES_INTERVAL_MS,
       supplierPayables: env.AUTOMATION_SUPPLIER_PAYABLE_INTERVAL_MS,
     },
@@ -125,17 +128,21 @@ const config = Object.freeze({
     publicRead: env.AZURE_STORAGE_PUBLIC_READ ?? false,
     publicBaseUrl: env.AZURE_STORAGE_PUBLIC_BASE_URL,
     uploadPrefix: env.AZURE_STORAGE_UPLOAD_PREFIX,
-    maxUploadSizeMb: env.UPLOAD_MAX_SIZE_MB || 10,
+    maxUploadSizeMb: env.UPLOAD_MAX_SIZE_MB || 1024,
   },
   uploads: {
-    maxFileSizeMb: env.UPLOAD_MAX_SIZE_MB || 10,
+    maxFileSizeMb: env.UPLOAD_MAX_SIZE_MB || 1024,
   },
   currency: {
     apiKey: env.CURRENCY_API_KEY,
-    useMock: env.CURRENCY_USE_MOCK === 'true',
+    useMock: env.CURRENCY_USE_MOCK === "true",
     baseCurrency: env.CURRENCY_BASE,
     supportedCurrencies: env.CURRENCY_SUPPORTED.split(",")
-      .map((currency) => String(currency || "").trim().toUpperCase())
+      .map((currency) =>
+        String(currency || "")
+          .trim()
+          .toUpperCase(),
+      )
       .filter(Boolean),
   },
 });
