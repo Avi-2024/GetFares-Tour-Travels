@@ -177,7 +177,7 @@ const SidebarComponent = ({
     <motion.aside
       animate={{ width: desktopWidth }}
       transition={{ type: "spring", stiffness: 220, damping: 30 }}
-      className="sticky top-0 z-30 flex h-screen shrink-0 flex-col border-r border-(--border) bg-(--surface-muted) px-3 py-4 backdrop-blur-xl relative"
+      className="flex h-full shrink-0 flex-col border-r border-(--border) bg-(--surface-muted) px-3 py-4 backdrop-blur-xl relative"
     >
       <div className="mb-4 flex items-center justify-between gap-2 px-2">
         <div className="flex items-center gap-3 overflow-hidden">
@@ -192,7 +192,7 @@ const SidebarComponent = ({
         </div>
       </div>
 
-      <div className="space-y-5 overflow-y-auto pb-3 pr-1 hide-scrollbar">
+      <div className="flex-1 space-y-5 overflow-y-auto pb-3 pr-1 hide-scrollbar">
         {visibleSections.map(renderSection)}
       </div>
 

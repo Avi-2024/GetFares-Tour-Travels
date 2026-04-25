@@ -68,7 +68,7 @@ const AppShellComponent = ({
   }, [mobileSidebarOpen]);
 
   return (
-    <div className="flex min-h-dvh w-full max-w-[100vw] overflow-x-clip bg-(--background) text-(--text-primary)">
+    <div className="flex h-screen w-full  overflow-hidden bg-(--background) text-(--text-primary)">
       <SidebarComponent
         isDesktop={isDesktop}
         collapsed={sidebarCollapsed}
@@ -76,7 +76,7 @@ const AppShellComponent = ({
         onCloseMobile={() => setMobileSidebarOpen(false)}
         onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
       />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
         <TopbarComponent
           title={title}
           subtitle={subtitle}
@@ -84,7 +84,7 @@ const AppShellComponent = ({
           showMenuButton={!isDesktop}
           onMenuClick={() => setMobileSidebarOpen(true)}
         />
-        <main className="mx-auto w-full max-w-525 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-4 md:px-6 lg:px-8 lg:pb-8 2xl:px-10">
+        <main className="flex-1 overflow-y-auto mx-auto w-full max-w-525 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-4 md:px-6 lg:px-8 lg:pb-8 2xl:px-10">
           {children}
         </main>
       </div>
