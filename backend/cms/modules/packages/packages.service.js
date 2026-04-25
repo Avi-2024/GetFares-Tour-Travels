@@ -1,10 +1,11 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
 import {
+  findDisplayOrderConflict,
+  normalizeDisplayOrderInput,
   normalizeText,
   toBoolean,
   toNumber,
   toSlug,
-  isDisplayOrderUnique,
 } from "../../core/utils/index.js";
 
 function createCmsPackagesService({ repository }) {
@@ -330,6 +331,51 @@ function createCmsPackagesService({ repository }) {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  async function reassignMainPackageDisplayOrder({
+    displayOrder,
+    country,
+    excludeId = null,
+  }) {
+    const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
+    if (normalizedOrder < 0) {
+      return normalizedOrder;
+    }
+    const rows = await repository.findAllMainPackages({
+      includeDeleted: true,
+      ...(country ? { country } : {}),
+    });
+    const duplicate = findDisplayOrderConflict(
+      normalizedOrder,
+      rows,
+      excludeId,
+    );
+    if (duplicate) {
+      await repository.updateMainPackage(duplicate.id, { display_order: -1 });
+    }
+    return normalizedOrder;
+  }
+
+  async function reassignSubPackageDisplayOrder({
+    displayOrder,
+    mainPackageId,
+    excludeId = null,
+  }) {
+    const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
+    if (normalizedOrder < 0 || !mainPackageId) {
+      return normalizedOrder;
+    }
+    const rows = await repository.findSubPackages(mainPackageId, true);
+    const duplicate = findDisplayOrderConflict(
+      normalizedOrder,
+      rows,
+      excludeId,
+    );
+    if (duplicate) {
+      await repository.updateSubPackage(duplicate.id, { display_order: -1 });
+    }
+    return normalizedOrder;
   }
 
   return Object.freeze({
@@ -719,14 +765,13 @@ function createCmsPackagesService({ repository }) {
       const countryIds = parseCountryIds(
         data.countryIds ?? data.country_ids ?? data.countryId,
       );
+      const resolvedCountry =
+        normalizeText(data.country) || normalizeText(destination?.country) || null;
       let row;
       try {
         row = await repository.createMainPackage({
           destination_id: destinationId || null,
-          country:
-            normalizeText(data.country) ||
-            normalizeText(destination?.country) ||
-            null,
+          country: resolvedCountry,
           country_ids: countryIds,
           title,
           amount: toNumber(data.amount, 0),
@@ -738,7 +783,10 @@ function createCmsPackagesService({ repository }) {
           meta_title: normalizeText(data.metaTitle),
           meta_description: normalizeText(data.metaDescription),
           keywords: normalizeText(data.keywords),
-          display_order: toNumber(data.displayOrder, 0),
+          display_order: await reassignMainPackageDisplayOrder({
+            displayOrder: data.displayOrder,
+            country: resolvedCountry,
+          }),
           is_featured: toBoolean(data.isFeatured, false),
         });
       } catch (error) {
@@ -789,6 +837,10 @@ function createCmsPackagesService({ repository }) {
       }
 
       const updates = {};
+      const nextCountry =
+        data.country !== undefined ?
+          normalizeText(data.country)
+        : normalizeText(existing.country);
       if (data.destinationId !== undefined) {
         const destinationId = normalizeText(data.destinationId);
         if (!destinationId) {
@@ -809,11 +861,10 @@ function createCmsPackagesService({ repository }) {
         updates.destination_id = destinationId;
       }
       if (data.country !== undefined) {
-        const country = normalizeText(data.country);
-        if (!country) {
+        if (!nextCountry) {
           throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
         }
-        updates.country = country;
+        updates.country = nextCountry;
       }
       if (
         data.countryIds !== undefined ||
@@ -861,7 +912,18 @@ function createCmsPackagesService({ repository }) {
         updates.keywords = normalizeText(data.keywords);
       }
       if (data.displayOrder !== undefined)
-        updates.display_order = toNumber(data.displayOrder);
+        updates.display_order = await reassignMainPackageDisplayOrder({
+          displayOrder: data.displayOrder,
+          country: nextCountry,
+          excludeId: id,
+        });
+      if (data.displayOrder === undefined && data.country !== undefined) {
+        updates.display_order = await reassignMainPackageDisplayOrder({
+          displayOrder: existing.display_order,
+          country: nextCountry,
+          excludeId: id,
+        });
+      }
       if (data.isFeatured !== undefined)
         updates.is_featured = toBoolean(data.isFeatured, false);
 
@@ -1049,7 +1111,10 @@ function createCmsPackagesService({ repository }) {
         package_category: "sub",
         status: normalizeText(data.status || "DRAFT"),
         publish_to_website: toBoolean(data.publishToWebsite, false),
-        display_order: toNumber(data.displayOrder, 0),
+        display_order: await reassignSubPackageDisplayOrder({
+          displayOrder: data.displayOrder,
+          mainPackageId: data.mainPackageId,
+        }),
       });
 
       return toSubPackage(row);
@@ -1069,6 +1134,8 @@ function createCmsPackagesService({ repository }) {
       }
 
       const updates = {};
+      const nextMainPackageId =
+        normalizeText(data.mainPackageId) || normalizeText(existing.main_package_id);
       if (data.mainPackageId !== undefined) {
         const mainPackage = await repository.findMainPackageById(
           data.mainPackageId,
@@ -1173,7 +1240,18 @@ function createCmsPackagesService({ repository }) {
       if (data.keywords !== undefined)
         updates.keywords = normalizeText(data.keywords);
       if (data.displayOrder !== undefined)
-        updates.display_order = toNumber(data.displayOrder);
+        updates.display_order = await reassignSubPackageDisplayOrder({
+          displayOrder: data.displayOrder,
+          mainPackageId: nextMainPackageId,
+          excludeId: id,
+        });
+      if (data.displayOrder === undefined && data.mainPackageId !== undefined) {
+        updates.display_order = await reassignSubPackageDisplayOrder({
+          displayOrder: existing.display_order,
+          mainPackageId: nextMainPackageId,
+          excludeId: id,
+        });
+      }
 
       const updated = await repository.updateSubPackage(id, updates);
       return toSubPackage(updated);

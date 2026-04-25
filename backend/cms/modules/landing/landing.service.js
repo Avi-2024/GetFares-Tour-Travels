@@ -1,5 +1,11 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
+import {
+  findDisplayOrderConflict,
+  normalizeDisplayOrderInput,
+  normalizeText,
+  toBoolean,
+  toNumber,
+} from "../../core/utils/index.js";
 
 function createLandingService({ repository }) {
   const MAX_ACTIVE_LANDING_PLACES = 4;
@@ -60,36 +66,28 @@ function createLandingService({ repository }) {
     }
   }
 
-  async function assertDisplayOrderUnique({
+  async function reassignDisplayOrderConflict({
     displayOrder,
     excludeId = null,
     country = null,
-    force = false,
   }) {
-    if (displayOrder === null || displayOrder === undefined) {
-      return null;
-    }
-    if (force) {
-      return null;
+    const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
+    if (normalizedOrder < 0) {
+      return normalizedOrder;
     }
     const rows = await repository.findAll({
       ...(country ? { country } : {}),
       includeDeleted: true,
     });
-    const duplicate = rows.find((row) => {
-      if (excludeId && row.id === excludeId) {
-        return false;
-      }
-      return toNumber(row.display_order, null) === toNumber(displayOrder, null);
-    });
+    const duplicate = findDisplayOrderConflict(
+      normalizedOrder,
+      rows,
+      excludeId,
+    );
     if (duplicate) {
-      throw new AppError(
-        400,
-        "Display order must be unique in landing places.",
-        "DUPLICATE_DISPLAY_ORDER",
-      );
+      await repository.update(duplicate.id, { display_order: -1 });
     }
-    return null;
+    return normalizedOrder;
   }
 
   function toLandingPlace(row) {
@@ -187,8 +185,10 @@ function createLandingService({ repository }) {
         supportsCountry && country ? { country } : {},
       );
 
-      const displayOrder = toNumber(data.displayOrder, existing.length);
-      await assertDisplayOrderUnique({ displayOrder, country, force: Boolean(data.forceDisplayOrder) });
+      const displayOrder = await reassignDisplayOrderConflict({
+        displayOrder: normalizeDisplayOrderInput(data.displayOrder, -1),
+        country,
+      });
 
       const row = await repository.create({
         name: title,
@@ -282,12 +282,14 @@ function createLandingService({ repository }) {
       if (data.imageUrl !== undefined || data.image !== undefined)
         updates.image_url = normalizeText(data.image ?? data.imageUrl);
       if (data.displayOrder !== undefined) {
-        updates.display_order = toNumber(data.displayOrder);
-        await assertDisplayOrderUnique({
+        updates.display_order = normalizeDisplayOrderInput(
+          data.displayOrder,
+          -1,
+        );
+        updates.display_order = await reassignDisplayOrderConflict({
           displayOrder: updates.display_order,
           excludeId: id,
           country: incomingCountry,
-          force: Boolean(data.forceDisplayOrder),
         });
       }
       if (data.isActive !== undefined)

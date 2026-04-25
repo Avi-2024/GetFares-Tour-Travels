@@ -1,5 +1,11 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
-import { normalizeText, toBoolean, toNumber } from "../../core/utils/index.js";
+import {
+  findDisplayOrderConflict,
+  normalizeDisplayOrderInput,
+  normalizeText,
+  toBoolean,
+  toNumber,
+} from "../../core/utils/index.js";
 
 function createExperienceService({ repository }) {
   function parseCountryIds(value) {
@@ -132,6 +138,30 @@ function createExperienceService({ repository }) {
     };
   }
 
+  async function reassignFeaturedPickDisplayOrder({
+    displayOrder,
+    country,
+    excludeId = null,
+  }) {
+    const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
+    if (normalizedOrder < 0) {
+      return normalizedOrder;
+    }
+    const rows = await repository.findFeaturedPicks({
+      includeDeleted: true,
+      ...(country ? { country } : {}),
+    });
+    const duplicate = findDisplayOrderConflict(
+      normalizedOrder,
+      rows,
+      excludeId,
+    );
+    if (duplicate) {
+      await repository.updateFeaturedPick(duplicate.id, { display_order: -1 });
+    }
+    return normalizedOrder;
+  }
+
   return Object.freeze({
     async listFeaturedPicks(filters = {}) {
       const { countryId, countryIds, ...repositoryFilters } = filters;
@@ -203,7 +233,10 @@ function createExperienceService({ repository }) {
           data.metadata && typeof data.metadata === "object" ?
             data.metadata
           : {},
-        display_order: toNumber(data.displayOrder, 0),
+        display_order: await reassignFeaturedPickDisplayOrder({
+          displayOrder: data.displayOrder,
+          country,
+        }),
         is_active: toBoolean(data.isActive, true),
       });
 
@@ -217,6 +250,10 @@ function createExperienceService({ repository }) {
       }
 
       const updates = {};
+      const nextCountry =
+        data.country !== undefined ?
+          normalizeText(data.country)
+        : normalizeText(existing.country);
       if (data.slug !== undefined) updates.slug = normalizeText(data.slug);
       if (data.title !== undefined) updates.title = normalizeText(data.title);
       if (data.subtitle !== undefined) {
@@ -234,11 +271,10 @@ function createExperienceService({ repository }) {
         updates.reference_id = normalizeText(data.referenceId);
       }
       if (data.country !== undefined) {
-        const country = normalizeText(data.country);
-        if (!country) {
+        if (!nextCountry) {
           throw new AppError(400, "Country cannot be empty", "INVALID_COUNTRY");
         }
-        updates.country = country;
+        updates.country = nextCountry;
       }
       if (
         data.countryIds !== undefined ||
@@ -286,7 +322,18 @@ function createExperienceService({ repository }) {
         updates.metadata = data.metadata;
       }
       if (data.displayOrder !== undefined) {
-        updates.display_order = toNumber(data.displayOrder, 0);
+        updates.display_order = await reassignFeaturedPickDisplayOrder({
+          displayOrder: data.displayOrder,
+          country: nextCountry,
+          excludeId: id,
+        });
+      }
+      if (data.displayOrder === undefined && data.country !== undefined) {
+        updates.display_order = await reassignFeaturedPickDisplayOrder({
+          displayOrder: existing.display_order,
+          country: nextCountry,
+          excludeId: id,
+        });
       }
       if (data.isActive !== undefined)
         updates.is_active = toBoolean(data.isActive, true);

@@ -198,6 +198,7 @@ function createCmsPackagesRepository({ db, schema }) {
     async softDeletePackageById(id) {
       return db.update(schema.packagesTable, id, {
         is_deleted: true,
+        display_order: -1,
       });
     },
 
@@ -324,7 +325,10 @@ function createCmsPackagesRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.update(schema.mainPackagesTable, id, { is_deleted: true });
+      await db.update(schema.mainPackagesTable, id, {
+        is_deleted: true,
+        display_order: -1,
+      });
       return db.findById(schema.mainPackagesTable, id);
     },
 
@@ -423,7 +427,10 @@ function createCmsPackagesRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.update(schema.packagesTable, id, { is_deleted: true });
+      await db.update(schema.packagesTable, id, {
+        is_deleted: true,
+        display_order: -1,
+      });
       return db.findById(schema.packagesTable, id);
     },
 

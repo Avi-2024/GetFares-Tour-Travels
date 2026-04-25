@@ -72,6 +72,29 @@ function isDisplayOrderUnique(displayOrder, rows, excludeId = null) {
   });
 }
 
+function normalizeDisplayOrderInput(value, fallback = -1) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  const normalizedOrder = toNumber(value, fallback);
+  return normalizedOrder >= 0 ? normalizedOrder : -1;
+}
+
+function findDisplayOrderConflict(displayOrder, rows, excludeId = null) {
+  const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
+  if (normalizedOrder < 0) {
+    return null;
+  }
+  return (
+    rows.find((row) => {
+      if (excludeId && row.id === excludeId) {
+        return false;
+      }
+      return toNumber(row.display_order, -1) === normalizedOrder;
+    }) || null
+  );
+}
+
 export {
   asyncHandler,
   toSlug,
@@ -81,4 +104,6 @@ export {
   toBoolean,
   pagination,
   isDisplayOrderUnique,
+  normalizeDisplayOrderInput,
+  findDisplayOrderConflict,
 };

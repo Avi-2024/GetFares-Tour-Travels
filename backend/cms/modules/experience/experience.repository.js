@@ -159,7 +159,10 @@ function createExperienceRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.update(schema.featuredTable, id, { is_deleted: true });
+      await db.update(schema.featuredTable, id, {
+        is_deleted: true,
+        display_order: -1,
+      });
       return db.findById(schema.featuredTable, id);
     },
 
@@ -269,7 +272,10 @@ function createExperienceRepository({ db, schema }) {
       if (!existing) {
         return null;
       }
-      await db.update(schema.seasonsTable, id, { is_deleted: true });
+      await db.update(schema.seasonsTable, id, {
+        is_deleted: true,
+        display_order: -1,
+      });
       return db.findById(schema.seasonsTable, id);
     },
 

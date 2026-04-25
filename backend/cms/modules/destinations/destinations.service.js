@@ -1,5 +1,7 @@
 import { AppError } from "../../core/middlewares/errorHandler.js";
 import {
+  findDisplayOrderConflict,
+  normalizeDisplayOrderInput,
   normalizeText,
   toBoolean,
   toNumber,
@@ -198,6 +200,7 @@ function createDestinationsService({ repository }) {
       }),
       metaTitle: row.meta_title,
       metaDescription: row.meta_description,
+      displayOrder: toNumber(row.display_order, -1),
       isActive: row.is_active,
       isDeleted: row.is_deleted,
       is_deleted: row.is_deleted,
@@ -258,6 +261,26 @@ function createDestinationsService({ repository }) {
         .filter((url) => Boolean(url) && url !== titleUrl),
     ];
     return Array.from(new Set(urls)).slice(0, 4);
+  }
+
+  async function reassignDestinationDisplayOrder({
+    displayOrder,
+    excludeId = null,
+  }) {
+    const normalizedOrder = normalizeDisplayOrderInput(displayOrder, -1);
+    if (normalizedOrder < 0) {
+      return normalizedOrder;
+    }
+    const rows = await repository.findAll({ includeDeleted: true });
+    const duplicate = findDisplayOrderConflict(
+      normalizedOrder,
+      rows,
+      excludeId,
+    );
+    if (duplicate) {
+      await repository.update(duplicate.id, { display_order: -1 });
+    }
+    return normalizedOrder;
   }
 
   return Object.freeze({
@@ -435,6 +458,9 @@ function createDestinationsService({ repository }) {
           Array.isArray(data.bestTimeToVisit) ? data.bestTimeToVisit : [],
         meta_title: normalizeText(data.metaTitle),
         meta_description: normalizeText(data.metaDescription),
+        display_order: await reassignDestinationDisplayOrder({
+          displayOrder: data.displayOrder,
+        }),
         is_active: toBoolean(data.isActive, true),
       });
 
@@ -544,6 +570,12 @@ function createDestinationsService({ repository }) {
         updates.meta_title = normalizeText(data.metaTitle);
       if (data.metaDescription !== undefined)
         updates.meta_description = normalizeText(data.metaDescription);
+      if (data.displayOrder !== undefined) {
+        updates.display_order = await reassignDestinationDisplayOrder({
+          displayOrder: data.displayOrder,
+          excludeId: id,
+        });
+      }
       if (data.isActive !== undefined)
         updates.is_active = toBoolean(data.isActive, true);
 

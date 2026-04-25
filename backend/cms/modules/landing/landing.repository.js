@@ -161,7 +161,10 @@ function createLandingRepository({ db, schema }) {
         return null;
       }
       if (await supportsIsDeletedColumn()) {
-        await db.update(schema.tableName, id, { is_deleted: true });
+        await db.update(schema.tableName, id, {
+          is_deleted: true,
+          display_order: -1,
+        });
         return db.findById(schema.tableName, id);
       }
       await db.query(`DELETE FROM ${schema.tableName} WHERE id = ?`, [id]);
