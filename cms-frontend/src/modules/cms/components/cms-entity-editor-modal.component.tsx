@@ -243,19 +243,19 @@ class CmsEntityEditorModalComponent extends Component<
     source: RelationSourceKey,
   ): Promise<CmsFieldOption[]> {
     if (source === "featured-references") {
-      const [packages, destinations, visa] = await Promise.all([
-        this.cmsService.list("published-packages"),
+      const [destinations, visa] = await Promise.all([
+        // this.cmsService.list("published-packages"),
         this.cmsService.list("destinations"),
         this.cmsService.list("visa-destinations"),
       ]);
       return [
-        ...packages.map((item) => ({
-          value: item.id,
-          label: `Package - ${item.row.cells.package?.value ?? item.id}`,
-          meta: {
-            destinationName: item.row.cells.destination?.value ?? "",
-          },
-        })),
+        // ...packages.map((item) => ({
+        //   value: item.id,
+        //   label: `Package - ${item.row.cells.package?.value ?? item.id}`,
+        //   meta: {
+        //     destinationName: item.row.cells.destination?.value ?? "",
+        //   },
+        // })),
         ...destinations.map((item) => ({
           value: item.id,
           label: `Destination - ${item.row.cells.destination?.value ?? item.id}`,
