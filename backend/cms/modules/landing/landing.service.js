@@ -63,9 +63,13 @@ function createLandingService({ repository }) {
     displayOrder,
     excludeId = null,
     country = null,
+    force = false,
   }) {
     if (displayOrder === null || displayOrder === undefined) {
-      return;
+      return null;
+    }
+    if (force) {
+      return null;
     }
     const rows = await repository.findAll({
       ...(country ? { country } : {}),
@@ -84,6 +88,7 @@ function createLandingService({ repository }) {
         "DUPLICATE_DISPLAY_ORDER",
       );
     }
+    return null;
   }
 
   function toLandingPlace(row) {
@@ -182,7 +187,7 @@ function createLandingService({ repository }) {
       );
 
       const displayOrder = toNumber(data.displayOrder, existing.length);
-      await assertDisplayOrderUnique({ displayOrder, country });
+      await assertDisplayOrderUnique({ displayOrder, country, force: Boolean(data.forceDisplayOrder) });
 
       const row = await repository.create({
         name: title,
@@ -281,6 +286,7 @@ function createLandingService({ repository }) {
           displayOrder: updates.display_order,
           excludeId: id,
           country: incomingCountry,
+          force: Boolean(data.forceDisplayOrder),
         });
       }
       if (data.isActive !== undefined)
