@@ -1563,8 +1563,9 @@ class CmsEntityEditorModalComponent extends Component<
 
   render() {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
-    const isLandingCreate =
-      this.props.sectionKey === "landing-places" && this.props.mode === "create";
+    const isLandingPlace =
+      this.props.sectionKey === "landing-places";
+    const isLandingCreate = isLandingPlace && this.props.mode === "create";
     return (
       <>
         <CmsModalShellComponent
@@ -1621,7 +1622,7 @@ class CmsEntityEditorModalComponent extends Component<
                   onRemoveMedia={this.onRemoveMedia}
                 />)}
 
-            {isLandingCreate && (
+            {isLandingPlace && (
               <div className="flex justify-end border-t border-[var(--border)] pt-3">
                 <button
                   type="button"
@@ -1634,7 +1635,7 @@ class CmsEntityEditorModalComponent extends Component<
               </div>
             )}
 
-            {isLandingCreate && this.state.copies.map((copy, index) => (
+            {isLandingPlace && this.state.copies.map((copy, index) => (
               <div
                 key={copy.id}
                 className="rounded-2xl border border-[var(--border)] bg-(--surface) p-4 space-y-4"
