@@ -58,6 +58,7 @@ interface CmsEntityEditorModalState {
   pendingForcePayload: Record<string, unknown> | null;
   copies: LandingCopy[];
   copyIdCounter: number;
+  isCopyAdding: boolean;
 }
 
 class CmsEntityEditorModalComponent extends Component<
@@ -95,6 +96,7 @@ class CmsEntityEditorModalComponent extends Component<
     pendingForcePayload: null,
     copies: [],
     copyIdCounter: 0,
+    isCopyAdding: false,
   };
 
   componentDidMount(): void {
@@ -489,6 +491,9 @@ class CmsEntityEditorModalComponent extends Component<
       slugTouched: false,
       allDestinations: [],
       allMainPackages: [],
+      copies: [],
+      copyIdCounter: 0,
+      isCopyAdding: false,
     });
 
     const relationSources = Array.from(
@@ -1032,26 +1037,30 @@ class CmsEntityEditorModalComponent extends Component<
   };
 
   private onAddCopy = (): void => {
-    this.setState((prev) => {
-      const copiedValues = { ...prev.formValues };
-      // carry the pending image file if present, else keep the url
-      const existingFile = prev.fieldImageFiles["imageUrl"] ?? null;
-      const existingPreview = prev.fieldImagePreviews["imageUrl"] ?? String(copiedValues.imageUrl ?? "");
-      return {
-        copies: [
-          ...prev.copies,
-          {
-            id: prev.copyIdCounter + 1,
-            formValues: copiedValues,
-            formErrors: {},
-            errorMessage: "",
-            imageFile: existingFile,
-            imagePreview: existingPreview,
-          },
-        ],
-        copyIdCounter: prev.copyIdCounter + 1,
-      };
-    });
+    this.setState({ isCopyAdding: true });
+    setTimeout(() => {
+      this.setState((prev) => {
+        const existingFile = prev.fieldImageFiles["imageUrl"] ?? null;
+        const existingPreview =
+          prev.fieldImagePreviews["imageUrl"] ??
+          String(prev.formValues.imageUrl ?? "");
+        return {
+          isCopyAdding: false,
+          copies: [
+            ...prev.copies,
+            {
+              id: prev.copyIdCounter + 1,
+              formValues: { ...prev.formValues },
+              formErrors: {},
+              errorMessage: "",
+              imageFile: existingFile,
+              imagePreview: existingPreview,
+            },
+          ],
+          copyIdCounter: prev.copyIdCounter + 1,
+        };
+      });
+    }, 300);
   };
 
   private onCopyFieldChange = (
@@ -1563,9 +1572,14 @@ class CmsEntityEditorModalComponent extends Component<
 
   render() {
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
-    const isLandingPlace =
-      this.props.sectionKey === "landing-places";
-    const isLandingCreate = isLandingPlace && this.props.mode === "create";
+    const isCopySupported =
+      this.props.sectionKey === "landing-places" ||
+      this.props.sectionKey === "destinations" ||
+      this.props.sectionKey === "main-packages" ||
+      this.props.sectionKey === "sub-packages" ||
+      this.props.sectionKey === "visa-destinations" ||
+      this.props.sectionKey === "creative-toolkit";
+    const isLandingCreate = isCopySupported && this.props.mode === "create";
     return (
       <>
         <CmsModalShellComponent
@@ -1622,20 +1636,25 @@ class CmsEntityEditorModalComponent extends Component<
                   onRemoveMedia={this.onRemoveMedia}
                 />)}
 
-            {isLandingPlace && (
+            {isCopySupported && (
               <div className="flex justify-end border-t border-[var(--border)] pt-3">
                 <button
                   type="button"
                   onClick={this.onAddCopy}
-                  disabled={this.state.isSubmitting}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-(--background-soft)"
+                  disabled={this.state.isSubmitting || this.state.isCopyAdding}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-(--background-soft) disabled:opacity-60"
                 >
-                  <span>⧉</span> Copy Fields
+                  {this.state.isCopyAdding ? (
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-secondary)] border-t-transparent" />
+                  ) : (
+                    <span>⧉</span>
+                  )}
+                  {this.state.isCopyAdding ? "Copying..." : "Copy Fields"}
                 </button>
               </div>
             )}
 
-            {isLandingPlace && this.state.copies.map((copy, index) => (
+            {isCopySupported && this.state.copies.map((copy, index) => (
               <div
                 key={copy.id}
                 className="rounded-2xl border border-[var(--border)] bg-(--surface) p-4 space-y-4"
