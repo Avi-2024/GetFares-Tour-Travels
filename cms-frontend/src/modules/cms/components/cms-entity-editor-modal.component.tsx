@@ -201,7 +201,9 @@ class CmsEntityEditorModalComponent extends Component<
     if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
       return text;
     }
-    const slashMatch = text.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/);
+    const slashMatch = text.match(
+      /^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})$/,
+    );
     if (slashMatch) {
       const [, mm, dd, yyyy] = slashMatch;
       return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
@@ -279,7 +281,9 @@ class CmsEntityEditorModalComponent extends Component<
           item.row.cells.mainPackage?.value ||
           item.id,
         meta: {
-          country: String(item.raw.country ?? item.raw.destination_country ?? ""),
+          country: String(
+            item.raw.country ?? item.raw.destination_country ?? "",
+          ),
         },
       }));
     }
@@ -309,7 +313,9 @@ class CmsEntityEditorModalComponent extends Component<
         value: item.id,
         label: item.row.cells.destination?.value || item.id,
         meta: {
-          country: String(item.raw.country ?? item.raw.destination_country ?? ""),
+          country: String(
+            item.raw.country ?? item.raw.destination_country ?? "",
+          ),
         },
       }));
     }
@@ -322,7 +328,9 @@ class CmsEntityEditorModalComponent extends Component<
           item.row.cells.mainPackage?.value ||
           item.id,
         meta: {
-          country: String(item.raw.country ?? item.raw.destination_country ?? ""),
+          country: String(
+            item.raw.country ?? item.raw.destination_country ?? "",
+          ),
         },
       }));
     }
@@ -489,10 +497,16 @@ class CmsEntityEditorModalComponent extends Component<
     const currentCountry = String(formValues["country"] ?? "");
     if (currentCountry) {
       if (allDestinations.length > 0) {
-        nextOptions.destinations = this.filterByCountry(allDestinations, currentCountry);
+        nextOptions.destinations = this.filterByCountry(
+          allDestinations,
+          currentCountry,
+        );
       }
       if (allMainPackages.length > 0) {
-        nextOptions["main-packages"] = this.filterByCountry(allMainPackages, currentCountry);
+        nextOptions["main-packages"] = this.filterByCountry(
+          allMainPackages,
+          currentCountry,
+        );
       }
     }
 
@@ -628,11 +642,17 @@ class CmsEntityEditorModalComponent extends Component<
         const country = String(nextValue ?? "");
         nextRelationOptions = { ...prev.relationOptions };
         if (prev.allDestinations.length > 0) {
-          nextRelationOptions.destinations = this.filterByCountry(prev.allDestinations, country);
+          nextRelationOptions.destinations = this.filterByCountry(
+            prev.allDestinations,
+            country,
+          );
           formValues["destinationId"] = "";
         }
         if (prev.allMainPackages.length > 0) {
-          nextRelationOptions["main-packages"] = this.filterByCountry(prev.allMainPackages, country);
+          nextRelationOptions["main-packages"] = this.filterByCountry(
+            prev.allMainPackages,
+            country,
+          );
           formValues["mainPackageId"] = "";
         }
       }
@@ -703,8 +723,9 @@ class CmsEntityEditorModalComponent extends Component<
       const firstErrorField = definition.fields.find(
         (field) => result.errors[field.key],
       );
-      const message = firstErrorField
-        ? `Please fill in the "${firstErrorField.label}" field.`
+      const message =
+        firstErrorField ?
+          `Please fill in the "${firstErrorField.label}" field.`
         : "Please fill in all required fields.";
       this.setState({ formUploadErrorMessage: message });
     }
@@ -737,10 +758,7 @@ class CmsEntityEditorModalComponent extends Component<
     const payload: Record<string, unknown> = {};
     const definition = CmsEntityFormCatalog.get(this.props.sectionKey);
     definition.fields.forEach((field) => {
-      if (
-        this.props.sectionKey === "sub-packages" &&
-        field.key === "country"
-      ) {
+      if (this.props.sectionKey === "sub-packages" && field.key === "country") {
         return;
       }
       const value = this.state.formValues[field.key];
@@ -752,9 +770,9 @@ class CmsEntityEditorModalComponent extends Component<
     });
     const mediaItems = mediaItemsOverride ?? this.state.mediaItems;
     const primary = mediaItems.find((item) => item.isPrimary) ?? mediaItems[0];
-      if (primary) {
-        if (this.props.sectionKey === "landing-places")
-          payload.imageUrl = primary.mediaUrl;
+    if (primary) {
+      if (this.props.sectionKey === "landing-places")
+        payload.imageUrl = primary.mediaUrl;
       if (this.props.sectionKey === "destinations") {
         payload.media = {
           title_image: primary.mediaUrl,

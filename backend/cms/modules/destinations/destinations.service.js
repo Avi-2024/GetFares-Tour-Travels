@@ -25,6 +25,7 @@ function createDestinationsService({ repository }) {
 
   function includesCountryId(countryIds, countryId) {
     if (!countryId) return true;
+    if (!Array.isArray(countryIds) || countryIds.length === 0) return true;
     return countryIds.some(
       (id) =>
         String(id).trim().toLowerCase() ===

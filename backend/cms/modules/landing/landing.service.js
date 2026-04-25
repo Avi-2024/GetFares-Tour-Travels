@@ -23,6 +23,7 @@ function createLandingService({ repository }) {
 
   function includesCountryId(countryIds, countryId) {
     if (!countryId) return true;
+    if (!Array.isArray(countryIds) || countryIds.length === 0) return true;
     return (countryIds || []).some(
       (item) =>
         String(item).trim().toLowerCase() ===

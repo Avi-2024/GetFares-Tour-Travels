@@ -8,12 +8,6 @@ function createVisaController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
-      if (req.query.countryId) {
-        filters.countryId = req.query.countryId;
-      }
-      if (req.query.countryIds) {
-        filters.countryIds = req.query.countryIds;
-      }
       if (req.query.isActive !== undefined)
         filters.is_active = req.query.isActive === "true";
       if (req.query.includeDeleted !== undefined) {
@@ -31,12 +25,6 @@ function createVisaController({ service, uploadService }) {
       const filters = {};
       if (req.query.country) {
         filters.country = req.query.country;
-      }
-      if (req.query.countryId) {
-        filters.countryId = req.query.countryId;
-      }
-      if (req.query.countryIds) {
-        filters.countryIds = req.query.countryIds;
       }
 
       const visaDestinations = await service.listDeleted(filters);
@@ -67,9 +55,6 @@ function createVisaController({ service, uploadService }) {
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
       }
-      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
-        payload.countryIds = [req.query.countryId];
-      }
       const imageFile = getFirstRequestFile(req, [
         "bannerImage",
         "image",
@@ -98,9 +83,6 @@ function createVisaController({ service, uploadService }) {
       const payload = { ...req.body };
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
-      }
-      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
-        payload.countryIds = [req.query.countryId];
       }
       const imageFile = getFirstRequestFile(req, [
         "bannerImage",

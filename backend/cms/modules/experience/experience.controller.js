@@ -8,12 +8,6 @@ function createExperienceController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
-      if (req.query.countryId) {
-        filters.countryId = req.query.countryId;
-      }
-      if (req.query.countryIds) {
-        filters.countryIds = req.query.countryIds;
-      }
       if (req.query.isActive !== undefined) {
         filters.is_active = req.query.isActive === "true";
       }
@@ -36,12 +30,6 @@ function createExperienceController({ service, uploadService }) {
       if (req.query.country) {
         filters.country = req.query.country;
       }
-      if (req.query.countryId) {
-        filters.countryId = req.query.countryId;
-      }
-      if (req.query.countryIds) {
-        filters.countryIds = req.query.countryIds;
-      }
       if (req.query.sectionKey) {
         filters.section_key = req.query.sectionKey;
       }
@@ -62,9 +50,6 @@ function createExperienceController({ service, uploadService }) {
       const payload = { ...req.body };
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
-      }
-      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
-        payload.countryIds = [req.query.countryId];
       }
       const imageFile = getFirstRequestFile(req, [
         "bannerImage",
@@ -88,9 +73,6 @@ function createExperienceController({ service, uploadService }) {
       const payload = { ...req.body };
       if (!payload.country && req.query.country) {
         payload.country = req.query.country;
-      }
-      if (!payload.countryIds && !payload.countryId && req.query.countryId) {
-        payload.countryIds = [req.query.countryId];
       }
       const imageFile = getFirstRequestFile(req, [
         "bannerImage",
