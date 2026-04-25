@@ -1579,7 +1579,6 @@ class CmsEntityEditorModalComponent extends Component<
       this.props.sectionKey === "sub-packages" ||
       this.props.sectionKey === "visa-destinations" ||
       this.props.sectionKey === "creative-toolkit";
-    const isLandingCreate = isCopySupported && this.props.mode === "create";
     return (
       <>
         <CmsModalShellComponent
