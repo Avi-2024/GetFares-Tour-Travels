@@ -621,12 +621,11 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
-            key: "countryIds",
-            label: "Countries",
-            type: "multi-select",
+            key: "country",
+            label: "Country",
+            type: "select",
             options: CmsEntityFormCatalog.countryOptions,
             groupKey: "basic",
-            helperText: "Select one or more countries for this package.",
           },
           {
             key: "title",
@@ -763,9 +762,9 @@ class CmsEntityFormCatalog {
         ],
         fields: [
           {
-            key: "countryIds",
-            label: "Countries",
-            type: "multi-select",
+            key: "country",
+            label: "Country",
+            type: "select",
             options: CmsEntityFormCatalog.countryOptions,
             groupKey: "basic",
             helperText: "Filter parent packages by country.",
